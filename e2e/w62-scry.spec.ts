@@ -1,5 +1,5 @@
 /**
- * Wave 62 §S, AE4 — against real Forge. The operator, 2026-10-08: *"dragging
+ * Against real Forge. The operator, 2026-10-08: *"dragging
  * cards for scrying is a bit inconsistent. can we us the same phantom card
  * and placement logic we use for putting cards on the board? also, when
  * cards have been selected to be put on bottom and we show the up/down
@@ -95,7 +95,7 @@ test(
       await expect(destRows, 'both cards are now placed').toHaveCount(2);
       await expect(destRows.first(), 'the second drag landed before the first').toHaveAttribute('data-key', secondKey!);
 
-      // AE4's second half: the ↑ for a placed row sits ON its own tile, not in a row beside it.
+      // The second half of the brief: the ↑ for a placed row sits ON its own tile, not in a row beside it.
       const placedFirst = destRows.first();
       await expect(placedFirst.locator('.prompt__row-actions'), 'no actions row — that shape is gone').toHaveCount(0);
       const placedBox = (await placedFirst.boundingBox())!;

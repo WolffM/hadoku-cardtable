@@ -524,7 +524,7 @@ test(titled('Ponder\'s full oracle text is readable by hovering the placed card,
     const item = bob.page.locator('[data-placed-spell][aria-label*="Ponder" i]');
     await expect(item, 'Ponder\'s own placed card is drawn for the opponent too').toHaveCount(1, { timeout: 10_000 });
 
-    // AE2: a decision pop-up is up on bob's own screen while he reads
+    // A decision pop-up is up on bob's own screen while he reads
     // Ponder. Ponder's own post-resolution ask is unreliable here (see the
     // comment above), so this one is synthesized — but carries the real
     // `.live__prompt` class `inspect/index.ts` keys off, sized like the real
@@ -552,7 +552,7 @@ test(titled('Ponder\'s full oracle text is readable by hovering the placed card,
     // confirmed verbatim: "Look at the top three cards of your library…").
     await expect(big, 'the inspector carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
 
-    // AE2 (the operator: hovering Serum Visions with a decision open blocked
+    // The operator: hovering Serum Visions with a decision open blocked
     // the card itself): the panel covers neither the card it enlarges nor
     // the decision pop-up beside it.
     const disjoint = (a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean =>

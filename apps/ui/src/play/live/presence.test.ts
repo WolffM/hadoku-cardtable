@@ -117,7 +117,7 @@ function fakeTransport() {
  * fixture in this file that lifts a card or aims an arrow is exactly the
  * "actively aiming" case item 3 means, and defaulting it on lets those keep
  * testing `from` without each threading the flag through by hand. The one
- * test for item 3 itself (AE6, AE10 — a parked card reports no `from` when
+ * test for item 3 itself (a parked card reports no `from` when
  * NOT aiming) overrides it explicitly.
  */
 const host = (t: ReturnType<typeof fakeTransport>, seat: number | null = 0): PresenceHost => ({
@@ -177,7 +177,7 @@ describe('the mirror', () => {
   });
 });
 
-describe('overOf (AE1)', () => {
+describe('overOf', () => {
   it('over a public card: the id and the pointer’s fractions of THAT card’s own box, never the board’s', () => {
     const { canvas, theirCard } = board();
     document.elementFromPoint = (x, y) => (x >= 120 && x <= 180 && y >= 200 && y <= 284 ? theirCard.firstElementChild : null);
@@ -247,7 +247,7 @@ describe('sending', () => {
   });
 
   /**
-   * AE6, AE10: the operator saw an arrow draw on the other screen for a
+   * The operator saw an arrow draw on the other screen for a
    * parked card with no target at all, and again while picking Condescend's
    * X (a selection, not an arrow-worthy aim). `from` must be null whenever
    * THIS seat is not actually aiming, held or not — this is item 3's own
@@ -311,7 +311,7 @@ describe('sending', () => {
     handle.dispose();
   });
 
-  it('the release reads the lifted card’s OWN box centre, not the raw pointerup coordinates (AE6)', () => {
+  it('the release reads the lifted card’s OWN box centre, not the raw pointerup coordinates', () => {
     // No `pointermove` fires between the card's last drawn spot and the up event — exactly the
     // gap the operator saw as "a bit of desync between where the phantom card was and where the
     // cursor actually released the card." The lifted element's own rect is what `drawCastLift`
@@ -424,10 +424,10 @@ describe('sending', () => {
   });
 });
 
-describe('receiving: card- and hand-anchored `over` (AE1)', () => {
+describe('receiving: card- and hand-anchored `over`', () => {
   it('`over.card` lands the cursor INSIDE that card’s own box on THIS board, whatever shape this board is — not the sender’s board fraction', () => {
     // A receiver board where the card sits somewhere a board-fraction mapping of the sender's
-    // pointer would NOT land — the exact drift AE1 is about once the two screens size a row
+    // pointer would NOT land — the exact drift this guards against once the two screens size a row
     // differently. `over` sidesteps the board fraction entirely: it is resolved on this card's
     // own box, so it is correct regardless of what the sender's board looked like.
     const { canvas, theirCard } = board({ '[data-board-card="7"]': { left: 600, top: 40, width: 120, height: 168 } });

@@ -429,7 +429,7 @@ describe('two seats over the socket', () => {
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
 		expect(bob.presences[1]).toEqual({ ...message, over: null, arranging: null, handMove: { from: 0, to: 2 }, placing: null, seat: 0 });
 
-		// `over` (AE1): a public card by id, or a slot of the sender's own hand by index — each
+		// `over`: a public card by id, or a slot of the sender's own hand by index — each
 		// relays with its own-box fractions, never a board fraction.
 		alice.socket.emit('forge:presence', { ...message, over: { card: '42', x: 0.3, y: 0.6 } });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(3));

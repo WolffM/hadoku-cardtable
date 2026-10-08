@@ -57,7 +57,7 @@ test(titled('the T2 banner names the verb and the host card — "Waiting for Ali
 
     // Bob's pop-up: the verb table (Settled) — `setSelectables` with min !== 1
     // reuses `getChoices`'s own slot, "choose cards". One component, one
-    // testid, for both the pregame and the mid-game wait (wave 62 §D, AE3) —
+    // testid, for both the pregame and the mid-game wait —
     // there is no separate pregame shape left to compete with this fact.
     const waiting = bob.page.getByTestId('live-waiting-pop');
     await expect(waiting, `bob's own line: "${await says(bob.page)}"`).toHaveText('Waiting for Alice to choose cards for Thirst for Knowledge…', {

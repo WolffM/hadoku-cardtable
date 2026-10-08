@@ -1,5 +1,5 @@
 /**
- * Wave 62 §D, AE9 — the operator, on Condescend: *"i cast 'condescend' which
+ * The operator, on Condescend: *"i cast 'condescend' which
  * lets me scry as part of the resolution of the spell, but also asks the
  * opponent about paying the cost. lets be careful and resolve these things
  * one at at time, i dont think it should be showing simultaneously."*
@@ -7,8 +7,8 @@
  * Whether Forge opens bob's "pay {X} or be countered" window (he is the
  * targeted spell's controller) and alice's own, unconditional Scry 2 AT
  * ONCE — both already on the wire before either is resolved — or in
- * sequence, was NOT measured before this wave (the ledger's own note on
- * AE9). This is that measurement, against a real Forge jar: bob (`ai…`
+ * sequence, was NOT measured before this wave. This is that measurement,
+ * against a real Forge jar: bob (`ai…`
  * keys, `w62-condescend.state`) casts Grizzly Bears in his own Main Phase
  * 1; alice (`human…` keys) responds with Condescend, X=1, targeting it
  * (the only spell on the stack, so Forge's own targeting choice is a
@@ -58,7 +58,7 @@
  * ask reach the wire at all, ~30ms later — Forge's own resolution of
  * Condescend blocks on bob's reply before it ever computes alice's scry.
  * `match.ts`'s `openAsk` needs no cross-seat hold: there is nothing for it
- * to hold back. AE9's "showing simultaneously" is therefore a CLIENT
+ * to hold back. The operator's "showing simultaneously" is therefore a CLIENT
  * rendering artifact, not a server race — `docs/planning/wave62-evidence/
  * D/waiting.md` has the full note; lane D's fix is client-side only
  * (`match.ts`'s `closeAsk` ordering is untouched).
@@ -286,7 +286,7 @@ describe.skipIf(!available.ok)(title, () => {
         expect(bobPayAt, 'bob (the targeted spell’s controller) was asked to pay or decline').not.toBeNull();
         expect(aliceScry, 'alice (Condescend’s own caster) was asked to scry').not.toBeNull();
 
-        // The measured fact this item turns on (AE9, "Settled — do not
+        // The measured fact this item turns on ("Settled — do not
         // re-open"): Condescend's resolution opens bob's payment window
         // and alice's scry SEQUENTIALLY — Forge does not compute alice's
         // `order` ask until bob's own payment is resolved. See

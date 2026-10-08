@@ -198,11 +198,11 @@ describe('opening', () => {
     }
   });
 
-  it('beside a decision window, the panel also clears the hovered card itself (AE2) — real rects, not jsdom zeros', () => {
+  it('beside a decision window, the panel also clears the hovered card itself — real rects, not jsdom zeros', () => {
     // The operator, 2026-10-08: hovering Serum Visions with a decision open
     // blocked the card itself. jsdom zeroes every box by default
     // (`place.test.ts`'s own header), so the geometry claim needs rects
-    // stubbed in: the hovered card sits exactly where the pre-AE2 function
+    // stubbed in: the hovered card sits exactly where the previous function
     // would have put the panel (left of the pop-up, blind to the card),
     // which only the fix's hover-awareness steers around.
     const { board, theirCard } = mountBoard();
@@ -276,7 +276,7 @@ describe('opening', () => {
 
   it('a hand card enlarges above the hand whatever is open; the waiting pop-up is not a decision window', () => {
     // The operator, 2026-10-07: hovering a hand card under "Waiting for Bella…" no longer placed it above the hand.
-    // wave 62 §D: the pregame wait and the mid-game wait are now ONE
+    // The pregame wait and the mid-game wait are now ONE
     // component (`LiveBoard.tsx`'s `WaitingPop`), one testid —
     // `live-waiting-pop` — drawn in the ordinary `.live__prompt` slot.
     const { panel, board, myHandCard } = mountBoard();

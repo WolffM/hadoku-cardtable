@@ -3,7 +3,7 @@
  * rows by dragging them — `ManipulateCardListPrompt.tsx`'s one pile with two
  * ends, and `OrderPrompt.tsx`'s two lists.
  *
- * Wave 62 §S, AE4. The operator, 2026-10-08: *"dragging cards for scrying is
+ * The operator, 2026-10-08: *"dragging cards for scrying is
  * a bit inconsistent. can we us the same phantom card and placement logic we
  * use for putting cards on the board?"* Both prompts used native HTML5
  * `draggable`/`onDrag*` — the browser's own ghost, no slop, nothing like the

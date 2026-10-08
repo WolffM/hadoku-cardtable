@@ -127,7 +127,7 @@ export interface PresenceHost {
    * Whether THIS seat is actively aiming — a selection is open, or a stack
    * ask is (`match.selectables !== null || stackAsk(match) !== null`, the
    * same condition `paint()` uses for its own arrow). `from` is sent only
-   * then (AE6, AE10): a parked card with no target reports no arrow tail.
+   * then: a parked card with no target reports no arrow tail.
    * Absent: treated as never aiming, the safe default (no spurious arrow)
    * until the host wires this in.
    */
@@ -176,7 +176,7 @@ export function spotOf(canvas: HTMLElement, point: Point): PresenceSpot | null {
 
 /**
  * What a client point is OVER, when that is a sharper anchor than the board
- * fraction (AE1): a public card (`[data-board-card]` — battlefield,
+ * fraction: a public card (`[data-board-card]` — battlefield,
  * graveyard, exile — or `[data-placed-spell]`, the stack's own layer), or a
  * slot of the VIEWER's OWN hand (never a card id there — the receiver draws
  * that hand as backs, so only the slot's INDEX may cross). Hovering the
@@ -283,8 +283,8 @@ function arrangingOf(canvas: HTMLElement): { card: number; at: Point } | null {
 function handsOf(canvas: HTMLElement, aiming: boolean): { held: boolean; from: Point | null } {
   const lift = canvas.querySelector<HTMLElement>('[data-cast-lift]');
   const held = lift !== null && lift.getAttribute('data-cast-lift') !== 'returning';
-  // `from` (the arrow's tail) is reported only while THIS seat is actually aiming (AE6, AE10:
-  // the operator saw an arrow — and once, briefly, while picking Condescend's X — on a card with
+  // `from` (the arrow's tail) is reported only while THIS seat is actually aiming (the operator
+  // saw an arrow — and once, briefly, while picking Condescend's X — on a card with
   // no target at all). A parked card with nothing to aim at reports no tail, held or not.
   if (!aiming) return { held, from: null };
   // A parked card (waiting on an X question, a target, Forge) has stopped: its centre is `from`,
@@ -445,7 +445,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   /**
-   * The release point `sendRelease` carries, AE6's fix: the lifted card's OWN
+   * The release point `sendRelease` carries: the lifted card's OWN
    * box centre right now, not the raw pointerup coordinates — a frame can go
    * by with no intervening `pointermove` before the up event, which left the
    * card's last-drawn spot and the wire's release spot a few pixels apart
@@ -632,7 +632,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const box = root.getBoundingClientRect();
     drawArranging(root, box, echo.arranging);
     glideHandMove(root, box, echo.handMove);
-    // AE1: card-anchored when `over` resolves to something drawn here (the SAME card, on either
+    // Card-anchored when `over` resolves to something drawn here (the SAME card, on either
     // screen, or the i-th back of their hand) — the board-fraction mapping of `pointer` drifts off
     // a card the moment the two screens size a row differently. Falls back to the board fraction
     // when `over` is null, or names an element this board has not drawn (yet).

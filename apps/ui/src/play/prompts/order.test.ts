@@ -4,7 +4,7 @@
  * fixture (Forge's "Select order for simultaneous abilities", 0 left over
  * allowed, "remember" offered).
  *
- * Wave 62 §S: the drag is now the board's own press-drag lift
+ * The drag is now the board's own press-drag lift
  * (`./scry-drag.ts`), not HTML5 `draggable`/`onDrag*` — `dragTo` below fires
  * exactly the pointer events `./manipulate.test.ts`'s own `dragTo` does (one
  * press, one move far enough past the slop and onto the release target, one

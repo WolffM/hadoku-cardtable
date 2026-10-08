@@ -177,7 +177,7 @@ describe('placeBesideModal', () => {
     const spot = placeBesideModal(hover, modal, AREA);
     // Left room 150 - 8 - 8 = 134, right room 1200 - 8 - 1008 = 184: the right
     // wins. `placeBesideModal` now finds this width by narrowing in on the
-    // widest clean size (AE2's hover-avoidance), so it is asserted to the
+    // widest clean size (the hover-avoidance below), so it is asserted to the
     // nearest micron rather than bit-exact.
     expect(spot.left).toBe(1000 + GAP);
     expect(spot.width).toBeCloseTo(184, 6);
@@ -193,7 +193,7 @@ describe('placeBesideModal', () => {
 });
 
 /*
- * AE2 (the operator, 2026-10-08): *"theres an active decision on my screen,
+ * The operator, 2026-10-08: *"theres an active decision on my screen,
  * and if i hover serum visions it blocks the card itself … let's try to be
  * a bit smarter about where to place the expanded img."* The pop-up alone is
  * no longer enough to clear: the hovered card's own rect is a second thing
@@ -202,7 +202,7 @@ describe('placeBesideModal', () => {
  * clean against BOTH rects wins; none clean shrinks each to its own widest
  * clean size and the widest of the four wins.
  */
-describe('placeBesideModal avoids the hovered card too (AE2)', () => {
+describe('placeBesideModal avoids the hovered card too', () => {
   const AREA: Rect = { left: 0, top: 0, right: 1200, bottom: 800 };
   // A hair's-width tolerance: the shrink path converges on the boundary
   // where the box exactly TOUCHES a rect (zero area, not an overlap) from a
@@ -217,7 +217,7 @@ describe('placeBesideModal avoids the hovered card too (AE2)', () => {
 
   it("a card sitting under the pop-up's left edge — where the panel would otherwise go — pushes it RIGHT instead", () => {
     // Room for the LEFT slot alone would be plenty (and is exactly what the
-    // pre-AE2 function returned, blind to `hover`) — but the hovered card is
+    // previous function returned, blind to `hover`) — but the hovered card is
     // sitting in it.
     const modal: Rect = { left: 600, top: 200, right: 900, bottom: 500 };
     const hover: Rect = { left: 340, top: 250, right: 580, bottom: 380 };

@@ -42,7 +42,7 @@
  * meaningless on another, and a bounded number is also what makes the schema
  * strict without caring about viewport sizes.
  *
- * **`over` is the exception, and the fix for AE1** (2026-10-08, the operator:
+ * **`over` is the exception** (2026-10-08, the operator:
  * *"the cards themselves don't actually get smaller in size until the screen
  * is much, much smaller. it's important that the cursor is correctly showing
  * what card is being hovered even if the screen size is vastly different."*).
@@ -107,7 +107,7 @@ export type PresenceSpot = z.output<typeof PresenceSpotSchema>;
 
 /**
  * What the pointer is over, when that is a more precise anchor than the
- * board fraction (AE1): a public card by id, or a slot of the SENDER's own
+ * board fraction: a public card by id, or a slot of the SENDER's own
  * hand by index (never a card id there — the receiver draws that hand as
  * backs). `x`/`y` are fractions of THAT element's own box, never the board's.
  */
@@ -128,7 +128,7 @@ export const PresenceSchema = z
     pointer: PresenceSpotSchema.nullable(),
     /**
      * What `pointer` is over, when that is sharper than the board fraction
-     * (AE1) — null defaults a pre-deploy sender's message, which never had
+     * — null defaults a pre-deploy sender's message, which never had
      * this field, to the old board-fraction-only placement.
      */
     over: PresenceOverSchema.default(null),

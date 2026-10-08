@@ -24,9 +24,9 @@
  * enabled while the left list holds as many items as the ask allows
  * (`rules.ts` `orderProblems`).
  *
- * ## Wave 62 §S — the drag is the board's own lift, not HTML5's
+ * ## The drag is the board's own lift, not HTML5's
  *
- * This is the SIBLING of the same AE4 complaint `ManipulateCardListPrompt.tsx`
+ * This is the SIBLING of the same complaint `ManipulateCardListPrompt.tsx`
  * answers, and (measured against a real match, `docs/planning/
  * wave62-evidence/S/scry.md`) the component that ask actually reaches: a
  * Scry's own two cards arrive here, as `order`, never as `manipulateCardList`.

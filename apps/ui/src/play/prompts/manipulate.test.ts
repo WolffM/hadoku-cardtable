@@ -16,7 +16,7 @@
  * `.card` panel the seat actually points at, inside the tile's label — not on
  * some control beside it, because the control beside it was the bug.
  *
- * Wave 62 §S: ordering by several cards is now a PRESS-DRAG lift — the same
+ * Ordering by several cards is now a PRESS-DRAG lift — the same
  * gesture the board gives a lifted hand card (`../live/gestures/cast.ts`),
  * not HTML5 `draggable`/`onDrag*`. `dragTo` below fires exactly the pointer
  * events `../live/gestures/gestures.test.ts` fires for the board's own lift:

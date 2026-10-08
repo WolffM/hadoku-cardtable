@@ -1250,7 +1250,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   });
 
   /*
-   * Wave 62 §S, AE5. The operator, 2026-10-08: "when drawing a box to tap
+   * The operator, 2026-10-08: "when drawing a box to tap
    * lands, can we have them all tap simultaneously rather than one at a
    * time?" The SEND stays one at a time (the test above) — this is the DRAWN
    * state, which no longer waits on it.
@@ -1318,7 +1318,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     for (const f of notify([prompt('Priority'), actionable([lands[1]!]), okBar()])) s.send(f);
     await new Promise((r) => setTimeout(r, 120));
     expect(sent(s), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
-    // AE5: the land the sweep never reached is no longer drawn pending once the sweep ends.
+    // The land the sweep never reached is no longer drawn pending once the sweep ends.
     expect(cardEl(canvas, lands[1]!).hasAttribute(TAPPED_PENDING_ATTR)).toBe(false);
   });
 

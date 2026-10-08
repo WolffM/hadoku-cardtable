@@ -461,7 +461,7 @@ function waitingSentence(name: string, fact: { method: string; hostCard: string 
 }
 
 /**
- * AE3, wave 62 §D. The operator: *"the 'Waiting for Hadoku to decide for
+ * The operator: *"the 'Waiting for Hadoku to decide for
  * Serum Visions...' text at the top is a bit easy to miss. can we instead
  * move text like that to the 'decision popout' area? similar to how it shows
  * 'Waiting for {opponent}...' during the mulligan phase? i think that would
@@ -1666,7 +1666,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
   /**
-   * AE9, wave 62 §D. Measured (`e2e/w62-condescend.spec.ts`, two real
+   * Measured (`e2e/w62-condescend.spec.ts`, two real
    * browsers): the server sequences bob's own payment window and alice's
    * scry ask strictly — Forge never computes the second until the first is
    * resolved (`w62-condescend.jvm.test.ts`'s own proof) — but a STALE
@@ -1974,7 +1974,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         transport: match.transport,
         opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
         theirPlayerId: () => match.view?.players.find((p) => !p.isViewer)?.id ?? null,
-        // AE10: `from` (the arrow's tail) is sent only while this seat is actually aiming — the
+        // `from` (the arrow's tail) is sent only while this seat is actually aiming — the
         // same condition `paint()` (`gestures/install.ts`) already uses for its own arrow.
         aiming: () => match.selectables !== null || stackAsk(match) !== null,
         watch: (onChange) => subscribe(match, onChange),
@@ -2434,7 +2434,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         </div>
       )}
       {/*
-       * T2 + W1 (AE3), merged into one pop-out — see `WaitingPop`'s own note.
+       * T2 + W1, merged into one pop-out — see `WaitingPop`'s own note.
        * Operator, on the coin toss / mulligan case: *"i think the coinflip
        * prompt should be shown to both players at once. and for the one who
        * lost they get the waiting prompt. same for mulligan…"* Pregame
@@ -2443,7 +2443,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * "Waiting for {name}…" the small line always used; the ordinary
        * mid-game wait gets the server's own fact (`waitingSentence`'s verb
        * table) when there is one. `!myOwnDecisionOpen`: see that flag's own
-       * note (AE9) — never drawn over this seat's OWN live decision, stale
+       * note — never drawn over this seat's OWN live decision, stale
        * fact or not.
        */}
       {waitingForOpponent && !myOwnDecisionOpen && (

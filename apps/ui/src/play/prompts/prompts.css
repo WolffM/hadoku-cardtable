@@ -194,7 +194,7 @@
 .prompt__list,
 .prompt__amounts {
   /*
-   * A minimum height even with no rows (wave 62 §S): `OrderPrompt.tsx`'s own
+   * A minimum height even with no rows: `OrderPrompt.tsx`'s own
    * two lists are both legal drop targets EMPTY — everything placed, or
    * nothing yet — and a collapsed `<ul>`/`<ol>` with no rows paints nothing
    * for a real pointer to land on, so a release over "the whole list" could
@@ -267,7 +267,7 @@
 }
 
 /*
- * The press-drag lift (wave 62 §S, AE4): `../live/gestures/gestures.css`'s
+ * The press-drag lift: `../live/gestures/gestures.css`'s
  * `[data-cast-lift]` rule already draws `position: fixed` and follows the
  * pointer for ANY element carrying the attribute — that part needs no CSS of
  * this file's own. What a board card has and a prompt tile does not is a
@@ -429,7 +429,7 @@
 }
 
 /*
- * ↑/↓ drawn ON a row's own tile, top-right (wave 62 §S, AE4 — the operator,
+ * ↑/↓ drawn ON a row's own tile, top-right (the operator,
  * 2026-10-08: *"when cards have been selected to be put on bottom and we show
  * the up/down arrow for reordering let's display those up/down arrows on top
  * of the card rather than in their own row. that makes it look a bit more

@@ -44,7 +44,7 @@
  * destination, and takes the tick off - so the mark can never claim something
  * the pile does not show.
  *
- * ## Wave 62 S - the lift is the board's, not HTML5's
+ * ## The lift is the board's, not HTML5's
  *
  * The operator, 2026-10-08: "dragging cards for scrying is a bit
  * inconsistent. can we us the same phantom card and placement logic we use for

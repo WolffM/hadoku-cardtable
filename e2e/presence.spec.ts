@@ -97,7 +97,7 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
 });
 
 /**
- * AE1, the operator: *"the cards themselves don't actually get smaller in
+ * The operator: *"the cards themselves don't actually get smaller in
  * size until the screen is much, much smaller. it's important that the
  * cursor is correctly showing what card is being hovered even if the screen
  * size is vastly different."* Two very differently shaped screens — the
@@ -105,7 +105,7 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
  * card-anchored fix instead: her cursor must land INSIDE the exact card she
  * is hovering on bob's board, not merely somewhere near it.
  */
-test(titled('AE1: her cursor lands on the exact card she hovers, even when the two screens are very differently shaped'), async ({ browser }) => {
+test(titled('her cursor lands on the exact card she hovers, even when the two screens are very differently shaped'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -140,13 +140,13 @@ test(titled('AE1: her cursor lands on the exact card she hovers, even when the t
 });
 
 /**
- * AE6, AE10, the operator: *"I even saw a targeter arrow briefly? thats very
+ * The operator: *"I even saw a targeter arrow briefly? thats very
  * weird. this card has no targeter."* and *"the targeter arrow should only
  * be drawn if i'm actually selecting a target."* The MutationObserver is
  * installed BEFORE the release, so a frame-wide flash cannot be missed by a
  * poll that only starts afterward.
  */
-test(titled('AE6/AE10: no arrow is ever drawn on the other screen while a no-target card is cast'), async ({ browser }) => {
+test(titled('no arrow is ever drawn on the other screen while a no-target card is cast'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -277,7 +277,7 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
     // She parks it over her own battlefield — released outside the hand, a targeted spell is sent
     // to Forge right there (no target chosen yet), and a real targeting ask opens.
     //
-    // Done by hand rather than `dragHandCard` (AE6): the ghost's own box — the SAME element,
+    // Done by hand rather than `dragHandCard`: the ghost's own box — the SAME element,
     // `drawCastLift`'s CSS centres it on wherever it was last positioned — has to be read right
     // before `mouse.up()`, which no further pointer move follows; `dragHandCard` releases with no
     // hook in between.
@@ -303,7 +303,7 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
     const backBox = (await settled(waitingBack))!;
     expect(backBox.x + backBox.width / 2, 'inside her side of his board').toBeGreaterThanOrEqual(theirFieldOnBob.x);
     expect(backBox.x + backBox.width / 2).toBeLessThanOrEqual(theirFieldOnBob.x + theirFieldOnBob.width);
-    // AE6: his back centres on where her GHOST was at release — not merely somewhere on her side
+    // His back centres on where her GHOST was at release — not merely somewhere on her side
     // of the board. The two screens are different sizes (1280x800 / 1600x1000), so the ghost's
     // centre is converted to a board FRACTION on her board, mirrored top-to-bottom the same way
     // the wire itself does (`placeSpot`'s own rule), then compared to bob's board in HIS pixels.
@@ -316,10 +316,10 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
     expect(Math.abs(backCentre.x - expectedOnBob.x), 'his back’s x centres on her ghost’s, not merely somewhere on her side').toBeLessThan(4);
     expect(Math.abs(backCentre.y - expectedOnBob.y), 'his back’s y centres on her ghost’s').toBeLessThan(4);
 
-    // AE10: now that she IS actually aiming (the targeting ask is open, `match.selectables`
+    // Now that she IS actually aiming (the targeting ask is open, `match.selectables`
     // non-null), moving toward a legal target must draw the arrow on bob's screen — the
     // legitimate case the `aiming` gate must not also suppress, proven beside the no-target case
-    // above (AE6/AE10) which proves the gate DOES suppress the illegitimate one.
+    // above which proves the gate DOES suppress the illegitimate one.
     const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
     const bobFaceBox = (await bobFace.boundingBox())!;
     await alice.page.mouse.move(bobFaceBox.x + bobFaceBox.width / 2, bobFaceBox.y + bobFaceBox.height / 2, { steps: 6 });

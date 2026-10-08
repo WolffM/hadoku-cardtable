@@ -682,7 +682,7 @@
  * put behind a tapped card, it displays as tapped."* Each card in a pile is
  * turned by its own `data-tapped`, nobody else's.
  *
- * Wave 62 §S, AE5: `data-tapped-pending` (`live/gestures/commit.ts`) draws
+ * `data-tapped-pending` (`live/gestures/commit.ts`) draws
  * the same turn. It is the optimistic mark a box-draw's release puts on
  * EVERY land it swept at once, before Forge has confirmed any one of them —
  * the operator, 2026-10-08: *"when drawing a box to tap lands, can we have

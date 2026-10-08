@@ -21,8 +21,8 @@
  * `.confirm` card shape — and the same holds while either seat answers its
  * own opening mulligan. Once the game is actually under way (turn 1), the
  * same pop-up keeps showing, now carrying the server's own verb instead of
- * the plain pregame sentence — wave 62 §D (AE3) unified the pregame pop-up
- * and the old mid-game top line into this one component, one testid
+ * the plain pregame sentence — the pregame pop-up and the old mid-game top
+ * line were unified into this one component, one testid
  * (`live-waiting-pop`): there is no longer a second, mutually-exclusive
  * shape to tell apart, only the SENTENCE differs by when it fires.
  *
@@ -117,7 +117,7 @@ test(
       // Both have kept. Whoever chose Play holds priority at turn 1 — the
       // game is properly under way now, so the OTHER seat still gets the
       // same pop-up, now carrying the server's own verb-based sentence
-      // rather than the plain pregame one (AE3's whole point — one shape,
+      // rather than the plain pregame one (the whole point — one shape,
       // both uses).
       await expect
         .poll(

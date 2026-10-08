@@ -321,7 +321,7 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
     await page.mouse.up();
 
     /*
-     * AE5 — the operator, 2026-10-08: "when drawing a box to tap lands, can
+     * The operator, 2026-10-08: "when drawing a box to tap lands, can
      * we have them all tap simultaneously rather than one at a time?" Forge
      * still takes one `selectCard` at a time (below): this is the DRAWN
      * state, an optimistic `data-tapped-pending` every boxed land gets at

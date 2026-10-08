@@ -1150,7 +1150,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     // The cluster still holds five children — item 7 put `Settings` in the
     // slot item 5's deletion of `Leave` vacated — and is still a sibling of
     // the board, drawn after it: the chrome is around the canvas, not in it.
-    // The waiting pop-out trails (wave 62 §D, AE3: moved off the top line
+    // The waiting pop-out trails (moved off the top line
     // into the decision-area `.live__prompt` slot every other pop-up uses):
     // the opponent's own `waitingOn` fact, sent above, is what makes it draw
     // — see `isWaitingForOpponent`'s own test.
@@ -3433,14 +3433,14 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(false);
   });
 
-  // AE9 (wave 62 §D), measured against a real Forge jar with two browsers
+  // Measured against a real Forge jar with two browsers
   // (`e2e/w62-condescend.spec.ts`): the server sequences the two seats'
   // decisions strictly, but a stale `waitingOn` fact can still outlive the
   // frame that clears it long enough for a render to draw this seat's own
   // NEW ask beside the pop-out still naming the OTHER seat — `isWaitingForOpponent`
   // (the fact, above) stays true, but the POP-OUT must not draw over this
   // seat's own live decision, stale fact or not.
-  it('never draws over the viewer’s OWN open ask, even with a stale theirWaitingOn fact (AE9)', async () => {
+  it('never draws over the viewer’s OWN open ask, even with a stale theirWaitingOn fact', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
     await waitFor(() => expect(isWaitingForOpponent(m)).toBe(true));

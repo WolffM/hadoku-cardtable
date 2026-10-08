@@ -158,13 +158,13 @@ export function landsInBox(match: LiveMatch, rect: Rect, root: ParentNode): numb
 }
 
 /**
- * Wave 62 §S, AE5. The operator, 2026-10-08: *"when drawing a box to tap
+ * The operator, 2026-10-08: *"when drawing a box to tap
  * lands, can we have them all tap simultaneously rather than one at a time?"*
  * Forge still takes one `selectCard` at a time (`./install.ts`'s `pumpTaps`,
  * unchanged) — this is the DRAWN state only, an optimistic attribute every
  * boxed land gets at the release, before any of them is confirmed.
  * `card.css`'s tapped selector reads it the same as `data-tapped` (that one
- * line is card.css's own — not this lane's file to edit; see the wave 62
+ * line is card.css's own — not this lane's file to edit; see the lane's
  * evidence note for the exact change, unapplied here).
  */
 export const TAPPED_PENDING_ATTR = 'data-tapped-pending';

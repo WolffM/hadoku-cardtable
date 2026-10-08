@@ -52,7 +52,7 @@
  * sent, if Forge opens a selection or asks anything that is not about the land
  * in flight, and in any case after `TAP_SWEEP_MS` without progress.
  *
- * Wave 62 §S, AE5: the SEND stays one at a time — Forge's own loop above is
+ * The SEND stays one at a time — Forge's own loop above is
  * unchanged — but the DRAWN state no longer waits on it. Every boxed land
  * gets `./commit.ts`'s `data-tapped-pending` at the release, all of them at
  * once (`card.css`'s tapped selector draws it the same as a real
@@ -713,7 +713,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // before any Forge frame about the card, and both screens draw the same glide into the gap.
     // `placement.at` is the lifted card's OWN box centre right now, not the raw release point:
     // the two can be a frame apart when no `pointermove` fires between the last drag update and
-    // the release (AE6, the operator: "a bit of desync between where the phantom card was and
+    // the release (the operator: "a bit of desync between where the phantom card was and
     // where the cursor actually released the card"). `cardBox` finds the exact element
     // `drawCastLift` has been positioning all along; hit-testing below still uses the real point.
     const column = spell ? null : placementAt(point);
@@ -1026,8 +1026,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /**
    * The sweep is over, however it ended: every land still in it — queued, or
    * the one just sent — had its optimistic `data-tapped-pending` cleared.
-   * Wave 62 §S, AE5: a land the sweep never reaches is cleared here, exactly
-   * as the brief asks.
+   * A land the sweep never reaches is cleared here too.
    */
   function endTapSweep(): void {
     for (const id of tapQueue) clearTappedPending(canvas, id);
@@ -1410,7 +1409,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       } else {
         endTapSweep();
         tapQueue = landsInBox(match, box, canvas);
-        // AE5: every boxed land is drawn tapped AT ONCE — Forge still gets them
+        // Every boxed land is drawn tapped AT ONCE — Forge still gets them
         // one `selectCard` at a time, below, exactly as before.
         markTappedPending(canvas, tapQueue);
         tapTimer = setTimeout(endTapSweep, TAP_SWEEP_MS);

@@ -1,5 +1,5 @@
 /**
- * Wave 62 §D, AE9 — the operator, on Condescend: *"i cast 'condescend' which
+ * The operator, on Condescend: *"i cast 'condescend' which
  * lets me scry as part of the resolution of the spell, but also asks the
  * opponent about paying the cost. lets be careful and resolve these things
  * one at at time, i dont think it should be showing simultaneously."*
@@ -155,7 +155,7 @@ test(titled('bob’s pay-or-decline and alice’s scry never draw at once, acros
     // `bobDeclinedAt`: before this test clicks bob's own Cancel, his payment
     // window being visible is a genuine, unanswered decision; after, the
     // SAME element can keep rendering for a tick or two while his own click
-    // round-trips to the server — that lag is not what AE9 is about, so a
+    // round-trips to the server — that lag is not the sequencing claim, so a
     // tick is only counted against the "never both open" rule while bob's
     // decision is still actually pending (the index his decline landed on,
     // recorded BEFORE that tick's own read, never after).
