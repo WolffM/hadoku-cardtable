@@ -198,6 +198,41 @@ describe('opening', () => {
     }
   });
 
+  it('beside a decision window, the panel also clears the hovered card itself (AE2) — real rects, not jsdom zeros', () => {
+    // The operator, 2026-10-08: hovering Serum Visions with a decision open
+    // blocked the card itself. jsdom zeroes every box by default
+    // (`place.test.ts`'s own header), so the geometry claim needs rects
+    // stubbed in: the hovered card sits exactly where the pre-AE2 function
+    // would have put the panel (left of the pop-up, blind to the card),
+    // which only the fix's hover-awareness steers around.
+    const { board, theirCard } = mountBoard();
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.innerHTML = '<div class="live__prompt" data-testid="live-decision-host"><p>Sacrifice a land</p></div>';
+    document.body.appendChild(live);
+    const cardEl = theirCard().querySelector('.card')!;
+    const modalEl = live.querySelector('.live__prompt')!;
+    const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
+      ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
+    live.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    modalEl.getBoundingClientRect = () => rect({ left: 600, top: 200, right: 900, bottom: 500 });
+    cardEl.getBoundingClientRect = () => rect({ left: 340, top: 250, right: 580, bottom: 380 });
+    try {
+      hover(cardEl);
+      const shown = document.querySelector<HTMLElement>('[data-inspect]');
+      expect(shown, 'the board card still enlarges').not.toBeNull();
+      expect(shown!.parentElement).toBe(live);
+      expect(board.contains(shown!)).toBe(false);
+      // `place.test.ts`'s own "card under the pop-up's left edge" case: the
+      // panel is pushed to the pop-up's RIGHT instead of its (blocked) left.
+      expect(shown!.style.left).toBe('908px');
+      expect(shown!.style.top).toBe('250px');
+      expect(shown!.style.width).toBe('264px');
+    } finally {
+      live.remove();
+    }
+  });
+
   it('opens for a prompt-grid tile outside the board root', () => {
     const { panel } = mountBoard();
     // Lane C's grid, as the contract describes it: a tile carrying
@@ -241,10 +276,13 @@ describe('opening', () => {
 
   it('a hand card enlarges above the hand whatever is open; the waiting pop-up is not a decision window', () => {
     // The operator, 2026-10-07: hovering a hand card under "Waiting for Bella…" no longer placed it above the hand.
+    // wave 62 §D: the pregame wait and the mid-game wait are now ONE
+    // component (`LiveBoard.tsx`'s `WaitingPop`), one testid —
+    // `live-waiting-pop` — drawn in the ordinary `.live__prompt` slot.
     const { panel, board, myHandCard } = mountBoard();
     const live = document.createElement('div');
     live.className = 'live';
-    live.innerHTML = '<div class="live__prompt" data-testid="live-pregame-wait-host"><p data-testid="live-pregame-wait">Waiting for Bella…</p></div>';
+    live.innerHTML = '<div class="live__prompt"><section class="confirm" data-testid="live-waiting-pop" role="status">Waiting for Bella…</section></div>';
     document.body.appendChild(live);
     try {
       hover(myHandCard().querySelector('.card')!);
@@ -256,6 +294,25 @@ describe('opening', () => {
       hover(myHandCard().querySelector('.card')!);
       expect(panel(), 'a hand card, still on the hand anchor').not.toBeNull();
       expect(live.querySelector('[data-inspect]')).toBeNull();
+    } finally {
+      live.remove();
+    }
+  });
+
+  it('the waiting pop-up is not a decision window for a BOARD card either — the exclusion itself, not just the hand bypass', () => {
+    // The hand case above never exercises the exclusion string at all (a hand
+    // card takes the `inHand` branch regardless of what is open) — this is
+    // the case that does: a battlefield card, with ONLY a waiting pop-up on
+    // screen, still opens in the board overlay, never beside it.
+    const { panel, theirCard } = mountBoard();
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.innerHTML = '<div class="live__prompt"><section class="confirm" data-testid="live-waiting-pop" role="status">Waiting for Bella…</section></div>';
+    document.body.appendChild(live);
+    try {
+      hover(theirCard().querySelector('.card')!);
+      expect(panel(), 'in the board overlay — the waiting pop-up is not a decision').not.toBeNull();
+      expect(live.querySelector('[data-inspect]'), 'not beside the waiting pop-up').toBeNull();
     } finally {
       live.remove();
     }

@@ -524,6 +524,26 @@ test(titled('Ponder\'s full oracle text is readable by hovering the placed card,
     const item = bob.page.locator('[data-placed-spell][aria-label*="Ponder" i]');
     await expect(item, 'Ponder\'s own placed card is drawn for the opponent too').toHaveCount(1, { timeout: 10_000 });
 
+    // AE2: a decision pop-up is up on bob's own screen while he reads
+    // Ponder. Ponder's own post-resolution ask is unreliable here (see the
+    // comment above), so this one is synthesized — but carries the real
+    // `.live__prompt` class `inspect/index.ts` keys off, sized like the real
+    // prompt column (`docs/planning/board-layout-2026-09-27.md`: 59.4%
+    // across, 24% down, 24.1% × 48%), so the geometry claim below is against
+    // a realistically placed box, not an arbitrary one.
+    await bob.page.evaluate(() => {
+      const el = document.createElement('div');
+      el.className = 'live__prompt';
+      el.setAttribute('data-testid', 'w62-decision-fixture');
+      el.style.position = 'fixed';
+      el.style.pointerEvents = 'none';
+      el.style.left = `${window.innerWidth * 0.594}px`;
+      el.style.top = `${window.innerHeight * 0.24}px`;
+      el.style.width = `${window.innerWidth * 0.241}px`;
+      el.style.height = `${window.innerHeight * 0.48}px`;
+      document.body.appendChild(el);
+    });
+
     // The full oracle text is the one inspector's: hovering the card opens it.
     await item.hover();
     const big = bob.page.locator('[data-inspect]');
@@ -531,6 +551,17 @@ test(titled('Ponder\'s full oracle text is readable by hovering the placed card,
     // Forge's own oracle text spells it out ("top three", not "top 3" —
     // confirmed verbatim: "Look at the top three cards of your library…").
     await expect(big, 'the inspector carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
+
+    // AE2 (the operator: hovering Serum Visions with a decision open blocked
+    // the card itself): the panel covers neither the card it enlarges nor
+    // the decision pop-up beside it.
+    const disjoint = (a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean =>
+      a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+    const bigBox = (await big.boundingBox())!;
+    const itemBox = (await item.boundingBox())!;
+    const modalBox = (await bob.page.locator('[data-testid="w62-decision-fixture"]').boundingBox())!;
+    expect(disjoint(bigBox, itemBox), 'the inspector does not cover the placed card it is enlarging').toBe(true);
+    expect(disjoint(bigBox, modalBox), 'the inspector does not cover the decision pop-up').toBe(true);
   } finally {
     await stack.stop();
   }

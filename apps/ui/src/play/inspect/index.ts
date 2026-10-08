@@ -76,12 +76,15 @@
  *
  * While a decision window is open (any `.live__prompt`: a choice, a
  * selection, a payment, a confirm), the panel stands beside THAT instead,
- * to its left first (`placeBesideModal`), whatever card is hovered — the
- * operator, 2026-10-06: *"if theres a decision window up like selecting a
- * card from a spell from deck or something else, then the expanded view
- * needs to stack to the left of that decision window."* The window is the
- * thing being answered; nothing may cover it, and the one enlarged view has
- * one place to be while it is up.
+ * to its left first (`placeBesideModal`) — AND clear of the hovered card
+ * itself, whichever of the two is in the way: the operator, 2026-10-06, on
+ * the window: *"if theres a decision window up like selecting a card from a
+ * spell from deck or something else, then the expanded view needs to stack
+ * to the left of that decision window"*; the operator again, 2026-10-08, on
+ * the card: *"theres an active decision on my screen, and if i hover serum
+ * visions it blocks the card itself … let's try to be a bit smarter about
+ * where to place the expanded img."* Neither the window nor the card being
+ * read is ever the thing the panel covers.
  *
  * ## Staleness, on purpose
  *
@@ -290,42 +293,111 @@ export function placeInspector(
 
 /**
  * Where the enlarged card goes when the hovered card is INSIDE a pop-up (a
- * `.live__prompt`: a choice grid, a selection, a reveal). Client coordinates.
+ * `.live__prompt`: a choice grid, a selection, a reveal), or when a decision
+ * pop-up is open elsewhere while a BOARD card is hovered. Client coordinates.
  *
  * The operator, 2026-10-06, on a three-card "put into hand" choice: the
  * enlarged view drew under the pop-up, and *"in situations like these, the
- * expanded card view needs to display to the left of the popout modal"*.
- * `placeInspector`'s right-of-the-card anchor would put it over the pop-up's
- * own grid, so here the pop-up is the thing it stands beside:
+ * expanded card view needs to display to the left of the popout modal"*. The
+ * operator again, 2026-10-08, on hovering Serum Visions with a decision open
+ * elsewhere: *"the expanded version doesn't cover the thing that is being
+ * hovered … let's try to be a bit smarter about where to place the expanded
+ * img"* — the panel must clear BOTH rects, not only the pop-up's.
  *
- *   - to the pop-up's LEFT, a `GAP` clear of it, when it fits there;
- *   - otherwise to its RIGHT, when it fits there;
- *   - otherwise on whichever side has more room, shrunk to that room —
- *     never over the pop-up;
- *   - its top edge level with the hovered card's, clamped inside `area`.
+ * Four candidates, scored in this order — the first with ZERO overlap
+ * against both `modal` and `hover`, at the preferred size, wins:
+ *
+ *   1. the pop-up's LEFT, a `GAP` clear of it, top level with the hovered card;
+ *   2. the pop-up's RIGHT, the same;
+ *   3. ABOVE the hovered card, a `GAP` clear of it, left edge level with it;
+ *   4. BELOW the hovered card, the same.
+ *
+ * If none is clean at the preferred size, each is shrunk (holding its own
+ * anchor edge fixed) to the largest size at which it clears both rects —
+ * every anchor point sits inside `area`, so a width of zero is always clean,
+ * and the shrink always finds SOME answer — and the candidate left widest
+ * wins, ties broken by the order above. No candidate is ever returned sized
+ * past zero.
  */
-export function placeBesideModal(
-  hover: Rect,
-  modal: Rect,
-  area: Rect,
-): { left: number; top: number; width: number } {
+export function placeBesideModal(hover: Rect, modal: Rect, area: Rect): { left: number; top: number; width: number } {
   const fullW = Math.max(0, Math.min(PREF_W, (area.bottom - area.top - 2 * GAP) / CARD_TALL));
-  const roomLeft = modal.left - GAP - (area.left + GAP);
-  const roomRight = area.right - GAP - (modal.right + GAP);
-  let left: number;
-  let width = fullW;
-  if (roomLeft >= fullW) left = modal.left - GAP - fullW;
-  else if (roomRight >= fullW) left = modal.right + GAP;
-  else if (roomLeft >= roomRight) {
-    width = Math.max(0, roomLeft);
-    left = modal.left - GAP - width;
-  } else {
-    width = Math.max(0, roomRight);
-    left = modal.right + GAP;
+
+  const vClamp = (top: number, height: number): number =>
+    Math.min(Math.max(top, area.top + GAP), Math.max(area.top + GAP, area.bottom - GAP - height));
+  const hClamp = (left: number, width: number): number =>
+    Math.min(Math.max(left, area.left + GAP), Math.max(area.left + GAP, area.right - GAP - width));
+
+  interface Spot {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
   }
-  const height = width * CARD_TALL;
-  const top = Math.min(Math.max(hover.top, area.top + GAP), Math.max(area.top + GAP, area.bottom - GAP - height));
-  return { left, top, width };
+
+  /** The four anchors, each as a function of the width it is given — the edge the anchor pins never moves as the box shrinks. */
+  const anchors: Array<(width: number) => Spot> = [
+    // Left of the pop-up: the box's RIGHT edge is pinned at `modal.left - GAP`.
+    (width) => {
+      const height = width * CARD_TALL;
+      return { left: modal.left - GAP - width, top: vClamp(hover.top, height), width, height };
+    },
+    // Right of the pop-up: the box's LEFT edge is pinned at `modal.right + GAP`.
+    (width) => {
+      const height = width * CARD_TALL;
+      return { left: modal.right + GAP, top: vClamp(hover.top, height), width, height };
+    },
+    // Above the card: the box's BOTTOM edge is pinned at `hover.top - GAP`.
+    (width) => {
+      const height = width * CARD_TALL;
+      return { left: hClamp(hover.left, width), top: hover.top - GAP - height, width, height };
+    },
+    // Below the card: the box's TOP edge is pinned at `hover.bottom + GAP`.
+    (width) => {
+      const height = width * CARD_TALL;
+      return { left: hClamp(hover.left, width), top: hover.bottom + GAP, width, height };
+    },
+  ];
+
+  const overlapArea = (s: Spot, r: Rect): number => {
+    const w = Math.max(0, Math.min(s.left + s.width, r.right) - Math.max(s.left, r.left));
+    const h = Math.max(0, Math.min(s.top + s.height, r.bottom) - Math.max(s.top, r.top));
+    return w * h;
+  };
+
+  const EPS = 1e-9;
+  const clean = (s: Spot): boolean =>
+    s.left >= area.left + GAP - EPS &&
+    s.left + s.width <= area.right - GAP + EPS &&
+    s.top >= area.top + GAP - EPS &&
+    s.top + s.height <= area.bottom - GAP + EPS &&
+    overlapArea(s, modal) <= EPS &&
+    overlapArea(s, hover) <= EPS;
+
+  // The first candidate that is clean at the preferred width, full size.
+  for (const anchor of anchors) {
+    const spot = anchor(fullW);
+    if (clean(spot)) return { left: spot.left, top: spot.top, width: spot.width };
+  }
+
+  // None is clean at the preferred size: binary-search each candidate's own
+  // widest clean width. A width of zero always TERMINATES the search (its
+  // overlap area is zero either way), even for a candidate whose anchor has
+  // no room at all — such a candidate simply loses to whichever of the
+  // other three does. Take the widest of the four.
+  let best: Spot | null = null;
+  for (const anchor of anchors) {
+    let lo = 0;
+    let hi = fullW;
+    for (let i = 0; i < 50; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (clean(anchor(mid))) lo = mid;
+      else hi = mid;
+    }
+    const spot = anchor(lo);
+    if (best === null || spot.width > best.width) best = spot;
+  }
+  const chosen = best ?? anchors[0]!(0);
+  return { left: chosen.left, top: chosen.top, width: chosen.width };
 }
 
 /**
@@ -407,7 +479,7 @@ export function mountInspector(root: ParentNode): () => void {
     // affected by whats on the screen").
     const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
     const modal =
-      target.tile.closest('.live__prompt') ?? (inHand ? null : doc.querySelector('.live__prompt:not(:has([data-testid="live-pregame-wait"]))'));
+      target.tile.closest('.live__prompt') ?? (inHand ? null : doc.querySelector('.live__prompt:not(:has([data-testid="live-waiting-pop"]))'));
     const modalBox = modal?.parentElement ?? null;
     const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
     const hostR = rectOf(host.getBoundingClientRect());
