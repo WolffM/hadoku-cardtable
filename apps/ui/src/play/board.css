@@ -1768,3 +1768,13 @@
     transition: none;
   }
 }
+
+/*
+ * One thing on the stack: nothing is drawn for it — its stand-in is on the
+ * table (the caster's own placed card; for the other seat, the back waiting in
+ * its gap). The band keeps its item in the DOM (the arrows and a stack-choice
+ * ask read it); it is simply not shown (the operator, 2026-10-08).
+ */
+.stack[data-lone] {
+  visibility: hidden;
+}

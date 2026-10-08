@@ -134,18 +134,17 @@ export {
   PRESENCE_EVENT,
   PRESENCE_MAX_PER_SECOND,
   PRESENCE_SEND_MS,
-  PlacingSchema,
   PresenceEchoSchema,
   PresenceSchema,
   PresenceSpotSchema,
   PresenceZoneSchema,
-  type Placing,
   type PresenceEcho,
   type PresenceMessage,
   type PresenceSpot,
 } from './presence.ts';
 
 export { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, type ClientEvent } from './telemetry.ts';
+export { PLACEMENT_EVENT, PlacementEchoSchema, PlacementSchema, PlacementTargetSchema, type Placement, type PlacementEcho } from './placement.ts';
 export {
   ARRANGEMENT_EVENT,
   ARRANGEMENT_MAX_PER_SECOND,

@@ -39,6 +39,7 @@
  * same way. When `zod` is a direct dependency, only `borrowed` changes.
  */
 
+import { PlacementSchema, type Placement } from '@hadoku/shared';
 import { SeqCursorSchema, type WireCursor } from '@hadoku/shared';
 import {
 	CallIdSchema,
@@ -106,12 +107,14 @@ export type MatchRequest = Output<typeof MatchRequestSchema>;
 
 /** `forge:c2s`. `frame` is checked second, by forge-wire's `safeParseClientFrame`. */
 export const ClientEnvelopeSchema = borrowed.emptyObject
-	.extend({ matchId: borrowed.nonEmptyString, frame: borrowed.unknown })
+	.extend({ matchId: borrowed.nonEmptyString, frame: borrowed.unknown, placement: PlacementSchema.optional() })
 	.strict();
 
 export interface ClientEnvelope {
 	matchId: string;
 	frame: ClientFrame;
+	/** Where the card this act plays goes (`@hadoku/shared`'s `placement.ts`); only with a `selectCard` act. */
+	placement?: Placement;
 }
 
 /**
@@ -300,5 +303,5 @@ export function parseClientEnvelope(raw: unknown): Parsed<ClientEnvelope> {
 	if (!frame.ok) {
 		return { ok: false, errors: frame.errors.map((e) => ({ path: `$.frame${e.path.slice(1)}`, message: e.message })) };
 	}
-	return { ok: true, value: { matchId: envelope.value.matchId, frame: frame.value } };
+	return { ok: true, value: { matchId: envelope.value.matchId, frame: frame.value, ...(envelope.value.placement === undefined ? {} : { placement: envelope.value.placement }) } };
 }

@@ -8,9 +8,11 @@
  * concatenated text list). What renders is what the seat was sent: the ids the
  * ask carries, named by `lookup`, and nothing else.
  *
- * Non-cards stay words: `getChoices` over colours keeps its pre-rendered
- * labels, a player keeps their name and the `player` tag, and an ability is a
- * button in plain rules text. The tick that chooses a tile is the tile's
+ * A player keeps their name and the `player` tag; an ability is a button in
+ * rules text WITH its symbols — "{T}: Add {B}." draws the tap and the mana
+ * glyph (`RulesText`), the plain words kept as the button's accessible name
+ * (the operator, 2026-10-08, after Z10 and Y23: "in this place we should be
+ * showing mana icons not letters"). The tick that chooses a tile is the tile's
  * border; the input itself stays in the DOM (visually hidden) so the keyboard
  * path and the live driver see exactly what they saw before.
  */
@@ -143,17 +145,8 @@ function NumberChoiceSlider({
       <output className="prompt__slider-value" data-testid="prompt-slider-value">
         {value ?? range.min}
       </output>
-      {range.otherKey !== undefined && (
-        <button
-          type="button"
-          className="prompt__link"
-          data-testid="prompt-slider-other"
-          aria-pressed={value === null}
-          onClick={() => onChange(range.otherKey!)}
-        >
-          Other…
-        </button>
-      )}
+      {/* Forge's own "Other…" entry (its cutoff below the true max) is not drawn: the operator, 2026-10-08,
+          "X cards do not need an 'Other...' button" — the slider alone. */}
     </div>
   );
 }
@@ -362,8 +355,8 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
       <ul className="prompt__list">
         {ask.abilities.map((ab) => (
           <li key={ab.id}>
-            <button type="button" className="prompt__choice" data-testid="prompt-choice" onClick={() => answer(ab)}>
-              {plainRulesText(refName(lookup, ab))}
+            <button type="button" className="prompt__choice" data-testid="prompt-choice" aria-label={plainRulesText(refName(lookup, ab))} onClick={() => answer(ab)}>
+              <RulesText text={refName(lookup, ab)} />
             </button>
           </li>
         ))}

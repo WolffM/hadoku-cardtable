@@ -55,6 +55,7 @@
  */
 
 import { SeqCursorSchema, type WireCursor } from '@hadoku/shared';
+import { PlacementSchema, type Placement } from '@hadoku/shared';
 import {
   CallIdSchema,
   ClientReplySchema,
@@ -144,13 +145,15 @@ export type MatchRequest = Output<typeof MatchRequestSchema>;
 
 /** `forge:c2s`. `frame` is validated by forge-wire's `safeParseClientFrame`. */
 export const ClientEnvelopeSchema = borrowed.emptyObject
-  .extend({ matchId: borrowed.nonEmptyString, frame: borrowed.unknown })
+  .extend({ matchId: borrowed.nonEmptyString, frame: borrowed.unknown, placement: PlacementSchema.optional() })
   .strict();
 
 /** What this client emits: the schema's shape, with the frame's type known. */
 export interface ClientEnvelope {
   matchId: string;
   frame: ClientFrame;
+  /** Where the card a `selectCard` act plays goes (`@hadoku/shared`'s `placement.ts`): the server tells every screen at once. */
+  placement?: Placement;
 }
 
 /**

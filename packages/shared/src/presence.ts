@@ -78,20 +78,6 @@ export const PresenceSpotSchema = z
 
 export type PresenceSpot = z.output<typeof PresenceSpotSchema>;
 
-/** A column of a battlefield row, in `Board.tsx`'s own drop-target terms. A card id here is one of the sender's battlefield cards: public. */
-export const PlacingSchema = z
-  .object({
-    slot: z.string().min(1).max(32),
-    target: z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('end') }).strict(),
-      z.object({ kind: z.literal('before'), id: z.number().int().nonnegative() }).strict(),
-      z.object({ kind: z.literal('stack'), id: z.number().int().nonnegative(), onTop: z.boolean() }).strict(),
-      z.object({ kind: z.literal('at'), column: z.number().int().min(0).max(64) }).strict(),
-    ]),
-  })
-  .strict();
-export type Placing = z.output<typeof PlacingSchema>;
-
 /** Client → server. `pointer` null: the pointer left the board (or the tab was hidden). */
 export const PresenceSchema = z
   .object({
@@ -113,15 +99,6 @@ export const PresenceSchema = z
      * never had this field) still parses.
      */
     handRows: z.union([z.literal(1), z.literal(2)]).default(1),
-    /**
-     * Sent once with the release (`held: false`): the COLUMN of the sender's
-     * own battlefield the card was let go at — never the card. The other
-     * screen reserves that column for the next card of theirs to arrive and
-     * draws the back waiting in it, so both screens show the same motion.
-     * Null when the release was not over their battlefield. Defaults to null
-     * so a pre-deploy sender's message still parses.
-     */
-    placing: PlacingSchema.nullable().default(null),
   })
   .strict();
 

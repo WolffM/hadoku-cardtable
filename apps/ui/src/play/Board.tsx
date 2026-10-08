@@ -1354,9 +1354,9 @@ export function placementAt(point: { x: number; y: number }): { slot: BoardRow; 
  * carries the column, never the card): the next card of theirs to arrive is
  * placed there, and the row shows the gap until it does.
  */
-export function expectPlacement(playerId: number, slot: string, target: DropTarget): void {
+export function expectPlacement(playerId: number, slot: string, target: DropTarget, cardId: number | null = null): void {
   if (!([...BOARD_ROWS, ...SINGLE_ROWS] as readonly string[]).includes(slot)) return;
-  PENDING_PLACEMENTS.set(playerId, { cardId: null, slot: slot as BoardRow, target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  PENDING_PLACEMENTS.set(playerId, { cardId, slot: slot as BoardRow, target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
   for (const wake of MOUNTED_BOARDS) wake();
 }
 
@@ -3319,6 +3319,11 @@ function StackView({
   viewerName: string | null;
 }) {
   const lone = stack.length === 1;
+  // A lone spell is drawn by its stand-in — the caster's own placed card, the other seat's back
+  // waiting in its gap (`forge:placement`) — so the band SHOWS nothing for it on either screen
+  // (`board.css`, `data-lone`: the operator, 2026-10-08, "there should be [no] stack showing at
+  // all"). The item stays in the DOM: the arrows and a stack-choice ask key off it until the
+  // placed-cards layer replaces the band.
   const row = onSource ? [] : stack;
   return (
     <section
@@ -3510,8 +3515,10 @@ export function Board({
         PENDING_PLACEMENTS.delete(player.id);
         continue;
       }
-      // The viewer's own placement names its card; the other seat's takes the first card of
-      // theirs that was not on their battlefield at the last look (never on this board's first).
+      // A placement that names its card (the act's own, from the server, or the viewer's) takes
+      // that card whenever it is on the battlefield — already there, or arriving later: the message
+      // is the authority, whichever came first. One that names none (presence alone) takes the
+      // first card of theirs that was not there at the last look (never on this board's first).
       const card =
         pending.cardId !== null
           ? player.battlefield.find((c) => c.id === pending.cardId)

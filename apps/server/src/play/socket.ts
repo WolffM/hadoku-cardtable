@@ -81,6 +81,8 @@ import {
 	CLIENT_EVENT,
 	CLIENT_EVENT_MAX_PER_SECOND,
 	ClientEventSchema,
+	PLACEMENT_EVENT,
+	type PlacementEcho,
 	PRESENCE_EVENT,
 	PRESENCE_MAX_PER_SECOND,
 	PresenceSchema,
@@ -649,6 +651,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 */
 	const arrangements = new Map<string, Record<string, unknown>>();
 	const ARRANGEMENTS_KEPT = 512;
+	/** The last placement per played card (`@hadoku/shared`'s `placement.ts`), replayed to a joiner. Bounded the same way. */
+	const placements = new Map<string, PlacementEcho>();
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
 	const isController = (matchId: string, seat: number, socketId: string): boolean =>
 		connected.get(seatKey(matchId, seat))?.[0] === socketId;
@@ -701,6 +705,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.fresh, role: sockets[0] === socket.id ? 'player' : 'spectator' });
 				for (const [k, held] of arrangements) {
 					if (k.startsWith(`${match.id}#`) && k !== key) socket.emit(ARRANGEMENT_EVENT, held);
+				}
+				for (const [k, held] of placements) {
+					if (k.startsWith(`${match.id}#`)) socket.emit(PLACEMENT_EVENT, held);
 				}
 				// A refresh: the old socket's close armed an abort of this seat's asks.
 				match.seatConnected(seat);
@@ -789,6 +796,20 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const outcome = match.fromClient(seat, parsed.value.frame);
 			if (!outcome.ok) {
 				log({ evt: 'c2s-refused', participantId, matchId: match.id, seat, error: outcome.error, kind: parsed.value.frame.kind });
+				return;
+			}
+			// The placement rides on the act that plays the card and goes to EVERY socket of the match
+			// now — before any Forge frame about the card can (`@hadoku/shared`'s `placement.ts`).
+			const placement = parsed.value.placement;
+			const frame = parsed.value.frame;
+			if (placement !== undefined && frame.kind === 'act' && frame.method === 'selectCard') {
+				const echo: PlacementEcho = { ...placement, matchId: match.id, seat, card: frame.card.id };
+				const key = `${match.id}#${frame.card.id}`;
+				placements.delete(key);
+				placements.set(key, echo);
+				if (placements.size > ARRANGEMENTS_KEPT) placements.delete(placements.keys().next().value as string);
+				io.to(roomFor(match).roomId).emit(PLACEMENT_EVENT, echo);
+				log({ evt: 'placement', matchId: match.id, seat, card: frame.card.id, slot: placement.slot, target: placement.target.kind });
 			}
 		});
 

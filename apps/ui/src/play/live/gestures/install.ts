@@ -200,7 +200,8 @@ import {
 } from '../match.ts';
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
-import { carryCastOffStack, notePlayedTo, previewPlayedTo } from '../../Board.tsx';
+import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '../../Board.tsx';
+import { spotOf } from '../presence.ts';
 import { autoTargetArrows, combatArrows, stackTargetArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { CAST_LANDING_ATTR, expectedGapBox,
@@ -616,7 +617,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // let go — a permanent over the viewer's own battlefield, a card that
     // needs a target wherever it was released outside the hand.
     const ghost = parkedGhost(canvas, source);
-    if (!selectCard(match, source)) {
+    // The column and the release point go WITH the act: the server tells every screen at once,
+    // before any Forge frame about the card, and both screens draw the same glide into the gap.
+    const column = spell ? null : placementAt(point);
+    const spot = column === null ? null : spotOf(canvas, point);
+    const placement = column === null || spot === null ? undefined : { slot: column.slot, target: column.target, at: spot };
+    if (!selectCard(match, source, placement)) {
       // Forge's offer moved on between the lift and the release: nothing went out.
       floatCastLiftHome(canvas, source, state.from, () => {});
       return;

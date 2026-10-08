@@ -122,12 +122,10 @@ describe('getChoices', () => {
       expect(slider.max).toBe('2');
     });
 
-    it('an Other… entry is a button beside the slider, and picking it answers Forge’s own key for it', () => {
-      const { getByTestId, answers, submit } = mountPrompt('getChoices', announceXAsk(9, true));
-      fireEvent.click(getByTestId('prompt-slider-other'));
-      fireEvent.click(submit());
-      expect(answers).toEqual([['c10']]);
-      expectWireReply('getChoices', answers[0]);
+    it('an Other… entry is not drawn: the slider alone (the operator, 2026-10-08)', () => {
+      const { queryByTestId, getByTestId } = mountPrompt('getChoices', announceXAsk(9, true));
+      expect(queryByTestId('prompt-slider-other')).toBeNull();
+      expect(getByTestId('prompt-slider')).toBeDefined();
     });
 
     it('is not offered a mode/colour/reveal choice: the ordinary list still renders for those', () => {
@@ -283,10 +281,12 @@ describe('getAbilityToPlay', () => {
     const { getAllByTestId, answers, getByRole } = mountPrompt('getAbilityToPlay', askFor('getAbilityToPlay'));
     expect(getByRole('dialog').textContent).toContain('Pyrite Spellbomb');
     const buttons = getAllByTestId('prompt-choice');
-    expect(buttons.map((b) => b.textContent)).toEqual([
+    // The plain words are the accessible name; the button DRAWS the symbols (a pip for `{R}`).
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
       '1, Sacrifice Pyrite Spellbomb: Draw a card.',
       'R, Sacrifice Pyrite Spellbomb: It deals 2 damage to any target.',
     ]);
+    expect(buttons[1]!.querySelector('.pip'), 'the {R} is a mana symbol, not a letter').not.toBeNull();
     fireEvent.click(buttons[1]!);
     expect(answers).toEqual([{ kind: 'spellAbility', id: 9002 }]);
     expectWireReply('getAbilityToPlay', answers[0]);

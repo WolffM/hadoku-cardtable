@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
+import { PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import * as castModule from './gestures/cast.ts';
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
@@ -66,6 +66,7 @@ function fakeTransport() {
     },
     sent,
     receive: (payload: unknown) => handlers.get(PRESENCE_EVENT)!(payload),
+    receivePlacement: (payload: unknown) => handlers.get(PLACEMENT_EVENT)!(payload),
   };
 }
 
@@ -131,7 +132,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, placing: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1 },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -183,7 +184,6 @@ describe('sending', () => {
         held: false,
         from: { zone: 'battlefield', x: 0.3, y: 0.625 },
         handRows: 1,
-        placing: null,
       },
     });
 
@@ -238,10 +238,10 @@ describe('sending', () => {
 });
 
 describe('receiving', () => {
-  it('a release that names a column reserves it for THEIR player, keeps the back waiting in it, and takes the back down when a card of theirs reaches their battlefield', async () => {
+  it('their placement (the act’s own message) reserves the column for THEIR player by card id, keeps the back waiting in the gap, and takes it down when the board has drawn the card there', async () => {
     // The operator, 2026-10-08, from the opponent's seat: the card flashed at the row's end first, and
-    // the back lingered on the cursor. The column travels with the release; the card's arrival is
-    // drawn in the reserved gap; the back goes then, not on a timer.
+    // the back lingered on the cursor. The column and the release point come WITH the act, through
+    // the server, before any Forge frame about the card; the card's arrival is drawn in the gap.
     const { canvas } = board();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
@@ -252,32 +252,22 @@ describe('receiving', () => {
       host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
     });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1 });
-    t.receive({
-      matchId: 'm-1',
-      type: 'presence',
-      seat: 1,
-      pointer: { zone: 'battlefield', x: 0.5, y: 0.5 },
-      held: false,
-      from: { zone: 'battlefield', x: 0.5, y: 0.5 },
-      handRows: 1,
-      placing: { slot: 'back', target: { kind: 'at', column: 1 } },
-    });
-    expect(pendingPlacementFor(1), 'their column is reserved under their player id').toEqual({ cardId: null, slot: 'back', target: { kind: 'at', column: 1 } });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 77, slot: 'back', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.5, y: 0.5 } });
+    expect(pendingPlacementFor(1), 'their column is reserved under their player id, for THAT card').toEqual({ cardId: 77, slot: 'back', target: { kind: 'at', column: 1 } });
     const back = canvas.querySelector<HTMLElement>('.presence__back');
     expect(back, 'the back stays — waiting, not following the pointer').not.toBeNull();
     expect(back!.hasAttribute('data-waiting')).toBe(true);
-    // Their pointer leaves the board: the cursor goes, the waiting back does not.
+    // Their release and their pointer leaving the board change nothing: the back is the card's stand-in now.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1 });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1 });
-    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their pointer left').not.toBeNull();
-    // The card arrives: the board draws it in the gap and consumes the reservation (its own signal,
-    // `pendingPlacementFor` null) — the stand-in simply goes, whichever subscriber ran first.
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their release and their pointer left').not.toBeNull();
+    // The card arrives: the board draws it in the gap and consumes the reservation; the stand-in goes.
     const li = document.createElement('li');
     li.setAttribute('data-board-card', '77');
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
     theirs = [77];
     forgetPendingPlacements();
     wake!();
-    // Read past React's commit: the next frame.
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(canvas.querySelector('.presence__back'), 'gone the moment the card is there').toBeNull();
     expect(canvas.querySelector('.presence__handoff'), 'and no second flight: it is already where it was placed').toBeNull();

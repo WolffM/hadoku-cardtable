@@ -85,7 +85,8 @@ describe('SelectionPrompt', () => {
         onPick: () => {},
       }),
     );
-    expect(getByText('World Breaker (81)')).toBeDefined();
+    // Forge's "(81)" is its card id: the seat reads the name alone (2026-10-08).
+    expect(getByText('World Breaker')).toBeDefined();
     expect(getByText('When you cast this spell, exile target artifact, enchantment, or land.')).toBeDefined();
     expect(getByText('Select target artifact, enchantment or land')).toBeDefined();
   });

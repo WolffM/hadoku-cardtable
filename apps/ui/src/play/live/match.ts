@@ -235,6 +235,7 @@
  * hand can be drawn before the client knows whose hand it is.
  */
 
+import type { Placement } from '@hadoku/shared';
 import { asSeqCursor } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
@@ -779,8 +780,8 @@ export function subscribe(match: LiveMatch, listener: () => void): () => void {
   };
 }
 
-function send(match: LiveMatch, frame: ClientEnvelope['frame']): void {
-  const envelope: ClientEnvelope = { matchId: match.matchId, frame };
+function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Placement): void {
+  const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }) };
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
 
@@ -1320,7 +1321,7 @@ function cardIdsInView(view: BoardView): Set<number> {
  * a card with several abilities comes back as a `getAbilityToPlay` ask
  * (`CMatchUI.getAbilityToPlay`), which `../prompts/` answers.
  */
-export function selectCard(match: LiveMatch, cardId: number): boolean {
+export function selectCard(match: LiveMatch, cardId: number, placement?: Placement): boolean {
   if (!boardInteraction(match).selectable.has(cardId)) return false;
   // The land just tapped, which Forge itself is not offering: the click is its Undo.
   if (match.view !== null && match.weaklySelectable?.has(cardId) !== true && undoableTap(match, match.view)?.has(cardId) === true) {
@@ -1329,13 +1330,17 @@ export function selectCard(match: LiveMatch, cardId: number): boolean {
   match.spent.cards.add(cardId);
   match.lastSelectedCard = cardId;
   noteAttackIntent(match, cardId);
-  return sendAct(match, {
-    kind: 'act',
-    method: 'selectCard',
-    card: { kind: 'card', id: cardId },
-    otherCardViewsToSelect: [],
-    triggerEvent: null,
-  });
+  return sendAct(
+    match,
+    {
+      kind: 'act',
+      method: 'selectCard',
+      card: { kind: 'card', id: cardId },
+      otherCardViewsToSelect: [],
+      triggerEvent: null,
+    },
+    placement,
+  );
 }
 
 /** Click a player: Forge's `selectPlayer`. Same rule as `selectCard`. */
@@ -1345,8 +1350,8 @@ export function selectPlayer(match: LiveMatch, playerId: number): boolean {
   return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: playerId }, triggerEvent: null });
 }
 
-function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kind: 'act' }>): boolean {
-  send(match, frame);
+function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kind: 'act' }>, placement?: Placement): boolean {
+  send(match, frame, placement);
   match.stats.replies += 1;
   notify(match);
   return true;

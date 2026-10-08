@@ -11,10 +11,22 @@
 
 import { useState } from 'react';
 
+import { ManaPip } from '../../components/ManaPip.tsx';
 import { PromptShell } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
 import { confirmButtons, confirmProblems, inputDialogProblems, optionDialogProblems } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
+
+/**
+ * Forge's colour question ("Select Mana to Produce": Black / Red) names the
+ * colours in words; the seat reads the mana symbol (the operator, 2026-10-08,
+ * after Z10 and Y23: "i said to use the black and red mana symbols"). The
+ * word stays as the button's accessible name.
+ */
+const COLOUR_TOKENS: Readonly<Record<string, string>> = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G', colorless: 'C', colourless: 'C' };
+function colourToken(label: string): string | null {
+  return COLOUR_TOKENS[label.trim().toLowerCase()] ?? null;
+}
 
 export function ShowOptionDialogPrompt({ ask, onAnswer }: PromptProps<'showOptionDialog'>) {
   const choose = (index: number) => {
@@ -32,10 +44,11 @@ export function ShowOptionDialogPrompt({ ask, onAnswer }: PromptProps<'showOptio
           type="button"
           data-testid="prompt-option"
           data-default={i === ask.defaultOption || undefined}
+          aria-label={label}
           autoFocus={i === ask.defaultOption}
           onClick={() => choose(i)}
         >
-          {label}
+          {colourToken(label) === null ? label : <ManaPip token={colourToken(label)!} />}
         </button>
       ))}
     />

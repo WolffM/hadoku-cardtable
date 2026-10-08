@@ -162,8 +162,11 @@ export function refName(lookup: PromptLookup, ref: { kind: string; id: number })
  * unchanged, so doing this unconditionally is safe everywhere this already runs.
  */
 /** {@link translateTargetWords} only: Forge's `{…}` symbols kept, for `RulesText` to draw. */
+/** Forge writes a card as "Dragonskull Summit (31)" — its own id. The seat reads the name (the operator, 2026-10-08). */
+const CARD_ID_SUFFIX = /\s\(\d{1,5}\)/g;
+
 export function promptText(text: string): string {
-  return translateTargetWords(text);
+  return translateTargetWords(text).replace(CARD_ID_SUFFIX, '');
 }
 
 export function plainRulesText(text: string): string {
