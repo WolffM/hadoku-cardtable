@@ -663,7 +663,9 @@ describe('the says, the toggle, and the ability label', () => {
     const sheet = container.querySelector('[data-prompt="getAbilityToPlay"]')!;
     const offered = [...sheet.querySelectorAll<HTMLButtonElement>('[data-testid="prompt-choice"]')];
     // The label is the affordance — no number is drawn anywhere in it.
-    expect(offered.map((b) => b.textContent)).toEqual(['Tap: Add R.', '2, Sacrifice Pyrite Spellbomb: Draw a card.']);
+    // The plain words are the accessible name; the button draws the tap and mana symbols (2026-10-08).
+    expect(offered.map((b) => b.getAttribute('aria-label'))).toEqual(['Tap: Add R.', '2, Sacrifice Pyrite Spellbomb: Draw a card.']);
+    expect(offered[0]!.querySelector('.pip'), 'the {R} is a symbol').not.toBeNull();
     expect(sheet.textContent).not.toMatch(/ability #/);
 
     fireEvent.click(offered[1]!);
