@@ -2003,7 +2003,9 @@ describe('a room on a drafted pool', () => {
       DRAFT_CHANNEL.serverToClient,
       stateMessage({ ...seatView(POOL), viewer: { kind: 'spectator' } }, { name: 'Test Cube', size: 540 }),
     );
-    const note = await screen.findByTestId('drafted-none');
+    // A loaded CI claw has twice run this `findBy` past its 1 s default (757fcf3, eb31fe3); the budget is
+    // not what this test is about.
+    const note = await screen.findByTestId('drafted-none', {}, { timeout: 10_000 });
     expect(note.textContent).toContain(POD);
     // No rows at all — and `Random` is still there, with nothing to roll.
     expect(offered()).toEqual([]);
