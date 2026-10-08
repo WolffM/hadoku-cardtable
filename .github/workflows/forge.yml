@@ -329,7 +329,6 @@ jobs:
           # Empty means every Forge-gated spec runs; an entry is a known red
           # with its reason, never a quiet way to drop a spec.
           excluded=$(cat <<'NONE'
-          w46-stack.spec.ts # the stack gallery it tests is hidden for a lone spell since 8ec5afe and deleted by w59; its :109 is AB15's flake (a dropped first cast)
           NONE
           )
           specs=$(grep -lE 'forge\.ok|startPlayStack|startScenarioMatch' e2e/*.spec.ts | xargs -n1 basename | sort)
