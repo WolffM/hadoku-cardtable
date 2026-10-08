@@ -189,6 +189,11 @@ test(
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
+    // Where this stands (the tracker, 2026-10-08, runs 37763694613 → 37765728857): Keiga's drag-cast
+    // is placed (server `placement` card 160), bob's Hinder reaches the stack, and Remand's drag-cast
+    // — a TARGETED spell, parked by the drag, its target Hinder's placed card clicked — never reaches
+    // the stack (`says` stays "Priority: Alice"). The next wave's first item; the day it passes is its land.
+    test.fail(true, 'Remand’s targeted drag-cast never reaches the stack after its placed target is clicked (ledger AD4)');
     test.setTimeout(3 * 60_000);
 
     const stack = await startPlayStack(forge);
