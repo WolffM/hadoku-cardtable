@@ -3384,12 +3384,15 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(true);
   });
 
-  it('`priority` — the other seat merely holds priority — is the plain "Waiting for {name}…", no verb', async () => {
-    const { s, m, getByTestId } = await liveBoard();
-    const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
+  it('`priority` — the other seat merely holds priority — draws NO pop-out: it is for an effect being resolved, never a wait', async () => {
+    // The operator, 2026-10-08: "'Waiting for Hadoku…' this shouldn't be showing at all times, that
+    // was not the intent. i wanted this to show when player is resolving an effect not simply when
+    // waiting on them."
+    const { s, m, queryByTestId } = await liveBoard();
     await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
-    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
-    expect(waiting.textContent).toBe(`Waiting for ${theirName}…`);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
+    expect(isWaitingForOpponent(m)).toBe(false);
   });
 
   /** The shipped verb table (Settled), one row each, plus no-host-card and the unmapped fallback. */

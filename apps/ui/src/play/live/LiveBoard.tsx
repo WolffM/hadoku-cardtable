@@ -441,7 +441,13 @@ export function decisionMessage(prompt: string, topStack: StackEntry | null): st
  */
 function theirWaitingOn(match: LiveMatch): { method: string; hostCard: string | null } | null {
   if (match.seat === null || match.waitingOn === null) return null;
-  return match.waitingOn.get(match.seat === 0 ? 1 : 0) ?? null;
+  const fact = match.waitingOn.get(match.seat === 0 ? 1 : 0) ?? null;
+  // `priority` is the server's word for a seat that merely holds priority (an ordinary "Priority: …"
+  // window with a live bar). That is not a decision, and the pop-out is for a decision — the operator,
+  // 2026-10-08: *"'Waiting for Hadoku…' this shouldn't be showing at all times, that was not the
+  // intent. i wanted this to show when player is resolving an effect not simply when waiting on
+  // them."* The fact stays on the wire for the board's priority flag; here it is nothing to wait for.
+  return fact === null || fact.method === 'priority' ? null : fact;
 }
 
 /**
@@ -462,14 +468,10 @@ const WAITING_VERB: Readonly<Record<string, string>> = {
 };
 
 /**
- * "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example. `priority` is
- * the server's word for a seat that merely holds priority (an ordinary "Priority: …" window with a
- * live bar): no decision, so no verb — the plain "Waiting for Hadoku…" the small line always used.
- * The operator, 2026-10-08, after Selesnya Sanctuary bounced itself with no choice to make: *"it
- * still shows 'Waiting for Bella to decide…' as if i needed to make a choice there."*
+ * "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example. Only ever called
+ * for a decision: a held priority window never reaches here (`theirWaitingOn`).
  */
 function waitingSentence(name: string, fact: { method: string; hostCard: string | null }): string {
-  if (fact.method === 'priority') return `Waiting for ${name}…`;
   const verb = WAITING_VERB[fact.method] ?? 'decide';
   return fact.hostCard === null ? `Waiting for ${name} to ${verb}…` : `Waiting for ${name} to ${verb} for ${fact.hostCard}…`;
 }
