@@ -407,49 +407,65 @@ export function decisionMessage(prompt: string): string {
 /* ── T2: a calm "waiting for the other player" (wave 36 §L) ───────────── */
 
 /**
- * Whether the viewer has something to do RIGHT NOW: an open ask, a mana
- * payment, or Forge's bar with button one enabled.
+ * The OTHER seat's own open ask or payment, as the
+ * server reported it (`apps/server/src/play/match.ts`'s `waitingOnFor`,
+ * carried onto `LiveMatch.waitingOn` by `match.ts`'s `adoptSeats`) — a FACT.
  *
- * Forge parks each seat's own thread on its own input and nothing else —
- * this client never sees the OPPONENT's ask, their `buttons`, or their
- * prompt; see the module header ("Which player is 'me'") and `match.ts`'s
- * own header on why every one of these fields is this seat's alone. So
- * there is no fact this client could read that says "the opponent is
- * answering a question" directly; the only honest signal is the negative
- * space of its OWN three — while none of them hold, Forge's threads are
- * necessarily elsewhere, which on a two-seat game means the other seat
- * (holding priority, mid-ask, or mid-payment on their own side).
+ * **Made dead, deleted**: the client used to infer "the
+ * opponent is doing something" from the negative space of the VIEWER's own
+ * three signals — no open ask, no selection, not paying mana, and the bar's
+ * `enable1` off (`myMoveNow`, wave 36 §L) — because Forge parks each seat's
+ * own thread on its own input and this client never saw the OPPONENT's ask,
+ * buttons or prompt directly. That inference is exactly what the flash the
+ * operator saw between the mulligan ending and the first real prompt landing
+ * was: this client's own signals can clear a beat before the server's
+ * `waitingOn` fact for the other seat catches up. The fact replaces the
+ * inference outright, so there is no more inference to keep around.
  *
- * `bar.enable1` alone, not `bar !== null`: `pressButton` resets `enable1`
- * to `false` the moment it sends (`match.ts`), and nothing re-enables it
- * until Forge's NEXT `updateButtons` — so a stale bar from the viewer's own
- * last turn reads as "not my move" the instant the press lands, rather than
- * lingering true until a fresh frame overwrites it.
+ * `null` before a seat is known, before `forge:seats` has ever landed, or
+ * while the other seat has neither.
  */
-function myMoveNow(match: LiveMatch): boolean {
-  if (isSpectator(match)) return false;
-  if (currentAsk(match) !== null) return true;
-  // The London mulligan's bottom pick (ledger Z2): Forge publishes no selection
-  // for it and its OK stays off until a card is set aside, so neither signal
-  // below holds — yet it is this seat's own move. The operator, 2026-10-07:
-  // "it just says 'Waiting for Bella…' but it should probably tell me how many
-  // cards to put at the bottom."
-  if (choosingMulligan(match)) return true;
-  // An open selection (a reveal, a discard, a target to click) is the viewer's
-  // move even while the bar's OK is disabled: it stays disabled until the
-  // selection is satisfied. Found on Secluded Glen's reveal (T12), where the
-  // page read "Waiting for Bob…" over the viewer's own choice.
-  if (match.selectables !== null) return true;
-  if (payingMana(match)) return true;
-  const bar = match.buttons;
-  return bar !== null && bar.enable1;
+function theirWaitingOn(match: LiveMatch): { method: string; hostCard: string | null } | null {
+  if (match.seat === null || match.waitingOn === null) return null;
+  return match.waitingOn.get(match.seat === 0 ? 1 : 0) ?? null;
 }
 
 /**
- * T2. Operator: a clear, calm indicator ("Waiting for Bob…") whenever the
- * opponent holds priority or is answering a question, gone the instant it is
- * the viewer's move. `myMoveNow`'s negation is exactly that instant — see its
- * own note for why there is no more direct signal to read.
+ * The verb for the T2 banner's sentence ("Waiting for {name} to {verb}…" —
+ * Settled). Keyed by the ask's own wire method, plus the synthetic `'pay'`
+ * {@link theirWaitingOn} never sends for a real ask (`match.ts`'s own note on
+ * why payment and an ask never hold at once). Every other blocking method —
+ * an attack assignment, a mana-X slider, a sideboard, an option list — reads
+ * as plain "decide": precise enough to be true, not so precise it needs a
+ * fifteenth entry.
+ */
+const WAITING_VERB: Readonly<Record<string, string>> = {
+  chooseSingleEntityForEffect: 'choose',
+  getChoices: 'choose cards',
+  chooseEntitiesForEffect: 'choose cards',
+  confirm: 'decide',
+  pay: 'pay',
+};
+
+/** "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example. */
+function waitingSentence(name: string, fact: { method: string; hostCard: string | null }): string {
+  const verb = WAITING_VERB[fact.method] ?? 'decide';
+  return fact.hostCard === null ? `Waiting for ${name} to ${verb}…` : `Waiting for ${name} to ${verb} for ${fact.hostCard}…`;
+}
+
+/**
+ * T2. Operator: a clear, calm indicator whenever the opponent holds priority
+ * or is answering a question, gone the instant it is the viewer's move.
+ *
+ * Driven by {@link theirWaitingOn} — a server-reported
+ * FACT — rather than `!myMoveNow(match)`'s inference. The flash the operator
+ * saw between the mulligan ending and the first real prompt landing was
+ * exactly the gap those two disagree in: this client's own `myMoveNow` goes
+ * false (its bar, selection and asks are all momentarily clear) a beat before
+ * the other seat's `waitingOn` fact — sent only once Forge actually parks a
+ * thread on an ask or a payment — catches up. Gating on the fact alone closes
+ * it: there is nothing to say "Waiting for…" about until there is something
+ * the other seat is actually doing.
  *
  * `false` with no board (`view === null`) and once the game has ended: both
  * already have their own line (the five-state status line; `GameResultScreen`),
@@ -461,7 +477,7 @@ export function isWaitingForOpponent(match: LiveMatch): boolean {
   if (isSpectator(match)) return false;
   const view = match.view;
   if (view === null || view.gameOver) return false;
-  return !myMoveNow(match);
+  return theirWaitingOn(match) !== null;
 }
 
 /*
@@ -1554,6 +1570,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const selectionPopup = selectionKind === 'off-board' || selectionKind === 'on-board';
   /** T2: gone the instant it is the viewer's move — see `isWaitingForOpponent`'s own note. */
   const waitingForOpponent = isWaitingForOpponent(match);
+  /** The fact the T2 banner's sentence is built from — present whenever `waitingForOpponent` is. */
+  const theirAsk = theirWaitingOn(match);
   /*
    * W1: the PREGAME half of "waiting for opponent" — the coin toss and
    * either seat's opening mulligan — gets the decision-area pop-up below
@@ -2104,7 +2122,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {waitingForOpponent && !pregameWait && (
         <p className="live__waiting" role="status" data-testid="live-waiting">
           <span className="live__waiting-dot" aria-hidden="true" />
-          Waiting for {theirName ?? 'the other player'}…
+          {theirAsk === null ? `Waiting for ${theirName ?? 'the other player'}…` : waitingSentence(theirName ?? 'the other player', theirAsk)}
         </p>
       )}
       {match.view !== null && <Board view={match.view} interaction={interaction} boardLayout={boardLayout} />}

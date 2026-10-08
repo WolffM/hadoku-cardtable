@@ -14,11 +14,11 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ClientFrameSchema, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { MATCH_ENDED_TITLE, createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
+import { MATCH_ENDED_TITLE, createMatchRegistry, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -274,6 +274,187 @@ describe('Q6: an avatar changed mid-match (wave 32)', () => {
 		expect(told).toHaveLength(1);
 		match.setSeatAvatar(7, 'nobody');
 		expect(told).toHaveLength(1);
+	});
+});
+
+/**
+ * The OTHER seat's view of an open ask — `seatIdentities()`'s
+ * `waitingOn`, carried on `forge:seats` the same way item 4's `avatarId` is (see
+ * that method's own header on why this is not folded into `MatchSnapshot`).
+ */
+describe("a seat's open ask or payment, for the other seat's banner", () => {
+	function waitingHarness(): Harness & { told: SeatIdentity[][] } {
+		const { factory, hosts } = replayFactory();
+		const sent: Harness['sent'] = [];
+		const logs: Record<string, unknown>[] = [];
+		const told: SeatIdentity[][] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: (e) => logs.push(e),
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
+			seatsChanged: (_match, seats) => told.push(seats),
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		return { match, host: hosts[0] as ReplayHost, sent, logs, told };
+	}
+
+	it('is absent for both seats before anything is asked', () => {
+		const h = waitingHarness();
+		h.host.push(...OPENING);
+		for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('waitingOn');
+	});
+
+	it("appears on the ASKING seat's own entry — never the other seat's — the instant the ask opens, and clears the instant it is answered", () => {
+		const h = waitingHarness();
+		h.host.push(...OPENING, PROBE_ASK);
+		expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
+		expect(h.match.seatIdentities()[1]).not.toHaveProperty('waitingOn');
+		expect(h.told.length).toBeGreaterThan(0);
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		h.match.fromClient(0, reply(callId, true));
+		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+	});
+
+	it('clears on disconnect (abort) and on timeout, the same as any other open ask', () => {
+		const h = waitingHarness();
+		h.host.push(...OPENING, PROBE_ASK);
+		expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
+		h.match.seatDisconnected(0);
+		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+	});
+
+	it('does not re-send the roster when the fact it carries has not moved', () => {
+		const h = waitingHarness();
+		h.host.push(...OPENING);
+		const before = h.told.length;
+		// A second identical state frame changes nothing `waitingOn` cares about.
+		h.host.push(OPENING[OPENING.length - 1] as BridgeLine);
+		expect(h.told.length).toBe(before);
+	});
+
+	/**
+	 * The isolation half (`e2e/play.spec.ts`'s own check, mirrored server-side):
+	 * a card named in the asking seat's OWN hand must never resolve to a name
+	 * for the other seat, and a card on the battlefield — public either way —
+	 * must. Built by hand rather than from the recorded transcript: the 31-line
+	 * fixture never reaches a real battlefield.
+	 */
+	describe('the host card is resolved against the OTHER seat, never the asker', () => {
+		const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
+		const card = (id: number, name: string) => ({ [String(deltaKeyOf(TYPE.card, id))]: { _type: TYPE.card, _id: id, Name: { t: 'str', v: name } } });
+		function gameView(player0Extra: Record<string, unknown>): Record<string, unknown> {
+			return {
+				[String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Players: list(0, 1) },
+				[String(deltaKeyOf(TYPE.player, 0))]: { _type: TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 }, ...player0Extra },
+				[String(deltaKeyOf(TYPE.player, 1))]: { _type: TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 } },
+			};
+		}
+		function openGame(h: Harness, table: Record<string, unknown>): void {
+			h.host.push(
+				{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: -1 } } },
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: -1 } } },
+				{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [1] } } },
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } },
+			);
+		}
+		function askAbout(h: Harness, cardId: number): void {
+			h.host.push(
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'deciding', card: { kind: 'card', id: cardId } } },
+				{ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'w60-ask', method: 'showConfirmDialog', message: 'm', title: 't', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: false } },
+			);
+		}
+
+		it('names a public (battlefield) card to the other seat', () => {
+			const h = waitingHarness();
+			const table = { ...gameView({ Battlefield: list(500) }), ...card(500, 'Public Permanent') };
+			openGame(h, table);
+			askAbout(h, 500);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: 'Public Permanent' } });
+		});
+
+		it("never names a card the asking seat's own hand holds, even though the asker's own entry is the one carrying the fact", () => {
+			const h = waitingHarness();
+			const table = { ...gameView({ Hand: list(501) }), ...card(501, 'Secret In Hand') };
+			openGame(h, table);
+			askAbout(h, 501);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
+		});
+	});
+
+	/**
+	 * `setSelectables` is never an `OpenAsk` — Thirst for Knowledge's own
+	 * discard reaches the wire as exactly this, confirmed against the real jar
+	 * (`docs/planning/wave60-evidence/B/waiting.md`), with a bridge
+	 * `tempShowZones` ASK open at the same moment and no card on the priority
+	 * prompt that preceded it — the shape every case below reproduces.
+	 */
+	describe('a selection (setSelectables) counts as waitingOn too — Thirst for Knowledge’s own shape', () => {
+		const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
+		const card = (id: number, name: string) => ({ [String(deltaKeyOf(TYPE.card, id))]: { _type: TYPE.card, _id: id, Name: { t: 'str', v: name } } });
+		/** A game whose `Stack` names exactly one item, whose `SourceCard` is `cardId`. */
+		function gameViewWithStack(stackCardId: number, stackCardName: string): Record<string, unknown> {
+			return {
+				[String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Players: list(0, 1), Stack: list(900) },
+				[String(deltaKeyOf(TYPE.player, 0))]: { _type: TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 } },
+				[String(deltaKeyOf(TYPE.player, 1))]: { _type: TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 } },
+				[String(deltaKeyOf(TYPE.stackItem, 900))]: { _type: TYPE.stackItem, _id: 900, SourceCard: { t: 'int', v: stackCardId } },
+				...card(stackCardId, stackCardName),
+			};
+		}
+		function openGame(h: Harness, table: Record<string, unknown>): void {
+			h.host.push(
+				{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: -1 } } },
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: -1 } } },
+				{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [1] } } },
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } },
+				// The priority prompt that precedes the resolve — card: null, exactly as measured.
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority: Seat 1\nStack: 1 to Resolve.', card: null } },
+			);
+		}
+		function openSelection(h: Harness, min: number, max: number, cardIds: number[]): void {
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: { kind: 'notify', method: 'setSelectables', cards: cardIds.map((id) => ({ kind: 'card', id })), min, max, players: [] },
+			});
+		}
+
+		it('min === max === 1 reuses chooseSingleEntityForEffect’s own verb slot', () => {
+			const h = waitingHarness();
+			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
+			openSelection(h, 1, 1, [82]);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'chooseSingleEntityForEffect', hostCard: 'Thirst for Knowledge' } });
+		});
+
+		it('any other min/max reuses getChoices’ own verb slot, and the host card falls back to the stack’s top when the prompt carries none', () => {
+			const h = waitingHarness();
+			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
+			openSelection(h, 2, 2, [82, 83, 84, 85, 86]);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getChoices', hostCard: 'Thirst for Knowledge' } });
+		});
+
+		it('a selection wins over a concurrently open ask (the bridge’s own tempShowZones, measured alongside it)', () => {
+			const h = waitingHarness();
+			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: { kind: 'ask', callId: 'w60-tsz', method: 'tempShowZones', controller: { kind: 'player', id: 0 }, zonesToUpdate: [{ player: { kind: 'player', id: 0 }, zones: ['Hand'] }] },
+			});
+			openSelection(h, 2, 2, [82, 83, 84, 85, 86]);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getChoices', hostCard: 'Thirst for Knowledge' } });
+		});
+
+		it('clears the instant clearSelectables arrives, with the ask still open', () => {
+			const h = waitingHarness();
+			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
+			openSelection(h, 2, 2, [82, 83, 84, 85, 86]);
+			expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
+			h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'clearSelectables' } });
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+		});
 	});
 });
 

@@ -165,6 +165,29 @@ export interface SeatIdentity {
 	avatarId?: string;
 	/** The name Forge shows for this seat; absent when the caller named none (wave 31 §S). */
 	name?: string;
+	/**
+	 * This seat's own open ask or mana payment, so the
+	 * OTHER seat's banner can say what it is waiting FOR instead of just that it
+	 * is waiting. Absent whenever this seat has neither — the same two-state
+	 * rule {@link SeatIdentity.avatarId} already follows.
+	 *
+	 * `method` is the ask's own wire method (`getChoices`,
+	 * `chooseSingleEntityForEffect`, `confirm`, …), or the synthetic `'pay'` for
+	 * `InputPayMana` — which is never a blocking ask (`match.ts`'s own
+	 * `payingMana` mirror, {@link Match.waitingOnFor}). The CLIENT owns turning
+	 * this into a verb (`LiveBoard.tsx`'s table, Settled) — this file only
+	 * reports the fact.
+	 *
+	 * `hostCard` is the name Forge's last `showPromptMessage` named for this
+	 * seat's input, resolved against the OTHER seat's OWN folded history
+	 * ({@link Match.waitingOnFor}) — never the asking seat's. A card still in a
+	 * hand is absent from the other seat's state and resolves to `null`; a
+	 * card on the stack or a battlefield is public either way and resolves to
+	 * its name. This is what keeps `e2e/play.spec.ts`'s isolation check green: a
+	 * hand card's name never crosses, because the lookup that would see it is
+	 * never the one used.
+	 */
+	waitingOn?: { method: string; hostCard: string | null };
 }
 import {
 	createProjector,
@@ -486,6 +509,28 @@ function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | nul
 	return null;
 }
 
+/**
+ * The id of the card at the TOP of `Game.Stack`, or null with nothing on it.
+ * {@link Match.waitingOnFor}'s own fallback: a `showPromptMessage`
+ * carries no `card` for an ordinary priority prompt — including the one-shot
+ * "Priority: … Stack: 1 to Resolve." window Forge gives the CASTER before
+ * their own spell resolves — so a selection or an ask that opens mid-resolution
+ * (Thirst for Knowledge's own discard, confirmed against the real jar: a
+ * `setSelectables`, not an ask with a card) has no fresher signal to read.
+ * `Game.Stack` lists top-first (`Match.noteTriggers`'s own note: reversing it
+ * gives arrival order), so index 0 is the top.
+ */
+function stackTopHostCardId(state: ReadonlyMap<string, WireObj>): number | null {
+	const game = state.get(keyOf(TYPE.game, 1));
+	const stack = game?.Stack as { t?: string; v?: unknown } | undefined;
+	if (stack?.t !== 'list' || !Array.isArray(stack.v) || stack.v.length === 0) return null;
+	const top = (stack.v[0] as { t?: string; v?: unknown } | undefined)?.v;
+	if (typeof top !== 'number') return null;
+	const item = state.get(keyOf(TYPE.stackItem, top));
+	const source = item?.SourceCard as { t?: string; v?: unknown } | undefined;
+	return source?.t === 'int' && typeof source.v === 'number' ? source.v : null;
+}
+
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
 export type ClientOutcome = { ok: true } | { ok: false; error: string };
 export interface ProbeResult {
@@ -677,6 +722,15 @@ export class Match {
 	 */
 	private readonly framesRing: FrameLogEntry[] = [];
 	private framesLogged = false;
+	/**
+	 * The last `waitingOn` fact (as JSON, seat by seat) `deps.seatsChanged` was
+	 * told, so {@link Match.checkWaitingOn} — called from every place
+	 * {@link SeatState.asks} or {@link SeatState.payment} can change — sends a
+	 * fresh roster only when the fact it carries actually moved, the same
+	 * "a change that changes nothing is not re-sent" rule {@link
+	 * Match.setSeatAvatar} already follows.
+	 */
+	private lastWaitingOnKey = '';
 
 	constructor(
 		id: string,
@@ -923,7 +977,89 @@ export class Match {
 			playerId: s.playerId,
 			...(s.avatarId === undefined ? {} : { avatarId: s.avatarId }),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),
+			...(() => {
+				const waitingOn = this.waitingOnFor(s);
+				return waitingOn === null ? {} : { waitingOn };
+			})(),
 		}));
+	}
+
+	/**
+	 * This seat's own live input, as the fact it is — a
+	 * method and (when Forge named one, and the OTHER seat may see it) a
+	 * card's name. `null` whenever this seat has nothing open.
+	 *
+	 * **Payment first, asks second, never both**: `InputPayMana` is not one of
+	 * the 15 blocking methods (`payingMana`'s own note, `apps/ui/src/play/live/match.ts`) —
+	 * it runs on the ordinary prompt/buttons channel, so `s.payment` and
+	 * `s.asks` never hold at once for the same seat.
+	 *
+	 * **A selection counts too, and comes before a plain ask.** `setSelectables`
+	 * is never an {@link OpenAsk} (it carries no `callId`; `InputSelectManyBase`
+	 * is not one of the 15 blocking methods) but it is this seat's own live
+	 * decision exactly as much as one is — the client's own rule, before this
+	 * wave's fix replaced it (`apps/ui/src/play/live/LiveBoard.tsx`'s deleted
+	 * `myMoveNow`). Measured against the real jar for Thirst for Knowledge's
+	 * discard (`docs/planning/wave60-evidence/B/waiting.md`): the two-of-five
+	 * choice reaches the wire as `setSelectables(min:2, max:2, …)`, not a
+	 * `getChoices` ask — a bridge `tempShowZones` ask opens ALONGSIDE it, but
+	 * that one is pacing machinery with nothing for a seat to decide, so a
+	 * selection is checked FIRST and wins. `min === max === 1` reuses
+	 * `chooseSingleEntityForEffect`'s own verb ("choose"); anything else reuses
+	 * `getChoices`'s ("choose cards") — both real wire methods already in the
+	 * client's table, not a label invented for this.
+	 *
+	 * The host card comes off `s.prompt`'s own `card` — `showPromptMessage`'s
+	 * third argument, which Forge sends fresh with an ask or a payment prompt
+	 * alike (`InputPayMana.updateMessage`, `InputConfirm.showMessage`,
+	 * `InputPassPriority`'s own prompt ahead of `getAbilityToPlay`) — falling
+	 * back to {@link stackTopHostCardId} when the prompt is stale or card-less,
+	 * which is exactly `setSelectables`' own case: measured against the real
+	 * jar, the one-shot "Priority: … Stack: 1 to Resolve." prompt Forge sends
+	 * the caster right before Thirst for Knowledge resolves carries `card:
+	 * null` (an ordinary priority prompt, not an announcement), and
+	 * {@link SeatState.chosenAbility} is already cleared by then — that exact
+	 * prompt's own `startsWith('Priority:')` is what clears it, a few lines
+	 * below. The spell is still ON the stack while its own discard resolves
+	 * (nothing passes priority to remove it mid-resolution), so the stack's
+	 * top is the one fact that survives to read. Resolved through the OTHER
+	 * seat's folded history, never this seat's: a card only this seat can see
+	 * (its own hand) is absent from that fold and resolves to `null`; the
+	 * stack and a battlefield are public either way and resolve to a name.
+	 */
+	private waitingOnFor(s: SeatState): { method: string; hostCard: string | null } | null {
+		const method =
+			s.payment !== null
+				? 'pay'
+				: s.selection !== null
+					? s.selection.method === 'setSelectables' && s.selection.min === 1 && s.selection.max === 1
+						? 'chooseSingleEntityForEffect'
+						: 'getChoices'
+					: s.asks.size > 0
+						? [...s.asks.values()][0]?.method ?? null
+						: null;
+		if (method === null) return null;
+		const other = this.seats.find((o) => o.seat !== s.seat);
+		const otherState = other === undefined ? null : foldFrames(other.history as unknown as StateFrame[]);
+		const prompt = s.prompt;
+		const promptCardId = prompt !== null && prompt.method === 'showPromptMessage' ? prompt.card?.id ?? null : null;
+		const cardId = promptCardId ?? (otherState === null ? null : stackTopHostCardId(otherState));
+		if (cardId === null || otherState === null) return { method, hostCard: null };
+		return { method, hostCard: cardName(otherState, cardId) };
+	}
+
+	/**
+	 * Re-broadcast the seat roster when, and only when, somebody's
+	 * {@link Match.waitingOnFor} actually moved — call from every place
+	 * {@link SeatState.asks} or {@link SeatState.payment} changes (`openAsk`,
+	 * `openMergedChoice`, `openDisplayOnlyReveal`, `closeAsk`, `trackPayment`).
+	 * Cheap to over-call: the key comparison is the guard, not the call site.
+	 */
+	private checkWaitingOn(): void {
+		const key = JSON.stringify(this.seats.map((s) => this.waitingOnFor(s)));
+		if (key === this.lastWaitingOnKey) return;
+		this.lastWaitingOnKey = key;
+		this.deps.seatsChanged?.(this.seatIdentities());
 	}
 
 	/**
@@ -1421,6 +1557,12 @@ export class Match {
 			s.weakly = null;
 		}
 		this.send(s, frame);
+		// `setSelectables`/`clearSelectables` can open or close the
+		// other seat's `waitingOn` fact too — a selection is a live decision
+		// (`myMoveNow`'s own client-side rule, `apps/ui/src/play/live/
+		// LiveBoard.tsx`) but never an `OpenAsk`, so nowhere else in this
+		// method's tail would catch it.
+		if (frame.method === 'setSelectables' || frame.method === 'clearSelectables') this.checkWaitingOn();
 	}
 
 	/**
@@ -1965,11 +2107,13 @@ export class Match {
 			if (s.payment === null || s.payment.cost !== cost) {
 				s.payment = { cost, tapped: [] };
 				s.paymentCancelled = false;
+				this.checkWaitingOn();
 			}
 			return;
 		}
 		const payment = s.payment;
 		s.payment = null;
+		this.checkWaitingOn();
 		if (payment === null) return;
 		// A cast that was CANCELLED paid nothing (item 7). Saying `paid 1U` for it
 		// would be the opposite of the rule this line exists for: it would make a
@@ -2099,6 +2243,7 @@ export class Match {
 		if (ask !== undefined) clearTimeout(ask.timer);
 		s.asks.delete(callId);
 		s.displayOnlyAsks.delete(callId);
+		this.checkWaitingOn();
 	}
 
 	/** `noteDiscardChoice`'s common tail: see the module header above {@link newMatchId}. */
@@ -2171,6 +2316,7 @@ export class Match {
 		timer.unref();
 		s.asks.set(callId, { callId, method: frame.method, frame, sentAt: this.now(), timer });
 		this.send(s, frame);
+		this.checkWaitingOn();
 	}
 
 	/**
@@ -2223,6 +2369,7 @@ export class Match {
 		timer.unref();
 		s.asks.set(choose.callId, { callId: choose.callId, method: 'chooseSingleEntityForEffect', frame: merged, sentAt: this.now(), timer });
 		this.send(s, merged);
+		this.checkWaitingOn();
 	}
 
 	/**
@@ -2249,6 +2396,7 @@ export class Match {
 		timer.unref();
 		s.asks.set(frame.callId, { callId: frame.callId, method: frame.method, frame, sentAt: this.now(), timer });
 		this.send(s, frame);
+		this.checkWaitingOn();
 	}
 
 	private closeAllAsks(): void {

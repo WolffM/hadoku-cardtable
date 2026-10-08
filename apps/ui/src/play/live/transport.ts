@@ -300,6 +300,18 @@ export const SeatIdentitySchema = borrowed.emptyObject
     avatarId: borrowed.unknown.optional(),
     /** Wave 31 §S: the name Forge shows for this seat. Absent when the server was not told one. */
     name: borrowed.nonEmptyString.optional(),
+    /**
+     * This seat's own open ask or mana payment —
+     * `apps/server/src/play/match.ts`'s `waitingOnFor`. Absent whenever this
+     * seat has neither (the same two-state rule `avatarId` already follows).
+     * `method` is the ask's wire method, or the synthetic `'pay'`; `match.ts`'s
+     * `adoptSeats` carries both straight onto `LiveMatch.waitingOn`, and
+     * `LiveBoard.tsx` owns turning `method` into a verb.
+     */
+    waitingOn: borrowed.emptyObject
+      .extend({ method: borrowed.nonEmptyString, hostCard: borrowed.nonEmptyString.nullable() })
+      .strict()
+      .optional(),
   })
   .strict();
 

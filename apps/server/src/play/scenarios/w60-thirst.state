@@ -1,0 +1,29 @@
+# Alice (seat 0, human) holds Thirst for Knowledge
+# ({3}{U}, "Draw three cards. Then discard two cards unless you discard an
+# artifact card.") and four untapped Islands — enough to cast it with nothing
+# to respond. No artifact anywhere in her hand or on her battlefield, so the
+# card's "unless" clause is never live and the discard is always the plain
+# "choose two of your hand" choice.
+#
+# Measured against the real jar: that discard reaches the wire as a
+# `setSelectables` (`min:2, max:2`), never a blocking ask. Two Mountains
+# already in hand, plus three more drawn off the top of the library, give her
+# FIVE lands to choose two of after the spell leaves her hand — a real choice
+# (ten distinct two-card subsets), not the single legal answer the server's
+# own "one option" shortcut would auto-collapse (`thoughtseize.state`'s own
+# note on why its discarder's hand needs two different nonland cards, not
+# one). Bob (seat 1) holds nothing of his own; he is only here to watch
+# alice's open ask on his own banner.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Thirst for Knowledge;Mountain;Mountain
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

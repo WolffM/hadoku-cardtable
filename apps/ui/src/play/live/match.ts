@@ -700,6 +700,19 @@ export interface LiveMatch {
    */
   nameByPlayerId: ReadonlyMap<number, string> | null;
   /**
+   * Every seat's own open ask or mana payment, keyed by SEAT (0/1, not a
+   * Forge player id — unlike {@link LiveMatch.avatarByPlayerId}), from
+   * `forge:seats`' `waitingOn`
+   * (`apps/server/src/play/match.ts`'s `waitingOnFor`). Same three-state rule
+   * as {@link LiveMatch.avatarByPlayerId}: `null` until the seat table has
+   * arrived, then a real Map holding only the seats that have one right now.
+   * `LiveBoard.tsx`'s banner reads the OTHER seat's entry and owns turning
+   * `method` into a verb; `hostCard` is already resolved against what THIS
+   * viewer may see (`match.ts`'s own header on `waitingOnFor`), never a hand
+   * card of the asking seat's.
+   */
+  waitingOn: ReadonlyMap<number, { method: string; hostCard: string | null }> | null;
+  /**
    * This connection is a SPECTATOR of its seat: another connection for the
    * same account controls it, and the server refuses this one's inputs
    * (`forge:role`, wave 31 §S). The server enforces; this only lets the UI say
@@ -823,6 +836,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     stackTargetSpells: new Map(),
     avatarByPlayerId: null,
     nameByPlayerId: null,
+    waitingOn: null,
     spectator: false,
     over: false,
     fullControl: false,
@@ -1083,6 +1097,14 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
     if (seat.playerId !== null && seat.name !== undefined) names.set(seat.playerId, seat.name);
   }
   match.nameByPlayerId = names;
+  // Keyed by SEAT, not player id — a seat can hold an open
+  // ask before `openView` has named its Forge player (an early mulligan
+  // confirm, for one), and the fact must still reach the viewer then.
+  const waitingOn = new Map<number, { method: string; hostCard: string | null }>();
+  for (const seat of parsed.value.seats) {
+    if (seat.waitingOn !== undefined) waitingOn.set(seat.seat, seat.waitingOn);
+  }
+  match.waitingOn = waitingOn;
   redraw(match);
   notify(match);
 }
@@ -2467,6 +2489,7 @@ function discardLocal(match: LiveMatch): void {
   match.stackTargetSpells = new Map();
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;
+  match.waitingOn = null;
   match.over = false;
   unspend(match);
 }

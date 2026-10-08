@@ -2565,6 +2565,36 @@ describe('the seat identities — item 4, wave 29 §A.6-8', () => {
   });
 });
 
+/**
+ * `forge:seats`' `waitingOn`, keyed by SEAT rather than
+ * player id because an ask can precede `openView`.
+ */
+describe('waitingOn', () => {
+  it('is null before forge:seats has ever arrived', async () => {
+    const { m } = await fullGame();
+    expect(m.waitingOn).toBeNull();
+  });
+
+  it('carries a seat that has one, and leaves the key off the entry for a seat that does not', async () => {
+    const { s, m } = await fullGame();
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: 0, waitingOn: { method: 'getChoices', hostCard: 'Thirst for Knowledge' } },
+      { seat: 1, claimed: true, playerId: 1 },
+    ]);
+    await until('forge:seats to be adopted', () => m.waitingOn !== null);
+    expect(m.waitingOn!.get(0)).toEqual({ method: 'getChoices', hostCard: 'Thirst for Knowledge' });
+    expect(m.waitingOn!.has(1)).toBe(false);
+  });
+
+  it('a later forge:seats with nobody waiting replaces the map rather than leaving a stale entry', async () => {
+    const { s, m } = await fullGame();
+    s.sendSeats([{ seat: 0, claimed: true, playerId: 0, waitingOn: { method: 'confirm', hostCard: null } }]);
+    await until('forge:seats to be adopted', () => (m.waitingOn?.size ?? 0) > 0);
+    s.sendSeats([{ seat: 0, claimed: true, playerId: 0 }]);
+    await until('the clear to be adopted', () => (m.waitingOn?.size ?? -1) === 0);
+  });
+});
+
 /*
  * Wave 31 §S: `forge:role`, `forge:seats`' `name`, and `over`.
  */
