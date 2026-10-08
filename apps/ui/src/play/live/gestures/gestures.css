@@ -141,6 +141,21 @@
   pointer-events: none;
 }
 
+/*
+ * Lifted: the battlefield's own card size, not the hand's, from the first
+ * frame. `./cast.ts`'s `drawCastLift` sets `--card-w` on the element itself
+ * to the viewer's own battlefield's current value the moment it lifts; this
+ * rule just names the box that reads it, at higher specificity than
+ * `.board-card`'s own `width: var(--card-w, …)` (`card.css`) so the card
+ * resolves THIS `--card-w`, never the hand row's, whichever stylesheet the
+ * bundler happens to order last. No transition: the size is already right,
+ * so there is nothing to glide (unlike the width/height transition below,
+ * which is `install.ts`'s ghost shrinking into the row's reserved gap).
+ */
+.board-card[data-cast-lift='lifted'] {
+  width: var(--card-w);
+}
+
 /* A played card on its way: its stand-in is what is drawn (`./cast.ts`'s `drawCastLift`). */
 [data-cast-lift='carried'] {
   visibility: hidden;

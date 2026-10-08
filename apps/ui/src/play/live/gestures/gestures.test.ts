@@ -2040,6 +2040,33 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(s.clientFrames()).toHaveLength(1); // unchanged — the second card is only click-armed
   });
 
+  /*
+   * AD2: *"when card is dragged out of hand it should show a card that
+   * matches the size of what's currently on board. sometimes cards in hand
+   * can display bigger."* A hand row's own `--card-w` has no `--card-max`
+   * ceiling (`board.css`'s T6 comment), so it can be bigger than the
+   * battlefield's; `drawCastLift`'s `'lifted'` pins the battlefield's own
+   * value onto the card the instant it lifts, not later.
+   */
+  it('a lifted card is sized like the battlefield’s own card, not the hand’s', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    // The battlefield's own card size, and the hand's own (bigger) one the lifted card starts with.
+    myBattlefield.style.setProperty('--card-w', '64px');
+    cardEl(canvas, hand[0]!).style.setProperty('--card-w', '112px');
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
+    expect(
+      cardEl(canvas, hand[0]!).style.getPropertyValue('--card-w'),
+      'the battlefield’s size, from the lift — not the hand’s',
+    ).toBe('64px');
+    expect(s.clientFrames(), 'nothing sent yet — the lift alone').toHaveLength(0);
+  });
+
   it('a no-target card released over the viewer’s own battlefield is played, once, at the release point', async () => {
     const { s, m, canvas } = await gestureBoard();
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');

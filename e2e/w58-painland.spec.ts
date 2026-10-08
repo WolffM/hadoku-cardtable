@@ -32,13 +32,23 @@ async function ownNamed(page: Page, name: string): Promise<number> {
   return ids[0];
 }
 
-/** Answer whatever choice pop-up is open: the option matching `prefer` if one is, else the first; then its submit, if it has one. */
+/**
+ * Answer whatever choice pop-up is open: the option matching `prefer` if one
+ * is, else the first; then its submit, if it has one.
+ *
+ * Matched by `aria-label`, not the button's own rendered text: an ability's
+ * mana and tap symbols draw as the Mana font's glyphs now (wave 60 §M, AD6 /
+ * Z10 / Y23), so a letter like "G" or "R" is no longer anywhere `hasText`
+ * could find it — the plain words (`aria-label`) are the only text an
+ * option carries that Forge's own `{G}`/`{T}` tokens still read as.
+ */
 async function answerChoice(page: Page, prefer: RegExp): Promise<boolean> {
   const prompt = page.getByTestId('live-prompt');
   const options = prompt.locator('[data-testid="prompt-choice"]');
   if (!(await options.first().isVisible({ timeout: 1_500 }).catch(() => false))) return false;
-  const preferred = options.filter({ hasText: prefer });
-  await ((await preferred.count()) > 0 ? preferred.first() : options.first()).click();
+  const labels = await options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
+  const index = labels.findIndex((label) => prefer.test(label));
+  await (index >= 0 ? options.nth(index) : options.first()).click();
   const submit = prompt.getByTestId('prompt-submit');
   if (await submit.isVisible({ timeout: 500 }).catch(() => false)) await submit.click();
   return true;

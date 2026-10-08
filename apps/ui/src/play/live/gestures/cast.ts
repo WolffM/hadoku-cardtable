@@ -122,6 +122,21 @@ function cancelReturnTimer(id: number): void {
  * lands, so nothing Forge does to the card on the way shows through. A
  * shockland that enters tapped is tapped a frame or two before it changes
  * zone, and drew tapped in mid-air. No text is drawn on the card in any state.
+ *
+ * `'lifted'` also pins `--card-w` to the viewer's own battlefield's CURRENT
+ * value (`.board-card`'s own rule, `card.css`, already draws off this
+ * property — nothing else has to change). A hand row's own `--card-w` has no
+ * `--card-max` ceiling (`board.css`'s T6 comment: *"a hand card is as tall as
+ * its row allows"*), so a card lifted straight out of a loose hand could
+ * otherwise draw bigger than any card on the board (the operator, ledger
+ * AD2: *"sometimes cards in hand can display bigger"*). Snapshotting it once,
+ * at the lift, means nothing shrinks later — a `'parked'` or `'carried'` card
+ * (the same element, or `parkedGhost`'s clone of it) keeps the value this set.
+ * Read with `getComputedStyle` rather than the zone's own source formula,
+ * so this needs no second copy of it and stays correct if that formula
+ * changes; empty only where there is no battlefield zone to read (a fixture
+ * with no `Board` mounted around it), and then the hand's own size is left
+ * standing rather than writing a blank custom property.
  */
 export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lifted' | 'parked' | 'carried'): void {
   const el = cardBox(root, id);
@@ -130,6 +145,11 @@ export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lif
   el.setAttribute(CAST_LIFT_ATTR, mode);
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
+  if (mode === 'lifted') {
+    const bf = ownBattlefieldZone(root);
+    const boardCardWidth = bf === null ? '' : getComputedStyle(bf).getPropertyValue('--card-w').trim();
+    if (boardCardWidth !== '') el.style.setProperty('--card-w', boardCardWidth);
+  }
 }
 
 /** Let the one card named go — back into its own flow, wherever the gesture ended, with no animation. */
@@ -140,6 +160,7 @@ export function clearCastLift(root: ParentNode, id: number): void {
   el.removeAttribute(CAST_LIFT_ATTR);
   el.style.removeProperty('left');
   el.style.removeProperty('top');
+  el.style.removeProperty('--card-w');
 }
 
 /**
