@@ -417,14 +417,15 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
     // `getAbilityToPlay` choice generically).
     await castCard(alice.page, dragon);
 
-    // Precondition 1: an ABILITY entry (not a spell) is on the stack. Alone,
-    // it is drawn on its source (the stack redesign, 2026-10-06: a lone
-    // trigger or ability pulses its permanent; no row is drawn for one item),
-    // so the source carries the item's own `data-stack-id`.
+    // Precondition 1: an ABILITY entry (not a spell) is on the stack. §S: it
+    // is drawn as an ephemeral card beside its source (Settled —
+    // `live/placed.ts`, replacing the old lone-band pulse outright), so the
+    // ability carries its own `[data-placed-spell]`, never the source.
     await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'the activated ability reached the stack — the precondition "glint-hawk" sets up' }).toBeGreaterThan(0);
     const source = alice.page.locator(`[data-board-card="${dragon}"]`);
-    await expect(source, 'the ability is drawn on its source').toHaveAttribute('data-stack-source', 'true', { timeout: 5_000 });
-    await expect(alice.page.locator('.stack__item'), 'and not in the row').toHaveCount(0);
+    await expect(source, 'the pulse is gone with the band — nothing on the source marks itself').not.toHaveAttribute('data-stack-source', 'true');
+    const ephemeral = alice.page.locator('[data-placed-spell]');
+    await expect(ephemeral, 'the ability is its own ephemeral card now').toHaveCount(1, { timeout: 5_000 });
 
     // Precondition 2 — the one the old Prodigal-Sorcerer version of this spec
     // could never produce: AT THIS SAME MOMENT, Forge offers the source
@@ -437,12 +438,11 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
       'the source permanent is offered again while its own ability sits on the stack — the precondition this spec needs',
     ).toHaveAttribute('data-selectable', 'true');
 
-    // The behaviour: the ability has no button of its own anywhere — the
-    // permanent's own click (Forge's offer, above) is the only one, so the
-    // Q18 regression (a SECOND button for the same activation, drawn as the
-    // stack entry) cannot exist. With a spell beside it the row draws, and
-    // `Board.test.ts` pins that the ability's thumbnail is never selectable.
-    expect(await alice.page.locator('button.stack__select').count(), 'never Forge’s own select button for the ability').toBe(0);
+    // The behaviour: the ability's own ephemeral card is never selectable by
+    // its source's card id — the permanent's own click (Forge's offer, above)
+    // is the only button for that action, so the Q18 regression (a SECOND
+    // button for the same activation) cannot exist.
+    await expect(ephemeral, 'never selectable — only a SPELL entry may be (Q18)').not.toHaveAttribute('data-selectable', '');
   } finally {
     await stack.stop();
   }
@@ -482,12 +482,9 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
 
 /* ── 9. Ponder's full text is readable, in the carousel's own big view ──── */
 
-test(titled('Ponder\'s full oracle text is readable via the carousel\'s own big view, while it sits on the stack'), async ({ browser }) => {
+test(titled('Ponder\'s full oracle text is readable by hovering the placed card, while it sits on the stack'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  // The band shows nothing for a lone spell since 8ec5afe (the operator, 2026-10-08); w59 reads the
-  // text by hovering the PLACED card and rewrites this test — the day it passes again is w59's land.
-  test.fail(true, 'the lone band is hidden; w59 replaces it (ledger AD4)');
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
@@ -506,13 +503,11 @@ test(titled('Ponder\'s full oracle text is readable via the carousel\'s own big 
     // case Q18/Doom Blade already use safely) and read its text straight off
     // the stack item, before any of that sequence ever starts.
     //
-    // **Re-aimed for wave 36 T8, then again for wave 46 X3**: the band itself
-    // carries no text at all any more (`.stack__text` and T8's own
-    // `.stack__what` are both gone — `Board.tsx`'s own `StackThumb` draws a
-    // thumbnail, art only). The claim this test pins moved with it: the full
-    // text is the carousel's OWN big view (`.stack__big`, pinned by default
-    // or shown on a hover/focus peek), never the generic document-level
-    // inspector — the stack opted out of that mechanism entirely this wave.
+    // **Re-aimed for wave 36 T8, wave 46 X3, then wave 59 §S**: the band and
+    // its carousel are both deleted outright — `live/placed.ts` draws every
+    // stack item as a real card, both seats', and hovering IT is now exactly
+    // how every other card on the board is read: the one generic,
+    // document-level inspector, no stack-specific big view at all any more.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
 
     await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
@@ -521,16 +516,13 @@ test(titled('Ponder\'s full oracle text is readable via the carousel\'s own big 
     const card = (await offered(alice.page))[0]!;
     await castCard(alice.page, card);
 
-    // The precondition: Ponder is on the stack. On the caster's own page the
-    // played card stands in for it (`carryCastOffStack`); on the OPPONENT's
-    // page a lone spell is drawn as the card itself, unnumbered, in the band
-    // (the stack redesign, 2026-10-06) — its accessible name is the locator
-    // (`Board.tsx`'s `stackItemLabel`).
+    // The precondition: Ponder is on the stack. §S: EVERY seat sees it as a
+    // real card now — `live/placed.ts` draws the opponent's copy too, no row,
+    // no band, its accessible name the same who/what/target join the old
+    // thumbnail carried (`live/placed.ts`'s own `itemLabel`).
     await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Ponder joined the stack — the precondition this spec needs' }).toBeGreaterThan(0);
-    const item = bob.page.locator('.stack__item[aria-label*="Ponder" i]');
-    await expect(item, 'Ponder\'s own stack entry is drawn for the opponent, as the card').toHaveCount(1, { timeout: 10_000 });
-    await expect(item).toHaveClass(/stack__item--lone/);
-    await expect(item.locator('.stack__n'), 'unnumbered: there is no stack to count').toHaveCount(0);
+    const item = bob.page.locator('[data-placed-spell][aria-label*="Ponder" i]');
+    await expect(item, 'Ponder\'s own placed card is drawn for the opponent too').toHaveCount(1, { timeout: 10_000 });
 
     // The full oracle text is the one inspector's: hovering the card opens it.
     await item.hover();
@@ -607,12 +599,14 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     // asserting the EXACT key, not just "an arrow exists", is what actually
     // proves the stack item carries this specific target.
     const targetId = await alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card').first().getAttribute('data-board-card');
-    const stackId = await alice.page.locator('.stack__item').first().getAttribute('data-stack-id');
+    const stackId = await alice.page.locator('[data-placed-spell]').first().getAttribute('data-placed-spell');
     void bob;
     expect(targetId, 'bob\'s one creature has an id to key the arrow on').not.toBeNull();
     expect(stackId, 'the stack item has an id to key the arrow on').not.toBeNull();
+    // §S: `live/placed.ts`'s own `.placed__arrow`, keyed `<item id>:card:<target id>` — the same
+    // geometry (`aimAt`), drawn from the placed card instead of the deleted row.
     await expect(
-      alice.page.locator(`[data-testid="stack-target-arrow"][data-key="${stackId}:card:${targetId}"]`),
+      alice.page.locator(`[data-testid="placed-arrow"][data-key="${stackId}:card:${targetId}"]`),
       'the stack item carries its target, and the board draws an arrow keyed to exactly this stack item and this lone legal creature',
     ).toHaveCount(1, { timeout: 10_000 });
   } finally {

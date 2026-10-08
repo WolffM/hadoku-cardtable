@@ -1584,9 +1584,6 @@ interface StaticShot {
   /** name → "left,top,width,height", rounded. */
   boxes: Record<string, string>;
   page: [number, number];
-  /** The stack's list: overflow may go sideways INSIDE it, never downward. */
-  stackScroll: [number, number];
-  stackClient: [number, number];
   /** Hand and battlefield must not be painted the same (#3). */
   surfaces: Record<string, string>;
   prose: number;
@@ -1701,43 +1698,46 @@ function measureColumns(): { you: SeatColumn; them: SeatColumn } {
  * Put `n` items on the stack, DOM only, and measure every slot on the board.
  * Runs in the page.
  *
- * The items are built from the same classes `Board.tsx` renders (wave 46 X3:
- * a thumbnail `<li>` wrapping a real `CardTile` clone), with a real `CardTile`
- * cloned out of the viewer's dealt hand for the art, so what is measured is
- * the stylesheet doing its job rather than a stand-in. Nothing is sent to
- * Forge and nothing enters React's state; the match is parked on a
- * keep-or-mulligan question, so no frame redraws the list under the copies.
+ * Wave 59 §S deleted the row this probe used to fill (`.stack__items`, a
+ * scrollable list inside `.board__mid`) — every stack item is now
+ * `live/placed.ts`'s own card, absolutely positioned in the OVERLAY, which is
+ * exactly why "the canvas is static" no longer has an "overflows sideways
+ * instead of growing the band" half to prove: the overlay is already out of
+ * flow (`e2e/table-fit.spec.ts`'s other proof, "the overlay covers the board
+ * exactly"), so nothing drawn into it, however much, can ever move a track —
+ * that is this probe's whole remaining claim. The probes are built from
+ * `live/placed.ts`'s own classes (`.placed`/`.placed__tile`), with a real
+ * `CardTile` cloned out of the viewer's dealt hand for the art, so what is
+ * measured is the stylesheet doing its job rather than a stand-in. Nothing is
+ * sent to Forge and nothing enters React's state; the match is parked on a
+ * keep-or-mulligan question, so no frame redraws the overlay under the
+ * copies.
  */
 function fillStack(n: number): Promise<StaticShot> {
   const board = document.querySelector<HTMLElement>('.board');
   if (board === null) throw new Error('no board on the page');
-  const list = board.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
-  if (list === null) throw new Error('the stack has no list of its own — an empty stack must still render its slot');
+  const overlay = board.querySelector<HTMLElement>('[data-board-overlay]');
+  if (overlay === null) throw new Error('the board has no overlay root');
   const art = document.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"] li.board-card [data-testid="card"]');
   if (art === null) throw new Error('no dealt hand to copy a card from');
 
-  for (const el of Array.from(list.querySelectorAll('[data-probe]'))) el.remove();
+  for (const el of Array.from(overlay.querySelectorAll('[data-probe]'))) el.remove();
   let i = 0;
-  while (list.querySelectorAll('[data-probe]').length < n) {
-    const li = document.createElement('li');
-    li.className = `stack__item${i === 0 ? ' stack__item--top' : ''} ${i % 2 === 0 ? 'stack__item--mine' : 'stack__item--theirs'}`;
-    li.setAttribute('data-probe', '');
-    li.setAttribute('aria-label', `probe · item ${i + 1}`);
-    const body = document.createElement('span');
-    body.className = 'stack__body';
-    const wrap = document.createElement('span');
-    wrap.className = 'stack__art';
-    wrap.appendChild(art.cloneNode(true));
-    // Wave 46 X3: no visible text on a thumbnail at all — just the art and
-    // the decorative ordinal badge (`.stack__n`), the same markup
-    // `Board.tsx`'s own `StackThumb` draws.
-    const num = document.createElement('span');
-    num.className = 'stack__n';
-    num.setAttribute('aria-hidden', 'true');
-    num.textContent = String(i + 1);
-    body.append(wrap, num);
-    li.appendChild(body);
-    list.appendChild(li);
+  while (overlay.querySelectorAll('[data-probe]').length < n) {
+    const el = document.createElement('div');
+    el.className = 'placed';
+    el.setAttribute('data-probe', '');
+    el.setAttribute('data-placed-spell', `probe-${i}`);
+    el.setAttribute('aria-label', `probe · item ${i + 1}`);
+    // Spread out, purely so a screenshot reads as several cards rather than
+    // one stack of them — no assertion below reads this position.
+    el.style.left = `${80 + (i % 6) * 60}px`;
+    el.style.top = `${80 + Math.floor(i / 6) * 90}px`;
+    const tile = document.createElement('div');
+    tile.className = 'placed__tile';
+    tile.appendChild(art.cloneNode(true));
+    el.appendChild(tile);
+    overlay.appendChild(el);
     i++;
   }
 
@@ -1786,8 +1786,6 @@ function fillStack(n: number): Promise<StaticShot> {
           items: n,
           boxes,
           page: [page.scrollWidth, page.scrollHeight],
-          stackScroll: [list.scrollWidth, list.scrollHeight],
-          stackClient: [list.clientWidth, list.clientHeight],
           surfaces,
           // No empty-state text, no hidden-hand sentence, no hint (#4).
           prose: board.querySelectorAll('.zone__empty, .zone__hidden, .stack__hint').length,
@@ -1802,29 +1800,27 @@ function fillStack(n: number): Promise<StaticShot> {
 }
 
 /**
- * Wave 32 (w31's open stack item), re-aimed for wave 36 T8, re-aimed again
- * for wave 46 X3: the claim used to be "a long effect's text is readable,
- * not clipped, in the band" (Ponder's own example), then T8's "one line,
- * ellipsis-clipped, full text on hover" — X3 deleted the drawn line
- * outright (`Board.tsx`'s own `StackThumb`: a thumbnail draws no text at
- * all, who/what/target lives in `aria-label` only), so there is nothing
- * left here to clip. What a "readable with a question up" claim can still
- * mean: the compact band (`--mid-h-asked`) still draws every thumbnail it
- * holds, at its own (smaller) `--stack-card-w`, rather than cutting any of
- * them. The caller has a REAL question open (the probe route): React owns
+ * Wave 32 (w31's open stack item), re-aimed for wave 36 T8, wave 46 X3, then
+ * wave 59 §S: the claim used to be "a long effect's text is readable, not
+ * clipped, in the band" (Ponder's own example) — §S deletes the band outright,
+ * so there is nothing left here to clip or shrink. What "readable with a
+ * question up" means now: every placed card is still drawn, in the overlay,
+ * untouched by the band shrinking to `--mid-h-asked` beside it — the overlay
+ * is out of flow and the cards in it are never sized off the band at all. The
+ * caller has a REAL question open (the probe route): React owns
  * `data-question` and strips a hand-set one at the next frame. Runs in the
  * page; the caller clears the probes.
  */
 function stackAskedBand(n: number): Promise<{ items: number; asked: boolean; band: string }> {
   const mid = document.querySelector<HTMLElement>('.board__mid');
   if (mid === null) throw new Error('no stack band');
-  const list = mid.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
-  if (list === null) throw new Error('no stack list');
-  if (list.querySelectorAll('[data-probe]').length !== n) throw new Error('fillStack has not put every probe on the stack');
+  const overlay = document.querySelector<HTMLElement>('[data-board-overlay]');
+  if (overlay === null) throw new Error('no overlay root');
+  if (overlay.querySelectorAll('[data-probe]').length !== n) throw new Error('fillStack has not put every probe in the overlay');
   return new Promise((done) =>
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        const items = mid.querySelectorAll('.stack__item').length;
+        const items = overlay.querySelectorAll('[data-probe]').length;
         const band = `${getComputedStyle(mid).getPropertyValue('--mid-h')} h=${Math.round(mid.getBoundingClientRect().height)}px`;
         done({ items, asked: mid.hasAttribute('data-question'), band });
       }),
@@ -1832,9 +1828,9 @@ function stackAskedBand(n: number): Promise<{ items: number; asked: boolean; ban
   );
 }
 
-/** Take the probe items back off the stack. Runs in the page. */
+/** Take the probe items back off the overlay. Runs in the page. */
 function clearStack(): void {
-  for (const el of Array.from(document.querySelectorAll('[data-zone="stack"] [data-probe]'))) el.remove();
+  for (const el of Array.from(document.querySelectorAll('[data-board-overlay] [data-probe]'))) el.remove();
 }
 
 /* ── a real question, in the column it actually gets ─────────────────── */
@@ -2034,10 +2030,9 @@ test(CROWD_TITLE, async ({ browser }) => {
         /* ── the canvas is static: fill the stack, and nothing else may move ── */
         const shots: StaticShot[] = [];
         for (const n of STACK_STEPS) shots.push(await f.page.evaluate(fillStack, n));
-        // The asked band: wave 46 X3's carousel still draws every thumbnail
-        // it holds at the COMPACT size (`--mid-h-asked`'s own `--stack-card-w`,
-        // `stackAskedBand`'s own header) with a REAL question up — nothing is
-        // cut, because there is no long text left to cut (T8/X3).
+        // The asked band: §S's placed cards are untouched by the band
+        // shrinking to its compact size with a REAL question up — they live
+        // in the overlay, never sized off `--mid-h`/`--mid-h-asked` at all.
         // The question is Forge's own, through the probe route, so `data-question` is React's.
         {
           const pending = alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches/${summary.matchId}/probe`, {
@@ -2051,7 +2046,7 @@ test(CROWD_TITLE, async ({ browser }) => {
           if (SHOTS !== '') await f.page.screenshot({ path: resolve(SHOTS, `stack-asked-${f.name}-${f.page.viewportSize()!.width}.png`) });
           await f.page.evaluate(clearStack);
           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.band})`).toBe(true);
-          expect(asked.items, `${f.name}: the asked band still draws every thumbnail it holds`).toBe(2);
+          expect(asked.items, `${f.name}: every placed card is still in the overlay, compact band or not`).toBe(2);
           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
         }
@@ -2221,17 +2216,15 @@ test(CROWD_TITLE, async ({ browser }) => {
         expect(base.surfaces.hand, `${where}: the hand is not painted like the battlefield`).not.toBe(base.surfaces.battlefield);
         for (const s of shots) {
           const at = `${where}, ${s.items} on the stack`;
-          // Every box, identical. This is the whole rule.
+          // Every box, identical. This is the whole rule — §S's placed cards
+          // live in the overlay, out of flow, so even 12 of them never move a
+          // track (there is no scrollable row left to overflow sideways; see
+          // `fillStack`'s own header).
           expect(s.boxes, `${at}: no slot moved`).toEqual(base.boxes);
           expect(s.page[1], `${at}: the page scrolls vertically`).toBeLessThanOrEqual(Number(s.size.split('x')[1]));
           expect(s.page[0], `${at}: the page scrolls sideways`).toBeLessThanOrEqual(Number(s.size.split('x')[0]));
-          // What does not fit goes sideways INSIDE the stack's own slot.
-          expect(s.stackScroll[1], `${at}: the stack overflows downward instead of sideways`).toBeLessThanOrEqual(s.stackClient[1] + 1);
           expect(s.prose, `${at}: empty-state text, a hidden-hand sentence or a hint came back`).toBe(0);
         }
-        // And it really did get crowded: 12 items do not fit across the band.
-        const full = shots.at(-1)!;
-        expect(full.stackScroll[0], `${where}: 12 items are more than the band is wide`).toBeGreaterThan(full.stackClient[0]);
 
         /* ── a real question, in the column the operator drew (§B.2) ──── */
         const q = await f.page.evaluate(askQuestion, QUESTION_CARDS);

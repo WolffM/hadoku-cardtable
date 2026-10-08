@@ -1710,7 +1710,14 @@ test(LIVE_TITLE, async ({ browser }) => {
         // state, not board state: a reloaded page has it only once they move again. Read the board without it.
         // The floating life/damage numbers (`live/numbers.ts`) are the same kind of thing: a transient reaction to
         // a change, timed off real clock ms, never restored by a reload — hidden here the same way.
-        const presence = Array.from(board.querySelectorAll<HTMLElement>('.presence, .board-number, .board-number__life-old, .board-number__pill'));
+        // §S: `live/placed.ts`'s own cards are the same kind of thing again — a FRESH instance (the reload)
+        // draws `view.stack` in ITS OWN current order and nothing else (no persisted point, unlike `ARRANGED`'s
+        // sessionStorage), while the instance running before the reload may still carry an older DOM order from
+        // whenever each item first appeared. The text itself (a card's own name/rules) would match either way —
+        // only the row's ORDER could not — so this excludes them for the same "not restored exactly" reason.
+        const presence = Array.from(
+          board.querySelectorAll<HTMLElement>('.presence, .board-number, .board-number__life-old, .board-number__pill, .placed, .placed__arrow'),
+        );
         const shown = presence.map((el) => el.style.display);
         for (const el of presence) el.style.display = 'none';
         try {

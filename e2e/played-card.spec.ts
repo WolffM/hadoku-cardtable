@@ -67,8 +67,10 @@ interface Frame {
   ghost: Box | null;
   ghostLift: string | null;
   gap: Box | null;
+  /** Wave 59 §S: `live/placed.ts`'s own card, once a matching stack item exists — the ghost's handoff target. */
+  placed: Box | null;
   stack: number;
-  /** Stack items Forge has that the stack is leaving to the played card (`data-carried`). */
+  /** Stack items Forge has that the stack is leaving to the played card (`data-carried`) — bookkeeping only now, see `Board.tsx`'s `StackView`. */
   carried: number;
   confirm: boolean;
   /** The viewer's own battlefield scrolls inside itself. */
@@ -89,6 +91,9 @@ async function record(page: Page, cardId: number): Promise<void> {
       if (!state.run) return;
       const el = document.querySelector(`[data-board-card="${id}"]`);
       const ghost = document.querySelector(`[data-cast-ghost="${id}"]`);
+      // §S: once Forge actually has the spell on the stack, `live/placed.ts` draws it — the ghost's
+      // own handoff target, found by the SAME card id, through the CardTile it mounts (`w<id>`).
+      const placed = document.querySelector(`[data-placed-spell]:has([data-card-id="w${id}"])`);
       const zone = el?.closest('[data-zone]') ?? null;
       const battlefield = document.querySelector('[data-zone="battlefield"][data-owner="you"]');
       frames.push({
@@ -104,8 +109,11 @@ async function record(page: Page, cardId: number): Promise<void> {
         ghostLift: ghost?.getAttribute('data-cast-lift') ?? null,
         // The gap the row reserved for the card at its release (`Board`'s `notePlayedTo`): where its stand-in waits.
         gap: box(document.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]')),
-        // What the stack DRAWS: `data-count` is everything Forge has, `data-carried` the items a played card stands in for.
-        stack: document.querySelectorAll('[data-zone="stack"] .stack__item').length,
+        placed: box(placed),
+        // The zone itself draws nothing at all now (§S) — every item is `live/placed.ts`'s, in the
+        // overlay, never a child of this zone; `stack` keeps the same meaning it always had ("how
+        // many things does the row show"), now trivially 0, always, by construction.
+        stack: document.querySelectorAll('[data-zone="stack"] > *').length,
         carried: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-carried') ?? '0'),
         confirm: document.querySelector('[data-testid="prompt-confirm-yes"]') !== null,
         scrolls:
@@ -141,7 +149,8 @@ function timeline(frames: Frame[]): string {
     const where = f.at === null ? 'no element' : `${f.zone ?? '?'}/${f.owner ?? '?'} @${f.at.x},${f.at.y} ${f.at.w}x${f.at.h}`;
     lines.push(
       `${String(t - t0).padStart(6)}ms  ${where}${f.lift === null ? '' : ` lift=${f.lift}`}${f.landing ? ' landing' : ''}${f.hidden ? ' hidden' : ''}${f.tapped ? ' tapped' : ''}` +
-        `${f.ghost === null ? '' : `  ghost @${f.ghost.x},${f.ghost.y} ${f.ghost.w}x${f.ghost.h} ${f.ghostLift ?? ''}`}  stack=${f.stack}${f.carried > 0 ? ` carried=${f.carried}` : ''}${f.confirm ? ' confirm' : ''}${f.scrolls ? ' SCROLLS' : ''}`,
+        `${f.ghost === null ? '' : `  ghost @${f.ghost.x},${f.ghost.y} ${f.ghost.w}x${f.ghost.h} ${f.ghostLift ?? ''}`}` +
+        `${f.placed === null ? '' : `  placed @${f.placed.x},${f.placed.y} ${f.placed.w}x${f.placed.h}`}  stack=${f.stack}${f.carried > 0 ? ` carried=${f.carried}` : ''}${f.confirm ? ' confirm' : ''}${f.scrolls ? ' SCROLLS' : ''}`,
     );
   }
   const end = frames[frames.length - 1];
@@ -149,9 +158,15 @@ function timeline(frames: Frame[]): string {
   return lines.join('\n');
 }
 
-/** Where the card is SEEN in a frame: its stand-in when one is drawn, else its own element unless that is hidden under a landing. */
+/**
+ * Where the card is SEEN in a frame: its stand-in (the ghost, pre-stack) or
+ * `live/placed.ts`'s own card (post-stack — §S's handoff, `gestures/
+ * install.ts`'s `syncParkedGhost`, retires the ghost the moment the matching
+ * item appears), then its own element unless that is hidden under a landing.
+ */
 function seenAt(f: Frame): Box | null {
   if (f.ghost !== null) return f.ghost;
+  if (f.placed !== null) return f.placed;
   return f.hidden ? null : f.at;
 }
 
@@ -215,6 +230,8 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
     expect(f.zone === 'hand' && f.lift === null, `the card is never back in the hand's own row (t=${f.t})\n${story}`).toBe(false);
     expect(f.tapped && !f.hidden && f.zone !== 'battlefield', `the card is never drawn tapped off the battlefield (t=${f.t})\n${story}`).toBe(false);
     expect(f.ghost !== null && f.at !== null && !f.hidden, `the card is never drawn twice, itself and its stand-in (t=${f.t})\n${story}`).toBe(false);
+    expect(f.placed !== null && f.at !== null && !f.hidden, `nor itself and live/placed.ts's own card (t=${f.t})\n${story}`).toBe(false);
+    expect(f.ghost !== null && f.placed !== null, `nor the ghost and live/placed.ts's card at once — the handoff is a swap, never an overlap (t=${f.t})\n${story}`).toBe(false);
   }
   expect(flight.some((f) => f.scrolls), `the battlefield never scrolls inside itself\n${story}`).toBe(false);
   const end = flight[flight.length - 1]!;
@@ -301,7 +318,10 @@ for (const fast of [true, false]) {
       const frames = await recording(alice.page);
       await attach(testInfo, `creature-fast-${fast}`, frames);
       const flight = expectWaitedThere(frames, to);
-      expect(Math.max(...flight.map((f) => f.stack)), `the caster's stack stays empty the whole way\n${timeline(flight)}`).toBe(0);
+      // §S: the zone draws nothing at all now, so this is a trivial 0 — kept as the regression guard
+      // against a row ever coming back. `live/placed.ts`'s own card, found through `seenAt` above, is
+      // where "the caster's stack stays aside" actually lives now.
+      expect(Math.max(...flight.map((f) => f.stack)), `the caster's stack zone draws nothing\n${timeline(flight)}`).toBe(0);
       // Not vacuous: Forge did have the spell on the stack, and the stack left it to the card.
       expect(flight.some((f) => f.carried === 1), `the spell was on Forge's stack while the card stood in for it\n${timeline(flight)}`).toBe(true);
       const travelled = flight.some((f) => f.ghostLift === 'returning');

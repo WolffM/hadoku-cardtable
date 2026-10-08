@@ -1,0 +1,108 @@
+/*
+ * The placed-cards layer's own stylesheet (`placed.ts`). It names nothing of
+ * another lane's — its own classes (`.placed*`) and the attributes `placed.ts`
+ * itself writes (`data-placed-spell`, `data-placed-next`, `data-placed-leaving`,
+ * `data-mine`, `data-selectable`) — the same self-containment `gestures.css`'s
+ * header states for the pointer layer, so this file and that one never
+ * collide.
+ *
+ * `placed.ts` sets `left`/`top` to the element's own CENTRE in the overlay's
+ * coordinates (`numbers.css`'s own convention for the same overlay); this file
+ * recentres it with `translate(-50%, -50%)`. A transform here is never a
+ * scroll-overflow concern (`card.css`'s own note on a tapped card) — the
+ * overlay is not a scrollable zone.
+ */
+
+.placed {
+  position: absolute;
+  z-index: var(--z-overlay, 20);
+  translate: -50% -50%;
+  width: 6.5rem;
+  pointer-events: none;
+  transition: opacity 250ms ease;
+}
+
+/* The viewer's own placed spell may be picked up (item 5, `gestures/install.ts`'s new drag). */
+.placed[data-mine] {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+/* Q18: Forge offers this spell's own card for selection while it sits on the stack — `placed.ts`'s own click handler, same outline `.stack__item[data-selectable]` used to draw. */
+.placed[data-selectable] {
+  pointer-events: auto;
+  cursor: pointer;
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/*
+ * The next item to resolve (the top of Forge's stack) — the SAME flash the
+ * End Turn control uses (`live.css`'s `live-ok-pulse`), reused by name rather
+ * than redefined here: never more than one at a time (item 3).
+ */
+.placed[data-placed-next] {
+  animation: live-ok-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placed[data-placed-next] {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
+/* A spell resolving to anywhere but a battlefield fades briefly (decision c). An arrival IS a battlefield slot already, and is never faded — it is removed at once instead (`placed.ts`'s own `leave`). */
+.placed[data-placed-leaving] {
+  opacity: 0;
+}
+
+.placed__tile {
+  width: 100%;
+}
+
+/* The opponent's spell, not yet committed (lane W's `commitSpell`): a back, ours, not Magic's — same pattern as `card.css`'s `.card-back`, just without a `.card-backs` ancestor to read `--card-back-w` off. */
+.placed__back {
+  --card-back-w: 100%;
+
+  width: 100%;
+}
+
+/* A stack item naming no card at all (`StackEntry.sourceCard === null`) — the honest fallback, never a guessed face. */
+.placed__text {
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink);
+  text-align: center;
+}
+
+/*
+ * The targeter arrow, drawn the same way `gestures/arrow.ts`'s own `.targeter`
+ * is — this module's own copy rather than a borrowed class, for the same
+ * reason `gestures.css`'s header gives for not reaching into another lane's
+ * file: `aimAt`/`arrowShape` (pure geometry) are reused; the drawing is not.
+ */
+.placed__arrow {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.placed__arrow-shaft {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.placed__arrow-head {
+  fill: var(--accent);
+}

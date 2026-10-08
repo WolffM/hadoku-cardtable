@@ -1,0 +1,340 @@
+// @vitest-environment jsdom
+/*
+ * The placed-cards layer (`placed.ts`): the seam functions, the DOM contract
+ * `installPlaced` produces, and the two mutation points item 8 names —
+ * dropping the arrow redraw on a move, and dropping the one-at-a-time flash.
+ * Same device `numbers.test.ts` uses: jsdom gives every element a zero rect,
+ * so `getBoundingClientRect` is stubbed with real numbers.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { BoardView, StackEntry } from '../adapter.ts';
+import {
+  besideSource,
+  commitSpell,
+  defaultSpot,
+  forgetPlacements,
+  installPlaced,
+  LEAVE_FADE_MS,
+  moveSpell,
+  onSpellMoved,
+  placeSpell,
+  type Rect,
+} from './placed.ts';
+
+/* ── fixtures ──────────────────────────────────────────────────────────── */
+
+function draftCard(name: string): NonNullable<StackEntry['sourceCard']> {
+  return {
+    cardId: `c-${name}`,
+    name,
+    manaCost: [],
+    manaValue: 0,
+    colors: [],
+    typeLine: 'Instant',
+    oracleText: `${name}'s rules text.`,
+    setCode: 'TST',
+    collectorNumber: '1',
+    rarity: 'common',
+  };
+}
+
+function stackItem(id: number, opts: Partial<StackEntry> = {}): StackEntry {
+  return {
+    id,
+    description: `stack item ${id}`,
+    sourceCardId: opts.sourceCardId ?? 100 + id,
+    sourceName: opts.sourceName ?? `Card ${id}`,
+    sourceCard: 'sourceCard' in opts ? opts.sourceCard! : draftCard(`Card ${id}`),
+    controllerName: opts.controllerName ?? 'Alice',
+    isAbility: opts.isAbility ?? false,
+    targetCardIds: opts.targetCardIds ?? [],
+    targetPlayerIds: opts.targetPlayerIds ?? [],
+    targetStackItemId: opts.targetStackItemId ?? null,
+  };
+}
+
+function battlefieldCard(id: number): NonNullable<BoardView['players']>[number]['battlefield'][number] {
+  return { id, card: draftCard(`Card ${id}`), tapped: false, summoningSick: false, damage: 0, counters: [], attacking: false, blocking: false, token: false };
+}
+
+function view(stack: StackEntry[], battlefield: { id: number }[] = []): BoardView {
+  return {
+    seq: 1,
+    title: 't',
+    turn: 1,
+    phase: null,
+    phaseLabel: '',
+    activePlayerId: null,
+    players: [
+      {
+        id: 0,
+        name: 'Alice',
+        life: 20,
+        isViewer: true,
+        isActive: false,
+        hasPriority: false,
+        hasLost: false,
+        hand: null,
+        handCount: 0,
+        libraryCount: 0,
+        battlefield: battlefield.map((c) => battlefieldCard(c.id)),
+        graveyard: [],
+        exile: [],
+      },
+      { id: 1, name: 'Bob', life: 20, isViewer: false, isActive: false, hasPriority: false, hasLost: false, hand: null, handCount: 0, libraryCount: 0, battlefield: [], graveyard: [], exile: [] },
+    ],
+    stack,
+    gameOver: false,
+    missingCardIds: [],
+  };
+}
+
+type Box = { left: number; top: number; width: number; height: number };
+const rect = (b: Box): DOMRect => ({ ...b, right: b.left + b.width, bottom: b.top + b.height, x: b.left, y: b.top, toJSON: () => b }) as DOMRect;
+
+function board(): { canvas: HTMLElement } {
+  const canvas = document.createElement('div');
+  canvas.innerHTML = `
+    <div class="board">
+      <div data-testid="board-mid"></div>
+      <div data-zone="battlefield" data-owner="you"><li class="board-card" data-card-id="201"></li></div>
+      <div data-player-face data-player-id="0" data-viewer=""></div>
+      <div data-player-face data-player-id="1"></div>
+      <div class="board__overlay" data-board-overlay=""></div>
+    </div>`;
+  document.body.append(canvas);
+  const boxes: Record<string, Box> = {
+    '[data-board-overlay]': { left: 0, top: 0, width: 1000, height: 800 },
+    '[data-testid="board-mid"]': { left: 700, top: 300, width: 200, height: 200 },
+    '[data-card-id="201"]': { left: 100, top: 500, width: 80, height: 110 },
+    '[data-player-face][data-player-id="0"]': { left: 20, top: 700, width: 60, height: 60 },
+    '[data-player-face][data-player-id="1"]': { left: 20, top: 20, width: 60, height: 60 },
+  };
+  for (const [selector, box] of Object.entries(boxes)) canvas.querySelector<HTMLElement>(selector)!.getBoundingClientRect = () => rect(box);
+  return { canvas };
+}
+
+afterEach(() => {
+  document.body.innerHTML = '';
+  forgetPlacements();
+  vi.useRealTimers();
+});
+
+/* ── placeSpell / moveSpell / commitSpell / onSpellMoved ──────────────── */
+
+describe('the seam', () => {
+  it('placeSpell then installPlaced draws a card at that point, centred', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el, 'promoted from the card id onto the stack item’s own id').not.toBeNull();
+    expect(el.style.left).toBe('400px');
+    expect(el.style.top).toBe('300px');
+    expect(el.hasAttribute('data-mine'), 'side: "you"').toBe(true);
+    expect(el.getAttribute('data-stack-id'), 'the one element every existing reader keys off').toBe('9');
+    handle.dispose();
+  });
+
+  it('a committed "them" item is its face; an uncommitted one is a back, and commitSpell turns it over', async () => {
+    const { canvas } = board();
+    placeSpell(302, { x: 200, y: 200 }, 'them');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCardId: 302 })]));
+    let el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.querySelector('.card-back'), 'not committed yet: a back').not.toBeNull();
+    expect(el.querySelector('.card__name')).toBeNull();
+
+    commitSpell(9);
+    // The flip tears the old root down and mounts a fresh one (`placed.ts`'s
+    // own note on why — `flushSync` nested inside a React effect warns in
+    // the real app). React schedules a fresh root's first commit on its own
+    // clock (a macrotask in this environment, not a microtask) — this waits
+    // for one, same as any other React DOM update read from outside `act()`.
+    await new Promise((r) => setTimeout(r, 0));
+    el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.querySelector('.card-back')).toBeNull();
+    expect(el.querySelector('.card__name')?.textContent).toBe('Card 9');
+    handle.dispose();
+  });
+
+  it('onSpellMoved hears every moveSpell, by whichever id is current', () => {
+    placeSpell(5, { x: 0, y: 0 }, 'you');
+    const heard: Array<[number, { x: number; y: number }]> = [];
+    const unsub = onSpellMoved((id, at) => heard.push([id, at]));
+    moveSpell(5, { x: 10, y: 20 });
+    moveSpell(999, { x: 1, y: 1 }); // nothing placed under 999 — no-op, never heard
+    expect(heard).toEqual([[5, { x: 10, y: 20 }]]);
+    unsub();
+    moveSpell(5, { x: 30, y: 40 });
+    expect(heard, 'unsubscribed').toHaveLength(1);
+  });
+});
+
+/* ── the DOM contract ──────────────────────────────────────────────────── */
+
+describe('installPlaced: drawing', () => {
+  it('a click cast (nothing registered) lands at the default spot — the old stack band’s own centre', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9)]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    const spot = defaultSpot(canvas)!;
+    expect(el.style.left).toBe(`${spot.x}px`);
+    expect(el.style.top).toBe(`${spot.y}px`);
+    expect(el.hasAttribute('data-mine'), 'nobody ever claimed it').toBe(false);
+    handle.dispose();
+  });
+
+  it('an ability draws beside its source when the source is on the board, never a row', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    // The source's own box is left:100 top:500 width:80 height:110 — beside it is to its right.
+    expect(Number.parseFloat(el.style.left)).toBeGreaterThan(180);
+    expect(Number.parseFloat(el.style.top)).toBeCloseTo(555, 0);
+    handle.dispose();
+  });
+
+  it('besideSource pushes a second ephemeral tile clear of the first at the same source row', () => {
+    const sourceBox: Rect = { left: 100, top: 500, right: 180, bottom: 610 };
+    const first = besideSource(sourceBox, []);
+    const firstBox: Rect = { left: first.x - 40, right: first.x + 40, top: first.y - 55, bottom: first.y + 55 };
+    const second = besideSource(sourceBox, [firstBox]);
+    expect(second.x, 'the second sits clear of the first, not on top of it').toBeGreaterThan(firstBox.right);
+  });
+
+  it('exactly one item — the top of Forge’s stack — carries data-placed-next (item 3; the mutation at item 8)', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(2), stackItem(1)])); // top first, per BoardView.stack
+    const next = canvas.querySelectorAll('[data-placed-next]');
+    expect(next, 'never more than one at a time').toHaveLength(1);
+    expect(next[0]!.getAttribute('data-placed-spell')).toBe('2');
+    handle.dispose();
+  });
+
+  it('a stack item naming no card draws the honest text fallback, never a guessed face', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCard: null, sourceName: 'Something' })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.querySelector('.placed__text')?.textContent).toBe('Something');
+    handle.dispose();
+  });
+
+  it('Q18: a spell offered by its own card id is selectable and clicking it answers; an ability never is', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    const selected: number[] = [];
+    const interaction = { isSelectable: (id: number) => id === 301, onSelect: (id: number) => selected.push(id) };
+    handle.notify(view([stackItem(9, { sourceCardId: 301 }), stackItem(8, { isAbility: true, sourceCardId: 301 })]), interaction);
+    const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    const ability = canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!;
+    expect(spell.hasAttribute('data-selectable')).toBe(true);
+    expect(ability.hasAttribute('data-selectable'), 'only a spell, never an ability').toBe(false);
+    spell.dispatchEvent(new Event('click', { bubbles: true }));
+    ability.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(selected).toEqual([301]);
+    handle.dispose();
+  });
+});
+
+describe('installPlaced: arrows (item 2, item 8’s other mutation point)', () => {
+  it('draws .placed__arrow[data-for] to a card, a player, and another placed spell, and removes it once the target or the item is gone', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(
+      view([
+        stackItem(9, { targetCardIds: [201], targetPlayerIds: [1] }),
+        stackItem(8, { targetStackItemId: 9 }),
+      ]),
+    );
+    const overlay = canvas.querySelector('[data-board-overlay]')!;
+    const arrows = overlay.querySelectorAll('.placed__arrow[data-for="9"]');
+    expect(arrows, 'one to the card, one to the player').toHaveLength(2);
+    expect(overlay.querySelectorAll('.placed__arrow[data-for="8"]'), 'the stack-to-stack arc').toHaveLength(1);
+
+    handle.notify(view([stackItem(9, { targetCardIds: [201], targetPlayerIds: [1] })])); // 8 resolved
+    expect(overlay.querySelectorAll('.placed__arrow[data-for="8"]')).toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('a moved spell redraws its arrow at once — drop that call and this fails', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCardId: 301, targetCardIds: [201] })]));
+    const overlay = canvas.querySelector('[data-board-overlay]')!;
+    // jsdom does no layout: a real browser's `getBoundingClientRect` on the
+    // placed element reflects whatever `style.left`/`top` currently says
+    // (`.placed`'s `translate: -50% -50%` centres it there exactly), so this
+    // stub reads those live rather than a box snapshot, the same way the
+    // production element behaves once `placed.ts` repositions it.
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    el.getBoundingClientRect = () =>
+      rect({ left: Number.parseFloat(el.style.left) - 40, top: Number.parseFloat(el.style.top) - 55, width: 80, height: 110 });
+    const before = overlay.querySelector('.placed__arrow[data-for="9"] path')!.getAttribute('d');
+
+    moveSpell(9, { x: 150, y: 150 });
+    const after = overlay.querySelector('.placed__arrow[data-for="9"] path')!.getAttribute('d');
+    expect(after, 'the arrow followed the move without a fresh notify(view)').not.toBe(before);
+    handle.dispose();
+  });
+});
+
+describe('installPlaced: resolution (item 4, decision c)', () => {
+  it('leaving for the battlefield is removed at once — AC8 already draws the arrival', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')).not.toBeNull();
+    handle.notify(view([], [{ id: 301 }])); // resolved onto a battlefield
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'gone at once, no fade').toBeNull();
+    handle.dispose();
+  });
+
+  it('leaving for anywhere else fades over 250ms, then is gone', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([])); // resolved to the graveyard — not on any battlefield
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.hasAttribute('data-placed-leaving')).toBe(true);
+    vi.advanceTimersByTime(LEAVE_FADE_MS - 1);
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'still fading').not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(canvas.querySelector('[data-placed-spell="9"]')).toBeNull();
+    handle.dispose();
+  });
+
+  it('nothing else moves when one item resolves — item 4', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    placeSpell(302, { x: 150, y: 150 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => true });
+    handle.notify(view([stackItem(10, { sourceCardId: 302 }), stackItem(9, { sourceCardId: 301 })]));
+    const staying = canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!;
+    const stayingLeft = staying.style.left;
+    handle.notify(view([stackItem(10, { sourceCardId: 302 })])); // 9 resolved away
+    expect(staying.style.left, 'untouched by the other item leaving').toBe(stayingLeft);
+    handle.dispose();
+  });
+});
+
+describe('dispose', () => {
+  it('unmounts every drawn card and stops reacting to placement changes', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9)]));
+    handle.dispose();
+    expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
+    expect(() => moveSpell(9, { x: 1, y: 1 })).not.toThrow();
+  });
+});

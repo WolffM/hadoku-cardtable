@@ -536,12 +536,15 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-// Re-recorded for `CardTile`'s `liveText`: -107 characters, none of it art —
-// see the file header's own accounting. With `liveText={null}` (the
-// one-line toggle used to measure it) this test passes at the old pin
-// (42983, 0b71d9ff…).
-const BASELINE_SHA256 = '059e0aaf8d342c0de131ffe648e2ae04c542aedddc35cd223a233d20ec31843b';
-const BASELINE_LENGTH = 42876;
+// Re-recorded when the placed-cards layer deleted the stack's thumbnail row
+// and lone band (two real `CardTile`s' worth of markup — name, type line,
+// rules text, mana pips, set symbol): `StackView` is a bare, empty `<section>`
+// (`data-zone="stack"`, `data-count`/`data-carried` only) and `live/placed.ts`
+// draws every item imperatively into the overlay, which this STATIC render
+// (no effects run) never sees. Before it, `CardTile`'s `liveText` re-record:
+// 42876, 059e0aaf…; the pin before that: 42983, 0b71d9ff….
+const BASELINE_SHA256 = 'b3f0173a920587be6fc803e0c22c0f1c8d3144854aabea5e1c9bcc10b6c498e5';
+const BASELINE_LENGTH = 39577;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

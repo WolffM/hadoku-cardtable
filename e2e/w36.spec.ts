@@ -330,19 +330,16 @@ test(titled('T10 — a card moved to a different row is still there, in the same
  * (or re-deriving) a scenario fixture, and `table-fit.spec.ts`'s `fillStack`
  * DOM probe already exercises many items at once without fighting that rule.
  *
- * Re-aimed for wave 46 X3: T8's own claim ("the stack shows what is
- * happening, not all the text") went further still — a thumbnail draws no
- * text at all, not even the one line T8 shipped. Who/what/target is the
- * thumbnail's `aria-label`; the full card is the carousel's OWN big view,
- * never the generic document-level inspector (`e2e/w46-stack.spec.ts` proves
- * the carousel's shape; this test only re-confirms the inspector opted out).
+ * Re-aimed for wave 59 §S: the thumbnail, the carousel and the lone band it
+ * all collapsed to are deleted outright — `live/placed.ts` draws the OPPONENT's
+ * copy of bob's spell as a real card too (never a row, never a back once it is
+ * public, which a committed stack item always is), and hovering it is the
+ * ordinary, generic document-level inspector every other card on the board
+ * already uses.
  */
-test(titled('T8 — a stack item shows its art and no visible text; who/what lives in aria-label, and hovering it opens the one inspector'), async ({ browser }) => {
+test(titled('T8 — the opponent’s placed card shows the real face, and hovering it opens the one inspector'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  // The band shows nothing for a lone spell since 8ec5afe (the operator, 2026-10-08); w59 draws the
-  // placed card instead and rewrites this test — the day it passes again is w59's land.
-  test.fail(true, 'the lone band is hidden; w59 replaces it (ledger AD4)');
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
@@ -351,27 +348,19 @@ test(titled('T8 — a stack item shows its art and no visible text; who/what liv
     await castFree(bob.page, (await offered(bob.page))[0]!);
     await expect.poll(() => stackCount(alice.page), { timeout: 30_000, message: 'the cast reached the stack' }).toBe(1);
 
-    const item = alice.page.locator('[data-zone="stack"] li.stack__item').first();
-    await expect(item.locator('.stack__art'), 'the item has an art slot').toHaveCount(1);
-    // CardTile always renders the <img> tag (laid over the text tile); this
-    // harness blocks every off-loopback request (`play/browser.ts`), so the
-    // art request itself fails here by construction — that is a harness
-    // fact, not this claim's. The element existing is what "shows its art"
-    // means at this layer; lane A's own evidence has the screenshots with
-    // real art loading.
-    await expect(item.locator('.stack__art img'), 'CardTile draws the art element').toHaveCount(1);
-    // No visible text anywhere on the thumbnail (wave 46 X3): the old
-    // `.stack__what` summary line is gone outright, and who/what is the
-    // thumbnail's own accessible name instead.
-    await expect(item.locator('.stack__what, .stack__source, .stack__controller, .stack__target')).toHaveCount(0);
+    const item = alice.page.locator('[data-placed-spell]').first();
+    await expect(item, 'bob’s spell is drawn on alice’s own screen too').toHaveCount(1);
+    await expect(item.locator('.card__art'), 'CardTile draws the art element').toHaveCount(1);
     await expect(item, 'who · what, Memnite named, in the accessible name').toHaveAttribute('aria-label', /memnite/i);
+    // Never alice's own — this is bob's spell, on her screen.
+    await expect(item, 'not drawn as alice’s own').not.toHaveAttribute('data-mine', '');
 
     // Hovering it opens the one inspector the board has (the stack redesign,
-    // 2026-10-06, replaced wave 46 X3's own peek below the thumbnail with it).
+    // 2026-10-06; §S moved the card itself here, the inspector is untouched).
     // Alice holds priority over the spell, so her decision window is up and the
-    // panel stands beside it, outside the board overlay (`w46-stack.spec.ts`).
+    // panel stands beside it, outside the board overlay.
     await item.hover();
-    await expect(alice.page.locator('[data-inspect]'), 'the inspector opens for a stack thumbnail').toHaveCount(1);
+    await expect(alice.page.locator('[data-inspect]'), 'the inspector opens for a placed card').toHaveCount(1);
     await expect(alice.page.locator('[data-inspect] .card__name')).toHaveText(/memnite/i);
   } finally {
     await stack.stop();
@@ -381,8 +370,9 @@ test(titled('T8 — a stack item shows its art and no visible text; who/what liv
 /* ── T1 — the hover zoom sits against the hovered card ───────────────────── */
 
 /*
- * The stack-item case lives in `e2e/w46-stack.spec.ts` (beside the thumbnail,
- * and left of an open decision window).
+ * The stack-item case (now a placed card, §S) is T8's own test above — the
+ * carousel's dedicated big view, and the fixture file that proved its shape,
+ * are both deleted with the row.
  */
 test(titled('T1 — the hover zoom sits against the hovered card: a hand card and a battlefield card'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);

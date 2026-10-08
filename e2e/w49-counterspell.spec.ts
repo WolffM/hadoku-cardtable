@@ -97,7 +97,9 @@ function shootStackArc([key, fromStackId, toStackId]: [string, string, string]):
     const r = el.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height };
   };
-  const arrow = document.querySelector(`[data-testid="stack-target-arrow"][data-key="${key}"]`);
+  // §S: `live/placed.ts`'s own `.placed__arrow` superseded the old `auto-targets.ts`
+  // `stackTargetArrows` producer — same geometry (`aimAt`), a new testid/key scheme.
+  const arrow = document.querySelector(`[data-testid="placed-arrow"][data-key="${key}"]`);
   const from = document.querySelector(`[data-stack-id="${fromStackId}"]`);
   const to = document.querySelector(`[data-stack-id="${toStackId}"]`);
   const shaft = arrow?.querySelector('path');
@@ -278,9 +280,9 @@ test.describe(titled('the counterspell arc'), () => {
 
       const counterId = await counterItem.getAttribute('data-stack-id');
       const memniteStackId = await memniteItem.getAttribute('data-stack-id');
-      const key = `stack-target:${counterId}:${memniteStackId}`;
+      const key = `${counterId}:stack:${memniteStackId}`;
       await expect(
-        alice.page.locator(`[data-testid="stack-target-arrow"][data-key="${key}"]`),
+        alice.page.locator(`[data-testid="placed-arrow"][data-key="${key}"]`),
         'the counterspell arc is drawn, Counterspell → Memnite',
       ).toHaveCount(1, { timeout: 10_000 });
 
@@ -362,14 +364,14 @@ test.describe(titled('the counterspell arc'), () => {
 
       const counterId = await counterItem.getAttribute('data-stack-id');
       const memniteStackId = await memniteItem.getAttribute('data-stack-id');
-      const key = `stack-target:${counterId}:${memniteStackId}`;
+      const key = `${counterId}:stack:${memniteStackId}`;
 
       // The proof: ALICE's own page draws the arc. She never answered a
       // `getChoices` ask (bob did, auto-answered) and holds no
       // `stackTargetArcs` entry of her own — the only source left is the
       // wire fact `adapter.ts` now reads onto `StackEntry.targetStackItemId`.
       await expect(
-        alice.page.locator(`[data-testid="stack-target-arrow"][data-key="${key}"]`),
+        alice.page.locator(`[data-testid="placed-arrow"][data-key="${key}"]`),
         'the counterspell arc is drawn on ALICE’s page — the opponent, not the caster',
       ).toHaveCount(1, { timeout: 10_000 });
 

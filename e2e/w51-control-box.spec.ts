@@ -80,19 +80,6 @@ async function offeredNamed(page: Page, name: string): Promise<number> {
   return id!;
 }
 
-/** How far the stack's thumbnail row sits above the decision pop-up's top edge, and whether a thumbnail is drawn. */
-async function stackOverDecision(page: Page): Promise<{ gap: number; thumbs: number; size: string }> {
-  return page.evaluate(() => {
-    const row = document.querySelector('[data-zone="stack"] > ol.stack__items')!.getBoundingClientRect();
-    const sheet = document.querySelector('[data-testid="live-decision"]')!.getBoundingClientRect();
-    return {
-      gap: Math.round(sheet.top - row.bottom),
-      thumbs: document.querySelectorAll('[data-zone="stack"] li.stack__item').length,
-      size: `${innerWidth}x${innerHeight}`,
-    };
-  });
-}
-
 test.describe.configure({ mode: 'serial' });
 
 test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a stacked spell’s OK are pop-ups; End Turn greys, never vanishes; the stack sits on the pop-up'), async ({ browser }) => {
@@ -157,21 +144,24 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await expect(page.getByTestId('live-buttons'), 'the box never says OK').not.toContainText('OK');
     await expectFour(page, 'a spell on the stack');
 
-    /* ── §A.6: the stack sits right above the pop-up, at both sizes ────── */
+    /*
+     * §A.6 is superseded by wave 59 §S: the operator's own "right above the
+     * decision box" rule was about the deleted thumbnail row's FIXED column;
+     * AD4's placed-cards layer puts the bolt where it was actually released
+     * (`clickHandCard`'s default — the viewer's own battlefield centre),
+     * never in that column, at either size. What survives is the item this
+     * sub-test shared with the row's own existence: the bolt stays drawn,
+     * and flashes as the one thing next to resolve, whatever the viewport.
+     */
     for (const size of [
       { width: 1280, height: 800 },
       { width: 1366, height: 768 },
     ]) {
       await page.setViewportSize(size);
-      // A targeted cast is parked, not played, so the stack draws it: alone, as the card itself (the stack redesign).
-      await expect(page.locator('[data-zone="stack"] li.stack__item'), 'the bolt is drawn on the stack').toHaveCount(1, { timeout: 10_000 });
-      await expect
-        .poll(async () => (await stackOverDecision(page)).gap, { timeout: 5_000, message: `${size.width}x${size.height}: the thumbnails sit a gap above the pop-up` })
-        .toBeGreaterThanOrEqual(3);
-      const at = await stackOverDecision(page);
-      console.log(`[w51 §A.6] ${at.size}: thumbnail row bottom → pop-up top = ${at.gap}px, ${at.thumbs} thumbnail(s)`);
-      expect(at.gap, `${at.size}: right above the decision box, not at the top of the column`).toBeLessThanOrEqual(12);
-      await page.screenshot({ path: resolve(SHOTS, `stack-over-decision-${size.width}x${size.height}.png`) });
+      const placed = page.locator('[data-placed-spell]');
+      await expect(placed, 'the bolt is still drawn, at this size too').toHaveCount(1, { timeout: 10_000 });
+      await expect(placed, 'the one thing on the stack flashes as next to resolve').toHaveAttribute('data-placed-next', '');
+      await page.screenshot({ path: resolve(SHOTS, `stack-placed-${size.width}x${size.height}.png`) });
     }
     await page.setViewportSize({ width: 1280, height: 800 });
 

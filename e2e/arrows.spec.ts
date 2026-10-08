@@ -119,11 +119,16 @@ test(
       });
       log.push(`says: ${await says(page)}`);
 
-      // World Breaker itself is on the stack, not the battlefield, and alone
-      // there: no row is drawn for one spell. The played card, waiting where it
-      // was let go (`data-cast-ghost`), is its element.
-      await expect(page.locator('[data-zone="stack"]'), 'World Breaker is on the stack').toHaveAttribute('data-count', '1', { timeout: 5_000 });
-      await expect(page.locator('[data-zone="stack"] .stack__item'), 'and no row is drawn for one spell').toHaveCount(0);
+      // World Breaker's own CAST TRIGGER is the one thing on the stack here —
+      // not World Breaker's own spell (`data-count` names the trigger, not a
+      // row: §S deleted that outright). It is an ABILITY entry naming World
+      // Breaker as its `sourceCardId` too, before World Breaker itself is
+      // ever its own stack entry, so `live/placed.ts` draws it at the default
+      // spot (no source element to stand beside) — never at the park point —
+      // and the GHOST (`data-cast-ghost`), not that ephemeral card, is still
+      // the stand-in for World Breaker's own spell here (`gestures/install.ts`'s
+      // `syncParkedGhost`: never an ability entry's own retirement).
+      await expect(page.locator('[data-zone="stack"]'), 'World Breaker’s cast trigger is on the stack').toHaveAttribute('data-count', '1', { timeout: 5_000 });
       expect(await page.locator(`[data-board-card="${wb}"]`).count(), 'World Breaker has no board element while its trigger asks for a target').toBe(0);
       const stackBox = await boxOf(page, `[data-cast-ghost="${wb}"]`);
       expect(stackBox, 'the played card, standing in for its spell, has a real box').not.toBeNull();

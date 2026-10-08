@@ -201,8 +201,12 @@ import {
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
 import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '../../Board.tsx';
+// §S's seam: the park registers the point every stack item draws at
+// (`placeSpell`); a drag of the viewer's own placed spell moves it
+// (`moveSpell`), which is also what tells lane W to relay it.
+import { moveSpell, placeSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
-import { autoTargetArrows, combatArrows, stackTargetArrows, type AutoTargetArrow } from './auto-targets.ts';
+import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
@@ -373,6 +377,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * unrelated later click.
    */
   let suppressClick = false;
+  /**
+   * Item 5: a press on the viewer's own placed spell (`live/placed.ts`'s
+   * `[data-placed-spell][data-mine]`), picking it up to drag it somewhere
+   * else — no cast, no target, a pure rearrange. A SEPARATE little gesture
+   * from `drag`/`marquee` above (never set alongside either): Forge's own
+   * stack-choice ask (`stackAsk`) still takes the press first, since the
+   * same element answers that too (`data-stack-id`). `press` is where the
+   * pointer went down, for the slop check; `moved` gates whether a release
+   * commits anything at all — a press that never moved is a click (reserved
+   * for the inspector's hover/long-press, not this gesture).
+   */
+  let placedDrag: { id: number; press: Point; moved: boolean } | null = null;
 
   const overlayOf = (): HTMLElement | null => canvas.querySelector<HTMLElement>('[data-board-overlay]');
 
@@ -445,10 +461,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function clickOrigin(): { at: Point; source: number | null } | null {
     // A parked card is where the player let go of it, whether or not the
-    // board still renders its element — until the stack has taken a played
-    // card's spell back: then the stack item is the thing that is asking, and
-    // the arrow leaves from it (W17, "from the played card on the stack").
-    if (parked !== null && !(parked.played && parked.onStack)) {
+    // board still renders its element — EXCEPT once `live/placed.ts` has
+    // taken over drawing its spell (§S: the moment a matching item appears
+    // on `view.stack`, the ghost retires — `syncParkedGhost` below), when the
+    // placed element itself is the thing asking, and the arrow leaves from
+    // it (W17, "from the played card on the stack") at its OWN current
+    // point — which may have moved, if the player dragged it (item 5).
+    if (parked !== null) {
+      // Never an ABILITY entry sharing this id — World Breaker's own cast
+      // trigger (W17) names World Breaker as its `sourceCardId` too, before
+      // World Breaker's own SPELL is itself a stack entry, and that trigger
+      // draws at its own default spot (no source to stand beside), never at
+      // the park point — this ghost's job precisely until a real SPELL
+      // entry (never an ability) takes over.
+      const onStack = (match.view?.stack ?? []).find((item) => !item.isAbility && item.sourceCardId === parked!.source);
+      const stackBox = onStack === undefined ? null : stackItemBox(canvas, onStack.id);
+      if (stackBox !== null) return { at: centreOf(stackBox), source: parked.source };
       const box = cardBox(canvas, parked.source);
       return { at: box === null ? parked.at : centreOf(box), source: parked.source };
     }
@@ -542,17 +570,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     // Forge's own already-decided targets. Independent of whichever gesture
     // (if any) is in progress above, so it is reconciled every paint
-    // regardless of branch — a drag or a box-draw does not hide it. Four
-    // producers (a stack item's own target, X1's lasting attack arrow, X3's
-    // counterspell arc, the lasting block arrow), ONE reconciler — see
-    // `auto-targets.ts`'s header and `blockArrows` below.
+    // regardless of branch — a drag or a box-draw does not hide it.
+    //
+    // §S superseded the other two of `auto-targets.ts`'s original four
+    // producers: a stack item's own target (`autoTargetArrows`) and the
+    // counterspell arc (`stackTargetArrows`) are now `live/placed.ts`'s own
+    // `.placed__arrow`s, drawn FROM the placed element — the old row's box —
+    // so feeding them here too would draw every stack-item arrow twice. Only
+    // the lasting attack arrow and the lasting block arrow — neither a
+    // stack-item concern — stay on this reconciler.
     if (overlay !== null) {
-      drawAutoTargetArrows(overlay, [
-        ...autoTargetArrows(canvas, match),
-        ...combatArrows(canvas, match),
-        ...stackTargetArrows(canvas, match),
-        ...blockArrows(canvas, match),
-      ]);
+      drawAutoTargetArrows(overlay, [...combatArrows(canvas, match), ...blockArrows(canvas, match)]);
     }
     if (next === shape) return;
     shape = next;
@@ -627,6 +655,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
       floatCastLiftHome(canvas, source, state.from, () => {});
       return;
     }
+    // §S's seam: wherever this cast ends up on Forge's stack, `live/placed.ts`
+    // draws it at THIS point — the park — once a matching item appears
+    // (`StackEntry.sourceCardId` keeps the same id this card had in hand).
+    // Harmless for a card that never reaches the stack at all (a land): the
+    // registration simply expires unmatched. A CLICK cast with no release of
+    // its own (none of this module's gestures produce one, but a future
+    // caller might) never calls this, which is exactly decision a's "default
+    // spot" fallback in `live/placed.ts` — no special-casing needed here.
+    placeSpell(source, point, 'you');
     if (!spell) {
       // The one placement call, at the release — the slot under the release point.
       notePlayedTo(source, point);
@@ -737,12 +774,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * none of the zones the board draws until its targets are chosen, so React
    * unmounts it, and without the stand-in the player would see the card
    * vanish the moment they let go of it. A PLAYED card has it for the whole
-   * of the wait (`drawCastLift`'s `'carried'`).
+   * of the wait (`drawCastLift`'s `'carried'`) — UNLESS its spell is already
+   * on the stack: §S's `live/placed.ts` takes over from there, drawing the
+   * item at this exact point (`gestures/install.ts`'s own `resolveLift`
+   * registered it, via `placeSpell`), so keeping the ghost too would draw
+   * the same card twice, pixel for pixel. This is the ONE handoff rule that
+   * changed for the stack redesign — everything else about the ghost
+   * (the pre-stack gap, the float-back, the battlefield landing) is
+   * untouched, `gestures/cast.ts`'s own.
    */
   function syncParkedGhost(): void {
     if (parked === null || parked.ghost === null) return;
     const { ghost } = parked;
-    if (!parked.played && cardBox(canvas, parked.source) !== null) {
+    // Never an ABILITY entry sharing this id — see `clickOrigin`'s own note (W17).
+    const onStack = (match.view?.stack ?? []).some((item) => !item.isAbility && item.sourceCardId === parked!.source);
+    if (onStack || (!parked.played && cardBox(canvas, parked.source) !== null)) {
       ghost.remove();
       return;
     }
@@ -982,6 +1028,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Reset at the top of every FRESH press — see the flag's own doc comment.
     suppressClick = false;
     /*
+     * Item 5: a press on the viewer's own placed spell picks it up — UNLESS
+     * Forge is asking the stack-target question that element ALSO answers
+     * (`stackAsk`), which keeps the press below. Checked before the native-
+     * drag guard: a placed element is never `draggable="true"`.
+     */
+    if (stackAsk(match) === null) {
+      const placedEl = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-placed-spell][data-mine]') : null;
+      if (placedEl !== null) {
+        claim(event);
+        const id = Number(placedEl.getAttribute('data-placed-spell'));
+        placedDrag = { id, press: { x: event.clientX, y: event.clientY }, moved: false };
+        hover = null;
+        paint();
+        return;
+      }
+    }
+    /*
      * Lane A's arrange gesture owns a press on a natively-draggable element —
      * EVEN one Forge offered. At ordinary priority Forge's actionable set names
      * most of a player's own permanents ("you could"), and claiming those presses
@@ -1117,6 +1180,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
       }
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
+    } else if (placedDrag !== null) {
+      // AD3 (item 6): this is the ONLY thing that moves a placed card — never
+      // a bare hover, which is what the OLD stand-in's bug was. `moveSpell`
+      // repositions the element itself (`live/placed.ts`'s own `notify`) and
+      // tells lane W to relay it; `hover` stays untouched, so the free
+      // click-targeting arrow (if any OTHER cast is being aimed right now)
+      // keeps reading the real pointer, not this drag.
+      placedDrag = { ...placedDrag, moved: placedDrag.moved || past(placedDrag.press, at) };
+      if (placedDrag.moved) moveSpell(placedDrag.id, at);
     } else {
       hover = canvas.contains(event.target instanceof Node ? event.target : null) ? { at, node: event.target } : null;
     }
@@ -1124,6 +1196,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerUp(event: PointerEvent): void {
+    if (placedDrag !== null) {
+      const p = placedDrag;
+      placedDrag = null;
+      // A press that never moved was a click (the inspector's own hover/
+      // long-press owns that gesture already) — nothing to commit.
+      if (p.moved) moveSpell(p.id, { x: event.clientX, y: event.clientY });
+      paint();
+      return;
+    }
     /*
      * A plain click (zero `moved`) does NOT resolve the gesture — it ARMS it
      * (`held: false`) and keeps tracking the pointer with no button down,
@@ -1170,6 +1251,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerCancel(): void {
+    if (placedDrag !== null) {
+      // Wherever it last moved to (via `moveSpell`) is where it stays — no
+      // cast went out, so there is nothing Forge needs telling either way.
+      placedDrag = null;
+      paint();
+      return;
+    }
     // The browser took the pointer away mid-aim: the same as letting go of
     // the cast with right-click or Escape.
     if (parked !== null && drag === null) {

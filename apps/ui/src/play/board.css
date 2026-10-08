@@ -219,9 +219,11 @@
    * The stack's band. TWO sizes since wave 28 (items 7 and 13): the operator,
    * *"the stack should allow to be bigger unless there is a decision waiting"*.
    * `--mid-h` is the roomy one and is what everything reads; `.board__mid`
-   * redefines it to `--mid-h-asked` while a question is open, and every derived
-   * size (`--stack-card-w`) follows, because they are all computed inside that
-   * element.
+   * redefines it to `--mid-h-asked` while a question is open. Nothing but the
+   * band's own height reads it any more since wave 59 §S deleted the
+   * thumbnail row (`--stack-card-w` went with it) — `live/placed.ts`'s
+   * default spot (decision a) anchors on `.board__mid`'s own box, not on
+   * `--mid-h` directly, so a question narrowing the band still moves it.
    *
    * The compact number has to fit above the question panel, which starts at 24%
    * down (`--live-col-*`, `live/live.css`). Through wave 31 the band started at
@@ -1410,8 +1412,11 @@
  * numbers, so the board mounted bare (the dev harnesses, `Board.test.ts`) puts
  * the stack in the same place as the match does.
  *
- * `--mid-h` is still the band's own height and nothing else's, so `--stack-card-w`
- * below is unchanged: an item that does not fit scrolls sideways INSIDE the band.
+ * `--mid-h` is still the band's own height and nothing else's — wave 59 §S
+ * deleted the thumbnail row this column used to hold; it is now `live/
+ * placed.ts`'s default spot (decision a), a non-visual anchor
+ * (`Board.tsx`'s `StackView`), so the column still reserves the same track
+ * and a question still narrows it the same way.
  */
 .board__mid {
   position: absolute;
@@ -1451,182 +1456,21 @@
   top: max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)));
 }
 
-.board__mid[data-question] > .stack {
-  justify-content: flex-end;
-}
-
 /* ── the stack ────────────────────────────────────────────────────── */
 
 /*
- * Wave 46 X3, built from demo v5 (approved):
- * https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX. The operator called the
- * old wide one-item-at-a-time row ugly four times; this replaces it outright,
- * no parallel path — a row of thumbnails, top of the stack leftmost
- * (`Board.tsx`'s own `StackView`/`StackThumb`). The big view that wave drew
- * one gap below the row is gone (the stack redesign, 2026-10-06,
- * https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd): a thumbnail is read
- * through the one expanded view the whole board has, the inspector.
- *
- * `--stack-gap` is the ONE spacing value: the gap between thumbnails
- * (`.stack__items`'s own `gap`, below).
+ * Wave 59 §S: the thumbnail row (wave 46 X3) and the lone band it collapsed
+ * to are deleted outright — `live/placed.ts` draws every item on the stack
+ * as a card at a point, in the overlay, for both seats, and this zone is a
+ * NON-VISUAL anchor from here on (`Board.tsx`'s `StackView`): it carries
+ * `data-count`/`data-carried` for the readers that still check them and
+ * draws nothing, ever, at any count — so it is simply always hidden, the
+ * same `visibility: hidden` (never `display: none`) that kept the canvas
+ * static before: the BOX stays the box, `.board__mid` still reserves the
+ * track `live/placed.ts`'s own default spot (decision a) anchors on.
  */
 .stack {
-  position: relative;
-  --stack-gap: 8px;
-  /*
-   * A thumbnail's width, derived from the band's own height exactly the way
-   * the old art icon was (wave 31 §A.4): never past 3.5rem, and the band,
-   * less its padding, divided by the card's own proportion otherwise — so a
-   * roomy band (no question open) draws a bigger thumbnail than a compact
-   * one.
-   */
-  --stack-card-w: min(3.5rem, calc((var(--mid-h) - 18px) / var(--card-tall)));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/*
- * Item 13: *"the stack doesn't need to show if its empty."* An empty stack
- * shows nothing at all, over the opponent's battlefield, the whole game.
- *
- * `visibility: hidden` rather than `display: none`, and that choice is
- * load-bearing twice. The BOX stays the box, so the canvas is as static as it
- * ever was — the older, absolute rule (*"the entire canvas must be fully static
- * at all times"*), which `e2e/table-fit.spec.ts` measures by reading
- * `.board__mid` and `[data-zone="stack"]` with 0, 1, 5 and 12 items on it. And
- * the condition is the LIST being empty rather than a count React writes, so that
- * spec's DOM probe — which appends `<li>`s directly — makes the stack appear by
- * filling it, exactly as a real stack does.
- */
-.stack:has(> .stack__items:empty) {
   visibility: hidden;
-}
-
-.stack__items {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  gap: var(--stack-gap);
-  min-width: 0;
-  max-width: 100%;
-  margin: 0;
-  padding: 4px 2px 2px;
-  list-style: none;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-}
-
-/*
- * One thumbnail: the card's art, upright, at `--stack-card-w` — never wider,
- * so twelve items overflow the row SIDEWAYS, inside it, rather than growing
- * the band (`e2e/table-fit.spec.ts`'s own crowd case, unchanged by this
- * wave). `aspect-ratio` is set here too, not only on the `CardTile` inside:
- * an item that names no card (`item.sourceCard === null`) draws no art at
- * all, and still draws a card-shaped slot rather than collapsing to the
- * numeral badge's own height.
- */
-.stack__item {
-  position: relative;
-  flex: none;
-  width: var(--stack-card-w);
-  aspect-ratio: calc(1 / var(--card-tall));
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: 0 2px 6px var(--shadow);
-}
-
-/*
- * Under the pointer or the keyboard: a thin outline and nothing else. It used
- * to lift 4px, and the operator (2026-10-06): *"the carousel items shift
- * upward when hovered. that looks ugly, just a small outline on hover would be
- * fine."*
- */
-.stack__item:has(button:hover),
-.stack__item:has(button:focus-visible) {
-  outline: 1px solid var(--ink);
-  outline-offset: 1px;
-}
-
-/* The top of the stack draws a touch larger — the one visual cue for "top" beyond its leftmost position. */
-.stack__item--top {
-  width: calc(var(--stack-card-w) * 1.12);
-}
-
-/*
- * One spell alone on the stack is drawn as the card, not as a thumbnail of a
- * stack there is no row for (the stack redesign, 2026-10-06). Half again a
- * thumbnail's width, and never taller than the band it sits in: `--mid-h`
- * shrinks to the room above a question (wave 51 §A.6), and a card that
- * outgrew the band would cover the question below it.
- */
-.stack__item--lone,
-.stack__item--lone.stack__item--top {
-  width: min(calc(var(--stack-card-w) * 1.5), calc((var(--mid-h) - 18px) / var(--card-tall)));
-}
-
-/*
- * The owner strip: the accent mine, amber theirs (settled layout) — this is the one
- * place on the board colour alone marks something, because the demo it
- * implements draws it that way and the thumbnail's position (numbered from
- * the stack's own top) already carries the rest of the information. In the
- * theme's own accent: it was `--c-blue`, a colour-pie hue that means "a blue
- * card" everywhere else and never follows the theme — the operator
- * (2026-10-06): *"i'm not a fan of the 'blue highlight' can we use a color
- * from the color theme system instead?"*
- */
-.stack__item--mine::after,
-.stack__item--theirs::after {
-  content: '';
-  position: absolute;
-  z-index: 2;
-  inset: auto 0 0 0;
-  height: 3px;
-}
-.stack__item--mine::after {
-  background: var(--accent);
-}
-.stack__item--theirs::after {
-  background: var(--warn);
-}
-
-/* The item's body — a `<span>` (peek-only, inert) or a `<button>` (pinned, or Forge's own stack-choice ask). */
-.stack__body {
-  display: block;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-}
-
-.stack__item button.stack__body {
-  cursor: pointer;
-}
-
-.stack__art {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* The ordinal badge: 1 is the top, numbered left to right. Decorative (`aria-hidden`) — the position is already in the DOM order. */
-.stack__n {
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  z-index: 2;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--ink);
-  background: var(--scrim);
-  border-radius: 3px;
-  padding: 0 3px;
 }
 
 /* ── the staging area: a card being played (item 17.2) ─────────────── */
@@ -1769,12 +1613,3 @@
   }
 }
 
-/*
- * One thing on the stack: nothing is drawn for it — its stand-in is on the
- * table (the caster's own placed card; for the other seat, the back waiting in
- * its gap). The band keeps its item in the DOM (the arrows and a stack-choice
- * ask read it); it is simply not shown (the operator, 2026-10-08).
- */
-.stack[data-lone] {
-  visibility: hidden;
-}

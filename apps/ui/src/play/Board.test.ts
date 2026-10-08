@@ -127,13 +127,9 @@ function renderBoard(
  * time). So "is a button" no longer distinguishes offered from not; "is a
  * button still in the tab order" does, and is what every test below now reads.
  */
-// Wave 46 X3: a stack thumbnail may be a `<button>` purely as a carousel
-// gesture (switch which item the big view shows) with no Forge offer behind
-// it at all — `.stack__body:not(.stack__select)` is that button, and it is
-// excluded here on purpose; `.stack__select` (Forge's own stack-choice ask)
-// still counts.
-const forgeButtons = (container: HTMLElement) =>
-  container.querySelectorAll('button:not([tabindex="-1"]):not(.stack__body:not(.stack__select))');
+// Wave 46 X3's stack carousel button (no Forge offer behind it, excluded on
+// purpose) is gone with the row itself (§S) — nothing left to exclude.
+const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([tabindex="-1"])');
 
 /* ── the pointer drag, driven in jsdom (wave 32 Q4b) ──────────────────── */
 
@@ -369,72 +365,71 @@ describe('zones', () => {
 });
 
 /*
- * The stack redesign (2026-10-06, approved): "the stack doesn't need to appear
- * when theres only one thing pending to execute" — a lone spell is the card
- * itself, a lone trigger is a pulse on its source, and the row exists at two
- * or more.
+ * Wave 59 §S: the thumbnail row, the lone band's pulse on a source
+ * (`LoneAbilityContext`), and every class and attribute either one drew
+ * (`.stack__item`, `.stack__items`, `data-stack-source`) are deleted outright
+ * — `live/placed.ts` draws every item on the stack as a card at a point, in
+ * the overlay, for both seats; `placed.test.ts` is where that drawing itself
+ * is tested. What is left here is the zone's own bookkeeping (`data-count`,
+ * `data-carried`) and the proof that nothing of the old row survives,
+ * whatever shape the stack is in — one spell, one ability, two, or several.
  */
 describe('the stack with one thing on it (the stack redesign)', () => {
   const base = boardFromFixture(fixture);
   const spell = base.stack.find((item) => !item.isAbility)!;
   const ability = base.stack.find((item) => item.isAbility)!;
 
-  it('a lone spell is drawn as the card: in the row’s place, unnumbered, still the item every reader keys off', () => {
+  it('a lone spell is a non-visual zone (data-count alone) — live/placed.ts draws the card', () => {
     const { container } = renderBoard({ ...base, stack: [spell] });
     const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
     expect(stack.dataset.count).toBe('1');
-    expect(stack.dataset.lone).toBe('true');
-    const item = stack.querySelector<HTMLElement>(`.stack__item[data-stack-id="${spell.id}"]`)!;
-    expect(item, 'the item is still there for the arrows and a stack-choice ask').not.toBeNull();
-    expect(item.classList.contains('stack__item--lone')).toBe(true);
-    expect(item.querySelector('.stack__n'), 'no ordinal: there is no stack to count').toBeNull();
-    expect(item.querySelector('.stack__art .card'), 'the card itself').not.toBeNull();
+    expect(stack.children, 'the zone itself draws nothing — no row, no band').toHaveLength(0);
+    expect(container.querySelector('.stack__item'), 'the old thumbnail class is gone, not merely empty').toBeNull();
   });
 
-  it('a lone trigger draws no row: its source pulses on the battlefield and carries the item’s own stack id', () => {
+  it('a lone ability pulses nothing — the old LoneAbilityContext source mark is deleted with the band', () => {
     const { container } = renderBoard({ ...base, stack: [ability] });
     const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
     expect(stack.dataset.count, 'Forge still has one item').toBe('1');
-    expect(stack.querySelectorAll('.stack__item'), 'and the row is empty').toHaveLength(0);
+    expect(container.querySelectorAll('[data-stack-source]'), 'the ephemeral card replaces the pulse — nothing on the battlefield marks itself any more').toHaveLength(0);
     const source = container.querySelector<HTMLElement>(`li.board-card[data-card-id="${ability.sourceCardId}"]`)!;
-    expect(source, 'the trigger’s source is on a battlefield').not.toBeNull();
-    expect(source.dataset.stackSource).toBe('true');
-    expect(source.dataset.stackId, 'the arrows and a stack-choice ask find the item on its source').toBe(String(ability.id));
-    expect(container.querySelectorAll('[data-stack-source]'), 'and nothing else pulses').toHaveLength(1);
+    expect(source.dataset.stackId, 'the permanent itself no longer carries the item’s id either').toBeUndefined();
   });
 
-  it('two items are a row again, numbered, and nothing pulses', () => {
+  it('two items: still no row, still no pulse, whatever Forge has on the stack', () => {
     const { container } = renderBoard({ ...base, stack: [ability, spell] });
     const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
-    expect(stack.dataset.lone).toBeUndefined();
-    expect(stack.querySelectorAll('.stack__item')).toHaveLength(2);
-    expect([...stack.querySelectorAll('.stack__n')].map((n) => n.textContent)).toEqual(['1', '2']);
+    expect(stack.dataset.count).toBe('2');
+    expect(stack.children).toHaveLength(0);
     expect(container.querySelector('[data-stack-source]')).toBeNull();
-    expect(container.querySelector(`li.board-card[data-stack-id]`), 'no board card carries a stack id').toBeNull();
+    expect(container.querySelector('li.board-card[data-stack-id]'), 'no board card carries a stack id').toBeNull();
   });
 
-  it('a lone trigger off a card the board does not draw keeps its thumbnail — there is nothing to pulse', () => {
+  it('an ability off a card the board does not draw: still nothing here — live/placed.ts has its own default-spot fallback', () => {
     const { container } = renderBoard({ ...base, stack: [{ ...ability, sourceCardId: 424242 }] });
-    expect(container.querySelectorAll('.stack__item')).toHaveLength(1);
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
+    expect(stack.dataset.count).toBe('1');
+    expect(stack.children).toHaveLength(0);
     expect(container.querySelector('[data-stack-source]')).toBeNull();
   });
 });
 
 describe('the stack', () => {
-  it('lists both items, top first, as thumbnails whose who/what/target lives in aria-label, not a drawn line', () => {
-    const { container } = renderBoard();
+  it('data-carried tracks a played card standing in for its own spell, whatever placed.ts draws for it', () => {
+    const base = boardFromFixture(fixture);
+    const { container } = renderBoard(base);
     const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
-    expect(stack.dataset.count).toBe('2');
-    // Wave 46 X3: the carousel draws no summary LINE at all — who/what/target
-    // moved to each thumbnail's own `aria-label`, in DOM order (top leftmost).
-    const items = [...stack.querySelectorAll<HTMLElement>('.stack__item')].map((n) => n.getAttribute('aria-label'));
-    expect(items).toEqual(['Bob (Capturing) · Fire Urchin · ability', 'Bob (Capturing) · Direct Current → Goblin Replica']);
-    // The old summary-line classes are gone outright — no parallel path.
-    expect(stack.querySelectorAll('.stack__what, .stack__source, .stack__controller, .stack__sep, .stack__target, .stack__kind')).toHaveLength(0);
-    // T8 (wave 36)'s claim still holds: Forge's own resolved prose is nowhere
-    // on the board, visible or in an accessible name — this fixture's `item.description`
-    // for Direct Current is that exact sentence, and it is drawn nowhere.
-    expect(items.join(' '), 'not Forge’s own resolved sentence').not.toContain('deals 2 damage to Goblin Replica (67)');
+    expect(stack.dataset.count, 'the real fixture’s own two items').toBe('2');
+    expect(stack.dataset.carried, 'nothing is carried off-screen without carryCastOffStack').toBeUndefined();
+  });
+
+  it('is the one zone every reader still finds its item through — live/placed.ts’s own [data-placed-spell], never the old row', () => {
+    const base = boardFromFixture(fixture);
+    const { container } = renderBoard(base);
+    for (const item of base.stack) {
+      expect(container.querySelector(`[data-placed-spell="${item.id}"]`), `item ${item.id} is drawn`).not.toBeNull();
+      expect(container.querySelector(`.stack__item[data-stack-id="${item.id}"]`), 'never the deleted row').toBeNull();
+    }
   });
 });
 
@@ -764,9 +759,12 @@ describe('BoardInteraction', () => {
     expect(spell.sourceCardId).not.toBeNull();
     const { interaction, onSelectCard } = spyInteraction([spell.sourceCardId!]);
     const { container } = renderBoard(view, interaction);
-    const item = container.querySelector<HTMLElement>(`[data-stack-id="${spell.id}"]`)!;
-    expect(item.dataset.selectable).toBe('true');
-    fireEvent.click(within(item).getByRole('button'));
+    // §S: `live/placed.ts` owns the drawing now — `Board` only wires `interaction`
+    // through (`installPlaced`'s own `notify`, `PlacedInteraction`); the click
+    // itself is `placed.test.ts`'s own "Q18" test. This is the end-to-end wiring.
+    const item = container.querySelector<HTMLElement>(`[data-placed-spell="${spell.id}"]`)!;
+    expect(item.dataset.selectable).toBe('');
+    fireEvent.click(item);
     expect(onSelectCard.mock.calls).toEqual([[spell.sourceCardId]]);
   });
 
@@ -797,15 +795,9 @@ describe('BoardInteraction', () => {
     const { interaction, onSelectCard } = spyInteraction([permanent.id]);
     const { container } = renderBoard(withAbilityOnStack, interaction);
 
-    const item = container.querySelector<HTMLElement>(`.stack__item[data-stack-id="${abilityEntry.id}"]`)!;
+    const item = container.querySelector<HTMLElement>(`[data-placed-spell="${abilityEntry.id}"]`)!;
     expect(item.dataset.selectable, 'inert, unlike a spell entry above').toBeUndefined();
-    // Wave 46 X3: the carousel's OWN click (pin a different item for the big
-    // view) may still render a button here — that is unrelated to Forge's
-    // offer. The Q18 regression is specifically that clicking never answers
-    // Forge with the permanent's id, whether or not a carousel button exists.
-    expect(item.querySelector('button.stack__select'), 'never Forge’s own select button').toBeNull();
     fireEvent.click(item);
-    item.querySelector('button')?.click();
     expect(onSelectCard).not.toHaveBeenCalled();
 
     // The permanent itself is still exactly as clickable as Forge said.
@@ -1021,21 +1013,25 @@ describe('the canvas is static', () => {
   const base = boardFromFixture(fixture);
   const counts = [0, 1, 5] as const;
 
-  it('draws every other slot identically with 0, 1 and 5 items on the stack', () => {
+  it('draws every other slot identically with 0, 1 and 5 items on the stack — the zone itself never grows a child', () => {
     const shots = counts.map((n) => {
       const { container } = renderBoard(withStack(base, n));
       const board = container.querySelector<HTMLElement>('.board')!;
       const stack = board.querySelector<HTMLElement>('[data-zone="stack"]')!;
+      const overlay = board.querySelector<HTMLElement>('[data-board-overlay]')!;
       const shot = {
-        // Everything outside the stack, byte for byte.
-        rest: board.outerHTML.replace(stack.outerHTML, '<!--stack-->'),
+        // Everything outside the stack's own zone AND the overlay, byte for byte.
+        // The overlay is `live/placed.ts`'s to vary — out of flow, so a track
+        // never moves for it (the same exemption the inspector's panel and the
+        // floating numbers already had).
+        rest: board.outerHTML.replace(stack.outerHTML, '<!--stack-->').replace(overlay.outerHTML, '<!--overlay-->'),
         // The viewer's battlefield on its own, because that is the box the
         // operator watched move.
         battlefield: board.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"]')!.outerHTML,
-        // And the stack's own slot: the same elements at every size, never a
-        // different one and never nothing.
-        slot: [...stack.children].map((c) => `${c.tagName}.${c.className}`),
-        items: stack.querySelectorAll('.stack__item').length,
+        // The zone itself: always empty (§S — a non-visual anchor, never a row).
+        slot: [...stack.children],
+        // Every item really is drawn — just in the overlay, as a card at a point, not in this zone.
+        items: overlay.querySelectorAll('[data-placed-spell]').length,
       };
       cleanup();
       return shot;
@@ -1043,16 +1039,13 @@ describe('the canvas is static', () => {
 
     expect(shots.map((s) => s.items), 'the stack really did hold 0, 1 and 5').toEqual([0, 1, 5]);
     for (const i of [1, 2]) {
-      expect(shots[i]!.rest, `everything but the stack, with ${counts[i]} items`).toBe(shots[0]!.rest);
+      expect(shots[i]!.rest, `everything but the stack and the overlay, with ${counts[i]} items`).toBe(shots[0]!.rest);
       expect(shots[i]!.battlefield, `the battlefield, with ${counts[i]} items`).toBe(shots[0]!.battlefield);
-      expect(shots[i]!.slot, `the stack's own slot, with ${counts[i]} items`).toEqual(shots[0]!.slot);
+      expect(shots[i]!.slot, `the stack zone's own slot, with ${counts[i]} items`).toEqual(shots[0]!.slot);
     }
-    // Wave 46 X3: the visible `<h3>` label is gone (the demo and the "no
-    // explanatory text" rule both drop it; the accessible name is
-    // `aria-label="Stack"` on the section itself, unchanged). The row is the
-    // stack's one slot: its big view went with the single expanded view
-    // (the inspector), so nothing but the list is ever rendered here.
-    expect(shots[0]!.slot).toEqual(['OL.stack__items']);
+    // §S: the zone itself is a non-visual anchor now — no row, no label, no
+    // children at all, at any count.
+    expect(shots[0]!.slot).toEqual([]);
   });
 
   it('gives every zone its slot whether or not anything is in it', () => {
@@ -1087,11 +1080,15 @@ describe('the canvas is static', () => {
       'you/hand',
     ]);
     for (const z of zones) {
-      // A default battlefield's lists are its two tiers, under `.zone__tiers`.
-      expect(
-        z.querySelector(':scope > ul, :scope > ol, :scope > .zone__tiers > ul'),
-        `${z.dataset.owner} ${z.dataset.zone} still has its list`,
-      ).not.toBeNull();
+      // §S: the stack is a non-visual anchor now — no list, ever (`live/placed.ts` draws
+      // every item elsewhere). Every other zone's list is its two tiers, under `.zone__tiers`,
+      // for a default battlefield.
+      if (z.dataset.zone !== 'stack') {
+        expect(
+          z.querySelector(':scope > ul, :scope > ol, :scope > .zone__tiers > ul'),
+          `${z.dataset.owner} ${z.dataset.zone} still has its list`,
+        ).not.toBeNull();
+      }
       expect(z.dataset.count).toBe('0');
     }
   });
@@ -1748,15 +1745,20 @@ describe('the DOM contract', () => {
     expect(board.querySelector('[data-zone="stack"]')!.getAttribute('data-owner')).toBe('table');
   });
 
-  it('puts a positioned overlay root at the board’s top level, empty and untouched', () => {
+  it('puts a positioned overlay root at the board’s top level, drawn in only by live/placed.ts (§S)', () => {
     const { container } = renderBoard(view);
     const board = container.querySelector<HTMLElement>('.board')!;
     const overlays = [...board.querySelectorAll<HTMLElement>('[data-board-overlay]')];
     expect(overlays).toHaveLength(1);
     expect(overlays[0]!.parentElement).toBe(board);
-    // This lane renders nothing into it and hangs no handler on it.
-    expect(overlays[0]!.children).toHaveLength(0);
     expect(overlays[0]!.className).toBe('board__overlay');
+    // This lane's own JSX renders nothing into it and hangs no handler on it
+    // — `live/placed.ts`, booted imperatively the same way the inspector and
+    // the floating numbers are, draws the fixture's own two stack items here.
+    for (const el of overlays[0]!.children) {
+      expect(el.classList.contains('placed') || el.classList.contains('placed__arrow'), 'live/placed.ts’s own class, never another lane’s').toBe(true);
+    }
+    expect(overlays[0]!.querySelectorAll('[data-placed-spell]'), 'the fixture’s own two stack items').toHaveLength(2);
   });
 });
 
@@ -3083,9 +3085,11 @@ describe('the inspector', () => {
     expect(inspector.mounts[0]!.disposed).toBe(false);
 
     // Live, and drawing where the contract says: hovering a card enlarges it
-    // into the overlay root and nowhere else on the board.
+    // into the overlay root and nowhere else on the board. `live/placed.ts`
+    // (§S) is the only other thing that draws there on its own, from this
+    // fixture's two stack items — nothing from the inspector yet.
     const overlay = board.querySelector<HTMLElement>('[data-board-overlay]')!;
-    expect(overlay.children).toHaveLength(0);
+    expect(overlay.querySelectorAll('[data-inspect]')).toHaveLength(0);
     fireEvent.pointerOver(board.querySelector<HTMLElement>('[data-card-id="8"]')!, { pointerType: 'mouse' });
     expect(overlay.querySelectorAll('[data-inspect]'), 'the enlargement is in the overlay').toHaveLength(1);
     expect(board.querySelectorAll('[data-inspect]'), 'and nowhere else').toHaveLength(1);
@@ -3133,7 +3137,7 @@ describe('the player faces', () => {
 describe('the stack’s art (#10)', () => {
   it('draws each item’s source card through the resolver, not a host of its own', () => {
     const { container } = renderBoard(viewWithArt());
-    const items = [...container.querySelectorAll<HTMLElement>('.stack__item')];
+    const items = [...container.querySelectorAll<HTMLElement>('[data-placed-spell]')];
     expect(items).toHaveLength(2);
     for (const item of items) {
       const name = item.querySelector('.card__name')!.textContent!;
@@ -3145,20 +3149,18 @@ describe('the stack’s art (#10)', () => {
     expect(container.innerHTML).not.toMatch(/url\(/);
   });
 
-  it('draws no art for an item that names no card, and still draws the item', () => {
+  it('draws no art for an item that names no card, and still draws the item — the honest text fallback (§S)', () => {
     const view = boardFromFixture(fixture);
     const bare: BoardView = {
       ...view,
       stack: [{ ...view.stack[0]!, sourceCard: null, sourceCardId: null, sourceName: null }],
     };
     const { container } = renderBoard(bare);
-    // Alone and an ability, but with no source the board could pulse: it keeps its thumbnail.
-    const item = container.querySelector<HTMLElement>('.stack__item')!;
-    expect(item, 'drawn in the row').not.toBeNull();
-    expect(item.querySelector('.stack__art')).toBeNull();
-    // Wave 46 X3: the fallback sentence lives in the thumbnail's own aria-label now, not a drawn `.stack__source`
-    // — this fixture's item keeps its controller, so the label is who · what, same join as every other item.
-    expect(item.getAttribute('aria-label')).toBe(`${view.stack[0]!.controllerName} · unknown source · ability`);
+    const item = container.querySelector<HTMLElement>(`[data-placed-spell="${view.stack[0]!.id}"]`)!;
+    expect(item, 'drawn, at the default spot (no sourceCardId to draw beside)').not.toBeNull();
+    expect(item.querySelector('img')).toBeNull();
+    // `live/placed.ts`'s own fallback: the description, never a guessed name or a drawn `.stack__art`.
+    expect(item.querySelector('.placed__text')?.textContent).toBe(view.stack[0]!.description);
   });
 });
 
@@ -3751,21 +3753,19 @@ describe('§A.7 / §A.13 — the stack is hidden at zero and roomy unless a ques
     ...over,
   });
 
-  it('draws nothing when the stack is empty, and the rule is keyed on the LIST being empty', () => {
-    // The operator: *"the stack doesn't need to show if its empty."*
-    const hidden = /\.stack:has\(> \.stack__items:empty\) \{([^}]*)\}/.exec(BOARD_RULES);
-    expect(hidden, 'the empty-stack rule').not.toBeNull();
+  it('draws nothing when the stack is empty — and the zone itself never draws anything, whatever it holds (§S)', () => {
+    // The operator: *"the stack doesn't need to show if its empty."* — now
+    // true unconditionally: wave 59 §S deleted the row, so there is no
+    // CONDITION left to key on. `.stack`'s own rule simply hides it, full
+    // stop (`visibility`, not `display` — the BOX has to stay the box, the
+    // older *"the entire canvas must be fully static at all times"* rule,
+    // which `e2e/table-fit.spec.ts` still measures).
+    const hidden = /\.stack \{([^}]*visibility:[^}]*)\}/.exec(BOARD_RULES);
+    expect(hidden, 'the stack’s own rule').not.toBeNull();
     expect(hidden![1]).toMatch(/visibility:\s*hidden/);
-    /*
-     * `visibility`, not `display` — the BOX has to stay the box. That is the
-     * older, absolute rule (*"the entire canvas must be fully static at all
-     * times"*) and it is what keeps `e2e/table-fit.spec.ts`'s four stack shots
-     * comparable; and the condition is the list rather than a React-written
-     * count, so that spec's DOM probe makes the stack appear by filling it.
-     */
     expect(hidden![1], 'the slot is not taken away').not.toMatch(/display:\s*none/);
     const { container } = renderBoard({ ...base, stack: [] });
-    expect(container.querySelector('[data-zone="stack"] > ol.stack__items')!.children).toHaveLength(0);
+    expect(container.querySelector<HTMLElement>('[data-zone="stack"]')!.children).toHaveLength(0);
   });
 
   it('is roomy by default and compact while a question is open', () => {
@@ -3775,8 +3775,6 @@ describe('§A.7 / §A.13 — the stack is hidden at zero and roomy unless a ques
     expect(Number.parseFloat(roomy), 'the roomy band is the bigger one').toBeGreaterThan(Number.parseFloat(asked));
     // Wave 51 §A.6: never more than the compact size; less only when the room above the question is less.
     expect(declarationIn('.board__mid[data-question]', '--mid-h')).toMatch(/^min\(var\(--mid-h-asked\), /);
-    // And the card on the stack follows the band, so a roomy band draws a bigger one.
-    expect(declarationIn('.stack', '--stack-card-w')).toContain('var(--mid-h)');
 
     const quiet = renderBoard(base, noInteraction());
     expect(quiet.container.querySelector<HTMLElement>('.board__mid')!.hasAttribute('data-question')).toBe(false);
@@ -4024,17 +4022,16 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     expect(code).not.toMatch(/regroup\s*\(|withoutSeat|ARRANGE_SLOTS|data-arrange-reset/);
   });
 
-  it('P9 (wave 46 X3): a thumbnail is a fixed width, never past 3.5rem, and the band is one size per state, not per item', () => {
-    // Wave 46 X3 replaced "one item at a time, the band's own full width" with
-    // a row of thumbnails — `.stack__item` is now a fixed small width, never
-    // `flex: 0 0 100%`, and twelve of them overflow the row sideways instead.
-    expect(declarationIn('.stack__item', 'flex')).toBe('none');
+  it('P9 → §S: the thumbnail and its sizing are gone with the row; the band is still one size per state, not per item', () => {
+    // Wave 46 X3's thumbnail (`.stack__item`, `--stack-card-w`) is deleted
+    // outright by wave 59 §S — `live/placed.ts` draws every item as a card at
+    // a point, sized by its own CSS (`live/placed.css`), never by the band.
+    expect(declarationIn('.stack__item', 'flex')).toBeUndefined();
+    expect(declarationIn('.stack', '--stack-card-w')).toBeUndefined();
     // The band is sized by state (`--mid-h`, `--mid-h-asked`) and nothing else:
     // no rule of the stack sizes itself by what it holds.
     expect(Number.parseFloat(declarationIn('.board', '--mid-h')!)).toBeGreaterThanOrEqual(12);
     expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
-    // A thumbnail's width is capped the same way the old art icon's was.
-    expect(declarationIn('.stack', '--stack-card-w')).toContain('min(3.5rem');
   });
 
   it('P6: the canvas has no outer border or inset shadow, and board.css has no hex literal', () => {
@@ -4080,10 +4077,9 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
    * `overflow: hidden` the same way the old row was, so a card-shaped slot
    * never grows past `--stack-card-w` x its own aspect ratio.
    */
-  it('stack (wave 46 X3): a thumbnail clips at its own size — `.stack__what` is gone, not re-shaped', () => {
+  it('stack → §S: the old summary line and the thumbnail it was replaced by are both gone, not re-shaped', () => {
     expect(declarationIn('.stack__what', 'white-space'), 'the old summary-line rule is gone').toBeUndefined();
-    expect(declarationIn('.stack__item', 'overflow')).toBe('hidden');
-    expect(declarationIn('.stack__item', 'aspect-ratio')).toBe('calc(1 / var(--card-tall))');
+    expect(declarationIn('.stack__item', 'overflow'), 'and the thumbnail that replaced it — `live/placed.ts` draws the card now').toBeUndefined();
   });
 
   /*
@@ -4993,23 +4989,23 @@ describe('wave 36 §B — T7: a card with ChosenType wears a small label', () =>
 });
 
 describe('wave 36 §B / wave 46 X3 — the stack names who/what/target in aria-label, never a drawn sentence', () => {
-  it('no item draws Forge’s own resolved prose, or the old one-line summary markup — both are gone entirely', () => {
+  it('no item draws Forge’s own resolved prose, or the old one-line summary markup — both are gone entirely (§S: so is the row itself)', () => {
     const { container } = renderBoard();
     // "the stack" describe block above already pins the exact aria-label
     // content for this fixture's two real items; this is the structural
     // claim beyond that: nothing on the board carries the classes that used
-    // to hold the one-line summary or the full sentence before it.
-    expect(container.querySelectorAll('.stack__text, .stack__what, .stack__source, .stack__controller, .stack__target')).toHaveLength(0);
-    for (const item of container.querySelectorAll<HTMLElement>('.stack__item')) {
-      expect(item.hasAttribute('aria-label'), 'every thumbnail still carries its own accessible name').toBe(true);
-    }
+    // to hold the one-line summary, the full sentence before it, or the row.
+    expect(
+      container.querySelectorAll('.stack__text, .stack__what, .stack__source, .stack__controller, .stack__target, .stack__item, .stack__items'),
+    ).toHaveLength(0);
   });
 
-  it('the band’s own box does not depend on how many items are on the stack (the canvas stays static)', () => {
+  it('the stack zone’s own box does not depend on how many items are on the stack (the canvas stays static)', () => {
     // `.board__mid`'s height is `var(--mid-h)`, a NAMED size with no `:has()`
-    // or sibling-count selector reading the list — already pinned above
-    // ("is roomy by default…", "P9…"); this adds the DOM half: the markup for
-    // ONE item carries no size-affecting inline style tied to the count.
+    // or sibling-count selector reading anything (already pinned above, "is
+    // roomy by default…"); this adds the DOM half: the stack ZONE itself
+    // never grows a child, at any count — every item is `live/placed.ts`'s,
+    // in the overlay, out of flow, never inside `.board__mid`/`.stack`.
     const view = boardFromFixture(fixture);
     // Unique ids per copy (React's own key, and this board's DOM-uniqueness
     // invariant) — `[0, 1, 2]` x the fixture's 2 real items is 6 distinct ids.
@@ -5018,9 +5014,8 @@ describe('wave 36 §B / wave 46 X3 — the stack names who/what/target in aria-l
       stack: [0, 1, 2].flatMap((n) => view.stack.map((item) => ({ ...item, id: item.id + n * 1000 }))),
     };
     const { container } = renderBoard(tripled);
-    const items = container.querySelectorAll('.stack__item');
-    expect(items).toHaveLength(6);
-    for (const item of items) expect((item as HTMLElement).style.length, 'no inline size of its own').toBe(0);
+    expect(container.querySelector('[data-zone="stack"]')!.children, 'the zone itself is still empty at six').toHaveLength(0);
+    expect(container.querySelectorAll('[data-placed-spell]'), 'all six are drawn, just elsewhere').toHaveLength(6);
     expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
   });
 });

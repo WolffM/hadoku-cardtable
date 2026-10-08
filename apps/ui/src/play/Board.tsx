@@ -388,7 +388,7 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { createContext, useContext, useEffect, useLayoutEffect, useReducer, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
@@ -400,10 +400,10 @@ import {
   type BoardView,
   type PoolColor,
   type PTState,
-  type StackEntry,
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { installNumbers } from './live/numbers.ts';
+import { installPlaced } from './live/placed.ts';
 import { Relations } from './Relations.tsx';
 import './board.css';
 import './card.css';
@@ -1940,18 +1940,6 @@ const STACK_STEP = 8;
 /** Forge's `UI_MAX_STACK_DEPTH` (4 cards total), less the base card itself. */
 const MAX_FAN_DEPTH = 3;
 
-/**
- * The one stack item drawn on its SOURCE instead of in the row: a trigger or
- * an activated ability that is the only thing on the stack. The stack
- * redesign (2026-10-06, approved): *"a lone trigger = pulse on its source"* —
- * nothing was played, so nothing is drawn but the permanent saying so. The
- * permanent's `<li>` carries `data-stack-source` (the pulse, `card.css`) and
- * the item's own `data-stack-id`, so every reader that keys off that id — the
- * arrows, a stack-choice ask (`gestures/stack.ts`'s `stackItemBox`) — finds
- * the source where the row's thumbnail would have been. Set by `Board`, read
- * by `CardOnBoard`; null with anything else on the stack.
- */
-const LoneAbilityContext = createContext<{ cardId: number; stackId: number } | null>(null);
 
 function CardOnBoard({
   entry,
@@ -1990,7 +1978,6 @@ function CardOnBoard({
    */
   inExile?: boolean;
 }) {
-  const loneAbility = useContext(LoneAbilityContext);
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /** This card is one Forge already marked picked, not merely offered — see `BoardInteraction.highlighted`. */
   const picked = interaction !== undefined && (interaction.highlighted?.has(entry.id) ?? false);
@@ -2092,8 +2079,6 @@ function CardOnBoard({
       data-token={entry.token || undefined}
       data-board-card={entry.id}
       data-card-id={entry.id}
-      data-stack-source={loneAbility?.cardId === entry.id || undefined}
-      data-stack-id={loneAbility?.cardId === entry.id ? loneAbility.stackId : undefined}
       data-selectable={selectable || undefined}
       /* A picked card keeps `data-selectable` too — see `BoardInteraction.highlighted`'s own note. */
       data-picked={picked || undefined}
@@ -2885,115 +2870,6 @@ function PlayerArea({
 }
 
 /**
- * One stack item's accessible name: who · what[ · ability][ → target]. Built
- * once, from the same structured facts the OLD one-line row used to draw as
- * text (wave 36 T8) — wave 46 X3 deletes that visible line outright (the
- * operator, re the carousel: "the stack shows what is happening" is now the
- * THUMBNAIL ROW's position and art, not a sentence), so this string survives
- * only as the thumbnail's `aria-label`: a keyboard or screen-reader player
- * still gets who/what/target, a sighted one reads it off the row and the big
- * view below it.
- */
-function stackItemLabel(item: StackEntry): string {
-  const source = item.sourceName ?? 'unknown source';
-  const what = item.isAbility ? `${source} · ability` : source;
-  const who = item.controllerName !== null ? `${item.controllerName} · ${what}` : what;
-  const targetLabel = item.targetLabel ?? null;
-  return targetLabel === null ? who : `${who} → ${targetLabel}`;
-}
-
-/**
- * One thumbnail: wave 46 X3's carousel (the operator, asked four times:
- * *"show a sort of gallery/carousel small view"* — demo v5, approved,
- * https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX), top leftmost, numbered.
- * Art only: `CardTile`'s own text tile is still rendered (one resolver,
- * `Board.tsx`'s "Cards are `CardTile`" rule at the top of this file) and
- * `board.css` hides everything but `.card__art` under `.stack__item` — no
- * second art-only renderer, no hardcoded host.
- *
- * Reading it is the inspector's (`inspect/index.ts`): the thumbnail's own
- * `CardTile` carries `data-card-id="w<id>"` like every tile on the board, and
- * hovering it enlarges the card the one way everything else is enlarged. The
- * operator, 2026-10-06, approving the stack redesign
- * (https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd): *"i honestly really
- * just want one of these. you can't ever be hovering over more than one thing
- * so just having a single distinct 'expanded view' i think would be the
- * cleanest."* The stack's own pinned big view (`.stack__big`, wave 46) is
- * gone with that.
- *
- * `data-stack-id` is the ONE element per item every other reader keys off —
- * `gestures/stack.ts`'s `stackItemBox`, lane B's arrows, the stack-choice ask
- * — kept exactly where it always was, on this `<li>`.
- *
- * Q18 (wave 33 §B.1) still holds: an ABILITY entry's `sourceCardId` is the
- * permanent on the battlefield, which Forge may offer for its own
- * (re-)activation at the same moment — only a SPELL entry may ever be
- * selectable by its card id. A selectable thumbnail is a button
- * (`.stack__select`, Forge's own stack-choice ask); any other is not a button
- * at all.
- */
-function StackThumb({
-  item,
-  index,
-  top,
-  mine,
-  lone,
-  interaction,
-}: {
-  item: StackEntry;
-  index: number;
-  top: boolean;
-  mine: boolean;
-  /** The only thing on the stack: drawn as the card itself, unnumbered — there is no stack to count. */
-  lone: boolean;
-  interaction: BoardInteraction | undefined;
-}) {
-  const sourceId = item.sourceCardId;
-  const selectable =
-    interaction !== undefined && sourceId !== null && !item.isAbility && interaction.selectable.has(sourceId);
-  const label = stackItemLabel(item);
-  const body = (
-    <>
-      {item.sourceCard !== null && (
-        <span className="stack__art">
-          <CardTile card={item.sourceCard} />
-        </span>
-      )}
-      {/* The ordinal badge: 1 is the top of the stack, numbered left to right. Decorative — the position is already in the DOM order. */}
-      {!lone && (
-        <span className="stack__n" aria-hidden="true">
-          {index + 1}
-        </span>
-      )}
-    </>
-  );
-  return (
-    <li
-      className={`stack__item${top ? ' stack__item--top' : ''}${lone ? ' stack__item--lone' : ''} ${mine ? 'stack__item--mine' : 'stack__item--theirs'}`}
-      data-stack-id={item.id}
-      data-is-ability={item.isAbility || undefined}
-      data-selectable={selectable || undefined}
-      aria-label={label}
-    >
-      {selectable ? (
-        <button
-          type="button"
-          className="stack__body stack__select"
-          aria-label={`Select ${item.sourceName ?? 'stack item'}`}
-          onClick={() => interaction.onSelectCard(sourceId)}
-        >
-          {body}
-        </button>
-      ) : (
-        <span className="stack__body" aria-label={label}>
-          {body}
-        </span>
-      )}
-    </li>
-  );
-}
-
-/**
  * The drag that is ours (wave 32 Q4b). The operator: *"it still has the basic
  * 'html picture drag' ghost. we should have our own proper ghost and target
  * indicator when something wants to snap to a nearby card slot,"* and *"i should
@@ -3290,81 +3166,24 @@ function StagingArea({ card, interaction }: { card: BoardCard; interaction: Boar
 }
 
 /**
- * The stack. The redesign the operator approved on 2026-10-06
- * (https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd): *"the stack doesn't
- * need to appear when theres only one thing pending to execute"*, so what is
- * drawn depends on how many things are on it:
+ * The stack's own zone — a NON-VISUAL anchor now (wave 59 §S: the placed-cards
+ * layer, `live/placed.ts`, draws every item as a card at a point, both seats',
+ * replacing the thumbnail row and the lone band outright). What used to be
+ * read off the row — "is anything on the stack", "how many" — is still read
+ * off this element, because nothing else names the fact: `data-count` is
+ * every item Forge's own stack holds (`view.stack.length`); `data-carried` is
+ * how many of those a played card is ALSO currently standing in for, in the
+ * gap between its release and the moment `live/placed.ts` takes over drawing
+ * it at that same point (`carryCastOffStack`, `gestures/install.ts`) — kept
+ * for the readers that still check it (`e2e/played-card.spec.ts`), though
+ * nothing visual depends on it any more: every item is drawn once, by
+ * `placed.ts`, whether or not a played card is also standing in for it.
  *
- *  - two or more → a row of thumbnails, top leftmost, numbered 1..n (wave 46
- *    X3's row);
- *  - one spell → the card itself, unnumbered, in the band (`.stack__item--lone`).
- *    The caster's own played card is usually standing in for it already
- *    (`carryCastOffStack`: then `stack` does not hold it and `carried` says so),
- *    so this is mostly the OTHER seat's view of a spell, and the caster's own
- *    after a reload;
- *  - one trigger or ability → nothing here: its source pulses on the
- *    battlefield instead (`LoneAbilityContext`, `CardOnBoard`), the row is
- *    empty and `board.css` hides the band.
- *
- * `data-count` is every item Forge has on its stack, the carried one included
- * — a reader waiting for "the cast reached the stack" sees 1 however it is
- * drawn, and for however long the played card stands in (a lone spell's card
- * never comes back to the row now). `data-carried` is how many of those the
- * row leaves to a card.
- * No zone label: the operator's own "no explanatory text" rule and the
- * approved demo both drop it; `aria-label` carries the accessible name the
- * old `<h3>` used to. Reading an item is the inspector's job (`StackThumb`).
- *
- * The band's box does not depend on what is on it (`board.css`, `.stack`):
- * the canvas stays static whether the stack holds 0, 1, 5 or 12 items.
+ * `data-zone`/`data-owner="table"` is the whole of what makes this a zone at
+ * all — no label, no box, nothing drawn (`board.css` keeps it invisible).
  */
-function StackView({
-  stack,
-  carried,
-  onSource,
-  interaction,
-  viewerName,
-}: {
-  stack: readonly StackEntry[];
-  /** How many of Forge's stack items are not in `stack` because a played card is standing in for them (`carryCastOffStack`). */
-  carried: number;
-  /** The one item is an ability drawn on its source (`LoneAbilityContext`): the row stays empty. */
-  onSource: boolean;
-  interaction: BoardInteraction | undefined;
-  viewerName: string | null;
-}) {
-  const lone = stack.length === 1;
-  // A lone spell is drawn by its stand-in — the caster's own placed card, the other seat's back
-  // waiting in its gap (`forge:placement`) — so the band SHOWS nothing for it on either screen
-  // (`board.css`, `data-lone`: the operator, 2026-10-08, "there should be [no] stack showing at
-  // all"). The item stays in the DOM: the arrows and a stack-choice ask key off it until the
-  // placed-cards layer replaces the band.
-  const row = onSource ? [] : stack;
-  return (
-    <section
-      className="stack"
-      aria-label="Stack"
-      data-zone="stack"
-      data-owner="table"
-      data-count={stack.length + carried}
-      data-carried={carried > 0 ? carried : undefined}
-      data-lone={lone || undefined}
-    >
-      <ol className="stack__items">
-        {row.map((item, index) => (
-          <StackThumb
-            key={item.id}
-            item={item}
-            index={index}
-            top={index === 0}
-            mine={viewerName !== null && item.controllerName === viewerName}
-            lone={lone}
-            interaction={interaction}
-          />
-        ))}
-      </ol>
-    </section>
-  );
+function StackView({ count, carried }: { count: number; carried: number }) {
+  return <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={count} data-carried={carried > 0 ? carried : undefined} />;
 }
 
 export function Board({
@@ -3385,21 +3204,11 @@ export function Board({
 }) {
   const viewer = view.players.find((p) => p.isViewer);
   const others = view.players.filter((p) => !p.isViewer);
-  // The spell itself only: an ability from the same card (its cast trigger) is a second thing on the stack and is drawn.
+  // `data-carried`'s own bookkeeping only now (`StackView`'s own note): a played card standing in
+  // for its own spell, in the gap before `live/placed.ts` takes over drawing it at that point.
   // The third argument is the same reading: a statically rendered board (`live/parity.test.ts`) has no gesture layer, and so carries nothing.
   const carriedCast = useSyncExternalStore(subscribeCarriedCast, readCarriedCast, readCarriedCast);
-  const stack = carriedCast === null ? view.stack : view.stack.filter((item) => item.isAbility || item.sourceCardId !== carriedCast);
-  // A trigger or ability alone on the stack is drawn on its source — `LoneAbilityContext` —
-  // when the board draws that source at all (a trigger off a card in a library or a hidden hand
-  // has nothing to pulse, and keeps its thumbnail).
-  const loneAbility = (() => {
-    const only = stack.length === 1 ? stack[0]! : null;
-    if (only === null || !only.isAbility || only.sourceCardId === null) return null;
-    const drawn = view.players.some((p) =>
-      [p.battlefield, p.graveyard, p.exile, p.hand ?? []].some((zone) => zone.some((c) => c.id === only.sourceCardId)),
-    );
-    return drawn ? { cardId: only.sourceCardId, stackId: only.id } : null;
-  })();
+  const carried = carriedCast !== null && view.stack.some((item) => !item.isAbility && item.sourceCardId === carriedCast) ? 1 : 0;
   /*
    * Item 17.2's staged card, found once here rather than in `PlayerArea`: it
    * can only ever be the viewer's own (`BoardInteraction.stagedCardId`'s own
@@ -3442,6 +3251,32 @@ export function Board({
   useEffect(() => {
     numbers.current?.notify(view);
   }, [view]);
+
+  /*
+   * The placed-cards layer (`live/placed.ts`, §S), booted the same way as the
+   * inspector and the numbers: one mount into the same root, disposed on
+   * unmount. `notify` runs on every `view` this component receives and on
+   * every `interaction` change — Q18's own case, a spell on the stack that is
+   * ALSO one of Forge's `setSelectables` by its own card id — mirroring
+   * `installNumbers` exactly, one layer down.
+   */
+  const placed = useRef<ReturnType<typeof installPlaced> | null>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (el === null) return undefined;
+    const handle = installPlaced(el);
+    placed.current = handle;
+    return () => {
+      placed.current = null;
+      handle.dispose();
+    };
+  }, []);
+  useEffect(() => {
+    placed.current?.notify(
+      view,
+      interaction === undefined ? undefined : { isSelectable: (cardId) => interaction.selectable.has(cardId), onSelect: interaction.onSelectCard },
+    );
+  }, [view, interaction]);
 
   /*
    * The player's arrangement, out of the module store rather than React state
@@ -3556,7 +3391,6 @@ export function Board({
   const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
 
   return (
-    <LoneAbilityContext.Provider value={loneAbility}>
     <section className="board" aria-label="Game board" ref={root}>
       <div className="board__opponents">
         {others.map((p) => (
@@ -3573,26 +3407,20 @@ export function Board({
       </div>
 
       {/*
-       * The stack's column. `data-question` is the whole of items 7 and 13 on
-       * this side: the band is ROOMY by default and compact while a question
-       * stands in front of it (`board.css` reads it, and `--stack-card-w` follows
-       * the height so a roomy band draws a bigger card). Whether it is DRAWN at
-       * all is the stylesheet's, off the list being empty — so the DOM probe in
-       * `e2e/table-fit.spec.ts`, which appends `<li>`s without going through
-       * React, still sees the stack appear when it fills it.
+       * The old stack band's column. `data-question` is the whole of items 7
+       * and 13 on this side: ROOMY by default, compact while a question
+       * stands in front of it (`board.css` reads it) — still true, because
+       * `live/placed.ts`'s default spot (decision a) is this column's own
+       * centre, so a question narrowing it moves where an unplaced spell
+       * lands too. `StackView` itself draws nothing here any more (§S): every
+       * item is a card, at a point, in the overlay — see `live/placed.ts`.
        */}
       <div
         className="board__mid"
         data-testid="board-mid"
         data-question={interaction?.questionOpen === true || undefined}
       >
-        <StackView
-          stack={stack}
-          carried={view.stack.length - stack.length}
-          onSource={loneAbility !== null}
-          interaction={interaction}
-          viewerName={viewer?.name ?? null}
-        />
+        <StackView count={view.stack.length} carried={carried} />
       </div>
 
       {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}
@@ -3627,6 +3455,5 @@ export function Board({
       )}
       <div className="board__overlay" data-board-overlay="" />
     </section>
-    </LoneAbilityContext.Provider>
   );
 }

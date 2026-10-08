@@ -58,6 +58,7 @@ import {
   subscribe,
   type LiveMatch,
 } from '../match.ts';
+import { onSpellMoved } from '../placed.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
 import { FLOAT_BACK_MS, needsTarget } from './cast.ts';
 import { installGestures } from './index.ts';
@@ -1931,15 +1932,19 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
       selected: [],
     });
 
-  /** The stack's list is empty in the fixture; put the items the question names in it. */
+  /**
+   * §S: the stack is a non-visual anchor now — `live/placed.ts` draws a real
+   * item's `[data-stack-id]` into the overlay root, which is where these
+   * synthetic ones go too, matching real geometry.
+   */
   function stackItems(canvas: HTMLElement, ids: number[]): Record<number, HTMLElement> {
-    const list = canvas.querySelector('[data-zone="stack"] .stack__items')!;
+    const root = overlayOf(canvas);
     const out: Record<number, HTMLElement> = {};
     for (const id of ids) {
-      const li = document.createElement('li');
-      li.setAttribute('data-stack-id', String(id));
-      list.append(li);
-      out[id] = li;
+      const el = document.createElement('div');
+      el.setAttribute('data-stack-id', String(id));
+      root.append(el);
+      out[id] = el;
     }
     return out;
   }
@@ -2634,53 +2639,59 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(arrived.hasAttribute('data-cast-landing')).toBe(false);
   });
 
-  it('a creature’s own spell is not drawn on the caster’s stack while it is the only thing there, and the card lands when it resolves', async () => {
+  it('§S: once the spell is really on the stack, live/placed.ts draws it at the park point and the ghost hands off to it', async () => {
     const { s, m, canvas, card, rest, battlefield, arrive } = await play();
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
     await waitFor(() => expect(m.view!.stack).toHaveLength(1));
-    await waitFor(() => expect(canvas.querySelector(`[data-cast-ghost="${card}"]`)).not.toBeNull());
     expect(stackEl(canvas).getAttribute('data-count'), 'Forge has one thing on the stack').toBe('1');
-    expect(stackEl(canvas).getAttribute('data-carried'), 'and the row leaves it to the card').toBe('1');
-    expect(canvas.querySelector('[data-stack-id="9101"]'), 'nothing drawn on the stack for the caster').toBeNull();
-    expect(canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!.style.left, 'the card is still where it was let go').toBe('400px');
+    expect(stackEl(canvas).getAttribute('data-carried'), 'the bookkeeping is unchanged, even though placed.ts now draws it too').toBe('1');
+    // The handoff: the ghost retires the moment a matching stack item exists
+    // (`gestures/install.ts`'s `syncParkedGhost`) — never both at once, pixel
+    // for pixel — and `live/placed.ts` draws the SAME point from here.
+    await waitFor(() => expect(canvas.querySelector(`[data-cast-ghost="${card}"]`)).toBeNull());
+    const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
+    expect(placed.style.left, 'the card is still where it was let go').toBe('400px');
+    expect(placed.hasAttribute('data-mine')).toBe(true);
 
     s.send(stackIs([]));
     arrive();
     await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
-    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull());
+    await waitFor(() => expect(canvas.querySelector('[data-placed-spell]')).toBeNull());
     expect(stackEl(canvas).getAttribute('data-count')).toBe('0');
   });
 
-  it('a spell alone on the stack stays the card however long the opponent takes, and through a question (the stack redesign)', async () => {
+  it('a spell alone on the stack stays drawn at its park point however long the opponent takes, and through a question', async () => {
     const { s, m, canvas, card, rest, battlefield } = await play();
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
     await waitFor(() => expect(m.view!.stack).toHaveLength(1));
-    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
-    expect(stackEl(canvas).getAttribute('data-carried'), 'the stack says it is leaving one item to the card').toBe('1');
+    await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]')).not.toBeNull());
+    expect(stackEl(canvas).getAttribute('data-carried'), 'the stack says a played card is also standing in for it').toBe('1');
     // The opponent holds priority a long while, then Forge asks this seat something about the resolving spell.
     await new Promise((r) => setTimeout(r, 2500));
     for (const f of notify([prompt('Choose a creature'), selectables([battlefield[0]!], 1, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    expect(canvas.querySelector('[data-stack-id="9101"]'), 'no row for one item').toBeNull();
+    const placed = canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!;
+    expect(placed, 'still drawn, still at the park point').not.toBeNull();
+    expect(placed.style.left).toBe('400px');
     expect(stackEl(canvas).getAttribute('data-carried')).toBe('1');
-    expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'the card still waits over the board').not.toBeNull();
+    expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'the ghost stays retired').toBeNull();
   }, 15_000);
 
-  it('a second thing on the stack puts the spell back on it at once', async () => {
+  it('a second thing on the stack: both are drawn, each at its own point', async () => {
     const { s, m, canvas, card, rest, battlefield } = await play();
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
     await waitFor(() => expect(m.view!.stack).toHaveLength(1));
-    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
+    await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]')).not.toBeNull());
     // Its own cast trigger, above it.
     s.send(stackItem(9102, card, true));
     s.send(stackIs([9102, 9101]));
-    await waitFor(() => expect(canvas.querySelectorAll('[data-stack-id]')).toHaveLength(2));
+    await waitFor(() => expect(canvas.querySelectorAll('[data-placed-spell]')).toHaveLength(2));
   });
 
   it('W17 — its cast trigger asks for a target: the spell is still the card where it was let go, and the arrow leaves from there', async () => {
@@ -2690,21 +2701,72 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
     await waitFor(() => expect(m.view!.stack).toHaveLength(1));
-    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
+    const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
+    boxAt(placed, 370, 270, 60, 60); // centre (400, 300) — jsdom has no layout otherwise.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    // One item: no row (the stack redesign). The played card, waiting at its park point, is the spell.
-    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
-    expect(canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!.style.left).toBe('400px');
+    // The played card, waiting at its park point, is the spell — `live/placed.ts`'s own element now, not the ghost.
+    expect(canvas.querySelector(`[data-cast-ghost="${card}"]`)).toBeNull();
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
     const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
     expect(arrow.dataset.source).toBe(String(card));
     expect(arrow.querySelector('path')!.getAttribute('d'), 'from where the card was let go').toMatch(/^M 400 300 Q /);
 
-    // Its trigger joins it on the stack: now there is a stack, and the row takes the spell.
+    // Its trigger joins it on the stack: both are drawn now.
     s.send(stackItem(9102, card, true));
     s.send(stackIs([9102, 9101]));
-    await waitFor(() => expect(canvas.querySelectorAll('[data-stack-id]')).toHaveLength(2));
+    await waitFor(() => expect(canvas.querySelectorAll('[data-placed-spell]')).toHaveLength(2));
+  });
+
+  it('AD3: once parked, the card stays at the park point however much the pointer moves — only the aim arrow follows it', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
+    boxAt(placed, 370, 270, 60, 60); // centre (400, 300)
+    for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    for (const [x, y] of [
+      [220, 180],
+      [600, 50],
+      [900, 700],
+    ]) {
+      fireEvent.pointerMove(canvas, { clientX: x, clientY: y });
+      expect(placed.style.left, 'the card never follows the pointer').toBe('400px');
+      expect(placed.style.top).toBe('300px');
+      const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+      expect(arrow.querySelector('path')!.getAttribute('d'), 'the arrow tip is the one thing that follows').toMatch(new RegExp(`${x} ${y}$`));
+    }
+  });
+
+  it('item 5: a press on the viewer’s own placed spell moves it, and tells lane W (moveSpell/onSpellMoved)', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
+    expect(placed.hasAttribute('data-mine'), 'the viewer’s own spell — only these are draggable').toBe(true);
+    const moved: Array<[number, { x: number; y: number }]> = [];
+    const unsub = onSpellMoved((id, at) => moved.push([id, at]));
+    const before = sent(s).length; // the park itself already sent its own selectCard — the drag must send nothing MORE
+    try {
+      fireEvent.pointerDown(placed, { button: 0, clientX: 400, clientY: 300 });
+      fireEvent.pointerMove(window, { clientX: 500, clientY: 350 }); // past DRAG_SLOP_PX
+      expect(placed.style.left, 'moved live, mid-drag').toBe('500px');
+      expect(placed.style.top).toBe('350px');
+      fireEvent.pointerUp(window, { clientX: 520, clientY: 360 });
+      expect(placed.style.left, 'settles at the release point').toBe('520px');
+      expect(placed.style.top).toBe('360px');
+      expect(sent(s).length, 'no cast, no target — nothing new reaches Forge').toBe(before);
+      expect(moved.some(([id]) => id === 9101), 'lane W hears every move, by the stack item’s own id').toBe(true);
+    } finally {
+      unsub();
+    }
   });
 
   it('a creature that is countered just lets go: no landing, nothing left over the board', async () => {
