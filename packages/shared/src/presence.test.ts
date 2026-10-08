@@ -61,6 +61,24 @@ describe('PresenceSchema', () => {
     const releasing = { ...base, held: false, pointer: spot('battlefield'), from: spot('battlefield') };
     expect(PresenceSchema.safeParse(releasing).success).toBe(true);
   });
+
+  it('a pre-deploy sender (no `placing` at all) still parses, defaulted to null', () => {
+    const parsed = PresenceSchema.safeParse(base);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.placing).toBeNull();
+  });
+
+  it('a spell release carries its point as `placing.at`, beside `from`', () => {
+    const releasing = { ...base, held: false, pointer: spot('stack'), from: spot('stack'), placing: { at: spot('stack') } };
+    const parsed = PresenceSchema.safeParse(releasing);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.placing).toEqual({ at: spot('stack') });
+  });
+
+  it('rejects a `placing` missing `at`, or carrying an extra key', () => {
+    expect(PresenceSchema.safeParse({ ...base, placing: {} }).success).toBe(false);
+    expect(PresenceSchema.safeParse({ ...base, placing: { at: spot('stack'), cardId: 7 } }).success).toBe(false);
+  });
 });
 
 describe('PresenceEchoSchema', () => {

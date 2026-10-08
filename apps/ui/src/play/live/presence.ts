@@ -43,20 +43,31 @@
  *
  * When their back goes — at the release message above, or (failing that)
  * inferred from the last place it was drawn — and a card of theirs appears
- * within `HANDOFF_MS` — on their battlefield (a land, a permanent) or on the
- * stack (a spell) — a copy of that card travels from where the back last was
- * to the card's own place, the same trip this seat's own played card makes
- * (`gestures/cast.ts`'s `landCastGhost`), while the real one waits hidden in
- * its slot. The operator, 2026-10-07: *"when cards actually get placed on the
- * board it's not really coming from the card hovering by the cursor."* With
- * motion off (Fast Mode) it simply appears, like everything else.
+ * within `HANDOFF_MS` on their battlefield (a land, a permanent), a copy of
+ * that card travels from where the back last was to the card's own place,
+ * the same trip this seat's own played card makes (`gestures/cast.ts`'s
+ * `landCastGhost`), while the real one waits hidden in its slot. The
+ * operator, 2026-10-07: *"when cards actually get placed on the board it's
+ * not really coming from the card hovering by the cursor."* With motion off
+ * (Fast Mode) it simply appears, like everything else.
+ *
+ * A SPELL is different (AD4 rule 2, wave 59): nothing travels. A release
+ * carrying `placing.at` parks the back AT that exact point and waits — not a
+ * battlefield gap, a spell has none — until the id shows up (their spell is
+ * now on the stack, `theirCards`): `./placed.ts`'s `placeSpell`/`commitSpell`
+ * take the stand-in over from there, drawn as a card at the same point. This
+ * module never draws the placed-card layer itself, only the plain back while
+ * the id is still unknown, and calls `placeSpell`/`commitSpell` again when
+ * `forge:placed` says the owner moved it (a live drag, or the server's own
+ * replay to a joiner, who has no earlier registration to `moveSpell`).
  *
  * Nothing drawn here is a card the DOM can address: the back carries no
  * `data-card-id`, the cursor no name but theirs, and the travelling copy is
  * stripped of its ids.
  */
 
-import { PLACEMENT_EVENT, PlacementEchoSchema,
+import { PLACED_EVENT, PlacedEchoSchema,
+  PLACEMENT_EVENT, PlacementEchoSchema,
   PRESENCE_EVENT,
   PRESENCE_SEND_MS,
   PresenceEchoSchema,
@@ -68,6 +79,7 @@ import { PLACEMENT_EVENT, PlacementEchoSchema,
 import { arrowShape } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { expectedGapBox, landCastGhost } from './gestures/cast.ts';
+import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
 
@@ -232,6 +244,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       from,
       handRows: handRowsOf(canvas),
       arranging: arranging === null || arranging.at === null ? null : { card: arranging.card, at: arranging.at },
+      // `placing` only ever rides on the release message (`sendRelease`), never a plain move.
+      placing: null,
     };
     const key = JSON.stringify(message);
     if (key === lastMessage) return;
@@ -256,7 +270,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * further movement used to wait on a move that might never come, so the
    * back stayed attached after the card had already appeared on the board.
    * `from` carries the release point itself, for the hand-off to start from
-   * without having to infer it from whatever was last drawn.
+   * without having to infer it from whatever was last drawn. `placing`
+   * carries the SAME point as a durable marker (AD4 rule 2): the receiver
+   * waits a back there, rather than inferring the wait from timing, until
+   * either the id shows up on the stack (a spell) or a permanent's own
+   * placement message (`placement.ts`) supersedes it. Never sent for a
+   * release back onto the hand: that is always a cancel (`resolveLift`'s own
+   * `overOwnHand` check is what sends it home, never to Forge), so nothing
+   * is ever coming — the back must still vanish at once, not wait.
    */
   function sendRelease(point: Point): void {
     if (!live || host.seat === null) return;
@@ -265,7 +286,16 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       clearTimeout(sendTimer);
       sendTimer = null;
     }
-    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: false, from: spot, handRows: handRowsOf(canvas), arranging: null };
+    const message: PresenceMessage = {
+      matchId: host.matchId,
+      type: 'presence',
+      pointer: spot,
+      held: false,
+      from: spot,
+      handRows: handRowsOf(canvas),
+      arranging: null,
+      placing: spot === null || spot.zone === 'hand' ? null : { at: spot },
+    };
     lastMessage = JSON.stringify(message);
     lastPointer = { x: point.x, y: point.y };
     lastSent = Date.now();
@@ -296,14 +326,40 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Where their back last was, and when it went — the handoff's start. */
   let backWas: { at: Point; gone: number } | null = null;
-  /** Their back waiting in the gap their release reserved, until the card arrives (or this times out). */
-  let waiting: { timer: ReturnType<typeof setTimeout> } | null = null;
+  /**
+   * Their back waiting for the card its stand-in is: in the gap their release
+   * reserved for a PERMANENT (`forBattlefield: true`, `Board`'s own
+   * reservation clears it below), or at the exact point for a SPELL
+   * (`forBattlefield: false`, cleared by `handoff`'s id check instead) —
+   * or this times out.
+   */
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean } | null = null;
   let backAt: Point | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
 
   function overlay(): HTMLElement | null {
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
+  }
+
+  /**
+   * The `[data-placed-spell]` element `placed.ts` drew at exactly `at` (its
+   * own `overlayPoint`, inverted) — this seam's only way to recover an id
+   * `promote` may have already renamed by the time the caller can act on it.
+   */
+  function findPlacedSpellAt(at: Point): number | null {
+    const box = overlay()?.getBoundingClientRect();
+    if (box === undefined) return null;
+    for (const el of canvas.querySelectorAll<HTMLElement>('[data-placed-spell]')) {
+      const left = Number.parseFloat(el.style.left);
+      const top = Number.parseFloat(el.style.top);
+      if (!Number.isFinite(left) || !Number.isFinite(top)) continue;
+      if (Math.abs(left + box.left - at.x) < 1 && Math.abs(top + box.top - at.y) < 1) {
+        const id = Number(el.getAttribute('data-placed-spell'));
+        return Number.isFinite(id) ? id : null;
+      }
+    }
+    return null;
   }
 
   function stopWaiting(): void {
@@ -402,7 +458,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     cursor.style.left = `${at.x - box.left}px`;
     cursor.style.top = `${at.y - box.top}px`;
 
-    if (echo.held) {
+    // A spell they released stays "held" (`data-cast-lift="parked"`, never `'returning'`) for the
+    // WHOLE targeting-and-payment window that follows a cast with a target — every pointer move
+    // through it is a fresh `held: true` message for the SAME in-flight card, not a new lift. The
+    // point-wait already has the right spot (the release, not wherever her cursor is now aiming);
+    // resetting it here raced the id showing up on the stack against her own next mouse move, and
+    // the loser decided whether the back ever made it to `commitSpell` at the right point at all.
+    const spellWaiting = waiting !== null && !waiting.forBattlefield;
+    if (echo.held && !spellWaiting) {
       // They lifted a card (again): whatever was waiting is abandoned.
       stopWaiting();
       if (back === null) {
@@ -425,14 +488,30 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       back.style.left = `${stand.x - box.left}px`;
       back.style.top = `${stand.y - box.top}px`;
       backAt = stand;
-    } else {
-      // The release message carries the exact release spot as `from`; failing that (no explicit
-      // release reached this seat), fall back to the last place the back was actually drawn.
-      const released = echo.from === null ? null : placeSpot(canvas, echo.from);
+    } else if (!echo.held) {
+      // The release message carries the exact release spot as `placing.at` (durable: the back
+      // waits there until the id shows up) or, from a pre-deploy sender, only `from` (no wait —
+      // the old handoff heuristic below). A permanent's own placement message (`placement.ts`)
+      // supersedes either the moment it arrives, the same way it always has (`waiting !== null`).
+      const placingAt = echo.placing === null ? null : placeSpot(canvas, echo.placing.at);
       if (waiting !== null) {
-        // The placement already arrived (the act's own message beat the release): the back is the
-        // card's stand-in now, not the pointer's — it stays.
+        // The placement, or an earlier placing wait, already claimed the back — it stays.
+      } else if (placingAt !== null) {
+        // AD4 rule 2: wait right here — a point, not a battlefield gap — until the spell's id
+        // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
+        if (back === null) {
+          back = document.createElement('div');
+          back.className = 'presence__back';
+          back.setAttribute('aria-hidden', 'true');
+          root.append(back);
+        }
+        back.style.left = `${placingAt.x - box.left}px`;
+        back.style.top = `${placingAt.y - box.top}px`;
+        back.setAttribute('data-waiting', '');
+        backAt = placingAt;
+        waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false };
       } else {
+        const released = echo.from === null ? null : placeSpot(canvas, echo.from);
         if (released !== null) backWas = { at: released, gone: Date.now() };
         else if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
         back?.remove();
@@ -474,29 +553,41 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
     if (waiting !== null && back !== null) {
-      // The card their back stands in for has arrived: `Board` consumes the reservation when it
-      // draws the card in the gap, and the stand-in simply goes. That happens in React's commit of
-      // this very change, which may be AFTER this listener runs — so the reservation is read on the
-      // next frame, past the commit. On the stack first, the back turns over in place (committed —
-      // the face is public now) and keeps waiting for the battlefield.
-      const theirs = host.theirPlayerId?.() ?? null;
-      const standIn = back;
-      requestAnimationFrame(() => {
-        if (waiting === null || back !== standIn) return;
-        if (theirs !== null && pendingPlacementFor(theirs) === null) stopWaiting();
-      });
+      // A PERMANENT (`forBattlefield`): `Board` consumes the reservation when it draws the card in
+      // the gap, and the stand-in simply goes. That happens in React's commit of this very change,
+      // which may be AFTER this listener runs — so the reservation is read on the next frame, past
+      // the commit. A SPELL's wait has no reservation to read; only the id check below clears it.
+      if (waiting.forBattlefield) {
+        const theirs = host.theirPlayerId?.() ?? null;
+        const standIn = back;
+        requestAnimationFrame(() => {
+          if (waiting === null || back !== standIn) return;
+          if (theirs !== null && pendingPlacementFor(theirs) === null) stopWaiting();
+        });
+        return;
+      }
       if (fresh.length === 0) return;
       const id = fresh[0]!;
-      const tile = canvas.querySelector(`.stack__item:has([data-card-id="w${id}"]) .card`);
-      if (tile !== null && !back.hasAttribute('data-face')) {
-        const copy = tile.cloneNode(true) as HTMLElement;
-        for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
-          el.removeAttribute('data-card-id');
-          el.removeAttribute('data-testid');
-        }
-        back.replaceChildren(copy);
-        back.setAttribute('data-face', '');
+      // A permanent's own arrival is handled above, by the reservation going null — never here.
+      const onBattlefield = canvas.querySelector(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`) !== null;
+      if (onBattlefield) return;
+      // A SPELL: its id is public now — hand the stand-in to the placed-cards layer, in the same
+      // spot this back has been waiting at (`backAt`, the CENTRE `.presence__back` is transformed
+      // onto).
+      if (backAt !== null) {
+        placeSpell(id, backAt, 'them');
+        // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
+        // call — which, the moment `id` (the CARD's) matches a `view.stack` entry's `sourceCardId`,
+        // re-keys the registration onto that entry's OWN id at once. `commitSpell(id)` right after
+        // would silently no-op on a key that is already gone, so the real id — the one the element
+        // `placeSpell` just (re)drew at this exact point now carries — is read back off the DOM,
+        // the same way every other geometry fact here is.
+        const committed = findPlacedSpellAt(backAt) ?? id;
+        commitSpell(committed);
+      } else {
+        commitSpell(id);
       }
+      stopWaiting();
       return;
     }
     if (fresh.length === 0 || backWas === null || Date.now() - backWas.gone > HANDOFF_MS) return;
@@ -578,7 +669,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     standIn.style.left = `${from.x - rootBox.left}px`;
     standIn.style.top = `${from.y - rootBox.top}px`;
     standIn.setAttribute('data-waiting', '');
-    waiting = { timer: setTimeout(stopWaiting, WAITING_MS) };
+    waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: true };
     requestAnimationFrame(() => {
       if (waiting === null || back !== standIn) return;
       const gap = expectedGapBox(canvas, 'them');
@@ -599,6 +690,51 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     draw(parsed.data);
   }
 
+  /**
+   * AD4 rule 3: the owner of a placed spell dragged it — move the OTHER
+   * seat's copy to match. `placeSpell`, not `moveSpell`: the server replays
+   * this to a JOINER too (a reload), who has no earlier registration for the
+   * id at all — `moveSpell` is a no-op without one. `placeSpell` registers it
+   * fresh when needed and just updates the point otherwise, and
+   * `commitSpell` is a no-op once already committed — a stack item named on
+   * this wire is public either way.
+   *
+   * A replay can reach this BEFORE the board itself has ever rendered (the
+   * match is still "Connecting…" when `forge:join`'s ack carries it) —
+   * `placeSpot` has no board box to place it on yet. Retried for up to 3s
+   * (the connect-to-board-painted window measured against a real stack,
+   * generously bounded), rather than dropped: a joiner has no later message
+   * to fall back on.
+   */
+  function onPlaced(payload: unknown, deadline = Date.now() + 3000): void {
+    if (!live) return;
+    const parsed = PlacedEchoSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.matchId !== host.matchId || parsed.data.seat === host.seat) return;
+    const at = placeSpot(canvas, parsed.data.at);
+    if (at === null) {
+      if (Date.now() < deadline) setTimeout(() => onPlaced(payload, deadline), 50);
+      return;
+    }
+    placeSpell(parsed.data.spell, at, 'them');
+    commitSpell(parsed.data.spell);
+  }
+
+  /**
+   * This seat dragged a placed spell of its own (`placed.ts`'s own gesture,
+   * `gestures/install.ts` — the only caller of `moveSpell` left, since
+   * `onPlaced` above uses `placeSpell`/`commitSpell` instead): tell the other
+   * screen. `theirCards` is a defensive check should anything else ever call
+   * `moveSpell` for the opponent's own spell — that must never bounce back
+   * out as if it were this seat's own move.
+   */
+  const unwatchSpellMoved = onSpellMoved((id, at) => {
+    if (!live || host.seat === null) return;
+    if ((host.theirCards?.() ?? []).includes(id)) return;
+    const spot = spotOf(canvas, at);
+    if (spot === null) return;
+    host.transport.emit(PLACED_EVENT, { matchId: host.matchId, type: 'placed', spell: id, at: spot });
+  });
+
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerleave', onPointerLeave);
   canvas.addEventListener('pointerup', onPointerRelease);
@@ -606,6 +742,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   document.addEventListener('visibilitychange', onVisibility);
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
+  host.transport.on(PLACED_EVENT, onPlaced);
   const unwatch = host.watch?.(handoff) ?? null;
 
   return {
@@ -613,6 +750,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       stopWaiting();
       live = false;
       unwatch?.();
+      unwatchSpellMoved();
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('pointerup', onPointerRelease);

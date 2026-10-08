@@ -128,6 +128,7 @@ interface Peer {
 	roles: unknown[];
 	presences: unknown[];
 	arrangements: unknown[];
+	placeds: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -157,6 +158,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			roles: [],
 			presences: [],
 			arrangements: [],
+			placeds: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -172,6 +174,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 		socket.on('forge:seats', (payload: unknown) => peer.seatsEvents.push(payload));
 		socket.on('forge:presence', (payload: unknown) => peer.presences.push(payload));
 		socket.on('forge:arrangement', (payload: unknown) => peer.arrangements.push(payload));
+		socket.on('forge:placed', (payload: unknown) => peer.placeds.push(payload));
 		socket.on('forge:role', (payload: unknown) => peer.roles.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
@@ -354,6 +357,36 @@ describe('two seats over the socket', () => {
 		expect(again.arrangements[0]).toEqual({ ...message, seat: 0 });
 	});
 
+	/*
+	 * Placed (AD4 rule 3): the owner moved a spell already on the stack. The id
+	 * is a stack item's — public by the time this can be sent — so, like
+	 * presence and arrangement, there is nothing here to redact.
+	 */
+	it('relays a seat’s move of a placed spell to the other seat, stamped with the seat, and replays the last one per spell to whoever joins next', async () => {
+		const { h, matchId, alice, bob } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const message = { matchId, type: 'placed', spell: 48, at: { zone: 'stack' as const, x: 0.3, y: 0.4 } };
+		alice.socket.emit('forge:placed', message);
+		await vi.waitFor(() => expect(bob.placeds).toHaveLength(1), { timeout: 5_000 });
+		expect(bob.placeds[0]).toEqual({ ...message, seat: 0 });
+		await new Promise((r) => setTimeout(r, 60));
+		expect(alice.placeds, 'nothing comes back to the sender').toHaveLength(0);
+		// Malformed (an id that is not a stack item's, a missing `at`): refused, logged, never relayed.
+		alice.socket.emit('forge:placed', { ...message, spell: -1 });
+		alice.socket.emit('forge:placed', { matchId, type: 'placed', spell: 49 });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'placed-malformed')).toHaveLength(2));
+		expect(bob.placeds).toHaveLength(1);
+		// A move of a DIFFERENT spell is kept alongside, by its own id.
+		alice.socket.emit('forge:placed', { matchId, type: 'placed', spell: 49, at: { zone: null, x: 0.6, y: 0.1 } });
+		await vi.waitFor(() => expect(bob.placeds).toHaveLength(2), { timeout: 5_000 });
+		// A later socket on bob's seat (a reload) is sent the last move of EACH spell as it joins.
+		const again = await connect(h.port, edgeHeaders('bob'));
+		await again.request('forge:join', { matchId });
+		await vi.waitFor(() => expect(again.placeds).toHaveLength(2), { timeout: 5_000 });
+		expect(again.placeds).toEqual(expect.arrayContaining([{ ...message, seat: 0 }, { matchId, type: 'placed', spell: 49, at: { zone: null, x: 0.6, y: 0.1 }, seat: 0 }]));
+	});
+
 	it('writes a seat’s client telemetry into the log, stamped with the seat, and relays none of it', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });
@@ -387,7 +420,7 @@ describe('two seats over the socket', () => {
 		};
 		alice.socket.emit('forge:presence', message);
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
-		expect(bob.presences[0]).toEqual({ ...message, arranging: null, seat: 0 });
+		expect(bob.presences[0]).toEqual({ ...message, arranging: null, placing: null, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.presences, 'nothing comes back to the sender').toHaveLength(0);
 
@@ -404,7 +437,17 @@ describe('two seats over the socket', () => {
 		// with `handRows` defaulted to 1 and `owner` gone, not merely ignored by the receiver.
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
-		expect(bob.presences[1]).toEqual({ matchId, type: 'presence', pointer: { zone: 'battlefield', x: 0.25, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null, seat: 0 });
+		expect(bob.presences[1]).toEqual({
+			matchId,
+			type: 'presence',
+			pointer: { zone: 'battlefield', x: 0.25, y: 0.5 },
+			held: false,
+			from: null,
+			handRows: 1,
+			arranging: null,
+			placing: null,
+			seat: 0,
+		});
 		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 3: the old shape was never malformed').toHaveLength(3);
 
 		// A spectator on alice's seat (a second browser) sends, and nobody hears it.

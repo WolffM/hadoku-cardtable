@@ -81,6 +81,9 @@ import {
 	CLIENT_EVENT,
 	CLIENT_EVENT_MAX_PER_SECOND,
 	ClientEventSchema,
+	PLACED_EVENT,
+	type PlacedEcho,
+	PlacedSchema,
 	PLACEMENT_EVENT,
 	type PlacementEcho,
 	PRESENCE_EVENT,
@@ -653,6 +656,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const ARRANGEMENTS_KEPT = 512;
 	/** The last placement per played card (`@hadoku/shared`'s `placement.ts`), replayed to a joiner. Bounded the same way. */
 	const placements = new Map<string, PlacementEcho>();
+	/** The last move per placed SPELL (`@hadoku/shared`'s `placed.ts`), by stack item id, replayed to a joiner. Bounded the same way. */
+	const placed = new Map<string, PlacedEcho>();
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
 	const isController = (matchId: string, seat: number, socketId: string): boolean =>
 		connected.get(seatKey(matchId, seat))?.[0] === socketId;
@@ -708,6 +713,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				}
 				for (const [k, held] of placements) {
 					if (k.startsWith(`${match.id}#`)) socket.emit(PLACEMENT_EVENT, held);
+				}
+				for (const [k, held] of placed) {
+					if (k.startsWith(`${match.id}#`)) socket.emit(PLACED_EVENT, held);
 				}
 				// A refresh: the old socket's close armed an abort of this seat's asks.
 				match.seatConnected(seat);
@@ -898,6 +906,31 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			presenceSent += 1;
 			if (presenceSent > PRESENCE_MAX_PER_SECOND) return;
 			socket.to(roomFor(match).roomId).emit(PRESENCE_EVENT, { ...parsed.data, seat });
+		});
+
+		/*
+		 * Placed (`@hadoku/shared`'s `placed.ts`, AD4 rule 3): the owner moved a
+		 * spell already on the stack. The id is a stack item's — public by the
+		 * time this can be sent — so, like presence, there is nothing here to
+		 * redact. Relayed to the match's other sockets stamped with the seat, and
+		 * kept (last one per spell) for whoever joins next, the same shape
+		 * `forge:arrangement` already is.
+		 */
+		socket.on(PLACED_EVENT, (raw: unknown) => {
+			const parsed = PlacedSchema.safeParse(raw);
+			if (!parsed.success) {
+				log({ evt: 'placed-malformed', participantId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+				return;
+			}
+			const match = matches.get(parsed.data.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
+			const echo: PlacedEcho = { ...parsed.data, seat };
+			const key = `${match.id}#${parsed.data.spell}`;
+			placed.delete(key);
+			placed.set(key, echo);
+			if (placed.size > ARRANGEMENTS_KEPT) placed.delete(placed.keys().next().value as string);
+			socket.to(roomFor(match).roomId).emit(PLACED_EVENT, echo);
 		});
 
 		/*

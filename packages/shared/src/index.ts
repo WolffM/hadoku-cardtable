@@ -145,6 +145,7 @@ export {
 
 export { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, type ClientEvent } from './telemetry.ts';
 export { PLACEMENT_EVENT, PlacementEchoSchema, PlacementSchema, PlacementTargetSchema, type Placement, type PlacementEcho } from './placement.ts';
+export { PLACED_EVENT, PlacedEchoSchema, PlacedSchema, type PlacedEcho, type PlacedMessage } from './placed.ts';
 export {
   ARRANGEMENT_EVENT,
   ARRANGEMENT_MAX_PER_SECOND,

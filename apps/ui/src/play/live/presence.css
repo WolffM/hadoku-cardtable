@@ -1,9 +1,10 @@
 /*
  * The other seat's presence (`presence.ts`): their pointer with their name, a
- * card back while they hold a card, their arrow while they aim. All of it in
+ * card back while they hold a card, their arrow while they aim, and — until
+ * AD4 rule 2 hands it to `placed.ts` — the same back parked at a spell's
+ * release point while it waits to be committed to the stack. All of it in
  * the overlay root, which takes no pointer events, so none of it can ever be
- * under this seat's own pointer. In the "theirs" colour the stack row already
- * uses for their items (`--warn`, `board.css`'s `.stack__item--theirs`).
+ * under this seat's own pointer. In the "theirs" colour (`--warn`).
  *
  * Positions arrive about sixteen times a second; the short transition is what
  * turns those samples into motion. Not under reduced motion.

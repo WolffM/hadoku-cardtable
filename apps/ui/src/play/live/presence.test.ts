@@ -6,10 +6,35 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
+import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import * as castModule from './gestures/cast.ts';
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
+
+/*
+ * `placed.ts` (lane S) is the seam this module calls into for the stack
+ * layer's own drawing (`placeSpell`/`moveSpell`/`commitSpell`/`onSpellMoved`)
+ * — this module "calls them and never draws" (wave 59's Settled seam). Mocked
+ * here so this file's own receive/send logic proves itself without needing
+ * that drawing layer at all.
+ */
+const { placedMod, spellMovedBox } = vi.hoisted(() => {
+  const spellMovedBox: { current: ((id: number, at: { x: number; y: number }) => void) | null } = { current: null };
+  const placedMod = {
+    placeSpell: vi.fn(),
+    moveSpell: vi.fn(),
+    commitSpell: vi.fn(),
+    onSpellMoved: vi.fn((listener: (id: number, at: { x: number; y: number }) => void) => {
+      spellMovedBox.current = listener;
+      return () => {
+        spellMovedBox.current = null;
+      };
+    }),
+  };
+  return { placedMod, spellMovedBox };
+});
+vi.mock('./placed.ts', () => placedMod);
+
 import { installPresence, placeSpot, PRESENCE_STALE_MS, spotOf, type PresenceHost } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -67,6 +92,7 @@ function fakeTransport() {
     sent,
     receive: (payload: unknown) => handlers.get(PRESENCE_EVENT)!(payload),
     receivePlacement: (payload: unknown) => handlers.get(PLACEMENT_EVENT)!(payload),
+    receivePlaced: (payload: unknown) => handlers.get(PLACED_EVENT)!(payload),
   };
 }
 
@@ -80,6 +106,11 @@ const host = (t: ReturnType<typeof fakeTransport>, seat: number | null = 0): Pre
 afterEach(() => {
   document.body.innerHTML = '';
   vi.useRealTimers();
+  placedMod.placeSpell.mockClear();
+  placedMod.moveSpell.mockClear();
+  placedMod.commitSpell.mockClear();
+  placedMod.onSpellMoved.mockClear();
+  spellMovedBox.current = null;
 });
 
 describe('the mirror', () => {
@@ -132,7 +163,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, arranging: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, arranging: null, placing: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -185,6 +216,7 @@ describe('sending', () => {
         from: { zone: 'battlefield', x: 0.3, y: 0.625 },
         handRows: 1,
         arranging: null,
+        placing: { at: { zone: 'battlefield', x: 0.3, y: 0.625 } },
       },
     });
 
@@ -193,6 +225,21 @@ describe('sending', () => {
     canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 310, clientY: 500, bubbles: true }));
     expect(t.sent, 'nothing was held: no extra message').toHaveLength(2);
 
+    handle.dispose();
+  });
+
+  it('letting go back over the viewer’s own hand sends no `placing` — a cancelled drag, never a cast', () => {
+    // `resolveLift`'s own `overOwnHand` check is what sends a card home instead of to Forge: this
+    // seat's own hand zone is at (100,650)-(900,750); a release there is always that cancel.
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const lifted = document.createElement('li');
+    lifted.setAttribute('data-cast-lift', 'parked');
+    canvas.querySelector('.board')!.append(lifted);
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 500, clientY: 700, bubbles: true }));
+    expect(t.sent).toHaveLength(1);
+    expect((t.sent[0]!.payload as { placing: unknown }).placing, 'nothing is coming — the back must not wait').toBeNull();
     handle.dispose();
   });
 
@@ -294,6 +341,132 @@ describe('receiving', () => {
     expect(canvas.querySelector('.presence__handoff'), 'and no second flight: it is already where it was placed').toBeNull();
     handle.dispose();
     forgetPendingPlacements();
+  });
+
+  /*
+   * AD4 rule 2 (wave 59): a SPELL has no battlefield gap, so `placing.at` —
+   * sent in the release message itself — is the only point the receiver
+   * ever gets. The back waits right there until the id is public.
+   */
+  it('a release carrying `placing.at` waits a back at that exact point — not a gap — until their spell shows up, then hands it to the placed-cards layer', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'stack', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: 'stack', x: 0.4, y: 0.6 },
+      held: false,
+      from: { zone: 'stack', x: 0.4, y: 0.6 },
+      handRows: 1,
+      arranging: null,
+      placing: { at: { zone: 'stack', x: 0.4, y: 0.6 } },
+    });
+    const back = canvas.querySelector<HTMLElement>('.presence__back');
+    expect(back, 'parked, waiting').not.toBeNull();
+    expect(back!.hasAttribute('data-waiting')).toBe(true);
+    // Mirrored top-to-bottom, same as `placeSpot` always does: x=0.4,y=0.6 on a 1000x800 board lands at (400, 320).
+    expect(back!.style.left).toBe('400px');
+    expect(back!.style.top).toBe('320px');
+    // Their pointer leaving the board changes nothing: the back is the spell's stand-in now.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null });
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting').not.toBeNull();
+    expect(placedMod.commitSpell, 'not yet — the id is not public').not.toHaveBeenCalled();
+    // An unrelated permanent of theirs arriving does not end the wait: it is not the awaited spell.
+    const land = document.createElement('li');
+    land.setAttribute('data-board-card', '9');
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(land);
+    theirs = [9];
+    wake!();
+    expect(placedMod.commitSpell).not.toHaveBeenCalled();
+    expect(canvas.querySelector('.presence__back'), 'the wait survives an unrelated arrival').not.toBeNull();
+    // Their spell shows up on the stack (never on the battlefield): hand the point to `placed.ts`.
+    theirs = [9, 48];
+    wake!();
+    expect(placedMod.placeSpell, 'placed at the exact point the back was waiting at, for THEIR side').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(48);
+    expect(canvas.querySelector('.presence__back'), 'the stand-in is gone — the placed-cards layer draws it now').toBeNull();
+    handle.dispose();
+  });
+
+  it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `commitSpell`', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 77, slot: 'back', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.5, y: 0.5 } });
+    const li = document.createElement('li');
+    li.setAttribute('data-board-card', '77');
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
+    theirs = [77];
+    forgetPendingPlacements();
+    wake!();
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    expect(canvas.querySelector('.presence__back'), 'gone — the reservation cleared it').toBeNull();
+    expect(placedMod.commitSpell, 'a permanent is never handed to the placed-cards layer').not.toHaveBeenCalled();
+    expect(placedMod.placeSpell).not.toHaveBeenCalled();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
+  it('`forge:placed` moves the other seat’s copy of a placed spell they dragged — `placeSpell`, not `moveSpell`: a JOINER replaying this has no earlier registration for `moveSpell` to find', () => {
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
+    expect(placedMod.placeSpell).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
+    // This seat's own echo (a resync) and another match's are both ignored.
+    t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 0, spell: 49, at: { zone: 'stack', x: 0.1, y: 0.1 } });
+    t.receivePlaced({ matchId: 'm-2', type: 'placed', seat: 1, spell: 50, at: { zone: 'stack', x: 0.1, y: 0.1 } });
+    expect(placedMod.placeSpell).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+
+  it('a `forge:placed` replay that reaches a joiner before the board itself has rendered is retried, not dropped', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    // The board is still "Connecting…": no overlay yet for `placeSpot` to place anything on.
+    const overlay = canvas.querySelector('[data-board-overlay]')!;
+    overlay.remove();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
+    expect(placedMod.placeSpell, 'nothing to place it on yet').not.toHaveBeenCalled();
+    canvas.querySelector('.board')!.append(overlay);
+    vi.advanceTimersByTime(60);
+    expect(placedMod.placeSpell, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
+    handle.dispose();
+  });
+
+  it('this seat dragging its own placed spell (`onSpellMoved`) sends `forge:placed`; the wire’s own echo for THEIR spell never bounces back out', () => {
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t), theirCards: () => [48] } });
+    expect(spellMovedBox.current, 'subscribed at install').not.toBeNull();
+    // This seat's own spell (not in `theirCards`): sent.
+    spellMovedBox.current!(31, { x: 300, y: 200 });
+    expect(t.sent).toHaveLength(1);
+    expect(t.sent[0]).toEqual({ event: PLACED_EVENT, payload: { matchId: 'm-1', type: 'placed', spell: 31, at: { zone: 'battlefield', x: 0.3, y: 0.25 } } });
+    // Their spell (in `theirCards` — this is `moveSpell`'s own notification from `onPlaced`, above): not resent.
+    spellMovedBox.current!(48, { x: 300, y: 200 });
+    expect(t.sent, 'the wire’s own echo never bounces back out').toHaveLength(1);
+    handle.dispose();
   });
 
   it('draws their cursor with their name where their spot lands, a back while held, an arrow while aiming, and a hint on the card under it', () => {

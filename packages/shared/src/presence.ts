@@ -50,6 +50,10 @@
  * every build before this one ever drew. Only a shape that is actually
  * wrong (a bad fraction, an `handRows` that is neither `1` nor `2`, any
  * other extra key) is malformed.
+ *
+ * The same holds for `arranging` (absent before it existed) and for
+ * `placing` (wave 59): a message missing either still parses, defaulted to
+ * `null` — nothing rearranged, nothing just released as a spell.
  */
 
 import { z } from 'zod';
@@ -108,6 +112,29 @@ export const PresenceSchema = z
      * pre-deploy sender still parses.
      */
     arranging: z.object({ card: z.number().int().nonnegative(), at: PresenceSpotSchema }).strict().nullable().default(null),
+    /**
+     * A SPELL's release point (AD4 rule 2): sent in the SAME message as
+     * `held: false`, beside `from`. Unlike `from` — the arrow's tail, or a
+     * best-effort fallback read off whatever was last drawn — this is the
+     * exact point the receiver waits a stand-in back AT, as a durable
+     * marker, until the spell's id is public (it shows on the stack) rather
+     * than inferring the wait from timing. A permanent's own placement
+     * (`placement.ts`, riding WITH the act) still supersedes this the moment
+     * it arrives, the same way it always has. Null otherwise — nothing was
+     * released, or a pre-deploy sender never had the field.
+     */
+    placing: z.object({ at: PresenceSpotSchema }).strict().nullable().default(null),
+    /**
+     * A SPELL's release point (AD4 rule 2): sent in the SAME message as
+     * `held: false`, beside `from`. Unlike `from` — the arrow's tail, or a
+     * best-effort fallback read off whatever was last drawn — this is the
+     * exact point the receiver waits a stand-in back AT, as a durable
+     * marker, until the spell's id is public (it shows on the stack) rather
+     * than inferring the wait from timing. A permanent's own placement
+     * (`placement.ts`, riding WITH the act) still supersedes this the moment
+     * it arrives, the same way it always has. Null otherwise — nothing was
+     * released, or a pre-deploy sender never had the field.
+     */
   })
   .strict();
 

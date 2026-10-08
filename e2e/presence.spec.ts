@@ -11,9 +11,9 @@
  * `apps/ui/dist` — rebuild before running.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { dragHandCard, handCardNamed, makeTitled, offered } from './play/board.ts';
+import { dragHandCard, enabledOk, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -23,6 +23,25 @@ const titled = makeTitled(forge);
 const cursor = (page: Page) => page.locator('[data-board-overlay] .presence');
 const back = (page: Page) => page.locator('[data-board-overlay] .presence__back');
 const arrow = (page: Page) => page.locator('[data-board-overlay] .presence__arrow');
+
+/**
+ * `locator`'s box once it stops moving between two reads 80ms apart — a back
+ * gliding into its waiting spot, or a placed card gliding into its column,
+ * both do it over a real CSS transition (`presence.css`'s `[data-waiting]`,
+ * ~300ms), so a single `boundingBox()` right after the element first appears
+ * can read a mid-glide frame instead of where it actually settles.
+ */
+async function settled(locator: Locator, timeoutMs = 2000): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  const deadline = Date.now() + timeoutMs;
+  let last: { x: number; y: number; width: number; height: number } | null = null;
+  for (;;) {
+    const box = await locator.boundingBox();
+    if (box !== null && last !== null && Math.abs(box.x - last.x) < 0.5 && Math.abs(box.y - last.y) < 0.5) return box;
+    last = box;
+    if (Date.now() > deadline) return box;
+    await new Promise((r) => setTimeout(r, 80));
+  }
+}
 
 test(titled('bob sees alice’s pointer, a card back while she holds a card, her arrow while she aims — and never which card'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -104,6 +123,116 @@ test(titled('letting go of a held card with no further pointer move takes the ba
     await expect(bob.page.locator('.presence__back[data-waiting]'), 'the back left the cursor at once, for the reserved gap').toHaveCount(1, { timeout: 1_000 });
     await expect(bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.zone__gap[data-expected]'), 'his screen reserved her column').toHaveCount(1, { timeout: 2_000 });
     await expect(back(bob.page), 'and the back is gone once the card is there').toHaveCount(0, { timeout: 20_000 });
+  } finally {
+    await stack.stop();
+  }
+});
+
+/*
+ * AD4 rules 2 and 3 (wave 59): a cast card is a back at its RELEASE POINT on
+ * the opponent's screen until it is committed to the stack, then its face —
+ * never a battlefield gap, a spell has none until it resolves. The owner can
+ * still drag it while it waits; the move crosses, and a reload still shows
+ * it where she left it (the last move is replayed as a joiner's own).
+ *
+ * `bolt-player` (Lightning Bolt, "any target", one untapped Mountain), not
+ * `own-spell`'s Memnite: Memnite needs no target, so `gestures/install.ts`'s
+ * own `spell ? null : placementAt(point)` still sends it through the OLD
+ * `forge:placement` battlefield-column channel the moment she releases it
+ * over her battlefield — this wire's own `placing.at` wait is for a spell
+ * that channel never fires for. A targeted spell always takes this path.
+ */
+test(titled('a cast spell is a back at the release point on bob’s screen, then its face once it is on the stack — survives a drag, and his reload'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'bolt-player');
+    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    // Wider: the full-control banner adds a row that overlaps the hand button at the harness's
+    // default size (`w49-counterspell.spec.ts`'s own note).
+    await bob.page.setViewportSize({ width: 1600, height: 1000 });
+    // The caster's own priority on her own spell auto-passes by default (`auto.ts`'s
+    // `passStackWindows`) — with nothing else, the bolt would resolve before this test ever gets to
+    // look at it. Full control for BOB (not the caster) means HIS priority on her spell is a real
+    // stop: nothing auto-answers, so it waits on the stack until he is asked, and this test simply
+    // never answers that ask.
+    await bob.page.getByTestId('live-full-control').click();
+    await expect(bob.page.getByTestId('live-full-control'), 'full control is on for bob — the precondition this spec needs').toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => handCardNamed(alice.page, 'Lightning Bolt'), { timeout: 20_000, message: 'alice holds her bolt' }).not.toBeUndefined();
+    const bolt = (await handCardNamed(alice.page, 'Lightning Bolt'))!;
+
+    // She parks it over her own battlefield — released outside the hand, a targeted spell is sent
+    // to Forge right there (no target chosen yet), and a real targeting ask opens.
+    const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    const releaseAt = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
+    expect(await dragHandCard(alice.page, bolt, releaseAt), 'the press lifted it').toBe(true);
+    await expect.poll(() => says(alice.page), { timeout: 10_000, message: 'the bolt reached Forge: it opened a targeting ask' }).toMatch(/Lightning Bolt.*target/is);
+
+    // Bob's screen: a back waits at her release point, inside HER side of HIS board. Its own CSS
+    // glides it there over 300ms (`presence.css`'s `[data-waiting]`) — settled() waits that out so
+    // the box read below is where it actually stops, not a frame mid-glide.
+    const waitingBack = bob.page.locator('.presence__back');
+    const theirFieldOnBob = (await bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"]').boundingBox())!;
+    await expect(waitingBack.and(bob.page.locator('[data-waiting]')), 'a back waits at her release point').toHaveCount(1, { timeout: 10_000 });
+    const backBox = (await settled(waitingBack))!;
+    expect(backBox.x + backBox.width / 2, 'inside her side of his board').toBeGreaterThanOrEqual(theirFieldOnBob.x);
+    expect(backBox.x + backBox.width / 2).toBeLessThanOrEqual(theirFieldOnBob.x + theirFieldOnBob.width);
+
+    // She targets bob's own face and pays the Mountain's mana — the cast completes.
+    const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
+    await bobFace.click();
+    await expect
+      .poll(
+        async () => {
+          const text = await says(alice.page);
+          if (/Pay Mana Cost/i.test(text)) await enabledOk(alice.page).click();
+          return stackCount(alice.page);
+        },
+        { timeout: 15_000, message: 'the bolt, targeted and paid for, is on the stack' },
+      )
+      .toBe(1);
+
+    // The stand-in turns over to its face, in the same spot — the CENTRE, which is what a `.placed`
+    // element and a `.presence__back` both centre themselves on; their boxes are different sizes.
+    const placedOnBob = bob.page.locator('[data-placed-spell]');
+    await expect(placedOnBob, 'her placed spell draws as a card, not a back').toHaveCount(1, { timeout: 10_000 });
+    await expect(bob.page.locator('.presence__back'), 'the back is gone — the placed-cards layer draws it now').toHaveCount(0, { timeout: 5_000 });
+    const placedBoxBefore = (await settled(placedOnBob))!;
+    const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    expect(Math.abs(centre(placedBoxBefore).x - centre(backBox).x), 'in the same place the back was waiting').toBeLessThan(5);
+    expect(Math.abs(centre(placedBoxBefore).y - centre(backBox).y)).toBeLessThan(5);
+
+    // She drags it while it waits on the stack: his copy follows (AD4 rule 3).
+    const ownPlaced = alice.page.locator('[data-placed-spell]');
+    const ownBox = (await ownPlaced.boundingBox())!;
+    await alice.page.mouse.move(ownBox.x + ownBox.width / 2, ownBox.y + ownBox.height / 2);
+    await alice.page.mouse.down();
+    await alice.page.mouse.move(herField.x + herField.width * 0.85, herField.y + herField.height * 0.25, { steps: 10 });
+    await alice.page.mouse.up();
+    await expect
+      .poll(
+        async () => {
+          const b = await placedOnBob.boundingBox();
+          return b === null ? false : Math.abs(b.x - placedBoxBefore.x) > 20 || Math.abs(b.y - placedBoxBefore.y) > 20;
+        },
+        { timeout: 10_000, message: 'bob’s copy followed her drag' },
+      )
+      .toBe(true);
+
+    // A reload of bob's tab is sent her spell's last move as it joins.
+    const movedBox = (await placedOnBob.boundingBox())!;
+    await bob.page.reload();
+    await expect
+      .poll(
+        async () => {
+          const b = await bob.page.locator('[data-placed-spell]').boundingBox();
+          return b === null ? null : { x: Math.round(b.x), y: Math.round(b.y) };
+        },
+        { timeout: 30_000, message: 'still where she left it after his reload' },
+      )
+      .toEqual({ x: Math.round(movedBox.x), y: Math.round(movedBox.y) });
   } finally {
     await stack.stop();
   }
