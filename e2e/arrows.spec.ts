@@ -195,17 +195,23 @@ test(
       expect(handBox, "alice's own hand has a box").not.toBeNull();
       const handPt = centre(handBox!);
       await page.mouse.move(handPt.x, handPt.y);
-      await expect(page.locator('.seat[data-viewer] [data-zone="hand"]'), 'the cancel cue shows over the hand').toHaveAttribute('data-cancel-hint', '');
+      // Since wave 60 §H a lifted card over its own hand is a REORDER in progress, not a cancel:
+      // the old cancel cue (`data-cancel-hint`) is not drawn there any more (`gestures.test.ts`
+      // pins it, and `hand.test.ts` owns the reorder preview), and the release commits the card
+      // wherever it landed — a same-spot release is a no-op commit, nothing floats back.
+      await expect(page.locator('.seat[data-viewer] [data-zone="hand"]'), 'no cancel cue over the hand any more').not.toHaveAttribute(
+        'data-cancel-hint',
+        /.*/,
+      );
+      await expect(page.locator(`[data-board-card="${memnite}"]`), 'still lifted over the hand').toHaveAttribute('data-cast-lift', 'lifted');
 
       const before = await stackCount(page);
       // The LEFT CLICK that ends the gesture, over the hand.
       await page.mouse.down();
       await page.mouse.up();
-      await expect(page.locator(`[data-board-card="${memnite}"]`), 'floating back, not played').toHaveAttribute('data-cast-lift', 'returning', {
+      await expect(page.locator(`[data-board-card="${memnite}"]`), 'settled in the hand, not mid-cast').not.toHaveAttribute('data-cast-lift', /.*/, {
         timeout: 2_000,
       });
-      await page.waitForTimeout(400); // the float-back's own CSS transition
-      expect(await page.locator(`[data-board-card="${memnite}"]`).getAttribute('data-cast-lift'), 'the lift is gone').toBeNull();
       log.push(`stack before ${before}, after ${await stackCount(page)}`);
       expect(await stackCount(page), 'nothing was cast').toBe(before);
       expect(await stackCount(page), 'and in particular not 1').toBe(0);
