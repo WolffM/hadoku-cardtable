@@ -401,6 +401,7 @@ Server-side evidence for this match is in production's structured log (`pm2 logs
 | when | what | effect | rule |
 | --- | --- | --- | --- |
 | 2026-10-08 08:33:44Z | w59 lane S ran `pkill -f "[c]ardtable-wrapper"` hunting a stale local e2e server; it SIGTERMed PRODUCTION cardtable | `shutdown-begin`/`shutdown-done` in the play log; pm2 restarted it at 08:33:49Z; no match was live | a lane never signals a process it did not start by PID; production runs on this host (the subagent preamble now says so) |
+| 2026-10-08 (claws, runs 37762992480, 37787167091, 37793536741) | the Full-Control click-cast loop in `w51-control-box` and `w56-numbers` reddened three times in a day with "the bolt is on the stack: expected 1, received 0" and was green alone; the server rows of the w51 red: payment forwarded, 227 ms later priority with an empty stack, then 30 s of silence | DRIVER, not product: `clickOnce(page, says, 'ok')` resolved `BUTTON_ONE` at click time; on a loaded claw the payment window closed between the loop's count check and the click, the press landed on the decision pop-up's OK (pass priority with the bolt on the stack), the opponent auto-passed and the bolt resolved before the loop read the stack | a cast loop presses the payment window's own Auto (`pressPaymentAuto`, `e2e/play/board.ts`) and nothing else; a button pressed "wherever it is drawn" is a button pressed on the wrong input |
 
 ## Regressions
 
