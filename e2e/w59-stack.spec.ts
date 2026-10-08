@@ -243,7 +243,23 @@ test(
       await expect(alice.page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
       /* ── alice casts Remand on Hinder — TWO legal spell targets now (Hinder, Keiga), so this is a real choice, not an auto-answer ── */
-      await castByDrag(alice.page, stack, remandCardId!, remandPoint, 'Hinder');
+      // A targeted spell let go over the table parks and waits for its target to be CLICKED (the arrow
+      // follows the pointer to it): Hinder's placed card is that target now — never a list.
+      await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'Remand is offered' }).toContain(remandCardId);
+      expect(await dragHandCard(alice.page, remandCardId!, remandPoint), 'Remand armed the drag-cast gesture').toBe(true);
+      await expect(placedSpell(alice.page, 'Hinder'), 'Hinder, the target, is a placed card to click').toHaveCount(1, { timeout: 10_000 });
+      await placedSpell(alice.page, 'Hinder').click();
+      await expect
+        .poll(
+          async () => {
+            const text = await says(alice.page);
+            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            await answerTargetChoice(alice.page, 'Hinder');
+            return stackCount(alice.page);
+          },
+          { timeout: 20_000, message: 'Remand reached the stack after its target was clicked' },
+        )
+        .toBe(3);
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Remand reached the stack, targeting Hinder' }).toBe(3);
       await expect.poll(() => stackCount(bob.page), { timeout: 10_000, message: 'bob’s own screen also reads three' }).toBe(3);
 
