@@ -25,6 +25,13 @@ export default defineConfig({
     // defaults stay, so a hang is still caught where it is written.
     testTimeout: process.env.CI ? 30_000 : 5_000,
     hookTimeout: process.env.CI ? 30_000 : 10_000,
+    // The worker count, not only the per-test budget: with a worker per core
+    // on a claw already running three e2e shards, vitest's own main thread is
+    // starved and its worker RPC dies — `[vitest-worker]: Timeout calling
+    // "onTaskUpdate"` after every test passed (51d7d22 and 69ee77b, 2026-10-08,
+    // the deploy gate both times). Four workers keep the run under five
+    // minutes and leave the main thread its turn.
+    maxWorkers: process.env.CI ? 4 : undefined,
     setupFiles: ['./apps/ui/src/test-setup.ts'],
   },
 });
