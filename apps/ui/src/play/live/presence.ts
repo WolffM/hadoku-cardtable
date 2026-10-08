@@ -66,7 +66,7 @@ import {
 } from '@hadoku/shared';
 
 import { arrowShape } from './gestures/arrow.ts';
-import { expectPlacement, placementAt } from '../Board.tsx';
+import { expectPlacement, pendingPlacementFor, placementAt } from '../Board.tsx';
 import { expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
@@ -423,16 +423,18 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const cards = host.theirCards?.() ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
-    if (fresh.length > 0 && waiting !== null && back !== null) {
-      // The card their back stands in for has shown: on the stack, the back turns over in place
-      // (committed — the face is public now); on the battlefield, it is drawn in the gap and the
-      // stand-in simply goes.
-      const id = fresh[0]!;
-      const onField = canvas.querySelector(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`);
-      if (onField !== null) {
+    if (waiting !== null && back !== null) {
+      // The card their back stands in for has arrived: `Board` consumed the reservation when it drew
+      // the card in the gap (the board's own signal, whichever subscriber ran first), and the
+      // stand-in simply goes. On the stack first, the back turns over in place (committed — the
+      // face is public now) and keeps waiting for the battlefield.
+      const theirs = host.theirPlayerId?.() ?? null;
+      if (theirs !== null && pendingPlacementFor(theirs) === null) {
         stopWaiting();
         return;
       }
+      if (fresh.length === 0) return;
+      const id = fresh[0]!;
       const tile = canvas.querySelector(`.stack__item:has([data-card-id="w${id}"]) .card`);
       if (tile !== null && !back.hasAttribute('data-face')) {
         const copy = tile.cloneNode(true) as HTMLElement;

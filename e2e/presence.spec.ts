@@ -96,10 +96,14 @@ test(titled('letting go of a held card with no further pointer move takes the ba
     await alice.page.mouse.move(herField.x + herField.width * 0.5, herField.y + herField.height * 0.5, { steps: 10 });
     await expect(back(bob.page), 'bob sees a card back while she holds it').toHaveCount(1, { timeout: 10_000 });
 
-    // Let go with NO further pointer move: the release message is the only thing that can take
-    // the back down now, since nothing will throttle a move in to do it instead.
+    // Let go with NO further pointer move: the release message is the only thing that can move
+    // the back now, since nothing will throttle a move in to do it instead. It leaves the cursor at
+    // once — for the gap her row reserved, where it waits for the card (2026-10-08) — and goes the
+    // moment Memnite is on her battlefield.
     await alice.page.mouse.up();
-    await expect(back(bob.page), 'the back is gone at once, not on the next move that never comes').toHaveCount(0, { timeout: 1_000 });
+    await expect(bob.page.locator('.presence__back[data-waiting]'), 'the back left the cursor at once, for the reserved gap').toHaveCount(1, { timeout: 1_000 });
+    await expect(bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.zone__gap[data-expected]'), 'his screen reserved her column').toHaveCount(1, { timeout: 2_000 });
+    await expect(back(bob.page), 'and the back is gone once the card is there').toHaveCount(0, { timeout: 20_000 });
   } finally {
     await stack.stop();
   }

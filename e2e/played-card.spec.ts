@@ -190,7 +190,11 @@ function afterRelease(frames: Frame[]): Frame[] {
 function expectWaitedThere(frames: Frame[], released: { x: number; y: number }): Frame[] {
   const flight = afterRelease(frames);
   const story = timeline(flight);
+  // The reserved gap is consumed the frame the card arrives, while the stand-in still sits where it
+  // was: the last gap seen is where it waited.
+  let lastGap: Box | null = null;
   for (const f of flight) {
+    if (f.gap !== null) lastGap = f.gap;
     const landed = f.zone === 'battlefield' && f.owner === 'you' && f.lift === null && !f.landing && f.ghost === null;
     if (landed) continue;
     const seen = seenAt(f);
@@ -198,8 +202,15 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
     const travelling = f.ghostLift === 'returning';
     // It waits at the point it was let go, or — gliding there from it — in the gap the row reserved
     // (2026-10-08: the same motion the other screen draws); a frame mid-glide is between the two.
-    const inGap = f.gap !== null && near(seen!, f.gap, 6);
-    const between = f.gap !== null && seen !== null && Math.min(seen.x, f.gap.x, released.x) - 6 <= seen.x && seen.x <= Math.max(seen.x, f.gap.x, released.x) + 6 && Math.min(f.gap.y, released.y) - 6 <= seen.y && seen.y <= Math.max(f.gap.y, released.y) + 6;
+    const gap = lastGap;
+    const inGap = gap !== null && near(seen!, gap, 6);
+    const between =
+      gap !== null &&
+      seen !== null &&
+      Math.min(gap.x, released.x) - 6 <= seen.x &&
+      seen.x <= Math.max(gap.x, released.x) + 6 &&
+      Math.min(gap.y, released.y) - 6 <= seen.y &&
+      seen.y <= Math.max(gap.y, released.y) + 6;
     if (!travelling) expect(near(seen!, released) || inGap || between, `the card is at the point it was let go or in its reserved gap (t=${f.t}), not ${seen!.x},${seen!.y}\n${story}`).toBe(true);
     expect(f.zone === 'hand' && f.lift === null, `the card is never back in the hand's own row (t=${f.t})\n${story}`).toBe(false);
     expect(f.tapped && !f.hidden && f.zone !== 'battlefield', `the card is never drawn tapped off the battlefield (t=${f.t})\n${story}`).toBe(false);

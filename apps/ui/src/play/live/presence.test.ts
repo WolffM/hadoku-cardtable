@@ -269,11 +269,13 @@ describe('receiving', () => {
     // Their pointer leaves the board: the cursor goes, the waiting back does not.
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1 });
     expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their pointer left').not.toBeNull();
-    // The card shows on their battlefield (the board drew it in the gap): the stand-in simply goes.
+    // The card arrives: the board draws it in the gap and consumes the reservation (its own signal,
+    // `pendingPlacementFor` null) — the stand-in simply goes, whichever subscriber ran first.
     const li = document.createElement('li');
     li.setAttribute('data-board-card', '77');
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
     theirs = [77];
+    forgetPendingPlacements();
     wake!();
     expect(canvas.querySelector('.presence__back'), 'gone the moment the card is there').toBeNull();
     expect(canvas.querySelector('.presence__handoff'), 'and no second flight: it is already where it was placed').toBeNull();
