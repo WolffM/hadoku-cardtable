@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>J — the played-card journey</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --panel: #ffffff;
+    --ink: #1b1b18;
+    --ink-dim: #5b5b55;
+    --line: #ddd9d0;
+    --accent: #8a5a2b;
+    --accent-ink: #ffffff;
+    --held: #2f6f4f;
+    --held-bg: #e7f3ec;
+    --parked: #8a5a2b;
+    --parked-bg: #f6ead9;
+    --committed: #2b5a8a;
+    --committed-bg: #e4edf6;
+    --deleted-bg: #fbeaea;
+    --deleted-border: #c96a6a;
+    --kept-bg: #eef1fb;
+    --kept-border: #7a85c9;
+    --blocked-bg: #fff6e0;
+    --blocked-border: #c99a2b;
+    --mono-bg: #efece4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171613;
+      --panel: #221f1b;
+      --ink: #efece4;
+      --ink-dim: #b4b0a6;
+      --line: #3a362f;
+      --accent: #d6a06a;
+      --accent-ink: #1b1611;
+      --held: #7fd1a6;
+      --held-bg: #163226;
+      --parked: #e0ad6c;
+      --parked-bg: #332410;
+      --committed: #8db6e8;
+      --committed-bg: #15263a;
+      --deleted-bg: #3a1f1f;
+      --deleted-border: #c96a6a;
+      --kept-bg: #1d2038;
+      --kept-border: #7a85c9;
+      --blocked-bg: #352a10;
+      --blocked-border: #c99a2b;
+      --mono-bg: #2a2722;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #171613;
+    --panel: #221f1b;
+    --ink: #efece4;
+    --ink-dim: #b4b0a6;
+    --line: #3a362f;
+    --accent: #d6a06a;
+    --accent-ink: #1b1611;
+    --held: #7fd1a6;
+    --held-bg: #163226;
+    --parked: #e0ad6c;
+    --parked-bg: #332410;
+    --committed: #8db6e8;
+    --committed-bg: #15263a;
+    --deleted-bg: #3a1f1f;
+    --deleted-border: #c96a6a;
+    --kept-bg: #1d2038;
+    --kept-border: #7a85c9;
+    --blocked-bg: #352a10;
+    --blocked-border: #c99a2b;
+    --mono-bg: #2a2722;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    padding: 0 16px 64px;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 2rem 0 0.25rem; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 0.75rem; border-top: 1px solid var(--line); padding-top: 1.5rem; }
+  h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+  p.lede { color: var(--ink-dim); margin-top: 0; }
+  code, pre {
+    font: 13px/1.5 "SF Mono", Menlo, Consolas, monospace;
+    background: var(--mono-bg);
+    border-radius: 4px;
+  }
+  code { padding: 0.1em 0.35em; }
+  .rules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin: 1rem 0 2rem;
+  }
+  .rule {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .rule b { color: var(--accent); }
+  .rule p { margin: 0.35em 0 0; color: var(--ink-dim); font-size: 0.92em; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  thead th { background: var(--mono-bg); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  .state { font-weight: 600; white-space: nowrap; }
+  .pill {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+  }
+  .pill--held { color: var(--held); background: var(--held-bg); }
+  .pill--parked { color: var(--parked); background: var(--parked-bg); }
+  .pill--committed { color: var(--committed); background: var(--committed-bg); }
+  ul.fates { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  ul.fates li {
+    border-left: 4px solid var(--line);
+    background: var(--panel);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+  }
+  li.fate--deleted { border-color: var(--deleted-border); background: var(--deleted-bg); }
+  li.fate--kept { border-color: var(--kept-border); background: var(--kept-bg); }
+  li.fate--blocked { border-color: var(--blocked-border); background: var(--blocked-bg); }
+  .tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 1px 7px;
+    border-radius: 5px;
+    margin-right: 8px;
+  }
+  .tag--deleted { background: var(--deleted-border); color: #fff; }
+  .tag--kept { background: var(--kept-border); color: #fff; }
+  .tag--blocked { background: var(--blocked-border); color: #1b1611; }
+  .stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin: 1rem 0 2rem; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; min-width: 150px; }
+  .stat .n { font-size: 1.6rem; font-weight: 700; display: block; }
+  .stat .l { color: var(--ink-dim); font-size: 0.8rem; }
+  footer { color: var(--ink-dim); font-size: 0.82rem; margin-top: 3rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>J — the played-card journey, one owner</h1>
+  <p class="lede">Wave 64, step 1 design artifact. The sender's state for one card, what crosses
+    the wire at each step, and what both screens draw — as shipped by this run's first landing
+    (deletions and folds, no behaviour change). Grounded in the operator's own rules below.</p>
+
+  <div class="rules">
+    <div class="rule"><b>AD4</b><p>The stack redesign: a cast stays where it was released; the
+      opponent's card renders where THEY placed it; arrows follow their target; cards stay
+      visible until something resolves.</p></div>
+    <div class="rule"><b>AD7</b><p>A cast waiting on an X/target question: the phantom stops
+      moving the instant the card parks, on both screens.</p></div>
+    <div class="rule"><b>AC8</b><p>No flash-then-correct from the opponent's seat. The placement
+      rides WITH THE ACT, through the server, keyed by column — never by card id.</p></div>
+    <div class="rule"><b>AE6</b><p>No arrow for a no-target cast. The placement's <code>at</code>
+      is the lift's own box centre, never a pointer position a frame behind it.</p></div>
+    <div class="rule"><b>AE12</b><p>The phantom detaches the instant the question is answered,
+      with no further pointer movement needed. <code>held</code>/<code>parked</code>/neither are
+      named on the wire, never inferred from timing.</p></div>
+  </div>
+
+  <h2>The state table</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Sender state</th>
+          <th>Entered by</th>
+          <th>Sender's own screen</th>
+          <th>Message(s) on the wire</th>
+          <th>Receiver's screen</th>
+          <th>Timer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="state">in hand</td>
+          <td>idle, or a press not yet past the drag slop</td>
+          <td>ordinary hand card</td>
+          <td><code>presence</code> (throttled)<br><span class="pill pill--held">held: false</span></td>
+          <td>nothing drawn for this card</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="state">lifted</td>
+          <td>press clears slop, or a click-armed press resolves</td>
+          <td>card follows the pointer, <code>data-cast-lift="lifted"</code></td>
+          <td><code>presence</code><br><span class="pill pill--held">held: true</span><br><code>from</code> set only while aiming</td>
+          <td>a back following their pointer — no card identity ever crosses</td>
+          <td><code>PRESENCE_SEND_MS</code> (60 ms) throttle</td>
+        </tr>
+        <tr>
+          <td class="state">parked — needs a target</td>
+          <td>released outside the hand, needs a target/X/question</td>
+          <td>pinned at the release point, <code>data-cast-lift="parked"</code>; aim arrow (if any) leaves from it</td>
+          <td><code>presence</code>, sent AT ONCE (<code>sendRelease</code>)<br><span class="pill pill--parked">placing.at = release spot</span>, repeated every message while parked</td>
+          <td>a back standing STILL at <code>placing.at</code> (<code>data-waiting</code>) — nothing the pointer does moves it</td>
+          <td><code>WAITING_MS</code> (15 s)</td>
+        </tr>
+        <tr>
+          <td class="state">parked — permanent, no target</td>
+          <td>released over own battlefield; a column resolves</td>
+          <td>pinned at the release point, <code>data-cast-lift="carried"</code></td>
+          <td><code>presence</code> (<code>placing.at</code>) AND <code>forge:placement</code> — rides WITH the act, before any Forge frame</td>
+          <td>row reserves a gap; stand-in glides release → gap, waits there</td>
+          <td><code>WAITING_MS</code>; <code>PENDING_PLACEMENT_TTL_MS</code> on the reservation</td>
+        </tr>
+        <tr>
+          <td class="state">parked → committed (spell)</td>
+          <td>the card's id appears on the stack</td>
+          <td><code>live/placed.ts</code> already drew the stack item at the park point</td>
+          <td>none new — the reveal is the next board frame</td>
+          <td><span class="pill pill--committed">placeSpell / commitSpell</span> swap the back for the real, turned-over card</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="state">parked → committed (permanent)</td>
+          <td>Forge's frame draws the card on the battlefield</td>
+          <td>card appears in the reserved gap</td>
+          <td>none new</td>
+          <td>reservation consumed; stand-in <code>flyTile</code>s to the settled card</td>
+          <td><code>FLOAT_BACK_MS</code> governs the glide</td>
+        </tr>
+        <tr>
+          <td class="state">committed → landed</td>
+          <td>the glide/fly finishes</td>
+          <td>real card visible, <code>data-cast-landing</code> cleared</td>
+          <td>—</td>
+          <td>ghost/back removed</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="state">parked → cancelled</td>
+          <td>Escape, right-click, or a release back onto own hand</td>
+          <td>card floats home</td>
+          <td>a hand release is never <code>sendRelease</code> — always a cancel; a plain update follows</td>
+          <td>a FOLLOWING back goes at once; a PARKED back gets a grace window first</td>
+          <td><code>CLEARED_GRACE_MS</code> (1.5 s)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="lede">Two more facts ride beside this state, independent of it: <code>arranging</code>
+    (a battlefield rearrange of the sender's own card) and <code>handMove</code> (a hand reorder,
+    indices only — never a card id or name).</p>
+
+  <h2>This run's stats (step 2)</h2>
+  <div class="stat-row">
+    <div class="stat"><span class="n">&minus;277</span><span class="l">net lines, 6 files</span></div>
+    <div class="stat"><span class="n">72 / 349</span><span class="l">insertions / deletions</span></div>
+    <div class="stat"><span class="n">8 / 39</span><span class="l">mutation: backElement() deleted → failing / total</span></div>
+    <div class="stat"><span class="n">1 / 39</span><span class="l">mutation: pre-fold code vs. new pin → failing / total</span></div>
+  </div>
+
+  <h2>Every heuristic in the inventory, and its fate this run</h2>
+  <ul class="fates">
+    <li class="fate--deleted"><span class="tag tag--deleted">deleted</span><b>J1</b> — the dead
+      <code>.stack__item</code> lookup (wave 59 deleted the class this ever matched).</li>
+    <li class="fate--deleted"><span class="tag tag--deleted">folded</span><b>J2</b> — two
+      tile-fly builders → one (<code>flyTile</code>), by deleting the duplicate.</li>
+    <li class="fate--kept"><span class="tag tag--kept">deferred</span><b>J3</b> —
+      <code>data-waiting</code>'s dual meaning (a placement wait vs. the hand-reorder glide
+      curve) — step 3.</li>
+    <li class="fate--kept"><span class="tag tag--kept">deferred</span><b>J4</b> — two gap glides,
+      two coordinate spaces — step 3.</li>
+    <li class="fate--kept"><span class="tag tag--kept">deferred</span><b>J5</b> — four arrow
+      drawers, three hand-rolled SVG trees — step 3.</li>
+    <li class="fate--deleted"><span class="tag tag--deleted">deleted</span><b>J6</b> — two dead
+      arrow producers (<code>autoTargetArrows</code>, <code>stackTargetArrows</code>), their
+      tests, and this lane's stale comments. A new dead-code finding surfaced in the process:
+      <code>match.ts</code>'s <code>stackTargetArcs</code> machinery now has no reader at all —
+      reported, not fixed (outside this lane's file scope this wave).</li>
+    <li class="fate--kept"><span class="tag tag--kept">deferred</span><b>J7 / J9</b> — four expiry
+      clocks for one fact; two placement writers — step 3.</li>
+    <li class="fate--deleted"><span class="tag tag--deleted">folded (partial)</span><b>J8</b> —
+      the three <code>presence__back</code> builders → one <code>backElement()</code>. The other
+      four stand-in builders (each a genuinely different visual role) are kept, per J8's own
+      instruction to keep <code>landCastGhost</code> "the one mover."</li>
+    <li class="fate--kept"><span class="tag tag--kept">deferred</span><b>J10</b> — three
+      press-drag engines — step 3, the long pole.</li>
+    <li class="fate--blocked"><span class="tag tag--blocked">blocked — reported</span><b>J11</b> —
+      the <code>draggable</code> HTML5 seam. ~30 assertions on the literal attribute across owned
+      tests, PLUS <code>e2e/table-fit.spec.ts:1141</code> (not owned this wave) treating it as an
+      external contract ("the seam marker"). Not deleted; reported for a manager decision.</li>
+    <li class="fate--kept"><span class="tag tag--kept">deferred</span><b>J12</b> —
+      <code>lastSelectedCard</code> surviving a card-less prompt — step 3.</li>
+    <li class="fate--deleted"><span class="tag tag--deleted">deleted</span><b>J13</b> — the
+      "pre-deploy sender" inferred-handoff compat path (<code>backWas</code>,
+      <code>HANDOFF_MS</code>). Both apps ship the wire together; <code>onPlacement</code> is now
+      unconditionally the one trigger. One residual edge case (a permanent release whose point
+      resolves no column) now animates nothing — reported as an accepted, judged risk, not a
+      silent regression.</li>
+    <li class="fate--deleted"><span class="tag tag--deleted">fixed</span><b>J14</b> — stale prose:
+      <code>inspect/index.ts</code>'s claim that the deleted <code>StackThumb</code> still renders
+      the stack thumbnail.</li>
+  </ul>
+
+  <footer>
+    Wave 64 §J, step 1+2. Full detail, the mutation transcript, and the knip before/after table:
+    <code>docs/planning/wave64-evidence/J/journey.md</code>.
+  </footer>
+</main>
+</body>
+</html>

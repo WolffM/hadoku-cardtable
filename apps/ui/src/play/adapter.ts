@@ -479,18 +479,19 @@ export interface StackEntry {
    * collections' runtime-type filter (confirmed against the real jar,
    * `scenario-w46-b-counterspell.jvm.test.ts`). This is `AdaptOptions.
    * stackTargetSpells`, keyed by this item's own id — the bridge's wire
-   * fact, true for every seat, not this seat's own client-side intent
-   * (`match.ts`'s `stackTargetArcs`, which `gestures/auto-targets.ts`'s
-   * `stackTargetArrows` still also reads, as a union: the caster may have
-   * one before the wire fact is itself re-derived, and the opponent — who
-   * answered no ask — has only this one).
+   * fact, true for every seat. `live/placed.ts` draws the arc straight off
+   * this field now (wave 64/J6); `match.ts`'s `stackTargetArcs` was the
+   * CASTER's own client-side pairing, claimed before this wire fact caught
+   * up, and `gestures/auto-targets.ts`'s `stackTargetArrows` was the one
+   * reader that unioned the two — both deleted (wave 64/J6), dead with no
+   * caller left once `placed.ts` took over drawing the arc.
    *
    * `null` when the item targets nothing on the stack, or when no
    * `stackTargetSpells` map was supplied at all. OPTIONAL for the same
    * reason `targetCardIds`/`targetPlayerIds` above are: `toBoardView` always
    * sets it, and a `StackEntry` typed out by hand in a suite testing
    * something else need not restate the wire. Absent and `null` both mean
-   * "nothing on the stack", which `stackTargetArrows` reads with `?? null`.
+   * "nothing on the stack" alike.
    */
   targetStackItemId?: number | null;
 }

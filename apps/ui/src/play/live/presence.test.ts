@@ -921,7 +921,14 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('the handoff: their back goes and a card of theirs appears — a copy travels from the back’s place to the card (motion on)', () => {
+  /*
+   * Wave 64 (J13): the inferred handoff that used to run off `backWas`/
+   * `HANDOFF_MS` — "their back went, and *something* of theirs showed up
+   * within two seconds" — is gone. `onPlacement` (`forge:placement`) is the
+   * one trigger for a permanent's handoff now, proven below; a permanent's
+   * arrival with no placement message animates nothing, which this pins.
+   */
+  it('a permanent arriving with no `forge:placement` message animates nothing — `onPlacement` is the one trigger', () => {
     vi.useFakeTimers();
     const { canvas, theirCard } = board();
     const t = fakeTransport();
@@ -932,7 +939,7 @@ describe('receiving', () => {
       host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, motion: () => true },
     });
     // They hold a card over their battlefield, then let go with no explicit release reaching this
-    // seat (the fallback path: the last place the back was actually drawn).
+    // seat and no `forge:placement` either (a joiner, or a column-less release).
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(canvas.querySelector('.presence__back')).toBeNull();
@@ -940,21 +947,7 @@ describe('receiving', () => {
     theirs = [7];
     theirCard.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w7" data-testid="card"><span class="card__name">Their Card</span></article></button>';
     wake!();
-    const ghost = canvas.querySelector<HTMLElement>('.presence__handoff')!;
-    expect(ghost, 'a copy of the card travels').not.toBeNull();
-    // The same trip a played card makes: `landCastGhost` paints it at the back's place, then sends it home
-    // (`returning`, the transition) to the card's own centre, which is where its style already points.
-    expect(ghost.getAttribute('data-cast-lift'), 'on the same trip a played card makes').toBe('returning');
-    expect(ghost.style.left, 'bound for the card’s centre').toBe('150px');
-    expect(ghost.style.top).toBe('242px');
-    expect(ghost.querySelector('.card__name')!.textContent).toBe('Their Card');
-    expect(ghost.querySelector('[data-card-id]'), 'the copy is not a card the DOM can address').toBeNull();
-    expect(theirCard.hasAttribute('data-cast-landing'), 'the real card waits hidden in its slot').toBe(true);
-    // A later arrival, with no back gone just before it, is not a handoff.
-    vi.advanceTimersByTime(3000);
-    theirs = [7, 8];
-    wake!();
-    expect(canvas.querySelectorAll('.presence__handoff'), 'only the one').toHaveLength(0);
+    expect(canvas.querySelector('.presence__handoff'), 'no placement message, no travelling copy').toBeNull();
     handle.dispose();
   });
 

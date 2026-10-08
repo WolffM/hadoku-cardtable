@@ -41,15 +41,16 @@
  *
  * ## The handoff
  *
- * When their back goes — at the release message above, or (failing that)
- * inferred from the last place it was drawn — and a card of theirs appears
- * within `HANDOFF_MS` on their battlefield (a land, a permanent), a copy of
- * that card travels from where the back last was to the card's own place,
- * the same trip this seat's own played card makes (`gestures/cast.ts`'s
- * `landCastGhost`), while the real one waits hidden in its slot. The
- * operator, 2026-10-07: *"when cards actually get placed on the board it's
- * not really coming from the card hovering by the cursor."* With motion off
- * (Fast Mode) it simply appears, like everything else.
+ * A PERMANENT's handoff is always `forge:placement` (`onPlacement`, below):
+ * the release rides with the act, through the server, before any Forge frame
+ * about the card — both apps ship that wire together, so there is no older
+ * sender to fall back to for it. The row reserves the gap the message names;
+ * a copy of the card travels from the release point into it, the same trip
+ * this seat's own played card makes (`gestures/cast.ts`'s `landCastGhost`),
+ * while the real one waits hidden in its slot. The operator, 2026-10-07:
+ * *"when cards actually get placed on the board it's not really coming from
+ * the card hovering by the cursor."* With motion off (Fast Mode) it simply
+ * appears, like everything else.
  *
  * A SPELL is different (AD4 rule 2, wave 59): nothing travels. A release
  * carrying `placing.at` parks the back AT that exact point and waits — not a
@@ -86,8 +87,6 @@ import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */
 export const PRESENCE_STALE_MS = 6000;
-/** How long after their back goes a card of theirs appearing is taken as the card they were holding. */
-export const HANDOFF_MS = 2000;
 /** How long a back waits in its reserved gap for the card; a cast that never resolves just ages out (`Board`'s own TTL). */
 export const WAITING_MS = 15_000;
 /** A point wait's remaining life once the sender says its card is no longer parked (a cancel, or the id a frame away). */
@@ -548,8 +547,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let arrow: SVGSVGElement | null = null;
   let hinted: Element | null = null;
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Where their back last was, and when it went — the handoff's start. */
-  let backWas: { at: Point; gone: number } | null = null;
   /**
    * Their back waiting for the card its stand-in is: in the gap their release
    * reserved for a PERMANENT (`forBattlefield: true`, `Board`'s own
@@ -593,14 +590,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     back?.remove();
     back = null;
   }
+  /** The one element every back/stand-in on this board is — appended, never reused across one. */
+  function backElement(root: HTMLElement): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'presence__back';
+    el.setAttribute('aria-hidden', 'true');
+    root.append(el);
+    return el;
+  }
   /** The one back, at `at` (its centre): made if missing, sized like a card in their hand. */
   function standBack(root: HTMLElement, box: DOMRect, at: Point): void {
-    if (back === null) {
-      back = document.createElement('div');
-      back.className = 'presence__back';
-      back.setAttribute('aria-hidden', 'true');
-      root.append(back);
-    }
+    if (back === null) back = backElement(root);
     // A touch smaller than a card in their hand (the operator, 2026-10-07: the back looked a fifth
     // bigger than a hand card; "it could be 5% smaller"). Their hand's own backs are the measure;
     // this seat's hand when theirs is empty; the stylesheet's size when neither is drawn.
@@ -695,14 +695,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const from = backs[move.from]?.getBoundingClientRect();
     const to = backs[move.to]?.getBoundingClientRect();
     if (from === undefined || to === undefined || from.width === 0 || to.width === 0) return;
-    const ghost = document.createElement('div');
-    ghost.className = 'presence__back';
-    ghost.setAttribute('aria-hidden', 'true');
+    const ghost = backElement(root);
     ghost.setAttribute('data-waiting', '');
     ghost.style.width = `${from.width}px`;
     ghost.style.left = `${from.left + from.width / 2 - box.left}px`;
     ghost.style.top = `${from.top + from.height / 2 - box.top}px`;
-    root.append(ghost);
     requestAnimationFrame(() => {
       ghost.style.left = `${to.left + to.width / 2 - box.left}px`;
       ghost.style.top = `${to.top + to.height / 2 - box.top}px`;
@@ -759,11 +756,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // keeps its stand-in; their new lift is drawn once that wait ends.
       if (waiting === null) standBack(root, box, at);
     } else if (waiting === null) {
-      if (back !== null) {
-        if (backAt !== null) backWas = { at: backAt, gone: Date.now() };
-        back.remove();
-        back = null;
-      }
+      back?.remove();
+      back = null;
     } else if (!waiting.forBattlefield) {
       // Their parked card is gone from their screen with no placement and no id yet: a cancel
       // (the card went home), or the id is a frame away. The point wait is given a short grace
@@ -855,28 +849,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       stopWaiting();
       return;
     }
-    if (fresh.length === 0 || backWas === null || Date.now() - backWas.gone > HANDOFF_MS) return;
-    const from = backWas.at;
-    backWas = null;
-    if (host.motion?.() !== true) return;
-    const id = fresh[0]!;
-    const arrived =
-      canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`) ??
-      canvas.querySelector<HTMLElement>(`.stack__item:has([data-card-id="w${id}"])`);
-    const tile = arrived?.querySelector('.card');
-    if (!(arrived instanceof HTMLElement) || tile === null || tile === undefined) return;
-    const ghost = document.createElement('div');
-    ghost.className = 'presence__handoff';
-    ghost.setAttribute('aria-hidden', 'true');
-    const copy = tile.cloneNode(true) as HTMLElement;
-    copy.removeAttribute('data-card-id');
-    copy.removeAttribute('data-testid');
-    for (const el of copy.querySelectorAll('[data-card-id], [data-testid]')) {
-      el.removeAttribute('data-card-id');
-      el.removeAttribute('data-testid');
-    }
-    ghost.append(copy);
-    landCastGhost(canvas, id, ghost, from, arrived);
+    // No wait pending: a permanent's arrival with no placement message is not this seat's to
+    // animate — `onPlacement` is the one trigger, and both apps ship it together.
   }
 
   /**
@@ -922,7 +896,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (theirs === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
     expectPlacement(theirs, slot, target, card);
-    backWas = null;
     stopWaiting();
     const already = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     if (already !== null) {
@@ -932,12 +905,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return;
     }
     const rootBox = root.getBoundingClientRect();
-    if (back === null) {
-      back = document.createElement('div');
-      back.className = 'presence__back';
-      back.setAttribute('aria-hidden', 'true');
-      root.append(back);
-    }
+    if (back === null) back = backElement(root);
     const standIn = back;
     standIn.style.left = `${from.x - rootBox.left}px`;
     standIn.style.top = `${from.y - rootBox.top}px`;

@@ -12,23 +12,24 @@
  *    bob's Memnite. Full control is ON for alice so Forge's single-legal-
  *    choice auto-answer does not resolve the whole exchange before this test
  *    can observe the two-item stack — see that test's own header for why.
- *    The arc is read from `match.ts`'s `stackTargetArcs` (the CASTER's own
- *    `answerAsk`-recorded intent) exactly as wave 46 §B built it.
+ *    Drawn, like every arc here, straight off the BRIDGE's own wire fact
+ *    (`stackTargetSpells`, below) — wave 64/J6 deleted the CASTER's own
+ *    client-side pairing (`match.ts`'s `stackTargetArcs`) this test used to
+ *    read, once the wire fact's own frame made it redundant for this seat too.
  *
  * 2. **The opponent's arc** (wave 49 §A item 3): the mirror scenario
  *    (`w49-a-counterspell-opponent.state`) — bob holds Counterspell, alice
  *    the free creature. Alice casts Memnite, bob counters it with NO click
  *    from this test (Forge's single-legal-choice ask auto-answers for him,
  *    same as alice's own cast auto-answers in test 1 when full control is
- *    off) — so alice, who answered no ask and holds no client-side intent at
- *    all, can only see the arc from the BRIDGE's own wire fact
- *    (`PlayBridge.java`'s `stackTargetSpells`, `packages/forge-wire/src/
- *    tier-c.ts`'s `StackTargetSpellsSchema`, read by `adapter.ts` onto each
- *    `StackEntry.targetStackItemId` and drawn by `gestures/auto-targets.ts`'s
- *    `stackTargetArrows`). Full control is ON for alice so SHE gets a window
- *    at her own priority to read the arc before anything resolves — the
- *    same role full control played in test 1, just assigned to the other
- *    seat this time.
+ *    off) — so alice, who answered no ask, can only see the arc from the
+ *    BRIDGE's own wire fact (`PlayBridge.java`'s `stackTargetSpells`,
+ *    `packages/forge-wire/src/tier-c.ts`'s `StackTargetSpellsSchema`, read by
+ *    `adapter.ts` onto each `StackEntry.targetStackItemId` and drawn by
+ *    `live/placed.ts`'s `.placed__arrow`s). Full control is ON for alice so
+ *    SHE gets a window at her own priority to read the arc before anything
+ *    resolves — the same role full control played in test 1, just assigned
+ *    to the other seat this time.
  */
 
 import { expect, test, type Page } from '@playwright/test';
@@ -98,8 +99,9 @@ function shootStackArc([key, fromStackId, toStackId]: [string, string, string]):
     const r = el.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height };
   };
-  // §S: `live/placed.ts`'s own `.placed__arrow` superseded the old `auto-targets.ts`
-  // `stackTargetArrows` producer — same geometry (`aimAt`), a new testid/key scheme.
+  // §S: `live/placed.ts`'s own `.placed__arrow` superseded, and wave 64/J6 deleted,
+  // the old `auto-targets.ts` `stackTargetArrows` producer — same geometry (`aimAt`),
+  // a new testid/key scheme.
   const arrow = document.querySelector(`[data-testid="placed-arrow"][data-key="${key}"]`);
   const from = document.querySelector(`[data-stack-id="${fromStackId}"]`);
   const to = document.querySelector(`[data-stack-id="${toStackId}"]`);
@@ -345,9 +347,10 @@ test.describe(titled('the counterspell arc'), () => {
       const key = `${counterId}:stack:${memniteStackId}`;
 
       // The proof: ALICE's own page draws the arc. She never answered a
-      // `getChoices` ask (bob did, auto-answered) and holds no
-      // `stackTargetArcs` entry of her own — the only source left is the
-      // wire fact `adapter.ts` now reads onto `StackEntry.targetStackItemId`.
+      // `getChoices` ask (bob did, auto-answered) — the wire fact
+      // `adapter.ts` reads onto `StackEntry.targetStackItemId` is the only
+      // source there ever was for her, and (wave 64/J6) the only source at
+      // all now.
       await expect(
         alice.page.locator(`[data-testid="placed-arrow"][data-key="${key}"]`),
         'the counterspell arc is drawn on ALICE’s page — the opponent, not the caster',

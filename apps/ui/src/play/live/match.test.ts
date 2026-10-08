@@ -36,7 +36,6 @@ import {
   MAX_RESYNCS_WITHOUT_PROGRESS,
   nothingToDecide,
   attackersLeft,
-  noteStackTargetIntent,
   pressButton,
   selectCard,
   selectPlayer,
@@ -2101,177 +2100,15 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
 });
 
 /*
- * X3 — the counterspell arc's client-side pairing. There is no wire fact for
- * "this stack item targets that one" when the target is itself a spell on the
- * stack (`gestures/stack.ts`'s `commitStackTarget` note; proven against the
- * real jar in `apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts`),
- * so `redraw` claims the pairing itself the moment the countering item
- * appears. These drive that claim/prune logic directly off synthetic stack
- * frames — `gestures/auto-targets.test.ts`'s `stackTargetArrows` block proves
- * what gets DRAWN from `stackTargetArcs` once it holds one.
- */
-describe('X3 — stackTargetIntent/stackTargetArcs, the counterspell arc’s claim and prune', () => {
-  const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
-  const them = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
-
-  /** A brand new `StackItem` object (never a delta — it does not exist yet). */
-  function newStackItem(id: number, activatingPlayer: number, description: string): ServerFrame {
-    seq += 1;
-    return parseServerFrame({
-      kind: 'notify',
-      method: 'applyDelta',
-      payload: {
-        packet: {
-          seq,
-          checksum: 0,
-          checksumProperties: [],
-          newObjects: {
-            [deltaKey(WireType.StackItem, id)]: {
-              _type: WireType.StackItem,
-              _id: id,
-              ActivatingPlayer: { t: 'int', v: activatingPlayer },
-              Description: { t: 'str', v: description },
-            },
-          },
-          objectDeltas: {},
-          events: [],
-        },
-      },
-    });
-  }
-
-  /** `Game.Stack`, top-first — `adapter.ts`'s own documented order. */
-  const stackOf = (ids: number[]): ServerFrame =>
-    stateDelta({
-      [GAME_KEY]: { _type: WireType.Game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
-    });
-
-  it('claims the intent once a NEW top item appears, controlled by this seat', async () => {
-    const { s, m } = await fullGame();
-    const target = 9001; // the opponent's spell, already on the stack
-    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
-    expect(m.view!.stack.map((i) => i.id)).toEqual([target]);
-
-    noteStackTargetIntent(m, target);
-    expect(m.stackTargetIntent).toBe(target);
-    expect(m.stackTargetArcs.size).toBe(0);
-
-    // The countering spell lands: a NEW top item, controlled by THIS seat.
-    const counter = 9002;
-    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
-    expect(m.stackTargetArcs.get(counter)).toBe(target);
-    expect(m.stackTargetIntent).toBeNull();
-  });
-
-  it('does not claim a new top item controlled by someone ELSE — only this seat’s own cast claims it', async () => {
-    const { s, m } = await fullGame();
-    const target = 9011;
-    await sendAndApply(s, m, [newStackItem(target, me(m).id, 'Shock'), stackOf([target])]);
-    noteStackTargetIntent(m, target);
-
-    // A trigger from the OPPONENT lands on top before this seat's own spell does.
-    const theirTrigger = 9012;
-    await sendAndApply(s, m, [newStackItem(theirTrigger, them(m).id, 'Some trigger'), stackOf([theirTrigger, target])]);
-    expect(m.stackTargetArcs.has(theirTrigger)).toBe(false);
-    // Still held, waiting for THIS seat's own item.
-    expect(m.stackTargetIntent).toBe(target);
-  });
-
-  it('prunes an arc once either side leaves the stack — the target resolves', async () => {
-    const { s, m } = await fullGame();
-    const target = 9021;
-    const counter = 9022;
-    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
-    noteStackTargetIntent(m, target);
-    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
-    expect(m.stackTargetArcs.get(counter)).toBe(target);
-
-    // The counterspell resolves, taking the targeted spell off the stack too.
-    await sendAndApply(s, m, [stackOf([])]);
-    expect(m.stackTargetArcs.size).toBe(0);
-  });
-
-  it('prunes an arc once the SOURCE leaves the stack (resolved before the target did)', async () => {
-    const { s, m } = await fullGame();
-    const target = 9031;
-    const counter = 9032;
-    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
-    noteStackTargetIntent(m, target);
-    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
-    expect(m.stackTargetArcs.get(counter)).toBe(target);
-
-    // The counterspell itself resolves and leaves the stack; the arc goes with it.
-    await sendAndApply(s, m, [stackOf([target])]);
-    expect(m.stackTargetArcs.has(counter)).toBe(false);
-  });
-
-  /** A `getChoices` ask whose choices carry stack-item refs — `PlayBridge.java:288`'s own shape. */
-  const getChoicesAsk = (callId: string, choices: { key: string; label: string; stackItemId: number }[]): ServerFrame =>
-    parseServerFrame({
-      kind: 'ask',
-      callId,
-      method: 'getChoices',
-      message: 'Select target card',
-      min: 1,
-      max: 1,
-      choices: choices.map((c) => ({ key: c.key, label: c.label, ref: { kind: 'stackItem', id: c.stackItemId } })),
-      selected: [],
-    });
-
-  /*
-   * The real bug this centralisation fixes: with exactly ONE legal stack
-   * target, Forge's own ask is auto-answered by `LiveBoard.tsx`'s
-   * `autoAnswer` → `rules.ts`'s `onlyStackTarget` — which calls `answerAsk`
-   * DIRECTLY, never `gestures/stack.ts`'s `commitStackTarget`. Recording the
-   * intent only in the gesture would miss the single-legal-target case
-   * entirely, which is the COMMON one for a counterspell. This proves
-   * `answerAsk` itself is the one place that has to record it.
-   */
-  it('answerAsk itself records the intent, so Forge’s own single-choice auto-answer (no click, no gesture) draws the arc too', async () => {
-    const { s, m } = await fullGame();
-    const target = 9041;
-    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
-
-    s.send(getChoicesAsk('c-stack-1', [{ key: 'c0', label: 'Memnite', stackItemId: target }]));
-    await until('the stack-target ask', () => currentAsk(m) !== null);
-
-    // Answered directly — the shape `onlyStackTarget`'s own auto-answer uses,
-    // never through the gesture layer.
-    expect(answerAsk(m, 'c-stack-1', 'getChoices', ['c0'])).toBe(true);
-    expect(m.stackTargetIntent).toBe(target);
-
-    const counter = 9042;
-    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
-    expect(m.stackTargetArcs.get(counter)).toBe(target);
-  });
-
-  it('a getChoices answer naming something OTHER than a stack item records no intent', async () => {
-    const { s, m } = await fullGame();
-    await sendAndApply(s, m, [
-      parseServerFrame({
-        kind: 'ask',
-        callId: 'c-ordinary',
-        method: 'getChoices',
-        message: 'Choose a mode',
-        min: 1,
-        max: 1,
-        choices: [{ key: 'c0', label: 'Mode one', ref: null }],
-        selected: [],
-      }),
-    ]);
-    expect(answerAsk(m, 'c-ordinary', 'getChoices', ['c0'])).toBe(true);
-    expect(m.stackTargetIntent).toBeNull();
-  });
-});
-
-/*
- * Wave 49 §A — `stackTargetSpells`, the bridge's OWN wire fact for the same
- * pairing the X3 block above claims client-side. Unlike `stackTargetArcs`,
- * this needs no ask THIS seat answered: it is a SIBLING of the frame's own
- * `packet`, folded by `../fold.ts`'s `FoldResult.stackTargetSpells` and
- * surfaced on every `StackEntry.targetStackItemId` — `gestures/
- * auto-targets.test.ts`'s `stackTargetArrows` block proves what gets drawn
- * from it once it holds one.
+ * X3 — the counterspell arc's CLIENT-SIDE pairing (`stackTargetIntent`/
+ * `stackTargetArcs`, claimed from inside `answerAsk`) is gone (wave 64/J6):
+ * its one reader, `gestures/auto-targets.ts`'s `stackTargetArrows`, had no
+ * caller left once `live/placed.ts` started drawing the arc straight off the
+ * bridge's own wire fact, `stackTargetSpells` (wave 49 §A,
+ * `StackEntry.targetStackItemId`) — true for every seat already, caster and
+ * opponent alike, with no ask to answer and no claim-and-prune. That wire
+ * fact's own fold (`fold.ts`'s `FoldResult.stackTargetSpells`) is still
+ * covered, by the adapter and fold suites that exercise it directly.
  */
 /*
  * The operator, 2026-10-04 and again 2026-10-06: clicking a land just tapped for

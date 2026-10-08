@@ -29,10 +29,12 @@
  *     the draft's namespace. Matching is on the value: digits mean "a board
  *     card, the tile is inside"; `w<digits>` means "this IS a tile". A bare
  *     `[data-card-id]` selector would confuse the two; nothing here uses one.
- *   - a STACK thumbnail is a tile like any other (`Board.tsx`'s `StackThumb`
- *     renders the item's `CardTile`, `w<id>`), so hovering it opens this same
- *     panel, anchored to its right. Wave 46 had the stack opt out in favour
- *     of a big view of its own below the row; the stack redesign (2026-10-06)
+ *   - a STACK thumbnail is a tile like any other (`live/placed.ts`'s own
+ *     placed-card layer renders the item's `CardTile`, `w<id>`, inside
+ *     `[data-placed-spell]` — `Board.tsx`'s old `StackThumb` is gone, wave
+ *     59), so hovering it opens this same panel, anchored to its right. Wave
+ *     46 had the stack opt out in favour of a big view of its own below the
+ *     row; the stack redesign (2026-10-06)
  *     removed that view, because the operator wants ONE expanded view:
  *     *"you can't ever be hovering over more than one thing so just having a
  *     single distinct 'expanded view' i think would be the cleanest."*

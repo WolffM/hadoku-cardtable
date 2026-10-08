@@ -2,8 +2,9 @@
  * Wave 46 §B item 3 — what the wire says when a spell targets ANOTHER SPELL
  * on the stack (Counterspell on Memnite), against a real Forge JVM.
  *
- * `autoTargetArrows` (`apps/ui/src/play/live/gestures/auto-targets.ts`) draws
- * a passive arrow from `StackEntry.targetCardIds`/`targetPlayerIds` —
+ * `live/placed.ts`'s `.placed__arrow`s (and, until wave 64/J6 deleted it,
+ * `auto-targets.ts`'s `autoTargetArrows`) draw a passive arrow from
+ * `StackEntry.targetCardIds`/`targetPlayerIds` —
  * `StackItemView`'s own `TargetCards`/`TargetPlayers` (`TrackableProperty.java:
  * 225-226`), set from `SpellAbilityStackInstance.getTargetChoices()`. Those
  * two collections are typed `CardViewCollectionType`/`PlayerViewCollectionType`
