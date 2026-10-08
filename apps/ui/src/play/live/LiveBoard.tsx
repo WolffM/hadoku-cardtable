@@ -1150,6 +1150,33 @@ export function useCrawlGuard(phase: string | null): boolean {
 }
 
 /**
+ * The operator: *"i notice priority flashing back and forth in
+ * untap/upkeep/draw... can you unify that behavior."* Measured against a
+ * real match (`docs/planning/wave63-evidence/F/flash.md`): the rail, the
+ * control bar and End Turn's highlight never move during an auto-passed
+ * `UNTAP`/`UPKEEP`/`DRAW`. What moves is `Board.tsx`'s own `.seat__flag`
+ * ("priority"), fed by `BoardPlayer.hasPriority` — Forge's raw, per-frame
+ * wire fact, which ping-pongs through every auto-passed priority exchange
+ * whether or not either seat is actually being asked anything.
+ *
+ * `view`, with each player's `hasPriority` gated on `open` — true only while
+ * that seat genuinely has something to decide. An auto-passed window draws
+ * no flag at all; a real one draws exactly Forge's own value. The caller
+ * keeps `viewerOpen` and `opponentOpen` mutually exclusive, so at most one
+ * flag is ever lit. `view` itself, unchanged, when nothing needs correcting.
+ */
+export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponentOpen: boolean): BoardView {
+  let changed = false;
+  const players = view.players.map((p) => {
+    const want = (p.isViewer ? viewerOpen : opponentOpen) && p.hasPriority;
+    if (p.hasPriority === want) return p;
+    changed = true;
+    return { ...p, hasPriority: want };
+  });
+  return changed ? { ...view, players } : view;
+}
+
+/**
  * The phase rail. Presentation only — turn, step and whose turn all come off
  * the view that was already on screen (see the module header).
  *
@@ -1682,6 +1709,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const myOwnDecisionOpen = askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || decision;
   /*
+   * See `withGatedPriority`'s own note. `viewerOpen` is `myOwnDecisionOpen`
+   * plus the one case it does not cover: a bare "your move, nothing on the
+   * stack" pass, where Forge's bar is simply live with no pop-up over it.
+   */
+  const viewerOpen = myOwnDecisionOpen || (!yielding && bar !== null && (bar.enable1 || bar.enable2));
+  // `!viewerOpen`: the same guard the banner above already needs (a stale
+  // `waitingForOpponent` fact can outlive the frame that clears it — see its
+  // own note) — this seat's own live decision is never the stale one, so
+  // both flags are never drawn at once.
+  const opponentOpen = waitingForOpponent && !viewerOpen;
+  const visualView = match.view === null ? null : withGatedPriority(match.view, viewerOpen, opponentOpen);
+  /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
    * that is the leak-free source — and both are `null`/empty before the first
@@ -2164,7 +2203,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           {alert}
         </p>
       )}
-      {match.view !== null && <Board view={match.view} interaction={interaction} boardLayout={boardLayout} />}
+      {visualView !== null && <Board view={visualView} interaction={interaction} boardLayout={boardLayout} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
       {/*

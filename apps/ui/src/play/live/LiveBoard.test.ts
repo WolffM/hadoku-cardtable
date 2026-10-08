@@ -37,6 +37,7 @@ import {
   refusalOf,
   statusText,
   useCrawlGuard,
+  withGatedPriority,
   type LiveStatus,
 } from './LiveBoard.tsx';
 import {
@@ -4087,5 +4088,141 @@ describe('wave 59 §P — "Resolve {name}?" names the top of the stack', () => {
     );
 
     await waitFor(() => expect(getByTestId('live-decision').textContent).toContain(`Resolve ${spellItem!.sourceName}?`));
+  });
+});
+
+describe('the priority flag is gated on a real decision, not drawn from Forge’s raw per-frame fact', () => {
+  function fakePlayer(overrides: Partial<BoardPlayer> & Pick<BoardPlayer, 'id' | 'name'>): BoardPlayer {
+    return {
+      isViewer: false,
+      isActive: false,
+      hasPriority: false,
+      hasLost: false,
+      life: 20,
+      hand: null,
+      handCount: 0,
+      libraryCount: 40,
+      battlefield: [],
+      graveyard: [],
+      exile: [],
+      ...overrides,
+    };
+  }
+  function fakeView(players: BoardPlayer[]): BoardView {
+    return { seq: 1, title: 't', turn: 5, phase: 'UPKEEP', phaseLabel: '', activePlayerId: null, players, stack: [], gameOver: false, missingCardIds: [] };
+  }
+
+  describe('withGatedPriority', () => {
+    it('draws a player’s hasPriority only while their own side is open', () => {
+      const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasPriority: true }), fakePlayer({ id: 1, name: 'Them', hasPriority: true })]);
+      const out = withGatedPriority(view, false, true);
+      expect(out.players.find((p) => p.isViewer)!.hasPriority).toBe(false);
+      expect(out.players.find((p) => !p.isViewer)!.hasPriority).toBe(true);
+    });
+
+    it('is false regardless of the gate when Forge’s own fact is false', () => {
+      const view = fakeView([fakePlayer({ id: 1, name: 'Them', hasPriority: false })]);
+      expect(withGatedPriority(view, true, true).players[0]!.hasPriority).toBe(false);
+    });
+
+    it('returns the SAME view, unchanged, when nothing needs correcting — no object rebuilt most frames', () => {
+      const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasPriority: false }), fakePlayer({ id: 1, name: 'Them', hasPriority: true })]);
+      expect(withGatedPriority(view, false, true)).toBe(view);
+    });
+
+    it('rebuilds only when at least one side disagrees, and leaves the other player object untouched', () => {
+      const them = fakePlayer({ id: 1, name: 'Them', hasPriority: true });
+      const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasPriority: true }), them]);
+      const out = withGatedPriority(view, false, true);
+      expect(out).not.toBe(view);
+      expect(out.players.find((p) => !p.isViewer)).toBe(them);
+    });
+  });
+
+  describe('through the real board', () => {
+    const seatFlag = (container: HTMLElement, who: 'you' | 'opp'): Element | null =>
+      container.querySelector(who === 'you' ? '.seat[data-viewer] .seat__flag:not(.seat__flag--lost)' : '.seat:not([data-viewer]) .seat__flag:not(.seat__flag--lost)');
+    const bothFlagsLit = (container: HTMLElement): boolean => seatFlag(container, 'you') !== null && seatFlag(container, 'opp') !== null;
+
+    const priorityDelta = (seq: number, playerId: number, v: boolean) =>
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: {},
+            objectDeltas: { [String(deltaKey(WireType.Player, playerId))]: { _type: WireType.Player, _id: playerId, HasPriority: { t: 'bool', v } } },
+            events: [],
+          },
+        },
+      });
+    // `label2: 'End Turn'`: the control cluster's End Turn button is enabled
+    // exactly when Forge's own button two is (`offersEndTurn`), independent
+    // of button one.
+    const updateButtons = (enable2: boolean) =>
+      parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'End Turn', enable1: false, enable2, focus1: false });
+
+    it('an auto-passed window’s raw fact ping-pong never reaches the flag — nothing was ever withheld or forwarded for it', async () => {
+      const { s, m, container } = await liveBoard();
+      const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
+      let seq = m.view!.seq + 1;
+      expect(seatFlag(container, 'opp'), 'nothing open for the opponent yet').toBeNull();
+      s.send(priorityDelta(seq++, opponentId, true));
+      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
+      expect(seatFlag(container, 'opp'), 'Forge\'s own raw fact flipped, with no server fact behind it').toBeNull();
+      s.send(priorityDelta(seq++, opponentId, false));
+      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(false));
+      s.send(priorityDelta(seq, opponentId, true));
+      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
+      expect(seatFlag(container, 'opp'), 'still nothing — the ping-pong alone never moves the drawn flag').toBeNull();
+    });
+
+    it('appears the instant the server reports the opponent genuinely parked on something, and is gone the instant either clears', async () => {
+      const { s, m, container } = await liveBoard();
+      const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
+      let seq = m.view!.seq + 1;
+      s.send(priorityDelta(seq++, opponentId, true));
+      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
+      expect(seatFlag(container, 'opp')).toBeNull();
+
+      await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
+      await waitFor(() => expect(seatFlag(container, 'opp')).not.toBeNull());
+
+      s.send(priorityDelta(seq, opponentId, false));
+      await waitFor(() => expect(seatFlag(container, 'opp')).toBeNull());
+    });
+
+    it('is off the instant the viewer passes a real window of their own — no stale lit flag left behind', async () => {
+      const { s, m, container, getByTestId } = await liveBoard();
+      const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+      s.send(priorityDelta(m.view!.seq + 1, viewerId, true));
+      s.send(updateButtons(true));
+      await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
+      expect(seatFlag(container, 'you'), 'the viewer’s own live window lights their flag').not.toBeNull();
+
+      s.send(updateButtons(false));
+      await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true));
+      expect(seatFlag(container, 'you'), 'passed: no stale flag left lit').toBeNull();
+    });
+
+    it('never lights both flags at once — a stale "waiting for them" fact does not survive the viewer’s own window opening', async () => {
+      const { s, m, container, getByTestId } = await liveBoard();
+      const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
+      const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+      let seq = m.view!.seq + 1;
+      s.send(priorityDelta(seq++, opponentId, true));
+      await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
+      await waitFor(() => expect(seatFlag(container, 'opp')).not.toBeNull());
+
+      // The viewer's own window opens while the stale "waiting for them" fact has not cleared yet.
+      s.send(priorityDelta(seq, viewerId, true));
+      s.send(updateButtons(true));
+      await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
+      expect(bothFlagsLit(container), 'the viewer’s own live window is never the stale one').toBe(false);
+      expect(seatFlag(container, 'you')).not.toBeNull();
+    });
   });
 });
