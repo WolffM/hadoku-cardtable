@@ -454,3 +454,31 @@ describe('stackTopActivator (Q17)', () => {
 		expect(projector.stackTopActivator()).toBeNull();
 	});
 });
+
+describe('turnNumber', () => {
+	it('is the Game object’s own Turn, off a delta either seat could have received — null until one arrives', () => {
+		const projector = createProjector(0);
+		expect(projector.turnNumber()).toBeNull();
+		const game = keyOf(TYPE.game, 1);
+		const frame = (turn: number): StateFrame =>
+			({
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: { [game]: { _type: TYPE.game, _id: 1 } },
+						objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
+						events: [],
+					},
+				},
+			}) as StateFrame;
+		projector.project(frame(1));
+		expect(projector.turnNumber()).toBe(1);
+		// A later turn overwrites it — the same object, a newer delta.
+		projector.project(frame(14));
+		expect(projector.turnNumber()).toBe(14);
+	});
+});

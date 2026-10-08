@@ -293,6 +293,15 @@ export interface SeatState {
 	 */
 	fullControl: boolean;
 	/**
+	 * The other seat's-turn twin of {@link fullControl}: while `on` and `turn`
+	 * still equals `s.projector.turnNumber()`, `maybeAutoPass` passes every
+	 * priority window that is NOT this seat's own turn. Null is "never
+	 * toggled"; `setAutoYield(seat, false)` leaves `{ turn, on: false }`
+	 * rather than null, which reads the same way. Checked AFTER
+	 * {@link fullControl}, never instead of it.
+	 */
+	autoYield: { turn: number; on: boolean } | null;
+	/**
 	 * This seat's stop preferences — **one policy per seat, not one per server**
 	 * (wave 26 §E).
 	 *
@@ -804,6 +813,7 @@ export class Match {
 			departure: null,
 			here: false,
 			fullControl: false,
+			autoYield: null,
 			// The starting value only — `setStopPolicy` still moves one seat at a
 			// time. Absent is production (`MatchDeps.stopPolicy`).
 			policy: deps.stopPolicy ?? DEFAULT_STOP_POLICY,
@@ -1869,6 +1879,27 @@ export class Match {
 	}
 
 	/**
+	 * Sets {@link SeatState.autoYield} to the seat's CURRENT turn number —
+	 * `s.projector.turnNumber()`, never this seat's own last prompt text,
+	 * which can still be last turn's if the seat has not been prompted yet
+	 * this turn. If a window is already open when this turns on, re-judge it
+	 * at once rather than waiting for the next one.
+	 */
+	setAutoYield(seat: number, on: boolean): ClientOutcome {
+		const s = this.seats[seat];
+		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		s.autoYield = { turn: s.projector.turnNumber() ?? 0, on };
+		this.deps.log({ evt: 'auto-yield', matchId: this.id, seat, on, turn: s.autoYield.turn });
+		const wasLive = s.wireButtonsLive;
+		if (on && this.maybeAutoPass(s) && wasLive && s.buttons !== null && s.buttons.method === 'updateButtons') {
+			// The seat's own browser still shows the bar this just passed for it —
+			// the same disabled correction `decideWindow` sends an answered window.
+			this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
+		}
+		return { ok: true };
+	}
+
+	/**
 	 * Give ONE seat its own stop preferences (wave 26 §E).
 	 *
 	 * A policy is a value (`auto.ts`), so this is an assignment and nothing more —
@@ -2090,7 +2121,24 @@ export class Match {
 		// AFTER it (see `SeatState.passedOn`): not ours to press for.
 		if (s.prompt !== null && s.prompt === s.passedOn) return false;
 		const notes = this.notesOf(s);
-		const phase = autoPassReason(notes, s.policy);
+		const facts = readPromptFacts(notes);
+		/*
+		 * The auto-yield override, read ahead of `autoPassReason`. Gated on
+		 * `decideStop`'s own entry guards plus one new condition, `!facts.myTurn`:
+		 * every priority window on the OTHER seat's turn is passed. Declare
+		 * Blockers' block-assignment ask is never `window === 'priority'`, so
+		 * it is untouched regardless.
+		 */
+		const yieldsNow =
+			s.autoYield !== null &&
+			s.autoYield.on &&
+			s.autoYield.turn === s.projector.turnNumber() &&
+			facts.window === 'priority' &&
+			facts.mine &&
+			facts.confirmLive &&
+			facts.openAsks === 0 &&
+			!facts.myTurn;
+		const phase = yieldsNow ? facts.phaseLabel ?? 'priority' : autoPassReason(notes, s.policy);
 		/*
 		 * Behind `CARDTABLE_PLAY_PROBE=1` (the e2e harness's servers): every
 		 * decision, kept or passed, with the facts it was made on. 2026-10-03's
@@ -2099,21 +2147,20 @@ export class Match {
 		 * KEPT left no line, so which fact kept it could not be read.
 		 */
 		if (TRACE_STOPS) {
-			const f = readPromptFacts(notes);
 			this.deps.log({
 				evt: 'stop-decided',
 				matchId: this.id,
 				seat: s.seat,
 				decision: phase ?? 'kept',
-				window: f.window,
-				phase: f.phase,
-				myTurn: f.myTurn,
-				stackEmpty: f.stackEmpty,
-				mine: f.mine,
-				sources: f.sources?.length ?? null,
-				nonManaSources: f.nonManaSources?.length ?? null,
-				phaseRestricted: f.phaseRestricted.length,
-				openAsks: f.openAsks,
+				window: facts.window,
+				phase: facts.phase,
+				myTurn: facts.myTurn,
+				stackEmpty: facts.stackEmpty,
+				mine: facts.mine,
+				sources: facts.sources?.length ?? null,
+				nonManaSources: facts.nonManaSources?.length ?? null,
+				phaseRestricted: facts.phaseRestricted.length,
+				openAsks: facts.openAsks,
 				buttons: s.buttons !== null && s.buttons.method === 'updateButtons' ? [s.buttons.enable1, s.buttons.enable2] : null,
 			});
 		}
@@ -2123,7 +2170,7 @@ export class Match {
 		// Forge clears the set as the input stops; drop ours with it so the next
 		// stop is judged on the next answer rather than on this one.
 		s.actionable = null;
-		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase });
+		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase, ...(yieldsNow ? { why: 'auto-yield' } : {}) });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
 	}

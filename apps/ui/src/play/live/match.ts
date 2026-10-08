@@ -255,6 +255,7 @@ import { stackItemChoices } from '../prompts/rules.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
+  autoYieldFrame,
   FullControlSchema,
   fullControlFrame,
   MATCH_EVENTS,
@@ -675,6 +676,13 @@ export interface LiveMatch {
    */
   stopAtEndStep: boolean;
   /**
+   * The opponent's-turn yield toggle — this client's own last word, no
+   * server echo, same reasoning as `stopAtEndStep`. `null` is "never pressed
+   * this match"; a real value is the turn it was pressed FOR, so a later
+   * turn reads as off on its own, the same lazy compare `attackIntent` uses.
+   */
+  autoYield: { turn: number; on: boolean } | null;
+  /**
    * Every seat's identity, keyed by Forge PLAYER id — item 4 (wave 29 §A.6-8),
    * the render half. `seats[].playerId` is the join key `D-avatar-field.md` §2
    * traced (the same id `BoardPlayer.id` already is), and this map carries only
@@ -850,6 +858,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     finished: false,
     fullControl: false,
     stopAtEndStep: false,
+    autoYield: null,
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -995,6 +1004,31 @@ export function setFullControl(match: LiveMatch, on: boolean): boolean {
   if (match.fullControl === on) return false;
   match.transport.emit(MATCH_EVENTS.fullControl, fullControlFrame(match.matchId, on));
   match.fullControl = on;
+  notify(match);
+  return true;
+}
+
+/**
+ * The yield override, as this client currently holds it: on, and still for
+ * the CURRENT turn — the same lazy compare `attackIntents` runs for its own
+ * turn-scoped mark.
+ */
+export function isAutoYieldOn(match: LiveMatch): boolean {
+  return match.autoYield !== null && match.autoYield.on && match.autoYield.turn === (match.view?.turn ?? -1);
+}
+
+/**
+ * Flip the opponent's-turn yield toggle and tell the server. The ONE
+ * sender — the control box's own button (`LiveBoard.tsx`). Optimistic, same
+ * as `setFullControl`; no echo to adopt back, so what is recorded is the
+ * CURRENT turn, and `isAutoYieldOn`'s own compare is what later reads a
+ * turn-old press as expired.
+ */
+export function setAutoYield(match: LiveMatch, on: boolean): boolean {
+  if (isAutoYieldOn(match) === on) return false;
+  const turn = match.view?.turn ?? 0;
+  match.transport.emit(MATCH_EVENTS.autoYield, autoYieldFrame(match.matchId, on));
+  match.autoYield = { turn, on };
   notify(match);
   return true;
 }

@@ -102,6 +102,7 @@ import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWith
 import {
 	fullControlEcho,
 	MATCH_EVENTS,
+	parseAutoYield,
 	parseClientEnvelope,
 	parseFullControl,
 	parseMatchRequest,
@@ -842,6 +843,28 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			const outcome = match.setFullControl(seat, parsed.value.on);
 			if (!outcome.ok) log({ evt: 'full-control-refused', participantId, matchId: match.id, seat, error: outcome.error });
+		});
+
+		// The opponent's-turn yield toggle, same shape as `forge:full-control`
+		// right above it — a seat may only set its own, never a payload's.
+		socket.on(MATCH_EVENTS.autoYield, (raw: unknown) => {
+			const parsed = parseAutoYield(raw);
+			if (!parsed.ok) {
+				log({ evt: 'auto-yield-malformed', participantId, errors: parsed.errors.slice(0, 3) });
+				return;
+			}
+			const match = matches.get(parsed.value.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined) {
+				log({ evt: 'auto-yield-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'auto-yield' });
+				return;
+			}
+			const outcome = match.setAutoYield(seat, parsed.value.on);
+			if (!outcome.ok) log({ evt: 'auto-yield-refused', participantId, matchId: match.id, seat, error: outcome.error });
 		});
 
 		/*

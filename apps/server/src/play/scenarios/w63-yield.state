@@ -1,0 +1,25 @@
+# Auto Yield's own proof. Seat 1 (ai, "bob" in the test's own names) has an
+# uncontested Main Phase 1 and TWO Lightning Bolts castable, one per
+# untapped Mountain: no creature on either battlefield, so the only legal
+# targets are the two players (`bolt-player.state`'s own claim). The second
+# Bolt/Mountain pair is what proves the override expires on its own turn
+# (`UNTAP` re-readies bob's second Mountain for his turn-3 main) rather than
+# needing a second press. Seat 0 (human, "alice") holds Counterspell and two
+# untapped Islands — enough to counter a Bolt with no "unless you pay" clause
+# in the way, the same shape `w46-b-counterspell.state` already uses for
+# Memnite. The point of the scenario is alice's own response window on bob's
+# turn: with auto-yield on, that window is never shown to her at all; without
+# it, on a LATER bob turn, it is.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Counterspell
+humanbattlefield=Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Lightning Bolt;Lightning Bolt
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

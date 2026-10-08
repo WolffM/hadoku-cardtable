@@ -417,6 +417,14 @@ export interface SeatProjector {
 	 * card counts as "not a land" and keeps the window open).
 	 */
 	ownBattlefieldLandIds(): ReadonlySet<number>;
+	/**
+	 * Forge's own turn counter (the Game object's `Turn`), or null when the
+	 * state does not know it yet — off a delta every seat already receives,
+	 * never off a prompt's own text, so a seat that has not acted yet this
+	 * turn still gets it right. Same construction as {@link stackTopActivator}:
+	 * a global fact off the table, so `who` is never consulted.
+	 */
+	turnNumber(): number | null;
 }
 
 export function createProjector(viewer: number | null = null): SeatProjector {
@@ -591,6 +599,10 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 				if (core !== null && core.includes('Land')) ids.add(id);
 			}
 			return ids;
+		},
+		turnNumber(): number | null {
+			const game = [...raw.values()].find((o) => o._type === TYPE.game);
+			return intOf(game, 'Turn');
 		},
 	};
 }

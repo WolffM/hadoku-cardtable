@@ -2915,6 +2915,98 @@ function phaseDelta(m: LiveMatch, name: string, playerTurn: number) {
   });
 }
 
+/** `PlayerTurn` (whose turn — `view.activePlayerId`) and `Turn` (`view.turn`) together, for the Auto Yield cases below. */
+function turnDelta(m: LiveMatch, playerTurn: number, turn: number) {
+  return parseServerFrame({
+    kind: 'notify',
+    method: 'applyDelta',
+    payload: {
+      packet: {
+        seq: m.view!.seq + 1,
+        checksum: 0,
+        checksumProperties: [],
+        newObjects: {},
+        objectDeltas: {
+          [String(deltaKey(WireType.Game, 1))]: {
+            _type: WireType.Game,
+            _id: 1,
+            PlayerTurn: { t: 'int', v: playerTurn },
+            Turn: { t: 'int', v: turn },
+          },
+        },
+        events: [],
+      },
+    },
+  });
+}
+
+/*
+ * The operator: *"when it's the opponents turn the 'End turn' button should
+ * turn to 'Auto Yield'… Auto Yield should only last for that turn."* Same
+ * testid, same slot — only the label, enablement and press change.
+ */
+describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s turn)', () => {
+  it('reads End Turn on the viewer’s own turn, even with no bar yet', async () => {
+    const { getByTestId } = await liveBoard();
+    const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
+    expect(button.textContent).toBe('End Turn');
+    expect(button.hasAttribute('data-yield')).toBe(false);
+  });
+
+  it('reads Auto Yield the instant the OTHER seat’s turn starts, pressable with no bar at all', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(turnDelta(m, them.id, m.view!.turn + 1));
+    await waitFor(() => expect(m.view!.activePlayerId).toBe(them.id));
+
+    const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
+    expect(button.textContent).toBe('Auto Yield');
+    expect(button.dataset.yield).toBe('off');
+    expect(button.disabled).toBe(false);
+  });
+
+  it('a press flips the label to Cancel Yield and sends forge:auto-yield, never forge:c2s', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(turnDelta(m, them.id, m.view!.turn + 1));
+    await waitFor(() => expect(m.view!.activePlayerId).toBe(them.id));
+
+    fireEvent.click(getByTestId('live-button-end-turn'));
+    const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
+    await waitFor(() => expect(button.textContent).toBe('Cancel Yield'));
+    expect(button.dataset.yield).toBe('on');
+    await waitFor(() => expect(s.received.some((r) => r.event === 'forge:auto-yield')).toBe(true));
+    expect(s.received.filter((r) => r.event === 'forge:auto-yield').map((r) => r.payload)).toEqual([
+      { matchId: s.matchId, on: true },
+    ]);
+    expect(s.clientFrames()).toEqual([]);
+
+    fireEvent.click(button);
+    await waitFor(() => expect(button.textContent).toBe('Auto Yield'));
+    expect(button.dataset.yield).toBe('off');
+  });
+
+  it('the turn moving back to the viewer restores End Turn, and never carries a highlight meant for it', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(turnDelta(m, them.id, m.view!.turn + 1));
+    await waitFor(() => expect(getByTestId('live-button-end-turn').textContent).toBe('Auto Yield'));
+    fireEvent.click(getByTestId('live-button-end-turn'));
+    await waitFor(() => expect(getByTestId('live-button-end-turn').textContent).toBe('Cancel Yield'));
+
+    s.send(turnDelta(m, me.id, m.view!.turn + 1));
+    await waitFor(() => expect(m.view!.activePlayerId).toBe(me.id));
+    const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
+    expect(button.textContent).toBe('End Turn');
+    expect(button.hasAttribute('data-yield')).toBe(false);
+    // Forge has shown nothing this turn yet, so End Turn itself is disabled —
+    // the slot reverted, it did not inherit the yield press as a highlight.
+    expect(button.disabled).toBe(true);
+    expect(button.hasAttribute('data-highlight')).toBe(false);
+  });
+});
+
 describe('R5 — End Turn is highlighted when there is nothing left to decide', () => {
   // The fixture is the viewer's own MAIN1 with an untapped Fire Urchin: attacking
   // is still to come there, so End Turn is not highlighted (attackersLeft). These

@@ -1985,6 +1985,125 @@ describe('hold-decide-forward', () => {
 		vi.advanceTimersByTime(150);
 		expect(vi.getTimerCount()).toBe(0);
 	});
+
+	/*
+	 * `turnFrame` is Forge's own Game-object `Turn`, off a delta — never off
+	 * this seat's own prompt text, which `auto.ts`'s `TURN_OWNER` reads for a
+	 * different fact and only when this seat IS the one prompted.
+	 */
+	describe('the auto-yield override, read ahead of autoPassReason', () => {
+		function turnFrame(turn: number) {
+			return {
+				kind: 'notify' as const,
+				method: 'applyDelta' as const,
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						// No `newObjects` entry: OPENING already created the Game object, and
+						// a replace there would clear every OTHER fact it carries.
+						newObjects: {},
+						objectDeltas: { [String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
+						events: [],
+					},
+				},
+			};
+		}
+		const actsSent = (h: Harness) => h.host.commands.filter((c) => c.t === 'act').length;
+		// Priority is "Seat 2" (this seat's own) while the TURN OWNER is "Seat
+		// 1" — not this seat's turn — with one item already on the stack.
+		const theirTurnResponseWindow = 'Priority: Seat 2\nTurn: 5 (Seat 1)\nPhase: Main phase, precombat\nStack: 1 card';
+
+		it('passes a priority window on the OTHER seat’s turn, a stack with their spell on it included, and the log names why', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+			expect(h.match.setAutoYield(SEAT1_ID, true)).toEqual({ ok: true });
+			const before = envelopesFor(h, SEAT1_ID).length;
+			const logsBefore = h.logs.length;
+			const actsBefore = actsSent(h);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+			expect(actsSent(h)).toBe(actsBefore + 1);
+			expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed')).toEqual([
+				{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'Main phase, precombat', why: 'auto-yield' },
+			]);
+		});
+
+		it('pressed while a window is already open: that window is passed at once, not on the next one', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+			// The window is open and LIVE on the seat's own wire before the toggle comes on.
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			expect(methodsSent(h, SEAT1_ID, before - 2)).toEqual(['showPromptMessage', 'updateButtons']);
+			const logsBefore = h.logs.length;
+			const actsBefore = actsSent(h);
+			expect(h.match.setAutoYield(SEAT1_ID, true)).toEqual({ ok: true });
+			expect(actsSent(h)).toBe(actsBefore + 1);
+			expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed')).toEqual([
+				{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'Main phase, precombat', why: 'auto-yield' },
+			]);
+			// And the already-live bar is corrected, the same disabled correction a window answered inside `decideWindow` gets.
+			const sent = envelopesFor(h, SEAT1_ID).slice(before);
+			expect(sent.map((e) => e.frame.method)).toEqual(['updateButtons']);
+			expect(sent[0]?.frame).toMatchObject({ enable1: false, enable2: false });
+		});
+
+		it('a turn change expires it with nothing run to clear it — the SAME window, one turn later, is kept', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+			h.match.setAutoYield(SEAT1_ID, true);
+			// The turn moves on before this window arrives — nothing here ran to
+			// notice it; `maybeAutoPass`'s own compare is what expires it.
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(6) });
+			const before = envelopesFor(h, SEAT1_ID).length;
+			const actsBefore = actsSent(h);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow.replace('Turn: 5', 'Turn: 6')) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			expect(actsSent(h)).toBe(actsBefore); // not auto-passed: it is kept, and asks
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
+		});
+
+		it('Cancel Yield (on: false) is read at once, same turn, with no new window needed', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+			h.match.setAutoYield(SEAT1_ID, true);
+			h.match.setAutoYield(SEAT1_ID, false);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
+		});
+
+		it('full control still wins: an escape-hatch seat is asked even with auto-yield on', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+			h.match.setFullControl(SEAT1_ID, true);
+			h.match.setAutoYield(SEAT1_ID, true);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
+		});
+	});
 });
 
 /**

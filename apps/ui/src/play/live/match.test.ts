@@ -32,6 +32,7 @@ import {
   payingMana,
   isBlockAssignment,
   ingest,
+  isAutoYieldOn,
   MAX_RESYNCS_WITHOUT_PROGRESS,
   nothingToDecide,
   attackersLeft,
@@ -39,6 +40,7 @@ import {
   pressButton,
   selectCard,
   selectPlayer,
+  setAutoYield,
   setFullControl,
   SAYS_KEPT,
   socketIoMatchTransport,
@@ -1401,6 +1403,49 @@ describe('the says, and full control', () => {
     ]);
     // It is a preference, not a frame: nothing of it crossed forge:c2s.
     expect(s.clientFrames()).toEqual([]);
+  });
+});
+
+describe('the auto-yield toggle (opponent’s-turn only, one turn)', () => {
+  it('sends its event only when the EFFECTIVE state changes, and a turn change expires it with nothing run to clear it', async () => {
+    const { s, m } = await fullGame();
+    const turn = m.view!.turn;
+    expect(isAutoYieldOn(m)).toBe(false);
+    expect(setAutoYield(m, false)).toBe(false); // already off: nothing crosses
+    expect(s.received.filter((r) => r.event === MATCH_EVENTS.autoYield)).toEqual([]);
+
+    expect(setAutoYield(m, true)).toBe(true);
+    expect(isAutoYieldOn(m)).toBe(true);
+    expect(setAutoYield(m, true)).toBe(false); // already on, same turn: nothing crosses
+
+    // The turn moves on: the SAME stored toggle now reads off, by the lazy
+    // compare alone — nothing here runs on the turn changing.
+    await sendAndApply(s, m, [stateDelta({ [GAME_KEY]: { _type: WireType.Game, _id: 1, Turn: { t: 'int', v: turn + 1 } } })]);
+    expect(isAutoYieldOn(m)).toBe(false);
+    // So pressing Auto Yield again, on the new turn, is a real change and crosses again.
+    expect(setAutoYield(m, true)).toBe(true);
+
+    await until('both auto-yield emits', () => s.received.filter((r) => r.event === MATCH_EVENTS.autoYield).length >= 2);
+    const seen = s.received.filter((r) => r.event === MATCH_EVENTS.autoYield);
+    expect(seen).toEqual([
+      { event: MATCH_EVENTS.autoYield, payload: { matchId: s.matchId, on: true } },
+      { event: MATCH_EVENTS.autoYield, payload: { matchId: s.matchId, on: true } },
+    ]);
+    // A preference, not a frame: nothing of it crossed forge:c2s.
+    expect(s.clientFrames()).toEqual([]);
+  });
+
+  it('Cancel Yield (on=false) sent mid-turn reads off at once, the same turn', async () => {
+    const { s, m } = await fullGame();
+    expect(setAutoYield(m, true)).toBe(true);
+    expect(isAutoYieldOn(m)).toBe(true);
+    expect(setAutoYield(m, false)).toBe(true);
+    expect(isAutoYieldOn(m)).toBe(false);
+    await until('both emits', () => s.received.filter((r) => r.event === MATCH_EVENTS.autoYield).length >= 2);
+    expect(s.received.filter((r) => r.event === MATCH_EVENTS.autoYield).map((r) => r.payload)).toEqual([
+      { matchId: s.matchId, on: true },
+      { matchId: s.matchId, on: false },
+    ]);
   });
 });
 

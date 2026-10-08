@@ -46,8 +46,14 @@ const FORGE_PACE_MS = 205;
 
 /* ── what a page shows ───────────────────────────────────────────────── */
 
-/** The control box's End Turn is pressable (wave 51: enabled only while Forge's second button is End Turn). */
-const endTurnOffered = (page: Page): Promise<boolean> => page.getByTestId('live-button-end-turn').isEnabled();
+/**
+ * The control box's End Turn is pressable (wave 51: enabled only while
+ * Forge's second button is End Turn) — AND it really is End Turn, not the
+ * Auto Yield repurposing of the same slot on the other seat's turn
+ * (`data-yield` is present only in that mode).
+ */
+const endTurnOffered = (page: Page): Promise<boolean> =>
+  page.getByTestId('live-button-end-turn').evaluate((el) => (el as HTMLButtonElement).disabled === false && !el.hasAttribute('data-yield'));
 
 interface PhaseEntry {
   t: number;

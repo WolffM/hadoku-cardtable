@@ -266,6 +266,12 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     socket.on(MATCH_EVENTS.stopPreference, (payload) => {
       server.received.push({ event: MATCH_EVENTS.stopPreference, payload });
     });
+    // Same shape as full control and stop-preference above — recorded, no
+    // ack, no state held here; the real handler folds it into
+    // `Match.setAutoYield`, this double only has to prove what was sent.
+    socket.on(MATCH_EVENTS.autoYield, (payload) => {
+      server.received.push({ event: MATCH_EVENTS.autoYield, payload });
+    });
     // Client telemetry: the real handler writes it to the log; this double records what was sent.
     socket.on(CLIENT_EVENT, (payload) => {
       server.received.push({ event: CLIENT_EVENT, payload });

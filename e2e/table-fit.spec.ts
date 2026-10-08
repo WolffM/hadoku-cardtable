@@ -351,8 +351,17 @@ function installSampler(): void {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
           // Wave 51: the same four buttons every frame, in their own words — *"keep the same 4 buttons in the control box at all times"*.
+          // The second slot reads End Turn on the viewer's own turn and Auto
+          // Yield/Cancel Yield on the other seat's — same testid, same place,
+          // so this sampler (installed on BOTH pages, across a whole real
+          // match) must accept all three, never pin one.
           const four = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
-          if (four !== 'live-button-next-phase=Next Phase live-button-end-turn=End Turn live-full-control=Full control live-concede=Concede') {
+          const endTurnLabels = ['End Turn', 'Auto Yield', 'Cancel Yield'];
+          const fourOk = endTurnLabels.some(
+            (label) =>
+              four === `live-button-next-phase=Next Phase live-button-end-turn=${label} live-full-control=Full control live-concede=Concede`,
+          );
+          if (!fourOk) {
             breach(`the control box is not its four buttons: ${four}`);
           }
           /*

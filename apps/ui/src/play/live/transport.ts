@@ -30,6 +30,9 @@
  *                    panel's *"always stop at end step"*. Client → server
  *                    only, same as full control's own no-ack shape; see
  *                    {@link StopPreferenceSchema}.
+ *   client → server  `forge:auto-yield`  `{ matchId, on }` — the Auto
+ *                    Yield / Cancel Yield toggle. Client → server only, no
+ *                    ack: see {@link AutoYieldSchema}.
  *   server → client  `forge:s2c`     `{ matchId, cursor, frame: ServerFrame }`
  *
  * `POST <base>/api/play/matches` starts a match; its body is lane A's, and
@@ -107,6 +110,12 @@ export const MATCH_EVENTS = {
    */
   stopPreference: 'forge:stop-preference',
   /**
+   * The opponent's-turn yield toggle. Client → server only, no ack: the
+   * override's own lifetime is one turn, so a reload simply draws the
+   * button off. See {@link AutoYieldSchema}.
+   */
+  autoYield: 'forge:auto-yield',
+  /**
    * Wave 29 §B's own event, not folded into {@link MatchSnapshotSchema}: that
    * schema is `.strict()` and mirrored byte for byte on the server
    * (`apps/server/src/play/transport.ts`), and widening it is a change to a
@@ -171,6 +180,21 @@ export type FullControlRequest = Output<typeof FullControlSchema>;
 /** The payload of a `forge:full-control` emit, parsed through its own schema. */
 export function fullControlFrame(matchId: string, on: boolean): FullControlRequest {
   return FullControlSchema.parse({ matchId, on });
+}
+
+/**
+ * `forge:auto-yield` — a preference of the seat, the same shape as
+ * `forge:full-control`'s own schema; nothing about the game crosses here.
+ */
+export const AutoYieldSchema = borrowed.emptyObject
+  .extend({ matchId: borrowed.nonEmptyString, on: borrowed.boolean })
+  .strict();
+
+export type AutoYieldRequest = Output<typeof AutoYieldSchema>;
+
+/** The payload of a `forge:auto-yield` emit, parsed through its own schema. */
+export function autoYieldFrame(matchId: string, on: boolean): AutoYieldRequest {
+  return AutoYieldSchema.parse({ matchId, on });
 }
 
 /**

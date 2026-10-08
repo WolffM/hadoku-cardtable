@@ -17,6 +17,7 @@
  *                    current state, sent to a socket that has just been
  *                    answered a snapshot. One event, one schema, both ways.
  *   client → server  `forge:stop-preference`  `{ matchId, type: 'stopPreference', stopAtEndStep }`
+ *   client → server  `forge:auto-yield`  `{ matchId, on }`, no ack
  *
  * ## The cursor, and the one place the contract's wording was sharpened
  *
@@ -81,6 +82,11 @@ export const MATCH_EVENTS = {
 	/** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */
 	fullControl: 'forge:full-control',
 	/**
+	 * The opponent's-turn yield toggle. Client → server only, same no-ack
+	 * shape as {@link StopPreferenceSchema}. See {@link AutoYieldSchema}.
+	 */
+	autoYield: 'forge:auto-yield',
+	/**
 	 * Wave 30 §B item 2/6: the one setting the operator asked for — *"i think by
 	 * default this should be off, but can be turned on in settings (always stop
 	 * at endstep)."* Client → server only; see {@link StopPreferenceSchema}.
@@ -144,6 +150,17 @@ export type FullControlRequest = Output<typeof FullControlSchema>;
 export function fullControlEcho(matchId: string, on: boolean): FullControlRequest {
 	return FullControlSchema.parse({ matchId, on });
 }
+
+/**
+ * `forge:auto-yield` — a preference of the seat, same shape as
+ * `forge:full-control`. Client → server only: the override's own lifetime
+ * is one turn, so a reload simply draws the button off, same as a turn that
+ * already moved on would.
+ */
+export const AutoYieldSchema = borrowed.emptyObject
+	.extend({ matchId: borrowed.nonEmptyString, on: borrowed.boolean })
+	.strict();
+export type AutoYieldRequest = Output<typeof AutoYieldSchema>;
 
 /**
  * `forge:stop-preference` — wave 30 §B item 6: *"a settings surface, holding
@@ -289,6 +306,10 @@ export function parseMatchRequest(raw: unknown): Parsed<MatchRequest> {
 
 export function parseFullControl(raw: unknown): Parsed<FullControlRequest> {
 	return fromZod(FullControlSchema.safeParse(raw));
+}
+
+export function parseAutoYield(raw: unknown): Parsed<AutoYieldRequest> {
+	return fromZod(AutoYieldSchema.safeParse(raw));
 }
 
 export function parseStopPreference(raw: unknown): Parsed<StopPreferenceRequest> {

@@ -178,6 +178,11 @@
  * refuses a disabled bar too, so a greyed button that is somehow pressed still
  * sends nothing.
  *
+ * On the OTHER seat's turn the End Turn slot is repurposed — Auto Yield /
+ * Cancel Yield, a standing preference (`setAutoYield`, `isAutoYieldOn`)
+ * rather than an answer to Forge's bar, pressable from the instant the other
+ * seat's turn starts. The server acts on it (`match.ts`'s `maybeAutoPass`).
+ *
  * **Concede and Settings are in it** (wave 24 §C.4, wave 30 item 7), BELOW Next
  * Phase and End Turn with Full control between them. Neither is an answer to Forge,
  * and keeping them out of reach of Forge's two is what stops a reach for one
@@ -274,6 +279,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  isAutoYieldOn,
   nothingToDecide,
   noteAutoAnswered,
   choosingMulligan,
@@ -284,6 +290,7 @@ import {
   selectCard,
   selectPlayer,
   sendStopPreference,
+  setAutoYield,
   setFullControl,
   subscribe,
   type LiveAsk,
@@ -1890,6 +1897,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * button that reads `End Turn`, gated on it being pressable at all.
    */
   const highlightEndTurn = endTurnEnabled && nothingToDecide(match);
+  /*
+   * On the other seat's turn the same slot reads Auto Yield / Cancel Yield.
+   * Pressable the instant that turn starts, before Forge has shown anything
+   * — gated on `whoseTurnNow` alone, never on `bar` or `askOpen`.
+   */
+  const yieldMode = whoseTurnNow === 'theirs';
+  const autoYieldOn = isAutoYieldOn(match);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
   /*
    * Item 6's persistence, and item 2/6's wire message.
@@ -2335,6 +2349,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
          * 'Next Phase' and 'End Turn' buttons when they are not relevant."* The
          * labels are ours and never change; every other answer to Forge's bar is
          * the decision pop-up below. `data-highlight` (R5) is End Turn's.
+         *
+         * The one exception: on the OTHER seat's turn the End Turn slot
+         * reads Auto Yield / Cancel Yield instead, same testid and place
+         * (`yieldMode`/`autoYieldOn`, above).
          */}
         <button
           type="button"
@@ -2349,11 +2367,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           type="button"
           className="live__end-turn"
           data-testid="live-button-end-turn"
-          data-highlight={highlightEndTurn ? '' : undefined}
-          disabled={!endTurnEnabled}
-          onClick={() => pressButton(match, 'cancel')}
+          data-highlight={!yieldMode && highlightEndTurn ? '' : undefined}
+          data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
+          disabled={yieldMode ? spectator : !endTurnEnabled}
+          onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : pressButton(match, 'cancel'))}
         >
-          End Turn
+          {yieldMode ? (autoYieldOn ? 'Cancel Yield' : 'Auto Yield') : 'End Turn'}
         </button>
         <button
           type="button"

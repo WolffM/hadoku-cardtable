@@ -40,20 +40,25 @@ const titled = makeTitled(forge);
 /** Screenshots, gitignored (`*.png`) and described in the README beside them. */
 const SHOTS = resolve(import.meta.dirname, '..', 'docs', 'planning', 'wave51-evidence', 'B');
 
-const FOUR = [
+/**
+ * The second slot reads `End Turn` on the viewer's OWN turn and `Auto Yield`
+ * on the other seat's. Every scenario here is alice's own turn throughout,
+ * so her page keeps the default and bob's page passes `'Auto Yield'`.
+ */
+const four = (endTurnLabel = 'End Turn'): string[] => [
   'live-button-next-phase=Next Phase',
-  'live-button-end-turn=End Turn',
+  `live-button-end-turn=${endTurnLabel}`,
   'live-full-control=Full control',
   'live-concede=Concede',
 ];
 
 /** The control box is its four buttons, in order, in their own words — never one of Forge's. */
-async function expectFour(page: Page, where: string): Promise<void> {
+async function expectFour(page: Page, where: string, endTurnLabel = 'End Turn'): Promise<void> {
   const buttons = await page
     .getByTestId('live-buttons')
     .locator('button')
     .evaluateAll((els) => els.map((b) => `${(b as HTMLElement).dataset.testid}=${b.textContent}`));
-  expect(buttons, `${where}: the four buttons`).toEqual(FOUR);
+  expect(buttons, `${where}: the four buttons`).toEqual(four(endTurnLabel));
 }
 
 const nextPhase = (page: Page): Locator => page.getByTestId('live-button-next-phase');
@@ -104,9 +109,11 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await expect(endTurn(page), 'and End Turn').toBeEnabled();
     await expect(decision(page), 'no pop-up for the empty-stack pass').toHaveCount(0);
     await expectFour(page, 'empty-stack priority');
-    await expectFour(bob.page, 'bob, waiting');
+    await expectFour(bob.page, 'bob, waiting', 'Auto Yield');
     await expect(nextPhase(bob.page), 'bob holds nothing: greyed').toBeDisabled();
-    await expect(endTurn(bob.page), 'bob: End Turn greyed, not absent').toBeDisabled();
+    // It is alice's turn, so bob's slot is Auto Yield, a standing
+    // preference rather than an answer to Forge's bar — pressable, not greyed.
+    await expect(endTurn(bob.page), 'bob: Auto Yield, pressable on alice’s turn').toBeEnabled();
 
     /* ── a target's Cancel is the pop-up's, and it backs out ──────────── */
     await clickHandCard(page, bolt);
@@ -180,7 +187,7 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await expect(bobLife(page), 'and it hit bob').toHaveText('17', { timeout: 15_000 });
     await expect(decision(page), 'resolved: the pop-up is gone').toHaveCount(0);
     await expectFour(page, 'after the bolt resolved');
-    await expectFour(bob.page, 'bob, after the bolt resolved');
+    await expectFour(bob.page, 'bob, after the bolt resolved', 'Auto Yield');
   } finally {
     await stack.stop();
   }
@@ -222,8 +229,13 @@ test(titled('attackers declared → the pop-up’s OK confirms them; the box kee
     // Let combat run out: whichever of Forge's button one either seat is shown, until the damage lands.
     const by = Date.now() + 45_000;
     while ((await bobLife(page).textContent()) !== '19' && Date.now() < by) {
-      for (const p of [page, bob.page]) {
-        await expectFour(p, 'through combat');
+      // This whole scenario is alice's own turn — her slot is End Turn,
+      // bob's is Auto Yield, throughout.
+      for (const [p, endTurnLabel] of [
+        [page, 'End Turn'],
+        [bob.page, 'Auto Yield'],
+      ] as const) {
+        await expectFour(p, 'through combat', endTurnLabel);
         if ((await enabledOk(p).count()) > 0) await clickOnce(p, await says(p), 'ok');
       }
       await page.waitForTimeout(100);
