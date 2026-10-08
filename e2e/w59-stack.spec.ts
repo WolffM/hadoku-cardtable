@@ -10,8 +10,7 @@
  *
  * ## Why full control, and only for alice, and only from the third cast on
  *
- * Measured directly (a throwaway jvm-only script, never committed — see
- * lane P's closing note): with full control off, once alice casts Remand
+ * Measured directly (a throwaway jvm-only script, never committed): with full control off, once alice casts Remand
  * neither seat has anything left to do (both hands and all lands are spent),
  * so the server's own auto-pass (`auto.ts`'s `decideStop`, `passOwnSpell` and
  * `passWhenNothingToDo`) drains BOTH players' priority and Forge resolves the
@@ -40,11 +39,6 @@
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`);
  * without one every test SKIPs and its title says why. Serves the prebuilt
  * `apps/ui/dist` — rebuild before running.
- *
- * **Can only pass once `origin/main`'s HEAD carries both S's `placed.ts` land
- * and W's wire land** — before that, `[data-placed-spell]` does not exist at
- * all. See lane P's closing note for the "ready for proof" state this was
- * left in if that had not happened yet.
  */
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
@@ -284,8 +278,8 @@ test(
 /**
  * Wave 59 §P item 2 — the chain-reaction measurement, against real Forge.
  * Independent of S and W: nothing here reads `[data-placed-spell]`, only
- * `[data-zone="stack"]`'s own `data-count` (unchanged by this wave), so this
- * ran — and was proven on a claw — before either of their lands existed.
+ * `[data-zone="stack"]`'s own `data-count`, which the placed-cards layer leaves
+ * as it was.
  *
  * Four independent Opt casts (alice, bob, alice, bob — an INSTANT, so each
  * can be cast in response to the one before it; see `scenarios/w59-keiga

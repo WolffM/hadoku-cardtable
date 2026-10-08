@@ -17,7 +17,7 @@
 # Each hand also carries two copies of Opt (ManaCost U, Instant, no target —
 # an INSTANT on purpose: a creature is sorcery-speed only and Forge refuses
 # to offer one while anything is on the stack, which a 0-cost-creature
-# version of this file learned the hard way, see lane P's closing note) —
+# version of this file learned the hard way) —
 # the chain-reaction measurement's own four-item stack (§P item 2): alice,
 # bob, alice, bob each cast one Opt in turn (nobody is ever left holding
 # priority for a reason other than Forge's own "the caster does not stop on
