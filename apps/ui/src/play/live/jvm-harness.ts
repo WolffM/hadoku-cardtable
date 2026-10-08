@@ -35,7 +35,7 @@
  */
 
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
-import { PRESENCE_EVENT } from '@hadoku/shared';
+import { ARRANGEMENT_EVENT, CLIENT_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
@@ -242,7 +242,8 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
          * real drag's `pointerup`/`pointercancel` (sent at once, outside the throttle) emitting
          * this mid-scenario is not "unexpected emit forge:presence".
          */
-        if (event === PRESENCE_EVENT) return;
+        // Presence, the placement sync and client telemetry are the seat's own side-channels: none is a Forge act.
+        if (event === PRESENCE_EVENT || event === ARRANGEMENT_EVENT || event === CLIENT_EVENT) return;
         if (event !== MATCH_EVENTS.clientToServer) throw new Error(`unexpected emit ${event}`);
         later(() => fromClient(seat, payload));
       },
