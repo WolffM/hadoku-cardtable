@@ -1922,23 +1922,22 @@ describe('drag to arrange (#10)', () => {
   it('`applyTheirArrangement` before the first render of a reloaded tab keeps the viewer’s own arrangement from sessionStorage (T10)', () => {
     // Forge run 37719372048 on main: a reload restored the viewer's rows from sessionStorage only when
     // nothing had written the store first; the opponent's replayed arrangement had.
-    const first = renderBoard(undefined, undefined, 'single');
+    const first = renderBoard();
     const them = first.view.players.find((p) => !p.isViewer)!.id;
-    const tierIds = (c: HTMLElement, id: number, tier: string) => [...c.querySelectorAll<HTMLElement>(`[data-testid="player"][data-player-id="${id}"] [data-zone="battlefield"] [data-tier="${tier}"] li.board-card`)].map((li) => Number(li.dataset.cardId));
-    const mine = tierIds(first.container, 0, 'back');
-    expect(mine.length).toBeGreaterThan(1);
-    const reversed = [...mine].reverse();
-    act(() => applyTheirArrangement(first.view, 0, { back: reversed.map((id) => [id]) }));
-    // (Writing under the viewer's own id is what a drop does; it stands in for one here and persists to sessionStorage.)
-    expect(tierIds(first.container, 0, 'back')).toEqual(reversed);
+    // The viewer tidies (a real drop: persisted to sessionStorage, as `survives a resync` proves).
+    drag(first.container, 25, { card: 8 });
+    expect(first.rowIds(0, 'lands')).toEqual([25, 8, 24, 6]);
+    // Their side is drawn as mirrored tiers whatever the layout: their rows are `back` / `front`.
+    const theirBack = (c: HTMLElement) => [...c.querySelectorAll<HTMLElement>(`[data-testid="player"][data-player-id="${them}"] [data-zone="battlefield"] [data-tier="back"] li.board-card`)].map((li) => Number(li.dataset.cardId));
+    const theirs = theirBack(first.container);
+    expect(theirs.length).toBeGreaterThan(1);
     first.unmount();
     forgetArrangements();
     // A reload: the store is empty; their replayed arrangement lands BEFORE the board's first render.
-    const theirs = tierIds(first.container, them, 'back');
     act(() => applyTheirArrangement(first.view, them, { back: [...theirs].reverse().map((id) => [id]) }));
-    const second = renderBoard(first.view, undefined, 'single');
-    expect(tierIds(second.container, 0, 'back'), 'the viewer’s own rows came back from sessionStorage').toEqual(reversed);
-    expect(tierIds(second.container, them, 'back'), 'and theirs are as replayed').toEqual([...theirs].reverse());
+    const second = renderBoard(first.view);
+    expect(second.rowIds(0, 'lands'), 'the viewer’s own rows came back from sessionStorage').toEqual([25, 8, 24, 6]);
+    expect(theirBack(second.container), 'and theirs are as replayed').toEqual([...theirs].reverse());
   });
 
   it('`applyTheirArrangement` draws the OTHER side in its owner’s piles, under their player id, touching nothing of the viewer’s', () => {
