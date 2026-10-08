@@ -114,17 +114,14 @@ test(
 
       await answerConfirm(secondToDecide.page, 'yes');
 
-      // Both have kept. Whoever chose Play holds priority at turn 1 — the
-      // game is properly under way now, so the OTHER seat still gets the
-      // same pop-up, now carrying the server's own verb-based sentence
-      // rather than the plain pregame one (the whole point — one shape,
-      // both uses).
-      await expect
-        .poll(
-          async () => (await waitingPop(alice).count()) + (await waitingPop(bob).count()),
-          { timeout: 30_000, message: 'exactly one seat now has the pop-up, waiting on the one holding priority at turn 1' },
-        )
-        .toBe(1);
+      // Both have kept. Whoever chose Play merely HOLDS priority at turn 1 — nobody is resolving
+      // anything, so NEITHER seat draws the pop-up. The operator, 2026-10-08: "'Waiting for Hadoku…'
+      // this shouldn't be showing at all times, that was not the intent. i wanted this to show when
+      // player is resolving an effect not simply when waiting on them."
+      const turnOf = (f: Friend) => f.page.getByTestId('live-turn-n').textContent().then((t) => Number(t ?? '0'));
+      await expect.poll(async () => Math.min(await turnOf(alice), await turnOf(bob)), { timeout: 30_000, message: 'the game is under way on both screens' }).toBeGreaterThan(0);
+      await alice.page.waitForTimeout(1500);
+      expect((await waitingPop(alice).count()) + (await waitingPop(bob).count()), 'a held priority window draws no pop-out on either seat').toBe(0);
     } finally {
       await stack.stop();
     }
