@@ -223,8 +223,24 @@ function marker(s: SeatClient): string {
 }
 
 /** Everything a stuck scenario needs to be diagnosed from, without another run. */
-function why(hands: readonly Hands[]): string {
-  return hands
+/**
+ * The server's last rows about asks, acts and the bridge — appended to a timeout
+ * so the next red says whether Forge ever answered the click. Three reds on
+ * 2026-10-08 (runs 37749032414-era, 37843949339, 37846230921: "the creature" /
+ * "Preordain to reach the stack") showed only the seat states: priority held
+ * at the seat's own main, the card still offered, no ask, nothing on the
+ * stack — the shape of both a dropped click and of the fork's net layer
+ * failing to encode the ability ask (ledger Incidents, the Signet row), and
+ * the states alone cannot tell them apart.
+ */
+function serverTail(log: readonly Record<string, unknown>[]): string {
+  const rows = log.filter((r) => /^(ask-|prompt-|bridge-|refused|act)/.test(String(r.evt ?? ''))).slice(-12);
+  return rows.map((r) => JSON.stringify({ ...r, t: undefined })).join('\n');
+}
+
+function why(hands: readonly Hands[], log: readonly Record<string, unknown>[] = []): string {
+  const tail = serverTail(log);
+  return (tail === '' ? '' : `server: ${tail}\n`) + hands
     .map((p) => {
       const live = p.seat.live;
       return JSON.stringify({
@@ -458,7 +474,7 @@ describe.skipIf(!available.ok)(title, () => {
       settle(hands);
       while (!done()) {
         if (Date.now() > deadline) {
-          throw new Error(`timed out waiting for ${label}\n${why(hands)}`);
+          throw new Error(`timed out waiting for ${label}\n${why(hands, h.serverLog)}`);
         }
         drive();
         await new Promise((r) => setTimeout(r, TICK_MS));
@@ -511,6 +527,13 @@ describe.skipIf(!available.ok)(title, () => {
     const onStack = () => (h.seats[0].live.view?.stack.length ?? 0) > 0 || zoneOf(a.seat.live, 'battlefield').some((c) => c.name === 'Merfolk of the Pearl Trident');
     const beforeTheCast = a.acts.length;
     click(a, spell.id, 'cast creature');
+    // A click the server replaced the input under (an ask opening, a stop
+    // passing) sends nothing, correctly — so while nothing is on the stack and
+    // nothing is asked, the click is repeated every ten seconds through
+    // `clickAgain` (a retry on record, never a refusal). A click Forge took
+    // and could not answer (the encode error) stays visible: the retries pile
+    // up in `acts` and the server's rows in the timeout message say so.
+    let lastClick = Date.now();
     await until(
       onStack,
       'the creature to reach the stack',
@@ -519,6 +542,10 @@ describe.skipIf(!available.ok)(title, () => {
         for (const p of hands) {
           const method = showing(p);
           if (method !== null) record.promptsWhileCasting.push(`seat ${p.seat.seat}: ${method}`);
+        }
+        if (!onStack() && showing(a) === null && Date.now() - lastClick > 10_000) {
+          clickAgain(a, spell.id, 'cast creature');
+          lastClick = Date.now();
         }
       },
     );
@@ -622,7 +649,7 @@ describe.skipIf(!available.ok)(title, () => {
       const deadline = Date.now() + ms;
       settle(two);
       while (!done()) {
-        if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}\n${why(two)}`);
+        if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}\n${why(two, p2.serverLog)}`);
         drive();
         await new Promise((r) => setTimeout(r, TICK_MS));
         settle(two);
@@ -648,14 +675,21 @@ describe.skipIf(!available.ok)(title, () => {
     await until2(() => atSteadyOwnMain(b), 'priority back at seat 0 (Preordain run)', 30_000, () => {});
     const pre = zoneOf(b.seat.live, 'hand').find((c) => c.name === 'Preordain')!;
     click(b, pre.id, 'cast Preordain');
+    const preOnStack = () => (b.seat.live.view?.stack.length ?? 0) > 0;
+    let lastPreClick = Date.now();
     await until2(
-      () => (b.seat.live.view?.stack.length ?? 0) > 0,
+      preOnStack,
       'Preordain to reach the stack',
       60_000,
       () => {
         for (const p of two) {
           const method = showing(p);
           if (method !== null) scry.promptsWhileCasting.push(`seat ${p.seat.seat}: ${method}`);
+        }
+        // The same retry as the creature's, for the same reason.
+        if (!preOnStack() && showing(b) === null && Date.now() - lastPreClick > 10_000) {
+          clickAgain(b, pre.id, 'cast Preordain');
+          lastPreClick = Date.now();
         }
       },
     );
