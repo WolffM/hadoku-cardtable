@@ -443,6 +443,20 @@ item you have checked comes back, it is listed here with both dates and builds.
 
 ## How the tracker keeps this
 
+**The gate since 2026-10-08 23:40Z (the operator: "a recorded video of the thing working must be shown to
+me before it passes"; earlier that night: "most things i ask for i ask for them 4-5 times before it
+actually gets fixed"):**
+- A reported item becomes a two-browser spec of the operator's EXACT sequence (pointer steps, both screens
+  recorded) that is RED on main before any fix; the fix lands only with it green, in the same land.
+- The spec's claw run is dispatched with `-f video=true`; the run keeps `alice.webm`/`bob.webm` of the
+  sequence (`forge-e2e-videos-<attempt>-<shard>`). The tracker publishes both videos on a review page
+  and writes the row as `landed <sha> — video: <link>`.
+- Only the operator writes ✅ ("shipped" is theirs). A second report on a landed row is a REGRESSION row
+  naming the commit that caused it (AE18, AE19 are the first two).
+- No mechanism is named in a brief without a measurement; a lane's first commit measures.
+- One owner per reported path across waves (presence / placement / arrows: wave 64's J), serial.
+
+
 - **At every wave landing:** each shipped item moves to `shipped wNN` with the commit
   and the one-line "check it by", and the "next game" list at the top is rewritten
   from what just landed.
