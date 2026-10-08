@@ -424,15 +424,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
     if (waiting !== null && back !== null) {
-      // The card their back stands in for has arrived: `Board` consumed the reservation when it drew
-      // the card in the gap (the board's own signal, whichever subscriber ran first), and the
-      // stand-in simply goes. On the stack first, the back turns over in place (committed — the
-      // face is public now) and keeps waiting for the battlefield.
+      // The card their back stands in for has arrived: `Board` consumes the reservation when it
+      // draws the card in the gap, and the stand-in simply goes. That happens in React's commit of
+      // this very change, which may be AFTER this listener runs — so the reservation is read on the
+      // next frame, past the commit. On the stack first, the back turns over in place (committed —
+      // the face is public now) and keeps waiting for the battlefield.
       const theirs = host.theirPlayerId?.() ?? null;
-      if (theirs !== null && pendingPlacementFor(theirs) === null) {
-        stopWaiting();
-        return;
-      }
+      const standIn = back;
+      requestAnimationFrame(() => {
+        if (waiting === null || back !== standIn) return;
+        if (theirs !== null && pendingPlacementFor(theirs) === null) stopWaiting();
+      });
       if (fresh.length === 0) return;
       const id = fresh[0]!;
       const tile = canvas.querySelector(`.stack__item:has([data-card-id="w${id}"]) .card`);

@@ -238,7 +238,7 @@ describe('sending', () => {
 });
 
 describe('receiving', () => {
-  it('a release that names a column reserves it for THEIR player, keeps the back waiting in it, and takes the back down when a card of theirs reaches their battlefield', () => {
+  it('a release that names a column reserves it for THEIR player, keeps the back waiting in it, and takes the back down when a card of theirs reaches their battlefield', async () => {
     // The operator, 2026-10-08, from the opponent's seat: the card flashed at the row's end first, and
     // the back lingered on the cursor. The column travels with the release; the card's arrival is
     // drawn in the reserved gap; the back goes then, not on a timer.
@@ -277,6 +277,8 @@ describe('receiving', () => {
     theirs = [77];
     forgetPendingPlacements();
     wake!();
+    // Read past React's commit: the next frame.
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(canvas.querySelector('.presence__back'), 'gone the moment the card is there').toBeNull();
     expect(canvas.querySelector('.presence__handoff'), 'and no second flight: it is already where it was placed').toBeNull();
     handle.dispose();
