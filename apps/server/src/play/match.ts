@@ -632,6 +632,7 @@ function buttonsShape(frame: ButtonsFrame): WindowShape | null {
 	return null;
 }
 
+
 /** One decided window, as {@link Match.recordWindow} keeps it for the `match-frames` log event. */
 interface FrameLogEntry {
 	t: number;
@@ -731,6 +732,16 @@ export class Match {
 	 * Match.setSeatAvatar} already follows.
 	 */
 	private lastWaitingOnKey = '';
+	/**
+	 * `Match.waitingOnFor`'s own cache: `foldFrames` is linear in a seat's
+	 * WHOLE history (`trackPayment`'s `sayToTable` callback and `noteTriggers`
+	 * already pay this once each), and `waitingOnFor` can run on every ask,
+	 * selection and answer-bar open or close over a long game. Re-folding a
+	 * seat whose history has not grown since the last call wastes exactly the
+	 * work this cache skips; keyed by seat, invalidated the instant that
+	 * seat's `history` grows past the cached length.
+	 */
+	private readonly foldedCache = new Map<number, { len: number; state: ReadonlyMap<string, WireObj> }>();
 
 	constructor(
 		id: string,
@@ -1009,6 +1020,24 @@ export class Match {
 	 * `getChoices`'s ("choose cards") — both real wire methods already in the
 	 * client's table, not a label invented for this.
 	 *
+	 * **Last, {@link SeatState.wireButtonsLive} — ordinary priority included.**
+	 * The coin toss's Play/Draw and the opening Keep/Mulligan answer through
+	 * `updateButtons` alone, with an `act`, never a `reply`: no ask, no
+	 * selection, no payment. So does an ORDINARY priority window with
+	 * something castable — `getAbilityToPlay`'s own ask is the thing a seat
+	 * answers there, but this server auto-passes it the instant nothing
+	 * interesting is on offer, which is the common case and leaves no
+	 * `OpenAsk` behind at all. `wireButtonsLive` is the one fact that already
+	 * tracks "the browser's current bar has a live button" correctly through
+	 * every auto-pass correction (`Match.send`'s own note), which raw
+	 * `s.buttons.enable1` does not: `decideWindow` sends a DISABLED bar to the
+	 * browser when it auto-answers a window, but never corrects `s.buttons`
+	 * itself, so reading that field directly would read the stale, still-
+	 * enabled original. Checked last because it is the broadest signal —
+	 * true for the two pregame bars above AND for ordinary mid-game priority
+	 * — and every more specific branch above already returned first when it
+	 * applies.
+	 *
 	 * The host card comes off `s.prompt`'s own `card` — `showPromptMessage`'s
 	 * third argument, which Forge sends fresh with an ask or a payment prompt
 	 * alike (`InputPayMana.updateMessage`, `InputConfirm.showMessage`,
@@ -1037,15 +1066,26 @@ export class Match {
 						: 'getChoices'
 					: s.asks.size > 0
 						? [...s.asks.values()][0]?.method ?? null
-						: null;
+						: s.wireButtonsLive
+							? 'confirm'
+							: null;
 		if (method === null) return null;
 		const other = this.seats.find((o) => o.seat !== s.seat);
-		const otherState = other === undefined ? null : foldFrames(other.history as unknown as StateFrame[]);
+		const otherState = other === undefined ? null : this.foldedStateOf(other);
 		const prompt = s.prompt;
 		const promptCardId = prompt !== null && prompt.method === 'showPromptMessage' ? prompt.card?.id ?? null : null;
 		const cardId = promptCardId ?? (otherState === null ? null : stackTopHostCardId(otherState));
 		if (cardId === null || otherState === null) return { method, hostCard: null };
 		return { method, hostCard: cardName(otherState, cardId) };
+	}
+
+	/** {@link Match.foldedCache}'s own reader — see that field's note. */
+	private foldedStateOf(s: SeatState): ReadonlyMap<string, WireObj> {
+		const cached = this.foldedCache.get(s.seat);
+		if (cached !== undefined && cached.len === s.history.length) return cached.state;
+		const state = foldFrames(s.history as unknown as StateFrame[]);
+		this.foldedCache.set(s.seat, { len: s.history.length, state });
+		return state;
 	}
 
 	/**
@@ -1530,6 +1570,10 @@ export class Match {
 			s.buttons = frame;
 			this.maybeDeclineYieldSuggestion(s);
 			this.holdPromptWindow(s, frame);
+			// An answer bar (the coin toss, the opening Keep/Mulligan, any other
+			// card-scripted binary question) carries no ask, no selection and no
+			// payment — this is the only place its own open/close is ever seen.
+			this.checkWaitingOn();
 			return;
 		} else if (frame.method === 'setWeaklySelectable') {
 			// A set — even an empty one — is Forge's answer to "what can this seat
@@ -1681,6 +1725,11 @@ export class Match {
 		}
 		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why });
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
+		// The one place a HELD buttons-first or prompt-first pair is finally
+		// sent (or disabled) — `wireButtonsLive` only reaches its real, final
+		// value once this runs, so this is where the other seat's own fact
+		// has to be re-checked too.
+		this.checkWaitingOn();
 	}
 
 	/** A held prompt pushed out by a newer frame before its bar came: forwarded undecided, never lost. */
@@ -1709,6 +1758,7 @@ export class Match {
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		this.deps.log({ evt: 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why: 'unpaired' });
 		this.recordWindow(s, 'forwarded', kind, 'unpaired', prompt, buttons);
+		this.checkWaitingOn();
 	}
 
 	/** One row of the ring — see {@link FrameLogEntry}. */
@@ -1954,6 +2004,10 @@ export class Match {
 		const disabled = { ...buttons, enable1: false, enable2: false, focus1: false };
 		s.buttons = disabled;
 		this.send(s, disabled);
+		// An answer bar (the coin toss, the opening Keep/Mulligan, …) is
+		// disabled here the instant the seat presses it — the one path that
+		// changes `s.buttons` outside `onFrame`'s own tail.
+		this.checkWaitingOn();
 	}
 
 	/**

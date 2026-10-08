@@ -608,9 +608,11 @@ describe('forge:seats: item 4’s server half', () => {
 		// first event is the one that shows BOTH seats claimed.
 		const event = bob.seatsEvents[0] as { matchId: string; seats: unknown[] };
 		expect(event.matchId).toBe(matchId);
+		// Seat 1's own coin-toss bar is already open at this exact event (the
+		// seed fixes who is asked first) — a real, current fact, not a stale one.
 		expect(event.seats).toEqual([
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer' },
-			{ seat: 1, claimed: true, playerId: 1 },
+			{ seat: 1, claimed: true, playerId: 1, waitingOn: { method: 'confirm', hostCard: null } },
 		]);
 		// ABSENT, not `avatarId: undefined` and not `avatarId: null` — the same
 		// bug `D-avatar-field.md` §3 names: an empty/null value survives a

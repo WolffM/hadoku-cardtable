@@ -217,9 +217,12 @@ describe("item 4: a seat's identity", () => {
 		const { match, host } = avatarHarness(['wanderer', 'herald']);
 		match.claim(ALICE);
 		host.push(...OPENING);
+		// Seat 1's own coin-toss Play/Draw bar is the last thing `OPENING` sent
+		// it — genuinely still open, since nothing in this replay presses it —
+		// so `waitingOn` correctly carries that, unaffected by either claim.
 		expect(match.seatIdentities()).toEqual([
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer' },
-			{ seat: 1, claimed: false, playerId: 1, avatarId: 'herald' },
+			{ seat: 1, claimed: false, playerId: 1, avatarId: 'herald', waitingOn: { method: 'confirm', hostCard: null } },
 		]);
 	});
 
@@ -300,15 +303,19 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		return { match, host: hosts[0] as ReplayHost, sent, logs, told };
 	}
 
-	it('is absent for both seats before anything is asked', () => {
+	it('is absent for both seats before anything has been sent', () => {
 		const h = waitingHarness();
-		h.host.push(...OPENING);
 		for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('waitingOn');
 	});
 
 	it("appears on the ASKING seat's own entry — never the other seat's — the instant the ask opens, and clears the instant it is answered", () => {
 		const h = waitingHarness();
-		h.host.push(...OPENING, PROBE_ASK);
+		h.host.push(...OPENING);
+		// Seat 1's own coin-toss bar, pressed — same as a real browser's click —
+		// so what follows is checked against a seat that has settled past it,
+		// not one `OPENING`'s own replay happens to leave sitting on it.
+		h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		h.host.push(PROBE_ASK);
 		expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
 		expect(h.match.seatIdentities()[1]).not.toHaveProperty('waitingOn');
 		expect(h.told.length).toBeGreaterThan(0);
@@ -453,6 +460,79 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			openSelection(h, 2, 2, [82, 83, 84, 85, 86]);
 			expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
 			h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'clearSelectables' } });
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+		});
+	});
+
+	/**
+	 * The coin toss (Play/Draw), the opening Keep/Mulligan, and an ORDINARY
+	 * priority window all answer through `updateButtons` alone — no
+	 * `OpenAsk`, no selection, no payment, and (for an ordinary window with
+	 * something castable) often no stored ask either, once this server's own
+	 * auto-pass has had a chance to decide it. `SeatState.wireButtonsLive`
+	 * (`Match.send`'s own note) is the one fact that already tracks "this
+	 * seat's own bar is currently live" correctly through every auto-pass
+	 * correction, so it is the catch-all underneath the three specific
+	 * branches above. Confirmed against a real two-browser run: without the
+	 * two pregame bars counting, the OTHER seat's own pregame pop-up never
+	 * appeared while bob was choosing play-or-draw or deciding his mulligan;
+	 * without ORDINARY priority also counting, the OTHER seat's small corner
+	 * line never appeared once the game was properly under way either — the
+	 * fact this whole feature replaced used to read ANY enabled button one,
+	 * priority included, off the viewer's OWN bar.
+	 */
+	describe('an answer bar (coin toss, opening Keep/Mulligan, or ordinary priority) counts too', () => {
+		function barFrame(seat: number, label1: string, label2: string, enable1: boolean, enable2: boolean) {
+			return {
+				t: 'frame' as const,
+				seat,
+				frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: seat }, label1, label2, enable1, enable2, focus1: enable1 },
+			};
+		}
+
+		it('the coin toss’s own Play/Draw bar', () => {
+			const h = waitingHarness();
+			h.host.push(barFrame(0, 'Play', 'Draw', true, true));
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
+		});
+
+		it('the opening hand’s own Keep/Mulligan bar', () => {
+			const h = waitingHarness();
+			h.host.push(barFrame(0, 'Keep', 'Mulligan', true, true));
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
+		});
+
+		it('an ordinary priority bar (OK / End Turn) counts too — this is what the viewer’s own bar used to tell the OTHER seat directly', () => {
+			const h = waitingHarness();
+			h.host.push(barFrame(0, 'OK', 'End Turn', true, true));
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
+		});
+
+		it('a disabled bar of any shape carries nothing — Forge has not actually left this seat a live button', () => {
+			const h = waitingHarness();
+			h.host.push(barFrame(0, 'OK', 'End Turn', false, false));
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+		});
+
+		it('a real payment reports `pay`, not the generic bar fallback, even though its own Auto bar is also live', () => {
+			const h = waitingHarness();
+			h.host.push(
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {1}', card: null } },
+				barFrame(0, 'Auto', 'Cancel', true, true),
+			);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'pay', hostCard: null } });
+		});
+
+		it('clears the instant the seat presses, the same as a real browser click', () => {
+			const h = waitingHarness();
+			// `fromClient` only acts once the match is running — both seats open.
+			h.host.push(
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } },
+				{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [1] } } },
+			);
+			h.host.push(barFrame(0, 'Play', 'Draw', true, true));
+			expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
+			expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }))).toEqual({ ok: true });
 			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
 		});
 	});
