@@ -1919,6 +1919,28 @@ describe('drag to arrange (#10)', () => {
     expect(pendingPlacementFor(them.id), 'and nothing is left waiting').toBeNull();
   });
 
+  it('`applyTheirArrangement` before the first render of a reloaded tab keeps the viewer’s own arrangement from sessionStorage (T10)', () => {
+    // Forge run 37719372048 on main: a reload restored the viewer's rows from sessionStorage only when
+    // nothing had written the store first; the opponent's replayed arrangement had.
+    const first = renderBoard(undefined, undefined, 'single');
+    const them = first.view.players.find((p) => !p.isViewer)!.id;
+    const tierIds = (c: HTMLElement, id: number, tier: string) => [...c.querySelectorAll<HTMLElement>(`[data-testid="player"][data-player-id="${id}"] [data-zone="battlefield"] [data-tier="${tier}"] li.board-card`)].map((li) => Number(li.dataset.cardId));
+    const mine = tierIds(first.container, 0, 'back');
+    expect(mine.length).toBeGreaterThan(1);
+    const reversed = [...mine].reverse();
+    act(() => applyTheirArrangement(first.view, 0, { back: reversed.map((id) => [id]) }));
+    // (Writing under the viewer's own id is what a drop does; it stands in for one here and persists to sessionStorage.)
+    expect(tierIds(first.container, 0, 'back')).toEqual(reversed);
+    first.unmount();
+    forgetArrangements();
+    // A reload: the store is empty; their replayed arrangement lands BEFORE the board's first render.
+    const theirs = tierIds(first.container, them, 'back');
+    act(() => applyTheirArrangement(first.view, them, { back: [...theirs].reverse().map((id) => [id]) }));
+    const second = renderBoard(first.view, undefined, 'single');
+    expect(tierIds(second.container, 0, 'back'), 'the viewer’s own rows came back from sessionStorage').toEqual(reversed);
+    expect(tierIds(second.container, them, 'back'), 'and theirs are as replayed').toEqual([...theirs].reverse());
+  });
+
   it('`applyTheirArrangement` draws the OTHER side in its owner’s piles, under their player id, touching nothing of the viewer’s', () => {
     const { view, zone } = renderBoard(undefined, undefined, 'single');
     const them = view.players.find((p) => !p.isViewer)!.id;

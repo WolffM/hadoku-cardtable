@@ -818,7 +818,12 @@ export function applyTheirArrangement(view: BoardView, playerId: number, rows: R
   const key = matchKey(view);
   const prefix = `${playerId}:`;
   const next: Record<string, readonly (readonly number[])[]> = {};
-  for (const [k, v] of Object.entries(ARRANGED.get(key) ?? NO_ARRANGEMENT)) if (!k.startsWith(prefix) || k === `${prefix}hand`) next[k] = v;
+  // On the viewer's HYDRATED arrangement: a replay of theirs can arrive before this tab's board has
+  // read its own rows back from `sessionStorage` (a reload), and a store written first would be
+  // taken for the hydrated one — the viewer's own tidying lost (T10 on main, Forge run 37719372048).
+  const viewer = view.players.find((p) => p.isViewer);
+  const base = viewer === undefined ? (ARRANGED.get(key) ?? NO_ARRANGEMENT) : arrangementFor(key, viewer.id);
+  for (const [k, v] of Object.entries(base)) if (!k.startsWith(prefix) || k === `${prefix}hand`) next[k] = v;
   for (const [slot, piles] of Object.entries(rows)) if (slot !== 'hand') next[`${prefix}${slot}`] = piles;
   ARRANGED.set(key, next);
   for (const wake of MOUNTED_BOARDS) wake();
