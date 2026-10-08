@@ -57,7 +57,8 @@ test(titled('the coin toss lands on the winner’s face on BOTH screens, the sam
     await expect(waitingPop(loser.page), `${loser.name}: no "Waiting for…" while the coin is up`).toHaveCount(0);
     const name = await coin(loser.page).locator('.coin-toss__name').textContent();
     console.log(`[cointoss] ${loser.name} sees the coin landed on "${name}"`);
-    expect(name, 'the coin carries the winner’s name').toBe(winner.name);
+    // The board's display name ("e2e-alice") carries the friend's short name.
+    expect(name, 'the coin carries the winner’s name').toContain(winner.name);
     // The flip settles.
     await expect(coin(loser.page), 'the coin lands').not.toHaveAttribute('data-flipping', '', { timeout: 5_000 });
 

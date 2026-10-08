@@ -631,9 +631,11 @@ describe('forge:seats: item 4’s server half', () => {
 		expect(event.matchId).toBe(matchId);
 		// Seat 1's own coin-toss bar is already open at this exact event (the
 		// seed fixes who is asked first) — a real, current fact, not a stale one.
+		// Seat 1's live Play/Draw bar is also the coin toss (AE17): both rows carry it.
+		const coinToss = { winner: 1, at: expect.any(Number) as number };
 		expect(event.seats).toEqual([
-			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer' },
-			{ seat: 1, claimed: true, playerId: 1, waitingOn: { method: 'confirm', hostCard: null } },
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer', coinToss },
+			{ seat: 1, claimed: true, playerId: 1, waitingOn: { method: 'confirm', hostCard: null }, coinToss },
 		]);
 		// ABSENT, not `avatarId: undefined` and not `avatarId: null` — the same
 		// bug `D-avatar-field.md` §3 names: an empty/null value survives a

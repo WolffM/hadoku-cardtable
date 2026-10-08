@@ -73,11 +73,16 @@ test(
       // the SAME poll window the winner's own Play/Draw question is open,
       // the loser already has the decision-area pop-up.
       await expect(playOrDraw(winner), `${winner.name}: the Play/Draw question itself is up`).toBeVisible();
-      await expect(waitingPop(loser), `${loser.name}: the decision-area pop-up is up, same instant`).toBeVisible();
-      const loserPopupText = (await waitingPop(loser).textContent()) ?? '';
-      // "for the one who lost they get the waiting prompt" — named, not a placeholder.
-      expect(loserPopupText, `${loser.name}'s pop-up names ${winner.name}, not a generic placeholder`).toContain(winner.name);
-      // The winner's own screen shows no pop-up at all — it is their own move.
+      // AE17 (2026-10-08, the operator's third ask): for the COIN TOSS the loser's decision-area pop-up
+      // is the coin itself, landed on the winner's face and name (`w62-cointoss.spec.ts` proves the
+      // flip on both screens) — never the "Waiting for {name}…" sentence. The sentence returns for
+      // the mulligan below.
+      const coin = (f: Friend) => f.page.getByTestId('coin-toss');
+      await expect(coin(loser), `${loser.name}: the coin is up in the decision area, same instant`).toBeVisible();
+      const loserCoinName = (await coin(loser).locator('.coin-toss__name').textContent()) ?? '';
+      expect(loserCoinName, `${loser.name}'s coin names ${winner.name}, not a generic placeholder`).toContain(winner.name);
+      await expect(waitingPop(loser), `${loser.name}: no sentence while the coin is up`).toHaveCount(0);
+      // The winner's own screen shows no waiting pop-up at all — it is their own move (the coin sits beside their question).
       await expect(waitingPop(winner), `${winner.name}: it is their own move — no pop-up`).toHaveCount(0);
 
       await playOrDraw(winner).click();

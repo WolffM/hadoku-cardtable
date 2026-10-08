@@ -220,9 +220,11 @@ describe("item 4: a seat's identity", () => {
 		// Seat 1's own coin-toss Play/Draw bar is the last thing `OPENING` sent
 		// it — genuinely still open, since nothing in this replay presses it —
 		// so `waitingOn` correctly carries that, unaffected by either claim.
+		// …and the coin toss that bar IS (AE17) rides on both rows, the same object.
+		const coinToss = { winner: 1, at: expect.any(Number) as number };
 		expect(match.seatIdentities()).toEqual([
-			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer' },
-			{ seat: 1, claimed: false, playerId: 1, avatarId: 'herald', waitingOn: { method: 'confirm', hostCard: null } },
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer', coinToss },
+			{ seat: 1, claimed: false, playerId: 1, avatarId: 'herald', waitingOn: { method: 'confirm', hostCard: null }, coinToss },
 		]);
 	});
 
