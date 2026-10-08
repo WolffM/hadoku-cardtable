@@ -17,5 +17,14 @@ export default defineConfig({
     include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'forge/**', '.claude/**'],
     passWithNoTests: true,
+    // On a claw, `check` shares the node with three forge-e2e shards, forge-jvm
+    // and every wave's proof dispatches; a unit file that takes 60 s here took
+    // 231 s there, and two frame-timing cases reddened the DEPLOY GATE twice on
+    // d460e2d (2026-10-08) while 120/120 green locally. The budget under CI is
+    // generous because a unit test that is slow is not wrong; locally the
+    // defaults stay, so a hang is still caught where it is written.
+    testTimeout: process.env.CI ? 30_000 : 5_000,
+    hookTimeout: process.env.CI ? 30_000 : 10_000,
+    setupFiles: ['./apps/ui/src/test-setup.ts'],
   },
 });
