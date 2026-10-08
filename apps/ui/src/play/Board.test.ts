@@ -316,12 +316,12 @@ describe('zones', () => {
     // Mountain 87, Mountain 78, Vulshok War Boar 99.
     expect(tapped).toHaveLength(3);
     expect(field.textContent, 'no card on the board says "tapped"').not.toContain('tapped');
-    // And the turn is real: the stylesheet turns anything tapped or attacking.
+    // And the turn is real: the stylesheet turns anything tapped, pending-tapped or attacking.
     expect(
-      /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
+      /\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
         withoutComments(CARD_CSS),
       ),
-      'the turn is on the tapped/attacking rule',
+      'the turn is on the tapped/pending/attacking rule',
     ).toBe(true);
   });
 
@@ -650,9 +650,9 @@ describe('BoardInteraction', () => {
   const picks = [me.battlefield[1]!.id, me.hand![2]!.id, them.battlefield.at(-1)!.id, me.graveyard[0]!.id];
 
   it('a tapped card is centred in the row, not hung from its top: the turned face steps down half the height difference (2026-10-08)', () => {
-    expect(declarationInCss(CARD_CSS, ".board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) > .board-card__face", 'margin-top')).toBe(
-      'calc((680 / 488 - 488 / 680) / 2 * 100%)',
-    );
+    expect(
+      declarationInCss(CARD_CSS, ".board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face", 'margin-top'),
+    ).toBe('calc((680 / 488 - 488 / 680) / 2 * 100%)');
   });
 
   it('with no interaction, nothing Forge offers on the board is a button', () => {
@@ -1450,7 +1450,7 @@ describe('no rotated text (operator, 2026-09-26)', () => {
     expect(inCards).toEqual(['rotate(']);
     const rotates = /^\s*transform: translate\(-50%, -50%\) rotate\(90deg\);$/m;
     expect(rotates.test(CARD_CSS), 'the one rotation is the tapped card’s quarter turn').toBe(true);
-    const turned = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
+    const turned = /\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
     expect(turned.test(withoutComments(CARD_CSS)), 'and it is on the turned card’s own rule').toBe(true);
   });
 
@@ -3391,7 +3391,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(card(container).getAttribute('data-attacking')).toBe('true');
     expect(card(container).hasAttribute('data-tapped'), 'and Forge’s own tapped is untouched').toBe(false);
     // One rule turns either, so a card that is both is turned once.
-    const rule = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{([^}]*)\}/.exec(
+    const rule = /\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{([^}]*)\}/.exec(
       withoutComments(CARD_CSS),
     );
     expect(rule, 'the turn is one rule for both').not.toBeNull();
@@ -3403,10 +3403,10 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(card(container).getAttribute('data-attacking'), 'still attacking, for everything that reads it').toBe('true');
     expect(card(container).getAttribute('data-vigilant')).toBe('true');
     expect(renderBoard(withState({ attacking: true, tapped: false, keywords: ['Flying'] })).container.querySelector('[data-vigilant]')).toBeNull();
-    // Every rule that turns a card excludes a vigilant attacker; a TAPPED one still turns, vigilance or not.
+    // Every rule that turns a card excludes a vigilant attacker; a TAPPED (or pending-tapped) one still turns, vigilance or not.
     const turning = [...withoutComments(CARD_CSS).matchAll(/([^{}]*)\{[^{}]*(?:rotate\(90deg\)|aspect-ratio: 680 \/ 488)[^{}]*\}/g)].map((m) => m[1]!.trim());
     expect(turning.length).toBeGreaterThan(0);
-    for (const selector of turning) expect(selector).toContain(':is([data-tapped], [data-attacking]:not([data-vigilant]))');
+    for (const selector of turning) expect(selector).toContain(':is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant]))');
   });
 
   /**
@@ -4229,7 +4229,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
   it('a tapped base turns its own face only: a card piled behind it keeps its own data-tapped (and nobody else’s)', () => {
     // The operator, 2026-10-07: "when an untapped card is put behind a tapped card, it displays as tapped."
     const css = withoutComments(CARD_CSS);
-    const turning = [...css.matchAll(/\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\)([^{]*)\{/g)].map((m) => m[1]!.trim());
+    const turning = [...css.matchAll(/\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\)([^{]*)\{/g)].map((m) => m[1]!.trim());
     expect(turning, 'both turning rules exist').toHaveLength(2);
     for (const tail of turning) expect(tail, `the card’s OWN face, by child combinator: ${tail}`).toMatch(/^> \.board-card__face/);
   });

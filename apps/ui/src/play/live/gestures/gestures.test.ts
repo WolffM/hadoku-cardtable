@@ -2617,6 +2617,29 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // gesture's notify, and a card that becomes its own pile is a new element: the old one was hidden
     // and flown to, the new one painted at once.
     const { s, m, canvas, card, arrive } = await play(() => true);
+
+    /*
+     * `install.ts`'s own comment above `landingFrame = requestAnimationFrame(...)` is the guarantee
+     * this test proves: "the next animation frame is after [Board's] commit" — true in a real browser,
+     * where a layout effect always commits before the next paint. A TEST has no such ordering: a REAL
+     * `requestAnimationFrame` (jsdom's own, timer-based) can fire during the `await waitFor` below, before
+     * this test ever reaches `old.replaceWith(fresh)` — observed on CI, twice, under load. Holding every
+     * rAF the window schedules between the arrival and the re-key, then flushing them BY HAND once the
+     * re-key has actually happened, reproduces the real browser's ordering deterministically instead of
+     * racing it.
+     */
+    let nextFrameId = 1;
+    const heldFrames: { id: number; cb: FrameRequestCallback }[] = [];
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      const id = nextFrameId++;
+      heldFrames.push({ id, cb });
+      return id;
+    });
+    const cafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id: number) => {
+      const at = heldFrames.findIndex((f) => f.id === id);
+      if (at !== -1) heldFrames.splice(at, 1);
+    });
+
     arrive();
     await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
     const old = onMyBattlefield(canvas, card)!;
@@ -2625,7 +2648,13 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const fresh = old.cloneNode(true) as HTMLElement;
     fresh.getBoundingClientRect = () => ({ left: 600, top: 500, right: 640, bottom: 556, width: 40, height: 56, x: 600, y: 500, toJSON: () => ({}) }) as DOMRect;
     old.replaceWith(fresh);
-    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+
+    rafSpy.mockRestore();
+    cafSpy.mockRestore();
+    // The frame(s) held since `arrive()` — `install.ts`'s own `landingFrame` among them — run now,
+    // in the order they were requested, against the ALREADY re-keyed DOM.
+    for (const { cb } of heldFrames.splice(0)) cb(performance.now());
+
     expect(fresh.hasAttribute('data-cast-landing'), 'the element the card keeps is the one hidden for the flight').toBe(true);
     expect(old.hasAttribute('data-cast-landing'), 'and the one React dropped is let go').toBe(false);
     const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
