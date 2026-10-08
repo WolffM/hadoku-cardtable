@@ -214,7 +214,7 @@ test(
       // played 160 — the shared reader matched a `.card__name` that was not the card's own.
       const handNames = await alice.page
         .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
-        .evaluateAll((els) => els.map((e) => `${e.tagName.toLowerCase()}#${e.getAttribute('data-board-card')}=[${[...e.querySelectorAll('.card__name')].map((n) => n.textContent?.trim()).join(' | ')}]`));
+        .evaluateAll((els) => els.map((e) => `${e.tagName.toLowerCase()}#${e.getAttribute('data-board-card')}=[${Array.from(e.querySelectorAll('.card__name')).map((n) => n.textContent?.trim()).join(' | ')}]`));
       console.log('[w59-hand]', handNames.join(' ; '));
       // The id of the `<li>` whose OWN face names Keiga (`:scope >`), not the first `.card__name` under it.
       const keigaCardId = await alice.page
