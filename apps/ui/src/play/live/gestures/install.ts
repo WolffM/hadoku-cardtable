@@ -52,6 +52,14 @@
  * sent, if Forge opens a selection or asks anything that is not about the land
  * in flight, and in any case after `TAP_SWEEP_MS` without progress.
  *
+ * Wave 62 §S, AE5: the SEND stays one at a time — Forge's own loop above is
+ * unchanged — but the DRAWN state no longer waits on it. Every boxed land
+ * gets `./commit.ts`'s `data-tapped-pending` at the release, all of them at
+ * once (`card.css`'s tapped selector draws it the same as a real
+ * `data-tapped`); `pumpTaps` drops the mark off a land the moment its real
+ * `Tapped` arrives, and `endTapSweep` drops it off whatever the sweep never
+ * reached.
+ *
  * ## Nothing here decides legality
  *
  * Every send goes through `./commit.ts` into `../match.ts`'s `selectCard` /
@@ -225,7 +233,7 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   parkedGhost,
   updateDropCues,
 } from './cast.ts';
-import { commitDrag, commitMarquee, landsInBox, rectOf, type Rect } from './commit.ts';
+import { clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
   commitHandReorder,
@@ -1007,7 +1015,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
     releaseParked(p, false);
   }
 
+  /**
+   * The sweep is over, however it ended: every land still in it — queued, or
+   * the one just sent — had its optimistic `data-tapped-pending` cleared.
+   * Wave 62 §S, AE5: a land the sweep never reaches is cleared here, exactly
+   * as the brief asks.
+   */
   function endTapSweep(): void {
+    for (const id of tapQueue) clearTappedPending(canvas, id);
+    if (tapSent !== null) clearTappedPending(canvas, tapSent);
     tapQueue = [];
     tapSent = null;
     if (tapTimer !== null) clearTimeout(tapTimer);
@@ -1037,12 +1053,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const sent = mine.find((c) => c.id === tapSent);
       // Still untapped on the board: Forge has not answered that tap yet.
       if (sent !== undefined && !sent.tapped) return;
+      // Forge's own `data-tapped` now carries it: the optimistic mark has done its job.
+      clearTappedPending(canvas, tapSent);
       tapSent = null;
     }
     while (tapQueue.length > 0) {
       const next = tapQueue[0]!;
       const land = mine.find((c) => c.id === next);
       if (land === undefined || land.tapped) {
+        clearTappedPending(canvas, next);
         tapQueue.shift();
         continue;
       }
@@ -1383,6 +1402,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
       } else {
         endTapSweep();
         tapQueue = landsInBox(match, box, canvas);
+        // AE5: every boxed land is drawn tapped AT ONCE — Forge still gets them
+        // one `selectCard` at a time, below, exactly as before.
+        markTappedPending(canvas, tapQueue);
         tapTimer = setTimeout(endTapSweep, TAP_SWEEP_MS);
         pumpTaps();
       }

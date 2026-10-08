@@ -1,0 +1,22 @@
+# Wave 62 §S, AE4. Preordain ({U} instant, "Scry 2. Draw a card.") — seat
+# 0 holds it and one untapped Island, an uncontested turn-1 Main Phase 1.
+#
+# Measured against this exact jar (702b207e): casting Preordain — and
+# Serum Visions before it — opens Forge's `order` ask (`OrderPrompt.tsx`'s
+# dual list, title "Select cards to be put on the bottom of your library"),
+# never `manipulateCardList`. `docs/planning/wave62-evidence/S/scry.md` has
+# the full measurement. `e2e/w62-scry.spec.ts` drives this scenario's real
+# `order` ask.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Preordain
+humanbattlefield=Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -16,49 +16,74 @@
  *
  * The operator mulliganed, was asked for a card back on the bottom, and *the
  * cards did not answer to a click* — the only way out was Forge's own Auto.
- * The tile was `draggable` with two ↑/↓ nudges beside it and **no click
+ * The tile was `draggable` with two up/down nudges beside it and **no click
  * handler at all**, so the obvious gesture — click the card you want gone —
  * did nothing, and for a one-card ask the reorder model is the wrong shape
  * entirely. So the tile is now a `<label>` over a hidden checkbox, the same
  * "the tick is the border" idiom every other prompt in this directory uses
  * (`ChoicePrompts.tsx`, `prompts.css`):
  *
- *   - The ask offers exactly ONE destination — a card back to the bottom and
- *     nowhere else — so **one click on the card puts it there** and the answer
+ *   - The ask offers exactly ONE destination - a card back to the bottom and
+ *     nowhere else - so **one click on the card puts it there** and the answer
  *     is sendable. No hunting, no drag, no Auto.
  *   - The ask offers BOTH ends, and then a click cannot say which was meant.
  *     It does not guess: the card is ARMED, both destinations go live, and a
  *     click on the one you want places it there. Two clicks, no ambiguity,
  *     nothing chosen by a number.
  *   - A card that has been placed is TICKED, and clicking it again takes it
- *     back to where the ask had it — relative to whatever else has moved
+ *     back to where the ask had it - relative to whatever else has moved
  *     since. That is the "says which are chosen and lets them be un-chosen"
  *     half: the cards you picked are the marked ones, and un-picking is the
  *     same gesture again.
  *
- * Drag is untouched and is still how several cards are ORDERED, which a click
- * cannot express. The up/down nudges stay as the keyboard and edge-case path.
- * All four paths change the same state, and the tick means one precise thing:
- * *a click, or a drop on a destination, put this card at that destination*. Any
- * other rearrangement of that card (a nudge, a drop between two tiles) is an
- * ordering edit, not a destination, and takes the tick off — so the mark can
- * never claim something the pile does not show.
+ * The up/down nudges stay as the keyboard and edge-case path for ordering
+ * SEVERAL cards, which a click cannot express. All paths change the same
+ * state, and the tick means one precise thing: a click, or a drop on a
+ * destination, put this card at that destination. Any other rearrangement of
+ * that card (a nudge, a drop between two tiles) is an ordering edit, not a
+ * destination, and takes the tick off - so the mark can never claim something
+ * the pile does not show.
  *
- * An arrangement Forge would refuse still can't be sent: `rules.ts`
- * `manipulateProblems` (`ListCardArea.validIndex`) keeps OK disabled until it
- * is legal.
+ * ## Wave 62 S - the lift is the board's, not HTML5's
+ *
+ * The operator, 2026-10-08: "dragging cards for scrying is a bit
+ * inconsistent. can we us the same phantom card and placement logic we use for
+ * putting cards on the board?" Native `draggable`/`onDrag*` drew the browser's
+ * own ghost (platform-dependent, no slop, no "which end is it over" short of
+ * `dragover`) - a second drag system beside the board's own. A press on a
+ * movable row now starts the SAME pointer-event lift the board gives a lifted
+ * hand card - `./scry-drag.ts`'s `usePressDragLift`, the ONE copy of that
+ * gesture `OrderPrompt.tsx`'s dual list also uses, built directly on
+ * `../live/gestures/cast.ts`'s exported functions. Past `DRAG_SLOP_PX` the row
+ * follows the pointer, pinned to the viewer's own battlefield card width
+ * exactly as a lifted hand card is; a release over
+ * `manipulate-top`/`manipulate-bottom` commits `place`, over another row
+ * commits `dropBefore` (unchanged), anywhere else floats the row home with no
+ * change - the same three endings `install.ts`'s `resolveLift` gives a cast.
+ * A press that never passes the slop is still the plain click the checkbox
+ * above answers.
+ *
+ * And the operator, same note: "when cards have been selected to be put on
+ * bottom and we show the up/down arrow for reordering let's display those
+ * up/down arrows on top of the card rather than in their own row. that makes
+ * it look a bit more compact." The nudges are drawn in `.prompt__card-order`,
+ * pinned over the tile's own top-right corner - `OrderPrompt.tsx`'s own
+ * placed-card nudges now use the identical class; neither file draws
+ * `prompt__row-actions` any more, which is why that CSS is gone (see
+ * `prompts.css`).
  */
 
-import { useState, type DragEvent } from 'react';
+import { useState } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
 import { PromptShell, promptTileFor } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
 import { manipulateProblems, moveItem } from './rules.ts';
+import { rowIdUnder, testIdUnder, usePressDragLift } from './scry-drag.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
 
-/** Which drop zone a drag is over, for the highlight the layout owes the drag. */
+/** Which drop zone the lift is over, for the highlight the layout owes it. */
 type Zone = 'top' | 'bottom';
 
 /** The ends this ask allows a card to be put at, top first — the drawn order. */
@@ -69,9 +94,15 @@ function destinations(ask: AskOf<'manipulateCardList'>): Zone[] {
   return zones;
 }
 
+const ZONE_TESTIDS = ['manipulate-top', 'manipulate-bottom'] as const;
+/** Which drop zone, if either, a point in the gesture is over. */
+function zoneUnder(target: EventTarget | null): Zone | null {
+  const testid = testIdUnder(target, ZONE_TESTIDS);
+  return testid === null ? null : testid === 'manipulate-top' ? 'top' : 'bottom';
+}
+
 export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<'manipulateCardList'>) {
   const [cards, setCards] = useState(() => [...ask.cards]);
-  const [dragging, setDragging] = useState<number | null>(null);
   const [over, setOver] = useState<Zone | null>(null);
   /** The cards a click (or a drop on a destination) put at a destination. */
   const [placed, setPlaced] = useState<number[]>([]);
@@ -90,13 +121,9 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     onAnswer(checkedReply('manipulateCardList', cards));
   };
 
-  // Moves are by CARD ID, never by an index captured when the drag began: the
-  // pile below can have moved since (a second drag, a nudge), and a stale
+  // Moves are by CARD ID, never by an index captured when the gesture began: the
+  // pile below can have moved since (a second lift, a nudge), and a stale
   // index would reorder the wrong card.
-  const endDrag = () => {
-    setDragging(null);
-    setOver(null);
-  };
   /** Move one card, and drop any claim that it is sitting at a destination. */
   const moveTo = (id: number, position: number) => {
     setCards((pile) => {
@@ -105,7 +132,6 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     });
     setPlaced((chosen) => chosen.filter((x) => x !== id));
     setArmed(null);
-    endDrag();
   };
   /** Drop `id` just before the tile that is currently at `before`. */
   const dropBefore = (id: number, before: number) => {
@@ -116,7 +142,6 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     });
     setPlaced((chosen) => chosen.filter((x) => x !== id));
     setArmed(null);
-    endDrag();
   };
   /** Put `id` at one end of the pile, and say so with the tick. */
   const place = (id: number, which: Zone) => {
@@ -126,7 +151,6 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     });
     setPlaced((chosen) => (chosen.includes(id) ? chosen : [...chosen, id]));
     setArmed(null);
-    endDrag();
   };
   /**
    * Take `id` back where the ask had it. Not to its old index — the pile has
@@ -157,6 +181,28 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     setArmed((was) => (was === id ? null : id));
   };
 
+  const lift = usePressDragLift({
+    canLift: (id) => movable.has(id),
+    onMove: (_id, target) => setOver(zoneUnder(target)),
+    onDrop: (id, target) => {
+      setOver(null);
+      const zone = zoneUnder(target);
+      if (zone !== null) {
+        place(id, zone);
+        return true;
+      }
+      const overId = rowIdUnder(target);
+      if (overId !== null && overId !== id) {
+        const before = cards.findIndex((c) => c.id === overId);
+        if (before !== -1) {
+          dropBefore(id, before);
+          return true;
+        }
+      }
+      return false;
+    },
+  });
+
   const zone = (which: Zone, label: string) => (
     <div
       className="prompt__dropzone"
@@ -166,15 +212,6 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
       onClick={() => {
         if (armed !== null) place(armed, which);
       }}
-      onDragOver={(e: DragEvent) => {
-        e.preventDefault();
-        setOver(which);
-      }}
-      onDragLeave={() => setOver((was) => (was === which ? null : was))}
-      onDrop={(e: DragEvent) => {
-        e.preventDefault();
-        if (dragging !== null) place(dragging, which);
-      }}
     >
       {label}
     </div>
@@ -183,7 +220,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
   return (
     <PromptShell method="manipulateCardList" title={ask.title} problems={problems} onSubmit={submit}>
       {ends.includes('top') && zone('top', 'Top of library')}
-      <ol className="prompt__cards" data-testid="manipulate-list">
+      <ol className="prompt__cards" data-testid="manipulate-list" onClickCapture={lift.onListClickCapture}>
         {cards.map((card, i) => {
           const canMove = movable.has(card.id);
           // No end offered at all is an ask with nowhere to put anything. The
@@ -197,18 +234,9 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
               key={card.id}
               data-card-id={card.id}
               data-movable={canMove || undefined}
-              data-dragging={dragging === card.id || undefined}
+              data-dragging={lift.liftedId === card.id || undefined}
               data-armed={armed === card.id || undefined}
-              draggable={canMove || undefined}
-              onDragStart={() => setDragging(card.id)}
-              onDragEnd={endDrag}
-              onDragOver={(e: DragEvent) => {
-                if (dragging !== null && dragging !== card.id) e.preventDefault();
-              }}
-              onDrop={(e: DragEvent) => {
-                e.preventDefault();
-                if (dragging !== null && dragging !== card.id) dropBefore(dragging, i);
-              }}
+              onPointerDown={canMove ? lift.onRowPointerDown(card.id) : undefined}
             >
               {clickable ? (
                 <label>
@@ -225,7 +253,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
                 tile
               )}
               {canMove && (
-                <span className="prompt__row-actions">
+                <span className="prompt__card-order">
                   <button
                     type="button"
                     aria-label={`move ${name} up`}

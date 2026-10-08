@@ -7,7 +7,7 @@
  * so no decision taken here can put an id on the wire that Forge did not name.
  */
 import { afterMarked, attackAssignment, boardInteraction, isBlockAssignment, isMarked, landsToTap, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
-import { cardElements, targetUnder } from './targets.ts';
+import { cardBox, cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 
 /** Everything a release can mean. */
@@ -155,6 +155,28 @@ export function landsInBox(match: LiveMatch, rect: Rect, root: ParentNode): numb
     if (tappable.has(id) && overlaps(rect, el.getBoundingClientRect())) hits.push(id);
   }
   return hits;
+}
+
+/**
+ * Wave 62 §S, AE5. The operator, 2026-10-08: *"when drawing a box to tap
+ * lands, can we have them all tap simultaneously rather than one at a time?"*
+ * Forge still takes one `selectCard` at a time (`./install.ts`'s `pumpTaps`,
+ * unchanged) — this is the DRAWN state only, an optimistic attribute every
+ * boxed land gets at the release, before any of them is confirmed.
+ * `card.css`'s tapped selector reads it the same as `data-tapped` (that one
+ * line is card.css's own — not this lane's file to edit; see the wave 62
+ * evidence note for the exact change, unapplied here).
+ */
+export const TAPPED_PENDING_ATTR = 'data-tapped-pending';
+
+/** Mark every id's own board element pending-tapped, all at once — the box's release, before Forge confirms any of them. */
+export function markTappedPending(root: ParentNode, ids: readonly number[]): void {
+  for (const id of ids) cardBox(root, id)?.setAttribute(TAPPED_PENDING_ATTR, '');
+}
+
+/** Drop the pending mark off one id: Forge confirmed it (its own `data-tapped` now carries it) or the sweep gave up on it. */
+export function clearTappedPending(root: ParentNode, id: number): void {
+  cardBox(root, id)?.removeAttribute(TAPPED_PENDING_ATTR);
 }
 
 /** This seat's own creatures Forge says are attacking — its `Attacking` property, off the view. */

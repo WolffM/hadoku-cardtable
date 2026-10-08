@@ -61,6 +61,7 @@ import {
 import { onSpellMoved } from '../placed.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
 import { FLOAT_BACK_MS, needsTarget } from './cast.ts';
+import { TAPPED_PENDING_ATTR } from './commit.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import type { GestureHandle } from './types.ts';
@@ -1248,6 +1249,24 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     expect(sent(s)[1]).toEqual(['selectCard', lands[1]]);
   });
 
+  /*
+   * Wave 62 §S, AE5. The operator, 2026-10-08: "when drawing a box to tap
+   * lands, can we have them all tap simultaneously rather than one at a
+   * time?" The SEND stays one at a time (the test above) — this is the DRAWN
+   * state, which no longer waits on it.
+   */
+  it('the release draws every boxed land tapped at once, before Forge has confirmed any of them', async () => {
+    const { s, canvas, lands, sweep } = await landsOffered();
+    sweep(700, 300);
+    // Only the first land has gone out on the wire…
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', lands[0]]]);
+    // …but every land the box touched is already drawn tapped.
+    for (const id of lands) {
+      expect(cardEl(canvas, id!).hasAttribute(TAPPED_PENDING_ATTR), `land ${id} is drawn tapped-pending at the release`).toBe(true);
+    }
+  });
+
   it('only lands: an offered creature inside the box is not activated, and a land outside it is not tapped', async () => {
     const { s, lands, other, sweep } = await landsOffered();
     // A box that covers the first land and the creature below it, and stops short of the second land.
@@ -1289,7 +1308,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   });
 
   it('a question from Forge ends the sweep: nothing more is sent', async () => {
-    const { s, m, lands, sweep } = await landsOffered();
+    const { s, m, canvas, lands, sweep } = await landsOffered();
     sweep(700, 300);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     s.send(offerWithdrawn());
@@ -1299,6 +1318,8 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     for (const f of notify([prompt('Priority'), actionable([lands[1]!]), okBar()])) s.send(f);
     await new Promise((r) => setTimeout(r, 120));
     expect(sent(s), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
+    // AE5: the land the sweep never reached is no longer drawn pending once the sweep ends.
+    expect(cardEl(canvas, lands[1]!).hasAttribute(TAPPED_PENDING_ATTR)).toBe(false);
   });
 
   it('with no land of this seat’s to tap, a press on the table starts no box', async () => {

@@ -193,6 +193,15 @@
 
 .prompt__list,
 .prompt__amounts {
+  /*
+   * A minimum height even with no rows (wave 62 §S): `OrderPrompt.tsx`'s own
+   * two lists are both legal drop targets EMPTY — everything placed, or
+   * nothing yet — and a collapsed `<ul>`/`<ol>` with no rows paints nothing
+   * for a real pointer to land on, so a release over "the whole list" could
+   * never be hit-tested at all. The same reason `.prompt__dropzone` already
+   * has one.
+   */
+  min-height: 2.4rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -203,6 +212,7 @@
 
 .prompt__list > li,
 .prompt__amount {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -211,10 +221,6 @@
   background: var(--bg-card);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
-}
-
-.prompt__list > li[draggable] {
-  cursor: grab;
 }
 
 .prompt__list > li[data-dragging] {
@@ -237,6 +243,8 @@
 .prompt__cards {
   --card-w: 7rem;
 
+  /* A minimum height even with no tiles — see `.prompt__list`'s own rule, same reason. */
+  min-height: 2.4rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -246,6 +254,7 @@
 }
 
 .prompt__cards > li {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -257,15 +266,25 @@
   border-radius: var(--radius);
 }
 
+/*
+ * The press-drag lift (wave 62 §S, AE4): `../live/gestures/gestures.css`'s
+ * `[data-cast-lift]` rule already draws `position: fixed` and follows the
+ * pointer for ANY element carrying the attribute — that part needs no CSS of
+ * this file's own. What a board card has and a prompt tile does not is a
+ * width that reads `--card-w` while lifted (`.board-card[data-cast-lift=
+ * 'lifted']`, `card.css`); neither `ManipulateCardListPrompt.tsx`'s rows nor
+ * `OrderPrompt.tsx`'s are a `.board-card`, so both get the same rule here,
+ * scoped to this file's own grid.
+ */
+.prompt__cards > li[data-cast-lift='lifted'] {
+  width: var(--card-w);
+}
+
 /* A tile keeps a card's proportion whether or not it has art — the rule
  * `.board-card .card` applies on the board (`card.css`), same intent. */
 .prompt__cards .card {
   aspect-ratio: 488 / 680;
   height: auto;
-}
-
-.prompt__cards > li[draggable] {
-  cursor: grab;
 }
 
 .prompt__cards > li[data-dragging] {
@@ -409,6 +428,44 @@
   cursor: pointer;
 }
 
+/*
+ * ↑/↓ drawn ON a row's own tile, top-right (wave 62 §S, AE4 — the operator,
+ * 2026-10-08: *"when cards have been selected to be put on bottom and we show
+ * the up/down arrow for reordering let's display those up/down arrows on top
+ * of the card rather than in their own row. that makes it look a bit more
+ * compact."*). Shared by `ManipulateCardListPrompt.tsx`'s pile and
+ * `OrderPrompt.tsx`'s placed list — `prompt__row-actions` is drawn by neither
+ * any more and is gone (it lived beside `.prompt__stepper`, above).
+ */
+.prompt__card-order {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prompt__card-order button {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.prompt__card-order button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 
 .prompt__item,
 .prompt__amount-label {
@@ -429,8 +486,7 @@
   color: var(--ink-faint);
 }
 
-.prompt__stepper,
-.prompt__row-actions {
+.prompt__stepper {
   display: inline-flex;
   gap: 4px;
   align-items: center;

@@ -22,6 +22,7 @@
 import { expect, test } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
+import { messages } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf, centre as centreOf, onTopPoint, pointerDrag, type Box } from './play/w32.ts';
@@ -318,6 +319,44 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
     await page.mouse.move(to.x, to.y, { steps: 10 });
     await expect(page.locator('[data-testid="marquee"]'), 'the box is drawn while it is held').toHaveCount(1);
     await page.mouse.up();
+
+    /*
+     * AE5 — the operator, 2026-10-08: "when drawing a box to tap lands, can
+     * we have them all tap simultaneously rather than one at a time?" Forge
+     * still takes one `selectCard` at a time (below): this is the DRAWN
+     * state, an optimistic `data-tapped-pending` every boxed land gets at
+     * the release, before any of them is confirmed — read together with the
+     * real `data-tapped` once Forge answers, per the wave's own contract.
+     */
+    const tappedOrPending = (id: string) =>
+      page.evaluate((cid) => {
+        const el = document.querySelector(`li.board-card[data-card-id="${cid}"]`);
+        return el !== null && (el.getAttribute('data-tapped') === 'true' || el.hasAttribute('data-tapped-pending'));
+      }, id);
+    for (const id of lands.slice(0, 4)) {
+      await expect.poll(() => tappedOrPending(id), { message: `land ${id} is drawn tapped (really or optimistically) within one frame of the release`, timeout: 1_000 }).toBe(true);
+    }
+    // Not only the attribute: `card.css`'s own `data-tapped-pending` selector draws the SAME
+    // quarter turn `data-tapped` does — read the computed transform, the way the piled-card test
+    // above reads it, so the visual turn is proven, not just the state that is supposed to cause it.
+    const turnedNow = (id: string) =>
+      page.evaluate((cid) => {
+        const face = document.querySelector(`li.board-card[data-card-id="${cid}"] > .board-card__face > .card`);
+        if (face === null) return false;
+        const t = getComputedStyle(face).transform;
+        if (t === 'none') return false;
+        const m = /matrix\(([^)]+)\)/.exec(t);
+        if (m === null) return false;
+        const [ma, , , md] = m[1]!.split(',').map(Number);
+        return Math.abs(ma!) < 0.01 && Math.abs(md!) < 0.01;
+      }, id);
+    for (const id of lands.slice(0, 4)) {
+      expect(await turnedNow(id), `land ${id} is drawn visually turned (quarter rotation) at the same moment, not only flagged`).toBe(true);
+    }
+    // And the fourth act had not yet reached the wire when all four were already drawn tapped.
+    const selectCardActs = () =>
+      messages(alice).filter((m) => m.kind === 'c2s' && typeof m.msg === 'object' && m.msg !== null && (m.msg as { method?: string }).method === 'selectCard').length;
+    expect(selectCardActs(), 'not every boxed land’s own selectCard has reached the wire yet').toBeLessThan(4);
 
     for (const id of lands.slice(0, 4)) await expect(card(id), `land ${id} is tapped`).toHaveAttribute('data-tapped', 'true', { timeout: 20_000 });
     // Long enough for a fifth tap to have landed if the sweep had run on.

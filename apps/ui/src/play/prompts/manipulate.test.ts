@@ -15,11 +15,23 @@
  * asserted ref by ref. `clicks`, throughout, is a click on the CARD — the
  * `.card` panel the seat actually points at, inside the tile's label — not on
  * some control beside it, because the control beside it was the bug.
+ *
+ * Wave 62 §S: ordering by several cards is now a PRESS-DRAG lift — the same
+ * gesture the board gives a lifted hand card (`../live/gestures/cast.ts`),
+ * not HTML5 `draggable`/`onDrag*`. `dragTo` below fires exactly the pointer
+ * events `../live/gestures/gestures.test.ts` fires for the board's own lift:
+ * a press, one move far enough past the slop and onto the release target (so
+ * the same event both starts the lift and reports what it is over), and a
+ * release there. The ↑/↓ nudges moved onto the card's own tile
+ * (`prompt__card-order`); `prompt__row-actions` is `OrderPrompt.tsx`'s now,
+ * not drawn here at all.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, within } from '@testing-library/react';
+import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 
+import { CAST_LIFT_ATTR, FLOAT_BACK_MS } from '../live/gestures/cast.ts';
+import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 import { askFor } from './fixtures.ts';
 import { expectWireReply, mountPrompt } from './testing.ts';
 
@@ -27,6 +39,9 @@ afterEach(cleanup);
 
 /** `{ kind: 'card', id }` per id — the wire's own `CardRef`s, in order. */
 const refs = (...ids: number[]) => ids.map((id) => ({ kind: 'card' as const, id }));
+
+/** Far enough past `DRAG_SLOP_PX` that a single move both starts the lift and reports what it is over. */
+const PAST_SLOP = DRAG_SLOP_PX + 20;
 
 function mount(overrides: Partial<ReturnType<typeof askFor<'manipulateCardList'>>> = {}) {
   const utils = mountPrompt('manipulateCardList', { ...askFor('manipulateCardList'), ...overrides });
@@ -38,7 +53,20 @@ function mount(overrides: Partial<ReturnType<typeof askFor<'manipulateCardList'>
   const clickCard = (id: number) => fireEvent.click(tile(id).querySelector<HTMLElement>('.card')!);
   /** Is this card ticked as placed at a destination? */
   const ticked = (id: number) => tile(id).querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked;
-  return { ...utils, list, order, press, tile, clickCard, ticked };
+  /**
+   * Lift `id` by a press-drag past the slop, releasing over `target` — a row's
+   * own tile, a drop zone, or the list itself for "nowhere this gesture
+   * answers". One move is enough: it both crosses `DRAG_SLOP_PX` (so the lift
+   * starts) and lands on `target` (so the release's hit-test reads it), the
+   * same way a real drag's last move before `pointerUp` would.
+   */
+  const dragTo = (id: number, target: Element) => {
+    const card = tile(id).querySelector<HTMLElement>('.card')!;
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(target, { clientX: 0, clientY: PAST_SLOP });
+    fireEvent.pointerUp(target, { clientX: 0, clientY: PAST_SLOP });
+  };
+  return { ...utils, list, order, press, tile, clickCard, ticked, dragTo };
 }
 
 /**
@@ -84,37 +112,60 @@ describe('manipulateCardList', () => {
     expectWireReply('manipulateCardList', answers[0]);
   });
 
-  it('sends a card to the bottom BY DRAG, and the wire reply is the drag’s result', () => {
-    const { tile, getByTestId, order, submit, answers } = mount();
-    const leapfrog = tile(54);
-    const bottomZone = getByTestId('manipulate-bottom');
-    fireEvent.dragStart(leapfrog);
-    fireEvent.dragOver(bottomZone);
-    fireEvent.drop(bottomZone);
+  it('sends a card to the bottom by a press-drag, and the wire reply is the drag’s result', () => {
+    const { getByTestId, order, submit, answers, dragTo } = mount();
+    dragTo(54, getByTestId('manipulate-bottom'));
     expect(order()).toEqual([47, 17, 46, 60, 54]);
     fireEvent.click(submit());
     expect(answers[0]!.map((c) => c.id)).toEqual([47, 17, 46, 60, 54]);
     expectWireReply('manipulateCardList', answers[0]);
   });
 
-  it('sends a card to the top BY DRAG', () => {
-    const { tile, getByTestId, order } = mount();
-    const halberdier = tile(47);
-    const topZone = getByTestId('manipulate-top');
-    fireEvent.dragStart(halberdier);
-    fireEvent.dragOver(topZone);
-    fireEvent.drop(topZone);
+  it('sends a card to the top by a press-drag', () => {
+    const { getByTestId, order, dragTo } = mount();
+    dragTo(47, getByTestId('manipulate-top'));
     expect(order()).toEqual([47, 54, 17, 46, 60]);
   });
 
   it('drops a movable card ON another tile, landing just before it', () => {
-    const { tile, order } = mount();
-    const leapfrog = tile(54);
-    const target = tile(17);
-    fireEvent.dragStart(leapfrog);
-    fireEvent.dragOver(target);
-    fireEvent.drop(target);
+    const { tile, order, dragTo } = mount();
+    dragTo(54, tile(17));
     expect(order()).toEqual([47, 54, 17, 46, 60]);
+  });
+
+  it('the lift follows the press (`data-cast-lift`), the board’s own attribute, not HTML5 drag', async () => {
+    const { tile } = mount();
+    const card = tile(54).querySelector<HTMLElement>('.card')!;
+    expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull();
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(card, { clientX: 0, clientY: 2 });
+    // Under the slop: no lift yet.
+    expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull();
+    fireEvent.pointerMove(card, { clientX: 0, clientY: PAST_SLOP });
+    expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBe('lifted');
+    // Released back on itself: nowhere this gesture answers, so it floats home —
+    // awaited so the real timer never outlives this test (as `../live/gestures/gestures.test.ts` does).
+    fireEvent.pointerUp(card, { clientX: 0, clientY: PAST_SLOP });
+    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+  });
+
+  it('highlights a drop zone the lift is currently over, before the release', () => {
+    const { tile, getByTestId } = mount();
+    const card = tile(54).querySelector<HTMLElement>('.card')!;
+    const bottom = getByTestId('manipulate-bottom');
+    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(bottom, { clientX: 0, clientY: PAST_SLOP });
+    expect(bottom.dataset.over).toBe('true');
+    fireEvent.pointerUp(bottom, { clientX: 0, clientY: PAST_SLOP });
+    expect(bottom.dataset.over).toBeUndefined();
+  });
+
+  it('released nowhere this gesture answers, the row floats home and the pile is unchanged', async () => {
+    const { list, tile, order, dragTo } = mount();
+    dragTo(54, list());
+    expect(order()).toEqual([54, 47, 17, 46, 60]);
+    // The house glide: `floatCastLiftHome`'s own real timer, same as `../live/gestures/gestures.test.ts` awaits it.
+    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
   });
 
   it('reorders by the up/down buttons — the keyboard and click fallback — and still answers correctly', () => {
@@ -124,6 +175,16 @@ describe('manipulateCardList', () => {
     fireEvent.click(submit());
     expect(answers[0]!.map((c) => c.id)).toEqual([47, 54, 17, 46, 60]);
     expectWireReply('manipulateCardList', answers[0]);
+  });
+
+  it('draws the up/down nudges on the card’s own tile, never in a row of their own', () => {
+    const { tile } = mount();
+    const actions = tile(54).querySelector('.prompt__card-order')!;
+    expect(actions).not.toBeNull();
+    expect(actions.parentElement).toBe(tile(54));
+    expect(tile(54).querySelector('.prompt__row-actions')).toBeNull();
+    expect(within(actions as HTMLElement).getByRole('button', { name: /move Leapfrog up/ })).toBeTruthy();
+    expect(within(actions as HTMLElement).getByRole('button', { name: /move Leapfrog down/ })).toBeTruthy();
   });
 
   it('cannot send a movable card wedged between the fixed ones', () => {
@@ -184,14 +245,22 @@ describe('manipulateCardList', () => {
     expect(order()).toEqual([54, 47, 17, 46, 60]);
   });
 
-  it('never makes a fixed card clickable — no tick, no drag', () => {
+  it('never makes a fixed card clickable — no tick, and no lift either', () => {
     const { tile } = mount();
     expect(tile(17).querySelector('input')).toBeNull();
-    expect(tile(17).getAttribute('draggable')).toBeNull();
-    expect(tile(54).getAttribute('draggable')).toBe('true');
+    const fixedCard = tile(17).querySelector<HTMLElement>('.card')!;
+    fireEvent.pointerDown(fixedCard, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(fixedCard, { clientX: 0, clientY: PAST_SLOP });
+    expect(tile(17).getAttribute(CAST_LIFT_ATTR)).toBeNull();
+    fireEvent.pointerUp(fixedCard, { clientX: 0, clientY: PAST_SLOP });
   });
 
-  /* No end offered is nowhere to put anything: a tick there would be the very
+  it('draws no `draggable` attribute anywhere — the lift is pointer events only', () => {
+    const { list } = mount();
+    for (const li of list().querySelectorAll('li')) expect(li.getAttribute('draggable')).toBeNull();
+  });
+
+  /* No end offered at all is nowhere to put anything: a tick there would be the very
    * dead control this lane removed, so no card draws one. */
   it('draws no tick at all when the ask offers no end', () => {
     const { list, queryByTestId } = mount({ toTop: false, toBottom: false, toAnywhere: false });
@@ -265,25 +334,27 @@ describe('a London mulligan', () => {
     expect(ticked(11)).toBe(false);
   });
 
-  it('still orders SEVERAL cards by drag, which a click cannot say', () => {
-    const { tile, getByTestId, order, submit, answers } = mount(LONDON);
+  it('takes the tick off a card a press-drag REORDER moved, same reason', () => {
+    const { clickCard, tile, ticked, order, dragTo } = mount(LONDON);
+    clickCard(11);
+    expect(ticked(11)).toBe(true);
+    // 11 is already at the bottom end; drop it just before 1 by a press-drag — an
+    // ordering edit among the already-placed cards, not a fresh destination.
+    dragTo(11, tile(1));
+    expect(order()).toEqual([11, 1, 2, 17, 20, 54, 60]);
+    expect(ticked(11)).toBe(false);
+  });
+
+  it('still orders SEVERAL cards by a press-drag, which a click cannot say', () => {
+    const { tile, getByTestId, order, submit, answers, dragTo } = mount(LONDON);
     const bottom = getByTestId('manipulate-bottom');
     // Two cards to the bottom, in a chosen order…
-    fireEvent.dragStart(tile(20));
-    fireEvent.dragOver(bottom);
-    fireEvent.drop(bottom);
-    fireEvent.dragEnd(tile(20));
-    fireEvent.dragStart(tile(1));
-    fireEvent.dragOver(bottom);
-    fireEvent.drop(bottom);
-    fireEvent.dragEnd(tile(1));
+    dragTo(20, bottom);
+    dragTo(1, bottom);
     expect(order()).toEqual([2, 11, 17, 54, 60, 20, 1]);
     // …then one of them dragged ON a tile, which is the ordering drag a click
     // has no way to express: 1 lands just before 20.
-    fireEvent.dragStart(tile(1));
-    fireEvent.dragOver(tile(20));
-    fireEvent.drop(tile(20));
-    fireEvent.dragEnd(tile(1));
+    dragTo(1, tile(20));
     expect(order()).toEqual([2, 11, 17, 54, 60, 1, 20]);
 
     fireEvent.click(submit());
