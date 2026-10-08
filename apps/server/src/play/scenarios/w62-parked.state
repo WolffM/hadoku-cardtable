@@ -1,0 +1,19 @@
+# The operator's fourth report of the phantom (2026-10-08, ledger AE12): seat 0
+# (human) holds Godless Shrine in an uncontested turn-1 Main Phase 1 with no
+# land played yet. Playing it hits the shockland's own replacement ("As Godless
+# Shrine enters, you may pay 2 life", `UnlessCost$ PayLife<2>`), the one
+# question a dropped card parks on — exactly the moment the other screen's
+# back used to follow the cursor to the pop-up. Same shape as `shockland.state`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Godless Shrine
+humanbattlefield=
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

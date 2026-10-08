@@ -90,6 +90,8 @@ export const PRESENCE_STALE_MS = 6000;
 export const HANDOFF_MS = 2000;
 /** How long a back waits in its reserved gap for the card; a cast that never resolves just ages out (`Board`'s own TTL). */
 export const WAITING_MS = 15_000;
+/** A point wait's remaining life once the sender says its card is no longer parked (a cancel, or the id a frame away). */
+export const CLEARED_GRACE_MS = 1500;
 /** How long a hand-move's glide runs — the same number `./gestures/hand.ts`'s own FLIP uses, so the two screens move in step. */
 export const HAND_MOVE_MS = 300;
 
@@ -280,28 +282,44 @@ function arrangingOf(canvas: HTMLElement): { card: number; at: Point } | null {
   return g.width > 0 ? { card: id, at: { x: g.left + g.width / 2, y: g.top + g.height / 2 } } : null;
 }
 
-function handsOf(canvas: HTMLElement, aiming: boolean): { held: boolean; from: Point | null } {
-  const lift = canvas.querySelector<HTMLElement>('[data-cast-lift]');
-  const held = lift !== null && lift.getAttribute('data-cast-lift') !== 'returning';
-  // `from` (the arrow's tail) is reported only while THIS seat is actually aiming (the operator
-  // saw an arrow — and once, briefly, while picking Condescend's X — on a card with
-  // no target at all). A parked card with nothing to aim at reports no tail, held or not.
-  if (!aiming) return { held, from: null };
-  // A parked card (waiting on an X question, a target, Forge) has stopped: its centre is `from`,
-  // whether or not an arrow is being aimed from it yet — the other screen's back stops there too
-  // (the operator, 2026-10-08: "the phantom card should stop moving as soon as it does on both screens").
-  const parked = canvas.querySelector<HTMLElement>('[data-cast-ghost][data-cast-lift="parked"], [data-cast-lift="parked"]');
-  if (held && parked !== null) {
-    const p = parked.getBoundingClientRect();
-    if (p.width > 0) return { held, from: { x: p.left + p.width / 2, y: p.top + p.height / 2 } };
+/**
+ * What this seat's hands are doing, off the gesture layer's own marks — THREE
+ * states, and the wire names each one outright (the operator, 2026-10-08, the
+ * fourth report of a phantom that would not stand still: "as my cursor moves
+ * to answer the question, i can see from the opponents view that the phantom
+ * card is still attached. that's nonsense."):
+ *
+ *   `held`   — `data-cast-lift="lifted"`: the card follows the pointer.
+ *   `parked` — `"parked"` or `"carried"`: let go, waiting (a question, an X, a
+ *              target, Forge's own frame), standing at its own box centre. NOT
+ *              held: the pointer may go anywhere now — to the pop-up, across
+ *              the table — and the card stays put, on both screens.
+ *   neither  — nothing lifted, or a card on its way home (`"returning"`).
+ *
+ * `from` is the arrow's tail and nothing else: only while this seat is aiming
+ * — the parked card's centre, or the targeter's own path start. The receiver
+ * never derives where a back STANDS from it; `parked` carries that, as
+ * `placing.at`, on every message for as long as the card is parked.
+ */
+function handsOf(canvas: HTMLElement, aiming: boolean): { held: boolean; parked: Point | null; from: Point | null } {
+  const standing = canvas.querySelector<HTMLElement>(
+    '[data-cast-ghost][data-cast-lift="parked"], [data-cast-lift="parked"], [data-cast-lift="carried"]',
+  );
+  let parked: Point | null = null;
+  if (standing !== null) {
+    const p = standing.getBoundingClientRect();
+    if (p.width > 0) parked = { x: p.left + p.width / 2, y: p.top + p.height / 2 };
   }
+  const held = standing === null && canvas.querySelector('[data-cast-lift="lifted"]') !== null;
+  if (!aiming) return { held, parked, from: null };
+  if (parked !== null) return { held, parked, from: parked };
   const tail = canvas.querySelector<SVGPathElement>('[data-testid="targeter"] path');
   const d = tail?.getAttribute('d') ?? null;
   const m = d === null ? null : /^M (-?[\d.]+) (-?[\d.]+)/.exec(d);
-  if (m === null) return { held, from: null };
+  if (m === null) return { held, parked, from: null };
   const board = boardBox(canvas);
-  if (board === null) return { held, from: null };
-  return { held, from: { x: board.left + Number(m[1]), y: board.top + Number(m[2]) } };
+  if (board === null) return { held, parked, from: null };
+  return { held, parked, from: { x: board.left + Number(m[1]), y: board.top + Number(m[2]) } };
 }
 
 /**
@@ -348,8 +366,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       from,
       handRows: handRowsOf(canvas),
       arranging: arranging === null || arranging.at === null ? null : { card: arranging.card, at: arranging.at },
-      // `placing` only ever rides on the release message (`sendRelease`), never a plain move.
-      placing: null,
+      placing: placingOf(hands.parked),
       handMove: null,
     };
     const key = JSON.stringify(message);
@@ -358,6 +375,54 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     lastSent = Date.now();
     host.transport.emit(PRESENCE_EVENT, message);
   }
+
+  /**
+   * `placing.at` for a parked card: its centre, as a spot, on EVERY message
+   * while it is parked — the other screen stands its back there and nothing
+   * the pointer does moves it. Never over this seat's own hand: a release
+   * there is a cancel (`resolveLift`'s `overOwnHand`), nothing is coming.
+   */
+  function placingOf(parked: Point | null): { at: PresenceSpot } | null {
+    if (parked === null) return null;
+    const spot = spotOf(canvas, parked);
+    return spot === null || spot.zone === 'hand' ? null : { at: spot };
+  }
+
+  /**
+   * The lift's state as one string (held, or parked and where), for the
+   * observer below to tell a change from a repaint.
+   */
+  function liftStateOf(): string {
+    const hands = handsOf(canvas, false);
+    const where = hands.parked === null ? '-' : `${Math.round(hands.parked.x)},${Math.round(hands.parked.y)}`;
+    return `${hands.held ? 'held' : '-'}@${where}`;
+  }
+  let lastLiftState = liftStateOf();
+
+  /** Right now, outside the throttle — a state change, not a position. */
+  function sendNow(): void {
+    if (sendTimer !== null) {
+      clearTimeout(sendTimer);
+      sendTimer = null;
+    }
+    send(lastPointer);
+  }
+
+  /**
+   * The gesture layer marks its own DOM (`data-cast-lift`: lifted → parked →
+   * gone); this seat speaks the moment that mark changes, not on the next
+   * pointer move — which may never come. The operator, 2026-10-08: "after the
+   * question is answered, the card correctly animates to the right spot but
+   * the phantom card is STILL attached to the cursor until i move the mouse
+   * again." A repaint that changes nothing (the same state at the same point)
+   * sends nothing; `send`'s own dedup catches the rest.
+   */
+  const liftWatch = new MutationObserver(() => {
+    const state = liftStateOf();
+    if (state === lastLiftState) return;
+    lastLiftState = state;
+    sendNow();
+  });
 
   /**
    * `./gestures/hand.ts` just committed a reorder: sent at once, outside the
@@ -385,7 +450,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       from: handFrom,
       handRows: handRowsOf(canvas),
       arranging: null,
-      placing: null,
+      placing: placingOf(hands.parked),
       handMove: { from, to },
     };
     lastMessage = JSON.stringify(message);
@@ -408,12 +473,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * A card let go: sent at once, outside the throttle — a release with no
    * further movement used to wait on a move that might never come, so the
    * back stayed attached after the card had already appeared on the board.
-   * `from` carries the release point itself, for the hand-off to start from
-   * without having to infer it from whatever was last drawn. `placing`
-   * carries the SAME point as a durable marker (AD4 rule 2): the receiver
-   * waits a back there, rather than inferring the wait from timing, until
-   * either the id shows up on the stack (a spell) or a permanent's own
-   * placement message (`placement.ts`) supersedes it. Never sent for a
+   * `placing` carries the release point as a durable marker (AD4 rule 2): the
+   * receiver stands a back there, rather than inferring the wait from timing,
+   * until either the id shows up on the stack (a spell) or a permanent's own
+   * placement message (`placement.ts`) supersedes it; every message after
+   * this one, while the card is parked, carries the same (`placingOf`). `from`
+   * is null here — it is the arrow's tail, never a stand. Never sent for a
    * release back onto the hand: that is always a cancel (`resolveLift`'s own
    * `overOwnHand` check is what sends it home, never to Forge), so nothing
    * is ever coming — the back must still vanish at once, not wait.
@@ -432,7 +497,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       pointer: spot,
       over,
       held: false,
-      from: spot,
+      from: null,
       handRows: handRowsOf(canvas),
       arranging: null,
       placing: spot === null || spot.zone === 'hand' ? null : { at: spot },
@@ -527,6 +592,25 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     waiting = null;
     back?.remove();
     back = null;
+  }
+  /** The one back, at `at` (its centre): made if missing, sized like a card in their hand. */
+  function standBack(root: HTMLElement, box: DOMRect, at: Point): void {
+    if (back === null) {
+      back = document.createElement('div');
+      back.className = 'presence__back';
+      back.setAttribute('aria-hidden', 'true');
+      root.append(back);
+    }
+    // A touch smaller than a card in their hand (the operator, 2026-10-07: the back looked a fifth
+    // bigger than a hand card; "it could be 5% smaller"). Their hand's own backs are the measure;
+    // this seat's hand when theirs is empty; the stylesheet's size when neither is drawn.
+    const handCard =
+      canvas.querySelector('[data-zone="hand"][data-owner="them"] li') ?? canvas.querySelector('[data-zone="hand"][data-owner="you"] li');
+    const w = handCard?.getBoundingClientRect().width ?? 0;
+    back.style.width = w > 0 ? `${Math.round(w * 0.95)}px` : '';
+    back.style.left = `${at.x - box.left}px`;
+    back.style.top = `${at.y - box.top}px`;
+    backAt = at;
   }
   function takeDown(): void {
     cursor?.remove();
@@ -654,74 +738,48 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     cursor.style.left = `${at.x - box.left}px`;
     cursor.style.top = `${at.y - box.top}px`;
 
-    // A spell they released stays "held" (`data-cast-lift="parked"`, never `'returning'`) for the
-    // WHOLE targeting-and-payment window that follows a cast with a target — every pointer move
-    // through it is a fresh `held: true` message for the SAME in-flight card, not a new lift. The
-    // point-wait already has the right spot (the release, not wherever her cursor is now aiming);
-    // resetting it here raced the id showing up on the stack against her own next mouse move, and
-    // the loser decided whether the back ever made it to `commitSpell` at the right point at all.
-    const spellWaiting = waiting !== null && !waiting.forBattlefield;
-    if (echo.held && !spellWaiting) {
-      // They lifted a card (again): whatever was waiting is abandoned.
-      stopWaiting();
-      if (back === null) {
-        back = document.createElement('div');
-        back.className = 'presence__back';
-        back.setAttribute('aria-hidden', 'true');
-        root.append(back);
-      }
-      // A touch smaller than a card in their hand (the operator, 2026-10-07: the back looked a fifth
-      // bigger than a hand card; "it could be 5% smaller"). Their hand's own backs are the measure;
-      // this seat's hand when theirs is empty; the stylesheet's size when neither is drawn.
-      const handCard =
-        canvas.querySelector('[data-zone="hand"][data-owner="them"] li') ?? canvas.querySelector('[data-zone="hand"][data-owner="you"] li');
-      const w = handCard?.getBoundingClientRect().width ?? 0;
-      back.style.width = w > 0 ? `${Math.round(w * 0.95)}px` : '';
-      // Parked (the arrow's tail, or the card waiting on a question): the back sits THERE, still, while
-      // only their pointer moves. Lifted: it follows the pointer.
-      const parkedAt = echo.from === null ? null : placeSpot(canvas, echo.from);
-      const stand = parkedAt ?? at;
-      back.style.left = `${stand.x - box.left}px`;
-      back.style.top = `${stand.y - box.top}px`;
-      backAt = stand;
-    } else if (!echo.held) {
-      // The release message carries the exact release spot as `placing.at` (durable: the back
-      // waits there until the id shows up) or, from a pre-deploy sender, only `from` (no wait —
-      // the old handoff heuristic below). A permanent's own placement message (`placement.ts`)
-      // supersedes either the moment it arrives, the same way it always has (`waiting !== null`).
-      const placingAt = echo.placing === null ? null : placeSpot(canvas, echo.placing.at);
-      if (waiting !== null) {
-        // The placement, or an earlier placing wait, already claimed the back — it stays.
-      } else if (placingAt !== null) {
+    // The wire says which of three things their card is doing (`handsOf`), and the back is drawn
+    // from that alone. Parked (`placing.at`): a back stands THERE, and nothing their pointer does
+    // moves it. Held: a back follows their pointer. Neither: no back — unless a wait already owns
+    // one (the placement's gap, or this very point), which only its own ending takes down
+    // (`onPlacement`'s reservation, `handoff`'s id, or the timeout). Four days of a phantom
+    // attached to the cursor came from inferring the first state from the second.
+    if (echo.placing !== null) {
+      const placingAt = placeSpot(canvas, echo.placing.at);
+      if (waiting === null && placingAt !== null) {
         // AD4 rule 2: wait right here — a point, not a battlefield gap — until the spell's id
         // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
-        if (back === null) {
-          back = document.createElement('div');
-          back.className = 'presence__back';
-          back.setAttribute('aria-hidden', 'true');
-          root.append(back);
-        }
-        back.style.left = `${placingAt.x - box.left}px`;
-        back.style.top = `${placingAt.y - box.top}px`;
-        back.setAttribute('data-waiting', '');
-        backAt = placingAt;
+        standBack(root, box, placingAt);
+        back!.setAttribute('data-waiting', '');
         waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null };
-      } else {
-        const released = echo.from === null ? null : placeSpot(canvas, echo.from);
-        if (released !== null) backWas = { at: released, gone: Date.now() };
-        else if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
-        back?.remove();
+      }
+      // A wait already holds the back — the placement's gap, or this point: it stays put.
+    } else if (echo.held) {
+      // Lifted: the back follows the pointer. A wait pending (a card of theirs still arriving)
+      // keeps its stand-in; their new lift is drawn once that wait ends.
+      if (waiting === null) standBack(root, box, at);
+    } else if (waiting === null) {
+      if (back !== null) {
+        if (backAt !== null) backWas = { at: backAt, gone: Date.now() };
+        back.remove();
         back = null;
       }
+    } else if (!waiting.forBattlefield) {
+      // Their parked card is gone from their screen with no placement and no id yet: a cancel
+      // (the card went home), or the id is a frame away. The point wait is given a short grace
+      // instead of its full timeout — a cast that commits inside it still hands over as usual
+      // (`handoff`); a cancel takes the back down in a moment, not in fifteen seconds.
+      clearTimeout(waiting.timer);
+      waiting.timer = setTimeout(stopWaiting, CLEARED_GRACE_MS);
     }
 
     const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
     if (echo.handRows === 2) theirHand?.setAttribute('data-presence-rows', '2');
     else theirHand?.removeAttribute('data-presence-rows');
 
-    // The arrow is the tail of an active aim, which only exists while a card is held; once let
-    // go, `from` is the release spot above, never an arrow to draw.
-    const from = echo.held && echo.from !== null ? placeSpot(canvas, echo.from) : null;
+    // The arrow is the tail of an active aim — `from` is sent for nothing else (a parked card
+    // being aimed from, or the targeter's own start), so it is drawn whenever it is there.
+    const from = echo.from === null ? null : placeSpot(canvas, echo.from);
     if (from !== null) {
       if (arrow === null) {
         arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -961,6 +1019,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   canvas.addEventListener('pointerup', onPointerRelease);
   canvas.addEventListener('pointercancel', onPointerRelease);
   document.addEventListener('visibilitychange', onVisibility);
+  liftWatch.observe(canvas, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-cast-lift'] });
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
   host.transport.on(PLACED_EVENT, onPlaced);
@@ -982,6 +1041,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       canvas.removeEventListener('pointerup', onPointerRelease);
       canvas.removeEventListener('pointercancel', onPointerRelease);
       document.removeEventListener('visibilitychange', onVisibility);
+      liftWatch.disconnect();
       if (sendTimer !== null) clearTimeout(sendTimer);
       sendTimer = null;
       takeDown();

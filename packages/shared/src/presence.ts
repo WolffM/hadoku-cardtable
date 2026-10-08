@@ -132,13 +132,17 @@ export const PresenceSchema = z
      * this field, to the old board-fraction-only placement.
      */
     over: PresenceOverSchema.default(null),
-    /** A card is lifted, parked or carried — drawn for the other seat as a card BACK. Never which card. */
+    /**
+     * A card is LIFTED and following the pointer — drawn for the other seat as
+     * a card BACK at the pointer. Never which card. A card let go and waiting
+     * (parked on a question, an X, a target, Forge's frame) is NOT held: it
+     * is `placing` below, and the pointer is free to go anywhere without it.
+     */
     held: z.boolean(),
     /**
-     * Where an arrow being aimed starts (its tip is `pointer`) while `held`;
-     * the release spot, sent once the moment a held card is let go
-     * (`held: false` in the SAME message) — the hand-off flight's start.
-     * Null when neither applies.
+     * Where an arrow being aimed starts (its tip is `pointer`): a parked card's
+     * centre, or the targeter's own start — only while the sender is aiming.
+     * Never where a back stands (that is `placing`). Null otherwise.
      */
     from: PresenceSpotSchema.nullable(),
     /**
@@ -157,15 +161,16 @@ export const PresenceSchema = z
      */
     arranging: z.object({ card: z.number().int().nonnegative(), at: PresenceSpotSchema }).strict().nullable().default(null),
     /**
-     * A SPELL's release point (AD4 rule 2): sent in the SAME message as
-     * `held: false`, beside `from`. Unlike `from` — the arrow's tail, or a
-     * best-effort fallback read off whatever was last drawn — this is the
-     * exact point the receiver waits a stand-in back AT, as a durable
-     * marker, until the spell's id is public (it shows on the stack) rather
-     * than inferring the wait from timing. A permanent's own placement
-     * (`placement.ts`, riding WITH the act) still supersedes this the moment
-     * it arrives, the same way it always has. Null otherwise — nothing was
-     * released, or a pre-deploy sender never had the field.
+     * A PARKED card's point (AD4 rule 2): where the sender's card stands,
+     * let go and waiting — on the release message and on EVERY message after
+     * it for as long as the card is parked, never only once. The receiver
+     * stands a back AT it, as a durable marker, and nothing the pointer does
+     * moves that back (the operator, 2026-10-08: "as my cursor moves to answer
+     * the question … the phantom card is still attached. that's nonsense").
+     * The wait ends when the spell's id is public (it shows on the stack), or
+     * a permanent's own placement (`placement.ts`, riding WITH the act)
+     * supersedes it the moment it arrives, as it always has. Null otherwise —
+     * nothing parked, or a pre-deploy sender never had the field.
      */
     placing: z.object({ at: PresenceSpotSchema }).strict().nullable().default(null),
     /**

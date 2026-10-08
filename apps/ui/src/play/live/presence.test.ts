@@ -8,7 +8,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
-import * as castModule from './gestures/cast.ts';
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
 
 /*
@@ -35,7 +34,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, HAND_MOVE_MS, installPresence, overOf, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost } from './presence.ts';
+import { forgetPendingPlaced, HAND_MOVE_MS, installPresence, overOf, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -224,7 +223,7 @@ describe('sending', () => {
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
     const lifted = document.createElement('li');
-    lifted.setAttribute('data-cast-lift', 'parked');
+    lifted.setAttribute('data-cast-lift', 'lifted');
     lifted.setAttribute('data-card-id', '31');
     canvas.querySelector('.board')!.append(lifted);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -254,31 +253,76 @@ describe('sending', () => {
    * mutation point (6b): keeping `from` for a parked card with no selection
    * open is exactly the bug.
    */
-  it('a parked card reports no `from` unless this seat is actually aiming', () => {
+  it('a parked card is NOT held: every message says where it stands (`placing.at`), and no `from` unless this seat is actually aiming', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: { ...host(t), aiming: () => false } });
-    const lifted = document.createElement('li');
-    lifted.setAttribute('data-cast-lift', 'parked');
-    lifted.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 });
-    canvas.querySelector('.board')!.append(lifted);
+    const parked = document.createElement('li');
+    parked.setAttribute('data-cast-lift', 'parked');
+    parked.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 }); // centre (300, 412)
+    canvas.querySelector('.board')!.append(parked);
     canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
     vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
-    const payload = t.sent[0]!.payload as { held: boolean; from: unknown };
-    expect(payload.held, 'still reported as held — only the arrow tail is gated').toBe(true);
-    expect(payload.from, 'not aiming: no tail to send').toBeNull();
+    const first = t.sent[0]!.payload as { held: boolean; from: unknown; placing: unknown };
+    expect(first.held, 'parked is not held — the pointer is free of it').toBe(false);
+    expect(first.placing, 'where it stands, on a plain move too').toEqual({ at: { zone: 'battlefield', x: 0.3, y: 0.515 } });
+    expect(first.from, 'not aiming: no tail to send').toBeNull();
+    // Her pointer goes to the pop-up: the card stands exactly where it was (the operator, 2026-10-08:
+    // "as my cursor moves to answer the question … the phantom card is still attached. that's nonsense").
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 800, clientY: 100, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    const second = t.sent[1]!.payload as { held: boolean; pointer: { x: number }; placing: unknown };
+    expect(second.pointer.x).toBe(0.8);
+    expect(second.held).toBe(false);
+    expect(second.placing, 'the same stand, pointer or no pointer').toEqual({ at: { zone: 'battlefield', x: 0.3, y: 0.515 } });
     handle.dispose();
   });
 
-  it('letting go of a held card sends at once, outside the throttle: held false, the release spot as `from`, the back gone on the other screen', () => {
+  it('the three states are spoken the moment they change, with no pointer move at all: lifted, parked, gone', async () => {
+    // The operator, 2026-10-08: "after the question is answered, the card correctly animates to
+    // the right spot but the phantom card is STILL attached to the cursor until i move the mouse
+    // again." The gesture layer's own mark changing is the event; the pointer is not consulted.
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t), aiming: () => false } });
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    expect(t.sent).toHaveLength(1);
+    const settle = async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+    const card = document.createElement('li');
+    card.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 });
+    canvas.querySelector('.board')!.append(card);
+    card.setAttribute('data-cast-lift', 'lifted');
+    await settle();
+    expect(t.sent, 'lifted: spoken at once, no timer advanced').toHaveLength(2);
+    expect(t.sent[1]!.payload).toMatchObject({ held: true, placing: null });
+    card.setAttribute('data-cast-lift', 'parked');
+    await settle();
+    expect(t.sent, 'parked: spoken at once').toHaveLength(3);
+    expect(t.sent[2]!.payload).toMatchObject({ held: false, placing: { at: { zone: 'battlefield', x: 0.3, y: 0.515 } } });
+    card.setAttribute('data-cast-lift', 'returning');
+    await settle();
+    expect(t.sent, 'on its way home (or landed): spoken at once').toHaveLength(4);
+    expect(t.sent[3]!.payload).toMatchObject({ held: false, placing: null });
+    card.remove();
+    await settle();
+    expect(t.sent, 'the element going does not say anything new').toHaveLength(4);
+    handle.dispose();
+  });
+
+  it('letting go of a held card sends at once, outside the throttle: held false, the release spot as `placing.at`, no `from`', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
 
     const lifted = document.createElement('li');
-    lifted.setAttribute('data-cast-lift', 'parked');
+    lifted.setAttribute('data-cast-lift', 'lifted');
     canvas.querySelector('.board')!.append(lifted);
     canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
     vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
@@ -295,7 +339,7 @@ describe('sending', () => {
         pointer: { zone: 'battlefield', x: 0.3, y: 0.625 },
         over: null,
         held: false,
-        from: { zone: 'battlefield', x: 0.3, y: 0.625 },
+        from: null,
         handRows: 1,
         arranging: null,
         placing: { at: { zone: 'battlefield', x: 0.3, y: 0.625 } },
@@ -320,7 +364,7 @@ describe('sending', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const lifted = document.createElement('li');
-    lifted.setAttribute('data-cast-lift', 'parked');
+    lifted.setAttribute('data-cast-lift', 'lifted');
     lifted.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 }); // centre (300, 412)
     canvas.querySelector('.board')!.append(lifted);
     canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 320, clientY: 440, bubbles: true }));
@@ -338,7 +382,7 @@ describe('sending', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const lifted = document.createElement('li');
-    lifted.setAttribute('data-cast-lift', 'parked');
+    lifted.setAttribute('data-cast-lift', 'lifted');
     canvas.querySelector('.board')!.append(lifted);
     canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 500, clientY: 700, bubbles: true }));
     expect(t.sent).toHaveLength(1);
@@ -747,15 +791,82 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('a release message (held false, `from` the release spot) never draws an arrow, even though `from` is non-null', () => {
+  it('a release message (held false, `placing.at` the release spot, no `from`) draws no arrow and stands the back there, waiting', () => {
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.3, y: 0.5 }, handRows: 1, arranging: null });
-    expect(overlay.querySelector('.presence__back'), 'gone on the release message').toBeNull();
-    expect(overlay.querySelector('.presence__arrow'), 'no arrow drawn from a release spot').toBeNull();
+    expect(overlay.querySelector('.presence__back[data-waiting]'), 'following, not waiting').toBeNull();
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null, placing: { at: { zone: 'battlefield', x: 0.3, y: 0.5 } } });
+    expect(overlay.querySelector('.presence__back[data-waiting]'), 'standing at the release point').not.toBeNull();
+    expect(overlay.querySelector('.presence__arrow'), 'no arrow: nothing is being aimed').toBeNull();
+    handle.dispose();
+  });
+
+  it('a parked card’s back stands where `placing.at` says and nothing their pointer does moves it — to the pop-up, across the table', () => {
+    // The operator, 2026-10-08 (the fourth report): "when i release godless shrine and then move
+    // to answer the question … from the opponents view that the phantom card is still attached."
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const stand = { zone: 'battlefield' as const, x: 0.3, y: 0.5 };
+    // The first parked message already has her pointer elsewhere (on its way to the pop-up): the
+    // back is placed by `placing.at`, never by where the pointer happens to be.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.7, y: 0.2 }, held: false, from: null, handRows: 1, arranging: null, placing: { at: stand } });
+    const back = overlay.querySelector<HTMLElement>('.presence__back')!;
+    expect([back.style.left, back.style.top], 'x=0.3,y=0.5 on a 1000x800 board, mirrored: (300, 400) — not the pointer’s (700, 640)').toEqual(['300px', '400px']);
+    for (const pointer of [
+      { zone: null, x: 0.9, y: 0.1 },
+      { zone: 'hand' as const, x: 0.5, y: 0.9 },
+      { zone: 'battlefield' as const, x: 0.1, y: 0.5 },
+    ]) {
+      t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer, held: false, from: null, handRows: 1, arranging: null, placing: { at: stand } });
+      expect(overlay.querySelectorAll('.presence__back'), 'one back').toHaveLength(1);
+      expect([back.style.left, back.style.top], `still standing while their pointer is at ${JSON.stringify(pointer)}`).toEqual(['300px', '400px']);
+      expect(back.hasAttribute('data-waiting')).toBe(true);
+    }
+    handle.dispose();
+  });
+
+  it('a cleared message (held false, no `placing`) takes a following back down at once, and a point wait down after a short grace — never a placement’s gap', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const at = { zone: 'battlefield' as const, x: 0.3, y: 0.5 };
+    // Following: gone the moment the lift is.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: true, from: null, handRows: 1, arranging: null });
+    expect(overlay.querySelector('.presence__back')).not.toBeNull();
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null });
+    expect(overlay.querySelector('.presence__back'), 'a following back goes with the lift').toBeNull();
+    // Parked, then cleared with no id and no placement (a cancel): a grace, then gone.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null, placing: { at } });
+    expect(overlay.querySelector('.presence__back[data-waiting]')).not.toBeNull();
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null });
+    expect(overlay.querySelector('.presence__back[data-waiting]'), 'still there: the id may be a frame away').not.toBeNull();
+    vi.advanceTimersByTime(CLEARED_GRACE_MS + 1);
+    expect(overlay.querySelector('.presence__back'), 'a cancel: gone after the grace, not fifteen seconds').toBeNull();
+    handle.dispose();
+  });
+
+  it('a held message while their placement is still arriving does not abandon the gap: the stand-in stays, their pointer is just a pointer', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t), theirPlayerId: () => 1 } });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 44, slot: 'back', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    const standIn = overlay.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    expect(standIn, 'the placement’s stand-in').not.toBeNull();
+    const where = [standIn.style.left, standIn.style.top];
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.9, y: 0.1 }, held: true, from: null, handRows: 1, arranging: null });
+    expect(overlay.querySelectorAll('.presence__back'), 'still the one stand-in').toHaveLength(1);
+    expect(overlay.querySelector('.presence__back'), 'the same element').toBe(standIn);
+    expect([standIn.style.left, standIn.style.top], 'not moved to their pointer').toEqual(where);
+    expect(standIn.hasAttribute('data-waiting')).toBe(true);
     handle.dispose();
   });
 
@@ -844,30 +955,6 @@ describe('receiving', () => {
     theirs = [7, 8];
     wake!();
     expect(canvas.querySelectorAll('.presence__handoff'), 'only the one').toHaveLength(0);
-    handle.dispose();
-  });
-
-  it('the hand-off flight starts from the RELEASE message’s own `from`, not from wherever the back was last drawn', () => {
-    const { canvas, theirCard } = board();
-    const t = fakeTransport();
-    let theirs: number[] = [];
-    let wake: (() => void) | null = null;
-    const handle = installPresence({
-      canvas,
-      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, motion: () => true },
-    });
-    const spy = vi.spyOn(castModule, 'landCastGhost').mockImplementation(() => undefined);
-    // Held at one spot (x=0.1,y=0.1 → placed 100,720), then let go at a DIFFERENT, explicit spot
-    // (x=0.5,y=0.5 → placed 500,400) — the throttled stream could easily be stale by release time,
-    // so the flight must read the release message's own `from`, not the earlier held position.
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.1, y: 0.1 }, held: true, from: null, handRows: 1, arranging: null });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1, arranging: null });
-    theirs = [7];
-    theirCard.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w7" data-testid="card"><span class="card__name">Their Card</span></article></button>';
-    wake!();
-    expect(spy, 'the flight was started').toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0]![3], 'from the release spot (500,400), not the held spot (100,720)').toEqual({ x: 500, y: 400 });
-    spy.mockRestore();
     handle.dispose();
   });
 
