@@ -308,19 +308,46 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('waitingOn');
 	});
 
-	it("appears on the ASKING seat's own entry — never the other seat's — the instant the ask opens, and clears the instant it is answered", () => {
+	it("appears on the ASKING seat's own entry — never the other seat's — once the ask has stayed open past the grace, and clears the instant it is answered", () => {
+		vi.useFakeTimers();
 		const h = waitingHarness();
 		h.host.push(...OPENING);
 		// Seat 1's own coin-toss bar, pressed — same as a real browser's click —
 		// so what follows is checked against a seat that has settled past it,
 		// not one `OPENING`'s own replay happens to leave sitting on it.
 		h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		vi.advanceTimersByTime(200);
+		const before = h.told.length;
 		h.host.push(PROBE_ASK);
 		expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
 		expect(h.match.seatIdentities()[1]).not.toHaveProperty('waitingOn');
-		expect(h.told.length).toBeGreaterThan(0);
+		expect(h.told.length, 'not told yet: the grace').toBe(before);
+		vi.advanceTimersByTime(150);
+		expect(h.told.length, 'told once the ask outlived the grace').toBeGreaterThan(before);
+		expect(h.told.at(-1)![0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
 		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		const toldBefore = h.told.length;
 		h.match.fromClient(0, reply(callId, true));
+		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+		expect(h.told.length, 'the clear is told at once, no grace').toBe(toldBefore + 1);
+		expect(h.told.at(-1)![0]).not.toHaveProperty('waitingOn');
+	});
+
+	it('an ask the browser answers inside the grace is never told to the other seat — no flash', () => {
+		// A lone `getAbilityToPlay` on a land play is open 14–21 ms against the real jar
+		// (`w62-bounce.jvm.test.ts`); the other screen flashed "Waiting for Alice to decide…"
+		// twice per land before this (claws run 37842845722).
+		vi.useFakeTimers();
+		const h = waitingHarness();
+		h.host.push(...OPENING);
+		h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		vi.advanceTimersByTime(200);
+		const before = h.told.length;
+		h.host.push(PROBE_ASK);
+		vi.advanceTimersByTime(20);
+		h.match.fromClient(0, reply((PROBE_ASK.frame as { callId: string }).callId, true));
+		vi.advanceTimersByTime(500);
+		expect(h.told.length, 'nothing told: the wait never outlived the grace').toBe(before);
 		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
 	});
 
@@ -1953,6 +1980,9 @@ describe('hold-decide-forward', () => {
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons', 'updateButtons']);
 		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: attack('Alpha Strike') });
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons', 'updateButtons', 'updateButtons']);
+		// The one timer this leaves is the roster's own grace on the wait that appeared (the other
+		// seat's "Waiting for …", `checkWaitingOn`) — not a held frame: every frame above was sent at once.
+		vi.advanceTimersByTime(150);
 		expect(vi.getTimerCount()).toBe(0);
 	});
 });

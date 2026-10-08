@@ -668,6 +668,8 @@ const YIELD_ACCEPT_LABEL = 'Accept';
 const YIELD_DECLINE_LABEL = 'Decline';
 
 /** How long a just-sent discard choice stays eligible to silence its own echo. */
+/** A wait that appears is told to the other seat after this long; one that clears, at once — `Match.checkWaitingOn`. */
+const WAITING_ON_GRACE_MS = 150;
 const JUST_DISCARDED_TTL_MS = 5_000;
 
 /** The card ids a `getChoices` frame's `choices` name, in order. */
@@ -744,6 +746,11 @@ export class Match {
 	 * Match.setSeatAvatar} already follows.
 	 */
 	private lastWaitingOnKey = '';
+	/**
+	 * A wait that APPEARS is told after {@link WAITING_ON_GRACE_MS}; one that clears
+	 * is told at once — see {@link Match.checkWaitingOn}. The pending tell, if any.
+	 */
+	private waitingOnTimer: ReturnType<typeof setTimeout> | null = null;
 	/**
 	 * `Match.waitingOnFor`'s own cache: `foldFrames` is linear in a seat's
 	 * WHOLE history (`trackPayment`'s `sayToTable` callback and `noteTriggers`
@@ -1123,10 +1130,32 @@ export class Match {
 	 * Cheap to over-call: the key comparison is the guard, not the call site.
 	 */
 	private checkWaitingOn(): void {
-		const key = JSON.stringify(this.seats.map((s) => this.waitingOnFor(s)));
+		const facts = this.seats.map((s) => this.waitingOnFor(s));
+		const key = JSON.stringify(facts);
+		if (this.waitingOnTimer !== null) {
+			clearTimeout(this.waitingOnTimer);
+			this.waitingOnTimer = null;
+		}
+		// Back to what was last told — an ask that opened and closed inside the grace: nothing to say.
 		if (key === this.lastWaitingOnKey) return;
-		this.lastWaitingOnKey = key;
-		this.deps.seatsChanged?.(this.seatIdentities());
+		const tell = (): void => {
+			this.waitingOnTimer = null;
+			this.lastWaitingOnKey = JSON.stringify(this.seats.map((s) => this.waitingOnFor(s)));
+			this.deps.seatsChanged?.(this.seatIdentities());
+		};
+		// A wait that CLEARS is told at once (the other seat must not sit on a stale sentence — AD5).
+		// A wait that APPEARS is told after a short grace: an ask the browser answers on its own the
+		// moment it lands (a lone `getAbilityToPlay` on a land play — measured 14–21 ms open,
+		// `w62-bounce.jvm.test.ts`) flashed "Waiting for Alice to decide…" twice on the other
+		// screen per land played (claws run 37842845722). Nobody reads a 150 ms delay on a real wait.
+		const told = this.lastWaitingOnKey === '' ? [] : (JSON.parse(this.lastWaitingOnKey) as (unknown | null)[]);
+		const appears = facts.some((f, i) => f !== null && JSON.stringify(f) !== JSON.stringify(told[i] ?? null));
+		if (!appears) {
+			tell();
+			return;
+		}
+		this.waitingOnTimer = setTimeout(tell, WAITING_ON_GRACE_MS);
+		this.waitingOnTimer.unref();
 	}
 
 	/**
@@ -2484,6 +2513,10 @@ export class Match {
 	}
 
 	private closeAllAsks(): void {
+		if (this.waitingOnTimer !== null) {
+			clearTimeout(this.waitingOnTimer);
+			this.waitingOnTimer = null;
+		}
 		for (const s of this.seats) {
 			for (const callId of [...s.asks.keys()]) this.closeAsk(s, callId);
 			if (s.departure !== null) clearTimeout(s.departure);
