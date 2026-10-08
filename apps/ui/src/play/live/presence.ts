@@ -171,6 +171,21 @@ function handRowsOf(canvas: HTMLElement): 1 | 2 {
 }
 
 /** What this seat's hands are doing, off the gesture layer's own marks. */
+/**
+ * A battlefield card of this seat's being rearranged (`Board.tsx`'s own drag:
+ * the pressed card carries `data-arrange-dragging`, its ghost follows the
+ * pointer), and where the ghost is — read, like everything else here, off the
+ * DOM the gesture already draws.
+ */
+function arrangingOf(canvas: HTMLElement): { card: number; at: Point } | null {
+  const li = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"] [data-arrange-dragging]');
+  const ghost = canvas.querySelector<HTMLElement>('.board > [data-arrange-ghost]');
+  const id = Number(li?.getAttribute('data-board-card') ?? li?.getAttribute('data-card-id'));
+  if (li === null || ghost === null || !Number.isFinite(id)) return null;
+  const g = ghost.getBoundingClientRect();
+  return g.width > 0 ? { card: id, at: { x: g.left + g.width / 2, y: g.top + g.height / 2 } } : null;
+}
+
 function handsOf(canvas: HTMLElement): { held: boolean; from: Point | null } {
   const lift = canvas.querySelector<HTMLElement>('[data-cast-lift]');
   const held = lift !== null && lift.getAttribute('data-cast-lift') !== 'returning';
@@ -207,7 +222,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const spot = pointer === null ? null : spotOf(canvas, pointer);
     const hands = handsOf(canvas);
     const from = hands.from === null ? null : spotOf(canvas, hands.from);
-    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: hands.held, from, handRows: handRowsOf(canvas) };
+    const lifted = arrangingOf(canvas);
+    const arranging = lifted === null ? null : { card: lifted.card, at: spotOf(canvas, lifted.at) };
+    const message: PresenceMessage = {
+      matchId: host.matchId,
+      type: 'presence',
+      pointer: spot,
+      held: hands.held,
+      from,
+      handRows: handRowsOf(canvas),
+      arranging: arranging === null || arranging.at === null ? null : { card: arranging.card, at: arranging.at },
+    };
     const key = JSON.stringify(message);
     if (key === lastMessage) return;
     lastMessage = key;
@@ -240,7 +265,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       clearTimeout(sendTimer);
       sendTimer = null;
     }
-    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: false, from: spot, handRows: handRowsOf(canvas) };
+    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: false, from: spot, handRows: handRowsOf(canvas), arranging: null };
     lastMessage = JSON.stringify(message);
     lastPointer = { x: point.x, y: point.y };
     lastSent = Date.now();
@@ -293,6 +318,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     arrow?.remove();
     cursor = null;
     arrow = null;
+    if (liftedCard !== null) {
+      liftedCard.el.removeAttribute('data-arrange-dragging');
+      liftedCard.tile.remove();
+      liftedCard = null;
+    }
     // A back waiting in its gap stays: it is the card's stand-in now, not the pointer's.
     if (waiting === null) {
       back?.remove();
@@ -313,10 +343,47 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     hinted?.setAttribute('data-presence-hint', '');
   }
 
+  /** Their rearrange, mirrored: their card dims in place and its tile follows where they hold it. */
+  let liftedCard: { id: number; el: HTMLElement; tile: HTMLElement } | null = null;
+  function drawArranging(root: HTMLElement, box: DOMRect, arranging: PresenceEcho['arranging']): void {
+    if (arranging === null) {
+      if (liftedCard !== null) {
+        liftedCard.el.removeAttribute('data-arrange-dragging');
+        liftedCard.tile.remove();
+        liftedCard = null;
+      }
+      return;
+    }
+    const at = placeSpot(canvas, arranging.at);
+    if (at === null) return;
+    if (liftedCard !== null && liftedCard.id !== arranging.card) drawArranging(root, box, null);
+    if (liftedCard === null) {
+      const el = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${arranging.card}"]`);
+      const face = el?.querySelector('.card');
+      if (!(el instanceof HTMLElement) || !face) return;
+      const tile = document.createElement('div');
+      tile.className = 'presence__lift';
+      tile.setAttribute('aria-hidden', 'true');
+      const copy = face.cloneNode(true) as HTMLElement;
+      for (const n of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
+        n.removeAttribute('data-card-id');
+        n.removeAttribute('data-testid');
+      }
+      tile.append(copy);
+      tile.style.width = `${el.getBoundingClientRect().width}px`;
+      root.append(tile);
+      el.setAttribute('data-arrange-dragging', '');
+      liftedCard = { id: arranging.card, el, tile };
+    }
+    liftedCard.tile.style.left = `${at.x - box.left}px`;
+    liftedCard.tile.style.top = `${at.y - box.top}px`;
+  }
+
   function draw(echo: PresenceEcho): void {
     const root = overlay();
     if (root === null) return;
     const box = root.getBoundingClientRect();
+    drawArranging(root, box, echo.arranging);
     const at = echo.pointer === null ? null : placeSpot(canvas, echo.pointer);
     if (at === null) {
       takeDown();

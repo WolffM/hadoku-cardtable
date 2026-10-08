@@ -132,7 +132,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1 },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, arranging: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -184,6 +184,7 @@ describe('sending', () => {
         held: false,
         from: { zone: 'battlefield', x: 0.3, y: 0.625 },
         handRows: 1,
+        arranging: null,
       },
     });
 
@@ -238,6 +239,26 @@ describe('sending', () => {
 });
 
 describe('receiving', () => {
+  it('their rearrange is mirrored: their card dims in place and a copy of its face follows where they hold it, until they let go', () => {
+    // The operator, 2026-10-08: "at the moment the card only updates once it's actually been dropped somewhere."
+    const { canvas, theirCard } = board();
+    theirCard.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w7" data-testid="card"><span class="card__name">Memnite</span></article></button>';
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: false, from: null, handRows: 1, arranging: { card: 7, at: { zone: 'battlefield', x: 0.3, y: 0.5 } } });
+    expect(theirCard.hasAttribute('data-arrange-dragging'), 'their card dims in place, as on their screen').toBe(true);
+    const lift = canvas.querySelector<HTMLElement>('.presence__lift');
+    expect(lift, 'a copy of its face follows').not.toBeNull();
+    const before = lift!.style.left;
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.6, y: 0.5 }, held: false, from: null, handRows: 1, arranging: { card: 7, at: { zone: 'battlefield', x: 0.6, y: 0.5 } } });
+    expect(lift!.style.left).not.toBe(before);
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.6, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
+    expect(canvas.querySelector('.presence__lift'), 'gone when they let go').toBeNull();
+    expect(theirCard.hasAttribute('data-arrange-dragging')).toBe(false);
+    handle.dispose();
+  });
+
   it('their placement (the act’s own message) reserves the column for THEIR player by card id, keeps the back waiting in the gap, and takes it down when the board has drawn the card there', async () => {
     // The operator, 2026-10-08, from the opponent's seat: the card flashed at the row's end first, and
     // the back lingered on the cursor. The column and the release point come WITH the act, through
@@ -251,15 +272,15 @@ describe('receiving', () => {
       canvas,
       host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
     });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
     t.receivePlacement({ matchId: 'm-1', seat: 1, card: 77, slot: 'back', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.5, y: 0.5 } });
     expect(pendingPlacementFor(1), 'their column is reserved under their player id, for THAT card').toEqual({ cardId: 77, slot: 'back', target: { kind: 'at', column: 1 } });
     const back = canvas.querySelector<HTMLElement>('.presence__back');
     expect(back, 'the back stays — waiting, not following the pointer').not.toBeNull();
     expect(back!.hasAttribute('data-waiting')).toBe(true);
     // Their release and their pointer leaving the board change nothing: the back is the card's stand-in now.
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1 });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1, arranging: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null });
     expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their release and their pointer left').not.toBeNull();
     // The card arrives: the board draws it in the gap and consumes the reservation; the stand-in goes.
     const li = document.createElement('li');
@@ -283,7 +304,7 @@ describe('receiving', () => {
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
     // Their pointer over THEIR own battlefield's first card: lands on this board's "them" battlefield, over card 7.
     document.elementFromPoint = (x: number, y: number) => (x >= 120 && x <= 180 && y >= 200 && y <= 284 ? theirCard.firstElementChild : null);
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.15, y: 0.6875 }, held: true, from: { zone: 'hand', x: 0.5, y: 0.875 }, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.15, y: 0.6875 }, held: true, from: { zone: 'hand', x: 0.5, y: 0.875 }, handRows: 1, arranging: null });
     const cursor = overlay.querySelector<HTMLElement>('.presence')!;
     expect(cursor, 'the cursor').not.toBeNull();
     expect(cursor.style.left).toBe('150px');
@@ -296,7 +317,7 @@ describe('receiving', () => {
 
     // They let go and move on, with no explicit release reaching this seat first (the regular,
     // throttled path): no back, no arrow — `from` is never drawn as an arrow once not held.
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.9, y: 0.1 }, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.9, y: 0.1 }, held: false, from: null, handRows: 1, arranging: null });
     expect(overlay.querySelector('.presence__back')).toBeNull();
     expect(overlay.querySelector('.presence__arrow')).toBeNull();
     expect(theirCard.hasAttribute('data-presence-hint')).toBe(false);
@@ -313,8 +334,8 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: true, from: null, handRows: 1 });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.3, y: 0.5 }, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.3, y: 0.5 }, handRows: 1, arranging: null });
     expect(overlay.querySelector('.presence__back'), 'gone on the release message').toBeNull();
     expect(overlay.querySelector('.presence__arrow'), 'no arrow drawn from a release spot').toBeNull();
     handle.dispose();
@@ -325,9 +346,9 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const theirHand = canvas.querySelector('[data-zone="hand"][data-owner="them"]')!;
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 2 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 2, arranging: null });
     expect(theirHand.getAttribute('data-presence-rows'), 'their hand draws two rows').toBe('2');
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(theirHand.hasAttribute('data-presence-rows'), 'back to one row: no attribute').toBe(false);
     handle.dispose();
   });
@@ -344,8 +365,8 @@ describe('receiving', () => {
     });
     // They hold a card over their battlefield, then let go with no explicit release reaching this
     // seat (the fallback path: the last place the back was actually drawn).
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1 });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(canvas.querySelector('.presence__back')).toBeNull();
     // Forge puts card 7 on their battlefield (the fixture's one card of theirs), and the match wakes its subscribers.
     theirs = [7];
@@ -382,8 +403,8 @@ describe('receiving', () => {
     // Held at one spot (x=0.1,y=0.1 → placed 100,720), then let go at a DIFFERENT, explicit spot
     // (x=0.5,y=0.5 → placed 500,400) — the throttled stream could easily be stale by release time,
     // so the flight must read the release message's own `from`, not the earlier held position.
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.1, y: 0.1 }, held: true, from: null, handRows: 1 });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.1, y: 0.1 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1, arranging: null });
     theirs = [7];
     theirCard.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w7" data-testid="card"><span class="card__name">Their Card</span></article></button>';
     wake!();
@@ -398,12 +419,12 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(overlay.querySelector('.presence')).not.toBeNull();
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null });
     expect(overlay.querySelector('.presence')).toBeNull();
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 0, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
-    t.receive({ matchId: 'm-2', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 0, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
+    t.receive({ matchId: 'm-2', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(overlay.querySelector('.presence'), 'neither drawn').toBeNull();
     handle.dispose();
   });

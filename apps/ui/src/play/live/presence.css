@@ -166,3 +166,24 @@
     transition: none;
   }
 }
+
+/*
+ * Their card being rearranged, mirrored (`presence.ts`'s `drawArranging`): the
+ * card itself dims in its place (`data-arrange-dragging`, the board's own rule)
+ * and this copy of its face follows where they hold it — the drawing their
+ * own screen makes for them.
+ */
+.presence__lift {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 10px var(--shadow);
+  transition:
+    left 90ms linear,
+    top 90ms linear;
+}
+.presence__lift > .card {
+  width: 100%;
+}

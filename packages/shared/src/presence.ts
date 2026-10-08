@@ -99,6 +99,15 @@ export const PresenceSchema = z
      * never had this field) still parses.
      */
     handRows: z.union([z.literal(1), z.literal(2)]).default(1),
+    /**
+     * A battlefield card of the sender's being rearranged: which (its id is
+     * public — it is on the battlefield) and where it is held now, so the
+     * other screen draws the same lifted card following the same point (the
+     * operator, 2026-10-08: "all i want is for the views to be completely
+     * mirrored"). Null when nothing is being rearranged; defaults so a
+     * pre-deploy sender still parses.
+     */
+    arranging: z.object({ card: z.number().int().nonnegative(), at: PresenceSpotSchema }).strict().nullable().default(null),
   })
   .strict();
 
