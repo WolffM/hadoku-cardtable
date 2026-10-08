@@ -1,0 +1,1217 @@
+{
+  "duplicates": [
+    {
+      "firstFile": {
+        "end": 37,
+        "endLoc": {
+          "column": 15,
+          "line": 37,
+          "position": 1618
+        },
+        "name": "http/draftPool.ts",
+        "start": 24,
+        "startLoc": {
+          "column": 32,
+          "line": 24,
+          "position": 1245
+        }
+      },
+      "format": "typescript",
+      "fragment": "export function draftCardRequest(card: DraftCard): CardRequest {\n\treturn {\n\t\tname: card.name,\n\t\tset: card.setCode === '' ? null : card.setCode,\n\t\tartIndex: DEFAULT_ART_INDEX,\n\t\tcollectorNumber: card.collectorNumber === '' ? null : card.collectorNumber,\n\t\tfoil: false,\n\t\tbackFace: false,\n\t\tflags: null,\n\t};\n}\n\n/** A drafted pool as deck entries, one per card — `poolEntries`, verbatim. */\nexport function draftPoolEntries(pool: readonly DraftCard[]): DeckEntry[] {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 14,
+      "secondFile": {
+        "end": 67,
+        "endLoc": {
+          "column": 15,
+          "line": 67,
+          "position": 3267
+        },
+        "name": "draft/deckFromPool.ts",
+        "start": 54,
+        "startLoc": {
+          "column": 29,
+          "line": 54,
+          "position": 2891
+        }
+      },
+      "tokens": 65
+    },
+    {
+      "firstFile": {
+        "end": 19,
+        "endLoc": {
+          "column": 6,
+          "line": 19,
+          "position": 797
+        },
+        "name": "http/jvm/ResolveCheck.java",
+        "start": 3,
+        "startLoc": {
+          "column": 0,
+          "line": 3,
+          "position": 84
+        }
+      },
+      "format": "java",
+      "fragment": " * Copyright (C) 2026  hadoku-cardtable contributors\n *\n * This program is free software: you can redistribute it and/or modify\n * it under the terms of the GNU General Public License as published by\n * the Free Software Foundation, either version 3 of the License, or\n * (at your option) any later version.\n *\n * This program is distributed in the hope that it will be useful,\n * but WITHOUT ANY WARRANTY; without even the implied warranty of\n * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n * GNU General Public License for more details.\n *\n * You should have received a copy of the GNU General Public License\n * along with this program.  If not, see <http://www.gnu.org/licenses/>.\n */\n\nimport forge.CardStorageReader;",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 17,
+      "secondFile": {
+        "end": 19,
+        "endLoc": {
+          "column": 6,
+          "line": 19,
+          "position": 761
+        },
+        "name": "play/bridge/PlayBridge.java",
+        "start": 3,
+        "startLoc": {
+          "column": 0,
+          "line": 3,
+          "position": 48
+        }
+      },
+      "tokens": 691
+    },
+    {
+      "firstFile": {
+        "end": 576,
+        "endLoc": {
+          "column": 14,
+          "line": 576,
+          "position": 26922
+        },
+        "name": "http/rooms.ts",
+        "start": 567,
+        "startLoc": {
+          "column": 17,
+          "line": 567,
+          "position": 26479
+        }
+      },
+      "format": "typescript",
+      "fragment": "\tapi.use('/rooms', (err: unknown, _req: Request, res: Response, next: NextFunction) => {\n\t\tif (res.headersSent) return next(err);\n\t\tconst e = err as { type?: unknown; status?: unknown; name?: unknown };\n\t\tif (e.type === 'entity.parse.failed') {\n\t\t\treturn badRequest(res, 'body is not valid JSON');\n\t\t}\n\t\tif (typeof e.status === 'number' && e.status >= 400 && e.status < 500) {\n\t\t\treturn badRequest(res, 'the request body could not be read');\n\t\t}\n\t\tlog({ event: 'rooms-error', name: typeof e.name === 'string' ? e.name : 'unknown' });",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 10,
+      "secondFile": {
+        "end": 282,
+        "endLoc": {
+          "column": 14,
+          "line": 282,
+          "position": 11891
+        },
+        "name": "http/sounds.ts",
+        "start": 273,
+        "startLoc": {
+          "column": 18,
+          "line": 273,
+          "position": 11448
+        }
+      },
+      "tokens": 108
+    },
+    {
+      "firstFile": {
+        "end": 745,
+        "endLoc": {
+          "column": 4,
+          "line": 745,
+          "position": 34148
+        },
+        "name": "http/routes.ts",
+        "start": 737,
+        "startLoc": {
+          "column": 33,
+          "line": 737,
+          "position": 33904
+        }
+      },
+      "format": "typescript",
+      "fragment": "\ttables.put('/rooms/:roomId/deck', (req: Request, res: Response) => {\n\t\tconst found = tableFor(req, String(req.params.roomId));\n\t\tif (found === null || rooms === null) {\n\t\t\tnotFound(res);\n\t\t\treturn;\n\t\t}\n\t\tconst { room, me } = found;\n\t\tif (wrongGameType(room, res)) return;\n\t\tif (liveMatchId(room) !== null) {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 9,
+      "secondFile": {
+        "end": 794,
+        "endLoc": {
+          "column": 7,
+          "line": 794,
+          "position": 35866
+        },
+        "name": "http/routes.ts",
+        "start": 786,
+        "startLoc": {
+          "column": 35,
+          "line": 786,
+          "position": 35619
+        }
+      },
+      "tokens": 68
+    },
+    {
+      "firstFile": {
+        "end": 88,
+        "endLoc": {
+          "column": 41,
+          "line": 88,
+          "position": 4150
+        },
+        "name": "play/transport.ts",
+        "start": 54,
+        "startLoc": {
+          "column": 15,
+          "line": 54,
+          "position": 2686
+        }
+      },
+      "format": "typescript",
+      "fragment": "\ttype WireIssue,\n} from '@hadoku/forge-wire';\n\n/* ── Borrowed primitives (see the module header) ─────────────────────── */\n\ntype Output<S extends { _zod: { output: unknown } }> = S['_zod']['output'];\n\nconst borrowed = {\n\t/** `CallIdSchema` is `z.string().min(1)`. */\n\tnonEmptyString: CallIdSchema,\n\t/** `ClientReplySchema.shape.result` is `z.unknown()`. */\n\tunknown: ClientReplySchema.shape.result,\n\t/** `TrackableIdSchema` is `z.number().int()`. */\n\tforgeId: TrackableIdSchema,\n\t/** `ShowConfirmDialogReplySchema` is `z.boolean()`. */\n\tboolean: ShowConfirmDialogReplySchema,\n\t/** `z.object({})` by another route. */\n\temptyObject: SeqCursorSchema.pick({}),\n};\n\n/* ── Event names ─────────────────────────────────────────────────────── */\n\nexport const MATCH_EVENTS = {\n\tjoin: 'forge:join',\n\tresync: 'forge:resync',\n\tserverToClient: FORGE_CHANNEL.serverToClient,\n\tclientToServer: FORGE_CHANNEL.clientToServer,\n\t/** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */\n\tfullControl: 'forge:full-control',\n\t/**\n\t * Wave 30 §B item 2/6: the one setting the operator asked for — *\"i think by\n\t * default this should be off, but can be turned on in settings (always stop\n\t * at endstep).\"* Client → server only; see {@link StopPreferenceSchema}.\n\t */\n\tstopPreference: 'forge:stop-preference',",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 35,
+      "secondFile": {
+        "end": 108,
+        "endLoc": {
+          "column": 42,
+          "line": 108,
+          "position": 5263
+        },
+        "name": "play/live/transport.ts",
+        "start": 69,
+        "startLoc": {
+          "column": 18,
+          "line": 69,
+          "position": 3385
+        }
+      },
+      "tokens": 98
+    },
+    {
+      "firstFile": {
+        "end": 144,
+        "endLoc": {
+          "column": 15,
+          "line": 144,
+          "position": 6871
+        },
+        "name": "play/transport.ts",
+        "start": 88,
+        "startLoc": {
+          "column": 40,
+          "line": 88,
+          "position": 4149
+        }
+      },
+      "format": "typescript",
+      "fragment": "\tstopPreference: 'forge:stop-preference',\n\t/**\n\t * Wave 31 §S: `{ matchId, role: 'player' | 'spectator' }`, server → THIS socket\n\t * only, after every join and resync and again on promotion. One connection\n\t * per seat controls it; another for the same account spectates.\n\t */\n\trole: 'forge:role',\n} as const;\n\n/* ── Cursor ──────────────────────────────────────────────────────────── */\n\nexport const WireCursorSchema = SeqCursorSchema;\nexport type { WireCursor };\n\n/* ── Client → server ─────────────────────────────────────────────────── */\n\n/** `forge:join` and `forge:resync`. */\nexport const MatchRequestSchema = borrowed.emptyObject.extend({ matchId: borrowed.nonEmptyString }).strict();\nexport type MatchRequest = Output<typeof MatchRequestSchema>;\n\n/** `forge:c2s`. `frame` is checked second, by forge-wire's `safeParseClientFrame`. */\nexport const ClientEnvelopeSchema = borrowed.emptyObject\n\t.extend({ matchId: borrowed.nonEmptyString, frame: borrowed.unknown, placement: PlacementSchema.optional() })\n\t.strict();\n\nexport interface ClientEnvelope {\n\tmatchId: string;\n\tframe: ClientFrame;\n\t/** Where the card this act plays goes (`@hadoku/shared`'s `placement.ts`); only with a `selectCard` act. */\n\tplacement?: Placement;\n}\n\n/**\n * `forge:full-control` — this seat wants every question and every stop, or\n * wants the shortcuts back (`play/auto.ts`). Nothing about the game crosses\n * here: it is a preference of the person sitting in the seat.\n *\n * **It travels both ways, on one event and one schema.** Client → server it is\n * a request; server → client it is the seat's CURRENT state, sent to a socket\n * that has just been answered a snapshot. Full control is a per-seat\n * preference the server holds and the state channel does not carry, so it\n * belongs with the prompt and the bar in the set of things a fresh page needs\n * after a join (`Match.resendAfterSnapshot`'s docstring names that set) — and\n * without it a refresh drew the toggle off while the server still held the\n * seat in full control. The payload is identical in both directions, so\n * neither side needs a second schema and a drift is impossible.\n */\nexport const FullControlSchema = borrowed.emptyObject\n\t.extend({ matchId: borrowed.nonEmptyString, on: borrowed.boolean })\n\t.strict();\nexport type FullControlRequest = Output<typeof FullControlSchema>;\n\n/**\n * The server → client payload of `forge:full-control`, built THROUGH the\n * schema so an echo that does not satisfy the client's parse cannot be sent.\n */\nexport function fullControlEcho(matchId: string, on: boolean): FullControlRequest {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 57,
+      "secondFile": {
+        "end": 172,
+        "endLoc": {
+          "column": 15,
+          "line": 172,
+          "position": 8304
+        },
+        "name": "play/live/transport.ts",
+        "start": 120,
+        "startLoc": {
+          "column": 22,
+          "line": 120,
+          "position": 5959
+        }
+      },
+      "tokens": 150
+    },
+    {
+      "firstFile": {
+        "end": 179,
+        "endLoc": {
+          "column": 6,
+          "line": 179,
+          "position": 8792
+        },
+        "name": "play/transport.ts",
+        "start": 144,
+        "startLoc": {
+          "column": 31,
+          "line": 144,
+          "position": 6887
+        }
+      },
+      "format": "typescript",
+      "fragment": "export function fullControlEcho(matchId: string, on: boolean): FullControlRequest {\n\treturn FullControlSchema.parse({ matchId, on });\n}\n\n/**\n * `forge:stop-preference` — wave 30 §B item 6: *\"a settings surface, holding\n * at least two preferences… always stop at end step — default off.\"* This is\n * that one preference, travelling from the settings panel to the seat's own\n * {@link StopPolicy} (`auto.ts`) through the ALREADY-EXISTING per-seat setter,\n * `Match.setStopPolicy` (wave 26 §E) — nothing here is a second mechanism.\n *\n * **Fallback shape.** Lane A (§A) owns the settings panel and was to write its\n * chosen message shape to `docs/planning/wave30-evidence/A-stop-pref-message.md`\n * before this lane reached this item; that file did not exist when it did. Per\n * the wave brief this is the shape the brief itself specifies —\n * `{ type: 'stopPreference', stopAtEndStep: boolean }` — implemented as its own\n * event, the way `forge:full-control` is, rather than folded onto `forge:c2s`\n * (a `ClientFrame` is `@hadoku/forge-wire`'s sealed union and a seat preference\n * is not a Forge frame, exactly the reasoning `forge:full-control`'s own\n * doc-comment already gives). `type` is carried on the PAYLOAD, as the brief's\n * literal shape has it, even though the event name alone already disambiguates\n * it — so a client that logs the raw payload can tell what it sent without\n * cross-referencing the event name. **Client → server only**: unlike\n * `forge:full-control` there is no echo, because nothing server-side changed\n * the meaning of \"sent it\" — the manager reconciles this against whatever §A\n * actually built.\n */\nexport const StopPreferenceSchema = borrowed.emptyObject\n\t.extend({\n\t\tmatchId: borrowed.nonEmptyString,\n\t\ttype: borrowed.nonEmptyString.refine((v) => v === 'stopPreference', { message: \"must be 'stopPreference'\" }),\n\t\tstopAtEndStep: borrowed.boolean,\n\t})\n\t.strict();\n\nexport interface StopPreferenceRequest {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 36,
+      "secondFile": {
+        "end": 200,
+        "endLoc": {
+          "column": 6,
+          "line": 200,
+          "position": 9650
+        },
+        "name": "play/live/transport.ts",
+        "start": 172,
+        "startLoc": {
+          "column": 32,
+          "line": 172,
+          "position": 8321
+        }
+      },
+      "tokens": 79
+    },
+    {
+      "firstFile": {
+        "end": 263,
+        "endLoc": {
+          "column": 1,
+          "line": 263,
+          "position": 11144
+        },
+        "name": "play/visibility.ts",
+        "start": 255,
+        "startLoc": {
+          "column": 22,
+          "line": 255,
+          "position": 10915
+        }
+      },
+      "format": "typescript",
+      "fragment": "\t\tconst next: WireObj = { ...existing };\n\t\tfor (const [prop, value] of Object.entries(delta)) {\n\t\t\tif (prop === '_type' || prop === '_id') continue;\n\t\t\tif (value === null) delete next[prop];\n\t\t\telse next[prop] = value;\n\t\t}\n\t\tstate.set(key, next);\n\t}\n}",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 9,
+      "secondFile": {
+        "end": 93,
+        "endLoc": {
+          "column": 7,
+          "line": 93,
+          "position": 4055
+        },
+        "name": "play/fold.ts",
+        "start": 85,
+        "startLoc": {
+          "column": 29,
+          "line": 85,
+          "position": 3790
+        }
+      },
+      "tokens": 66
+    },
+    {
+      "firstFile": {
+        "end": 1139,
+        "endLoc": {
+          "column": 6,
+          "line": 1139,
+          "position": 49975
+        },
+        "name": "room/lobby.ts",
+        "start": 1131,
+        "startLoc": {
+          "column": 86,
+          "line": 1131,
+          "position": 49479
+        }
+      },
+      "format": "typescript",
+      "fragment": "\tsetGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult {\n\t\tconst room = this.#rooms.get(roomId);\n\t\tif (room === undefined) return { ok: false, reason: 'no-room' };\n\t\tif (room.leader !== callerId) return { ok: false, reason: 'not-leader' };\n\t\t// The draft is dealt against this room's id and is already being played.\n\t\t// Switching the game under it would leave a live pod in a room that says\n\t\t// it is playing constructed, and nothing would ever close the pod.\n\t\tif (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };\n\t\troom.gameType = gameType;",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 9,
+      "secondFile": {
+        "end": 1157,
+        "endLoc": {
+          "column": 4,
+          "line": 1157,
+          "position": 50925
+        },
+        "name": "room/lobby.ts",
+        "start": 1149,
+        "startLoc": {
+          "column": 80,
+          "line": 1149,
+          "position": 50465
+        }
+      },
+      "tokens": 68
+    },
+    {
+      "firstFile": {
+        "end": 391,
+        "endLoc": {
+          "column": 1,
+          "line": 391,
+          "position": 14965
+        },
+        "name": "deck/DeckBuilder.tsx",
+        "start": 376,
+        "startLoc": {
+          "column": 50,
+          "line": 376,
+          "position": 14443
+        }
+      },
+      "format": "tsx",
+      "fragment": "          : `The server says: not legal against ${verdict.rulesName} — ${verdict.issues.length} ${verdict.issues.length === 1 ? 'problem' : 'problems'}:`}\n      </p>\n      {verdict.issues.length > 0 && (\n        <ul className=\"tables__issues\">\n          {verdict.issues.map((issue, i) => (\n            <li key={i}>\n              {issue.cardName !== null && <strong className=\"tables__card\">{issue.cardName}</strong>}\n              {issue.cardName !== null && ' — '}\n              {issue.message}\n            </li>\n          ))}\n        </ul>\n      )}\n    </div>\n  );\n}",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 16,
+      "secondFile": {
+        "end": 2394,
+        "endLoc": {
+          "column": 1,
+          "line": 2394,
+          "position": 102724
+        },
+        "name": "screens/ConstructedScreen.tsx",
+        "start": 2379,
+        "startLoc": {
+          "column": 28,
+          "line": 2379,
+          "position": 102202
+        }
+      },
+      "tokens": 131
+    },
+    {
+      "firstFile": {
+        "end": 214,
+        "endLoc": {
+          "column": 6,
+          "line": 214,
+          "position": 8877
+        },
+        "name": "draft/socket.ts",
+        "start": 202,
+        "startLoc": {
+          "column": 47,
+          "line": 202,
+          "position": 8656
+        }
+      },
+      "format": "typescript",
+      "fragment": "    emit(event: string, payload: unknown): void;\n    disconnect(): void;\n  };\n\n  return {\n    on: (event, handler) => {\n      raw.on(event, (payload) => {\n        handler(payload);\n      });\n    },\n    emit: (event, payload) => {\n      raw.emit(event, payload);\n    },",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 13,
+      "secondFile": {
+        "end": 377,
+        "endLoc": {
+          "column": 6,
+          "line": 377,
+          "position": 19385
+        },
+        "name": "play/live/match.ts",
+        "start": 365,
+        "startLoc": {
+          "column": 5,
+          "line": 365,
+          "position": 19164
+        }
+      },
+      "tokens": 61
+    },
+    {
+      "firstFile": {
+        "end": 1315,
+        "endLoc": {
+          "column": 1,
+          "line": 1315,
+          "position": 65657
+        },
+        "name": "play/Board.tsx",
+        "start": 1305,
+        "startLoc": {
+          "column": 105,
+          "line": 1305,
+          "position": 65101
+        }
+      },
+      "format": "tsx",
+      "fragment": "  for (const el of document.querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')) {\n    const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;\n    const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');\n    const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap') ?? [])].map((li) => ({\n      id: li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),\n      box: li.getBoundingClientRect(),\n    }));\n    out.push({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) });\n  }\n  return out;\n}",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 2955,
+        "endLoc": {
+          "column": 5,
+          "line": 2955,
+          "position": 139737
+        },
+        "name": "play/Board.tsx",
+        "start": 2945,
+        "startLoc": {
+          "column": 99,
+          "line": 2945,
+          "position": 139141
+        }
+      },
+      "tokens": 133
+    },
+    {
+      "firstFile": {
+        "end": 923,
+        "endLoc": {
+          "column": 8,
+          "line": 923,
+          "position": 44479
+        },
+        "name": "play/adapter.ts",
+        "start": 908,
+        "startLoc": {
+          "column": 61,
+          "line": 908,
+          "position": 43866
+        }
+      },
+      "format": "typescript",
+      "fragment": "function readKeywords(obj: WireObject | undefined): readonly string[] {\n  const v = prop(obj, 'Keywords');\n  if (v === undefined || v.t !== 'keywords' || !Array.isArray(v.v)) return [];\n  return (v.v as unknown[]).filter((k): k is string => typeof k === 'string');\n}\n\n/**\n * Whether a keyword list grants haste.\n *\n * A keyword crosses as its own text, with any parameter after a colon\n * (`Affinity:Mountain` in the committed capture), so the token before the colon\n * is the keyword's name. `Haste` takes no parameter\n * (`Keyword.java:100 HASTE(\"Haste\", SimpleKeyword.class, …)`). This is a\n * membership test on structured data, not a match against prose.\n */\nfunction hasHaste(keywords: readonly string[]): boolean {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 16,
+      "secondFile": {
+        "end": 99,
+        "endLoc": {
+          "column": 8,
+          "line": 99,
+          "position": 4102
+        },
+        "name": "play/prompts/lookup.ts",
+        "start": 93,
+        "startLoc": {
+          "column": 52,
+          "line": 93,
+          "position": 3887
+        }
+      },
+      "tokens": 69
+    },
+    {
+      "firstFile": {
+        "end": 212,
+        "endLoc": {
+          "column": 19,
+          "line": 212,
+          "position": 8001
+        },
+        "name": "play/card.css",
+        "start": 204,
+        "startLoc": {
+          "column": 10,
+          "line": 204,
+          "position": 7780
+        }
+      },
+      "format": "css",
+      "fragment": "  gap: 1px;\n  max-width: calc(100% - 4px - var(--pile-fan));\n  padding: 0 4px;\n  background: var(--bg-raised);\n  border: 1px solid var(--line);\n  border-radius: 999px;\n  color: var(--ink-dim);\n  font-size: 10px;\n  line-height: 1.5;",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 9,
+      "secondFile": {
+        "end": 450,
+        "endLoc": {
+          "column": 19,
+          "line": 450,
+          "position": 16186
+        },
+        "name": "play/card.css",
+        "start": 442,
+        "startLoc": {
+          "column": 36,
+          "line": 442,
+          "position": 15965
+        }
+      },
+      "tokens": 83
+    },
+    {
+      "firstFile": {
+        "end": 186,
+        "endLoc": {
+          "column": 13,
+          "line": 186,
+          "position": 8256
+        },
+        "name": "play/live/gestures/arrow.ts",
+        "start": 173,
+        "startLoc": {
+          "column": 43,
+          "line": 173,
+          "position": 7909
+        }
+      },
+      "format": "typescript",
+      "fragment": "  let best: Point = { x: r.left, y: r.top };\n  let bestD = Infinity;\n  for (let row = 0; row < 3; row += 1) {\n    for (let col = 0; col < 3; col += 1) {\n      if (row === 1 && col === 1) continue;\n      const p = { x: xs[col]!, y: ys[row]! };\n      const d = Math.hypot(p.x - from.x, p.y - from.y);\n      if (d < bestD) {\n        bestD = d;\n        best = p;\n      }\n    }\n  }\n  return best;",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 14,
+      "secondFile": {
+        "end": 38,
+        "endLoc": {
+          "column": 13,
+          "line": 38,
+          "position": 1462
+        },
+        "name": "play/live/gestures/targets.ts",
+        "start": 25,
+        "startLoc": {
+          "column": 31,
+          "line": 25,
+          "position": 1082
+        }
+      },
+      "tokens": 115
+    },
+    {
+      "firstFile": {
+        "end": 176,
+        "endLoc": {
+          "column": 18,
+          "line": 176,
+          "position": 6544
+        },
+        "name": "play/live/gestures/gestures.css",
+        "start": 168,
+        "startLoc": {
+          "column": 24,
+          "line": 168,
+          "position": 6274
+        }
+      },
+      "format": "css",
+      "fragment": "[data-cast-lift='parked'] {\n  transition:\n    left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),\n    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),\n    width 300ms cubic-bezier(0.3, 0.7, 0.3, 1),\n    height 300ms cubic-bezier(0.3, 0.7, 0.3, 1);\n}\n@media (prefers-reduced-motion: reduce) {\n  [data-cast-lift='parked'] {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 9,
+      "secondFile": {
+        "end": 197,
+        "endLoc": {
+          "column": 18,
+          "line": 197,
+          "position": 7264
+        },
+        "name": "play/live/gestures/gestures.css",
+        "start": 188,
+        "startLoc": {
+          "column": 27,
+          "line": 188,
+          "position": 6993
+        }
+      },
+      "tokens": 88
+    },
+    {
+      "firstFile": {
+        "end": 1089,
+        "endLoc": {
+          "column": 35,
+          "line": 1089,
+          "position": 50421
+        },
+        "name": "play/live/match.ts",
+        "start": 1080,
+        "startLoc": {
+          "column": 32,
+          "line": 1080,
+          "position": 50177
+        }
+      },
+      "format": "typescript",
+      "fragment": "  const parsed = parseMatchSeats(payload);\n  if (!parsed.ok) {\n    match.lastInvalid = parsed.errors;\n    match.stats.invalid += 1;\n    notify(match);\n    return;\n  }\n  if (parsed.value.matchId !== match.matchId) {\n    match.lastInvalid = [\n      { path: '$.matchId', message: `seats for match ${parsed.value.matchId}, not ${match.matchId}` },",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 10,
+      "secondFile": {
+        "end": 1135,
+        "endLoc": {
+          "column": 54,
+          "line": 1135,
+          "position": 52229
+        },
+        "name": "play/live/match.ts",
+        "start": 1127,
+        "startLoc": {
+          "column": 31,
+          "line": 1127,
+          "position": 51992
+        }
+      },
+      "tokens": 61
+    },
+    {
+      "firstFile": {
+        "end": 49,
+        "endLoc": {
+          "column": 15,
+          "line": 49,
+          "position": 2079
+        },
+        "name": "play/live/mutate-asks.sh",
+        "start": 35,
+        "startLoc": {
+          "column": 22,
+          "line": 35,
+          "position": 1679
+        }
+      },
+      "format": "bash",
+      "fragment": "  python3 - \"$1\" \"$2\" <<'EOF'\nimport json, sys\npath, pairs = sys.argv[1], json.loads(sys.argv[2])\nsrc = open(path).read()\nfor old, new in pairs:\n    if src.count(old) != 1:\n        sys.exit(f\"mutation anchor not found exactly once: {old!r}\")\n    src = src.replace(old, new)\nopen(path, 'w').write(src)\nEOF\n}\n\nrun_tests() { # prints \"<failed> failed / <passed> passed\", returns vitest's exit code\n  local log\n  log=$(mktemp)",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 15,
+      "secondFile": {
+        "end": 41,
+        "endLoc": {
+          "column": 15,
+          "line": 41,
+          "position": 1574
+        },
+        "name": "play/live/mutate-seq.sh",
+        "start": 27,
+        "startLoc": {
+          "column": 27,
+          "line": 27,
+          "position": 1174
+        }
+      },
+      "tokens": 100
+    },
+    {
+      "firstFile": {
+        "end": 62,
+        "endLoc": {
+          "column": 16,
+          "line": 62,
+          "position": 2573
+        },
+        "name": "play/live/mutate-asks.sh",
+        "start": 50,
+        "startLoc": {
+          "column": 52,
+          "line": 50,
+          "position": 2132
+        }
+      },
+      "format": "bash",
+      "fragment": "  env -u CARDTABLE_FORGE_JAR -u CARDTABLE_FORGE_RES pnpm exec vitest run apps/ui/src/play/live >\"$log\" 2>&1\n  local code=$?\n  local failed passed\n  failed=$(grep -oE '[0-9]+ failed' \"$log\" | tail -1 | grep -oE '[0-9]+' || true)\n  passed=$(grep -oE '[0-9]+ passed' \"$log\" | tail -1 | grep -oE '[0-9]+' || true)\n  echo \"    tests: ${failed:-0} failed / ${passed:-0} passed (vitest exit $code)\"\n  grep -E '^ +×' \"$log\" | sed 's/^/    /'\n  rm -f \"$log\"\n  return $code\n}\n\nstatus=0\ntry_mutation() { # $1 = name, $2 = file, $3 = replacement pairs",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 13,
+      "secondFile": {
+        "end": 54,
+        "endLoc": {
+          "column": 16,
+          "line": 54,
+          "position": 2018
+        },
+        "name": "play/live/mutate-seq.sh",
+        "start": 42,
+        "startLoc": {
+          "column": 2,
+          "line": 42,
+          "position": 1577
+        }
+      },
+      "tokens": 96
+    },
+    {
+      "firstFile": {
+        "end": 265,
+        "endLoc": {
+          "column": 23,
+          "line": 265,
+          "position": 11523
+        },
+        "name": "play/prompts/ChoicePrompts.tsx",
+        "start": 252,
+        "startLoc": {
+          "column": 69,
+          "line": 252,
+          "position": 10976
+        }
+      },
+      "format": "tsx",
+      "fragment": "      <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />\n      <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>\n        {rows.map((row) => (\n          <li\n            key={`${row.ref.kind}:${row.ref.id}`}\n            data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined}\n            data-choosable={row.choosable ? undefined : 'false'}\n          >\n            {row.option === null ? (\n              <UnofferedRow row={row} lookup={lookup} />\n            ) : (\n              <label>\n                <input\n                  type=\"radio\"",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 14,
+      "secondFile": {
+        "end": 317,
+        "endLoc": {
+          "column": 23,
+          "line": 317,
+          "position": 13668
+        },
+        "name": "play/prompts/ChoicePrompts.tsx",
+        "start": 304,
+        "startLoc": {
+          "column": 73,
+          "line": 304,
+          "position": 13121
+        }
+      },
+      "tokens": 118
+    },
+    {
+      "firstFile": {
+        "end": 464,
+        "endLoc": {
+          "column": 45,
+          "line": 464,
+          "position": 19451
+        },
+        "name": "rooms/api.ts",
+        "start": 455,
+        "startLoc": {
+          "column": 14,
+          "line": 455,
+          "position": 19164
+        }
+      },
+      "format": "typescript",
+      "fragment": "        method,\n        credentials: 'same-origin',\n        headers: JSON_HEADERS,\n        body: JSON.stringify(payload),\n      });\n    } catch {\n      return { ok: false, message: 'Could not reach the server.' };\n    }\n    const body = await bodyOf(res);\n    if (!res.ok) return { ok: false, message: `${whatFailed}: ${serverMessage(body, res.status)}.` };",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 10,
+      "secondFile": {
+        "end": 516,
+        "endLoc": {
+          "column": 47,
+          "line": 516,
+          "position": 21543
+        },
+        "name": "rooms/api.ts",
+        "start": 507,
+        "startLoc": {
+          "column": 24,
+          "line": 507,
+          "position": 21238
+        }
+      },
+      "tokens": 60
+    },
+    {
+      "firstFile": {
+        "end": 1407,
+        "endLoc": {
+          "column": 3,
+          "line": 1407,
+          "position": 62618
+        },
+        "name": "screens/ConstructedScreen.tsx",
+        "start": 1394,
+        "startLoc": {
+          "column": 17,
+          "line": 1394,
+          "position": 62237
+        }
+      },
+      "format": "tsx",
+      "fragment": "      .startVsBot(roomId)\n      .then((outcome) => {\n        if (outcome.ok) {\n          navigate({ kind: 'match', matchId: outcome.matchId });\n          return;\n        }\n        setStartRefusal(outcome.error);\n        setStarting(false);\n      })\n      .catch((err: unknown) => {\n        setStartRefusal(err instanceof Error ? err.message : String(err));\n        setStarting(false);\n      });\n  };",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 14,
+      "secondFile": {
+        "end": 1430,
+        "endLoc": {
+          "column": 3,
+          "line": 1430,
+          "position": 63444
+        },
+        "name": "screens/ConstructedScreen.tsx",
+        "start": 1417,
+        "startLoc": {
+          "column": 16,
+          "line": 1417,
+          "position": 63063
+        }
+      },
+      "tokens": 85
+    },
+    {
+      "firstFile": {
+        "end": 450,
+        "endLoc": {
+          "column": 8,
+          "line": 450,
+          "position": 16602
+        },
+        "name": "screens/SoundBuilder.tsx",
+        "start": 442,
+        "startLoc": {
+          "column": 30,
+          "line": 442,
+          "position": 16321
+        }
+      },
+      "format": "tsx",
+      "fragment": "  unsaved: ReadonlySet<string>;\n  onAddTo: (cell: string, file: string) => void;\n  onRemoveFrom: (cell: string, file: string) => void;\n  onDrop: (cell: string, e: React.DragEvent<HTMLDivElement>) => void;\n  onPlayRandom: (cell: string, files: string[]) => void;\n  onPlayPill: (file: string) => void;\n}\n\nfunction ColourRowEl({",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 9,
+      "secondFile": {
+        "end": 521,
+        "endLoc": {
+          "column": 8,
+          "line": 521,
+          "position": 18479
+        },
+        "name": "screens/SoundBuilder.tsx",
+        "start": 513,
+        "startLoc": {
+          "column": 18,
+          "line": 513,
+          "position": 18198
+        }
+      },
+      "tokens": 76
+    },
+    {
+      "firstFile": {
+        "end": 422,
+        "endLoc": {
+          "column": 1,
+          "line": 422,
+          "position": 11231
+        },
+        "name": "screens/screens.css",
+        "start": 413,
+        "startLoc": {
+          "column": 21,
+          "line": 413,
+          "position": 11034
+        }
+      },
+      "format": "css",
+      "fragment": "    'deck deck rules';\n  align-items: center;\n  gap: 0.2rem 0.75rem;\n  padding: 0.45rem 0.7rem;\n  background: var(--color-bg-alt);\n  border: 1px solid var(--color-border-light);\n  border-radius: var(--hdk-radius);\n}\n\n.tables__row--empty {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 10,
+      "secondFile": {
+        "end": 839,
+        "endLoc": {
+          "column": 1,
+          "line": 839,
+          "position": 20265
+        },
+        "name": "screens/screens.css",
+        "start": 830,
+        "startLoc": {
+          "column": 46,
+          "line": 830,
+          "position": 20068
+        }
+      },
+      "tokens": 65
+    },
+    {
+      "firstFile": {
+        "end": 16,
+        "endLoc": {
+          "column": 3,
+          "line": 16,
+          "position": 850
+        },
+        "name": "symbols/keyrune.css",
+        "start": 2,
+        "startLoc": {
+          "column": 15,
+          "line": 2,
+          "position": 18
+        }
+      },
+      "format": "css",
+      "fragment": " * Keyrune 3.19.0 — vendored, with exactly three edits. NOT ours to restyle.\n *\n * D20 (operator, 2026-09-27): *\"naw we're not drawing our own\"*. What each pack\n * licenses is in `docs/LICENSING.md` §3.2 and the attribution is in `NOTICE.md`;\n * the two packs are NOT the same position, so read that before touching this.\n *\n * ## Why this is vendored whole rather than trimmed\n *\n * It was trimmed first: 47 rules, one per glyph we render, generated from this\n * file. That version rendered `{W}` correctly and would have broken every\n * `{W/U}` and `{2/W}` silently — a hybrid pip is not a glyph, it is 34\n * interlocking `.ms-cost` rules driving `::before` and `::after` against\n * `--ms-split-top` / `--ms-split-bottom` custom properties. A hand-trim of that\n * is a bug waiting to be found by a player, so the whole file ships. It is\n * 6.0 KB gzipped, which is not worth a clever port.",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 15,
+      "secondFile": {
+        "end": 16,
+        "endLoc": {
+          "column": 3,
+          "line": 16,
+          "position": 847
+        },
+        "name": "symbols/mana.css",
+        "start": 2,
+        "startLoc": {
+          "column": 12,
+          "line": 2,
+          "position": 15
+        }
+      },
+      "tokens": 813
+    },
+    {
+      "firstFile": {
+        "end": 30,
+        "endLoc": {
+          "column": 42,
+          "line": 30,
+          "position": 1691
+        },
+        "name": "symbols/keyrune.css",
+        "start": 16,
+        "startLoc": {
+          "column": 6,
+          "line": 16,
+          "position": 853
+        }
+      },
+      "format": "css",
+      "fragment": " * 6.0 KB gzipped, which is not worth a clever port.\n *\n * ## The three edits, and the rules for anyone changing them\n *\n * 1. **`@font-face` is woff2 only.** The pack lists eot/woff/ttf/svg for\n *    browsers we do not support, and each entry is another file to ship.\n * 2. **Every OTHER `@font-face` is removed.** In the mana pack that is the\n *    Plantin-alike text face; Plantin is Monotype's, it is a different\n *    licensing question, and we need none of it. Do not add it back.\n * 3. **That face is dropped from the font stacks that named it.** Those\n *    declarations quoted the WHOLE stack — `font-family: \"<face>, Garamond,\n *    …\"` — which names one family with commas in it and is inert in every\n *    browser. That is upstream's bug; the stacks here are unquoted and correct.\n *\n * Do NOT rename the family or the file: \"Keyrune\" is a reserved font name",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 15,
+      "secondFile": {
+        "end": 30,
+        "endLoc": {
+          "column": 42,
+          "line": 30,
+          "position": 1688
+        },
+        "name": "symbols/mana.css",
+        "start": 16,
+        "startLoc": {
+          "column": 6,
+          "line": 16,
+          "position": 850
+        }
+      },
+      "tokens": 818
+    },
+    {
+      "firstFile": {
+        "end": 55,
+        "endLoc": {
+          "column": 37,
+          "line": 55,
+          "position": 2352
+        },
+        "name": "symbols/keyrune.css",
+        "start": 46,
+        "startLoc": {
+          "column": 43,
+          "line": 46,
+          "position": 2113
+        }
+      },
+      "format": "css",
+      "fragment": "  font: normal normal normal 14px/1 Keyrune;\n  font-size: inherit;\n  line-height: 1em;\n  text-rendering: auto;\n  transform: translate(0, 0);\n  speak: none;\n  text-transform: none;\n  vertical-align: middle;\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 10,
+      "secondFile": {
+        "end": 53,
+        "endLoc": {
+          "column": 37,
+          "line": 53,
+          "position": 2318
+        },
+        "name": "symbols/mana.css",
+        "start": 44,
+        "startLoc": {
+          "column": 38,
+          "line": 44,
+          "position": 2079
+        }
+      },
+      "tokens": 65
+    },
+    {
+      "firstFile": {
+        "end": 1625,
+        "endLoc": {
+          "column": 4,
+          "line": 1625,
+          "position": 38259
+        },
+        "name": "symbols/mana.css",
+        "start": 1614,
+        "startLoc": {
+          "column": 507,
+          "line": 1614,
+          "position": 38020
+        }
+      },
+      "format": "css",
+      "fragment": ".ms-loyalty-0::after, .ms-loyalty-1::after, .ms-loyalty-2::after, .ms-loyalty-3::after, .ms-loyalty-4::after, .ms-loyalty-5::after, .ms-loyalty-6::after, .ms-loyalty-7::after, .ms-loyalty-8::after, .ms-loyalty-9::after, .ms-loyalty-10::after, .ms-loyalty-11::after, .ms-loyalty-12::after, .ms-loyalty-13::after, .ms-loyalty-14::after, .ms-loyalty-15::after, .ms-loyalty-16::after, .ms-loyalty-17::after, .ms-loyalty-18::after, .ms-loyalty-19::after, .ms-loyalty-20::after, .ms-loyalty-25::after, .ms-loyalty-x::after {\n  color: #fff;\n  display: inline-block;\n  font-size: 0.5em;\n  font-family: Garamond, Palatino, 'Times New Roman', Times, serif;\n  position: absolute;\n  left: 0;\n  line-height: 2.25em;\n  width: 100%;\n  text-align: center;\n}\n.ms-loyalty-0::after {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 1912,
+        "endLoc": {
+          "column": 4,
+          "line": 1912,
+          "position": 44222
+        },
+        "name": "symbols/mana.css",
+        "start": 1901,
+        "startLoc": {
+          "column": 507,
+          "line": 1901,
+          "position": 43983
+        }
+      },
+      "tokens": 68
+    }
+  ],
+  "statistics": {
+    "detectionDate": "2026-10-08T21:02:21.352Z",
+    "formats": {
+      "bash": {
+        "clones": 2,
+        "duplicatedLines": 28,
+        "duplicatedTokens": 196,
+        "lines": 263,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 10.646387832699618,
+        "percentageTokens": 13.639526791927628,
+        "sources": 4,
+        "tokens": 1437
+      },
+      "css": {
+        "clones": 7,
+        "duplicatedLines": 80,
+        "duplicatedTokens": 2000,
+        "lines": 13031,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.6139206507558898,
+        "percentageTokens": 0.8189337482597657,
+        "sources": 19,
+        "tokens": 244220
+      },
+      "diff": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 77,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 635
+      },
+      "java": {
+        "clones": 1,
+        "duplicatedLines": 17,
+        "duplicatedTokens": 691,
+        "lines": 3369,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.5046007717423567,
+        "percentageTokens": 0.9140937111410958,
+        "sources": 4,
+        "tokens": 75594
+      },
+      "json": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 18109,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 63745
+      },
+      "markdown": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 1370,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 4,
+        "tokens": 19497
+      },
+      "markup": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 44,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 334
+      },
+      "text": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 82,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 1508
+      },
+      "tsx": {
+        "clones": 5,
+        "duplicatedLines": 64,
+        "duplicatedTokens": 543,
+        "lines": 15790,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.4053198226725776,
+        "percentageTokens": 0.8161976911976911,
+        "sources": 42,
+        "tokens": 66528
+      },
+      "txt": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 197,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 2296
+      },
+      "typescript": {
+        "clones": 13,
+        "duplicatedLines": 242,
+        "duplicatedTokens": 1068,
+        "lines": 40342,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.5998711020772396,
+        "percentageTokens": 0.5892381283413609,
+        "sources": 116,
+        "tokens": 181251
+      }
+    },
+    "total": {
+      "clones": 28,
+      "duplicatedLines": 431,
+      "duplicatedTokens": 4498,
+      "lines": 92674,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 0.46507110948054475,
+      "percentageTokens": 0.6845802037912168,
+      "sources": 198,
+      "tokens": 657045
+    }
+  }
+}

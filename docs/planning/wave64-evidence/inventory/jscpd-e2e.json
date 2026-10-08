@@ -1,0 +1,1475 @@
+{
+  "duplicates": [
+    {
+      "firstFile": {
+        "end": 217,
+        "endLoc": {
+          "column": 53,
+          "line": 217,
+          "position": 9553
+        },
+        "name": "arrow.spec.ts",
+        "start": 207,
+        "startLoc": {
+          "column": 233,
+          "line": 207,
+          "position": 9236
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled(\"the cast arrow, measured in a real browser: no arrow while lifted or held over the battlefield, then — at release — a tail pinned where the card parked and a tip on the nearest of the target card's eight edge points\"), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(3 * 60_000);\n\n  const stack = await startPlayStack(forge);\n  let seated: ScenarioMatch | null = null;\n  const log: string[] = [];\n\n  try {\n    seated = await startScenarioMatch(browser, stack, 'auto-target');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 95,
+        "endLoc": {
+          "column": 55,
+          "line": 95,
+          "position": 4544
+        },
+        "name": "arrows.spec.ts",
+        "start": 85,
+        "startLoc": {
+          "column": 2,
+          "line": 85,
+          "position": 4210
+        }
+      },
+      "tokens": 87
+    },
+    {
+      "firstFile": {
+        "end": 112,
+        "endLoc": {
+          "column": 27,
+          "line": 112,
+          "position": 5007
+        },
+        "name": "harness.ts",
+        "start": 101,
+        "startLoc": {
+          "column": 68,
+          "line": 101,
+          "position": 4702
+        }
+      },
+      "format": "typescript",
+      "fragment": "const serverLog = createWriteStream(resolve(RUN_DIR, 'server.jsonl'), { flags: 'w' });\n\nconst secret = randomBytes(24).toString('hex');\n\nconst server = spawn(process.execPath, [SERVER_JS], {\n  cwd: ROOT,\n  stdio: ['ignore', 'pipe', 'pipe'],\n  env: {\n    PATH: process.env.PATH ?? '',\n    HOME: process.env.HOME ?? '',\n    NODE_ENV: 'production',\n    CARDTABLE_PORT: String(SERVER_PORT),",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 419,
+        "endLoc": {
+          "column": 29,
+          "line": 419,
+          "position": 19224
+        },
+        "name": "play/harness.ts",
+        "start": 409,
+        "startLoc": {
+          "column": 51,
+          "line": 409,
+          "position": 18902
+        }
+      },
+      "tokens": 80
+    },
+    {
+      "firstFile": {
+        "end": 40,
+        "endLoc": {
+          "column": 6,
+          "line": 40,
+          "position": 1947
+        },
+        "name": "play/combat.ts",
+        "start": 16,
+        "startLoc": {
+          "column": 7,
+          "line": 16,
+          "position": 660
+        }
+      },
+      "format": "typescript",
+      "fragment": "export async function phaseOf(page: Page): Promise<{ phase: string; whose: string } | null> {\n  const rail = page.getByTestId('live-phases');\n  if ((await rail.count()) === 0) return null;\n  const phase = await rail.getAttribute('data-phase');\n  const whose = await rail.getAttribute('data-whose');\n  return phase === null ? null : { phase, whose: whose ?? '' };\n}\n\n/**\n * Press OK once for the ACTIVE (attacking) seat's own priority stop at\n * Declare Attackers Step — the one click a human makes to say \"attacks are\n * declared, move on\" — then return once the game is at or past Declare\n * Blockers. Never touches the defending seat.\n *\n * Same shape as `w33.spec.ts`'s `passDeclareAttackers`: `w54-b-two-blockers`\n * lands the match AT Declare Attackers Step with both attacks already\n * recorded (`|Attacking`, no live `InputAttack` needed here — this driver is\n * about the BLOCK side), so the only click this seat has left to make is\n * this one priority stop, and the ordinary main loop is what carries the\n * state-effects pass the defender's own creatures need before Forge decides\n * who may block (`scenarios/README.md`'s own warning against landing\n * straight on Declare Blockers — a scripted creature read one pass too\n * early is offered to block ZERO times).\n */\nexport async function passDeclareAttackers(page: Page): Promise<void> {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 25,
+      "secondFile": {
+        "end": 54,
+        "endLoc": {
+          "column": 5,
+          "line": 54,
+          "position": 2766
+        },
+        "name": "w33.spec.ts",
+        "start": 34,
+        "startLoc": {
+          "column": 0,
+          "line": 34,
+          "position": 1662
+        }
+      },
+      "tokens": 90
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 95,
+          "line": 59,
+          "position": 3397
+        },
+        "name": "play/enter.ts",
+        "start": 48,
+        "startLoc": {
+          "column": 97,
+          "line": 48,
+          "position": 2800
+        }
+      },
+      "format": "typescript",
+      "fragment": "  await expect(bob.page.getByTestId('format-fixed')).toHaveAttribute('data-format', choice.format);\n  for (const [f, deck] of [\n    [alice, choice.decks[0]],\n    [bob, choice.decks[1]],\n  ] as const) {\n    await expect(f.page.getByTestId('constructed')).toBeVisible();\n    await expect(f.page.getByTestId('deck-mine')).toBeEnabled();\n    await f.page.getByTestId('deck-mine').locator(`[data-deck-id=\"${deck}\"]`).click();\n    await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');\n  }\n  await alice.page.getByTestId('ready-toggle').click();\n  await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 666,
+        "endLoc": {
+          "column": 95,
+          "line": 666,
+          "position": 36210
+        },
+        "name": "table-fit.spec.ts",
+        "start": 644,
+        "startLoc": {
+          "column": 2,
+          "line": 644,
+          "position": 34753
+        }
+      },
+      "tokens": 153
+    },
+    {
+      "firstFile": {
+        "end": 56,
+        "endLoc": {
+          "column": 9,
+          "line": 56,
+          "position": 2925
+        },
+        "name": "presence.spec.ts",
+        "start": 46,
+        "startLoc": {
+          "column": 127,
+          "line": 46,
+          "position": 2367
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('bob sees alice’s pointer, a card back while she holds a card, her arrow while she aims — and never which card'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(3 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');\n    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });\n    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);\n    const memnite = (await offered(alice.page))[0]!;\n    const name = (await alice.page.locator(`[data-board-card=\"${memnite}\"] .card__name`).first().textContent())?.trim() ?? '';",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 159,
+        "endLoc": {
+          "column": 9,
+          "line": 159,
+          "position": 9525
+        },
+        "name": "presence.spec.ts",
+        "start": 149,
+        "startLoc": {
+          "column": 87,
+          "line": 149,
+          "position": 8967
+        }
+      },
+      "tokens": 159
+    },
+    {
+      "firstFile": {
+        "end": 56,
+        "endLoc": {
+          "column": 9,
+          "line": 56,
+          "position": 2925
+        },
+        "name": "presence.spec.ts",
+        "start": 46,
+        "startLoc": {
+          "column": 127,
+          "line": 46,
+          "position": 2367
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('bob sees alice’s pointer, a card back while she holds a card, her arrow while she aims — and never which card'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(3 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');\n    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });\n    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);\n    const memnite = (await offered(alice.page))[0]!;\n    const name = (await alice.page.locator(`[data-board-card=\"${memnite}\"] .card__name`).first().textContent())?.trim() ?? '';",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 197,
+        "endLoc": {
+          "column": 9,
+          "line": 197,
+          "position": 11747
+        },
+        "name": "presence.spec.ts",
+        "start": 186,
+        "startLoc": {
+          "column": 116,
+          "line": 186,
+          "position": 11188
+        }
+      },
+      "tokens": 159
+    },
+    {
+      "firstFile": {
+        "end": 142,
+        "endLoc": {
+          "column": 58,
+          "line": 142,
+          "position": 7150
+        },
+        "name": "prompts-offboard.spec.ts",
+        "start": 130,
+        "startLoc": {
+          "column": 154,
+          "line": 130,
+          "position": 6487
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W18 — Relentless Dead’s graveyard target reaches the seat as a clickable off-board picker, and picking one returns it to the battlefield'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice, bob } = await startScenarioMatch(browser, stack, 'w42-relentless-dead');\n    void bob;\n\n    const kozileksReturn = alice.page.locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card]', { hasText: \"Kozilek's Return\" });\n    const cardId = Number(await kozileksReturn.first().getAttribute('data-board-card'));\n    // Two graveyard cards, neither on a battlefield — the soft-lock's shape.\n    await castAndReachTheSelection(alice.page, cardId, 2);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 13,
+      "secondFile": {
+        "end": 166,
+        "endLoc": {
+          "column": 58,
+          "line": 166,
+          "position": 8298
+        },
+        "name": "prompts-offboard.spec.ts",
+        "start": 155,
+        "startLoc": {
+          "column": 178,
+          "line": 155,
+          "position": 7715
+        }
+      },
+      "tokens": 127
+    },
+    {
+      "firstFile": {
+        "end": 142,
+        "endLoc": {
+          "column": 9,
+          "line": 142,
+          "position": 7101
+        },
+        "name": "prompts-offboard.spec.ts",
+        "start": 130,
+        "startLoc": {
+          "column": 154,
+          "line": 130,
+          "position": 6487
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W18 — Relentless Dead’s graveyard target reaches the seat as a clickable off-board picker, and picking one returns it to the battlefield'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice, bob } = await startScenarioMatch(browser, stack, 'w42-relentless-dead');\n    void bob;\n\n    const kozileksReturn = alice.page.locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card]', { hasText: \"Kozilek's Return\" });\n    const cardId = Number(await kozileksReturn.first().getAttribute('data-board-card'));\n    // Two graveyard cards, neither on a battlefield — the soft-lock's shape.\n    await castAndReachTheSelection(alice.page, cardId, 2);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 13,
+      "secondFile": {
+        "end": 197,
+        "endLoc": {
+          "column": 9,
+          "line": 197,
+          "position": 10048
+        },
+        "name": "prompts-offboard.spec.ts",
+        "start": 181,
+        "startLoc": {
+          "column": 189,
+          "line": 181,
+          "position": 9130
+        }
+      },
+      "tokens": 116
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 9,
+          "line": 59,
+          "position": 2807
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 107,
+          "line": 49,
+          "position": 2432
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 102,
+        "endLoc": {
+          "column": 9,
+          "line": 102,
+          "position": 5327
+        },
+        "name": "stacking.spec.ts",
+        "start": 92,
+        "startLoc": {
+          "column": 96,
+          "line": 92,
+          "position": 4952
+        }
+      },
+      "tokens": 98
+    },
+    {
+      "firstFile": {
+        "end": 60,
+        "endLoc": {
+          "column": 9,
+          "line": 60,
+          "position": 2857
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 107,
+          "line": 49,
+          "position": 2432
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);\n    const baseEl = (id: string) => page.locator(`[data-card-id=\"${id}\"]`);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 166,
+        "endLoc": {
+          "column": 9,
+          "line": 166,
+          "position": 8548
+        },
+        "name": "stacking.spec.ts",
+        "start": 156,
+        "startLoc": {
+          "column": 104,
+          "line": 156,
+          "position": 8124
+        }
+      },
+      "tokens": 113
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 15,
+          "line": 59,
+          "position": 2813
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 107,
+          "line": 49,
+          "position": 2432
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 252,
+        "endLoc": {
+          "column": 15,
+          "line": 252,
+          "position": 13235
+        },
+        "name": "stacking.spec.ts",
+        "start": 243,
+        "startLoc": {
+          "column": 91,
+          "line": 243,
+          "position": 12855
+        }
+      },
+      "tokens": 102
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 9,
+          "line": 59,
+          "position": 2807
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 107,
+          "line": 49,
+          "position": 2432
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 303,
+        "endLoc": {
+          "column": 9,
+          "line": 303,
+          "position": 16050
+        },
+        "name": "stacking.spec.ts",
+        "start": 294,
+        "startLoc": {
+          "column": 117,
+          "line": 294,
+          "position": 15676
+        }
+      },
+      "tokens": 98
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 9,
+          "line": 59,
+          "position": 2807
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 107,
+          "line": 49,
+          "position": 2432
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 402,
+        "endLoc": {
+          "column": 9,
+          "line": 402,
+          "position": 22053
+        },
+        "name": "stacking.spec.ts",
+        "start": 393,
+        "startLoc": {
+          "column": 106,
+          "line": 393,
+          "position": 21679
+        }
+      },
+      "tokens": 98
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 9,
+          "line": 59,
+          "position": 2807
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 108,
+          "line": 49,
+          "position": 2433
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 2453,
+        "endLoc": {
+          "column": 9,
+          "line": 2453,
+          "position": 136762
+        },
+        "name": "table-fit.spec.ts",
+        "start": 2443,
+        "startLoc": {
+          "column": 13,
+          "line": 2443,
+          "position": 136388
+        }
+      },
+      "tokens": 97
+    },
+    {
+      "firstFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 9,
+          "line": 59,
+          "position": 2807
+        },
+        "name": "stacking.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 108,
+          "line": 49,
+          "position": 2433
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin strip at the edge reorders'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');\n    const page = alice.page;\n    await page.setViewportSize({ width: 1280, height: 800 });\n\n    const [a, b, c] = await eightLoneLands(page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 2547,
+        "endLoc": {
+          "column": 9,
+          "line": 2547,
+          "position": 141852
+        },
+        "name": "table-fit.spec.ts",
+        "start": 2532,
+        "startLoc": {
+          "column": 14,
+          "line": 2532,
+          "position": 141092
+        }
+      },
+      "tokens": 97
+    },
+    {
+      "firstFile": {
+        "end": 114,
+        "endLoc": {
+          "column": 26,
+          "line": 114,
+          "position": 4786
+        },
+        "name": "streamed-live.spec.ts",
+        "start": 102,
+        "startLoc": {
+          "column": 2,
+          "line": 102,
+          "position": 4348
+        }
+      },
+      "format": "typescript",
+      "fragment": "  context: BrowserContext;\n  page: Page;\n  blocked: string[];\n}\n\nasync function open(browser: Browser, name: string): Promise<Friend> {\n  const context = await browser.newContext();\n  await context.addCookies([\n    { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },\n  ]);\n  await keepPrefsLocal(context, EDGE_ORIGIN);\n  const page = await context.newPage();\n  const friend: Friend = { name, context, page, blocked: [] };",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 13,
+      "secondFile": {
+        "end": 44,
+        "endLoc": {
+          "column": 26,
+          "line": 44,
+          "position": 1961
+        },
+        "name": "w48-format-tabs.spec.ts",
+        "start": 31,
+        "startLoc": {
+          "column": 2,
+          "line": 31,
+          "position": 1434
+        }
+      },
+      "tokens": 102
+    },
+    {
+      "firstFile": {
+        "end": 91,
+        "endLoc": {
+          "column": 1,
+          "line": 91,
+          "position": 4918
+        },
+        "name": "w31.spec.ts",
+        "start": 62,
+        "startLoc": {
+          "column": 103,
+          "line": 62,
+          "position": 3626
+        }
+      },
+      "format": "typescript",
+      "fragment": "const handCards = (page: Page) => page.locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card]');\n\n/**\n * Wave 54 §C evidence: the computed marks on one card's `<li>`, as ONE\n * structured line in the job log. `forge.yml` only uploads the evidence\n * artifact on a FAILURE, so a line the list reporter prints on stdout is\n * what survives a green run — read as REAL computed styles, never the\n * stylesheet text.\n */\nasync function logMarks(card: Locator, label: string): Promise<void> {\n  const data = await card.evaluate((li: Element) => {\n    const face = li.querySelector('.board-card__face');\n    const art = li.querySelector('.card');\n    const badge = li.querySelector('.board-card__picked');\n    const faceCs = face === null ? null : getComputedStyle(face);\n    const artCs = art === null ? null : getComputedStyle(art);\n    const badgeCs = badge === null ? null : getComputedStyle(badge);\n    return {\n      outlineStyle: faceCs?.outlineStyle ?? null,\n      outlineWidth: faceCs?.outlineWidth ?? null,\n      outlineColor: faceCs?.outlineColor ?? null,\n      outlineOffset: faceCs?.outlineOffset ?? null,\n      boxShadow: faceCs?.boxShadow ?? null,\n      transform: artCs?.transform ?? null,\n      badgePresent: badge !== null,\n      badgeBackground: badgeCs?.backgroundColor ?? null,\n    };\n  });\n  console.log(`W54-C-EVIDENCE ${JSON.stringify({ case: label, ...data })}`);\n}",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 30,
+      "secondFile": {
+        "end": 83,
+        "endLoc": {
+          "column": 1,
+          "line": 83,
+          "position": 4433
+        },
+        "name": "w46-attack.spec.ts",
+        "start": 54,
+        "startLoc": {
+          "column": 31,
+          "line": 54,
+          "position": 3141
+        }
+      },
+      "tokens": 198
+    },
+    {
+      "firstFile": {
+        "end": 113,
+        "endLoc": {
+          "column": 57,
+          "line": 113,
+          "position": 6254
+        },
+        "name": "w33.spec.ts",
+        "start": 86,
+        "startLoc": {
+          "column": 109,
+          "line": 86,
+          "position": 4555
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('Q7 — with exactly one spell on the stack, a counterspell targets it with no target-choice ask'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(3 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    // lone-spell.state: activeplayer=ai (bob, seat 1) has an uncontested MAIN1\n    // and Memnite (free) to cast; alice (seat 0) holds Mana Leak + 3 Islands.\n    const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');\n\n    // 90s, not 15: every \"a scenario sets up\" precondition in this file was\n    // bumped here (wave 35 §E) after a reproducible occasional timeout on\n    // this exact kind of poll — a fresh Forge JVM's own startup\n    // (`startPlayStack`) can take longer than 15s on a loaded host, and this\n    // file's `test.describe.configure({ mode: 'serial' })` makes ONE such\n    // flake skip every test after it, not just fail its own. Bumped twice\n    // more in the SAME full forge-e2e CI-set run (41 tests deep — the\n    // heaviest cumulative host load this file runs under, never missed in\n    // isolation): 45s missed on one test, then a DIFFERENT test's own\n    // precondition missed at 60s — whichever JVM spin-up happens to land\n    // under the worst of the host's load at the time varies run to run, so\n    // every one of these got the same, generous 90s margin rather than\n    // chasing the next one individually. `test.setTimeout` on every test\n    // with one of these was bumped to 3 minutes alongside it, so the\n    // precondition's own margin cannot crowd out the rest of the test. A\n    // startup-time margin on the PRECONDITION only, never on an assertion\n    // this file tests.\n    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his free creature — the precondition \"lone-spell\" sets up' }).not.toEqual([]);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 28,
+      "secondFile": {
+        "end": 347,
+        "endLoc": {
+          "column": 57,
+          "line": 347,
+          "position": 19983
+        },
+        "name": "w36.spec.ts",
+        "start": 340,
+        "startLoc": {
+          "column": 110,
+          "line": 340,
+          "position": 19652
+        }
+      },
+      "tokens": 94
+    },
+    {
+      "firstFile": {
+        "end": 132,
+        "endLoc": {
+          "column": 9,
+          "line": 132,
+          "position": 7553
+        },
+        "name": "w33.spec.ts",
+        "start": 94,
+        "startLoc": {
+          "column": 23,
+          "line": 94,
+          "position": 4928
+        }
+      },
+      "format": "typescript",
+      "fragment": "    const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');\n\n    // 90s, not 15: every \"a scenario sets up\" precondition in this file was\n    // bumped here (wave 35 §E) after a reproducible occasional timeout on\n    // this exact kind of poll — a fresh Forge JVM's own startup\n    // (`startPlayStack`) can take longer than 15s on a loaded host, and this\n    // file's `test.describe.configure({ mode: 'serial' })` makes ONE such\n    // flake skip every test after it, not just fail its own. Bumped twice\n    // more in the SAME full forge-e2e CI-set run (41 tests deep — the\n    // heaviest cumulative host load this file runs under, never missed in\n    // isolation): 45s missed on one test, then a DIFFERENT test's own\n    // precondition missed at 60s — whichever JVM spin-up happens to land\n    // under the worst of the host's load at the time varies run to run, so\n    // every one of these got the same, generous 90s margin rather than\n    // chasing the next one individually. `test.setTimeout` on every test\n    // with one of these was bumped to 3 minutes alongside it, so the\n    // precondition's own margin cannot crowd out the rest of the test. A\n    // startup-time margin on the PRECONDITION only, never on an assertion\n    // this file tests.\n    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his free creature — the precondition \"lone-spell\" sets up' }).not.toEqual([]);\n    const memnite = (await offered(bob.page))[0]!;\n    await castCard(bob.page, memnite);\n\n    // Precondition: the opponent's spell is the only thing on the stack.\n    await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'bob\\'s spell is the only thing on the stack' }).toBe(1);\n\n    // alice holds a counterspell and Forge offers it — cast it. Full control\n    // is deliberately NOT used here: turning it on for alice at ANY point in\n    // this exact window — before her cast is ever offered, or right after —\n    // left her own click with no effect at all for the rest of the test\n    // (measured both ways: no error, no Pay Mana Cost, no stack change,\n    // ever; reported separately as a real finding, not an e2e bug). Without\n    // it, the server auto-passes both seats the instant Mana Leak has\n    // nothing left to respond to, and it resolves — countering Memnite —\n    // before any poll can catch the 2-item window that briefly holds. So the\n    // claim this asserts is the OUTCOME of that counter (Memnite never\n    // resolves, and the counterspell never asked a target), not a literal\n    // sighting of the stack at 2.\n    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her counterspell' }).not.toEqual([]);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 39,
+      "secondFile": {
+        "end": 137,
+        "endLoc": {
+          "column": 9,
+          "line": 137,
+          "position": 7011
+        },
+        "name": "w34.spec.ts",
+        "start": 125,
+        "startLoc": {
+          "column": 32,
+          "line": 125,
+          "position": 6247
+        }
+      },
+      "tokens": 105
+    },
+    {
+      "firstFile": {
+        "end": 224,
+        "endLoc": {
+          "column": 44,
+          "line": 224,
+          "position": 13984
+        },
+        "name": "w35.spec.ts",
+        "start": 213,
+        "startLoc": {
+          "column": 57,
+          "line": 213,
+          "position": 13467
+        }
+      },
+      "format": "typescript",
+      "fragment": "    const card = (await offeredNamed(alice.page, 'Ponder'))!;\n    await clickHandCard(alice.page, card);\n\n    // Pay for it (one Island tap) and stop the INSTANT the seat's own\n    // priority stop over \"Stack: 1 to Resolve\" shows with OK live — never\n    // click through it here, that is the click this spec exists to count.\n    for (let i = 0; i < 100; i++) {\n      await alice.page.waitForTimeout(50);\n      await answerPrompt(alice.page);\n      const text = await says(alice.page);\n      if (/Pay Mana Cost/i.test(text)) {\n        await enabledOk(alice.page).click();",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 473,
+        "endLoc": {
+          "column": 77,
+          "line": 473,
+          "position": 30323
+        },
+        "name": "w35.spec.ts",
+        "start": 467,
+        "startLoc": {
+          "column": 66,
+          "line": 467,
+          "position": 30038
+        }
+      },
+      "tokens": 80
+    },
+    {
+      "firstFile": {
+        "end": 270,
+        "endLoc": {
+          "column": 9,
+          "line": 270,
+          "position": 16458
+        },
+        "name": "w35.spec.ts",
+        "start": 256,
+        "startLoc": {
+          "column": 114,
+          "line": 256,
+          "position": 15786
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('R15 — an untapped land is offered at priority, and clicking it taps for mana and shows in the pool'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    // glint-hawk.state (lane S, already on disk): Shivan Dragon + THREE\n    // untapped Mountains, seat 0's own uncontested Main Phase 1. Any one of\n    // the three untapped Mountains is this spec's land — the scenario was\n    // not written for R15, but it is exactly R15's own precondition (an\n    // untapped land at priority) with no construction of its own needed.\n    const { alice, bob } = await startScenarioMatch(browser, stack, 'glint-hawk');\n    void bob;\n\n    const battlefield = (page: Page) => page.locator('[data-zone=\"battlefield\"][data-owner=\"you\"] [data-board-card]');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 15,
+      "secondFile": {
+        "end": 615,
+        "endLoc": {
+          "column": 9,
+          "line": 615,
+          "position": 39331
+        },
+        "name": "w35.spec.ts",
+        "start": 594,
+        "startLoc": {
+          "column": 150,
+          "line": 594,
+          "position": 38127
+        }
+      },
+      "tokens": 80
+    },
+    {
+      "firstFile": {
+        "end": 745,
+        "endLoc": {
+          "column": 9,
+          "line": 745,
+          "position": 47846
+        },
+        "name": "w35.spec.ts",
+        "start": 724,
+        "startLoc": {
+          "column": 129,
+          "line": 724,
+          "position": 46736
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('R2 — the coin toss and the play/draw question render in the same decision area as a card ask, not the control bar'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const alice = await openFriend(browser, 'alice');\n    const bob = await openFriend(browser, 'bob');\n    // `enterMatch` lands both boards the instant they are drawn and returns —\n    // before anything auto-answers the coin toss — which is exactly the\n    // moment this spec needs: Forge's very first ask, unanswered.\n    await enterMatch(alice, bob, stack.origin);\n\n    // L's seam note (`l.md`): the coin toss / play-draw question is\n    // deliberately NOT `live-prompt` — it carries no `callId`, is not one of\n    // Forge's 15 `ask` methods, and follows the same precedent\n    // `live-payment-host` already set (wave 25). Its own host is\n    // `live-play-or-draw-host`, a sibling of `live-payment-host`. A first\n    // draft of this spec polled `live-prompt` for it, which would read `0`\n    // forever even once this is fully wired — the wrong diagnosis for a\n    // right implementation.\n    const playOrDrawHost = (page: Page) => page.getByTestId('live-play-or-draw-host');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 22,
+      "secondFile": {
+        "end": 854,
+        "endLoc": {
+          "column": 9,
+          "line": 854,
+          "position": 54109
+        },
+        "name": "w35.spec.ts",
+        "start": 841,
+        "startLoc": {
+          "column": 148,
+          "line": 841,
+          "position": 53575
+        }
+      },
+      "tokens": 94
+    },
+    {
+      "firstFile": {
+        "end": 745,
+        "endLoc": {
+          "column": 9,
+          "line": 745,
+          "position": 47846
+        },
+        "name": "w35.spec.ts",
+        "start": 724,
+        "startLoc": {
+          "column": 129,
+          "line": 724,
+          "position": 46736
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('R2 — the coin toss and the play/draw question render in the same decision area as a card ask, not the control bar'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const alice = await openFriend(browser, 'alice');\n    const bob = await openFriend(browser, 'bob');\n    // `enterMatch` lands both boards the instant they are drawn and returns —\n    // before anything auto-answers the coin toss — which is exactly the\n    // moment this spec needs: Forge's very first ask, unanswered.\n    await enterMatch(alice, bob, stack.origin);\n\n    // L's seam note (`l.md`): the coin toss / play-draw question is\n    // deliberately NOT `live-prompt` — it carries no `callId`, is not one of\n    // Forge's 15 `ask` methods, and follows the same precedent\n    // `live-payment-host` already set (wave 25). Its own host is\n    // `live-play-or-draw-host`, a sibling of `live-payment-host`. A first\n    // draft of this spec polled `live-prompt` for it, which would read `0`\n    // forever even once this is fully wired — the wrong diagnosis for a\n    // right implementation.\n    const playOrDrawHost = (page: Page) => page.getByTestId('live-play-or-draw-host');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 22,
+      "secondFile": {
+        "end": 159,
+        "endLoc": {
+          "column": 9,
+          "line": 159,
+          "position": 8896
+        },
+        "name": "w36.spec.ts",
+        "start": 149,
+        "startLoc": {
+          "column": 109,
+          "line": 149,
+          "position": 8543
+        }
+      },
+      "tokens": 94
+    },
+    {
+      "firstFile": {
+        "end": 745,
+        "endLoc": {
+          "column": 9,
+          "line": 745,
+          "position": 47846
+        },
+        "name": "w35.spec.ts",
+        "start": 724,
+        "startLoc": {
+          "column": 129,
+          "line": 724,
+          "position": 46736
+        }
+      },
+      "format": "typescript",
+      "fragment": "test(titled('R2 — the coin toss and the play/draw question render in the same decision area as a card ask, not the control bar'), async ({ browser }) => {\n  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const alice = await openFriend(browser, 'alice');\n    const bob = await openFriend(browser, 'bob');\n    // `enterMatch` lands both boards the instant they are drawn and returns —\n    // before anything auto-answers the coin toss — which is exactly the\n    // moment this spec needs: Forge's very first ask, unanswered.\n    await enterMatch(alice, bob, stack.origin);\n\n    // L's seam note (`l.md`): the coin toss / play-draw question is\n    // deliberately NOT `live-prompt` — it carries no `callId`, is not one of\n    // Forge's 15 `ask` methods, and follows the same precedent\n    // `live-payment-host` already set (wave 25). Its own host is\n    // `live-play-or-draw-host`, a sibling of `live-payment-host`. A first\n    // draft of this spec polled `live-prompt` for it, which would read `0`\n    // forever even once this is fully wired — the wrong diagnosis for a\n    // right implementation.\n    const playOrDrawHost = (page: Page) => page.getByTestId('live-play-or-draw-host');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 22,
+      "secondFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 11,
+          "line": 58,
+          "position": 2758
+        },
+        "name": "waiting.spec.ts",
+        "start": 47,
+        "startLoc": {
+          "column": 2,
+          "line": 47,
+          "position": 2385
+        }
+      },
+      "tokens": 94
+    },
+    {
+      "firstFile": {
+        "end": 160,
+        "endLoc": {
+          "column": 7,
+          "line": 160,
+          "position": 8978
+        },
+        "name": "w36.spec.ts",
+        "start": 150,
+        "startLoc": {
+          "column": 13,
+          "line": 150,
+          "position": 8584
+        }
+      },
+      "format": "typescript",
+      "fragment": "  test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n  if (!forge.ok) return;\n  test.setTimeout(2 * 60_000);\n  const stack = await startPlayStack(forge);\n  try {\n    const alice = await openFriend(browser, 'alice');\n    const bob = await openFriend(browser, 'bob');\n    await enterMatch(alice, bob, stack.origin);\n\n    const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');\n    let decider: Friend | null = null;",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 59,
+        "endLoc": {
+          "column": 11,
+          "line": 59,
+          "position": 2844
+        },
+        "name": "waiting.spec.ts",
+        "start": 49,
+        "startLoc": {
+          "column": 15,
+          "line": 49,
+          "position": 2430
+        }
+      },
+      "tokens": 96
+    },
+    {
+      "firstFile": {
+        "end": 106,
+        "endLoc": {
+          "column": 14,
+          "line": 106,
+          "position": 5195
+        },
+        "name": "w46-attack.spec.ts",
+        "start": 85,
+        "startLoc": {
+          "column": 0,
+          "line": 85,
+          "position": 4435
+        }
+      },
+      "format": "typescript",
+      "fragment": "interface Box {\n  left: number;\n  top: number;\n  width: number;\n  height: number;\n}\ninterface Point {\n  x: number;\n  y: number;\n}\n\nconst away = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);\n\n/** The four corners and the four edge midpoints of a box — `edgePointNearest`'s own eight points. */\nconst eight = (b: Box): Point[] => {\n  const xs = [b.left, b.left + b.width / 2, b.left + b.width];\n  const ys = [b.top, b.top + b.height / 2, b.top + b.height];\n  return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));\n};\n\n/** `data-testid=\"live-phases\"`'s own `data-phase`/`data-whose` (`LiveBoard.tsx`) — a structured fact, never prose. */\nasync function phaseOf(page: Page): Promise<string | null> {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 22,
+      "secondFile": {
+        "end": 68,
+        "endLoc": {
+          "column": 14,
+          "line": 68,
+          "position": 3072
+        },
+        "name": "w49-counterspell.spec.ts",
+        "start": 44,
+        "startLoc": {
+          "column": 0,
+          "line": 44,
+          "position": 2352
+        }
+      },
+      "tokens": 212
+    },
+    {
+      "firstFile": {
+        "end": 206,
+        "endLoc": {
+          "column": 55,
+          "line": 206,
+          "position": 10161
+        },
+        "name": "w46-attack.spec.ts",
+        "start": 196,
+        "startLoc": {
+          "column": 132,
+          "line": 196,
+          "position": 9820
+        }
+      },
+      "format": "typescript",
+      "fragment": "    'dragging Memnite onto Jace attacks the planeswalker; a lasting arrow joins them through declare-blockers and is gone by Main 2',\n  ),\n  async ({ browser }) => {\n    test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n    if (!forge.ok) return;\n    test.setTimeout(3 * 60_000);\n\n    const stack = await startPlayStack(forge);\n    let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;\n    try {\n      seated = await startScenarioMatch(browser, stack, 'w46-b-planeswalker');",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 178,
+        "endLoc": {
+          "column": 55,
+          "line": 178,
+          "position": 9508
+        },
+        "name": "w59-stack.spec.ts",
+        "start": 168,
+        "startLoc": {
+          "column": 131,
+          "line": 168,
+          "position": 9167
+        }
+      },
+      "tokens": 85
+    },
+    {
+      "firstFile": {
+        "end": 76,
+        "endLoc": {
+          "column": 1,
+          "line": 76,
+          "position": 3451
+        },
+        "name": "w49-counterspell.spec.ts",
+        "start": 65,
+        "startLoc": {
+          "column": 1,
+          "line": 65,
+          "position": 2964
+        }
+      },
+      "format": "typescript",
+      "fragment": "};\n\n/** The hand card named `name`, Forge-offered or not — by its own `.card__name` text. */\nasync function handCardNamed(page: Page, name: string): Promise<number | undefined> {\n  const ids = await page\n    .locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card]')\n    .evaluateAll(\n      (els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))),\n      name,\n    );\n  return ids[0];\n}",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 61,
+        "endLoc": {
+          "column": 1,
+          "line": 61,
+          "position": 3079
+        },
+        "name": "w53-prompt-words.spec.ts",
+        "start": 50,
+        "startLoc": {
+          "column": 31,
+          "line": 50,
+          "position": 2592
+        }
+      },
+      "tokens": 92
+    },
+    {
+      "firstFile": {
+        "end": 76,
+        "endLoc": {
+          "column": 1,
+          "line": 76,
+          "position": 3451
+        },
+        "name": "w49-counterspell.spec.ts",
+        "start": 65,
+        "startLoc": {
+          "column": 1,
+          "line": 65,
+          "position": 2964
+        }
+      },
+      "format": "typescript",
+      "fragment": "};\n\n/** The hand card named `name`, Forge-offered or not — by its own `.card__name` text. */\nasync function handCardNamed(page: Page, name: string): Promise<number | undefined> {\n  const ids = await page\n    .locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card]')\n    .evaluateAll(\n      (els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))),\n      name,\n    );\n  return ids[0];\n}",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 12,
+      "secondFile": {
+        "end": 45,
+        "endLoc": {
+          "column": 1,
+          "line": 45,
+          "position": 2312
+        },
+        "name": "w62-condescend.spec.ts",
+        "start": 34,
+        "startLoc": {
+          "column": 32,
+          "line": 34,
+          "position": 1825
+        }
+      },
+      "tokens": 92
+    },
+    {
+      "firstFile": {
+        "end": 274,
+        "endLoc": {
+          "column": 99,
+          "line": 274,
+          "position": 14339
+        },
+        "name": "w49-counterspell.spec.ts",
+        "start": 264,
+        "startLoc": {
+          "column": 65,
+          "line": 264,
+          "position": 13658
+        }
+      },
+      "format": "typescript",
+      "fragment": "        'the counterspell arc is drawn, Counterspell → Memnite',\n      ).toHaveCount(1, { timeout: 10_000 });\n\n      const shot = await alice.page.evaluate(shootStackArc, [key, counterId!, memniteStackId!] as [string, string, string]);\n      expect(shot.fromBox, 'Counterspell’s own thumbnail has a real box').not.toBeNull();\n      expect(shot.toBox, 'Memnite’s thumbnail has a real box').not.toBeNull();\n      expect(shot.tail, 'the arc has a tail').not.toBeNull();\n      expect(shot.tip, 'the arc has a tip').not.toBeNull();\n\n      expect(inside(shot.tail!, shot.fromBox!), `the tail sits inside Counterspell's own thumbnail`).toBe(true);\n      expect(inside(shot.tip!, shot.toBox!), `the tip sits inside Memnite's thumbnail`).toBe(true);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 362,
+        "endLoc": {
+          "column": 99,
+          "line": 362,
+          "position": 19970
+        },
+        "name": "w49-counterspell.spec.ts",
+        "start": 353,
+        "startLoc": {
+          "column": 90,
+          "line": 353,
+          "position": 19290
+        }
+      },
+      "tokens": 151
+    },
+    {
+      "firstFile": {
+        "end": 83,
+        "endLoc": {
+          "column": 4,
+          "line": 83,
+          "position": 3774
+        },
+        "name": "w51-control-box.spec.ts",
+        "start": 66,
+        "startLoc": {
+          "column": 0,
+          "line": 66,
+          "position": 3139
+        }
+      },
+      "format": "typescript",
+      "fragment": "async function offeredNamed(page: Page, name: string): Promise<number> {\n  let id: number | undefined;\n  await expect\n    .poll(\n      async () => {\n        const cards = await page\n          .locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card][data-selectable]')\n          .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));\n        id = cards.find((c) => c.name === name)?.id;\n        return id;\n      },\n      { timeout: 30_000, message: `${name} is offered` },\n    )\n    .not.toBeUndefined();\n  return id!;\n}\n\ntest.describe.configure({ mode: 'serial' });",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 18,
+      "secondFile": {
+        "end": 74,
+        "endLoc": {
+          "column": 4,
+          "line": 74,
+          "position": 3638
+        },
+        "name": "w56-numbers.spec.ts",
+        "start": 57,
+        "startLoc": {
+          "column": 0,
+          "line": 57,
+          "position": 3003
+        }
+      },
+      "tokens": 145
+    },
+    {
+      "firstFile": {
+        "end": 68,
+        "endLoc": {
+          "column": 14,
+          "line": 68,
+          "position": 3523
+        },
+        "name": "w52-mana.spec.ts",
+        "start": 58,
+        "startLoc": {
+          "column": 0,
+          "line": 58,
+          "position": 2912
+        }
+      },
+      "format": "typescript",
+      "fragment": "async function tapByClick(page: Page, id: number, what: string): Promise<void> {\n  await expect.poll(() => isOffered(page, id), { timeout: 45_000, message: `${what} is offered at priority` }).toBe(true);\n  for (let i = 0; i < 10 && !(await isTapped(page, id)); i++) {\n    await card(page, id).locator('button').first().click();\n    await expect.poll(() => isTapped(page, id), { timeout: 1_000 }).toBe(true).catch(() => undefined);\n  }\n  expect(await isTapped(page, id), `${what} tapped on a click`).toBe(true);\n}\n\n/** Island → tapped → Undo → untapped and offered again → tapped again. */\nasync function tapUndoTap(page: Page): Promise<void> {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 14,
+          "line": 58,
+          "position": 3378
+        },
+        "name": "w58-river.spec.ts",
+        "start": 48,
+        "startLoc": {
+          "column": 0,
+          "line": 48,
+          "position": 2740
+        }
+      },
+      "tokens": 161
+    },
+    {
+      "firstFile": {
+        "end": 76,
+        "endLoc": {
+          "column": 14,
+          "line": 76,
+          "position": 3914
+        },
+        "name": "w53-prompt-words.spec.ts",
+        "start": 53,
+        "startLoc": {
+          "column": 54,
+          "line": 53,
+          "position": 2740
+        }
+      },
+      "format": "typescript",
+      "fragment": "async function handCardNamed(page: Page, name: string): Promise<number | undefined> {\n  const ids = await page\n    .locator('[data-zone=\"hand\"][data-owner=\"you\"] [data-board-card]')\n    .evaluateAll(\n      (els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))),\n      name,\n    );\n  return ids[0];\n}\n\n/**\n * Answer a lone `getAbilityToPlay` offer (`ChoicePrompts.tsx`'s\n * `GetAbilityToPlayPrompt`, one `[data-testid=\"prompt-choice\"]` button) by\n * clicking it — the ask `rules.ts`'s `autoAnswer` would otherwise settle on\n * its own, EXCEPT while full control is on (`LiveBoard.tsx`: full control\n * suppresses every auto-answer, not only the stack-target one —\n * `e2e/w49-counterspell.spec.ts`'s own `answerLoneAbility`, same shape,\n * because Venser's own cast opens exactly this ask first, before Forge ever\n * asks for its target). Diagnosed against a real run: alice's `says` line\n * read \"Priority: Alice … Stack: 2 to Resolve\" with `promptMethod ===\n * 'getAbilityToPlay'` for the full 20s this helper used to not handle it —\n * not a selection, not silence; an unanswered ask, per the memory note.\n */\nasync function answerLoneAbility(page: Page): Promise<boolean> {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 24,
+      "secondFile": {
+        "end": 58,
+        "endLoc": {
+          "column": 14,
+          "line": 58,
+          "position": 3013
+        },
+        "name": "w62-condescend.spec.ts",
+        "start": 37,
+        "startLoc": {
+          "column": 54,
+          "line": 37,
+          "position": 1973
+        }
+      },
+      "tokens": 81
+    },
+    {
+      "firstFile": {
+        "end": 116,
+        "endLoc": {
+          "column": 11,
+          "line": 116,
+          "position": 5629
+        },
+        "name": "w54-blockers.spec.ts",
+        "start": 103,
+        "startLoc": {
+          "column": 11,
+          "line": 103,
+          "position": 5089
+        }
+      },
+      "format": "typescript",
+      "fragment": "  async ({ browser }) => {\n    test.skip(!forge.ok, forge.ok ? '' : forge.reason);\n    if (!forge.ok) return;\n    test.setTimeout(3 * 60_000);\n\n    const stack = await startPlayStack(forge);\n    let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;\n    try {\n      seated = await startScenarioMatch(browser, stack, 'w54-b-two-blockers');\n      const { alice, bob } = seated;\n\n      // Precondition: the scenario's own shape — two attackers already\n      // declared against alice, two blockers on her own battlefield.\n      const attackerLocators = attackingCards(alice.page);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 14,
+      "secondFile": {
+        "end": 192,
+        "endLoc": {
+          "column": 11,
+          "line": 192,
+          "position": 10261
+        },
+        "name": "w56-numbers.spec.ts",
+        "start": 178,
+        "startLoc": {
+          "column": 11,
+          "line": 178,
+          "position": 9598
+        }
+      },
+      "tokens": 92
+    },
+    {
+      "firstFile": {
+        "end": 211,
+        "endLoc": {
+          "column": 164,
+          "line": 211,
+          "position": 12054
+        },
+        "name": "w54-blockers.spec.ts",
+        "start": 189,
+        "startLoc": {
+          "column": 82,
+          "line": 189,
+          "position": 10578
+        }
+      },
+      "format": "typescript",
+      "fragment": "      await logStep(alice.page, 'blocked again (planned map)', blockerX, attackerA);\n\n      /*\n       * Turn on full control for alice before confirming. Measured against\n       * the real jar (claws run 37584358566): once nobody has anything left\n       * to respond with, Declare Blockers Step → Combat Damage Step → End of\n       * Combat Step → Main 2 auto-paces in well under 100ms — too fast for\n       * any poll here to reliably land mid-combat rather than already at\n       * Main 2, where Forge's own `CombatView` has gone null regardless of\n       * what the confirmed map said (`GameView.updateCombat`: a null\n       * `Game.getCombat()` clears it outright, combat over or not). Full\n       * control holds alice's OWN priority at each step instead of\n       * auto-passing it — the same escape hatch `w33.spec.ts`/\n       * `w46-stack.spec.ts` already use for this exact race; bob has\n       * nothing either way and keeps auto-passing on his own.\n       */\n      await alice.page.getByTestId('live-full-control').click();\n      await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');\n\n      await enabledOk(alice.page).click(); // \"Done blocking\" — ends `InputBlock`.\n      // The ordinary priority that follows, still inside Declare Blockers\n      // Step, now held open by full control instead of auto-passed: pass it too.\n      await expect.poll(() => enabledOk(alice.page).count(), { timeout: 10_000, message: 'alice’s own priority opens, held by full control' }).toBeGreaterThan(0);",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 23,
+      "secondFile": {
+        "end": 211,
+        "endLoc": {
+          "column": 164,
+          "line": 211,
+          "position": 11688
+        },
+        "name": "w56-numbers.spec.ts",
+        "start": 206,
+        "startLoc": {
+          "column": 158,
+          "line": 206,
+          "position": 11288
+        }
+      },
+      "tokens": 83
+    },
+    {
+      "firstFile": {
+        "end": 22,
+        "endLoc": {
+          "column": 5,
+          "line": 22,
+          "position": 1113
+        },
+        "name": "w58-painland.spec.ts",
+        "start": 12,
+        "startLoc": {
+          "column": 9,
+          "line": 12,
+          "position": 567
+        }
+      },
+      "format": "typescript",
+      "fragment": "import { makeTitled } from './play/board.ts';\nimport { forgeAvailability, startPlayStack } from './play/harness.ts';\nimport { startScenarioMatch } from './play/scenario.ts';\n\nconst forge = forgeAvailability();\nconst titled = makeTitled(forge);\n\nconst card = (page: Page, id: number) => page.locator(`[data-board-card=\"${id}\"]`);\nconst isTapped = (page: Page, id: number) => card(page, id).evaluate((e) => e.hasAttribute('data-tapped'));\nconst isOffered = (page: Page, id: number) => card(page, id).evaluate((e) => e.hasAttribute('data-selectable'));\nconst poolTotal = (page: Page) =>",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 23,
+        "endLoc": {
+          "column": 5,
+          "line": 23,
+          "position": 1247
+        },
+        "name": "w58-river.spec.ts",
+        "start": 13,
+        "startLoc": {
+          "column": 24,
+          "line": 13,
+          "position": 701
+        }
+      },
+      "tokens": 127
+    },
+    {
+      "firstFile": {
+        "end": 45,
+        "endLoc": {
+          "column": 14,
+          "line": 45,
+          "position": 2406
+        },
+        "name": "w58-painland.spec.ts",
+        "start": 27,
+        "startLoc": {
+          "column": 0,
+          "line": 27,
+          "position": 1430
+        }
+      },
+      "format": "typescript",
+      "fragment": "async function ownNamed(page: Page, name: string): Promise<number> {\n  const ids = await page\n    .locator('.seat[data-viewer] [data-zone=\"battlefield\"] [data-board-card]')\n    .evaluateAll((els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))), name);\n  if (ids[0] === undefined) throw new Error(`no ${name} on the battlefield`);\n  return ids[0];\n}\n\n/**\n * Answer whatever choice pop-up is open: the option matching `prefer` if one\n * is, else the first; then its submit, if it has one.\n *\n * Matched by `aria-label`, not the button's own rendered text: an ability's\n * mana and tap symbols draw as the Mana font's glyphs now (wave 60 §M, AD6 /\n * Z10 / Y23), so a letter like \"G\" or \"R\" is no longer anywhere `hasText`\n * could find it — the plain words (`aria-label`) are the only text an\n * option carries that Forge's own `{G}`/`{T}` tokens still read as.\n */\nasync function answerChoice(page: Page, prefer: RegExp): Promise<boolean> {",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 19,
+      "secondFile": {
+        "end": 48,
+        "endLoc": {
+          "column": 14,
+          "line": 48,
+          "position": 2754
+        },
+        "name": "w58-river.spec.ts",
+        "start": 39,
+        "startLoc": {
+          "column": 0,
+          "line": 39,
+          "position": 2142
+        }
+      },
+      "tokens": 108
+    }
+  ],
+  "statistics": {
+    "detectionDate": "2026-10-08T21:02:22.388Z",
+    "formats": {
+      "json": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 510,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 2,
+        "tokens": 1570
+      },
+      "markdown": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 270,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 3764
+      },
+      "text": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 6,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 250
+      },
+      "typescript": {
+        "clones": 37,
+        "duplicatedLines": 588,
+        "duplicatedTokens": 4140,
+        "lines": 20456,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 2.8744622604614785,
+        "percentageTokens": 2.8824061825523914,
+        "sources": 64,
+        "tokens": 143630
+      }
+    },
+    "total": {
+      "clones": 37,
+      "duplicatedLines": 588,
+      "duplicatedTokens": 4140,
+      "lines": 21242,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 2.76810093211562,
+      "percentageTokens": 2.7745385821705737,
+      "sources": 68,
+      "tokens": 149214
+    }
+  }
+}
