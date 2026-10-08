@@ -1825,8 +1825,8 @@ export const CALL_BACK_LABEL = 'Call Back';
 export const UNDO_LABEL = /^Undo \(\d+\)$/;
 
 /**
- * The land this seat tapped last, offered for a click while Forge offers Undo —
- * or null when it does not.
+ * The permanent this seat tapped last (a land, or a creature tapped for mana),
+ * offered for a click while Forge offers Undo — or null when it does not.
  *
  * The operator, twice (2026-10-04 and 2026-10-06): clicking a land just tapped
  * for mana should untap it, without reaching for the Undo button. Forge has no
@@ -1854,20 +1854,29 @@ function undoableTap(match: LiveMatch, view: BoardView): ReadonlySet<number> | n
 }
 
 /**
- * Keep {@link LiveMatch.tapOrder} against the view just drawn: a land that
+ * Keep {@link LiveMatch.tapOrder} against the view just drawn: a permanent that
  * tapped since `before` goes on the end, and one no longer tapped (or no longer
- * there) comes out. Two lands tapping in one update have no order the wire
+ * there) comes out. Two permanents tapping in one update have no order the wire
  * gives (a payment Forge made), so the record starts again from nothing.
+ *
+ * Every own permanent, not only a land. The operator, three times (2026-10-04,
+ * 2026-10-06, 2026-10-08: "i should be able to untap llanowar elves if i
+ * haven't done anything with the mana"): Forge undoes a creature's mana ability
+ * exactly as a land's (`ManaEffect.java` marks it undoable; measured against
+ * the jar, `w65-elves.jvm.test.ts`), and the only thing that kept the Elves off
+ * the click was this record reading "Land". Whether the tap WAS the last
+ * undoable action is already not something the wire says (see `undoableTap`),
+ * for a creature as for a land.
  */
 function noteTaps(match: LiveMatch, before: BoardView | null): void {
-  const lands = (view: BoardView | null): Map<number, boolean> =>
-    new Map((view?.players.find((p) => p.isViewer)?.battlefield ?? []).filter((c) => c.card.typeLine.includes('Land')).map((c) => [c.id, c.tapped]));
-  const now = lands(match.view);
+  const permanents = (view: BoardView | null): Map<number, boolean> =>
+    new Map((view?.players.find((p) => p.isViewer)?.battlefield ?? []).map((c) => [c.id, c.tapped]));
+  const now = permanents(match.view);
   if (before === null) {
     match.tapOrder = [];
     return;
   }
-  const was = lands(before);
+  const was = permanents(before);
   const tapped = [...now].filter(([id, isTapped]) => isTapped && was.get(id) === false).map(([id]) => id);
   const kept = match.tapOrder.filter((id) => now.get(id) === true);
   match.tapOrder = tapped.length > 1 ? [] : [...kept, ...tapped];

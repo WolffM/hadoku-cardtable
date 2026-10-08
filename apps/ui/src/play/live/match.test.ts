@@ -2314,6 +2314,19 @@ describe('the land tapped last is clickable while Forge offers Undo, and the cli
     expect(boardInteraction(m).selectable.has(a)).toBe(true);
   });
 
+  it('a creature tapped for mana is the undoable tap, like a land (Llanowar Elves, the operator, three times)', async () => {
+    const { s, m, a, b, rest } = await atPriority();
+    const elves = myNonLand(m);
+    // Untapped and offered beside the lands, the way Forge offers a mana creature at priority.
+    await sendAndApply(s, m, [tap(elves, false), prompt('Priority'), bar('End Turn'), actionable([elves, a, b, ...rest], [elves, a, b, ...rest])]);
+    // Forge taps the creature for its mana and offers Undo.
+    await sendAndApply(s, m, [tap(elves, true), prompt('Priority'), bar('Undo (1)'), actionable([a, b, ...rest])]);
+    expect(boardInteraction(m).selectable.has(elves), 'the creature tapped last is offered for the click').toBe(true);
+    expect(selectCard(m, elves)).toBe(true);
+    await until('the click at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0], 'and the click is Forge’s Undo, as for a land').toMatchObject({ ok: true, value: { kind: 'act', method: 'selectButtonCancel' } });
+  });
+
   it('with no Undo on the bar a tapped land is not clickable, however recently it tapped', async () => {
     const { s, m, a, b, rest, forgeTaps } = await atPriority();
     await forgeTaps(a, [b, ...rest]);
