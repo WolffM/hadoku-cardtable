@@ -221,8 +221,11 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
       )
       .toBe(true);
 
-    // A reload of bob's tab is sent her spell's last move as it joins.
-    const movedBox = (await placedOnBob.boundingBox())!;
+    // A reload of bob's tab is sent her spell's last move as it joins — but the drag itself can
+    // still be delivering intermediate positions over several wire messages after the mouse lets
+    // go; settle on bob's own copy first; a reload the instant it merely started moving could
+    // still race one of those in flight against the join's own replay.
+    const movedBox = (await settled(placedOnBob))!;
     await bob.page.reload();
     await expect
       .poll(
