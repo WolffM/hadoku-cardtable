@@ -340,6 +340,9 @@ test(titled('T10 — a card moved to a different row is still there, in the same
 test(titled('T8 — a stack item shows its art and no visible text; who/what lives in aria-label, and hovering it opens the one inspector'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
+  // The band shows nothing for a lone spell since 8ec5afe (the operator, 2026-10-08); w59 draws the
+  // placed card instead and rewrites this test — the day it passes again is w59's land.
+  test.fail(true, 'the lone band is hidden; w59 replaces it (ledger AD4)');
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
