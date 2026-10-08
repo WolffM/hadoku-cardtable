@@ -631,7 +631,7 @@ type Pile = readonly BoardCard[];
  * not the layout on screen draws it — `rowsForLayout` says which ones a given
  * render actually uses, and the rest sit empty.
  */
-type Grouped = Readonly<Record<BoardRow, readonly Pile[]>>;
+export type Grouped = Readonly<Record<BoardRow, readonly Pile[]>>;
 
 /**
  * A slot of one seat the player may arrange: one of the battlefield's four
@@ -647,10 +647,10 @@ type ArrangeSlot = BoardRow | 'hand';
  * own; a slot it names is drawn in the player's piles, and then anything the
  * store has never heard of, in the view's order.
  */
-type Arrangement = Readonly<Record<string, readonly (readonly number[])[]>>;
+export type Arrangement = Readonly<Record<string, readonly (readonly number[])[]>>;
 
 const NO_ARRANGEMENT: Arrangement = {};
-const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${slot}`;
+export const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${slot}`;
 
 /** How many cards a row holds, across all its piles. */
 const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
@@ -1001,8 +1001,12 @@ export interface Box {
 export interface SlotGeometry {
   readonly slot: ArrangeSlot;
   readonly box: Box;
-  /** Every column of the slot in drawing order: a pile's base card, or a gap (`id: null`). */
-  readonly piles: readonly { readonly id: number | null; readonly box: Box }[];
+  /**
+   * Every column of the slot in drawing order: a pile's base card, or a gap (`id: null`).
+   * `size` is how many cards the pile holds (absent: one) — `snapTo` needs it to know whether
+   * the card being dragged IS the whole pile under the pointer, or only part of one.
+   */
+  readonly piles: readonly { readonly id: number | null; readonly box: Box; readonly size?: number }[];
   /**
    * One column's pitch (a card's width plus the gap between cards), for
    * placing a card in a column past the row's end. Read off any card on the
@@ -1062,7 +1066,15 @@ const SNAP_RADIUS = 80;
  * Pure, and in pixels: `Board.test.ts` drives it with boxes, since jsdom lays
  * nothing out.
  */
-export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Snap | null {
+/**
+ * `dragging`: the card being moved. Its own column is not a place to put it — not a stack onto
+ * itself, not "before" itself — and the column right after it is where it already is. Before
+ * this (2026-10-08, the operator: "moving it directly to the right just doesn't work"), the
+ * dimmed card under the pointer was a pile like any other: its middle stacked the card onto
+ * itself (which `withMove` turned into "the end of the row"), its edges offered the gap it was
+ * already in, and the one-column-right move was a thin strip at the neighbour's far edge.
+ */
+export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dragging: number | null = null): Snap | null {
   let best: SlotGeometry | null = null;
   let bestDistance = Infinity;
   for (const slot of slots) {
@@ -1097,15 +1109,23 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
       },
     };
   }
-  let at = 0;
+  // The dragged card's own column (a pile of just itself) is never the target.
+  const own = (p: { readonly id: number | null; readonly size?: number }): boolean => dragging !== null && p.id === dragging && (p.size ?? 1) <= 1;
+  let at = -1;
   let nearest = Infinity;
   piles.forEach((pile, i) => {
+    if (own(pile)) return;
     const d = distanceTo(pile.box, x, y);
     if (d < nearest) {
       at = i;
       nearest = d;
     }
   });
+  if (at === -1) {
+    // Every column is the dragged card's own: the row is its alone, and it stays.
+    const height = Math.min(box.bottom - box.top, 96);
+    return { slot, target: { kind: 'end' }, kind: 'end', card: null, bar: { left: box.left + 4, top: (box.top + box.bottom - height) / 2, width: BAR, height } };
+  }
   const pile = piles[at]!;
   const { left, top, right, bottom } = pile.box;
   /*
@@ -1117,9 +1137,12 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   if (stacking && pile.id === null) {
     return { slot, target: { kind: 'at', column: at }, kind: 'at', card: null, bar: { left: left - BAR - 1, top, width: BAR, height: bottom - top } };
   }
-  if (stacking && at === piles.length - 1 && x > right) {
-    const pitch = step ?? (piles.length >= 2 ? left - piles[at - 1]!.box.left : right - left + 6);
-    const beyond = pitch > 0 ? Math.floor((x - right) / pitch) : 0;
+  // The next column that is not the dragged card's own (its own is where it came from, not a place).
+  const nextAt = piles.findIndex((p, i) => i > at && !own(p));
+  const last = piles[piles.length - 1]!.box;
+  if (stacking && nextAt === -1 && x > last.right) {
+    const pitch = step ?? (piles.length >= 2 ? last.left - piles[piles.length - 2]!.box.left : last.right - last.left + 6);
+    const beyond = pitch > 0 ? Math.floor((x - last.right) / pitch) : 0;
     if (beyond >= 1) {
       return { slot, target: { kind: 'at', column: piles.length + beyond }, kind: 'at', card: null, bar: { left: right + 1 + beyond * pitch, top, width: BAR, height: bottom - top } };
     }
@@ -1169,10 +1192,10 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
       bar: { left: left - BAR - 1, top, width: BAR, height },
     };
   }
-  const nextId = piles[at + 1]?.id;
+  const nextId = nextAt === -1 ? undefined : piles[nextAt]!.id;
   // After this pile, where the next column is a gap: into that gap (Z8).
   if (nextId === null) {
-    return { slot, target: { kind: 'at', column: at + 1 }, kind: 'at', card: null, bar: { left: right + 1, top, width: BAR, height } };
+    return { slot, target: { kind: 'at', column: nextAt }, kind: 'at', card: null, bar: { left: right + 1, top, width: BAR, height } };
   }
   return {
     slot,
@@ -1471,7 +1494,7 @@ export function previewPlayedTo(point: { x: number; y: number } | null): void {
  * rearranging the single lane does not disturb the type-separated rows a
  * player set up earlier, and switching layouts does not throw either away.
  */
-function withMove(
+export function withMove(
   rows: Grouped,
   playerId: number,
   arranged: Arrangement,
@@ -1492,7 +1515,10 @@ function withMove(
       .map((p) => p.ids);
   }
   const into = piles[row];
-  if (target.kind === 'at') {
+  if ((target.kind === 'before' || target.kind === 'stack') && target.id === cardId) {
+    // Dropped back on its own column: it stays exactly where it was.
+    for (const r of active) piles[r] = rows[r].map((p) => p.map((c) => c.id));
+  } else if (target.kind === 'at') {
     while (into.length < target.column) into.push([]);
     if (into.length === target.column) into.push([cardId]);
     else if (into[target.column]!.length === 0) into[target.column] = [cardId];
@@ -2948,6 +2974,7 @@ function useArrangeDrag(
         const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap') ?? [])].map((li) => ({
           id: li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),
           box: li.getBoundingClientRect(),
+          size: li.dataset.pileSize === undefined ? 1 : Number(li.dataset.pileSize),
         }));
         out.push({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) });
       }
@@ -2965,7 +2992,7 @@ function useArrangeDrag(
         p.ghost.style.left = `${x - box.left - p.grab.x}px`;
         p.ghost.style.top = `${y - box.top - p.grab.y}px`;
       }
-      const found = snapTo(geometry(), x, y);
+      const found = snapTo(geometry(), x, y, p.cardId);
       /*
        * `p.slot` is never `'hand'` (no hand card is ever draggable, so this
        * drag never starts from one) — a permanent dropped over the hand is

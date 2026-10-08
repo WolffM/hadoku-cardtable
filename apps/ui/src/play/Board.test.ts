@@ -36,9 +36,13 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   handOrder,
   notePlayedTo,
   previewPlayedTo,
+  slotKey,
   snapTo,
   withHandMove,
+  withMove,
+  type Arrangement,
   type BoardInteraction,
+  type Grouped,
   type BoardLayout,
   type DropTarget,
 } from './Board.tsx';
@@ -4185,6 +4189,38 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       id: 1,
       onTop: false,
     });
+  });
+
+  it('snapTo + withMove: the card being dragged is not a place — moving it one column right works, and dropping it on itself moves nothing', () => {
+    // Four lone cards, 60 wide, 10 apart: 1 at 10, 2 at 80, 3 at 150, 4 at 220 (right edges 70, 140, 210, 280).
+    const four = [
+      {
+        slot: 'front' as const,
+        box: box(0, 0, 400, 100),
+        piles: [1, 2, 3, 4].map((id, i) => ({ id, box: box(10 + 70 * i, 8, 60, 84) })),
+      },
+    ];
+    const empty = { lands: [], artifacts: [], creatures: [], other: [], front: [], back: [] } as const;
+    const rows = (): Grouped => ({ ...empty, front: [1, 2, 3, 4].map((id) => [{ id } as BoardCard]) });
+    const order = (a: Arrangement) => (a[slotKey(0, 'front')] ?? []).map((pile) => pile[0]);
+    // The operator's case: card 1 dragged one column to the right.
+    expect(snapTo(four, 135, 50, 1)?.target, "the neighbour's right edge strip: in front of the one after it").toEqual({ kind: 'before', id: 3 });
+    expect(snapTo(four, 145, 50, 1)?.target, 'the gap between the neighbour and the next: the same').toEqual({ kind: 'before', id: 3 });
+    expect(order(withMove(rows(), 0, {}, 1, 'front', { kind: 'before', id: 3 }, 'single')), 'one column right').toEqual([2, 1, 3, 4]);
+    expect(order(withMove(rows(), 0, {}, 2, 'front', { kind: 'before', id: 4 }, 'single')), 'from the middle, one right').toEqual([1, 3, 2, 4]);
+    // Over its own column — any part of it — it is where it came from: nothing stacks onto itself, nothing goes to the end.
+    expect(snapTo(four, 40, 50, 1)?.target, 'its own middle: not a stack onto itself').toEqual({ kind: 'before', id: 2 });
+    expect(snapTo(four, 15, 50, 1)?.target, 'its own left edge: not "before itself"').toEqual({ kind: 'before', id: 2 });
+    expect(order(withMove(rows(), 0, {}, 1, 'front', { kind: 'before', id: 1 }, 'single')), 'before itself moves nothing').toEqual([1, 2, 3, 4]);
+    expect(order(withMove(rows(), 0, {}, 1, 'front', { kind: 'stack', id: 1, onTop: true }, 'single')), 'onto itself moves nothing').toEqual([1, 2, 3, 4]);
+    // Dragging 2 over 1's right edge: the column after 1 is 2's own, so "after 1" is before 3 — where 2 already is.
+    expect(snapTo(four, 65, 50, 2)?.target, "the left neighbour's right edge: the next column that is not its own").toEqual({ kind: 'before', id: 3 });
+    expect(order(withMove(rows(), 0, {}, 2, 'front', { kind: 'before', id: 3 }, 'single')), 'which is where it is').toEqual([1, 2, 3, 4]);
+    // A pile the dragged card is only part of stays a place (its base is not the card).
+    const piled = [{ slot: 'front' as const, box: box(0, 0, 400, 100), piles: [{ id: 1, box: box(10, 8, 60, 84), size: 2 }, { id: 3, box: box(80, 8, 60, 84) }] }];
+    expect(snapTo(piled, 40, 20, 1)?.target, 'the base of a two-card pile, dragged: the pile is still a stack target').toEqual({ kind: 'stack', id: 1, onTop: true });
+    // The hand's own move, the same case by name: 1 one slot right.
+    expect((withHandMove([1, 2, 3, 4], 0, {}, 1, { kind: 'before', id: 3 })[slotKey(0, 'hand')] ?? []).map((p) => p[0])).toEqual([2, 1, 3, 4]);
   });
 
   it('snapTo: an EMPTY slot snaps, the nearest slot wins, and far from every slot is nowhere', () => {
