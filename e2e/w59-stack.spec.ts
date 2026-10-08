@@ -205,8 +205,15 @@ test(
       const remandPoint: Point = { x: Math.round(herField.x + herField.width * 0.75), y: Math.round(herField.y + herField.height * 0.5) };
 
       /* ── alice casts Keiga, the Tide Star (no target — a death trigger, not an ETB) ── */
+      // Which `<li>` carries which names, verbatim: run 37763694613 dragged 161 for Keiga and the server
+      // played 160 — the shared reader matched a `.card__name` that was not the card's own.
+      const handNames = await alice.page
+        .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
+        .evaluateAll((els) => els.map((e) => `${e.tagName.toLowerCase()}#${e.getAttribute('data-board-card')}=[${[...e.querySelectorAll('.card__name')].map((n) => n.textContent?.trim()).join(' | ')}]`));
       const keigaCardId = await handCardNamed(alice.page, 'Keiga, the Tide Star');
-      expect(keigaCardId, 'Keiga is in alice’s hand, as the scenario scripts').not.toBeUndefined();
+      expect(keigaCardId, `Keiga is in alice’s hand, as the scenario scripts — hand: ${handNames.join(' ; ')}`).not.toBeUndefined();
+      const ownName = await alice.page.locator(`[data-zone="hand"][data-owner="you"] li[data-board-card="${keigaCardId}"] .card__name`).first().textContent();
+      expect(ownName?.trim(), `the reader's id names Keiga's own tile — hand: ${handNames.join(' ; ')}`).toBe('Keiga, the Tide Star');
       await castByDrag(alice.page, stack, keigaCardId!, keigaPoint);
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Keiga reached the stack' }).toBe(1);
 
