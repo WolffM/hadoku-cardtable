@@ -1070,6 +1070,17 @@ export class Match {
 	 * stack and a battlefield are public either way and resolve to a name.
 	 */
 	private waitingOnFor(s: SeatState): { method: string; hostCard: string | null } | null {
+		// A display-only reveal (`openDisplayOnlyReveal`) is answered by the server the moment it is
+		// shown: the seat decides nothing there, so it is not a wait — measured 2026-10-08 (AE13): the
+		// other seat's roster carried `getChoices` for a reveal already auto-answered.
+		const decision = [...s.asks.values()].find((a) => !s.displayOnlyAsks.has(a.callId));
+		// A live bar on an ORDINARY priority window (Forge's "Priority: …" prompt) is not a decision
+		// either: the seat merely holds priority. The operator, 2026-10-08 (AE13), after a bounceland
+		// returned itself with no choice to make: *"it still shows 'Waiting for Bella to decide…' as if
+		// i needed to make a choice there"* — the bar fallback below read as `confirm` ("decide"). Only
+		// the pregame bars (coin toss, keep/mulligan: no "Priority:" prompt) are a decision made through
+		// the bar alone.
+		const ordinaryPriority = s.prompt !== null && s.prompt.method === 'showPromptMessage' && /^Priority:/.test(s.prompt.message);
 		const method =
 			s.payment !== null
 				? 'pay'
@@ -1077,12 +1088,15 @@ export class Match {
 					? s.selection.method === 'setSelectables' && s.selection.min === 1 && s.selection.max === 1
 						? 'chooseSingleEntityForEffect'
 						: 'getChoices'
-					: s.asks.size > 0
-						? [...s.asks.values()][0]?.method ?? null
+					: decision !== undefined
+						? decision.method
 						: s.wireButtonsLive
-							? 'confirm'
+							? ordinaryPriority
+								? 'priority'
+								: 'confirm'
 							: null;
 		if (method === null) return null;
+		if (method === 'priority') return { method, hostCard: null };
 		const other = this.seats.find((o) => o.seat !== s.seat);
 		const otherState = other === undefined ? null : this.foldedStateOf(other);
 		const prompt = s.prompt;

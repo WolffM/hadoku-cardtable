@@ -1,0 +1,21 @@
+# Alice (seat 0, human) holds Selesnya Sanctuary ("enters tapped; when it
+# enters, return a land you control to its owner's hand") and NO land on her
+# battlefield: the bounce has exactly one legal choice — the Sanctuary itself —
+# so whichever shortcut answers it (Forge's own, the server's "one legal
+# reply", or the client's) does so at once, and the land comes straight back
+# to her hand. Nothing else castable on either side. Bob (seat 1) holds a few
+# Forests and nothing to do: he is only here to read alice's `waitingOn` fact
+# on his own screen. Both libraries hold lands so no draw step loses.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Selesnya Sanctuary
+humanbattlefield=
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

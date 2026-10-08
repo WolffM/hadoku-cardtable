@@ -454,8 +454,15 @@ const WAITING_VERB: Readonly<Record<string, string>> = {
   pay: 'pay',
 };
 
-/** "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example. */
+/**
+ * "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example. `priority` is
+ * the server's word for a seat that merely holds priority (an ordinary "Priority: …" window with a
+ * live bar): no decision, so no verb — the plain "Waiting for Hadoku…" the small line always used.
+ * The operator, 2026-10-08, after Selesnya Sanctuary bounced itself with no choice to make: *"it
+ * still shows 'Waiting for Bella to decide…' as if i needed to make a choice there."*
+ */
 function waitingSentence(name: string, fact: { method: string; hostCard: string | null }): string {
+  if (fact.method === 'priority') return `Waiting for ${name}…`;
   const verb = WAITING_VERB[fact.method] ?? 'decide';
   return fact.hostCard === null ? `Waiting for ${name} to ${verb}…` : `Waiting for ${name} to ${verb} for ${fact.hostCard}…`;
 }

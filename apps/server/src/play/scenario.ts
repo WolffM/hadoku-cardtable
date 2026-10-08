@@ -20,7 +20,7 @@ import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostConfig } from './host.js';
-import { createMatchRegistry, type Match } from './match.js';
+import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
 import type { StopPolicy } from './auto.js';
 import type { ServerEnvelope } from './transport.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
@@ -226,6 +226,8 @@ export interface Scenario {
 	sent: Stamped[];
 	lines: (BridgeLine & { t: string; hostT: number })[];
 	logs: Record<string, unknown>[];
+	/** Every `seatsChanged` the match told (the `forge:seats` roster), stamped — the other seat's `waitingOn` fact, as sent. */
+	seats: { t: number; seats: SeatIdentity[] }[];
 	names: [string, string];
 	prompt(seat: number): string;
 	buttons(seat: number): Buttons | null;
@@ -272,8 +274,10 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const sent: Stamped[] = [];
 	const lines: Scenario['lines'] = [];
 	const logs: Record<string, unknown>[] = [];
+	const seats: Scenario['seats'] = [];
 	const jvm = jvmHostFactory(config, { spare: false, log: (e) => logs.push(e) });
 	const registry = createMatchRegistry({
+		seatsChanged: (_m, told) => seats.push({ t: performance.now(), seats: told }),
 		host: (id, spec, events) =>
 			jvm(id, spec, {
 				...events,
@@ -324,6 +328,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		sent,
 		lines,
 		logs,
+		seats,
 		names,
 		asks,
 		prompt: (seat) => last<{ message: string }>(seat, 'showPromptMessage')?.message ?? '',

@@ -3292,6 +3292,14 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(true);
   });
 
+  it('`priority` — the other seat merely holds priority — is the plain "Waiting for {name}…", no verb', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
+    await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
+    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
+    expect(waiting.textContent).toBe(`Waiting for ${theirName}…`);
+  });
+
   /** The shipped verb table (Settled), one row each, plus no-host-card and the unmapped fallback. */
   it.each([
     ['chooseSingleEntityForEffect', 'Mountain', 'choose for Mountain'],

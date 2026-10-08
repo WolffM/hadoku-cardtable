@@ -502,7 +502,19 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
 		});
 
-		it('an ordinary priority bar (OK / End Turn) counts too — this is what the viewer’s own bar used to tell the OTHER seat directly', () => {
+		it('an ordinary priority window (a "Priority: …" prompt, OK / End Turn live) counts too — as `priority`, never as a decision', () => {
+			// The operator, 2026-10-08 (AE13), after Selesnya Sanctuary bounced itself with no choice to
+			// make: "it still shows 'Waiting for Bella to decide…' as if i needed to make a choice there."
+			// Holding priority is a wait, not a decision: the client draws it with no verb.
+			const h = waitingHarness();
+			h.host.push(
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty', card: null } },
+				barFrame(0, 'OK', 'End Turn', true, true),
+			);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'priority', hostCard: null } });
+		});
+
+		it('a bar alone with no "Priority:" prompt (the pregame shape) stays `confirm`', () => {
 			const h = waitingHarness();
 			h.host.push(barFrame(0, 'OK', 'End Turn', true, true));
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
