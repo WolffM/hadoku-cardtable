@@ -210,10 +210,17 @@ test(
       const handNames = await alice.page
         .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
         .evaluateAll((els) => els.map((e) => `${e.tagName.toLowerCase()}#${e.getAttribute('data-board-card')}=[${[...e.querySelectorAll('.card__name')].map((n) => n.textContent?.trim()).join(' | ')}]`));
-      const keigaCardId = await handCardNamed(alice.page, 'Keiga, the Tide Star');
+      console.log('[w59-hand]', handNames.join(' ; '));
+      // The id of the `<li>` whose OWN face names Keiga (`:scope >`), not the first `.card__name` under it.
+      const keigaCardId = await alice.page
+        .locator('[data-zone="hand"][data-owner="you"] li[data-board-card]')
+        .evaluateAll((els) =>
+          els
+            .filter((e) => e.querySelector(':scope > .board-card__face .card__name')?.textContent?.trim() === 'Keiga, the Tide Star')
+            .map((e) => Number(e.getAttribute('data-board-card'))),
+        )
+        .then((ids) => ids[0]);
       expect(keigaCardId, `Keiga is in alice’s hand, as the scenario scripts — hand: ${handNames.join(' ; ')}`).not.toBeUndefined();
-      const ownName = await alice.page.locator(`[data-zone="hand"][data-owner="you"] li[data-board-card="${keigaCardId}"] .card__name`).first().textContent();
-      expect(ownName?.trim(), `the reader's id names Keiga's own tile — hand: ${handNames.join(' ; ')}`).toBe('Keiga, the Tide Star');
       await castByDrag(alice.page, stack, keigaCardId!, keigaPoint);
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Keiga reached the stack' }).toBe(1);
 
