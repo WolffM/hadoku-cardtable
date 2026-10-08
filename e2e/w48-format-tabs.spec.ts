@@ -71,38 +71,34 @@ test('the leader switches Standard → Modern → Legacy and picking a Legacy er
   const standardOptions = await select.locator('option').allTextContents();
   expect(standardOptions.length).toBeGreaterThan(0);
 
-  // Browsing Modern changes which eras the select offers, without moving the
-  // room off its Standard pool — nothing is sent until an option is chosen.
+  // Switching to Modern changes which eras the select offers AND moves the room onto Modern's
+  // first (newest) era, since its Standard pool is not one of them (the operator, 2026-10-07:
+  // "selecting modern should default the year selection to the first available").
   await alice.page.getByTestId('format-tab-modern').click();
   await expect(alice.page.getByTestId('format-tab-modern')).toHaveAttribute('aria-selected', 'true');
   const modernOptions = await select.locator('option').allTextContents();
   expect(modernOptions.length).toBeGreaterThan(0);
   expect(modernOptions).not.toEqual(standardOptions);
+  const firstModern = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).find((id) => id !== '')!;
+  await expect(select, 'Modern’s first era is chosen for the room at once').toHaveValue(firstModern);
 
-  // Legacy, and an actual pick: the room's pool must move, proven by reading
-  // it back rather than trusting the click.
+  // Legacy, the same way, then an actual pick of another era: the room's pool must move, proven
+  // by reading it back rather than trusting the click.
   await alice.page.getByTestId('format-tab-legacy').click();
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
-  // The room's own era (Standard) is not one of Legacy's options, so nothing
-  // is pre-selected: a leading empty, disabled, hidden placeholder — never
-  // Legacy's newest era shown chosen by the browser's own `<select>`
-  // fallback (the exact bug this spec caught live).
-  await expect(select).toHaveValue('');
+  const firstLegacy = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).find((id) => id !== '')!;
+  await expect(select, 'Legacy’s first era is chosen for the room at once').toHaveValue(firstLegacy);
   const legacyIds = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).filter(
     (id) => id !== '',
   );
   expect(legacyIds.length).toBeGreaterThan(0);
   for (const id of legacyIds) expect(id.startsWith('legacy-')).toBe(true);
 
-  const chosen = legacyIds[0]!;
-  // The room's own era (Standard) is not one of Legacy's options, so the
-  // picker shows NOTHING chosen on this tab (ConstructedScreen.tsx's
-  // `poolIsOnTab`) — not Legacy's newest era pre-selected by the browser's
-  // own `<select>` fallback. That is exactly what makes this one
-  // `selectOption` on the tab's FIRST (newest) era a real change rather than
-  // a native no-op: before the fix, clicking the option the browser was
-  // already defaulting to fired no `change` event at all (found live,
-  // confirmed from the harness's `server.jsonl`: no PATCH logged).
+  // The tab click already chose Legacy's first era, so the pick that proves a real change
+  // is the SECOND one: selecting the option already chosen fires no `change` at all (the
+  // native no-op this spec first caught live).
+  const chosen = legacyIds[1] ?? legacyIds[0]!;
+  expect(chosen, 'a second Legacy era exists to move to').not.toBe(firstLegacy);
   const patched = alice.page.waitForResponse(
     (res) => res.request().method() === 'PATCH' && res.url().includes('/api/rooms/') && res.status() === 200,
   );

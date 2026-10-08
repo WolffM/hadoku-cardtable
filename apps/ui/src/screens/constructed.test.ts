@@ -120,6 +120,9 @@ const FORMATS = [
     family: 'standard' as const,
   },
 ];
+/** A Modern era: forty-odd sets behind one date, the shape the set strip is NOT drawn for. */
+const MODERN = { id: 'modern-2014-07-18', name: 'Modern (M15)', effective: '2014-07-18', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1477, source: 'x', family: 'modern' as const };
+
 
 const deck = (id: string, name: string) => ({
   id,
@@ -289,7 +292,7 @@ function stubServer(table: Table) {
   /** One deck against one pool, which is the only question the gate answers. */
   const verdictOf = (deckId: string, formatId: string): Verdict => {
     const name = decks().find((d) => d.id === deckId)?.name ?? '?';
-    const format = FORMATS.find((f) => f.id === formatId);
+    const format = [...FORMATS, MODERN].find((f) => f.id === formatId);
     if (format?.id === '2011-07-15' && deckId === UG_POLYMORPH) return BANNED;
     return LEGAL(name, format?.name ?? '?');
   };
@@ -363,7 +366,7 @@ function stubServer(table: Table) {
         // Unused: the picker's "Drafted pool" tab is `source === 'draft'`.
         family: 'standard' as const,
       }));
-      return json(200, { formats: [...pods, ...FORMATS] });
+      return json(200, { formats: [...pods, ...FORMATS, MODERN] });
     }
     if (url.endsWith('/tables/decks')) return json(200, { decks: decks() });
     // One per era, each time the room's pool moves: how the picker learns
@@ -1629,6 +1632,15 @@ describe('a builtin room is what it has always been', () => {
  * what a reader gets instead.
  */
 describe('the era’s set symbols', () => {
+  it('an eternal format draws no set strip at all — forty sets is not a row anyone reads', async () => {
+    // The operator, 2026-10-07: "we shouldn't display the set symbols in modern like that".
+    await mountRoom({ players: [], matchId: null, format: MODERN.id });
+    await screen.findByTestId('deck-mine');
+    expect(screen.getByTestId('format-tab-modern').getAttribute('aria-selected'), 'the room IS on the Modern era').toBe('true');
+    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(MODERN.id);
+    expect(screen.queryByTestId('pool-sets')).toBeNull();
+  });
+
   /** `[block code, the era's sets in it]`, in the order the row draws them. */
   const blocks = (): [string, string][] =>
     [...screen.getByTestId('pool-sets').querySelectorAll<HTMLElement>('[data-testid="pool-block"]')].map((g) => [

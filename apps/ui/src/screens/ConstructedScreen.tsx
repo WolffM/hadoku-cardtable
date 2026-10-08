@@ -1795,7 +1795,17 @@ function RoomTableScreen({
                             aria-selected={formatTab === tab.id}
                             data-testid={`format-tab-${tab.id}`}
                             disabled={busy || matchId !== null}
-                            onClick={() => setFormatTab(tab.id)}
+                            onClick={() => {
+                              setFormatTab(tab.id);
+                              // A tab whose eras do not include the room's pool chooses its first era
+                              // (newest, the list's order) at once, rather than showing nothing chosen
+                              // until the leader picks (the operator, 2026-10-07: "selecting modern
+                              // should default the year selection to the first available").
+                              if (loaded !== null && !poolIsOnTab(loaded.formats, tab.id, poolId, pod)) {
+                                const first = erasOf(loaded.formats, tab.id)[0];
+                                if (first !== undefined) choosePool(first.id);
+                              }
+                            }}
                           >
                             {tab.label}
                           </button>
@@ -1858,8 +1868,10 @@ function RoomTableScreen({
                   )}
                   <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
                   {/* The sets the chosen era is made of, as symbols — the operator's
-                      own ask. A drafted pool has none and draws none. */}
-                  <PoolSets format={poolFormat} />
+                      own ask, for a Standard era. A drafted pool has none and draws none; an
+                      eternal format's forty-odd sets drew a strip the operator called
+                      ridiculous (2026-10-07), so those draw none either. */}
+                  {poolFormat?.family === 'standard' && <PoolSets format={poolFormat} />}
 
                   {/* The two actions sit ABOVE the list, not after it. Operator,
                       2026-09-30: *"the random button should be at the top, the
