@@ -18,7 +18,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, clickHandCard, clickOnce, makeTitled, offered, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, clickOnce, makeTitled, offered, pressPaymentAuto, serverLog, stackCount } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
@@ -576,21 +576,30 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     // creature" said and OK disabled, so the surface to drive is the target
     // CARD itself (`data-selectable` on bob's battlefield), not a modal or a
     // player's face.
+    // The loop presses only what the cast itself needs — the target card and the payment window's own
+    // Auto — never button one at large: under full control the decision pop-up's OK is "pass
+    // priority", and a press that lands on it the tick the spell reaches the stack has bob auto-pass
+    // and Doom Blade resolve before the stack is read (runs 37762992480, 37791664132 — the server
+    // rows: payment forwarded, 177 ms later priority, bob's pass withheld, priority again; the same
+    // race as w51/w56's bolt, `pressPaymentAuto`'s own note).
     const theirCreature = alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-selectable]');
     const deadline = Date.now() + 20_000;
     while ((await stackCount(alice.page)) === 0 && Date.now() < deadline) {
       await answerPrompt(alice.page);
-      const text = await says(alice.page);
-      if (/Pay Mana Cost/i.test(text)) {
-        await clickOnce(alice.page, text, 'ok');
-      } else if ((await theirCreature.count()) > 0) {
-        await theirCreature.first().locator('button').first().click();
-      } else {
-        await clickOnce(alice.page, text, 'ok');
-      }
+      if ((await theirCreature.count()) > 0) await theirCreature.first().locator('button').first().click();
+      else await pressPaymentAuto(alice.page);
       await alice.page.waitForTimeout(40);
     }
-    await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Doom Blade reached the stack, targeting the lone legal creature — the precondition this spec needs' }).toBeGreaterThan(0);
+    const asks = serverLog(stack)
+      .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered' || r.evt === 'prompt-withheld')
+      .slice(-8)
+      .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.kind ?? r.method ?? '')}`);
+    await expect
+      .poll(() => stackCount(alice.page), {
+        timeout: 10_000,
+        message: `Doom Blade reached the stack, targeting the lone legal creature — the precondition this spec needs; says: "${await says(alice.page)}"; server's last asks: [${asks.join(' | ')}]`,
+      })
+      .toBeGreaterThan(0);
 
     // bob's one creature — Memnite, the only legal target — and the stack
     // item itself, by their own ids: the arrow's `data-key` is wave 33's
