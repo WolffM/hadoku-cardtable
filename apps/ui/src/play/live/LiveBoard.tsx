@@ -254,7 +254,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient } from '../../rooms/api.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
-import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
+import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, promptText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
@@ -396,12 +396,18 @@ const MULLIGAN_BOTTOM_PICK = /^Return \d+ card\(s\) to the bottom of your librar
 /**
  * What the decision pop-up says. Forge's priority status block is what the
  * log's status line is for; in the pop-up, with its OK meaning "let the stack
- * resolve", it is the one word the operator asked for (2026-10-07: *"why not
- * just show 'Resolve?'"*). Every other prompt is Forge's own words, made
- * readable.
+ * resolve", it names the top of the stack (the operator, 2026-10-08: never a
+ * bare "Resolve?"): a trigger or an ability names its SOURCE ("Resolve
+ * Bitterblossom's trigger?"), a spell names itself ("Resolve Keiga, the Tide
+ * Star?"). `topStack` is `match.view.stack[0]`; while the view has not caught
+ * up with the prompt it is `null` and the question stays bare rather than
+ * invent a name. Every other prompt is Forge's own words, made readable.
  */
-export function decisionMessage(prompt: string): string {
-  return PRIORITY_OVER_STACK.test(prompt) ? 'Resolve?' : promptText(prompt);
+export function decisionMessage(prompt: string, topStack: StackEntry | null): string {
+  if (!PRIORITY_OVER_STACK.test(prompt)) return promptText(prompt);
+  if (topStack === null) return 'Resolve?';
+  const name = topStack.sourceName ?? 'unknown source';
+  return topStack.isAbility ? `Resolve ${name}'s trigger?` : `Resolve ${name}?`;
 }
 
 /* ── T2: a calm "waiting for the other player" (wave 36 §L) ───────────── */
@@ -1609,7 +1615,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * one would lock the pop-up onto the wrong sentence for the whole pick.
    */
   if (mulliganPick) {
-    const text = decisionMessage(match.prompt ?? '');
+    const text = decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null);
     if (mulliganPickText.current === null && MULLIGAN_BOTTOM_PICK.test(text)) mulliganPickText.current = text;
   } else {
     mulliganPickText.current = null;
@@ -2364,7 +2370,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '')}
+            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null)}
             button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
           />

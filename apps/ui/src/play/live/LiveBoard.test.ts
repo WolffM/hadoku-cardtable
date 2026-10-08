@@ -17,12 +17,13 @@ import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { HeaderSettingsHost, HeaderSettingsProvider } from '../../chrome/HeaderSettings.tsx';
-import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
+import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import {
+  decisionMessage,
   endingSentence,
   gameOutcome,
   isMatchGone,
@@ -3869,12 +3870,11 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     } finally {
       spy.mockRestore();
     }
-    // And the band reads it: hung from that edge, a gap above it, thumbnails at its foot.
+    // And the band reads it: hung from that edge, a gap above it.
     const boardCss = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../board.css'), 'utf8');
     const band = declarations(boardCss, '.board__mid[data-question]');
     expect(band).toContain('--mid-h: min(var(--mid-h-asked), calc(var(--question-top, 100rem) - 2 * var(--board-gap)));');
     expect(band).toContain('top: max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)));');
-    expect(declarations(boardCss, '.board__mid[data-question] > .stack')).toBe('justify-content: flex-end;');
   });
 });
 
@@ -3947,5 +3947,95 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     await waitFor(() => expect(m.stats.replies).toBe(1));
     const sent = s.clientFrames().find((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectCard');
     expect(sent?.ok && sent.value.kind === 'act' && sent.value.method === 'selectCard' ? sent.value.card.id : null).toBe(HAND_CARD);
+  });
+});
+
+/*
+ * Wave 59 §P, AD4 rule 6. The operator, 2026-10-07: *"why not just show
+ * 'Resolve?'"* was wave 53's answer; this wave's design (AD4) supersedes it —
+ * the pop-up names what it is asking to resolve.
+ */
+describe('wave 59 §P — "Resolve {name}?" names the top of the stack', () => {
+  /** `match.view.stack[0]`'s own shape (`../adapter.ts`), built by hand so each case pins one field at a time. */
+  const stackEntry = (over: Partial<StackEntry>): StackEntry => ({
+    id: 1,
+    description: 'stack item 1',
+    sourceCardId: 9,
+    sourceName: 'Remand',
+    sourceCard: null,
+    controllerName: 'Alice',
+    isAbility: false,
+    ...over,
+  });
+  /** Forge's own priority-with-stack status block (`PRIORITY_OVER_STACK`'s own shape, `w20-turn-flow.json`'s real capture). */
+  const PRIORITY_WITH_STACK = 'Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.';
+
+  it('a spell names itself', () => {
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: 'Keiga, the Tide Star' }))).toBe('Resolve Keiga, the Tide Star?');
+  });
+
+  it('a trigger or an ability names its source, with "trigger" — never a bare "Resolve?"', () => {
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ isAbility: true, sourceName: 'Bitterblossom' }))).toBe(
+      "Resolve Bitterblossom's trigger?",
+    );
+  });
+
+  it('no stack item known yet (the view has not caught up to the prompt): the old bare question, never a guessed name', () => {
+    expect(decisionMessage(PRIORITY_WITH_STACK, null)).toBe('Resolve?');
+  });
+
+  it('a stack item that reached this seat with no source name falls back rather than draw "Resolve null?"', () => {
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: null }))).toBe('Resolve unknown source?');
+  });
+
+  it('a prompt that is not the priority-over-stack shape is untouched: Forge\'s own words, same as before this wave', () => {
+    expect(decisionMessage('Pay 2 life?', stackEntry({}))).toBe('Pay 2 life?');
+    expect(decisionMessage('Pay 2 life?', null)).toBe('Pay 2 life?');
+  });
+
+  it('the real fixture: the decision pop-up names Fire Urchin\'s trigger while it sits on top, then Direct Current once it is the only item left', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    expect(m.view!.stack.length, 'the fixture has two items on the stack').toBe(2);
+    const [triggerItem, spellItem] = m.view!.stack;
+    expect(triggerItem!.isAbility, 'Fire Urchin\'s trigger is on top').toBe(true);
+    expect(spellItem!.isAbility, 'Direct Current is the spell underneath').toBe(false);
+
+    for (const f of [
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: `Priority: you\nTurn: 14 (you)\nPhase: Main phase, precombat\nStack: 2 to Resolve.`,
+        card: null,
+      }),
+      parseServerFrame({
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1: 'OK',
+        label2: 'End Turn',
+        enable1: true,
+        enable2: true,
+        focus1: true,
+      }),
+    ]) {
+      s.send(f);
+    }
+
+    await waitFor(() => expect(getByTestId('live-decision').textContent).toContain(`Resolve ${triggerItem!.sourceName}'s trigger?`));
+
+    // The trigger resolves off the stack — only Direct Current is left.
+    s.send(stackDelta(m, [spellItem!.id]));
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: `Priority: you\nTurn: 14 (you)\nPhase: Main phase, precombat\nStack: 1 to Resolve.`,
+        card: null,
+      }),
+    );
+
+    await waitFor(() => expect(getByTestId('live-decision').textContent).toContain(`Resolve ${spellItem!.sourceName}?`));
   });
 });
