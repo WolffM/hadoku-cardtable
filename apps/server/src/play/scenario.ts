@@ -108,17 +108,25 @@ function dumpOnTimeout(s: Scenario, label: string): string {
 	const base = `${slug(label)}-${Date.now()}`;
 	const path = join(dir, `${base}.dump.json`);
 	const stderrPath = join(s.workDir, s.match.id, 'bridge.stderr.txt');
-	let stderrTail: string | null;
+	// The WHOLE stderr goes into the dump (`stderr`), the tail stays for a quick
+	// read: `stop()` reaps the match's run dir before CI's evidence step, so
+	// `forge.yml`'s `*/bridge.stderr.txt` upload never finds it, and the tail was
+	// all a red ever kept. Twice on 2026-10-08 (`w52-s-signet`, runs 37762992480
+	// and 37813876142) it held 22 repeats of `Network encode error …
+	// ArrayIndexOutOfBoundsException` and the first occurrence — the only one
+	// that could carry a cause — was gone.
+	let stderr: string | null;
 	try {
-		stderrTail = readFileSync(stderrPath, 'utf8').slice(-8000);
+		stderr = readFileSync(stderrPath, 'utf8');
 	} catch {
-		stderrTail = null;
+		stderr = null;
 	}
+	const stderrTail = stderr === null ? null : stderr.slice(-8000);
 	const frames = s.sent.slice(-DUMP_FRAMES).map(frameSummary);
 	const decisions = s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed');
 	try {
 		mkdirSync(dir, { recursive: true });
-		writeFileSync(path, JSON.stringify({ label, frames, decisions, stderrPath, stderrTail }, null, 2));
+		writeFileSync(path, JSON.stringify({ label, frames, decisions, stderrPath, stderrTail, stderr }, null, 2));
 	} catch (err) {
 		return `(dump write failed: ${err instanceof Error ? err.message : String(err)})`;
 	}
