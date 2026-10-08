@@ -112,18 +112,32 @@ async function answerTargetChoice(page: Page, name: string): Promise<boolean> {
  */
 async function castByDrag(page: Page, cardId: number, to: Point, targetName?: string): Promise<void> {
   const before = await stackCount(page);
-  expect(await dragHandCard(page, cardId, to), `card ${cardId} armed the drag-cast gesture`).toBe(true);
-  await expect
-    .poll(
-      async () => {
-        const text = await says(page);
-        if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
-        if (targetName !== undefined) await answerTargetChoice(page, targetName);
-        return stackCount(page);
-      },
-      { timeout: 20_000, message: `card ${cardId} reached the stack` },
-    )
-    .not.toBe(before);
+  // Not before Forge offers it: a drag released before the offer is a no-op, and the first act after
+  // a scenario start can be dropped outright (ledger AB15, `PlayBridge.java`'s `refreshActionable`) —
+  // so the drag is repeated, bounded, while the card is still in the hand and the stack unchanged.
+  await expect.poll(() => offered(page), { timeout: 45_000, message: `card ${cardId} is offered` }).toContain(cardId);
+  const inHand = () => page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${cardId}"]`).count();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    expect(await dragHandCard(page, cardId, to), `card ${cardId} armed the drag-cast gesture`).toBe(true);
+    const arrived = await expect
+      .poll(
+        async () => {
+          const text = await says(page);
+          if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+          if (targetName !== undefined) await answerTargetChoice(page, targetName);
+          return stackCount(page);
+        },
+        { timeout: 8_000 },
+      )
+      .not.toBe(before)
+      .then(
+        () => true,
+        () => false,
+      );
+    if (arrived) return;
+    if ((await inHand()) === 0) break;
+  }
+  expect(await stackCount(page), `card ${cardId} reached the stack`).not.toBe(before);
 }
 
 /** A press-drag-release of an ALREADY-PLACED spell (S's rule 5) — no cast, no target, just a move. */
@@ -305,10 +319,10 @@ test(
       const { alice, bob } = seated;
 
       /** Cast the one Opt in `page`'s own hand, then drain whatever Forge asks next (mana, Opt's own Scry choice) until the stack changes — the same generic "press whatever bar is up" `keepHands` uses at the JVM layer, translated to the browser. */
-      const castOpt = async (page: Page): Promise<void> => {
+      const castQuicken = async (page: Page): Promise<void> => {
         const before = await stackCount(page);
-        const optId = await handCardNamed(page, 'Opt');
-        expect(optId, 'an Opt is in this seat’s own hand').not.toBeUndefined();
+        const optId = await handCardNamed(page, 'Quicken');
+        expect(optId, 'a Quicken is in this seat’s own hand').not.toBeUndefined();
         await clickHandCard(page, optId!);
         await expect
           .poll(
@@ -317,19 +331,19 @@ test(
               if (!/^Priority:/.test(text)) await clickOnce(page, text, 'ok');
               return stackCount(page);
             },
-            { timeout: 15_000, message: 'an Opt reached the stack' },
+            { timeout: 15_000, message: 'a Quicken reached the stack' },
           )
           .not.toBe(before);
       };
 
-      await castOpt(alice.page);
-      await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his own Opt' }).not.toEqual([]);
-      await castOpt(bob.page);
-      await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her second Opt' }).not.toEqual([]);
-      await castOpt(alice.page);
-      await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his second Opt' }).not.toEqual([]);
-      await castOpt(bob.page);
-      await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'all four Opts are on the stack' }).toBe(4);
+      await castQuicken(alice.page);
+      await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his own Quicken' }).not.toEqual([]);
+      await castQuicken(bob.page);
+      await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her second Quicken' }).not.toEqual([]);
+      await castQuicken(alice.page);
+      await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his second Quicken' }).not.toEqual([]);
+      await castQuicken(bob.page);
+      await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'all four Quickens are on the stack' }).toBe(4);
 
       // THE MEASUREMENT: start logging only now, so the climb to four (0→1→2→3→4, each already
       // spaced by the SAME pacer) never pollutes the drain-phase numbers below.
@@ -343,8 +357,9 @@ test(
         new MutationObserver(log).observe(el, { attributes: true, attributeFilter: ['data-count'] });
       });
 
-      // Nobody has anything left (every Opt and every land that paid for one is spent); let it drain,
-      // pressing whatever bar either screen shows (never a cast of our own) until it is empty.
+      // Nobody has anything left (every Quicken and every land that paid for one is spent); let it drain,
+      // pressing whatever bar either screen shows (never a cast of our own) until it is empty. Quicken, not
+      // Opt: an Opt asks a scry question on resolution, and a stack of four of them never drains by itself.
       await expect
         .poll(
           async () => {
