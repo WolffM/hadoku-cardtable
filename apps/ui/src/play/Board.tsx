@@ -1235,13 +1235,26 @@ function subscribeCarriedCast(listener: () => void): () => void {
  * that changes `viewer` IS Forge's reply adding the card to the battlefield —
  * the ordinary re-render that follows already re-examines it.
  */
+/**
+ * Where a card about to arrive on a player's battlefield goes — reserved from
+ * the moment it was let go, for EITHER side. The viewer's own names the card
+ * (`notePlayedTo`); the other seat's (`expectPlacement`, from presence) names
+ * none: the next card of theirs to arrive takes it. While one waits, the row
+ * draws a real gap at that column (`data-expected`), the stand-in — the face
+ * for its owner, the back for the opponent — glides into it, and the arrival
+ * is drawn in that gap: the same on both screens, by construction.
+ */
 interface PendingPlacement {
+  readonly cardId: number | null;
   /** Never `'hand'` — a cast lands on the battlefield by definition; see `notePlayedTo`. */
   readonly slot: BoardRow;
   readonly target: DropTarget;
   readonly expiresAt: number;
 }
+/** By player id: one card in flight per player at a time, which is what a hand can do. */
 const PENDING_PLACEMENTS = new Map<number, PendingPlacement>();
+/** The viewer of the live board, so `notePlayedTo` can key its placement by player. */
+let LIVE_VIEWER_ID: number | null = null;
 /** How long a pending placement waits for its card. A cast that never resolves (countered, cancelled) just ages out — nothing else cleans it up. */
 const PENDING_PLACEMENT_TTL_MS = 15_000;
 
@@ -1315,12 +1328,67 @@ function liveViewerGeometry(): SlotGeometry[] {
  * the zone-change paths, not assumed.
  */
 export function notePlayedTo(cardId: number, point: { x: number; y: number }): void {
+  const at = placementAt(point);
+  if (at === null || LIVE_VIEWER_ID === null) return;
+  PENDING_PLACEMENTS.set(LIVE_VIEWER_ID, { cardId, slot: at.slot, target: at.target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  for (const wake of MOUNTED_BOARDS) wake();
+}
+
+/** The column a release at `point` (client coordinates) means on the viewer's own battlefield, or null off it. */
+export function placementAt(point: { x: number; y: number }): { slot: BoardRow; target: DropTarget } | null {
   const snap = snapTo(liveViewerGeometry(), point.x, point.y);
   // A cast lands ON THE BATTLEFIELD by definition — 'hand' is in the same
   // geometry list (the hand is arrangeable too) but is never a meaningful
   // target for "where a newly played permanent goes".
-  if (snap === null || snap.slot === 'hand') return;
-  PENDING_PLACEMENTS.set(cardId, { slot: snap.slot, target: snap.target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  if (snap === null || snap.slot === 'hand') return null;
+  return { slot: snap.slot, target: snap.target };
+}
+
+/**
+ * The OTHER seat let a card go at this column of their battlefield (presence
+ * carries the column, never the card): the next card of theirs to arrive is
+ * placed there, and the row shows the gap until it does.
+ */
+export function expectPlacement(playerId: number, slot: string, target: DropTarget): void {
+  if (!([...BOARD_ROWS, ...SINGLE_ROWS] as readonly string[]).includes(slot)) return;
+  PENDING_PLACEMENTS.set(playerId, { cardId: null, slot: slot as BoardRow, target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  for (const wake of MOUNTED_BOARDS) wake();
+}
+
+/** The placement waiting for a player, if one is (tests, and the stand-ins' clean-up). */
+export function pendingPlacementFor(playerId: number): { cardId: number | null; slot: BoardRow; target: DropTarget } | null {
+  const p = PENDING_PLACEMENTS.get(playerId);
+  return p === undefined || p.expiresAt < Date.now() ? null : { cardId: p.cardId, slot: p.slot, target: p.target };
+}
+
+/**
+ * The reserved gap for a waiting placement: an empty pile in the row at the
+ * target's column, by `withMove`'s own arithmetic, so the card lands exactly
+ * where the gap was. A `stack` target reserves nothing (the card joins a pile).
+ */
+function withExpectedGap(rows: Grouped, row: BoardRow, target: DropTarget): { rows: Grouped; index: number } | null {
+  if (target.kind === 'stack') return null;
+  const into = [...rows[row]];
+  let index: number;
+  if (target.kind === 'at') {
+    while (into.length < target.column) into.push([]);
+    index = target.column;
+    if (into.length === target.column) into.push([]);
+    else if (into[target.column]!.length > 0) into.splice(target.column, 0, []);
+  } else if (target.kind === 'end') {
+    into.push([]);
+    index = into.length - 1;
+  } else {
+    const at = into.findIndex((p) => p.some((c) => c.id === target.id));
+    if (at === -1) {
+      into.push([]);
+      index = into.length - 1;
+    } else {
+      into.splice(at, 0, []);
+      index = at;
+    }
+  }
+  return { rows: { ...rows, [row]: into }, index };
 }
 
 /**
@@ -2250,7 +2318,14 @@ function Battlefield({
   arranged: Arrangement;
   layout: BoardLayout;
 }) {
-  const rows = group(player.battlefield, player.id, arranged, layout);
+  const grouped = group(player.battlefield, player.id, arranged, layout);
+  const expected = PENDING_PLACEMENTS.get(player.id);
+  const reserved =
+    expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
+      ? null
+      : withExpectedGap(grouped, expected.slot, expected.target);
+  const rows = reserved?.rows ?? grouped;
+  const isExpectedGap = (row: BoardRow, i: number): boolean => reserved !== null && expected !== undefined && expected.slot === row && reserved.index === i;
 
   if (layout === 'single') {
     /*
@@ -2286,7 +2361,7 @@ function Battlefield({
             >
               {rows[tier].map((pile, i) =>
                 pile.length === 0 ? (
-                  <li key={`gap-${i}`} className="zone__gap" data-gap="" aria-hidden="true" />
+                  <li key={`gap-${i}`} className="zone__gap" data-gap="" data-expected={isExpectedGap(tier, i) ? '' : undefined} aria-hidden="true" />
                 ) : (
                   <CardOnBoard
                     key={pile[0]!.id}
@@ -2346,7 +2421,7 @@ function Battlefield({
             <ul className="zone__cards">
               {rows[row].map((pile, i) =>
                 pile.length === 0 ? (
-                  <li key={`gap-${i}`} className="zone__gap" data-gap="" aria-hidden="true" />
+                  <li key={`gap-${i}`} className="zone__gap" data-gap="" data-expected={isExpectedGap(row, i) ? '' : undefined} aria-hidden="true" />
                 ) : (
                 <CardOnBoard
                   key={pile[0]!.id}
@@ -3413,32 +3488,43 @@ export function Board({
    * or a stale (TTL-expired) one, is left alone — `group()`'s own default
    * for an arrival (appended to the end of its type row).
    */
+  LIVE_VIEWER_ID = viewer?.id ?? null;
+  const seenOnBattlefield = useRef(new Map<number, ReadonlySet<number>>());
   useLayoutEffect(() => {
-    if (viewer === undefined) return;
     const now = Date.now();
     let next = arranged;
+    let ownChanged = false;
     let changed = false;
-    for (const card of viewer.battlefield) {
-      const pending = PENDING_PLACEMENTS.get(card.id);
+    for (const player of view.players) {
+      const before = seenOnBattlefield.current.get(player.id);
+      const ids = new Set(player.battlefield.map((c) => c.id));
+      seenOnBattlefield.current.set(player.id, ids);
+      const pending = PENDING_PLACEMENTS.get(player.id);
       if (pending === undefined) continue;
-      PENDING_PLACEMENTS.delete(card.id);
-      if (pending.expiresAt < now) continue;
-      next = withMove(
-        group(viewer.battlefield, viewer.id, next, boardLayout),
-        viewer.id,
-        next,
-        card.id,
-        pending.slot,
-        pending.target,
-        boardLayout,
-      );
+      if (pending.expiresAt < now) {
+        PENDING_PLACEMENTS.delete(player.id);
+        continue;
+      }
+      // The viewer's own placement names its card; the other seat's takes the first card of
+      // theirs that was not on their battlefield at the last look (never on this board's first).
+      const card =
+        pending.cardId !== null
+          ? player.battlefield.find((c) => c.id === pending.cardId)
+          : before === undefined
+            ? undefined
+            : player.battlefield.find((c) => !before.has(c.id));
+      if (card === undefined) continue;
+      PENDING_PLACEMENTS.delete(player.id);
+      next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);
       changed = true;
+      if (player.id === viewer?.id) ownChanged = true;
     }
     if (changed) {
-      setArranged(key, viewer.id, next);
+      if (ownChanged && viewer !== undefined) setArranged(key, viewer.id, next);
+      else ARRANGED.set(key, next);
       redraw();
     }
-  }, [viewer, arranged, key, boardLayout]);
+  }, [view, viewer, arranged, key, boardLayout]);
 
   const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
 

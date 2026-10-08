@@ -203,7 +203,7 @@ import {
 import { carryCastOffStack, notePlayedTo, previewPlayedTo } from '../../Board.tsx';
 import { autoTargetArrows, combatArrows, stackTargetArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
-import { CAST_LANDING_ATTR,
+import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
   clearAllCastLifts,
   clearCastLift,
@@ -257,7 +257,7 @@ export const TAP_SWEEP_MS = 5000;
  */
 interface Parked {
   readonly source: number;
-  readonly at: Point;
+  at: Point;
   readonly home: Point;
   /** The card's stand-in at `at`, shown only while the board renders no element for the card itself. */
   readonly ghost: HTMLElement | null;
@@ -631,6 +631,24 @@ export function installGestures(options: GestureOptions): GestureHandle {
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
     parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false };
     syncParkedGhost();
+    // A played card's stand-in glides from the release point into the gap the row reserved for
+    // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
+    // back — so the arrival is a swap in place, not a second move (the operator, 2026-10-08:
+    // "it must look the same" from both sides). Measured a frame later: the board draws the gap first.
+    if (!spell && ghost !== null) {
+      const me = parked;
+      landingFrame = requestAnimationFrame(() => {
+        landingFrame = 0;
+        if (parked !== me) return;
+        const gap = expectedGapBox(canvas, 'you');
+        if (gap === null) return;
+        me.at = { x: gap.left + gap.width / 2, y: gap.top + gap.height / 2 };
+        ghost.style.left = `${me.at.x}px`;
+        ghost.style.top = `${me.at.y}px`;
+        ghost.style.width = `${gap.width}px`;
+        ghost.style.height = `${gap.height}px`;
+      });
+    }
     unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
     // The pointer is at the park point now; the arrow follows it from there
     // the moment Forge asks for the target, before the pointer next moves.

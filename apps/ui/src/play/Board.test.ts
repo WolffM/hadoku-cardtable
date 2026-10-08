@@ -28,7 +28,7 @@ import {
   type BoardView,
   type StackEntry,
 } from './adapter.ts';
-import { applyTheirArrangement, onOwnArrangement, type OwnArrangementListener,
+import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArrangement, type OwnArrangementListener,
   Board,
   forgetArrangements,
   forgetPendingPlacements,
@@ -1899,6 +1899,24 @@ describe('drag to arrange (#10)', () => {
     expect(told[0]!.rows.lands?.flat()).toEqual([24, 6, 25]);
 
     // Their side, in their order: the view's lands reversed, as they placed them.
+  });
+
+  it('`expectPlacement` reserves a real gap in the OTHER side’s row at once, and the next card of theirs to arrive is drawn in it — never at the row’s end first', () => {
+    // The operator, 2026-10-08, watching from the opponent's seat: "i first briefly see it flash to the
+    // default position, then correct itself to where it was actually placed."
+    const first = renderBoard(undefined, undefined, 'single');
+    const them = first.view.players.find((p) => !p.isViewer)!;
+    const tierIds = (c: HTMLElement, tier: string) => [...c.querySelectorAll<HTMLElement>(`[data-testid="player"][data-player-id="${them.id}"] [data-zone="battlefield"] [data-tier="${tier}"] > li`)].map((li) => (li.classList.contains('zone__gap') ? (li.hasAttribute('data-expected') ? 'GAP*' : 'gap') : String(li.dataset.cardId)));
+    const before = tierIds(first.container, 'back');
+    expect(before.length).toBeGreaterThan(1);
+    act(() => expectPlacement(them.id, 'back', { kind: 'before', id: Number(before[1]) }));
+    expect(tierIds(first.container, 'back'), 'a reserved gap, before the second card, the moment it is expected').toEqual([before[0], 'GAP*', ...before.slice(1)]);
+    // Their card arrives (a new id on their battlefield): it is drawn where the gap was, in the same render.
+    const arrived = { ...them.battlefield[0]!, id: 9901, name: 'Arrival' };
+    const next = { ...first.view, players: first.view.players.map((p) => (p.id === them.id ? { ...p, battlefield: [...p.battlefield, arrived] } : p)) } as typeof first.view;
+    first.rerender(createElement(Board, { view: next, boardLayout: 'single' }));
+    expect(tierIds(first.container, 'back'), 'the arrival took the gap').toEqual([before[0], '9901', ...before.slice(1)]);
+    expect(pendingPlacementFor(them.id), 'and nothing is left waiting').toBeNull();
   });
 
   it('`applyTheirArrangement` draws the OTHER side in its owner’s piles, under their player id, touching nothing of the viewer’s', () => {

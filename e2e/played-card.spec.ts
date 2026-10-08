@@ -66,6 +66,7 @@ interface Frame {
   /** The centre and size of its stand-in. */
   ghost: Box | null;
   ghostLift: string | null;
+  gap: Box | null;
   stack: number;
   /** Stack items Forge has that the stack is leaving to the played card (`data-carried`). */
   carried: number;
@@ -101,6 +102,8 @@ async function record(page: Page, cardId: number): Promise<void> {
         at: box(el),
         ghost: box(ghost),
         ghostLift: ghost?.getAttribute('data-cast-lift') ?? null,
+        // The gap the row reserved for the card at its release (`Board`'s `notePlayedTo`): where its stand-in waits.
+        gap: box(document.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]')),
         // What the stack DRAWS: `data-count` is everything Forge has, `data-carried` the items a played card stands in for.
         stack: document.querySelectorAll('[data-zone="stack"] .stack__item').length,
         carried: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-carried') ?? '0'),
@@ -193,7 +196,11 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
     const seen = seenAt(f);
     expect(seen, `the card is drawn somewhere in every frame until it lands (t=${f.t})\n${story}`).not.toBeNull();
     const travelling = f.ghostLift === 'returning';
-    if (!travelling) expect(near(seen!, released), `the card is at the point it was let go (t=${f.t}), not ${seen!.x},${seen!.y}\n${story}`).toBe(true);
+    // It waits at the point it was let go, or — gliding there from it — in the gap the row reserved
+    // (2026-10-08: the same motion the other screen draws); a frame mid-glide is between the two.
+    const inGap = f.gap !== null && near(seen!, f.gap, 6);
+    const between = f.gap !== null && seen !== null && Math.min(seen.x, f.gap.x, released.x) - 6 <= seen.x && seen.x <= Math.max(seen.x, f.gap.x, released.x) + 6 && Math.min(f.gap.y, released.y) - 6 <= seen.y && seen.y <= Math.max(f.gap.y, released.y) + 6;
+    if (!travelling) expect(near(seen!, released) || inGap || between, `the card is at the point it was let go or in its reserved gap (t=${f.t}), not ${seen!.x},${seen!.y}\n${story}`).toBe(true);
     expect(f.zone === 'hand' && f.lift === null, `the card is never back in the hand's own row (t=${f.t})\n${story}`).toBe(false);
     expect(f.tapped && !f.hidden && f.zone !== 'battlefield', `the card is never drawn tapped off the battlefield (t=${f.t})\n${story}`).toBe(false);
     expect(f.ghost !== null && f.at !== null && !f.hidden, `the card is never drawn twice, itself and its stand-in (t=${f.t})\n${story}`).toBe(false);

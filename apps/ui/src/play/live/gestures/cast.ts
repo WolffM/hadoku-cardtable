@@ -184,6 +184,20 @@ export function floatCastLiftHome(
 }
 
 /** Marks the stand-in `parkedGhost` draws; it carries no card id, so `cardBox` never finds it. */
+/**
+ * The reserved gap a stand-in glides into: the `data-expected` gap `Board`
+ * draws in that side's battlefield while a placement waits. Measured on the
+ * frame after the board drew it (the reservation wakes the board; React draws
+ * it before the next paint), and null when there is none — a `stack` target, a
+ * cast with a target, a release off the battlefield.
+ */
+export function expectedGapBox(root: ParentNode, owner: 'you' | 'them'): DOMRect | null {
+  const gap = root.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="${owner}"] li.zone__gap[data-expected]`);
+  if (gap === null) return null;
+  const box = gap.getBoundingClientRect();
+  return box.width > 0 && box.height > 0 ? box : null;
+}
+
 export const CAST_GHOST_ATTR = 'data-cast-ghost';
 
 /**

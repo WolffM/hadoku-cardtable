@@ -66,7 +66,8 @@ import {
 } from '@hadoku/shared';
 
 import { arrowShape } from './gestures/arrow.ts';
-import { landCastGhost } from './gestures/cast.ts';
+import { expectPlacement, placementAt } from '../Board.tsx';
+import { expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
 
@@ -74,6 +75,8 @@ import './presence.css';
 export const PRESENCE_STALE_MS = 6000;
 /** How long after their back goes a card of theirs appearing is taken as the card they were holding. */
 export const HANDOFF_MS = 2000;
+/** How long a back waits in its reserved gap for the card; a cast that never resolves just ages out (`Board`'s own TTL). */
+export const WAITING_MS = 15_000;
 
 export interface PresenceHost {
   readonly matchId: string;
@@ -82,6 +85,8 @@ export interface PresenceHost {
   readonly transport: Pick<MatchTransport, 'on' | 'emit'>;
   /** The other seat's display name, for the cursor's tag. */
   readonly opponentName: () => string | null;
+  /** The other seat's player id, for the column their release reserves (`Board`'s `expectPlacement`). Absent: nothing is reserved. */
+  readonly theirPlayerId?: () => number | null;
   /** Wake on every change of the match (`subscribe`), for the handoff; absent, no handoff is drawn. */
   readonly watch?: (onChange: () => void) => () => void;
   /** The ids of the other seat's cards the board draws as cards: their battlefield, and their spells on the stack. */
@@ -194,7 +199,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const spot = pointer === null ? null : spotOf(canvas, pointer);
     const hands = handsOf(canvas);
     const from = hands.from === null ? null : spotOf(canvas, hands.from);
-    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: hands.held, from, handRows: handRowsOf(canvas) };
+    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: hands.held, from, handRows: handRowsOf(canvas), placing: null };
     const key = JSON.stringify(message);
     if (key === lastMessage) return;
     lastMessage = key;
@@ -227,7 +232,18 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       clearTimeout(sendTimer);
       sendTimer = null;
     }
-    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: false, from: spot, handRows: handRowsOf(canvas) };
+    // The column of this seat's own battlefield the card was let go at — never the card — so the
+    // other screen reserves it and draws the back waiting there (`Board`'s `placementAt`).
+    const at = placementAt(point);
+    const message: PresenceMessage = {
+      matchId: host.matchId,
+      type: 'presence',
+      pointer: spot,
+      held: false,
+      from: spot,
+      handRows: handRowsOf(canvas),
+      placing: at === null ? null : { slot: at.slot, target: at.target },
+    };
     lastMessage = JSON.stringify(message);
     lastPointer = { x: point.x, y: point.y };
     lastSent = Date.now();
@@ -258,6 +274,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Where their back last was, and when it went — the handoff's start. */
   let backWas: { at: Point; gone: number } | null = null;
+  /** Their back waiting in the gap their release reserved, until the card arrives (or this times out). */
+  let waiting: { timer: ReturnType<typeof setTimeout> } | null = null;
   let backAt: Point | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
@@ -266,13 +284,23 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
   }
 
+  function stopWaiting(): void {
+    if (waiting === null) return;
+    clearTimeout(waiting.timer);
+    waiting = null;
+    back?.remove();
+    back = null;
+  }
   function takeDown(): void {
     cursor?.remove();
-    back?.remove();
     arrow?.remove();
     cursor = null;
-    back = null;
     arrow = null;
+    // A back waiting in its gap stays: it is the card's stand-in now, not the pointer's.
+    if (waiting === null) {
+      back?.remove();
+      back = null;
+    }
     hinted?.removeAttribute('data-presence-hint');
     hinted = null;
     canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]')?.removeAttribute('data-presence-rows');
@@ -311,6 +339,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     cursor.style.top = `${at.y - box.top}px`;
 
     if (echo.held) {
+      // They lifted a card (again): whatever was waiting is abandoned.
+      stopWaiting();
       if (back === null) {
         back = document.createElement('div');
         back.className = 'presence__back';
@@ -331,10 +361,33 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // The release message carries the exact release spot as `from`; failing that (no explicit
       // release reached this seat), fall back to the last place the back was actually drawn.
       const released = echo.from === null ? null : placeSpot(canvas, echo.from);
-      if (released !== null) backWas = { at: released, gone: Date.now() };
-      else if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
-      back?.remove();
-      back = null;
+      const theirs = host.theirPlayerId?.() ?? null;
+      if (echo.placing !== null && released !== null && theirs !== null && back !== null) {
+        // Their release named a column: the row reserves it (a real gap, `Board`'s `expectPlacement`)
+        // and the back glides from the release point into that gap and waits there, as their own
+        // screen's stand-in does; the card's arrival is drawn in the gap. No hand-off flight later.
+        expectPlacement(theirs, echo.placing.slot, echo.placing.target);
+        backWas = null;
+        const standIn = back;
+        standIn.style.left = `${released.x - box.left}px`;
+        standIn.style.top = `${released.y - box.top}px`;
+        standIn.setAttribute('data-waiting', '');
+        waiting = { timer: setTimeout(stopWaiting, WAITING_MS) };
+        requestAnimationFrame(() => {
+          if (waiting === null || back !== standIn) return;
+          const gap = expectedGapBox(canvas, 'them');
+          const rootBox = overlay()?.getBoundingClientRect();
+          if (gap === null || rootBox === undefined) return;
+          standIn.style.left = `${gap.left + gap.width / 2 - rootBox.left}px`;
+          standIn.style.top = `${gap.top + gap.height / 2 - rootBox.top}px`;
+          standIn.style.width = `${gap.width}px`;
+        });
+      } else {
+        if (released !== null) backWas = { at: released, gone: Date.now() };
+        else if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
+        back?.remove();
+        back = null;
+      }
     }
 
     const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
@@ -370,6 +423,28 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const cards = host.theirCards?.() ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
+    if (fresh.length > 0 && waiting !== null && back !== null) {
+      // The card their back stands in for has shown: on the stack, the back turns over in place
+      // (committed — the face is public now); on the battlefield, it is drawn in the gap and the
+      // stand-in simply goes.
+      const id = fresh[0]!;
+      const onField = canvas.querySelector(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`);
+      if (onField !== null) {
+        stopWaiting();
+        return;
+      }
+      const tile = canvas.querySelector(`.stack__item:has([data-card-id="w${id}"]) .card`);
+      if (tile !== null && !back.hasAttribute('data-face')) {
+        const copy = tile.cloneNode(true) as HTMLElement;
+        for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
+          el.removeAttribute('data-card-id');
+          el.removeAttribute('data-testid');
+        }
+        back.replaceChildren(copy);
+        back.setAttribute('data-face', '');
+      }
+      return;
+    }
     if (fresh.length === 0 || backWas === null || Date.now() - backWas.gone > HANDOFF_MS) return;
     const from = backWas.at;
     backWas = null;
@@ -413,6 +488,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   return {
     dispose() {
+      stopWaiting();
       live = false;
       unwatch?.();
       canvas.removeEventListener('pointermove', onPointerMove);

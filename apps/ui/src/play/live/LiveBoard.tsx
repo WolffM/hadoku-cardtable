@@ -1897,6 +1897,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         },
         transport: match.transport,
         opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
+        theirPlayerId: () => match.view?.players.find((p) => !p.isViewer)?.id ?? null,
         watch: (onChange) => subscribe(match, onChange),
         theirCards: () => {
           const view = match.view;

@@ -387,7 +387,8 @@ describe('two seats over the socket', () => {
 		};
 		alice.socket.emit('forge:presence', message);
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
-		expect(bob.presences[0]).toEqual({ ...message, seat: 0 });
+		// `placing` is the schema's default for a sender that named no column.
+		expect(bob.presences[0]).toEqual({ ...message, placing: null, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.presences, 'nothing comes back to the sender').toHaveLength(0);
 
@@ -404,7 +405,7 @@ describe('two seats over the socket', () => {
 		// with `handRows` defaulted to 1 and `owner` gone, not merely ignored by the receiver.
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
-		expect(bob.presences[1]).toEqual({ matchId, type: 'presence', pointer: { zone: 'battlefield', x: 0.25, y: 0.5 }, held: false, from: null, handRows: 1, seat: 0 });
+		expect(bob.presences[1]).toEqual({ matchId, type: 'presence', pointer: { zone: 'battlefield', x: 0.25, y: 0.5 }, held: false, from: null, handRows: 1, placing: null, seat: 0 });
 		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 3: the old shape was never malformed').toHaveLength(3);
 
 		// A spectator on alice's seat (a second browser) sends, and nobody hears it.

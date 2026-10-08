@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import * as castModule from './gestures/cast.ts';
+import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
 import { installPresence, placeSpot, PRESENCE_STALE_MS, spotOf, type PresenceHost } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -130,7 +131,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1 },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, placing: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -182,6 +183,7 @@ describe('sending', () => {
         held: false,
         from: { zone: 'battlefield', x: 0.3, y: 0.625 },
         handRows: 1,
+        placing: null,
       },
     });
 
@@ -236,6 +238,49 @@ describe('sending', () => {
 });
 
 describe('receiving', () => {
+  it('a release that names a column reserves it for THEIR player, keeps the back waiting in it, and takes the back down when a card of theirs reaches their battlefield', () => {
+    // The operator, 2026-10-08, from the opponent's seat: the card flashed at the row's end first, and
+    // the back lingered on the cursor. The column travels with the release; the card's arrival is
+    // drawn in the reserved gap; the back goes then, not on a timer.
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1 });
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: 'battlefield', x: 0.5, y: 0.5 },
+      held: false,
+      from: { zone: 'battlefield', x: 0.5, y: 0.5 },
+      handRows: 1,
+      placing: { slot: 'back', target: { kind: 'at', column: 1 } },
+    });
+    expect(pendingPlacementFor(1), 'their column is reserved under their player id').toEqual({ cardId: null, slot: 'back', target: { kind: 'at', column: 1 } });
+    const back = canvas.querySelector<HTMLElement>('.presence__back');
+    expect(back, 'the back stays — waiting, not following the pointer').not.toBeNull();
+    expect(back!.hasAttribute('data-waiting')).toBe(true);
+    // Their pointer leaves the board: the cursor goes, the waiting back does not.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1 });
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their pointer left').not.toBeNull();
+    // The card shows on their battlefield (the board drew it in the gap): the stand-in simply goes.
+    const li = document.createElement('li');
+    li.setAttribute('data-board-card', '77');
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
+    theirs = [77];
+    wake!();
+    expect(canvas.querySelector('.presence__back'), 'gone the moment the card is there').toBeNull();
+    expect(canvas.querySelector('.presence__handoff'), 'and no second flight: it is already where it was placed').toBeNull();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('draws their cursor with their name where their spot lands, a back while held, an arrow while aiming, and a hint on the card under it', () => {
     vi.useFakeTimers();
     const { canvas, theirCard } = board();

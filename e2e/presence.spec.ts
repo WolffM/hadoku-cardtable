@@ -156,13 +156,41 @@ test(titled('where alice puts a card on her battlefield is where bob sees it: he
     const [first, second] = await fieldOrder(alice.page, 'you');
     await expect.poll(() => fieldOrder(bob.page, 'them'), { timeout: 20_000, message: 'bob draws her two lands' }).toHaveLength(2);
 
+    // Bob's screen records, from now on, the position every new card of hers is FIRST drawn at — and
+    // whether a reserved gap stood where it went. The operator, 2026-10-08, from this seat: "i first
+    // briefly see it flash to the default position, then correct itself to where it was actually placed."
+    await bob.page.evaluate(() => {
+      const field = document.querySelector('.seat:not([data-viewer]) [data-zone="battlefield"]')!;
+      const seen = new Map<string, { index: number; gapBefore: boolean }>();
+      let gapSeen = false;
+      const w = window as unknown as { __firstSeen: Map<string, { index: number; gapBefore: boolean }>; __gapSeen: () => boolean };
+      w.__firstSeen = seen;
+      w.__gapSeen = () => gapSeen;
+      new MutationObserver(() => {
+        if (field.querySelector('li.zone__gap[data-expected]') !== null) gapSeen = true;
+        const lis = Array.from(field.querySelectorAll('li.board-card[data-card-id], li.zone__gap[data-expected]'));
+        lis.forEach((li, i) => {
+          const id = li.getAttribute('data-card-id');
+          if (id !== null && !seen.has(id)) seen.set(id, { index: i, gapBefore: gapSeen });
+        });
+      }).observe(field, { childList: true, subtree: true, attributes: true });
+    });
+
     // She lets the Island go between her two lands: on the first land's right-hand edge.
     const firstBox = (await alice.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${first}"]`).boundingBox())!;
     expect(await dragHandCard(alice.page, island, { x: firstBox.x + firstBox.width - 4, y: firstBox.y + firstBox.height / 2 }), 'the press lifted the Island').toBe(true);
+    // Her own row reserves the column at once, and so does his — before Forge has the card anywhere.
+    await expect(alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.zone__gap[data-expected]'), 'her row reserved the gap').toHaveCount(1, { timeout: 5_000 });
+    await expect(bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.zone__gap[data-expected]'), 'his screen reserved the same gap').toHaveCount(1, { timeout: 5_000 });
+    await expect(bob.page.locator('.presence__back[data-waiting]'), 'and her back waits in it').toHaveCount(1, { timeout: 5_000 });
     await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 20_000, message: 'the Island is on her battlefield, between the two' }).toEqual([first, island, second]);
 
-    // Bob's screen draws her side in HER order — not the view's (the Island last).
+    // Bob's screen draws her side in HER order — not the view's (the Island last) — from the FIRST frame
+    // it draws the Island at all: it took the gap, it never flashed at the end of the row.
     await expect.poll(() => fieldOrder(bob.page, 'them'), { timeout: 10_000, message: 'bob sees it where she put it' }).toEqual([first, island, second]);
+    const firstSeen = await bob.page.evaluate((id) => (window as unknown as { __firstSeen: Map<string, { index: number; gapBefore: boolean }> }).__firstSeen.get(String(id)) ?? null, island);
+    expect(firstSeen, 'the Island was first drawn between the two, with the reserved gap having stood there').toEqual({ index: 1, gapBefore: true });
+    await expect(bob.page.locator('.presence__back'), 'the back is gone once the card is there').toHaveCount(0, { timeout: 5_000 });
 
     // A reload of bob's tab is sent her last arrangement as it joins.
     await bob.page.reload();
