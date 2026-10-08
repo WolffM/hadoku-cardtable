@@ -427,7 +427,7 @@ describe('two seats over the socket', () => {
 		// A hand reorder's two indices relay the same way — never a card id or name.
 		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: 2 } });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
-		expect(bob.presences[1]).toEqual({ ...message, arranging: null, handMove: { from: 0, to: 2 }, seat: 0 });
+		expect(bob.presences[1]).toEqual({ ...message, arranging: null, handMove: { from: 0, to: 2 }, placing: null, seat: 0 });
 
 		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema
 		// is strict, and so is a hand row count that is neither 1 nor 2.

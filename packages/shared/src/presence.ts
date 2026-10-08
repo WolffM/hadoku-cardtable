@@ -125,16 +125,6 @@ export const PresenceSchema = z
      */
     placing: z.object({ at: PresenceSpotSchema }).strict().nullable().default(null),
     /**
-     * A SPELL's release point (AD4 rule 2): sent in the SAME message as
-     * `held: false`, beside `from`. Unlike `from` — the arrow's tail, or a
-     * best-effort fallback read off whatever was last drawn — this is the
-     * exact point the receiver waits a stand-in back AT, as a durable
-     * marker, until the spell's id is public (it shows on the stack) rather
-     * than inferring the wait from timing. A permanent's own placement
-     * (`placement.ts`, riding WITH the act) still supersedes this the moment
-     * it arrives, the same way it always has. Null otherwise — nothing was
-     * released, or a pre-deploy sender never had the field.
-     */
      * A HAND reorder just committed: `from` moved to `to`, both INDICES
      * in the sender's own hand order — never a card id, never a name, so the
      * receiver's hidden hand stays hidden; it only ever glides one of its own

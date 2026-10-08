@@ -425,7 +425,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * for the inspector's hover/long-press, not this gesture).
    */
   let placedDrag: { id: number; press: Point; moved: boolean } | null = null;
-
+  /**
    * The hand-reorder gesture's one piece of state this module keeps for it
    * (`./hand.ts`'s own is all pure functions over the DOM): the card's
    * position in the hand at the press that started the current lift, read

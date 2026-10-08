@@ -359,7 +359,7 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('their placement (the act’s own message) reserves the column for THEIR player by card id, keeps the back waiting in the gap, and takes it down when the board has drawn the card there', async () => {
+  it('their placement (the act’s own message) reserves the column for THEIR player by card id, keeps the back waiting in the gap, and hands it over to the card’s own tile copy once the board has drawn the card there', async () => {
     // The operator, 2026-10-08, from the opponent's seat: the card flashed at the row's end first, and
     // the back lingered on the cursor. The column and the release point come WITH the act, through
     // the server, before any Forge frame about the card; the card's arrival is drawn in the gap.
@@ -382,16 +382,26 @@ describe('receiving', () => {
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1, arranging: null });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null });
     expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their release and their pointer left').not.toBeNull();
-    // The card arrives: the board draws it in the gap and consumes the reservation; the stand-in goes.
+    // The card arrives: the board draws it in the gap and consumes the reservation. The stand-in
+    // hands over to a copy of the card's own tile, which finishes the trip from wherever the back
+    // is (`landCastGhost`, the same trip the owner's screen draws) — never cut short: Forge answers
+    // a cast faster than the back's 300 ms glide, and taking the back down at once popped the card
+    // into the gap mid-glide (presence.spec's Memnite case, red on a fast claw).
     const li = document.createElement('li');
     li.setAttribute('data-board-card', '77');
+    li.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w77" data-testid="card"><span class="card__name">Memnite</span></article></button>';
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
     theirs = [77];
     forgetPendingPlacements();
     wake!();
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
-    expect(canvas.querySelector('.presence__back'), 'gone the moment the card is there').toBeNull();
-    expect(canvas.querySelector('.presence__handoff'), 'and no second flight: it is already where it was placed').toBeNull();
+    expect(canvas.querySelector('.presence__back'), 'the back is gone the moment the card is there').toBeNull();
+    const flight = canvas.querySelector<HTMLElement>('.presence__handoff');
+    expect(flight, 'and its tile copy is on the trip in its place').not.toBeNull();
+    expect(flight!.getAttribute('data-cast-lift'), 'the same trip a played card makes').toBe('returning');
+    expect(flight!.querySelector('.card__name')!.textContent).toBe('Memnite');
+    expect(flight!.querySelector('[data-card-id]'), 'the copy is not a card the DOM can address').toBeNull();
+    expect(li.hasAttribute('data-cast-landing'), 'the real card waits hidden in its slot until the copy lands').toBe(true);
     handle.dispose();
     forgetPendingPlacements();
   });

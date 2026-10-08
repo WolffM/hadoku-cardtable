@@ -547,10 +547,10 @@ import { fixtureFrames, startReplayServer, until, type ReplayServer } from './re
 // Re-recorded again (wave 60 H): no hand card is `draggable` or carries
 // `data-arrange-card` any more (`CardOnBoard`'s own hand-reorder gesture moved
 // to the interaction lane) — five hand cards' worth of two now-absent
-// attributes, none of it art. At the previous pin (39577, b3f0173a…) with those
+// attributes (-210 characters), none of it art. At the previous pin (39577, b3f0173a…) with those
 // two attributes restored on a hand card, this test passes again.
-const BASELINE_SHA256 = 'TODO';
-const BASELINE_LENGTH = 0;
+const BASELINE_SHA256 = 'd1008669893304e3b9b96e77e06f1fbd5f504f8d6d988dee02569e2e3a488a93';
+const BASELINE_LENGTH = 39367;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

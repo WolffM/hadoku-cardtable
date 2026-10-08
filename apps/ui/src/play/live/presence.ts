@@ -312,6 +312,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       from: handFrom,
       handRows: handRowsOf(canvas),
       arranging: null,
+      placing: null,
       handMove: { from, to },
     };
     lastMessage = JSON.stringify(message);
@@ -399,7 +400,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * (`forBattlefield: false`, cleared by `handoff`'s id check instead) —
    * or this times out.
    */
-  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean } | null = null;
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null } | null = null;
   let backAt: Point | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
@@ -608,7 +609,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         back.style.top = `${placingAt.y - box.top}px`;
         back.setAttribute('data-waiting', '');
         backAt = placingAt;
-        waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false };
+        waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null };
       } else {
         const released = echo.from === null ? null : placeSpot(canvas, echo.from);
         if (released !== null) backWas = { at: released, gone: Date.now() };
@@ -659,9 +660,20 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       if (waiting.forBattlefield) {
         const theirs = host.theirPlayerId?.() ?? null;
         const standIn = back;
+        const card = waiting.card;
         requestAnimationFrame(() => {
           if (waiting === null || back !== standIn) return;
-          if (theirs !== null && pendingPlacementFor(theirs) === null) stopWaiting();
+          if (theirs === null || pendingPlacementFor(theirs) !== null) return;
+          // The card is in its column. The stand-in was still on its 300 ms glide there more often
+          // than not (Forge answers a cast faster than that), and taking it down here cut the glide
+          // short: the back vanished mid-flight and the card popped into the gap — the owner's own
+          // screen glides the whole way (`landCastGhost`). So the back hands over to the card's own
+          // tile copy from wherever it is right now, which finishes the trip; the card waits hidden
+          // under it. From the gap itself (Forge was slow), the trip is a stand-still reveal.
+          const now = standIn.getBoundingClientRect();
+          const from = now.width > 0 ? { x: now.left + now.width / 2, y: now.top + now.height / 2 } : backAt;
+          stopWaiting();
+          if (card !== null && from !== null) flyTile(card, from);
         });
         return;
       }
@@ -724,6 +736,28 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * the release point to it instead. Either way: the same glide their screen
    * draws, from the same message.
    */
+  /**
+   * A copy of their card's own tile travels from `from` to the card's place in
+   * its row (`landCastGhost`: the one trip a played card makes on EITHER
+   * screen), the card itself hidden there until the copy lands. Nothing
+   * travels with motion off, or before the board has drawn the tile.
+   */
+  function flyTile(card: number, from: Point): void {
+    const settled = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
+    const tile = settled?.querySelector('.card');
+    if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'presence__handoff';
+    ghost.setAttribute('aria-hidden', 'true');
+    const copy = tile.cloneNode(true) as HTMLElement;
+    for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
+      el.removeAttribute('data-card-id');
+      el.removeAttribute('data-testid');
+    }
+    ghost.append(copy);
+    landCastGhost(canvas, card, ghost, from, settled);
+  }
+
   function onPlacement(payload: unknown): void {
     if (!live) return;
     const parsed = PlacementEchoSchema.safeParse(payload);
@@ -740,21 +774,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (already !== null) {
       // The frame came first: the reservation moves the card on the next commit; its tile flies
       // from the release point to wherever it settles.
-      requestAnimationFrame(() => {
-        const settled = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
-        const tile = settled?.querySelector('.card');
-        if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) return;
-        const ghost = document.createElement('div');
-        ghost.className = 'presence__handoff';
-        ghost.setAttribute('aria-hidden', 'true');
-        const copy = tile.cloneNode(true) as HTMLElement;
-        for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
-          el.removeAttribute('data-card-id');
-          el.removeAttribute('data-testid');
-        }
-        ghost.append(copy);
-        landCastGhost(canvas, card, ghost, from, settled);
-      });
+      requestAnimationFrame(() => flyTile(card, from));
       return;
     }
     const rootBox = root.getBoundingClientRect();
@@ -768,7 +788,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     standIn.style.left = `${from.x - rootBox.left}px`;
     standIn.style.top = `${from.y - rootBox.top}px`;
     standIn.setAttribute('data-waiting', '');
-    waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: true };
+    waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: true, card };
     requestAnimationFrame(() => {
       if (waiting === null || back !== standIn) return;
       const gap = expectedGapBox(canvas, 'them');

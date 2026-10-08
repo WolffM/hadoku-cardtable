@@ -117,12 +117,37 @@ test(titled('letting go of a held card with no further pointer move takes the ba
 
     // Let go with NO further pointer move: the release message is the only thing that can move
     // the back now, since nothing will throttle a move in to do it instead. It leaves the cursor at
-    // once — for the gap her row reserved, where it waits for the card (2026-10-08) — and goes the
-    // moment Memnite is on her battlefield.
+    // once — for the gap her row reserved, where it waits for the card (2026-10-08) — and hands over
+    // to the card's own tile copy the moment Memnite is on her battlefield.
+    //
+    // Watched from BEFORE the release, as a record: the waiting back and the reserved gap live only
+    // until Forge's frame, which on a claw is tens of milliseconds — a locator poll started after
+    // `mouse.up()` resolves missed that window outright (wave 60's red at this line, 1 run in 3).
+    // The record is printed for the server log's `placement` row to be read against.
+    await bob.page.evaluate(() => {
+      const t0 = performance.now();
+      const seen: string[] = [];
+      const w = window as unknown as { __memnite: () => string[] };
+      w.__memnite = () => seen;
+      const note = (what: string) => {
+        if (!seen.some((s) => s.endsWith(what))) seen.push(`${Math.round(performance.now() - t0)}ms ${what}`);
+      };
+      new MutationObserver(() => {
+        if (document.querySelector('.presence__back[data-waiting]') !== null) note('back waiting');
+        if (document.querySelector('.seat:not([data-viewer]) [data-zone="battlefield"] li.zone__gap[data-expected]') !== null) note('gap reserved');
+        if (document.querySelector('.presence__handoff') !== null) note('tile copy flying');
+        if (document.querySelector('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name') !== null) note('card drawn');
+      }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-waiting', 'data-expected'] });
+    });
     await alice.page.mouse.up();
-    await expect(bob.page.locator('.presence__back[data-waiting]'), 'the back left the cursor at once, for the reserved gap').toHaveCount(1, { timeout: 1_000 });
-    await expect(bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.zone__gap[data-expected]'), 'his screen reserved her column').toHaveCount(1, { timeout: 2_000 });
-    await expect(back(bob.page), 'and the back is gone once the card is there').toHaveCount(0, { timeout: 20_000 });
+    const record = () => bob.page.evaluate(() => (window as unknown as { __memnite: () => string[] }).__memnite());
+    await expect(back(bob.page), 'the back is gone once the card is there').toHaveCount(0, { timeout: 20_000 });
+    const seen = await record();
+    console.log(`[presence memnite] bob saw: ${seen.join(' → ')}`);
+    expect(seen.some((s) => s.endsWith('back waiting')), `the back left the cursor at once, for the reserved gap — bob saw: ${seen.join(' → ')}`).toBe(true);
+    expect(seen.some((s) => s.endsWith('gap reserved')), `his screen reserved her column — bob saw: ${seen.join(' → ')}`).toBe(true);
+    expect(seen.some((s) => s.endsWith('tile copy flying')), `and the card's tile copy finished the trip — bob saw: ${seen.join(' → ')}`).toBe(true);
+    await expect(bob.page.locator('.presence__handoff'), 'the copy landed').toHaveCount(0, { timeout: 5_000 });
   } finally {
     await stack.stop();
   }
