@@ -650,6 +650,12 @@ describe('BoardInteraction', () => {
   // One of each zone the viewer can see: my land, my hand, their creature, my graveyard.
   const picks = [me.battlefield[1]!.id, me.hand![2]!.id, them.battlefield.at(-1)!.id, me.graveyard[0]!.id];
 
+  it('a tapped card is centred in the row, not hung from its top: the turned face steps down half the height difference (2026-10-08)', () => {
+    expect(declarationInCss(CARD_CSS, ".board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) > .board-card__face", 'margin-top')).toBe(
+      'calc((680 / 488 - 488 / 680) / 2 * 100%)',
+    );
+  });
+
   it('with no interaction, nothing Forge offers on the board is a button', () => {
     const { container } = renderBoard(view);
     expect(forgeButtons(container)).toHaveLength(0);

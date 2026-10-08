@@ -672,6 +672,15 @@
  */
 .board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) > .board-card__face {
   aspect-ratio: 680 / 488;
+  /*
+   * Centred in the row, not hung from its top (the operator, 2026-10-08:
+   * "let's vertically center tapped cards"). The row keeps the portrait height
+   * (`align-self: start`, `board.css`), so the turned face steps down by half
+   * the difference between the two heights — a percentage of the card's own
+   * width, which is what both heights are, and a margin, which turns with the
+   * tap transition where `align-self` could not.
+   */
+  margin-top: calc((680 / 488 - 488 / 680) / 2 * 100%);
 }
 
 /*
