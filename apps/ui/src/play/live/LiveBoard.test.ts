@@ -3135,6 +3135,35 @@ describe('R16 — the result screen, drawn over the board', () => {
       },
     });
 
+  it("Victory from Forge's finishGame alone, when the view's GameOver delta never comes (w35 R16, 2026-10-08)", async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const loserId = m.view!.players.find((p) => !p.isViewer)!.id;
+    // Forge's last flush carried only the loser's outcome: no `GameOver` on the game.
+    const outcomeOnly = parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: m.view!.seq + 1,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: {
+            [String(deltaKey(WireType.Player, loserId))]: { _type: WireType.Player, _id: loserId, HasLost: { t: 'bool', v: true } },
+          },
+          events: [],
+        },
+      },
+    });
+    s.send(outcomeOnly);
+    await waitFor(() => expect(m.view!.players.find((p) => p.id === loserId)!.hasLost).toBe(true));
+    expect(queryByTestId('game-result'), 'the loser is drawn as lost, but nothing yet says the game is over').toBeNull();
+
+    s.send(parseServerFrame({ kind: 'notify', method: 'finishGame' }));
+    await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'));
+    expect(getByTestId('game-result').textContent).toContain('Victory');
+  });
+
   it('Defeat, over the still-visible board, with no known room: both buttons fall back to the lobby', async () => {
     const { s, m, getByTestId } = await liveBoard();
     const viewerId = m.view!.players.find((p) => p.isViewer)!.id;

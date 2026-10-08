@@ -267,6 +267,18 @@ export interface SeatState {
 	deck: string | null;
 	/** The notice sent when the match failed; re-sent after every later snapshot. */
 	ended: ServerFrame | null;
+	/**
+	 * Forge's own `finishGame()` for this seat, kept once it has been sent.
+	 * The frame that says the game is over for certain: the `GameOver`
+	 * property on the game view travels in whatever delta happens to flush
+	 * after the end, and on 2026-10-08 (runs 37818461156, 1a42930's) a seat
+	 * drew the loser as lost and never received that delta at all — Forge's
+	 * last flush carried the player's outcome and nothing else followed, so the
+	 * result screen never came. `finishGame` is a direct call on the seat's
+	 * GUI, so it always arrives; re-sent after every later snapshot, like
+	 * `ended`.
+	 */
+	finished: ServerFrame | null;
 	/** Armed when the seat's last connection went; aborts its asks when it fires. */
 	departure: NodeJS.Timeout | null;
 	/** A person is on this seat: connected, or gone for less than the grace. Never true for an AI seat. */
@@ -781,6 +793,7 @@ export class Match {
 			passedOn: null,
 			deck: null,
 			ended: null,
+			finished: null,
 			departure: null,
 			here: false,
 			fullControl: false,
@@ -1170,6 +1183,7 @@ export class Match {
 			this.send(s, { kind: 'notify', method: 'setHighlighted', entities: [...s.highlighted.values()], on: true } as unknown as ServerFrame);
 		}
 		if (s.weakly !== null) this.send(s, s.weakly);
+		if (s.finished !== null) this.send(s, s.finished);
 		if (s.ended !== null) this.send(s, s.ended);
 	}
 
@@ -1599,6 +1613,8 @@ export class Match {
 			s.weakly = frame;
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.weakly = null;
+		} else if (frame.method === 'finishGame') {
+			s.finished = frame;
 		}
 		this.send(s, frame);
 		// `setSelectables`/`clearSelectables` can open or close the

@@ -1296,6 +1296,23 @@ describe('a match that outlives its server', () => {
 		expect(h.sent.at(-1)?.envelope.frame).toMatchObject({ method: 'showErrorDialog' });
 	});
 
+	it("Forge's finishGame is forwarded, kept, and re-sent after a later snapshot (w35 R16)", () => {
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		const mark = h.sent.length;
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'finishGame' } });
+		const forwarded = h.sent.slice(mark).map((s) => ({ seat: s.seat, method: s.envelope.frame.method }));
+		expect(forwarded).toEqual([{ seat: 0, method: 'finishGame' }]);
+		h.match.resendAfterSnapshot(0);
+		expect(h.sent.at(-1)?.envelope.frame).toMatchObject({ kind: 'notify', method: 'finishGame' });
+		// The other seat never got one, so it is not re-sent to that seat either.
+		const before = h.sent.length;
+		h.match.resendAfterSnapshot(1);
+		expect(h.sent.slice(before).map((s) => s.envelope.frame.method)).not.toContain('finishGame');
+	});
+
 	it("a registry whose host cannot re-attach adopts nothing rather than pretending to", () => {
 		const { factory } = replayFactory();
 		const registry = createMatchRegistry({

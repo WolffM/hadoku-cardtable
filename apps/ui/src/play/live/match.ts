@@ -726,6 +726,14 @@ export interface LiveMatch {
    * Sticky until a snapshot replaces the board, which re-sends the notice.
    */
   over: boolean;
+  /**
+   * Forge's own `finishGame()` has arrived: the game is over for certain, even
+   * when the view's `GameOver` property never does (its delta is whatever
+   * flush follows the end, and sometimes none does — the loser is drawn as lost
+   * and the result screen never comes; 2026-10-08, `w35` R16 twice). Reset by
+   * a snapshot, which the server follows with the frame again.
+   */
+  finished: boolean;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -839,6 +847,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     waitingOn: null,
     spectator: false,
     over: false,
+    finished: false,
     fullControl: false,
     stopAtEndStep: false,
     lastError: null,
@@ -2128,6 +2137,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.says = [];
   match.inputLive = false;
   match.over = false;
+  match.finished = false;
   unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
@@ -2427,6 +2437,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // empty set — see the field's own note on `LiveMatch`.
     match.weaklySelectableManaOnly = frame.manaOnly === undefined ? null : new Set(frame.manaOnly.map((c) => c.id));
     match.inputLive = true;
+  } else if (frame.kind === 'notify' && frame.method === 'finishGame') {
+    match.finished = true;
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.title === MATCH_ENDED_TITLE) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
     // continue, whatever the board still shows.
@@ -2491,5 +2503,6 @@ function discardLocal(match: LiveMatch): void {
   match.nameByPlayerId = null;
   match.waitingOn = null;
   match.over = false;
+  match.finished = false;
   unspend(match);
 }

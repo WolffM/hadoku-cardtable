@@ -1345,7 +1345,10 @@ export type GameOutcome = 'victory' | 'defeat' | 'draw';
 /** Victory/Defeat/Draw, from the viewer's own side. `null` while the game is not over. */
 export function gameOutcome(match: LiveMatch): GameOutcome | null {
   const view = match.view;
-  if (view === null || !view.gameOver) return null;
+  // Forge's `finishGame()` (`match.finished`) is the certain signal; the view's
+  // `GameOver` is the same fact when its delta happens to arrive (see
+  // `LiveMatch.finished`). Either one ends the game here.
+  if (view === null || !(view.gameOver || match.finished)) return null;
   const viewerLost = view.players.find((p) => p.isViewer)?.hasLost ?? false;
   const opponentLost = view.players.find((p) => !p.isViewer)?.hasLost ?? false;
   if (viewerLost === opponentLost) return 'draw';
@@ -2432,7 +2435,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         />
       )}
       {/* R16: Victory/Defeat/Draw, in place of the toast (`Board`'s old `game over` banner). Over the board, which stays visible behind it. */}
-      {match.view !== null && match.view.gameOver && <GameResultScreen match={match} roomId={roomId} />}
+      {match.view !== null && (match.view.gameOver || match.finished) && <GameResultScreen match={match} roomId={roomId} />}
       {/*
        * The match's settings live in the HEADER's gear popout (wave 32 Q15), not
        * here: this draws them into it while it is open, and nothing at all
