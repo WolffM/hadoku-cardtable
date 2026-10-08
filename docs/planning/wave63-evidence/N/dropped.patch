@@ -1,0 +1,148 @@
+diff --git a/apps/ui/src/play/adapter.test.ts b/apps/ui/src/play/adapter.test.ts
+index 50cc3a5..2c140d8 100644
+--- a/apps/ui/src/play/adapter.test.ts
++++ b/apps/ui/src/play/adapter.test.ts
+@@ -772,6 +772,49 @@ describe('item 4 — the avatar reaches the seat, wave 29 §A.6-8', () => {
+   });
+ });
+ 
++/*
++ * AE11, playtest 15: *"in the chat it says 'Eisen' but in the game it correctly
++ * sees the name as 'Bella' … there should only be one source of truth."* The
++ * board's half of that one source: `nameByPlayerId` (`forge:seats`, fed from
++ * `member.name` server-side) wins over Forge's own `PlayerView.Name` whenever
++ * it names the seat, the same way `avatarByPlayerId` already wins over the
++ * generated bust above. Nothing else on the board — the stack's target label
++ * included (`playerNameById` is built from these SAME resolved `players[].name`
++ * values, `adapter.ts`'s T8 comment) — reads a player's name any other way.
++ */
++describe('the seat’s name is the registry’s, not Forge’s own PlayerView.Name (AE11)', () => {
++  it('a seat named on the map draws THAT name instead of the wire’s own PlayerView.Name', () => {
++    const before = adapt(baseState()).players.find((p) => p.isViewer)!;
++    const view = toBoardView(baseState(), 27, {
++      viewerPlayerId: fixture.viewerPlayerId,
++      nameByPlayerId: new Map([[fixture.viewerPlayerId, 'Eisen']]),
++    });
++    const after = view.players.find((p) => p.isViewer)!;
++    expect(after.name).toBe('Eisen');
++    // The premise: this really did change something, not an id already named 'Eisen'.
++    expect(after.name).not.toBe(before.name);
++  });
++
++  it('a blank or whitespace-only name on the map is never drawn — wire data, never trusted blind', () => {
++    const before = adapt(baseState()).players.find((p) => p.isViewer)!;
++    for (const blank of ['', '   ']) {
++      const view = toBoardView(baseState(), 27, {
++        viewerPlayerId: fixture.viewerPlayerId,
++        nameByPlayerId: new Map([[fixture.viewerPlayerId, blank]]),
++      });
++      expect(view.players.find((p) => p.isViewer)!.name).toBe(before.name);
++    }
++  });
++
++  it('with no map at all, or a seat the map does not name, every committed fixture still draws exactly as before', () => {
++    const before = adapt(baseState()).players;
++    const view = toBoardView(baseState(), 27, { viewerPlayerId: fixture.viewerPlayerId, nameByPlayerId: new Map() });
++    for (const p of before) {
++      expect(view.players.find((v) => v.id === p.id)!.name).toBe(p.name);
++    }
++  });
++});
++
+ /*
+  * X1/W14 — `view.combat`, Forge's own `CombatView` read off the single `Game`
+  * object (`adapter.ts`'s `readCombat`, `abf705c`'s WIP). `atk`/`def`/`blk` are
+diff --git a/apps/ui/src/room/RoomShell.test.ts b/apps/ui/src/room/RoomShell.test.ts
+index 60946e2..0f63e24 100644
+--- a/apps/ui/src/room/RoomShell.test.ts
++++ b/apps/ui/src/room/RoomShell.test.ts
+@@ -54,8 +54,12 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
+    * branch exactly; `theme ?? 'dark'` would not be, because it would let `''`
+    * through as a theme the real chrome would reject.
+    */
+-  RoomChrome: ({ theme, children }: { theme?: string; children: ReactNode }) =>
+-    createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark' }, children),
++  RoomChrome: ({ theme, name, children }: { theme?: string; name?: string; children: ReactNode }) =>
++    createElement(
++      'div',
++      { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-name': name ?? '' },
++      children,
++    ),
+ }));
+ 
+ /*
+@@ -150,6 +154,27 @@ describe('a host theme outside the chrome union still reaches the chrome', () =>
+   });
+ });
+ 
++/*
++ * AE11, playtest 15: *"in the chat it says 'Eisen' but in the game it correctly
++ * sees the name as 'Bella' … there should only be one source of truth."*
++ *
++ * The registry's name (`whoami()`'s `name`, mocked as `'Test Friend'` above) is
++ * the one all three of the roster, the chat's join line and Forge's seat name
++ * already agree on — see `RoomShell.tsx`'s "One name, not two" note. This pins
++ * the one hop that was missing: the chrome itself has to be HANDED that name,
++ * or it falls back to a stored custom name or an auto-assigned character name
++ * that none of the other three has ever heard of.
++ */
++describe('the name handed to the chrome', () => {
++  it('is the registry’s display name, not dropped on the floor', async () => {
++    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
++
++    const roomChrome = await waitFor(() => screen.getByTestId('room-chrome'));
++
++    expect(roomChrome.getAttribute('data-name')).toBe('Test Friend');
++  });
++});
++
+ /*
+  * Item 4 of the 2026-09-28 play test: *"i noticed you're still not pulling in the
+  * watchparty selected avatars. why not?"*
+diff --git a/apps/ui/src/room/RoomShell.tsx b/apps/ui/src/room/RoomShell.tsx
+index 5d4278e..ee7604a 100644
+--- a/apps/ui/src/room/RoomShell.tsx
++++ b/apps/ui/src/room/RoomShell.tsx
+@@ -38,6 +38,31 @@
+  * We still do NOT invent an identity: if it fails the chrome is not mounted
+  * and the table renders alone, because a room that cannot say who you are is
+  * worse than no room.
++ *
++ * ## One name, not two (AE11)
++ *
++ * `who.name` used to be fetched and then never read again — the `Who` object
++ * carried it, nothing downstream looked at it, and `<RoomChrome>` was never
++ * given a `name` prop. Watchparty's chrome fills that gap on its own, from a
++ * stored custom name, then an auto-assigned character name — never from the
++ * registry — so a viewer who had once typed a name into the chrome's own
++ * "Change character" dialog (or was auto-assigned one) saw THAT name in chat
++ * forever after, while the roster, the join line and Forge's own seat name
++ * (all fed from `member.name` — `userNameOf(req)` off `x-user-name`, server
++ * side, no client push needed) agreed with each other and not with the
++ * chrome. That is the operator's *"in the chat it says 'Eisen' but in the
++ * game it correctly sees the name as 'Bella'"*.
++ *
++ * `name={who.name ?? undefined}` below closes that for every viewer who has
++ * never customised a name in the chrome: `RoomChromeProps.name`'s own
++ * documented precedence is "the viewer's own custom name > this > an
++ * auto-assigned character name", so the registry name is now the fallback
++ * instead of a fourth, uncoordinated source.
++ *
++ * **Not closed**: a viewer who already has a stored custom name keeps it —
++ * the chrome's own precedence puts it ahead of this prop, and nothing in
++ * `RoomChromeProps` offers a way to override or clear it from outside.
++ * `docs/requests/WATCHPARTY_NAME_OVERRIDE.md` asks for one.
+  */
+ 
+ import { useEffect, useState, type ReactNode } from 'react';
+@@ -258,6 +283,10 @@ export function RoomShell({ roomId, children }: { roomId: string | null; childre
+       serverOrigin={watchpartyOrigin()}
+       userType={who.tier}
+       userId={who.userId}
++      // AE11: the registry's name, so a viewer who has never customised one
++      // in the chrome starts from the same name the roster, the chat's own
++      // join line and Forge's seat label already agree on — see the header.
++      name={who.name ?? undefined}
+       theme={watchpartyTheme(theme)}
+     >
+       {children}
