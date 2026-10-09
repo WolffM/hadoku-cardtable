@@ -279,6 +279,7 @@ const MATCH_ENDED_TITLE = 'Match ended';
 
 /** Any blocking ask, as parsed. */
 export type LiveAsk = Extract<ServerFrame, { kind: 'ask' }>;
+export type RevealAsk = Extract<LiveAsk, { method: 'getChoices' }>;
 
 /** The ask `../prompts/ConfirmPrompt.tsx` draws for `LiveBoard.tsx`. */
 export type ConfirmAsk = Extract<LiveAsk, { method: 'showConfirmDialog' }>;
@@ -476,6 +477,14 @@ export interface LiveMatch {
    * a queue, because the server may hold more than one.
    */
   asks: LiveAsk[];
+  /**
+   * The last reveal Forge was already answered for (an envelope marked
+   * `displayOnly`, `@hadoku/shared`'s `ServerEnvelope`): cards to show, never a
+   * question, so never in {@link LiveMatch.asks}. Cleared by the next real
+   * question ({@link applyFrame}), by {@link dismissReveal}, and by anything
+   * that drops local state.
+   */
+  reveal: RevealAsk | null;
   /**
    * Forge's current prompt line and button bar, from the `notify` frames
    * `showPromptMessage` and `updateButtons`.
@@ -791,6 +800,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     skippedDeltas: 0,
     view: null,
     asks: [],
+    reveal: null,
     prompt: null,
     promptCard: null,
     buttons: null,
@@ -2148,6 +2158,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.skippedDeltas = 0;
   // The server re-sends every open ask after the snapshot, as normal frames.
   match.asks = [];
+  match.reveal = null;
   // The server re-sends the open selection, the marks and the actionable set
   // after the snapshot (wave 31 §S: `resendAfterSnapshot` keeps them per
   // seat), as normal frames. What this client held from before is replaced by
@@ -2349,7 +2360,30 @@ export function ingest(match: LiveMatch, raw: unknown): void {
   match.cursor = cursor;
   match.stats.applied += 1;
   match.resyncsWithoutProgress = 0;
-  applyFrame(match, parsed.value);
+  if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
+  else applyFrame(match, parsed.value);
+  notify(match);
+}
+
+/**
+ * A frame the server marked `displayOnly`: a reveal Forge has already been
+ * answered for. Only a `getChoices` reveal is ever sent that way
+ * (`apps/server/src/play/match.ts`'s `showReveal`); anything else so marked is
+ * counted invalid and dropped — there is no reply to owe it either way.
+ */
+function showReveal(match: LiveMatch, frame: ServerFrame): void {
+  if (frame.kind !== 'ask' || frame.method !== 'getChoices') {
+    match.stats.invalid += 1;
+    match.lastInvalid = [{ path: '$.displayOnly', message: `only a getChoices reveal is display-only, not ${frame.kind} ${frame.method}` }];
+    return;
+  }
+  match.reveal = frame;
+}
+
+/** The reveal notice has been seen (its time ran out, or the player clicked it away). */
+export function dismissReveal(match: LiveMatch, callId: string): void {
+  if (match.reveal?.callId !== callId) return;
+  match.reveal = null;
   notify(match);
 }
 
@@ -2373,6 +2407,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       match.asks.push(frame);
       if (CARDLESS_ASKS.has(frame.method)) match.lastSelectedCard = null;
     } else match.asks[i] = frame;
+    // The seat's next real decision takes the place of a reveal still showing.
+    match.reveal = null;
     unspend(match);
     return;
   }
@@ -2398,6 +2434,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       max: frame.max,
       players: frame.players === undefined ? null : new Set(frame.players.map((p) => p.id)),
     };
+    // A selection is a decision too: it takes the reveal's place, as an ask does.
+    match.reveal = null;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
     match.selectables = null;
@@ -2478,6 +2516,7 @@ function discardLocal(match: LiveMatch): void {
   match.skippedDeltas = 0;
   match.view = null;
   match.asks = [];
+  match.reveal = null;
   match.prompt = null;
   match.promptCard = null;
   match.buttons = null;

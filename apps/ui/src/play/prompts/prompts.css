@@ -605,3 +605,42 @@
  * a second one here (wave 38's fold of what used to be `.prompt-confirm` and
  * `.prompt-playdraw`).
  */
+
+/*
+ * `RevealNotice.tsx`: a reveal Forge was already answered for. It sits over the
+ * table's middle band, left of the question column (`--live-col-x`), so it never
+ * covers a decision; it is the revealed cards and nothing else.
+ */
+.reveal-notice {
+  position: absolute;
+  z-index: var(--z-popover, 40);
+  top: 34%;
+  left: 18%;
+  max-width: 38%;
+  padding: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.reveal-notice__cards {
+  --card-w: 6rem;
+
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reveal-notice__cards > li {
+  width: var(--card-w);
+  min-width: 0;
+}
+
+.reveal-notice__cards .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}

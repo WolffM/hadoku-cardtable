@@ -29,6 +29,7 @@ import {
   declaringAttackers,
   declaringBlockers,
   declaringCombat,
+  dismissReveal,
   payingMana,
   genuinelyAsked,
   isBlockAssignment,
@@ -2624,5 +2625,63 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Oops', message: 'x' })]);
     expect(m.over).toBe(false);
+  });
+});
+
+describe('a display-only reveal is a notice, never a question', () => {
+  function reveal(callId: string): ServerFrame {
+    return parseServerFrame({
+      kind: 'ask',
+      callId,
+      method: 'getChoices',
+      message: 'Looking at cards in your library',
+      min: -1,
+      max: -1,
+      choices: [{ key: 'c0', label: 'Genju of the Spires (121)', ref: { kind: 'card', id: 121 } }],
+      selected: [],
+    });
+  }
+
+  /** Stamp `frame` on the replay server's stream, deliver it marked `displayOnly`, and wait until it is applied. */
+  async function showReveal(s: ReplayServer, m: LiveMatch, frame: ServerFrame): Promise<void> {
+    const target = m.stats.applied + 1;
+    const cursor = s.lose(frame);
+    s.sendRaw({ ...s.sent(cursor.seq), displayOnly: true });
+    await until('the reveal applied', () => m.stats.applied >= target);
+  }
+
+  it('is held as the reveal, opens no ask, and sends nothing back', async () => {
+    const { s, m } = await fullGame();
+    await showReveal(s, m, reveal('r1'));
+    expect(m.reveal?.callId).toBe('r1');
+    expect(m.asks).toEqual([]);
+    expect(currentAsk(m)).toBeNull();
+    expect(s.clientFrames().filter((f) => f.ok && f.value.kind !== 'act')).toEqual([]);
+  });
+
+  it("the seat's next real question takes its place", async () => {
+    const { s, m } = await fullGame();
+    await showReveal(s, m, reveal('r2'));
+    await sendAndApply(s, m, [optionAsk('o2')]);
+    expect(m.reveal).toBeNull();
+    expect(currentAsk(m)?.callId).toBe('o2');
+  });
+
+  it('dismissing it clears it; a stale dismissal of another reveal does not', async () => {
+    const { s, m } = await fullGame();
+    await showReveal(s, m, reveal('r3'));
+    dismissReveal(m, 'r-old');
+    expect(m.reveal?.callId).toBe('r3');
+    dismissReveal(m, 'r3');
+    expect(m.reveal).toBeNull();
+  });
+
+  it('only a getChoices reveal may be display-only: anything else so marked is counted invalid', async () => {
+    const { s, m } = await fullGame();
+    const invalid = m.stats.invalid;
+    await showReveal(s, m, optionAsk('o4'));
+    expect(m.reveal).toBeNull();
+    expect(m.asks).toEqual([]);
+    expect(m.stats.invalid).toBe(invalid + 1);
   });
 });

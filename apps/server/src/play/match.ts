@@ -450,8 +450,9 @@ export interface SeatState {
 	 * Wave 35 §S, R4 — a `getChoices` REVEAL (`min === max === -1`) held back to
 	 * see whether the very next ask to this seat is the real discard choice it
 	 * belongs to (Thoughtseize's "look at hand" step). See
-	 * {@link Match.onFrame}'s own header on the fold. Flushed as an ordinary ask
-	 * of its own if nothing claims it within {@link PENDING_REVEAL_FOLD_MS}.
+	 * {@link Match.onFrame}'s own header on the fold. Shown as a notice
+	 * ({@link Match.showReveal}) if nothing claims it within
+	 * {@link PENDING_REVEAL_FOLD_MS}.
 	 */
 	pendingReveal: { frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>; timer: NodeJS.Timeout } | null;
 	/**
@@ -461,15 +462,6 @@ export interface SeatState {
 	 * choice) a single browser reply must resolve. See {@link Match.onFrame}.
 	 */
 	mergedChoice: Map<string, { chooseCallId: string; keyByRef: Map<string, string> }>;
-	/**
-	 * Wave 35 §S, R4 — callIds Forge has ALREADY been answered for (a reveal's
-	 * one legal `[]`, sent the instant it arrived — see {@link Match.onFrame}'s
-	 * header), shown to this seat anyway so the information it carries is not
-	 * lost (`auto.ts`'s own rule: "a shortcut may remove a question; it may
-	 * never remove information"). A reply to one of these is the browser
-	 * dismissing a display, not answering Forge, and is consumed locally.
-	 */
-	displayOnlyAsks: Set<string>;
 	/**
 	 * Half of a window a decider can answer, held until the other half
 	 * arrives so the window is decided before either reaches the wire. A
@@ -878,7 +870,6 @@ export class Match {
 			chosenAbility: null,
 			pendingReveal: null,
 			mergedChoice: new Map(),
-			displayOnlyAsks: new Set(),
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
@@ -1146,10 +1137,7 @@ export class Match {
 	 * stack and a battlefield are public either way and resolve to a name.
 	 */
 	private waitingOnFor(s: SeatState): { method: string; hostCard: string | null } | null {
-		// A display-only reveal (`openDisplayOnlyReveal`) is answered by the server the moment it is
-		// shown: the seat decides nothing there, so it is not a wait — measured 2026-10-08 (AE13): the
-		// other seat's roster carried `getChoices` for a reveal already auto-answered.
-		const decision = [...s.asks.values()].find((a) => !s.displayOnlyAsks.has(a.callId));
+		const decision = s.asks.values().next().value;
 		// A live bar on an ORDINARY priority window (Forge's "Priority: …" prompt) is not a decision
 		// either: the seat merely holds priority. The operator, 2026-10-08 (AE13), after a bounceland
 		// returned itself with no choice to make: *"it still shows 'Waiting for Bella to decide…' as if
@@ -1345,18 +1333,7 @@ export class Match {
 				if (ask.method !== frame.method) {
 					return { ok: false, error: `reply is for ${frame.method}, the open ask is ${ask.method}` };
 				}
-				const wasDisplayOnly = s.displayOnlyAsks.has(ask.callId);
 				this.closeAsk(s, ask.callId);
-				// Wave 35 §S, R4 — this ask is a reveal Forge was ALREADY answered
-				// for the instant it arrived (`onFrame`'s header); the browser's
-				// reply is it dismissing a display, not answering a live question,
-				// and goes nowhere — sending Forge a second reply for a callId it
-				// already resolved would only produce a harmless "stale" log line
-				// on its side at best.
-				if (wasDisplayOnly) {
-					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, displayOnly: true });
-					return { ok: true };
-				}
 				// Wave 35 §S, R4 — the browser answered a SYNTHETIC ask standing in
 				// for the real discard choice (the reveal half was already answered
 				// `[]` the moment it arrived — Forge's game thread was parked inside
@@ -1527,7 +1504,7 @@ export class Match {
 
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
-	private send(s: SeatState, frame: ServerFrame): void {
+	private send(s: SeatState, frame: ServerFrame, displayOnly = false): void {
 		if (frame.method === 'updateButtons') {
 			s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
 			this.noteCoinToss(s, frame);
@@ -1535,7 +1512,7 @@ export class Match {
 		s.seq += 1;
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
-		this.deps.emit(s.seat, { matchId: this.id, cursor, frame });
+		this.deps.emit(s.seat, displayOnly ? { matchId: this.id, cursor, frame, displayOnly: true } : { matchId: this.id, cursor, frame });
 	}
 
 	/**
@@ -1688,13 +1665,13 @@ export class Match {
 					clearTimeout(s.pendingReveal.timer);
 					const orphaned = s.pendingReveal;
 					s.pendingReveal = null;
-					this.openDisplayOnlyReveal(s, orphaned.frame);
+					this.showReveal(s, orphaned.frame);
 				}
 				const revealFrame = frame;
 				const timer = setTimeout(() => {
 					if (s.pendingReveal?.frame !== revealFrame) return;
 					s.pendingReveal = null;
-					this.openDisplayOnlyReveal(s, revealFrame);
+					this.showReveal(s, revealFrame);
 				}, PENDING_REVEAL_FOLD_MS);
 				timer.unref();
 				s.pendingReveal = { frame: revealFrame, timer };
@@ -1724,7 +1701,7 @@ export class Match {
 				// instant it arrived); show it to the seat now, unchanged, rather
 				// than let it vanish — then `frame` still needs its own ordinary
 				// handling below.
-				this.openDisplayOnlyReveal(s, pending.frame);
+				this.showReveal(s, pending.frame);
 			}
 			this.openAsk(s, frame);
 			return;
@@ -2537,7 +2514,6 @@ export class Match {
 		const ask = s.asks.get(callId);
 		if (ask !== undefined) clearTimeout(ask.timer);
 		s.asks.delete(callId);
-		s.displayOnlyAsks.delete(callId);
 		this.checkWaitingOn();
 	}
 
@@ -2681,25 +2657,20 @@ export class Match {
 
 	/**
 	 * Show a reveal Forge has ALREADY been answered for (its `[]`, sent the
-	 * instant it arrived — see `onFrame`'s header), exactly as the browser saw
-	 * it before this fold existed: the SAME frame, the SAME callId, registered
-	 * as an ordinary open ask. The manager's regression report on this fold:
-	 * `auto.ts:551-569` is explicit that a reveal "stays on screen" because
-	 * answering it "would take the reveal away from the player" — every
-	 * `getChoices` reveal this fold does NOT recognise as the front half of a
-	 * discard choice (an opponent's hand shown by a tutor, Secluded Glen's
-	 * reveal to the other seat, a `RevealYouChoose` card with more than one
-	 * card to take, …) must still reach the seat, unchanged.
-	 *
-	 * The browser's reply is consumed here and never forwarded — Forge has
-	 * nothing left waiting on this callId, and sending it a second reply for
-	 * one it already resolved would only produce a harmless "stale" bridge log
-	 * line at best. `s.displayOnlyAsks` marks the callId so `fromClient`'s
-	 * `reply` case knows to stop there.
+	 * instant it arrived — see `onFrame`'s header). Every `getChoices` reveal
+	 * the R4 fold does NOT claim as the front half of a discard choice (Dark
+	 * Confidant's top card, an opponent's hand shown by a tutor, Secluded
+	 * Glen's reveal to the other seat, …) still reaches the seat, because
+	 * answering it must not take the information away (`auto.ts`'s
+	 * `onlyAnswer`). It reaches it as what it is: the frame unchanged, marked
+	 * `displayOnly` on the envelope, never registered as an ask — nothing waits
+	 * on it, nothing replies to it, and the browser draws it as a notice that
+	 * goes away on its own. The operator, 2026-10-09: *"why is it necessary
+	 * for this to require an 'ok' press at all?"*
 	 */
-	private openDisplayOnlyReveal(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>): void {
-		s.displayOnlyAsks.add(frame.callId);
-		this.openAskFrame(s, frame.callId, frame.method, frame);
+	private showReveal(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>): void {
+		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices) });
+		this.send(s, frame, true);
 	}
 
 	private closeAllAsks(): void {

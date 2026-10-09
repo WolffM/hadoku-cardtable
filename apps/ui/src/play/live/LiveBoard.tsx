@@ -263,6 +263,7 @@ import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, promptText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
+import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
@@ -279,6 +280,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  dismissReveal,
   genuinelyAsked,
   isAutoYieldOn,
   nothingToDecide,
@@ -2464,6 +2466,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             <LivePrompt match={match} ask={ask} />
           </PromptBoundary>
         </div>
+      )}
+      {match.reveal !== null && (
+        <RevealNotice key={match.reveal.callId} reveal={match.reveal} lookup={lookupFromState(match.state)} onDone={dismissReveal.bind(null, match, match.reveal.callId)} />
       )}
       {paying && <PaymentWindow match={match} />}
       {/*

@@ -1596,13 +1596,23 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 
 		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-1');
 		expect(shown?.envelope.frame).toEqual(frame);
+		// Shown, never asked: the envelope says nothing waits on it.
+		expect(shown?.envelope.displayOnly).toBe(true);
 
-		// The browser dismissing it sends Forge nothing further — it was
-		// already told, and a second reply for a callId it has already
-		// resolved is not owed one.
-		const dismiss = ClientFrameSchema.parse({ kind: 'reply', callId: 'x-reveal-1', method: 'getChoices', result: [] });
-		expect(h.match.fromClient(0, dismiss)).toEqual({ ok: true });
+		// Nothing is open for the seat, so nothing could answer it: a reply is
+		// stale, and Forge — already told — is sent nothing further.
+		const reply = ClientFrameSchema.parse({ kind: 'reply', callId: 'x-reveal-1', method: 'getChoices', result: [] });
+		expect(h.match.fromClient(0, reply)).toEqual({ ok: false, error: 'stale-reply' });
 		expect(h.host.commands).toHaveLength(1);
+	});
+
+	it('a shown reveal is not a wait: the other seat is never told this seat is deciding', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-5', [930]) });
+		vi.advanceTimersByTime(5000);
+		expect(h.match.seatIdentities().find((s) => s.seat === 0)?.waitingOn ?? null).toBeNull();
 	});
 
 	it('a disqualifying ask arrives first: the reveal reaches the seat AT ONCE, not after the fold window', () => {
@@ -1615,9 +1625,10 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-other', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
 
 		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-2');
-		expect(shown).toBeDefined();
+		expect(shown?.envelope.displayOnly).toBe(true);
 		const other = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-other');
 		expect(other).toBeDefined();
+		expect(other?.envelope.displayOnly).toBeUndefined();
 	});
 
 	it('two reveals back to back: the first is shown too, not dropped for the second', () => {

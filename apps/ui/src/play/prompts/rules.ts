@@ -600,32 +600,20 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
  * itself and only asks for two or more (`InputPayMana.java:101-106`) — so the
  * player has already said what they want.
  *
- * ## Why a REVEAL is still not answered here (wave 24 §D.5)
+ * ## Why a REVEAL is not answered here (wave 24 §D.5)
  *
- * The operator asked for a reveal that *"shows both players at once and needs
- * no OK"*. A reveal is `getChoices` with `min === max === -1`
+ * A reveal is `getChoices` with `min === max === -1`
  * (`AbstractGuiGame.java:785-788`: `reveal(message, items)` IS
- * `getChoices(message, -1, -1, items)`), reached from
- * `PlayerControllerHuman.reveal` (`PlayerControllerHuman.java:933-972`), and it
- * has exactly one legal reply — the empty list. So it looks like the easiest
- * auto-answer in the file, and it is refused on purpose:
- *
- * **answering it here would delete the information.** `answerAsk` closes the
- * ask the instant the reply is sent (`../live/match.ts`'s `answerAsk`, which
- * calls `closeAsk` before it sends) and `../live/LiveBoard.tsx` draws nothing at
- * all for an ask that answers itself (`const ask = auto === null ? pending : null`) — so the revealed cards would never reach a screen. A
- * shortcut may remove a question, never information (`apps/server/src/play/auto.ts`
- * says the same thing about the same ask).
- *
- * What would make it safe is a surface that outlives the ask, and the data for
- * one is already on the wire and unread: `TrackableProperty.RevealedCardsCollection`
- * (`forge-game/src/main/java/forge/trackable/TrackableProperty.java:48`), which
- * `PlayerControllerHuman.reveal` fills through `getGui().updateRevealedCards`
- * (`:970`, `AbstractGuiGame.java:252-260`) and `apps/ui/src/play/adapter.ts`
- * does not read. Until something draws that, the reveal keeps its OK. The
+ * `getChoices(message, -1, -1, items)`), and its one legal reply is the empty
+ * list. The SERVER gives Forge that reply the moment the reveal arrives
+ * (`apps/server/src/play/match.ts`'s `onFrame`) and sends the reveal on marked
+ * `displayOnly`, so it never reaches this client as an ask: `../live/match.ts`
+ * holds it as `LiveMatch.reveal` and `RevealNotice.tsx` draws the cards — the
+ * operator's *"shows both players at once and needs no OK"*. Answering it here
+ * as well would be a second answer to a question Forge no longer has. The
  * "both players" half needs nothing from us: `reveal` is called on each
- * player's own controller by the effect, so a seat is asked **only when Forge
- * revealed to it** — the UI never decides to share.
+ * player's own controller by the effect, so a seat is shown a reveal **only
+ * when Forge revealed to it** — the UI never decides to share.
  */
 export type AutoAnswer =
   | {

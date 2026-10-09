@@ -232,7 +232,7 @@ export function stopPreferenceFrame(matchId: string, stopAtEndStep: boolean): St
  * `parseServerEnvelope` does not").
  */
 export const ServerEnvelopeSchema = z
-  .object({ matchId: z.string().min(1), cursor: WireCursorSchema, frame: ServerFrameSchema })
+  .object({ matchId: z.string().min(1), cursor: WireCursorSchema, frame: ServerFrameSchema, displayOnly: z.literal(true).optional() })
   .strict();
 
 /** `ServerEnvelopeSchema`, with `frame` loosened to `unknown` — `parseServerEnvelope`'s own first stage. */
@@ -242,6 +242,13 @@ export interface ServerEnvelope {
   matchId: string;
   cursor: WireCursor;
   frame: ServerFrame;
+  /**
+   * The frame is a reveal Forge has ALREADY been answered for (`apps/server/src/play/match.ts`'s
+   * `showReveal`): something to show, never a question. Nothing replies to it. On the envelope, not
+   * the frame, because the frame is Forge's own and stays byte-for-byte what Forge sent; whether
+   * anyone still waits on it is the server's fact. Absent on every other frame.
+   */
+  displayOnly?: true;
 }
 
 /**
