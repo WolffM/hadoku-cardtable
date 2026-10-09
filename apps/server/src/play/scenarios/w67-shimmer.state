@@ -1,0 +1,17 @@
+# An ability with nobody stopping it: alice's own Main Phase 1 (a land in hand, so her window is
+# kept and the page is watched before anything moves), bob's Dark Confidant. Alice's End Turn runs
+# the turn out; bob's upkeep trigger goes on the stack and resolves with every window on the way
+# auto-passed — unless bob is on Full Control, which holds priority with the trigger on the stack.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Mountain
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Dark Confidant
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
