@@ -536,6 +536,20 @@ export function isWaitingForOpponent(match: LiveMatch): boolean {
   return theirWaitingOn(match) !== null;
 }
 
+/**
+ * Whether the other seat holds ANY open window the server reports — a decision OR a plain
+ * priority hold. The opponent's priority FLAG reads this, never `isWaitingForOpponent`: the
+ * pop-out drops `priority` (it is for decisions), and the flag reading that same filtered fact
+ * went dark for every held window after `0670a98` (found by AE16's spec: four windows forwarded
+ * to bob, alice's flag for him never lit).
+ */
+export function opponentHoldsAWindow(match: LiveMatch): boolean {
+  if (isSpectator(match) || match.seat === null || match.waitingOn === null) return false;
+  const view = match.view;
+  if (view === null || view.gameOver) return false;
+  return match.waitingOn.has(match.seat === 0 ? 1 : 0);
+}
+
 /*
  * Wave 42 §L. Playtest 7, the operator: *"if opponent is choosing to
  * play/draw something needs to be showing on the other persons screen as
@@ -1756,7 +1770,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * itself is unchanged; this replaces what used to be the inline formula
    * beside its call ("F's seam filter").
    */
-  const asked = { ownDecisionOpen: myOwnDecisionOpen, waitingForOpponent };
+  const asked = { ownDecisionOpen: myOwnDecisionOpen, waitingForOpponent: opponentHoldsAWindow(match) };
   const viewerOpen = genuinelyAsked(match, 'you', asked);
   const opponentOpen = genuinelyAsked(match, 'them', asked);
   const visualView = match.view === null ? null : withGatedPriority(match.view, viewerOpen, opponentOpen);

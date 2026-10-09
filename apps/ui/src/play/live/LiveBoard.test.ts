@@ -4336,6 +4336,16 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(seatFlag(container, 'opp'), 'still nothing — the ping-pong alone never moves the drawn flag').toBeNull();
     });
 
+    it('lights for a plain priority hold too — the pop-out ignores `priority`, the flag must not (the 0670a98 regression AE16 found)', async () => {
+      const { s, m, container } = await liveBoard();
+      expect(seatFlag(container, 'opp')).toBeNull();
+      await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
+      await waitFor(() => expect(seatFlag(container, 'opp')).not.toBeNull());
+      expect(container.querySelector('[data-testid="live-waiting-pop"]'), 'and no pop-out for a mere priority hold').toBeNull();
+      await sendTheirWaitingOn(s, m, null);
+      await waitFor(() => expect(seatFlag(container, 'opp')).toBeNull());
+    });
+
     it('appears the instant the server reports the opponent genuinely parked on something, and is gone the instant the server clears it — Forge’s paced fact moves neither (AE16)', async () => {
       const { s, m, container } = await liveBoard();
       const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
