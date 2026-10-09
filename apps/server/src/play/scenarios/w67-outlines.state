@@ -1,0 +1,15 @@
+# Placement outlines (playtest 15, 2026-10-09): alice has lands to rearrange and one to play; bob has
+# lands of his own to rearrange, so his side of alice's board can hold a gap he left.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Forest;Mountain;Swamp
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
