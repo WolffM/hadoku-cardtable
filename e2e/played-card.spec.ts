@@ -181,6 +181,19 @@ function seenAt(f: Frame): Box | null {
 const near = (a: { x: number; y: number }, b: { x: number; y: number }, px = 3): boolean => Math.abs(a.x - b.x) <= px && Math.abs(a.y - b.y) <= px;
 
 /** A point in the middle of the viewer's own battlefield, where the card is let go. */
+/**
+ * The operator, 2026-10-09 (ledger AE25): "if the card is a permanent, it should drop to the closest spot
+ * to where it would snap to" — the column nearest the release x, never the row's first slot. On an
+ * EMPTY battlefield nothing measured the column pitch, so the first permanent of a game went to column 0.
+ */
+async function expectNearestColumn(page: Page, id: number, released: { x: number; y: number }): Promise<void> {
+  const box = await onMyBattlefield(page, id).boundingBox();
+  if (box === null) throw new Error(`card ${id} is not on the battlefield`);
+  const centre = box.x + box.width / 2;
+  console.log(`[played-card] released x=${released.x}, landed centre x=${Math.round(centre)} (card ${Math.round(box.width)} wide)`);
+  expect(Math.abs(centre - released.x), 'the card landed at the column nearest the release, not the row\'s first slot').toBeLessThanOrEqual(box.width);
+}
+
 async function releasePoint(page: Page): Promise<{ x: number; y: number }> {
   const box = await page.locator('[data-zone="battlefield"][data-owner="you"]').boundingBox();
   if (box === null) throw new Error('the viewer has no battlefield to release over');
@@ -275,6 +288,7 @@ for (const fast of [true, false]) {
     await alice.page.waitForTimeout(600);
     await answerConfirm(alice.page, 'no');
     await expect(onMyBattlefield(alice.page, land), 'declining the life let it enter').toHaveCount(1, { timeout: 15_000 });
+    await expectNearestColumn(alice.page, land, to);
     await expect(alice.page.locator('[data-cast-ghost], [data-cast-lift], [data-cast-landing]'), 'and nothing is left over the board').toHaveCount(0, { timeout: 5_000 });
 
     const frames = await recording(alice.page);

@@ -4148,6 +4148,16 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     { slot: 'back' as const, box: box(0, 200, 400, 100), piles: [] },
   ];
 
+  it('snapTo: a lone card at a high column can be dragged RIGHT — the columns past it are offered (AE19, the operator\'s board)', () => {
+    // The operator's row, 2026-10-09: `pileSizes [0,0,0,0,0,1]` — five gaps, then one land at column 5. Pitch 70.
+    const gap = (i: number) => ({ id: null, box: box(10 + i * 70, 8, 60, 84) });
+    const lone = [{ slot: 'front' as const, box: box(0, 0, 800, 100), piles: [gap(0), gap(1), gap(2), gap(3), gap(4), { id: 5, box: box(360, 8, 60, 84) }], step: 70 }];
+    expect(snapTo(lone, 440, 50, 5)?.target, 'just right of it, within a pitch: the next column').toEqual({ kind: 'at', column: 6 });
+    expect(snapTo(lone, 520, 50, 5)?.target, 'a pitch further: one more column').toEqual({ kind: 'at', column: 7 });
+    expect(snapTo(lone, 100, 50, 5)?.target, 'left, over a gap: that gap, as before').toEqual({ kind: 'at', column: 1 });
+    expect(snapTo(lone, 390, 50, 5)?.target, 'on itself: it stays (a self target, which withMove leaves in place)').toEqual({ kind: 'before', id: 5 });
+  });
+
   it('snapTo: the nearest place in a row — a thin edge strip reorders, the rest stacks (W7)', () => {
     // Pile 1's box is (10, 8)-(70, 92): 60 wide, 84 tall.
     expect(snapTo(slots, 15, 50)?.target, 'the left edge strip: before it').toEqual({ kind: 'before', id: 1 });

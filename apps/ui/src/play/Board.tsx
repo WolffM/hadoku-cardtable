@@ -1126,6 +1126,26 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dra
     const height = Math.min(box.bottom - box.top, 96);
     return { slot, target: { kind: 'end' }, kind: 'end', card: null, bar: { left: box.left + 4, top: (box.top + box.bottom - height) / 2, width: BAR, height } };
   }
+  const ownIndex = dragging === null ? -1 : piles.findIndex((p) => own(p));
+  const ownBox = ownIndex === -1 ? null : piles[ownIndex]!.box;
+  /*
+   * The dragged card is the LAST card of its row (every column after it is empty or absent — the
+   * operator's board, 2026-10-09: one land at column 5 with five gaps before it) and the pointer is
+   * to its right: the places to offer are the columns PAST it — one column right within a pitch,
+   * then one more per pitch. Before this, the nearest non-own column was always a gap to its LEFT,
+   * so a lone or last card could be dragged left but never right (ledger AE19, reported four times).
+   */
+  if (stacking && ownBox !== null && distanceTo(ownBox, x, y) === 0 && piles[at]!.id === null) {
+    // On itself with only gaps around it: it stays (before this, a lone card with gaps to its left snapped
+    // into the nearest gap). Beside another card, its own middle is "before the next" as before.
+    return { slot, target: { kind: 'before', id: dragging! }, kind: 'before', card: dragging!, bar: { left: ownBox.left - BAR - 1, top: ownBox.top, width: BAR, height: ownBox.bottom - ownBox.top } };
+  }
+  if (stacking && ownBox !== null && x > ownBox.right && piles.findIndex((p, i) => i > ownIndex && !own(p) && p.id !== null) === -1) {
+    const pitch = step ?? ownBox.right - ownBox.left + 6;
+    const beyond = pitch > 0 ? Math.floor((x - ownBox.right) / pitch) : 0;
+    const column = ownIndex + 1 + beyond;
+    return { slot, target: { kind: 'at', column }, kind: 'at', card: null, bar: { left: ownBox.right + 1 + beyond * pitch, top: ownBox.top, width: BAR, height: ownBox.bottom - ownBox.top } };
+  }
   const pile = piles[at]!;
   const { left, top, right, bottom } = pile.box;
   /*
@@ -1306,8 +1326,13 @@ function columnPitch(slotEl: HTMLElement): number | null {
   const field = slotEl.closest<HTMLElement>('[data-zone="battlefield"]');
   if (field === null) return null;
   // Two neighbouring columns measure the pitch exactly; one card and the list's own gap only estimate it.
+  // No card at all (the first permanent of the game): a probe column, laid out by the grid's own
+  // `grid-auto-columns`, is the width — otherwise the pitch is unknown, the column is 0, and the
+  // first played card lands at the row's left whatever the release (ledger AE25, a regression).
   let estimate: number | null = null;
+  let lists = 0;
   for (const list of field.querySelectorAll<HTMLElement>('.zone__cards')) {
+    lists += 1;
     const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap');
     if (items.length >= 2) {
       const a = items[0]!.getBoundingClientRect();
@@ -1319,6 +1344,17 @@ function columnPitch(slotEl: HTMLElement): number | null {
       const gap = Number.parseFloat(getComputedStyle(list).columnGap) || 0;
       if (a.width > 0) estimate = a.width + gap;
     }
+  }
+  if (estimate === null && lists > 0) {
+    const list = field.querySelector<HTMLElement>('.zone__cards')!;
+    const probe = document.createElement('li');
+    probe.className = 'board-card';
+    probe.style.visibility = 'hidden';
+    list.append(probe);
+    const width = probe.getBoundingClientRect().width;
+    const gap = Number.parseFloat(getComputedStyle(list).columnGap) || 0;
+    probe.remove();
+    if (width > 0) estimate = width + gap;
   }
   return estimate;
 }

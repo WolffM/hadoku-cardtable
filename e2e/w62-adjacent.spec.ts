@@ -158,3 +158,33 @@ test(titled('AE19: dragging the leftmost card offers every gap to its right, and
     await stack.stop();
   }
 });
+
+test(titled('AE19, the operator\'s board: a LONE land dragged right moves right — column by column, gaps opening behind it — and back left; bob mirrors every step'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'bitterblossom');
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { timeout: 30_000, message: 'one lone land drawn' }).toHaveLength(1);
+    const [id] = (await columnsOf(ownRow(alice.page))) as [string];
+    const card = () => alice.page.locator(`.seat[data-viewer] li.board-card[data-card-id="${id}"]`);
+    // The operator's rows (2026-10-09): `pileSizes [0,0,0,0,0,1]` — the land at column 5 with gaps before it.
+    for (let step = 1; step <= 3; step += 1) {
+      const box = await boxOf(card());
+      await pointerDrag(alice.page, card(), { x: box.x + box.width * 1.6, y: box.y + box.height / 2 });
+      const want = [...Array.from({ length: step }, () => null), id];
+      await expect.poll(() => columnsOf(ownRow(alice.page)), { message: `alice: column ${step}` }).toEqual(want);
+      await expect.poll(() => columnsOf(theirRow(bob.page)), { timeout: 10_000, message: `bob: column ${step}, mirrored` }).toEqual(want);
+    }
+    console.log(`[w62-adjacent] lone land right ×3: ${(await columnsOf(ownRow(alice.page))).map((c) => c ?? '_').join(' ')} | bob ${(await columnsOf(theirRow(bob.page))).map((c) => c ?? '_').join(' ')}`);
+    // And back to the first column, over the first gap.
+    const gap0 = await boxOf(ownRow(alice.page).locator(':scope > li').first());
+    await pointerDrag(alice.page, card(), { x: gap0.x + gap0.width / 2, y: gap0.y + gap0.height / 2 });
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'alice: back at column 0' }).toEqual([id]);
+    await expect.poll(() => columnsOf(theirRow(bob.page)), { timeout: 10_000, message: 'bob: mirrored' }).toEqual([id]);
+    console.log(`[w62-adjacent] lone land back left: ${(await columnsOf(ownRow(alice.page))).join(' ')}`);
+  } finally {
+    await stack.stop();
+  }
+});
