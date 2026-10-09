@@ -1,0 +1,18 @@
+# w67-piles (the operator, 2026-10-09): "i need some solution for when the graveyard and exile get very
+# large … i do need a way to reach certain cards which is currently impossible." Alice's graveyard holds
+# 31 cards with Think Twice buried in the middle; her three Islands pay its flashback ({2}{U}), so Forge
+# offers it from the graveyard at her main phase (the Island in hand keeps that window a real stop). Bob's
+# graveyard is 20 cards with Llanowar Elves in the middle, so the pile view is proven on the other seat's pile too.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Island;Lightning Bolt;Grizzly Bears;Opt;Forest;Brainstorm;Mountain;Giant Growth;Swamp;Dark Ritual;Ponder;Shock;Counterspell;Plains;Grizzly Bears;Think Twice;Island;Lightning Bolt;Grizzly Bears;Opt;Forest;Brainstorm;Mountain;Giant Growth;Swamp;Dark Ritual;Ponder;Shock;Counterspell;Plains;Grizzly Bears
+aihand=
+aibattlefield=Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Island;Lightning Bolt;Grizzly Bears;Opt;Forest;Brainstorm;Mountain;Giant Growth;Swamp;Llanowar Elves;Dark Ritual;Ponder;Shock;Counterspell;Plains;Grizzly Bears;Island;Lightning Bolt;Grizzly Bears;Opt
