@@ -64,6 +64,10 @@
  *     AC8 reservation (`Board.tsx`'s `notePlayedTo`/`expectPlacement`) is
  *     already drawing its arrival there, and drawing it twice is the bug
  *     this wave exists to retire.
+ *   - A counter (AE27): Forge removes the resolving item and the item it
+ *     targets in ONE frame. Drawn as three steps instead of one fade: the
+ *     resolver blinks (`data-placed-resolving`), the target is destroyed
+ *     (`data-placed-countered`), then the resolver fades (`data-placed-leaving`).
  *   - An ability (triggered or activated) is drawn only once the chain HALTS
  *     over it — someone holds priority or must answer with it on the stack
  *     (`setChainHalted`, `LiveBoard`'s own facts). One nobody stopped is never
@@ -93,6 +97,10 @@ export type { Point };
 
 /** How long a resolve-away fade (decision c) takes. Reduced motion skips straight to it. */
 export const LEAVE_FADE_MS = 250;
+/** AE27: the resolving counter's blink, before its target is destroyed. */
+export const RESOLVE_BLINK_MS = 400;
+/** AE27: the countered target's destroy motion, before the counter itself fades. */
+export const COUNTERED_MS = 400;
 /** One turn of the sheen round a card whose ability resolved with nobody stopping it (`card.css`). */
 export const SHIMMER_MS = 1100;
 
@@ -290,6 +298,8 @@ interface Drawn {
   isAbility: boolean;
   /** The underlying card's id, remembered from when this was drawn — `view.stack` no longer has it once the item is gone. */
   readonly sourceCardId: number | null;
+  /** The stack item this one targets, as last drawn — a counter's departure reads it (AE27). */
+  targetStackItemId: number | null;
   leaving: boolean;
   /** AE26: hidden until a registration arrives or the window closes — see `PLACED_PENDING_MS`. */
   pendingUntil: number | null;
@@ -462,7 +472,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       overlay()?.append(el);
       const pending = record === undefined && !item.isAbility;
       if (pending) el.setAttribute('data-placed-pending', '');
-      d = { el, root: null, committed: !wantBack, isAbility: item.isAbility, sourceCardId: item.sourceCardId, leaving: false, pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null };
+      d = {
+        el,
+        root: null,
+        committed: !wantBack,
+        isAbility: item.isAbility,
+        sourceCardId: item.sourceCardId,
+        targetStackItemId: null,
+        leaving: false,
+        pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null,
+      };
       if (pending) schedule(render, PLACED_PENDING_MS + 1);
       d.root = mount(el, item, wantBack);
       drawn.set(item.id, d);
@@ -523,6 +542,34 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
     d.el.setAttribute('data-placed-leaving', '');
     schedule(() => removeNow(id), LEAVE_FADE_MS);
+  }
+
+  /**
+   * AE27: a counter and the item it targets left in the same frame. The counter blinks, the target
+   * is destroyed, then the counter fades — three steps out of Forge's one.
+   */
+  function counter(resolverId: number, targetId: number): void {
+    const resolver = drawn.get(resolverId);
+    const target = drawn.get(targetId);
+    if (resolver === undefined || target === undefined) return;
+    resolver.leaving = true;
+    target.leaving = true;
+    if (reduced()) {
+      removeNow(resolverId);
+      removeNow(targetId);
+      return;
+    }
+    resolver.el.removeAttribute('data-placed-next');
+    resolver.el.setAttribute('data-placed-resolving', '');
+    schedule(() => {
+      target.el.setAttribute('data-placed-countered', '');
+      schedule(() => removeNow(targetId), COUNTERED_MS);
+      schedule(() => {
+        resolver.el.removeAttribute('data-placed-resolving');
+        resolver.el.setAttribute('data-placed-leaving', '');
+        schedule(() => removeNow(resolverId), LEAVE_FADE_MS);
+      }, COUNTERED_MS);
+    }, RESOLVE_BLINK_MS);
   }
 
   /** An ability nobody stopped has resolved: its source card on the battlefield, if it is there, shimmers once. */
@@ -595,11 +642,17 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const currentIds = new Set(view.stack.map((i) => i.id));
 
     // Resolved/left items first, so a leaving one never counts toward `taken` below.
-    for (const id of [...drawn.keys()]) {
-      if (currentIds.has(id)) continue;
-      const was = drawn.get(id);
-      leave(id, was?.isAbility === true ? null : was?.sourceCardId ?? null);
+    const departed = [...drawn].filter(([id]) => !currentIds.has(id));
+    const departedIds = new Set(departed.map(([id]) => id));
+    // A counter first: its target must not start an ordinary fade of its own.
+    for (const [id, d] of departed) {
+      const target = d.targetStackItemId;
+      const countered = target === null || d.leaving || !departedIds.has(target) ? undefined : drawn.get(target);
+      if (countered === undefined || countered.leaving) continue;
+      if (!countered.isAbility && countered.sourceCardId !== null && onBattlefieldNow(countered.sourceCardId)) continue;
+      counter(id, target!);
     }
+    for (const [id, d] of departed) leave(id, d.isAbility ? null : d.sourceCardId);
     for (const [id, sourceCardId] of undrawn) {
       if (currentIds.has(id)) continue;
       undrawn.delete(id);
@@ -616,6 +669,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
       sizeAsBattlefieldCard(d.el, cardWidth);
+      d.targetStackItemId = item.targetStackItemId ?? null;
       if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) {
         d.pendingUntil = null;
         d.el.removeAttribute('data-placed-pending');

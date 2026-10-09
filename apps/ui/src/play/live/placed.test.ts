@@ -20,7 +20,9 @@ import {
   onSpellMoved,
   placeSpell,
   type Rect,
+  COUNTERED_MS,
   PLACED_PENDING_MS,
+  RESOLVE_BLINK_MS,
   setChainHalted,
   SHIMMER_MS,
 } from './placed.ts';
@@ -437,6 +439,54 @@ describe('installPlaced: an ability is drawn only when the chain halts over it',
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(9)]));
     expect(canvas.querySelector('[data-placed-spell="9"]')).not.toBeNull();
+    handle.dispose();
+  });
+});
+
+describe('installPlaced: a counter (AE27)', () => {
+  it('both leave in one frame: the counter blinks, then its target is destroyed, then the counter fades', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    placeSpell(302, { x: 450, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([])); // the counter resolved: Forge removed both at once
+    const counter = canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!;
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(counter.hasAttribute('data-placed-resolving'), 'the counter blinks').toBe(true);
+    expect(counter.hasAttribute('data-placed-next')).toBe(false);
+    expect(target.hasAttribute('data-placed-leaving'), 'the target does not fade with it').toBe(false);
+    expect(target.hasAttribute('data-placed-countered')).toBe(false);
+    vi.advanceTimersByTime(RESOLVE_BLINK_MS);
+    expect(target.hasAttribute('data-placed-countered'), 'then the target is destroyed').toBe(true);
+    expect(counter.hasAttribute('data-placed-leaving'), 'the counter waits').toBe(false);
+    vi.advanceTimersByTime(COUNTERED_MS);
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'the target is gone').toBeNull();
+    expect(counter.hasAttribute('data-placed-leaving'), 'then the counter fades').toBe(true);
+    vi.advanceTimersByTime(LEAVE_FADE_MS);
+    expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
+    handle.dispose();
+  });
+
+  it('a target that resolved onto a battlefield was not countered: each leaves the ordinary way', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    placeSpell(302, { x: 450, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([], [{ id: 301 }]));
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'the arrival is AC8\'s').toBeNull();
+    expect(canvas.querySelector('[data-placed-spell="10"]')!.hasAttribute('data-placed-leaving')).toBe(true);
+    handle.dispose();
+  });
+
+  it('reduced motion: both go at once', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas, { reducedMotion: () => true });
+    handle.notify(view([stackItem(10, { targetStackItemId: 9 }), stackItem(9)]));
+    handle.notify(view([]));
+    expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
     handle.dispose();
   });
 });
