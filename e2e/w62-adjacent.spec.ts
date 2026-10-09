@@ -137,23 +137,24 @@ test(titled('AE19: dragging the leftmost card offers every gap to its right, and
 
     const last = await boxOf(card(c8));
     await dragAndCheckOffered(c1, { x: last.x + last.width + 40, y: last.y + last.height / 2 }, 'past 8, the actual end');
-    const atEnd = [c2, c3, c4, c5, c6, c7, c8, c1];
+    // The column it left stays a gap (the operator, 2026-10-09: rows are sparse; a card goes to the column under the pointer).
+    const atEnd = [c2, c3, c4, c5, c6, null, c7, c8, c1];
     await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released past 8 (the end)' }).toEqual(atEnd);
-    console.log(`[w62-adjacent] AE19 rightward: start ${all.join(' ')} → after2 ${afterTwo.join(' ')} → after4 ${afterFour.join(' ')} → after6 ${afterSix.join(' ')} → end ${atEnd.join(' ')}`);
+    console.log(`[w62-adjacent] AE19 rightward: start ${all.join(' ')} → after2 ${afterTwo.join(' ')} → after4 ${afterFour.join(' ')} → after6 ${afterSix.join(' ')} → end ${atEnd.map((c) => c ?? '_').join(' ')}`);
 
     // The mirror: every gap to the LEFT of the rightmost card (now c1, at the row's actual end)
     // offers a real target too.
     const c1Box = await boxOf(card(c1));
     const before6 = await boxOf(card(c6));
     await dragAndCheckOffered(c1, { x: before6.x + 2, y: before6.y + before6.height / 2 }, 'before 6, one step left of the end');
-    const oneLeftOfEnd = [c2, c3, c4, c5, c1, c6, c7, c8];
+    const oneLeftOfEnd = [c2, c3, c4, c5, c1, c6, null, c7, c8];
     await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released before 6' }).toEqual(oneLeftOfEnd);
 
     const start = await boxOf(card(c2));
     await dragAndCheckOffered(c1, { x: start.x - 20, y: start.y + start.height / 2 }, 'before 2, the very start of the row');
-    const atStart = [c1, c2, c3, c4, c5, c6, c7, c8];
+    const atStart = [c1, c2, c3, c4, c5, c6, null, c7, c8];
     await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released at the very start' }).toEqual(atStart);
-    console.log(`[w62-adjacent] AE19 leftward (from ${JSON.stringify(c1Box)}): one left of the end ${oneLeftOfEnd.join(' ')} → start ${atStart.join(' ')}`);
+    console.log(`[w62-adjacent] AE19 leftward (from ${JSON.stringify(c1Box)}): one left of the end ${oneLeftOfEnd.map((c) => c ?? '_').join(' ')} → start ${atStart.map((c) => c ?? '_').join(' ')}`);
   } finally {
     await stack.stop();
   }
