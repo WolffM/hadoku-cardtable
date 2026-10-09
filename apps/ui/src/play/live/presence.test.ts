@@ -34,7 +34,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, HAND_MOVE_MS, installPresence, overOf, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS } from './presence.ts';
+import { forgetPendingPlaced, HAND_MOVE_MS, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -89,6 +89,7 @@ function ownHand(canvas: HTMLElement, n: number, rows: 1 | 2): void {
   for (let i = 0; i < n; i++) {
     const li = document.createElement('li');
     const top = rows === 2 && i >= Math.ceil(n / 2) ? 700 : 650;
+    li.className = 'board-card';
     li.getBoundingClientRect = () => rect({ left: 100 + i * 60, top, width: 56, height: 84 });
     list.append(li);
   }
@@ -176,33 +177,60 @@ describe('the mirror', () => {
   });
 });
 
-describe('overOf', () => {
-  it('over a public card: the id and the pointer’s fractions of THAT card’s own box, never the board’s', () => {
-    const { canvas, theirCard } = board();
-    document.elementFromPoint = (x, y) => (x >= 120 && x <= 180 && y >= 200 && y <= 284 ? theirCard.firstElementChild : null);
-    // theirCard's box is (120,200)-(180,284); (138,242) is 0.3 across, 0.5 down it.
-    expect(overOf(canvas, { x: 138, y: 242 })).toEqual({ card: '7', x: 0.3, y: 0.5 });
-    // Off every card: null, the caller falls back to the board fraction.
+describe('anchorOf', () => {
+  it('over a card: the zone, whose, the slot INDEX and the pointer’s offset in THAT card’s own box — never its id', () => {
+    const { canvas } = board();
     document.elementFromPoint = () => null;
-    expect(overOf(canvas, { x: 500, y: 500 })).toBeNull();
+    // theirCard's box is (120,200)-(180,284); (138,242) is 0.3 across, 0.5 down it.
+    const anchor = anchorOf(canvas, { x: 138, y: 242 });
+    expect(anchor).toEqual({ zone: 'battlefield', own: false, row: null, item: 0, x: 0.3, y: 0.5 });
+    expect(JSON.stringify(anchor), 'no card id crosses the wire').not.toMatch(/"7"/);
   });
 
-  it('over the viewer’s OWN hand: the slot INDEX, never the card’s id — a card never leaves that hand', () => {
+  it('between cards it is still the NEAREST card, offset past its edge — continuous, never a snap', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    // 20px right of the card's right edge (180): x = (200 - 120) / 60.
+    const anchor = anchorOf(canvas, { x: 200, y: 242 })!;
+    expect(anchor.item).toBe(0);
+    expect(anchor.x).toBeCloseTo(80 / 60, 6);
+  });
+
+  it('over the viewer’s OWN hand: the slot index, never the card’s id', () => {
     const { canvas } = board();
     ownHand(canvas, 3, 1);
-    const second = canvas.querySelectorAll('[data-zone="hand"][data-owner="you"] li')[1]!;
-    document.elementFromPoint = (x, y) => (x >= 160 && x <= 216 && y >= 650 && y <= 734 ? second : null);
-    // second's box is (160,650)-(216,734) per `ownHand`; (188,692) is centre.
-    const over = overOf(canvas, { x: 188, y: 692 });
-    expect(over).toEqual({ hand: 1, x: 0.5, y: 0.5 });
-    expect(JSON.stringify(over), 'no card id, this is the viewer’s own hidden information too once it crosses the wire').not.toMatch(/card/);
+    document.elementFromPoint = () => null;
+    // The second card's box is (160,650)-(216,734) per `ownHand`; (188,692) is its centre.
+    const anchor = anchorOf(canvas, { x: 188, y: 692 });
+    expect(anchor).toEqual({ zone: 'hand', own: true, row: null, item: 1, x: 0.5, y: 0.5 });
   });
 
-  it('over the OTHER seat’s hand (already backs, nothing to anchor to): null, not a guess', () => {
+  it('over the OTHER seat’s hand: the back’s index — the receiver draws that hand face up, and an index tells nothing the backs did not', () => {
     const { canvas } = board();
-    const [back] = theirHandBacks(canvas, 1);
-    document.elementFromPoint = () => back!;
-    expect(overOf(canvas, { x: 130, y: 62 })).toBeNull();
+    theirHandBacks(canvas, 2);
+    document.elementFromPoint = () => null;
+    expect(anchorOf(canvas, { x: 200, y: 62 })).toEqual({ zone: 'hand', own: false, row: null, item: 1, x: 0.5, y: 0.5 });
+  });
+
+  it('a battlefield tier or lane rides by NAME', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const tier = document.createElement('ul');
+    tier.setAttribute('data-tier', 'back');
+    tier.getBoundingClientRect = () => rect({ left: 100, top: 500, width: 800, height: 100 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.append(tier);
+    expect(anchorOf(canvas, { x: 300, y: 550 })).toEqual({ zone: 'battlefield', own: true, row: 'back', item: null, x: 0.25, y: 0.5 });
+  });
+
+  it('outside every zone, or over a stack card (itself placed by the board fraction): null — the board fraction is all that is sent', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    expect(anchorOf(canvas, { x: 950, y: 380 })).toBeNull();
+    const spell = document.createElement('div');
+    spell.setAttribute('data-placed-spell', '12');
+    document.elementFromPoint = () => spell;
+    expect(anchorOf(canvas, { x: 138, y: 242 })).toBeNull();
+    document.elementFromPoint = () => null;
   });
 });
 
@@ -218,7 +246,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, over: null, held: false, from: null, handRows: 1, arranging: null, placing: null, handMove: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, anchor: { zone: 'battlefield', own: true, row: null, item: null, x: 0.275, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null, placing: null, handMove: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -380,7 +408,7 @@ describe('sending', () => {
         matchId: 'm-1',
         type: 'presence',
         pointer: { zone: 'battlefield', x: 0.3, y: 0.625 },
-        over: null,
+        anchor: { zone: 'battlefield', own: true, row: null, item: null, x: 0.25, y: 0.5 },
         held: false,
         from: null,
         handRows: 1,
@@ -511,13 +539,10 @@ describe('sending', () => {
   });
 });
 
-describe('receiving: card- and hand-anchored `over`', () => {
-  it('`over.card` lands the cursor INSIDE that card’s own box on THIS board, whatever shape this board is — not the sender’s board fraction', () => {
-    // A receiver board where the card sits somewhere a board-fraction mapping of the sender's
-    // pointer would NOT land — the exact drift this guards against once the two screens size a row
-    // differently. `over` sidesteps the board fraction entirely: it is resolved on this card's
-    // own box, so it is correct regardless of what the sender's board looked like.
-    const { canvas, theirCard } = board({ '[data-board-card="7"]': { left: 600, top: 40, width: 120, height: 168 } });
+describe('receiving: anchored', () => {
+  it('lands inside the TWIN card on this board, whatever shape this board is, with the card’s height mirrored like the seats', () => {
+    // A receiver board where the card sits somewhere the sender's board fraction would NOT land.
+    const { canvas } = board({ '[data-board-card="7"]': { left: 600, top: 160, width: 120, height: 168 } });
     document.elementFromPoint = () => null;
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
@@ -526,45 +551,49 @@ describe('receiving: card- and hand-anchored `over`', () => {
       type: 'presence',
       seat: 1,
       pointer: { zone: 'battlefield', x: 0.01, y: 0.01 }, // a board fraction that would land nowhere near the card
-      over: { card: '7', x: 0.3, y: 0.6 },
+      anchor: { zone: 'battlefield', own: true, row: null, item: 0, x: 0.3, y: 0.8 },
       held: false,
       from: null,
       handRows: 1,
       arranging: null,
     });
     const cursor = canvas.querySelector<HTMLElement>('.presence')!;
-    // theirCard's box is (600,40)-(720,208); 0.3 across, 0.6 down it is (636, 140.8).
+    // The card's box is (600,160)-(720,328): 0.3 across is 636; 0.8 down THEIR card (its text box)
+    // is 0.2 down this one — the operator, 2026-10-09: "on the opponents screen the cursor should
+    // actually be on the top part of the card".
     expect(cursor.style.left).toBe('636px');
-    expect(cursor.style.top).toBe('140.8px');
-    expect(theirCard.hasAttribute('data-presence-hint'), 'still hinted, at the resolved spot').toBe(false); // elementFromPoint stubbed null above
+    expect(Number.parseFloat(cursor.style.top)).toBeCloseTo(160 + 0.2 * 168, 6);
     handle.dispose();
   });
 
-  it('`over.hand` lands the cursor on the i-th back of the sender’s hand, as drawn HERE', () => {
+  it('is continuous across a card’s edge on differently sized boards — the cursor never jumps onto the card', () => {
+    // Sender: the card is (120,200)-(180,284). Receiver: the twin is twice the size, elsewhere.
+    const sender = board().canvas;
+    document.elementFromPoint = () => null;
+    const inside = anchorOf(sender, { x: 179.5, y: 242 });
+    const outside = anchorOf(sender, { x: 180.5, y: 242 });
+    sender.remove();
+    const receiver = board({ '[data-board-card="7"]': { left: 600, top: 160, width: 120, height: 168 } }).canvas;
+    const a = placeAnchor(receiver, { ...inside!, own: !inside!.own })!;
+    const b = placeAnchor(receiver, { ...outside!, own: !outside!.own })!;
+    expect(Math.abs(b.x - a.x), 'one sender pixel is two receiver pixels — never a snap').toBeLessThan(3);
+    expect(Math.abs(b.y - a.y)).toBeLessThan(1);
+  });
+
+  it('a hand slot lands on the i-th back of the sender’s hand, as drawn HERE', () => {
     const { canvas } = board();
     const backs = theirHandBacks(canvas, 4);
     document.elementFromPoint = () => null;
-    const t = fakeTransport();
-    const handle = installPresence({ canvas, host: host(t) });
-    t.receive({
-      matchId: 'm-1',
-      type: 'presence',
-      seat: 1,
-      pointer: { zone: 'hand', x: 0.5, y: 0.5 },
-      over: { hand: 2, x: 0.5, y: 0.5 },
-      held: false,
-      from: null,
-      handRows: 1,
-      arranging: null,
-    });
-    const cursor = canvas.querySelector<HTMLElement>('.presence')!;
     const box = backs[2]!.getBoundingClientRect();
-    expect(cursor.style.left).toBe(`${box.left + box.width / 2}px`);
-    expect(cursor.style.top).toBe(`${box.top + box.height / 2}px`);
-    handle.dispose();
+    expect(placeAnchor(canvas, { zone: 'hand', own: true, row: null, item: 2, x: 0.5, y: 0.25 })).toEqual({ x: box.left + box.width / 2, y: box.top + 0.75 * box.height });
   });
 
-  it('an `over` naming an element this board has not drawn falls back to the board fraction', () => {
+  it('kept inside the twin row: an offset far past the last card stops at the row’s edge', () => {
+    const { canvas } = board();
+    expect(placeAnchor(canvas, { zone: 'battlefield', own: true, row: null, item: 0, x: 40, y: 0.5 })!.x).toBe(900);
+  });
+
+  it('an anchor naming something this board has not drawn falls back to the board fraction', () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
@@ -574,7 +603,7 @@ describe('receiving: card- and hand-anchored `over`', () => {
       type: 'presence',
       seat: 1,
       pointer: { zone: null, x: 0.9, y: 0.1 },
-      over: { card: '999', x: 0.5, y: 0.5 },
+      anchor: { zone: 'battlefield', own: true, row: null, item: 9, x: 0.5, y: 0.5 },
       held: false,
       from: null,
       handRows: 1,

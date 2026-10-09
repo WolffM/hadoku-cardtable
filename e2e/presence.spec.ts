@@ -97,15 +97,16 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
 });
 
 /**
- * The operator: *"the cards themselves don't actually get smaller in
- * size until the screen is much, much smaller. it's important that the
- * cursor is correctly showing what card is being hovered even if the screen
- * size is vastly different."* Two very differently shaped screens — the
- * exact case a board-fraction mapping drifts on at a row seam — prove the
- * card-anchored fix instead: her cursor must land INSIDE the exact card she
- * is hovering on bob's board, not merely somewhere near it.
+ * The operator: *"it's important that the cursor is correctly showing what
+ * card is being hovered even if the screen size is vastly different"*
+ * (2026-10-08), and *"lets delete the cursor correction logic on card hover
+ * and instead try to better determine where an opponents cursor is relative
+ * to our board"*, mirrored, *"on the opponents screen the cursor should
+ * actually be on the top part of the card"* (2026-10-09). Two very
+ * differently shaped screens: her cursor lands on the card she hovers, in the
+ * mirrored part of it, and moves continuously onto it — never a snap.
  */
-test(titled('her cursor lands on the exact card she hovers, even when the two screens are very differently shaped'), async ({ browser }) => {
+test(titled('her cursor lands on the exact card she hovers, mirrored, and moves onto it without a jump, even when the two screens are very differently shaped'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -118,22 +119,45 @@ test(titled('her cursor lands on the exact card she hovers, even when the two sc
     const [, second] = await fieldOrder(alice.page, 'you');
 
     const landBox = (await alice.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${second}"]`).boundingBox())!;
-    await alice.page.mouse.move(landBox.x + landBox.width * 0.3, landBox.y + landBox.height * 0.6, { steps: 6 });
-    await expect(cursor(bob.page), 'bob sees her cursor').toHaveCount(1, { timeout: 10_000 });
     const landOnBob = (await bob.page.locator(`.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-card-id="${second}"]`).boundingBox())!;
-    await expect
-      .poll(
-        async () => {
-          const c = await cursor(bob.page).boundingBox();
-          if (c === null) return null;
-          const cx = c.x + c.width / 2;
-          const cy = c.y + c.height / 2;
-          console.log(`[presence over] cursor=(${cx},${cy}) land box on bob=(${landOnBob.x},${landOnBob.y},${landOnBob.width},${landOnBob.height})`);
-          return cx >= landOnBob.x && cx <= landOnBob.x + landOnBob.width && cy >= landOnBob.y && cy <= landOnBob.y + landOnBob.height;
-        },
-        { timeout: 5_000, message: 'her cursor lands INSIDE the land’s own box on bob’s board, at any aspect ratio' },
-      )
-      .toBe(true);
+    const at = async (): Promise<{ x: number; y: number } | null> => {
+      const c = await cursor(bob.page).boundingBox();
+      return c === null ? null : { x: c.x, y: c.y };
+    };
+    const settled = async (): Promise<{ x: number; y: number }> => {
+      let last = await at();
+      for (let i = 0; i < 30; i += 1) {
+        await bob.page.waitForTimeout(150);
+        const now = await at();
+        if (now !== null && last !== null && Math.abs(now.x - last.x) < 0.5 && Math.abs(now.y - last.y) < 0.5) return now;
+        last = now;
+      }
+      throw new Error('her cursor never settled on bob’s board');
+    };
+
+    // Her pointer on the land's bottom text: on bob's board it is the land's TOP part — the seats
+    // are mirrored, and so is the card (the operator, 2026-10-09).
+    await alice.page.mouse.move(landBox.x + landBox.width * 0.3, landBox.y + landBox.height * 0.8, { steps: 6 });
+    await expect(cursor(bob.page), 'bob sees her cursor').toHaveCount(1, { timeout: 10_000 });
+    const onText = await settled();
+    console.log(`[presence over] cursor=(${onText.x},${onText.y}) land box on bob=(${landOnBob.x},${landOnBob.y},${landOnBob.width},${landOnBob.height})`);
+    expect(onText.x >= landOnBob.x && onText.x <= landOnBob.x + landOnBob.width, 'inside the land’s own columns on bob’s board').toBe(true);
+    expect(onText.y - landOnBob.y, 'in its top part: 0.8 down hers is 0.2 down his').toBeCloseTo(0.2 * landOnBob.height, -1);
+
+    // A slow sweep from beside the land into it: his cursor moves in proportion, never snaps onto it
+    // at the edge (the operator: the old card-anchored correction "is very awkward looking").
+    const scale = landOnBob.width / landBox.width;
+    const y = landBox.y + landBox.height * 0.5;
+    const steps: number[] = [];
+    let prev: { x: number; y: number } | null = null;
+    for (let x = landBox.x - 24; x <= landBox.x + 24; x += 6) {
+      await alice.page.mouse.move(x, y);
+      const now = await settled();
+      if (prev !== null) steps.push(Math.hypot(now.x - prev.x, now.y - prev.y));
+      prev = now;
+    }
+    console.log(`[presence over] sweep scale=${scale.toFixed(2)} steps=${steps.map((d) => d.toFixed(1)).join(',')}`);
+    expect(Math.max(...steps), 'each 6px of hers is about 6×scale px of his — no jump at the card’s edge').toBeLessThan(6 * scale + 8);
   } finally {
     await stack.stop();
   }

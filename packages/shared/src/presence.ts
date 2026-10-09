@@ -19,49 +19,33 @@
  * shown to the opponent until it is actually on the stack") cannot be broken
  * by this channel, by construction: there is nothing in it to leak.
  *
- * ## Positions are CARD-anchored when the pointer is over a public card,
- * board-relative otherwise
+ * ## Positions are ANCHORED to what both boards draw, board-relative otherwise
  *
- * Each seat draws itself at the bottom and the other seat at the top, so a
- * screen position means different things on the two boards — but the
- * pointer's `Spot` is a fraction of the WHOLE board, never of the zone under
- * it: scaling by a zone's own box drifts at every board/board and
- * board/hand seam the moment the two screens size that zone differently,
- * because the scale factor jumps where one zone's box ends and the next (or
- * the gap between them) begins. `zone` still rides along, naming whichever
- * zone the point fell in (or `null`, between zones), for a receiver that
- * wants to know without re-deriving it — nothing here uses it to place the
- * point.
+ * Each seat draws itself at the bottom and the other seat at the top, as a
+ * vertical mirror: hand, then battlefield tiers or lanes, the side column
+ * reversed. So every zone, every tier or lane, and every column slot in it has
+ * a twin on the other screen — at a different size, because the two windows
+ * differ. `anchor` names the thing under the pointer by that shared identity —
+ * the zone (and whose), the tier or lane by name, the column slot by its INDEX
+ * in its row — and the pointer's offset in units of that slot's own box. The
+ * receiver finds the twin on its own board and places the cursor at the same
+ * offset, mirrored top-to-bottom like the seats themselves. The slot is the
+ * NEAREST one, not only the one under the pointer, so the offset runs past
+ * 0..1 between cards and the mapping is continuous: the cursor never snaps
+ * onto a card as it enters one (the operator, 2026-10-09: the card-anchored
+ * `over` this replaces jumped "very awkward[ly]" at every card edge, and did
+ * not mirror within the card). A slot never carries a card id — an index in
+ * a hand is all that crosses, and the receiver draws that hand as backs.
  *
- * The receiver mirrors the WHOLE board top-to-bottom (the sender's own side,
- * at their board's bottom, is the receiver's opponent, drawn at the
- * receiver's top) and leaves left-right alone, because the columns run the
- * same way on both.
+ * `pointer`, a fraction of the WHOLE board, is the fallback, and the only
+ * placement outside every zone (the stack, the strip between the seats, the
+ * avatars): the receiver mirrors it top-to-bottom and leaves left-right alone,
+ * because the columns run the same way on both. A stack card is itself placed
+ * by that same board fraction, so a pointer over one is sent unanchored.
  *
  * `x`/`y` are fractions in [0, 1], not pixels: a pixel of one screen is
  * meaningless on another, and a bounded number is also what makes the schema
  * strict without caring about viewport sizes.
- *
- * **`over` is the exception** (2026-10-08, the operator:
- * *"the cards themselves don't actually get smaller in size until the screen
- * is much, much smaller. it's important that the cursor is correctly showing
- * what card is being hovered even if the screen size is vastly different."*).
- * A board-fraction pointer drifts off a card the instant the two screens size
- * a card's row differently — which they always do once the aspect ratios
- * differ enough. So when the pointer sits over a PUBLIC card (battlefield,
- * stack, graveyard, exile — any card either seat may see by its own id) or,
- * for the sender's own hand (which the receiver draws as backs, never by
- * id), a slot of it, `over` names that element — a card by its id, a hand
- * slot by its INDEX — and the pointer's fractions WITHIN that element's own
- * box, never the whole board's. The receiver resolves `over` on its own
- * board (the same card id, or the i-th back of the sender's hand as the
- * receiver draws it) and places the cursor there, ignoring `pointer`'s board
- * fraction entirely. `over` is `null` whenever neither applies (off every
- * card, over the OTHER seat's hand as drawn to the sender, or the pointer
- * itself is `null`) — then `pointer`'s board fraction is all there is, as
- * before. A card never carries a hand id: hovering one's OWN hand sends the
- * slot INDEX, never the card there, which is why that branch exists at all —
- * see `live/presence.ts`'s `overOf`.
  *
  * ## A deploy is not a reload
  *
@@ -106,19 +90,27 @@ export const PresenceSpotSchema = z
 export type PresenceSpot = z.output<typeof PresenceSpotSchema>;
 
 /**
- * What the pointer is over, when that is a more precise anchor than the
- * board fraction: a public card by id, or a slot of the SENDER's own
- * hand by index (never a card id there — the receiver draws that hand as
- * backs). `x`/`y` are fractions of THAT element's own box, never the board's.
+ * The pointer, anchored to something both boards draw (see "Positions are
+ * ANCHORED" above). `row` is a battlefield tier or lane by name (`data-tier`,
+ * `data-board-row`), null for a zone drawn as one box; `item` the nearest
+ * column slot's index in it, null when it holds none; `x`/`y` the offset in
+ * units of that slot's box (or the row's, or the zone's, without one) —
+ * beyond 0..1 between and around slots, bounded so a stray value stays strict.
  */
-export const PresenceOverSchema = z
-  .union([
-    z.object({ card: z.string().min(1), x: fraction, y: fraction }).strict(),
-    z.object({ hand: z.number().int().nonnegative(), x: fraction, y: fraction }).strict(),
-  ])
+export const PresenceAnchorSchema = z
+  .object({
+    zone: z.enum(['hand', 'battlefield', 'graveyard', 'exile']),
+    /** The sender's own zone — drawn at the bottom of THEIR board, at the top of the receiver's. */
+    own: z.boolean(),
+    row: z.string().regex(/^[a-z]{1,16}$/).nullable(),
+    item: z.number().int().nonnegative().max(999).nullable(),
+    x: z.number().min(-50).max(50),
+    y: z.number().min(-50).max(50),
+  })
+  .strict()
   .nullable();
 
-export type PresenceOver = z.output<typeof PresenceOverSchema>;
+export type PresenceAnchor = z.output<typeof PresenceAnchorSchema>;
 
 /** Client → server. `pointer` null: the pointer left the board (or the tab was hidden). */
 export const PresenceSchema = z
@@ -126,12 +118,10 @@ export const PresenceSchema = z
     matchId: z.string().min(1),
     type: z.literal('presence'),
     pointer: PresenceSpotSchema.nullable(),
-    /**
-     * What `pointer` is over, when that is sharper than the board fraction
-     * — null defaults a pre-deploy sender's message, which never had
-     * this field, to the old board-fraction-only placement.
-     */
-    over: PresenceOverSchema.default(null),
+    /** Where `pointer` is, anchored to what both boards draw — null outside every zone, or from a pre-deploy sender. */
+    anchor: PresenceAnchorSchema.default(null),
+    /** A pre-deploy sender's card-anchored `over`. Accepted so an old tab still parses; never read. */
+    over: z.unknown().optional(),
     /**
      * A card is LIFTED and following the pointer — drawn for the other seat as
      * a card BACK at the pointer. Never which card. A card let go and waiting

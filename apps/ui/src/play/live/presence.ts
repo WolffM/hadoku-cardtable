@@ -74,7 +74,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
   PresenceEchoSchema,
   type PresenceEcho,
   type PresenceMessage,
-  type PresenceOver,
+  type PresenceAnchor,
   type PresenceSpot,
 } from '@hadoku/shared';
 
@@ -189,59 +189,86 @@ export function spotOf(canvas: HTMLElement, point: Point): PresenceSpot | null {
   return { zone, x: clamp01((point.x - board.left) / board.width), y: clamp01((point.y - board.top) / board.height) };
 }
 
+/** The column slots of a row (or a zone drawn as one), in the order both boards draw them: cards, reserved gaps, a hand's backs. */
+function slotsOf(frame: HTMLElement): HTMLElement[] {
+  return [...frame.querySelectorAll<HTMLElement>('li.board-card, li.zone__gap:not([data-virtual]), li.card-back')];
+}
+
+const ANCHOR_ZONES = ['hand', 'battlefield', 'graveyard', 'exile'] as const;
+type AnchorZone = (typeof ANCHOR_ZONES)[number];
+const isAnchorZone = (z: string | null): z is AnchorZone => (ANCHOR_ZONES as readonly (string | null)[]).includes(z);
+const inside = (r: DOMRect, p: Point): boolean => r.width > 0 && r.height > 0 && p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
+const bounded = (v: number): number => Math.max(-50, Math.min(50, v));
+
 /**
- * What a client point is OVER, when that is a sharper anchor than the board
- * fraction: a public card (`[data-board-card]` — battlefield,
- * graveyard, exile — or `[data-placed-spell]`, the stack's own layer), or a
- * slot of the VIEWER's OWN hand (never a card id there — the receiver draws
- * that hand as backs, so only the slot's INDEX may cross). Hovering the
- * OTHER seat's hand (already drawn as backs, nothing to anchor to) or
- * nothing at all answers `null`, and the caller falls back to the board
- * fraction exactly as before. Exported for the tests, which prove it against
- * real rectangles the way `spotOf` does.
+ * A client point, anchored to what BOTH boards draw (`@hadoku/shared`'s
+ * "Positions are ANCHORED"): the zone it is in and whose, the battlefield tier
+ * or lane by name, the NEAREST column slot by index, and the offset in units
+ * of that slot's box — past 0..1 between slots, so the other screen's cursor
+ * moves continuously instead of snapping onto a card at its edge. Null outside
+ * every zone, and over a stack card (placed by the board fraction itself), so
+ * the caller's board fraction is all that is sent. Exported for the tests,
+ * which prove it against real rectangles.
  */
-export function overOf(canvas: HTMLElement, point: Point): PresenceOver | null {
-  // jsdom (every test not stubbing this itself) has no `elementFromPoint` at all — the same
-  // guard `hint`'s own caller would need, if it had one; this one does not, so it is here.
-  if (typeof document.elementFromPoint !== 'function') return null;
-  const el = document.elementFromPoint(point.x, point.y);
-  if (el === null) return null;
-  const ownHandLi = el.closest<HTMLElement>('[data-zone="hand"][data-owner="you"] li');
-  if (ownHandLi !== null) {
-    const hand = ownHandLi.closest<HTMLElement>('[data-zone="hand"]');
-    const siblings = hand === null ? [] : [...hand.querySelectorAll<HTMLElement>('li')];
-    const idx = siblings.indexOf(ownHandLi);
-    const r = ownHandLi.getBoundingClientRect();
-    if (idx < 0 || r.width === 0 || r.height === 0) return null;
-    return { hand: idx, x: clamp01((point.x - r.left) / r.width), y: clamp01((point.y - r.top) / r.height) };
-  }
-  const card = el.closest<HTMLElement>('[data-board-card], [data-placed-spell]');
-  // Never a card id out of the viewer's own hand — the branch above already answered that case;
-  // anything else under the hand's section (there is none today) stays unanchored, not leaked.
-  if (card === null || card.closest('[data-zone="hand"][data-owner="you"]') !== null) return null;
-  const id = card.getAttribute('data-board-card') ?? card.getAttribute('data-placed-spell');
-  const r = card.getBoundingClientRect();
-  if (id === null || r.width === 0 || r.height === 0) return null;
-  return { card: id, x: clamp01((point.x - r.left) / r.width), y: clamp01((point.y - r.top) / r.height) };
+export function anchorOf(canvas: HTMLElement, point: Point): PresenceAnchor | null {
+  if (typeof document.elementFromPoint === 'function' && document.elementFromPoint(point.x, point.y)?.closest('[data-placed-spell]')) return null;
+  const zoneEl = [...canvas.querySelectorAll<HTMLElement>('[data-zone][data-owner]')].find(
+    (el) => isAnchorZone(el.getAttribute('data-zone')) && inside(el.getBoundingClientRect(), point),
+  );
+  if (zoneEl === undefined) return null;
+  const zone = zoneEl.getAttribute('data-zone') as AnchorZone;
+  const rowEl = [...zoneEl.querySelectorAll<HTMLElement>('[data-tier], [data-board-row]')].find((el) => inside(el.getBoundingClientRect(), point)) ?? null;
+  const row = rowEl === null ? null : (rowEl.getAttribute('data-tier') ?? rowEl.getAttribute('data-board-row'));
+  const frame = rowEl ?? zoneEl;
+  let item: number | null = null;
+  let box = frame.getBoundingClientRect();
+  let best = Infinity;
+  slotsOf(frame).forEach((el, i) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return;
+    const dx = Math.max(r.left - point.x, 0, point.x - r.right);
+    const dy = Math.max(r.top - point.y, 0, point.y - r.bottom);
+    if (dx * dx + dy * dy < best) {
+      best = dx * dx + dy * dy;
+      item = i;
+      box = r;
+    }
+  });
+  if (box.width === 0 || box.height === 0) return null;
+  return {
+    zone,
+    own: zoneEl.getAttribute('data-owner') === 'you',
+    row: row !== null && /^[a-z]{1,16}$/.test(row) ? row : null,
+    item,
+    x: bounded((point.x - box.left) / box.width),
+    y: bounded((point.y - box.top) / box.height),
+  };
 }
 
 /**
- * The spot `over` names, resolved on THIS board: a public card by the SAME
- * id it carries on either screen, or the i-th back of the sender's hand AS
- * DRAWN HERE (`[data-zone="hand"][data-owner="them"]` — the sender is this
- * board's "them"). Null when the element is not drawn here (yet), so the
- * caller falls back to the board-fraction placement.
+ * The anchor resolved on THIS board: the twin zone (the sender's own is this
+ * board's "them"), the same tier or lane, the same slot index, and the same
+ * offset in that slot's box with its height mirrored — the seats are drawn
+ * mirrored, so their card's bottom edge is at the top here, and a pointer
+ * moving down their board moves up this one everywhere, on a card or between
+ * cards alike. Kept inside the twin row or zone. Null when the twin is not
+ * drawn here (yet), so the caller falls back to the board fraction.
  */
-function placeOver(canvas: HTMLElement, over: PresenceOver): Point | null {
-  if (over === null) return null;
-  const el =
-    'card' in over
-      ? (canvas.querySelector<HTMLElement>(`[data-board-card="${over.card}"]`) ?? canvas.querySelector<HTMLElement>(`[data-placed-spell="${over.card}"]`))
-      : (canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]')?.querySelectorAll<HTMLElement>('li')[over.hand] ?? null);
-  if (el === null || el === undefined) return null;
-  const r = el.getBoundingClientRect();
+export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor): Point | null {
+  if (anchor === null) return null;
+  const zoneEl = canvas.querySelector<HTMLElement>(`[data-zone="${anchor.zone}"][data-owner="${anchor.own ? 'them' : 'you'}"]`);
+  if (zoneEl === null) return null;
+  const frame = anchor.row === null ? zoneEl : zoneEl.querySelector<HTMLElement>(`[data-tier="${anchor.row}"], [data-board-row="${anchor.row}"]`);
+  if (frame === null) return null;
+  const bounds = frame.getBoundingClientRect();
+  const slot = anchor.item === null ? frame : slotsOf(frame)[anchor.item];
+  if (slot === undefined) return null;
+  const r = slot.getBoundingClientRect();
   if (r.width === 0 || r.height === 0) return null;
-  return { x: r.left + over.x * r.width, y: r.top + over.y * r.height };
+  return {
+    x: Math.max(bounds.left, Math.min(bounds.right, r.left + anchor.x * r.width)),
+    y: Math.max(bounds.top, Math.min(bounds.bottom, r.top + (1 - anchor.y) * r.height)),
+  };
 }
 
 /**
@@ -381,7 +408,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function send(pointer: Point | null): void {
     if (!live || host.seat === null) return;
     const spot = pointer === null ? null : spotOf(canvas, pointer);
-    const over = pointer === null ? null : overOf(canvas, pointer);
+    const anchor = pointer === null ? null : anchorOf(canvas, pointer);
     const hands = handsOf(canvas, host.aiming?.() ?? false);
     const from = hands.from === null ? null : spotOf(canvas, hands.from);
     const lifted = arrangingOf(canvas);
@@ -390,7 +417,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
-      over,
+      anchor,
       held: hands.held,
       from,
       handRows: handRowsOf(canvas),
@@ -467,14 +494,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       sendTimer = null;
     }
     const spot = lastPointer === null ? null : spotOf(canvas, lastPointer);
-    const over = lastPointer === null ? null : overOf(canvas, lastPointer);
+    const anchor = lastPointer === null ? null : anchorOf(canvas, lastPointer);
     const hands = handsOf(canvas, host.aiming?.() ?? false);
     const handFrom = hands.from === null ? null : spotOf(canvas, hands.from);
     const message: PresenceMessage = {
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
-      over,
+      anchor,
       held: hands.held,
       from: handFrom,
       handRows: handRowsOf(canvas),
@@ -515,7 +542,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function sendRelease(point: Point): void {
     if (!live || host.seat === null) return;
     const spot = spotOf(canvas, point);
-    const over = overOf(canvas, point);
+    const anchor = anchorOf(canvas, point);
     if (sendTimer !== null) {
       clearTimeout(sendTimer);
       sendTimer = null;
@@ -524,7 +551,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
-      over,
+      anchor,
       held: false,
       from: null,
       handRows: handRowsOf(canvas),
@@ -769,11 +796,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const box = root.getBoundingClientRect();
     drawArranging(root, box, echo.arranging);
     glideHandMove(root, box, echo.handMove);
-    // Card-anchored when `over` resolves to something drawn here (the SAME card, on either
-    // screen, or the i-th back of their hand) — the board-fraction mapping of `pointer` drifts off
-    // a card the moment the two screens size a row differently. Falls back to the board fraction
-    // when `over` is null, or names an element this board has not drawn (yet).
-    const at = echo.pointer === null ? null : placeOver(canvas, echo.over) ?? placeSpot(canvas, echo.pointer);
+    // Anchored to the twin of what their pointer is in (`anchorOf`) — the board fraction drifts off
+    // a card the moment the two screens size a row differently; it is the fallback outside every zone.
+    const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor) ?? placeSpot(canvas, echo.pointer);
     if (at === null) {
       takeDown();
       return;

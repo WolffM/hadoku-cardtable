@@ -425,39 +425,39 @@ describe('two seats over the socket', () => {
 		};
 		alice.socket.emit('forge:presence', message);
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
-		expect(bob.presences[0]).toEqual({ ...message, over: null, arranging: null, handMove: null, placing: null, seat: 0 });
+		expect(bob.presences[0]).toEqual({ ...message, anchor: null, arranging: null, handMove: null, placing: null, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.presences, 'nothing comes back to the sender').toHaveLength(0);
 
 		// A hand reorder's two indices relay the same way — never a card id or name.
 		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: 2 } });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
-		expect(bob.presences[1]).toEqual({ ...message, over: null, arranging: null, handMove: { from: 0, to: 2 }, placing: null, seat: 0 });
+		expect(bob.presences[1]).toEqual({ ...message, anchor: null, arranging: null, handMove: { from: 0, to: 2 }, placing: null, seat: 0 });
 
-		// `over`: a public card by id, or a slot of the sender's own hand by index — each
-		// relays with its own-box fractions, never a board fraction.
-		alice.socket.emit('forge:presence', { ...message, over: { card: '42', x: 0.3, y: 0.6 } });
+		// `anchor`: the zone, a tier or lane by name, a slot by INDEX and the offset in its box — never a card id.
+		const anchor = { zone: 'battlefield', own: true, row: 'back', item: 2, x: 1.4, y: 0.6 };
+		alice.socket.emit('forge:presence', { ...message, anchor });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(3));
-		expect(bob.presences[2]).toEqual({ ...message, over: { card: '42', x: 0.3, y: 0.6 }, arranging: null, handMove: null, placing: null, seat: 0 });
-		alice.socket.emit('forge:presence', { ...message, over: { hand: 2, x: 0.3, y: 0.6 } });
+		expect(bob.presences[2]).toEqual({ ...message, anchor, arranging: null, handMove: null, placing: null, seat: 0 });
+		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, zone: 'hand', row: null } });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(4));
-		expect(bob.presences[3]).toEqual({ ...message, over: { hand: 2, x: 0.3, y: 0.6 }, arranging: null, handMove: null, placing: null, seat: 0 });
+		expect(bob.presences[3]).toEqual({ ...message, anchor: { ...anchor, zone: 'hand', row: null }, arranging: null, handMove: null, placing: null, seat: 0 });
 
 		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema
-		// is strict, and so is a hand row count that is neither 1 nor 2 — and so is an `over` naming
-		// both a card and a hand slot at once, or a fraction outside [0, 1].
+		// is strict, and so is a hand row count that is neither 1 nor 2 — and so is an `anchor`
+		// carrying a card id, or an offset past its bound.
 		alice.socket.emit('forge:presence', { ...message, cardId: 42 });
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'hand', x: 2, y: 0 }, held: false, from: null, handRows: 1 });
 		alice.socket.emit('forge:presence', { ...message, handRows: 3 });
 		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: -1 } });
-		alice.socket.emit('forge:presence', { ...message, over: { card: '42', hand: 2, x: 0.3, y: 0.6 } });
-		alice.socket.emit('forge:presence', { ...message, over: { card: '42', x: 1.1, y: 0.6 } });
+		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, card: '42' } });
+		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, x: 51 } });
 		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(6));
 		expect(bob.presences).toHaveLength(4);
 
 		// A match spans a deploy: a tab still on the OLD bundle sends a spot's old `owner` field,
-		// no `handRows` and no `over` at all. That shape still relays — never dropped, never logged
-		// as malformed — with `handRows` defaulted to 1, `over` defaulted to null, and `owner` gone,
+		// no `handRows` and no `anchor` at all. That shape still relays — never dropped, never logged
+		// as malformed — with `handRows` defaulted to 1, `anchor` defaulted to null, and `owner` gone,
 		// not merely ignored by the receiver.
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(5));
@@ -465,7 +465,7 @@ describe('two seats over the socket', () => {
 			matchId,
 			type: 'presence',
 			pointer: { zone: 'battlefield', x: 0.25, y: 0.5 },
-			over: null,
+			anchor: null,
 			held: false,
 			from: null,
 			handRows: 1,

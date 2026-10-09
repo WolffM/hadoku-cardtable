@@ -135,13 +135,13 @@ export {
   PRESENCE_MAX_PER_SECOND,
   PRESENCE_SEND_MS,
   PresenceEchoSchema,
-  PresenceOverSchema,
+  PresenceAnchorSchema,
   PresenceSchema,
   PresenceSpotSchema,
   PresenceZoneSchema,
   type PresenceEcho,
   type PresenceMessage,
-  type PresenceOver,
+  type PresenceAnchor,
   type PresenceSpot,
 } from './presence.ts';
 
