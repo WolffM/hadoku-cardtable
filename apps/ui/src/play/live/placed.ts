@@ -153,8 +153,8 @@ function requestRepaint(): void {
   for (const hook of repaintHooks) hook();
 }
 
-/** See `setChainHalted`. */
-let chainHalted = false;
+/** See `setChainHalted`. Null: no live match drives it (a board drawn alone), so every stack item is drawn. */
+let chainHalted: boolean | null = null;
 
 /**
  * Whether the chain is halted right now: this seat has a decision open (a live bar, an ask, a
@@ -163,7 +163,7 @@ let chainHalted = false;
  * nobody stopping never reaches a screen as a chip, and its source shimmers instead. A withheld
  * window never reaches the wire, so it never halts anything here.
  */
-export function setChainHalted(halted: boolean): void {
+export function setChainHalted(halted: boolean | null): void {
   if (chainHalted === halted) return;
   chainHalted = halted;
   requestRepaint();
@@ -218,7 +218,7 @@ export function onSpellDrawn(listener: (id: number) => void): () => void {
 /** Test-only: drop every placement and the halt fact, so one test's state never leaks into the next. */
 export function forgetPlacements(): void {
   placements.clear();
-  chainHalted = false;
+  chainHalted = null;
 }
 
 /* ── pure geometry, unit-tested directly ──────────────────────────────── */
@@ -661,7 +661,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
 
     const taken: Rect[] = [];
     view.stack.forEach((item, index) => {
-      if (item.isAbility && !drawn.has(item.id) && !chainHalted) {
+      if (item.isAbility && !drawn.has(item.id) && chainHalted === false) {
         undrawn.set(item.id, item.sourceCardId);
         return;
       }

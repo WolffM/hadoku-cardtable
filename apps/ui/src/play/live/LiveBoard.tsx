@@ -1782,6 +1782,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /* Someone must act with the stack as it is: an ability on it is drawn as its chip (`placed.ts`). */
   const chainHalted = viewerOpen || opponentOpen;
   useEffect(() => setChainHalted(chainHalted), [chainHalted]);
+  useEffect(() => () => setChainHalted(null), []);
   const visualView = match.view === null ? null : withGatedPriority(match.view, viewerOpen, opponentOpen);
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the

@@ -277,6 +277,14 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  it('a board no live match drives draws every stack item, abilities included', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 })], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')).not.toBeNull();
+    handle.dispose();
+  });
+
   it('a stack item naming no card draws the honest text fallback, never a guessed face', () => {
     const { canvas } = board();
     const handle = installPlaced(canvas);
@@ -391,6 +399,7 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
 
 describe('installPlaced: an ability is drawn only when the chain halts over it', () => {
   it('nobody stopped: never drawn; once it resolves, its source on the battlefield shimmers for SHIMMER_MS', () => {
+    setChainHalted(false); // a live match that has said: nobody is stopped
     vi.useFakeTimers();
     const { canvas } = board();
     const handle = installPlaced(canvas, { reducedMotion: () => false });
@@ -418,6 +427,7 @@ describe('installPlaced: an ability is drawn only when the chain halts over it',
   });
 
   it('the chain halts: the chip appears; it stays once the halt clears, until it resolves — and then fades, never shimmers', () => {
+    setChainHalted(false); // a live match that has said: nobody is stopped
     const { canvas } = board();
     const handle = installPlaced(canvas, { reducedMotion: () => true });
     const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
