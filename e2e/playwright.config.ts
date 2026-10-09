@@ -24,6 +24,11 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   reporter: [['list']],
   use: {
+    // One renderer for the room edge and the play edge: Chromium's site isolation moves a
+    // cross-origin navigation to a new process and Playwright's screencast stops at the hop,
+    // so every recording ended at the moment the match began (the operator's review page,
+    // 2026-10-09: "there's still a ton of just white screen" — the room, then nothing).
+    launchOptions: { args: ['--disable-site-isolation-trials', '--disable-features=IsolateOrigins,site-per-process'] },
     browserName: 'chromium',
     headless: true,
     baseURL: EDGE_ORIGIN,
