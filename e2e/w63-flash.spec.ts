@@ -21,7 +21,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -208,7 +208,7 @@ test(titled('untap/upkeep/draw does not flash the drawn priority holder, same as
   test.setTimeout(5 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'w63-flash');
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w66-flag');
     // The e2e harness forces every friend's Fast Mode ON for speed
     // (`e2e/prefsLocal.ts`'s `setPlayFastModeDefault`) — the OPPOSITE of a
     // real player's own default (`pace.ts`: paced unless the setting is
@@ -335,12 +335,29 @@ test(titled('untap/upkeep/draw does not flash the drawn priority holder, same as
       j++;
     }
     console.log(`[w63-flash] opponent-flag lag behind bob's own real window opening: ${lags.join(', ')} ms`);
-    // AE16: alice's view of bob's flag follows the server's own fact, not a
-    // state delta queued behind her paced End Turn crawl — so it lights within
-    // one pacer tick of his window opening, every time, the crawled turn
+    // AE16, measured from the SERVER's own clock: every window the server
+    // forwarded to bob's seat (`prompt-forwarded`, seat 1 — the wall-clock `t`
+    // of the row; the claw's one clock serves both browsers and the server)
+    // paired, in order, with the next moment alice's screen lit the flag for
+    // him. Alice's view of bob's flag follows that server fact, not a state
+    // delta queued behind her paced End Turn crawl — so it lights within one
+    // pacer tick of the server forwarding, every window, the crawled turn's
     // included (measured ~4.8 s once per match before the fix).
-    expect(lags.length, 'bob opened a real window at least once').toBeGreaterThan(0);
-    expect(Math.max(...lags), `opponent-flag lag (${lags.join(', ')} ms) stays within one pacer tick`).toBeLessThanOrEqual(PACE_PHASE_MS + 200);
+    const forwarded = serverLog(stack)
+      .filter((r) => r.evt === 'prompt-forwarded' && Number(r.seat) === 1 && typeof r.t === 'string')
+      .map((r) => Date.parse(r.t as string))
+      .sort((a, b) => a - b);
+    const serverLags: number[] = [];
+    let k = 0;
+    for (const at of forwarded) {
+      while (k < sortedOpp.length && sortedOpp[k]! < at) k++;
+      if (k >= sortedOpp.length) break;
+      serverLags.push(sortedOpp[k]! - at);
+      k++;
+    }
+    console.log(`[w63-flash] opponent-flag lag behind the server forwarding bob's window: ${serverLags.join(', ')} ms (${forwarded.length} forwarded)`);
+    expect(serverLags.length, 'the server forwarded bob a real window at least once (his Memnite makes his MAIN1 a stop)').toBeGreaterThan(0);
+    expect(Math.max(...serverLags), `opponent-flag lag (${serverLags.join(', ')} ms) stays within one pacer tick of the server`).toBeLessThanOrEqual(PACE_PHASE_MS + 200);
   } finally {
     await stack.stop();
   }

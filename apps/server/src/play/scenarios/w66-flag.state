@@ -1,0 +1,28 @@
+# AE16 (`e2e/w63-flash.spec.ts`'s lag measurement): the w63-flash board, plus a Memnite in
+# the other seat's hand so that seat's own MAIN1 is a REAL stop every turn — a window the
+# server forwards, which is the moment the operator's screen must light the flag for them
+# (an End Turn crawl before it is the once-per-match case that measured ~4.8 s late).
+# The operator: "i notice priority flashing back and forth in
+# untap/upkeep/draw. that doesn't happen when passing through turns."
+# `e2e/w63-flash.spec.ts` needs a turn with nothing to attack or block with,
+# so every `UNTAP`/`UPKEEP`/`DRAW` on EITHER seat auto-passes cleanly
+# (`skipNonStopPhases: 'always'`, `skipEmptyBlockStop`) and the only real
+# stops are human's own `MAIN1`/`MAIN2` (Memnite, never cast, keeps those
+# live every turn so there is always a next real stop to drive the match
+# forward with). ai holds and plays nothing at all, so its entire turn
+# — including its own `UNTAP`/`UPKEEP`/`DRAW` — auto-passes unattended,
+# which is exactly the "normal turn" window the spec watches, and then
+# watches again after an End Turn press, to compare.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
