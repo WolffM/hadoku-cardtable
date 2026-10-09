@@ -2353,13 +2353,26 @@ export function ingest(match: LiveMatch, raw: unknown): void {
   notify(match);
 }
 
+/**
+ * J12 (wave 64): the three ask methods whose own wire schema carries no card
+ * at all — `showConfirmDialog`/`showOptionDialog`/`showInputDialog`
+ * (`packages/forge-wire/src/tier-a.ts`), never `getChoices` or the others,
+ * which sometimes do. A NEW one of these opening is "a prompt without a
+ * card," and clears {@link LiveMatch.lastSelectedCard} at the source — a
+ * stale click from two actions ago must not supply `clickOrigin`'s arrow
+ * tail for a plain yes/no this seat never clicked anything to open.
+ */
+const CARDLESS_ASKS: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptionDialog', 'showInputDialog']);
+
 function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind === 'ask') {
     // Queued, never replacing another: see the module header. The same callId
     // twice (a re-send) updates its entry in place rather than queueing twice.
     const i = match.asks.findIndex((a) => a.callId === frame.callId);
-    if (i < 0) match.asks.push(frame);
-    else match.asks[i] = frame;
+    if (i < 0) {
+      match.asks.push(frame);
+      if (CARDLESS_ASKS.has(frame.method)) match.lastSelectedCard = null;
+    } else match.asks[i] = frame;
     unspend(match);
     return;
   }

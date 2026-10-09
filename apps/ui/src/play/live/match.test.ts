@@ -752,6 +752,26 @@ describe('clicking the board: only what Forge offered', () => {
     expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['showOptionDialog', 'selectCard']);
   });
 
+  /*
+   * J12 (wave 64): `lastSelectedCard` used to survive a card-less ask
+   * entirely, so `clickOrigin`'s fallback (`gestures/install.ts`) could
+   * still anchor a click-targeting arrow to a card the player clicked for a
+   * PREVIOUS, already-finished action — stale by the time a plain yes/no
+   * opens with nothing to do with it. `showConfirmDialog`/`showOptionDialog`/
+   * `showInputDialog` never carry a card on their own wire shape
+   * (`packages/forge-wire/src/tier-a.ts`); a NEW one of these clears it.
+   */
+  it('J12: a card-less ask (showOptionDialog) clears `lastSelectedCard` — a stale click must not supply the next arrow a tail', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    expect(m.lastSelectedCard).toBe(mine[0]);
+    s.send(optionAsk('c-ae-j12'));
+    await until('the card-less ask', () => currentAsk(m) !== null);
+    expect(m.lastSelectedCard).toBeNull();
+  });
+
   it('a button press spends the whole input: no click until Forge shows the next one', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
