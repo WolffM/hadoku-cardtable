@@ -1074,6 +1074,42 @@ const SNAP_RADIUS = 80;
  * itself (which `withMove` turned into "the end of the row"), its edges offered the gap it was
  * already in, and the one-column-right move was a thin strip at the neighbour's far edge.
  */
+/**
+ * Every column that fits the row's width is a place to put a card — the operator, 2026-10-09, after
+ * four reports of a card that could be dragged left but not right: *"just let people put cards wherever
+ * they want and always draw all the placement locations."* Beyond the row's last real column (a card or
+ * a gap), one gap pile per pitch up to the row's right edge; `snapTo` then treats them like any other gap,
+ * which deletes every special case there used to be for "past the end" and "its own column".
+ */
+export function withColumnsToWidth(slot: SlotGeometry): SlotGeometry {
+  const step = slot.step ?? null;
+  if (slot.slot === 'hand' || step === null || step <= 0) return slot;
+  const piles = [...slot.piles];
+  const last = piles[piles.length - 1]?.box ?? null;
+  const width = last === null ? step - 6 : last.right - last.left;
+  const top = last?.top ?? slot.box.top + 4;
+  const bottom = last?.bottom ?? slot.box.bottom - 4;
+  let left = last === null ? slot.box.left + 4 : last.left + step;
+  while (left + width <= slot.box.right + 1 && piles.length < 64) {
+    piles.push({ id: null, box: { left, top, right: left + width, bottom } });
+    left += step;
+  }
+  return { ...slot, piles };
+}
+
+/** How many columns `withColumnsToWidth` would add to a row drawn with `count` real columns (the outlines to draw). */
+export function virtualColumns(rowBox: Box, lastRight: number | null, count: number, step: number | null): number {
+  if (step === null || step <= 0) return 0;
+  const width = step - 6;
+  let left = lastRight === null ? rowBox.left + 4 : lastRight + 6;
+  let n = 0;
+  while (left + width <= rowBox.right + 1 && count + n < 64) {
+    n += 1;
+    left += step;
+  }
+  return n;
+}
+
 export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dragging: number | null = null): Snap | null {
   let best: SlotGeometry | null = null;
   let bestDistance = Infinity;
@@ -1087,14 +1123,8 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dra
   if (best === null || bestDistance > SNAP_RADIUS) return null;
   const { slot, box, piles } = best;
   const stacking = slot !== 'hand';
-  const step = best.step ?? null;
   if (piles.length === 0) {
-    // An empty row: a column past the first, when its pitch is known (Z8), else the start.
-    const column = stacking && step !== null && step > 0 ? Math.floor((x - box.left - 4) / step) : 0;
-    if (column > 0) {
-      const height = Math.min(box.bottom - box.top, 96);
-      return { slot, target: { kind: 'at', column }, kind: 'at', card: null, bar: { left: box.left + 4 + column * step!, top: (box.top + box.bottom - height) / 2, width: BAR, height } };
-    }
+    // A row with no column at all (its pitch unknown): the start.
     const height = Math.min(box.bottom - box.top, 96);
     return {
       slot,
@@ -1126,25 +1156,10 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dra
     const height = Math.min(box.bottom - box.top, 96);
     return { slot, target: { kind: 'end' }, kind: 'end', card: null, bar: { left: box.left + 4, top: (box.top + box.bottom - height) / 2, width: BAR, height } };
   }
-  const ownIndex = dragging === null ? -1 : piles.findIndex((p) => own(p));
-  const ownBox = ownIndex === -1 ? null : piles[ownIndex]!.box;
-  /*
-   * The dragged card is the LAST card of its row (every column after it is empty or absent — the
-   * operator's board, 2026-10-09: one land at column 5 with five gaps before it) and the pointer is
-   * to its right: the places to offer are the columns PAST it — one column right within a pitch,
-   * then one more per pitch. Before this, the nearest non-own column was always a gap to its LEFT,
-   * so a lone or last card could be dragged left but never right (ledger AE19, reported four times).
-   */
-  if (stacking && ownBox !== null && distanceTo(ownBox, x, y) === 0 && piles[at]!.id === null) {
-    // On itself with only gaps around it: it stays (before this, a lone card with gaps to its left snapped
-    // into the nearest gap). Beside another card, its own middle is "before the next" as before.
+  const ownBox = dragging === null ? null : (piles.find((p) => own(p))?.box ?? null);
+  if (stacking && ownBox !== null && distanceTo(ownBox, x, y) === 0) {
+    // On its own box: it stays — a self target `withMove` leaves in place.
     return { slot, target: { kind: 'before', id: dragging! }, kind: 'before', card: dragging!, bar: { left: ownBox.left - BAR - 1, top: ownBox.top, width: BAR, height: ownBox.bottom - ownBox.top } };
-  }
-  if (stacking && ownBox !== null && x > ownBox.right && piles.findIndex((p, i) => i > ownIndex && !own(p) && p.id !== null) === -1) {
-    const pitch = step ?? ownBox.right - ownBox.left + 6;
-    const beyond = pitch > 0 ? Math.floor((x - ownBox.right) / pitch) : 0;
-    const column = ownIndex + 1 + beyond;
-    return { slot, target: { kind: 'at', column }, kind: 'at', card: null, bar: { left: ownBox.right + 1 + beyond * pitch, top: ownBox.top, width: BAR, height: ownBox.bottom - ownBox.top } };
   }
   const pile = piles[at]!;
   const { left, top, right, bottom } = pile.box;
@@ -1159,14 +1174,6 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dra
   }
   // The next column that is not the dragged card's own (its own is where it came from, not a place).
   const nextAt = piles.findIndex((p, i) => i > at && !own(p));
-  const last = piles[piles.length - 1]!.box;
-  if (stacking && nextAt === -1 && x > last.right) {
-    const pitch = step ?? (piles.length >= 2 ? last.left - piles[piles.length - 2]!.box.left : last.right - last.left + 6);
-    const beyond = pitch > 0 ? Math.floor((x - last.right) / pitch) : 0;
-    if (beyond >= 1) {
-      return { slot, target: { kind: 'at', column: piles.length + beyond }, kind: 'at', card: null, bar: { left: right + 1 + beyond * pitch, top, width: BAR, height: bottom - top } };
-    }
-  }
   // A hand has no gaps (`withHandMove` writes piles of one), so a null id can only be a battlefield gap, handled above.
   const pileId = pile.id ?? -1;
   const height = bottom - top;
@@ -1333,7 +1340,7 @@ function columnPitch(slotEl: HTMLElement): number | null {
   let lists = 0;
   for (const list of field.querySelectorAll<HTMLElement>('.zone__cards')) {
     lists += 1;
-    const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap');
+    const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])');
     if (items.length >= 2) {
       const a = items[0]!.getBoundingClientRect();
       const b = items[1]!.getBoundingClientRect();
@@ -1364,11 +1371,11 @@ function liveViewerGeometry(): SlotGeometry[] {
   for (const el of document.querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')) {
     const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
     const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
-    const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap') ?? [])].map((li) => ({
+    const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])') ?? [])].map((li) => ({
       id: li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),
       box: li.getBoundingClientRect(),
     }));
-    out.push({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) });
+    out.push(withColumnsToWidth({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) }));
   }
   return out;
 }
@@ -3007,12 +3014,12 @@ function useArrangeDrag(
       for (const el of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')) {
         const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
         const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
-        const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap') ?? [])].map((li) => ({
+        const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])') ?? [])].map((li) => ({
           id: li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),
           box: li.getBoundingClientRect(),
           size: li.dataset.pileSize === undefined ? 1 : Number(li.dataset.pileSize),
         }));
-        out.push({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) });
+        out.push(withColumnsToWidth({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) }));
       }
       return out;
     };
@@ -3104,6 +3111,22 @@ function useArrangeDrag(
       p.indicator = indicator;
       p.li.setAttribute('data-arrange-dragging', '');
       board.setAttribute('data-arrange-active', '');
+      // Every column that fits each battlefield row, outlined — the operator: "always draw all the placement locations".
+      for (const el of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot]')) {
+        const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
+        if (list === null) continue;
+        const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])');
+        const last = items.length === 0 ? null : items[items.length - 1]!.getBoundingClientRect().right;
+        const n = virtualColumns(el.getBoundingClientRect(), last, items.length, columnPitch(el));
+        for (let i = 0; i < n; i += 1) {
+          const li = document.createElement('li');
+          li.className = 'zone__gap';
+          li.setAttribute('data-gap', '');
+          li.setAttribute('data-virtual', '');
+          li.setAttribute('aria-hidden', 'true');
+          list.append(li);
+        }
+      }
       draw(p, x, y);
     };
 
@@ -3117,6 +3140,7 @@ function useArrangeDrag(
       p.indicator?.remove();
       p.li.removeAttribute('data-arrange-dragging');
       board.removeAttribute('data-arrange-active');
+      for (const li of board.querySelectorAll('li.zone__gap[data-virtual]')) li.remove();
     };
 
     const forgetClick = (): void => {

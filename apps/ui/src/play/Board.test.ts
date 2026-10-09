@@ -38,6 +38,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   previewPlayedTo,
   slotKey,
   snapTo,
+  withColumnsToWidth,
   withHandMove,
   withMove,
   type Arrangement,
@@ -4148,14 +4149,20 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     { slot: 'back' as const, box: box(0, 200, 400, 100), piles: [] },
   ];
 
-  it('snapTo: a lone card at a high column can be dragged RIGHT — the columns past it are offered (AE19, the operator\'s board)', () => {
-    // The operator's row, 2026-10-09: `pileSizes [0,0,0,0,0,1]` — five gaps, then one land at column 5. Pitch 70.
+  it('snapTo: a lone card at the row\'s last column — the operator\'s screenshot — is offered EVERY column of the row, left and right (AE19)', () => {
+    // 2026-10-09 05:15Z: an Island at column 6 after six empty columns; dragging it right drew outlines only to its left.
+    // Pitch 70, the row 1000 wide: columns 0–13 fit. `withColumnsToWidth` is what the readers apply.
     const gap = (i: number) => ({ id: null, box: box(10 + i * 70, 8, 60, 84) });
-    const lone = [{ slot: 'front' as const, box: box(0, 0, 800, 100), piles: [gap(0), gap(1), gap(2), gap(3), gap(4), { id: 5, box: box(360, 8, 60, 84) }], step: 70 }];
-    expect(snapTo(lone, 440, 50, 5)?.target, 'just right of it, within a pitch: the next column').toEqual({ kind: 'at', column: 6 });
-    expect(snapTo(lone, 520, 50, 5)?.target, 'a pitch further: one more column').toEqual({ kind: 'at', column: 7 });
-    expect(snapTo(lone, 100, 50, 5)?.target, 'left, over a gap: that gap, as before').toEqual({ kind: 'at', column: 1 });
-    expect(snapTo(lone, 390, 50, 5)?.target, 'on itself: it stays (a self target, which withMove leaves in place)').toEqual({ kind: 'before', id: 5 });
+    const lone = withColumnsToWidth({ slot: 'front' as const, box: box(0, 0, 1000, 100), piles: [gap(0), gap(1), gap(2), gap(3), gap(4), gap(5), { id: 6, box: box(430, 8, 60, 84) }], step: 70 });
+    expect(lone.piles.length, 'every column that fits the row').toBe(14);
+    expect(snapTo([lone], 530, 50, 6)?.target, 'just right of it: column 7').toEqual({ kind: 'at', column: 7 });
+    expect(snapTo([lone], 600, 50, 6)?.target, 'a pitch further: column 8').toEqual({ kind: 'at', column: 8 });
+    expect(snapTo([lone], 950, 50, 6)?.target, 'at the row\'s right edge: the last column that fits').toEqual({ kind: 'at', column: 13 });
+    expect(snapTo([lone], 100, 50, 6)?.target, 'left, over a gap: that gap').toEqual({ kind: 'at', column: 1 });
+    expect(snapTo([lone], 460, 50, 6)?.target, 'on itself: it stays').toEqual({ kind: 'before', id: 6 });
+    // An EMPTY row has every column too (the first permanent of a game, AE25): the column under the pointer.
+    const empty = withColumnsToWidth({ slot: 'back' as const, box: box(0, 200, 1000, 100), piles: [], step: 70 });
+    expect(snapTo([empty], 500, 250)?.target, 'released near the middle of an empty row: that column, not the first').toEqual({ kind: 'at', column: 7 });
   });
 
   it('snapTo: the nearest place in a row — a thin edge strip reorders, the rest stacks (W7)', () => {
@@ -4166,9 +4173,11 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       id: 2,
     });
     expect(snapTo(slots, 135, 50)?.target, 'the right edge strip of the last: the end').toEqual({ kind: 'end' });
-    expect(snapTo(slots, 170, 50)?.target, 'past the last card, within one column: the end').toEqual({ kind: 'end' });
+    // Every column that fits the row is a place (the operator, 2026-10-09); the readers apply `withColumnsToWidth`.
+    const wide = [withColumnsToWidth({ ...slots[0]!, step: 70 }), slots[1]!];
+    expect(snapTo(wide, 170, 50)?.target, 'past the last card, within one column: the next column').toEqual({ kind: 'at', column: 2 });
     // Z8: two columns past it, a column of its own, with gaps opened up to it.
-    expect(snapTo(slots, 300, 50)?.target, 'further right: that column').toEqual({ kind: 'at', column: 4 });
+    expect(snapTo(wide, 300, 50)?.target, 'further right: that column').toEqual({ kind: 'at', column: 4 });
     expect(snapTo(slots, 40, 14)?.target, 'dead centre, near the top: on top of it').toEqual({
       kind: 'stack',
       id: 1,
@@ -4219,8 +4228,8 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(order(withMove(rows(), 0, {}, 1, 'front', { kind: 'before', id: 3 }, 'single')), 'one column right').toEqual([2, 1, 3, 4]);
     expect(order(withMove(rows(), 0, {}, 2, 'front', { kind: 'before', id: 4 }, 'single')), 'from the middle, one right').toEqual([1, 3, 2, 4]);
     // Over its own column — any part of it — it is where it came from: nothing stacks onto itself, nothing goes to the end.
-    expect(snapTo(four, 40, 50, 1)?.target, 'its own middle: not a stack onto itself').toEqual({ kind: 'before', id: 2 });
-    expect(snapTo(four, 15, 50, 1)?.target, 'its own left edge: not "before itself"').toEqual({ kind: 'before', id: 2 });
+    expect(snapTo(four, 40, 50, 1)?.target, 'its own middle: not a stack onto itself — it stays (a self target)').toEqual({ kind: 'before', id: 1 });
+    expect(snapTo(four, 15, 50, 1)?.target, 'its own left edge: on its own box, it stays (a self target)').toEqual({ kind: 'before', id: 1 });
     expect(order(withMove(rows(), 0, {}, 1, 'front', { kind: 'before', id: 1 }, 'single')), 'before itself moves nothing').toEqual([1, 2, 3, 4]);
     expect(order(withMove(rows(), 0, {}, 1, 'front', { kind: 'stack', id: 1, onTop: true }, 'single')), 'onto itself moves nothing').toEqual([1, 2, 3, 4]);
     // Dragging 2 over 1's right edge: the column after 1 is 2's own, so "after 1" is before 3 — where 2 already is.
@@ -4314,14 +4323,14 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(container.querySelector('[data-card-id="8"]')!.getAttribute('data-arrange-target'), 'the card it is on').toBe('before');
     expect(container.querySelector('.seat[data-viewer] [data-arrange-slot="back"]')!.getAttribute('data-arrange-target')).toBe('before');
     // Nothing has moved yet: the drag is a preview until it is let go.
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
 
     release();
     expect(board.querySelector('[data-arrange-ghost], [data-arrange-indicator]'), 'ghost and bar are gone').toBeNull();
     expect(board.hasAttribute('data-arrange-active')).toBe(false);
     expect(container.querySelectorAll('[data-arrange-dragging], [data-arrange-target]'), 'and every mark').toHaveLength(0);
     // And the card went where the bar said.
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['24', '8', '6', '25']);
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['24', '8', '6', '25']);
   });
 
   it('the ghost follows the pointer, and the indicator names stack-top, stack-bottom and end as the pointer moves', () => {
@@ -4357,7 +4366,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(bar.hasAttribute('hidden'), 'far from every slot there is no target').toBe(true);
     fireEvent.pointerUp(window, { ...POINTER, clientX: 500, clientY: 600 });
     expect(container.querySelector('[data-arrange-ghost]')).toBeNull();
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId), 'released nowhere: nothing moved').toEqual(['8', '24', '6', '25']);
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId), 'released nowhere: nothing moved').toEqual(['8', '24', '6', '25']);
   });
 
   /*
@@ -4474,7 +4483,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     const first = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!.getBoundingClientRect();
     fireEvent.pointerMove(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
     fireEvent.pointerUp(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['25', '8', '24', '6']);
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['25', '8', '24', '6']);
     expect(declarationIn('.board .seat .board-card[draggable=\'true\']', 'touch-action'), 'or the browser claims it to scroll').toBe('none');
   });
 
@@ -4506,7 +4515,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       else fireEvent.pointerCancel(window, { ...POINTER });
       expect(container.querySelector('[data-arrange-ghost], [data-arrange-indicator], [data-arrange-dragging]'), how).toBeNull();
       fireEvent.pointerUp(window, { ...POINTER, clientX: 0, clientY: 0 });
-      expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId), how).toEqual(['8', '24', '6', '25']);
+      expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId), how).toEqual(['8', '24', '6', '25']);
       cleanup();
       forgetArrangements();
     }
@@ -4522,7 +4531,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(container.querySelector('[data-arrange-ghost]'), 'a claimed press is not ours').toBeNull();
     fireEvent.pointerUp(window, { ...POINTER, clientX: 0, clientY: 0 });
     container.removeEventListener('pointerdown', claim);
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
   });
 
   it('cancels the browser’s own drag, and keeps no HTML5 drag-and-drop in the source', () => {
