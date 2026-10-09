@@ -228,6 +228,10 @@ test(titled('letting go of a held card with no further pointer move takes the ba
     await alice.page.mouse.up();
     const record = () => bob.page.evaluate(() => (window as unknown as { __memnite: () => string[] }).__memnite());
     await expect(back(bob.page), 'the back is gone once the card is there').toHaveCount(0, { timeout: 20_000 });
+    // AE26: if Memnite sat on the stack for a beat (bob held priority), the back turned into its face
+    // at the release point first; the flight into the column comes when it resolves. Either way the
+    // trip is made — wait for it, not for the back alone.
+    await expect.poll(async () => (await record()).some((s) => s.endsWith('tile copy flying')), { timeout: 20_000 }).toBe(true);
     const seen = await record();
     console.log(`[presence memnite] bob saw: ${seen.join(' → ')}`);
     expect(seen.some((s) => s.endsWith('back waiting')), `the back left the cursor at once, for the reserved gap — bob saw: ${seen.join(' → ')}`).toBe(true);
