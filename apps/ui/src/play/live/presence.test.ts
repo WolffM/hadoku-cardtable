@@ -990,13 +990,13 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null, handMove: { from: 0, to: 2 } });
-    const ghost = canvas.querySelector<HTMLElement>('[data-board-overlay] .presence__back[data-waiting]')!;
+    const ghost = canvas.querySelector<HTMLElement>('[data-board-overlay] .presence__back[data-gliding]')!;
     expect(ghost, 'a back glides, even with no pointer in the message at all').not.toBeNull();
     expect(ghost.style.left, 'starts at position 0’s centre').toBe('130px'); // 100 + 0*70 + 30 (half of 60) − overlay left 0
     vi.advanceTimersByTime(16); // the glide's own requestAnimationFrame
     expect(ghost.style.left, 'ends at position 2’s centre').toBe('270px'); // 100 + 2*70 + 30
     vi.advanceTimersByTime(HAND_MOVE_MS);
-    expect(canvas.querySelector('.presence__back[data-waiting]'), 'removed once the glide finishes').toBeNull();
+    expect(canvas.querySelector('.presence__back[data-gliding]'), 'removed once the glide finishes').toBeNull();
     handle.dispose();
   });
 
@@ -1008,7 +1008,7 @@ describe('receiving', () => {
     expect(() =>
       t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null, handMove: { from: 0, to: 9 } }),
     ).not.toThrow();
-    expect(canvas.querySelector('.presence__back[data-waiting]')).toBeNull();
+    expect(canvas.querySelector('.presence__back[data-gliding]')).toBeNull();
     handle.dispose();
   });
 

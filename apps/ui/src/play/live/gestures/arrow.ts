@@ -81,21 +81,32 @@ export function arrowShape(x1: number, y1: number, x2: number, y2: number): Arro
   };
 }
 
-/** An empty arrow: a shaft path and a head polygon, both shaped by `shape`. */
-function newArrow(className: string, testid: string): SVGSVGElement {
+/**
+ * J5 (wave 64): the one arrow element every screen that ever draws one
+ * builds — the interactive targeter and the passive stack arrows here, and
+ * (since this fold) `live/placed.ts`'s `.placed__arrow` and
+ * `live/presence.ts`'s mirror of the OTHER seat's arrow, which used to hand-roll
+ * the identical `<svg><path/><polygon/></svg>` three more times between them.
+ * `className` is the SVG's own; `shaftClass`/`headClass` are each caller's
+ * existing stylesheet hook (presence's has none — its CSS selects the bare
+ * tags) and `testid`/`extra` are each caller's own markers, all optional so
+ * the bare shape is still the whole of what this returns with none given.
+ */
+export function newArrow(opts: { className: string; testid?: string; shaftClass?: string; headClass?: string }): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('class', className);
-  svg.setAttribute('data-testid', testid);
+  svg.setAttribute('class', opts.className);
+  if (opts.testid !== undefined) svg.setAttribute('data-testid', opts.testid);
   svg.setAttribute('aria-hidden', 'true');
   const shaft = document.createElementNS(SVG, 'path');
-  shaft.setAttribute('class', 'targeter__shaft');
+  if (opts.shaftClass !== undefined) shaft.setAttribute('class', opts.shaftClass);
   const head = document.createElementNS(SVG, 'polygon');
-  head.setAttribute('class', 'targeter__head');
+  if (opts.headClass !== undefined) head.setAttribute('class', opts.headClass);
   svg.append(shaft, head);
   return svg;
 }
 
-function shape(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect): void {
+/** Shape an arrow `newArrow` built, from `from` to `tip`, both in client coordinates, against `box` (the overlay's own). */
+export function positionArrow(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect): void {
   const { d, points } = arrowShape(from.x - box.left, from.y - box.top, tip.x - box.left, tip.y - box.top);
   svg.querySelector('path')!.setAttribute('d', d);
   svg.querySelector('polygon')!.setAttribute('points', points);
@@ -112,14 +123,14 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   const aimed = spec.snap === null ? { from: spec.from, tip: spec.to } : aimOn(spec.snap, spec.from, spec.target?.kind === 'player' ? 'player' : 'card');
   let svg = overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]');
   if (svg === null) {
-    svg = newArrow('targeter', 'targeter');
+    svg = newArrow({ className: 'targeter', testid: 'targeter', shaftClass: 'targeter__shaft', headClass: 'targeter__head' });
     overlay.append(svg);
   }
   flag(svg, 'data-source', spec.source === null ? null : String(spec.source));
   flag(svg, 'data-target', spec.target === null ? null : `${spec.target.kind}:${spec.target.id}`);
   flag(svg, 'data-snapped', spec.snap === null ? null : 'true');
   flag(svg, 'data-mode', spec.mode);
-  shape(svg, aimed.from, aimed.tip, overlay.getBoundingClientRect());
+  positionArrow(svg, aimed.from, aimed.tip, overlay.getBoundingClientRect());
 }
 
 /**
@@ -223,11 +234,11 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
     const aimed = aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card');
     let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
     if (svg === null) {
-      svg = newArrow('targeter targeter--auto', AUTO_TESTID);
+      svg = newArrow({ className: 'targeter targeter--auto', testid: AUTO_TESTID, shaftClass: 'targeter__shaft', headClass: 'targeter__head' });
       svg.setAttribute('data-key', spec.key);
       overlay.append(svg);
     }
-    shape(svg, aimed.from, aimed.tip, box);
+    positionArrow(svg, aimed.from, aimed.tip, box);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();

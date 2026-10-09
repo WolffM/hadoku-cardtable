@@ -512,12 +512,14 @@ test(titled('a hand reorder is mirrored: bob sees a back in alice’s hand glide
       const w = window as unknown as { __sawHandBack: () => boolean };
       let saw = false;
       w.__sawHandBack = () => saw;
+      // `data-gliding` (J3, wave 64): the hand reorder's own attribute, never
+      // `data-waiting` (a placement wait) — the two used to share one mark.
       new MutationObserver((records) => {
         for (const r of records) {
-          if (r.target instanceof Element && r.target.matches('.presence__back[data-waiting]')) saw = true;
-          if (r.addedNodes.length > 0 && overlay.querySelector('.presence__back[data-waiting]') !== null) saw = true;
+          if (r.target instanceof Element && r.target.matches('.presence__back[data-gliding]')) saw = true;
+          if (r.addedNodes.length > 0 && overlay.querySelector('.presence__back[data-gliding]') !== null) saw = true;
         }
-      }).observe(overlay, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-waiting'] });
+      }).observe(overlay, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-gliding'] });
     });
 
     const targetBox = (await alice.page.locator(`[data-board-card="${target}"]`).boundingBox())!;

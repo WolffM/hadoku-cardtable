@@ -78,7 +78,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
   type PresenceSpot,
 } from '@hadoku/shared';
 
-import { arrowShape } from './gestures/arrow.ts';
+import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
@@ -717,11 +717,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * The other half of the hand reorder: a back of THEIR hidden hand glides from `from` to
    * `to` (both indices, `./gestures/hand.ts`'s own doc comment has the
    * reason none of this ever carries an id). A plain `div.presence__back`,
-   * the SAME element their held card already uses — `[data-waiting]` is
-   * borrowed only for its 300ms house-curve transition, never for the
-   * "waiting on a placement" meaning it carries elsewhere in this file — so
-   * no new stylesheet rule exists for this. Every back is identical, so
-   * there is nothing to settle into: the glide alone is the whole signal.
+   * the SAME element their held card already uses — `[data-gliding]` (J3,
+   * wave 64) is its OWN attribute, sharing `[data-waiting]`'s 300ms
+   * house-curve transition in `presence.css` but never its "waiting on a
+   * placement" meaning: before this fold, this glide borrowed
+   * `[data-waiting]` itself, which read as a placement wait to anything
+   * watching for one (`e2e/presence.spec.ts`'s own placement assertions had
+   * to read past it). Every back is identical, so there is nothing to settle
+   * into: the glide alone is the whole signal.
    */
   function glideHandMove(root: HTMLElement, box: DOMRect, move: PresenceEcho['handMove']): void {
     if (move === null) return;
@@ -731,7 +734,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const to = backs[move.to]?.getBoundingClientRect();
     if (from === undefined || to === undefined || from.width === 0 || to.width === 0) return;
     const ghost = backElement(root);
-    ghost.setAttribute('data-waiting', '');
+    ghost.setAttribute('data-gliding', '');
     ghost.style.width = `${from.width}px`;
     ghost.style.left = `${from.left + from.width / 2 - box.left}px`;
     ghost.style.top = `${from.top + from.height / 2 - box.top}px`;
@@ -819,15 +822,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const from = echo.from === null ? null : placeSpot(canvas, echo.from);
     if (from !== null) {
       if (arrow === null) {
-        arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        arrow.setAttribute('class', 'presence__arrow');
-        arrow.setAttribute('aria-hidden', 'true');
-        arrow.append(document.createElementNS('http://www.w3.org/2000/svg', 'path'), document.createElementNS('http://www.w3.org/2000/svg', 'polygon'));
+        arrow = newArrow({ className: 'presence__arrow' });
         root.append(arrow);
       }
-      const { d, points } = arrowShape(from.x - box.left, from.y - box.top, at.x - box.left, at.y - box.top);
-      arrow.querySelector('path')!.setAttribute('d', d);
-      arrow.querySelector('polygon')!.setAttribute('points', points);
+      positionArrow(arrow, from, at, box);
     } else {
       arrow?.remove();
       arrow = null;

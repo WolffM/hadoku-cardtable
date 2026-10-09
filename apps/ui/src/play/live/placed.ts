@@ -76,7 +76,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
-import { aimAt, arrowShape } from './gestures/arrow.ts';
+import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
 import { cardBox, centreOf, faceBox } from './gestures/targets.ts';
 import type { Point } from './gestures/types.ts';
 import './placed.css';
@@ -474,22 +474,12 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         const aimed = aimAt(from, rectOf(to), { neighbours: true });
         let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
         if (svg === null) {
-          svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as SVGSVGElement;
-          svg.setAttribute('class', 'placed__arrow');
-          svg.setAttribute('data-testid', 'placed-arrow');
-          svg.setAttribute('aria-hidden', 'true');
+          svg = newArrow({ className: 'placed__arrow', testid: 'placed-arrow', shaftClass: 'placed__arrow-shaft', headClass: 'placed__arrow-head' });
           svg.setAttribute('data-for', String(item.id));
           svg.setAttribute('data-key', key);
-          const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          shaft.setAttribute('class', 'placed__arrow-shaft');
-          const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-          head.setAttribute('class', 'placed__arrow-head');
-          svg.append(shaft, head);
           root.append(svg);
         }
-        const shape = arrowShape(aimed.from.x - box.left, aimed.from.y - box.top, aimed.tip.x - box.left, aimed.tip.y - box.top);
-        svg.querySelector('path')!.setAttribute('d', shape.d);
-        svg.querySelector('polygon')!.setAttribute('points', shape.points);
+        positionArrow(svg, aimed.from, aimed.tip, box);
       }
     }
     for (const el of [...root.querySelectorAll('.placed__arrow')]) {
