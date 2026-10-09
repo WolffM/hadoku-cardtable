@@ -88,7 +88,7 @@ export function classifySelection(selection: SelectionLike | null, boardCardIds:
   return ids.some((id) => !boardCardIds.has(id)) ? 'off-board' : 'on-board';
 }
 
-export interface SelectionButton {
+interface SelectionButton {
   label: string;
   enabled: boolean;
   onClick: () => void;

@@ -63,7 +63,7 @@ export interface PromptProps<M extends PromptMethod> {
 }
 
 /** Thrown when a component builds an answer the wire schema rejects — a bug in the component. */
-export class PromptAnswerError extends Error {
+class PromptAnswerError extends Error {
   constructor(
     readonly method: PromptMethod,
     readonly issues: readonly string[],

@@ -341,7 +341,7 @@ export function zoneReplyProblems(requested: ZoneUpdates, reply: ZoneUpdates): P
  * (`PlayerControllerHuman.java:309-311`). The wire reply's `target` is a
  * `CardRef`, so the defender is `{ kind: 'card', id: -1 }`.
  */
-export const DEFENDER_SENTINEL = { kind: 'card', id: -1 } as const;
+const DEFENDER_SENTINEL = { kind: 'card', id: -1 } as const;
 
 export interface CombatDamageRules {
   /** Blockers in damage order, each with the damage that kills it. */

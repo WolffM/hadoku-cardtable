@@ -326,7 +326,7 @@ export type LiveStatus =
   | 'match-gone';
 
 /** The refusal that means the match itself is gone, rather than this join. */
-export const MATCH_GONE_REFUSAL = 'unknown-match';
+const MATCH_GONE_REFUSAL = 'unknown-match';
 
 /**
  * What a player is told when the match they asked for is not there any more —
@@ -347,12 +347,12 @@ export const MATCH_GONE_SENTENCE =
  * seams — the server's `forge:role`). Read through a structural type so this file
  * does not depend on the field's landing order; `false` until the server says.
  */
-export function isSpectator(match: LiveMatch): boolean {
+function isSpectator(match: LiveMatch): boolean {
   return (match as { spectator?: boolean }).spectator === true;
 }
 
 /** The server's `ended` frame has arrived (`LiveMatch.over`, shape 4). */
-export function isOver(match: LiveMatch): boolean {
+function isOver(match: LiveMatch): boolean {
   return (match as { over?: boolean }).over === true;
 }
 
@@ -758,7 +758,7 @@ function autoAnsweredLine(ask: LiveAsk, auto: AutoAnswer, lookup: PromptLookup):
  * two-line window — and nothing is dropped between what the match holds and
  * what the panel shows.
  */
-export const SAYS_SHOWN = SAYS_KEPT;
+const SAYS_SHOWN = SAYS_KEPT;
 
 /* ── the log, as something you can read (wave 28 §A.11, render half) ──── */
 
@@ -791,7 +791,7 @@ export const SAYS_SHOWN = SAYS_KEPT;
  * card id, structured — and this function is the thing it replaces rather than
  * something it has to be bent into.
  */
-export type LogKind = 'payment' | 'trigger' | 'damage' | 'life' | 'play' | 'control' | 'said';
+type LogKind = 'payment' | 'trigger' | 'damage' | 'life' | 'play' | 'control' | 'said';
 
 /* ── Forge's second button, and the two labels we refuse (items 6, 16) ───── */
 
@@ -840,7 +840,7 @@ function offersSecondButton(match: LiveMatch): boolean {
 
 
 
-export function logKind(line: string): LogKind {
+function logKind(line: string): LogKind {
   if (/^full control (on|off)$/.test(line)) return 'control';
   // Ahead of the rest: a trigger's own text may say "damage" or "life", and the line is still the trigger's.
   if (/^(?:.+ )?triggered /.test(line)) return 'trigger';
@@ -892,7 +892,7 @@ function battlefieldCardIds(view: BoardView | null): ReadonlySet<number> {
  * stays in its ordinary hand slot for as long as either is showing, rather
  * than the two drawing on top of each other.
  */
-export function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: boolean): number | undefined {
+function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: boolean): number | undefined {
   if (blocked || !offered.selectionOpen) return undefined;
   const id = match.lastSelectedCard;
   if (id === null) return undefined;
@@ -901,7 +901,7 @@ export function stagedHandCardId(match: LiveMatch, offered: LiveClickables, bloc
 }
 
 /** The forge ids of every card of each name in the view — what a log line's name hands the inspector. */
-export function cardIdsNamedInView(view: BoardView | null): Map<string, number[]> {
+function cardIdsNamedInView(view: BoardView | null): Map<string, number[]> {
   const out = new Map<string, number[]>();
   if (view === null) return out;
   const add = (card: DraftCard, id: number): void => {
@@ -917,7 +917,7 @@ export function cardIdsNamedInView(view: BoardView | null): Map<string, number[]
   return out;
 }
 
-export function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
+function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
   const out = new Map<string, DraftCard>();
   if (view === null) return out;
   const add = (card: DraftCard): void => {
@@ -939,7 +939,7 @@ export function cardsNamedInView(view: BoardView | null): Map<string, DraftCard>
  * agree about it. Non-overlapping: a name already consumed cannot be matched
  * again inside a later one.
  */
-export function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (string | DraftCard)[] {
+function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (string | DraftCard)[] {
   const names = [...cards.keys()].sort((a, b) => b.length - a.length);
   if (names.length === 0) return line === '' ? [] : [line];
   const out: (string | DraftCard)[] = [];
@@ -1058,7 +1058,7 @@ const PHASE_ORDER: ReadonlyArray<{ phase: string; group: string }> = [
  * view carries no active player then, and the rail says so rather than picking
  * a seat.
  */
-export function whoseTurn(view: BoardView): 'yours' | 'theirs' | 'nobody' {
+function whoseTurn(view: BoardView): 'yours' | 'theirs' | 'nobody' {
   const active = view.players.find((p) => p.id === view.activePlayerId);
   if (active === undefined) return 'nobody';
   return active.isViewer ? 'yours' : 'theirs';

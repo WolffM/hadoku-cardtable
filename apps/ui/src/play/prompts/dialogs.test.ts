@@ -101,4 +101,20 @@ describe('confirm', () => {
     fireEvent.click(buttons[0]!);
     expect(answers).toEqual([true]);
   });
+
+  // T1/T2's mutation: `confirm` shares `OptionButton` with `showOptionDialog`,
+  // not a second hand-rolled rendering — before the fold only the latter ran
+  // a colour label through `ManaPip`. Every other assertion here still
+  // passes on a revert; only a colour-named button tells the two apart.
+  it('draws a mana pip, not the bare word, for a colour-named confirm button — the one-component contract', () => {
+    const ask = { ...askFor('confirm'), options: ['Blue', 'Black'] };
+    const { getAllByTestId } = mountPrompt('confirm', ask);
+    const [blue, black] = getAllByTestId('prompt-option');
+    expect(blue!.textContent, 'no bare "Blue" word').toBe('');
+    expect(black!.textContent, 'no bare "Black" word').toBe('');
+    expect(blue!.querySelector('.ms-u'), 'the blue pip').not.toBeNull();
+    expect(black!.querySelector('.ms-b'), 'the black pip').not.toBeNull();
+    expect(blue!.getAttribute('aria-label')).toBe('Blue');
+    expect(black!.getAttribute('aria-label')).toBe('Black');
+  });
 });

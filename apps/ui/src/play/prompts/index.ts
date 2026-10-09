@@ -76,15 +76,13 @@ export function PromptFor(props: AnyPromptProps) {
   return createElement(component, props);
 }
 
-export { PROMPT_METHODS, DIRECT_CONFIRM_METHOD, checkedReply, PromptAnswerError } from './types.ts';
-export type { AskOf, PromptMethod, PromptProps, ReplyOf } from './types.ts';
-export { EMPTY_LOOKUP, lookupFromState, withAbilityLabels, type PromptLookup } from './lookup.ts';
-export { DEFENDER_SENTINEL } from './rules.ts';
-export {
-  classifySelection,
-  SelectionPrompt,
-  type SelectionButton,
-  type SelectionKind,
-  type SelectionLike,
-  type SelectionPromptProps,
-} from './SelectionPrompt.tsx';
+// T8: `checkedReply`, `PromptAnswerError`, `ReplyOf`, `EMPTY_LOOKUP`,
+// `lookupFromState`, `withAbilityLabels`, `PromptLookup`, `DEFENDER_SENTINEL`,
+// `SelectionButton`, `SelectionLike`, `SelectionPromptProps` used to re-export
+// here too — knip's own count (11) for this file, because every real importer
+// reaches each of them through its OWN source file instead (`types.ts`,
+// `lookup.ts`, `rules.ts`, `SelectionPrompt.tsx`), never through this barrel.
+// Deleted here; still exported from those files for the callers that use them.
+export { PROMPT_METHODS, DIRECT_CONFIRM_METHOD } from './types.ts';
+export type { AskOf, PromptMethod, PromptProps } from './types.ts';
+export { classifySelection, SelectionPrompt, type SelectionKind } from './SelectionPrompt.tsx';
