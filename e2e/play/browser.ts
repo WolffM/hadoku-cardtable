@@ -8,6 +8,7 @@
  * match snapshot is an ack.
  */
 
+import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -25,13 +26,10 @@ const VIDEO_SIZE = { width: 1280, height: 720 };
 
 /** The running test's own title path, filesystem-safe — one folder per spec under `<RUN_DIR>/videos/`. */
 function specVideoSlug(): string {
-  return test
-    .info()
-    .titlePath.filter((p) => p !== '')
-    .join(' ')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const title = test.info().titlePath.filter((p) => p !== '').join(' ');
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // A long title is a path segment over NAME_MAX (255): cut it, and keep it unique by the title's hash.
+  return slug.length <= 120 ? slug : `${slug.slice(0, 110).replace(/-+$/, '')}-${createHash('sha1').update(title).digest('hex').slice(0, 8)}`;
 }
 
 export interface Friend {
