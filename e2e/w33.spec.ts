@@ -19,6 +19,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { castCard, clickHandCard, clickOnce, makeTitled, offered, pressPaymentAuto, serverLog, stackCount } from './play/board.ts';
+import { passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
@@ -30,47 +31,8 @@ const titled = makeTitled(forge);
 
 /* ── shared reading of the board's own state, never Forge's prompt text ── */
 
-/** The rail's own phase (`BoardView.phase`, a `PhaseType` name) and whose turn it is. */
-async function phaseOf(page: Page): Promise<{ phase: string; whose: string } | null> {
-  const rail = page.getByTestId('live-phases');
-  if ((await rail.count()) === 0) return null;
-  const phase = await rail.getAttribute('data-phase');
-  const whose = await rail.getAttribute('data-whose');
-  return phase === null ? null : { phase, whose: whose ?? '' };
-}
-
-/**
- * Press OK once for the ATTACKER's own priority stop at Declare Attackers
- * Step — the one click a human makes to say "attacks are declared, move
- * on". `no-creatures.state`/`one-creature.state` land the match there
- * rather than jumping straight to Declare Blockers: landing directly on
- * Declare Blockers makes Forge compute "who may block" one state-effects
- * pass before the scenario's own placed cards ever settle (a real, untapped,
- * non-sick creature then counts as having none — `wave33-evidence/s3-blockers.md`).
- * This click is what lets the transition into the real Declare Blockers
- * window happen through the ordinary main loop instead, with state effects
- * already run. Never touches the defending seat.
- */
-async function passDeclareAttackers(page: Page): Promise<void> {
-  // T3 (`StopPolicy.attackStopIsTheDeclaration`, 2026-10-03): with nothing
-  // castable, the attacker's own priority window at Declare Attackers passes
-  // on its own now — the scenario's declared attack WAS the stop. So this
-  // waits for EITHER that window with its OK (and presses it once) OR the
-  // step already behind us, and never presses OK anywhere else.
-  const past = /^(COMBAT_DECLARE_BLOCKERS|COMBAT_FIRST_STRIKE_DAMAGE|COMBAT_DAMAGE|COMBAT_END|END_OF_COMBAT|MAIN2)$/;
-  await expect
-    .poll(
-      async () => {
-        const phase = (await phaseOf(page))?.phase ?? '';
-        if (past.test(phase)) return 'past';
-        if (/Declare Attackers Step/i.test(await says(page)) && (await enabledOk(page).count()) > 0) return 'stop';
-        return `${phase}: ${await says(page)}`;
-      },
-      { timeout: 25_000, message: 'the attacker either reaches their own priority at Declare Attackers Step or is already past it' },
-    )
-    .toMatch(/^(past|stop)$/);
-  if ((await enabledOk(page).count()) > 0 && /Declare Attackers Step/i.test(await says(page))) await enabledOk(page).click();
-}
+// `phaseOf` and `passDeclareAttackers` (T6): the identical pair
+// `play/combat.ts` already exports for `w54-blockers.spec.ts` — one copy.
 
 /** Press OK (or, failing that, Cancel/"End Turn") to keep a match moving with no particular goal but to advance it. */
 async function passWhatever(page: Page): Promise<void> {

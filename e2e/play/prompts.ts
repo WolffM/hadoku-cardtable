@@ -12,8 +12,9 @@
 
 import type { Page } from '@playwright/test';
 
-/** Asks the board answers on its own, on mount (`ZonePrompts.tsx`): nobody clicks them. */
-export const SELF_ANSWERING = new Set(['tempShowZones', 'openZones']);
+import { ANSWER_KIND, ANSWER_TESTID, SELF_ANSWERING } from '../../apps/ui/src/play/prompts/answer-table.ts';
+
+export { SELF_ANSWERING };
 
 /**
  * Answer the prompt showing on `page`, if any. Returns its method and callId,
@@ -36,34 +37,33 @@ export async function answerPrompt(
   if (opts.leave?.includes(top.method)) return null;
   const { method, callId } = top;
   const sheet = page.locator(`[data-testid="live-prompt"][data-call-id="${callId}"]`);
-  const submit = sheet.getByTestId('prompt-submit');
+  const submit = sheet.getByTestId(ANSWER_TESTID.submit);
   const submittable = async () => (await submit.count()) > 0 && (await submit.isEnabled());
+  const kind = ANSWER_KIND[method];
+  if (kind === undefined) throw new Error(`no hands for a ${method} prompt`);
 
-  switch (method) {
-    case 'showConfirmDialog':
+  switch (kind) {
+    case 'bar-default':
       await sheet.locator('.confirm__button[data-default]').click();
       break;
-    case 'confirm':
-    case 'showOptionDialog': {
-      const preferred = sheet.locator('[data-testid="prompt-option"][data-default]');
-      await ((await preferred.count()) > 0 ? preferred.first() : sheet.getByTestId('prompt-option').first()).click();
+    case 'default-option': {
+      const preferred = sheet.locator(`[data-testid="${ANSWER_TESTID.option}"][data-default]`);
+      await ((await preferred.count()) > 0 ? preferred.first() : sheet.getByTestId(ANSWER_TESTID.option).first()).click();
       break;
     }
-    case 'showInputDialog': {
-      const input = sheet.locator('input[data-testid="prompt-input"]');
+    case 'input': {
+      const input = sheet.locator(`input[data-testid="${ANSWER_TESTID.input}"]`);
       if ((await input.count()) > 0) await input.fill('1');
       await submit.click();
       break;
     }
-    case 'getAbilityToPlay': {
-      const choice = sheet.getByTestId('prompt-choice');
-      await ((await choice.count()) > 0 ? choice.first() : sheet.getByTestId('prompt-cancel')).click();
+    case 'choice-or-cancel': {
+      const choice = sheet.getByTestId(ANSWER_TESTID.choice);
+      await ((await choice.count()) > 0 ? choice.first() : sheet.getByTestId(ANSWER_TESTID.cancel)).click();
       break;
     }
-    case 'getChoices':
-    case 'chooseSingleEntityForEffect':
-    case 'chooseEntitiesForEffect': {
-      const choices = sheet.locator('input[data-testid="prompt-choice"]');
+    case 'tick-until-submittable': {
+      const choices = sheet.locator(`input[data-testid="${ANSWER_TESTID.choice}"]`);
       const count = await choices.count();
       // The file's own header: "the default, the first option" — not
       // "decline, because declining is already a legal answer." An ask whose
@@ -96,11 +96,11 @@ export async function answerPrompt(
       await submit.click();
       break;
     }
-    case 'assignCombatDamage':
-      await sheet.getByTestId('prompt-auto').click();
+    case 'auto-then-submit':
+      await sheet.getByTestId(ANSWER_TESTID.auto).click();
       await submit.click();
       break;
-    case 'assignGenericAmount':
+    case 'increment-until-submittable':
       for (let guard = 0; guard < 100 && !(await submittable()); guard++) {
         const more = sheet.locator('button[aria-label^="more to"]:enabled');
         if ((await more.count()) === 0) break;
@@ -108,19 +108,19 @@ export async function answerPrompt(
       }
       await submit.click();
       break;
-    case 'order': {
-      const places = sheet.locator('[data-testid="order-source"] > li');
+    case 'order-until-submittable': {
+      const places = sheet.locator(`[data-testid="${ANSWER_TESTID.orderSource}"] > li`);
       for (let guard = 0; guard < 100 && !(await submittable()) && (await places.count()) > 0; guard++) {
         await places.first().click();
       }
       await submit.click();
       break;
     }
-    case 'manipulateCardList':
-    case 'sideboard':
+    case 'submit-only':
       await submit.click();
       break;
-    default:
+    case 'self-answering':
+      // Excluded above (`SELF_ANSWERING`); unreachable, kept so the switch is exhaustive.
       throw new Error(`no hands for a ${method} prompt`);
   }
   return { method, callId };

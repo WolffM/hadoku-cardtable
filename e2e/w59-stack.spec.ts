@@ -43,31 +43,11 @@
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
-import { clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts'
+import { castByDrag, clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts'
 import { answerLoneAbility } from './play/prompts.ts';
+import { turnFastModeOff } from './play/prefs.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { closeHeaderSettings, openHeaderSettings } from './play/w32.ts';
-
-/**
- * Fast Mode is ON by default inside the e2e harness (`prefs.ts`'s override); the chain is the
- * pacer's, so it goes off first — and the spec PROVES it went off: the checkbox read on, the
- * click took, and the server logged this seat's `info` row with `fastMode: false` (the client
- * telemetry every settings change writes).
- */
-async function turnFastModeOff(page: Page, stack: { serverLogFile: string }, seat: number): Promise<void> {
-  const toggle = (await openHeaderSettings(page)).locator('[data-testid="live-settings-fast-mode"]');
-  await expect(toggle, `seat ${seat}: the Fast Mode box reads ON before the click (the harness default)`).toBeChecked();
-  await toggle.click();
-  await expect(toggle, `seat ${seat}: the click took`).not.toBeChecked();
-  await closeHeaderSettings(page);
-  await expect
-    .poll(() => serverLog(stack).some((r) => r.evt === 'client' && r.kind === 'info' && r.seat === seat && r.fastMode === false), {
-      timeout: 10_000,
-      message: `seat ${seat}: the server logged Fast Mode off`,
-    })
-    .toBe(true);
-}
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -104,54 +84,8 @@ async function placedSpellId(page: Page, name: string): Promise<string> {
 }
 
 
-/**
- * The ONE cast step every spell in this spec goes through: a held drag from
- * the hand to `to` (AD4 rule 2/3 — "placed by a drag", never a plain click),
- * then whatever Forge asks next (a plain mana payment; the lone-ability
- * sheet full control leaves to the player; a single-legal-target ask is
- * auto-answered the way Hinder's own cast reaches it) until the stack count
- * on `page` changes. A cast with a real target choice is the caller's.
- */
-async function castByDrag(page: Page, stack: { serverLogFile: string }, cardId: number, to: Point): Promise<void> {
-  const before = await stackCount(page);
-  // Not before Forge offers it: a drag released before the offer is a no-op, and the first act after
-  // a scenario start can be dropped outright (ledger AB15, `PlayBridge.java`'s `refreshActionable`) —
-  // so the drag is repeated, bounded, while the card is still in the hand and the stack unchanged.
-  await expect.poll(() => offered(page), { timeout: 45_000, message: `card ${cardId} is offered` }).toContain(cardId);
-  const inHand = () => page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${cardId}"]`).count();
-  for (let attempt = 0; attempt < 3; attempt++) {
-    // A press that does not lift (the offer moved between the poll and the press) is not a failure
-    // yet: the next attempt waits for the offer again.
-    if (!(await dragHandCard(page, cardId, to))) {
-      await expect.poll(() => offered(page), { timeout: 10_000 }).toContain(cardId).catch(() => undefined);
-      continue;
-    }
-    const arrived = await expect
-      .poll(
-        async () => {
-          const text = await says(page);
-          if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
-          await answerLoneAbility(page);
-          return stackCount(page);
-        },
-        { timeout: 8_000 },
-      )
-      .not.toBe(before)
-      .then(
-        () => true,
-        () => false,
-      );
-    if (arrived) return;
-    if ((await inHand()) === 0) break;
-  }
-  // Name what happened before failing: what the server saw played, and what this page draws.
-  const placements = serverLog(stack).filter((r) => r.evt === 'placement').map((r) => `seat ${String(r.seat)} card ${String(r.card)}`);
-  const hand = await page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => `${e.getAttribute('data-board-card')}:${e.querySelector('.card__name')?.textContent?.trim() ?? ''}`));
-  expect(
-    await stackCount(page),
-    `card ${cardId} reached the stack — placements on the server: [${placements.join(', ')}]; this hand now: [${hand.join(', ')}]; says: "${await says(page)}"`,
-  ).not.toBe(before);
-}
+// `castByDrag` (T6): the identical drag-and-retry-and-wait-for-stack cast
+// step, now `play/board.ts`'s own — one copy.
 
 /** A press-drag-release of an ALREADY-PLACED spell (S's rule 5) — no cast, no target, just a move. */
 async function dragPlacedSpell(page: Page, locator: Locator, to: Point): Promise<void> {

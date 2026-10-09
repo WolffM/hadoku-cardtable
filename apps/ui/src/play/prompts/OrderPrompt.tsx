@@ -51,11 +51,9 @@
 
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
-import { CardTile } from '../../components/CardTile.tsx';
-
-import { PromptShell, promptTileFor } from './PromptShell.tsx';
-import { plainRulesText, refName } from './lookup.ts';
-import { moveItem, orderProblems } from './rules.ts';
+import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
+import { refName, translateTargetWords } from './lookup.ts';
+import { dropBeforeIndex, moveItem, orderProblems } from './rules.ts';
 import { rowIdUnder, testIdUnder, usePressDragLift } from './scry-drag.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 
@@ -63,7 +61,11 @@ const LIST_TESTIDS = ['order-source', 'order-dest'] as const;
 
 export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   const all = [...ask.sourceChoices, ...ask.destChoices];
-  const labelOf = new Map(all.map((c) => [c.key, plainRulesText(c.label)]));
+  // NOT `plainRulesText` (T4 stripped its card-id suffix): a card item's
+  // label is an IDENTITY fallback (`cardOrWordsFace` → `promptTileFor` →
+  // `nameFromForgeLabel`), which only strips the suffix when it matches
+  // THIS card's own id — see `ChoicePrompts.tsx`'s identical note.
+  const labelOf = new Map(all.map((c) => [c.key, translateTargetWords(c.label)]));
   /** The forge card id an item that stands for a card carries, by choice key. */
   const cardIdOf = new Map(
     all.flatMap((c) => (c.ref !== null && c.ref.kind === 'card' ? [[c.key, c.ref.id] as const] : [])),
@@ -108,7 +110,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
           // Dropped on a PLACED row: land just before it.
           if (placed.includes(key)) {
             const from = placed.indexOf(key);
-            setPlaced((p) => moveItem(p, p.indexOf(key), from < destIndex ? destIndex - 1 : destIndex));
+            setPlaced((p) => moveItem(p, p.indexOf(key), dropBeforeIndex(from, destIndex)));
           } else {
             setPlaced((p) => {
               const to = p.indexOf(overKey);
@@ -151,12 +153,8 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     }
   };
 
-  /** One item's face: the tile when the item is a card, the words otherwise. */
-  const face = (key: string) => {
-    const id = cardIdOf.get(key);
-    if (id !== undefined) return <CardTile card={promptTileFor(lookup, id, labelOf.get(key)!)} />;
-    return <span className="prompt__item">{labelOf.get(key)}</span>;
-  };
+  /** One item's face: the tile when the item is a card, the words otherwise (T5). */
+  const face = (key: string) => cardOrWordsFace(lookup, cardIdOf.get(key), labelOf.get(key));
 
   return (
     <PromptShell method="order" title={ask.title} problems={problems} onSubmit={submit}>

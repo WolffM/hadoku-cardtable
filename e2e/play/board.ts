@@ -15,7 +15,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { enterMatch, twoLegalDecks } from './enter.ts';
 import type { ForgeAvailability } from './harness.ts';
-import { answerPrompt } from './prompts.ts';
+import { answerLoneAbility, answerPrompt } from './prompts.ts';
 
 export { enterMatch, twoLegalDecks };
 
@@ -62,6 +62,22 @@ export async function offered(page: Page): Promise<number[]> {
     .locator('[data-board-card][data-selectable]')
     .evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
   return ids.sort((a, b) => a - b);
+}
+
+/**
+ * The OFFERED card named `name`, or `undefined` if it is not (yet) among
+ * them — `offered()` with a name filter, for a scenario that gives the
+ * viewer a castable hand card alongside untapped lands Forge ALSO offers
+ * (their own mana ability at priority, wave 35's own land-tapping fix), so
+ * `offered()[0]` is not reliably the one card a spec means (`w35.spec.ts`'s
+ * own report: it resolved to a Swamp already in play and clicked that
+ * instead of Thoughtseize).
+ */
+export async function offeredNamed(page: Page, name: string): Promise<number | undefined> {
+  const cards = await page
+    .locator('[data-board-card][data-selectable]')
+    .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));
+  return cards.find((c) => c.name === name)?.id;
 }
 
 /** The decision-area prompt sheet, if one is showing. */
@@ -295,6 +311,65 @@ export async function castCard(page: Page, cardId: number): Promise<void> {
   } catch {
     throw new Error(`castCard(${cardId}) never saw the stack change — stuck on "${await says(page)}"`);
   }
+}
+
+/**
+ * `dragHandCard` with the retry a multi-screen, full-control chain needs
+ * (T6, folded from `w59-stack.spec.ts`'s own, AD4 rule 2/3 — "placed by a
+ * drag", never a plain click): a held drag from the hand to `to`, then
+ * whatever Forge asks next — a plain mana payment, the lone-ability sheet
+ * full control leaves to the player (`answerLoneAbility`, not the generic
+ * `answerPrompt`: a seat under full control answers nothing on its own) —
+ * until the stack count on `page` changes. Not before Forge offers the
+ * card: a drag released before the offer is a no-op, and the first act
+ * after a scenario start can be dropped outright (ledger AB15,
+ * `PlayBridge.java`'s own `refreshActionable`), so the drag is repeated,
+ * bounded, while the card is still in the hand and the stack unchanged. A
+ * cast with a real target choice is the caller's.
+ */
+export async function castByDrag(
+  page: Page,
+  stack: { serverLogFile: string },
+  cardId: number,
+  to: { x: number; y: number },
+): Promise<void> {
+  const before = await stackCount(page);
+  await expect.poll(() => offered(page), { timeout: 45_000, message: `card ${cardId} is offered` }).toContain(cardId);
+  const inHand = () => page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${cardId}"]`).count();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // A press that does not lift (the offer moved between the poll and the press) is not a failure
+    // yet: the next attempt waits for the offer again.
+    if (!(await dragHandCard(page, cardId, to))) {
+      await expect.poll(() => offered(page), { timeout: 10_000 }).toContain(cardId).catch(() => undefined);
+      continue;
+    }
+    const arrived = await expect
+      .poll(
+        async () => {
+          const text = await says(page);
+          if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+          await answerLoneAbility(page);
+          return stackCount(page);
+        },
+        { timeout: 8_000 },
+      )
+      .not.toBe(before)
+      .then(
+        () => true,
+        () => false,
+      );
+    if (arrived) return;
+    if ((await inHand()) === 0) break;
+  }
+  // Name what happened before failing: what the server saw played, and what this page draws.
+  const placements = serverLog(stack).filter((r) => r.evt === 'placement').map((r) => `seat ${String(r.seat)} card ${String(r.card)}`);
+  const hand = await page
+    .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
+    .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-board-card')}:${e.querySelector('.card__name')?.textContent?.trim() ?? ''}`));
+  expect(
+    await stackCount(page),
+    `card ${cardId} reached the stack — placements on the server: [${placements.join(', ')}]; this hand now: [${hand.join(', ')}]; says: "${await says(page)}"`,
+  ).not.toBe(before);
 }
 
 /* ── rooms ────────────────────────────────────────────────────────────── */

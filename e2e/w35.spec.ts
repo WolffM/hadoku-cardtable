@@ -49,7 +49,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enterMatch, livePrompt, makeTitled, offered, stackCount } from './play/board.ts';
+import { clickHandCard, enterMatch, livePrompt, makeTitled, offered, offeredNamed, promptMethod, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { playMessagesOf } from './play/frames.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -62,29 +62,9 @@ const titled = makeTitled(forge);
 
 /* ── shared reading of the board (same contracts as w33/w34.spec.ts) ────── */
 
-/**
- * The offered card named `name`, or `undefined` if it is not (yet) among
- * them. Every scenario this file uses that gives the viewer a hand card to
- * cast ALSO gives untapped lands on the battlefield (F's wave 35 fix:
- * `setWeaklySelectable` now offers a land's own mana ability at priority
- * too) — so `offered()[0]` is not reliably the hand card a spec means. A
- * first draft of this file assumed it was, and three specs (the swallowed
- * press, R14, R7) happened to pass anyway purely on id-ordering luck; R4
- * caught it for real: `offered()[0]` resolved to the Swamp already in play,
- * which this clicked instead of Thoughtseize, so nothing this spec expected
- * ever happened. Matching by name is the fix, used everywhere this file
- * picks "the one card I actually mean" out of a set Forge also offers lands
- * in.
- */
-async function offeredNamed(page: Page, name: string): Promise<number | undefined> {
-  const cards = await page.locator('[data-board-card][data-selectable]').evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));
-  return cards.find((c) => c.name === name)?.id;
-}
-
-const promptMethodOf = async (page: Page): Promise<string | null> => {
-  if ((await livePrompt(page).count()) === 0) return null;
-  return livePrompt(page).first().getAttribute('data-method');
-};
+// `offeredNamed` (T6): the identical name-matching `offered()` filter, now
+// in `play/board.ts` — the spec's own report on why `offered()[0]` alone is
+// not safe here lives in that function's doc now.
 
 /**
  * A DOM contract another lane owns and has not landed yet (or has landed
@@ -241,7 +221,7 @@ test(titled('the swallowed press — casting Ponder under Full Control, one OK c
     // (the same wire shape w34 §E2 proved), or the stack is already clearing,
     // well inside a generous window, with no second OK press ever sent.
     await expect
-      .poll(async () => (await promptMethodOf(alice.page)) === 'order' || (await stackCount(alice.page)) === 0, {
+      .poll(async () => (await promptMethod(alice.page)) === 'order' || (await stackCount(alice.page)) === 0, {
         timeout: 20_000,
         message: `one OK press was enough — stuck on "${await says(alice.page)}"`,
       })

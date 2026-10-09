@@ -30,6 +30,7 @@ import {
   declaringBlockers,
   declaringCombat,
   payingMana,
+  genuinelyAsked,
   isBlockAssignment,
   ingest,
   isAutoYieldOn,
@@ -957,6 +958,40 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
     expect(attackersLeft(theirTurn), 'the opponent\'s turn').toBe(false);
   });
 
+});
+
+/*
+ * `genuinelyAsked` — T9. `LiveBoard.tsx`'s own board-flag gate (wave 63 lane
+ * F's "seam filter") combined the SAME two facts by hand; this is the one
+ * place that does it now, so a future reader has one function to call rather
+ * than a formula to copy correctly.
+ */
+describe('genuinelyAsked: the fact the board’s priority flag gates on (T9)', () => {
+  it('"you": true on the bare bar case — Forge\'s bar live, nothing else open', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(true);
+  });
+
+  it('"you": true whenever the caller\'s own pop-ups say so, even with no bar at all', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority')]);
+    expect(genuinelyAsked(m, 'you', { ownDecisionOpen: true, waitingForOpponent: false })).toBe(true);
+  });
+
+  it('"you": false once Forge\'s own yield window is up ("Yielding until…"), even with an enabled bar', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Yielding until end of turn. You may cancel this.'), bar(true)]);
+    expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(false);
+  });
+
+  it('"them": the server\'s waitingForOpponent fact, but never while the viewer\'s own is also open', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(false)]);
+    expect(genuinelyAsked(m, 'them', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(true);
+    expect(genuinelyAsked(m, 'them', { ownDecisionOpen: true, waitingForOpponent: true })).toBe(false);
+    expect(genuinelyAsked(m, 'them', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(false);
+  });
 });
 
 /*

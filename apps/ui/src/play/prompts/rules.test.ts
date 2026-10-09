@@ -18,6 +18,7 @@ import {
   combatDamageRules,
   confirmProblems,
   deckFromSideboardAsk,
+  dropBeforeIndex,
   genericAmountProblems,
   getChoicesProblems,
   inputDialogProblems,
@@ -571,6 +572,13 @@ describe('manipulateCardList', () => {
   it('moveItem moves one item and keeps the rest in order', () => {
     expect(moveItem([1, 2, 3, 4], 0, 2)).toEqual([2, 3, 1, 4]);
     expect(moveItem([1, 2, 3, 4], 3, 0)).toEqual([4, 1, 2, 3]);
+  });
+  // T5: `OrderPrompt`'s placed-list drop and `ManipulateCardListPrompt`'s
+  // `dropBefore` both did this arithmetic by hand — one copy here.
+  it('dropBeforeIndex shifts the target back by one only when the dragged item sat before it', () => {
+    expect(dropBeforeIndex(0, 3)).toBe(2); // moving from 0: everything after it shifts back
+    expect(dropBeforeIndex(3, 0)).toBe(0); // moving from after the target: target index unchanged
+    expect(moveItem([1, 2, 3, 4], 0, dropBeforeIndex(0, 3))).toEqual([2, 3, 1, 4]); // 1 lands just before 4
   });
 });
 

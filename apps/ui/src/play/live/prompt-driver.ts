@@ -15,6 +15,8 @@
 
 import { fireEvent } from '@testing-library/react';
 
+import { ANSWER_KIND, ANSWER_TESTID } from '../prompts/answer-table.ts';
+
 function click(el: Element | null | undefined, what: string): void {
   if (el === null || el === undefined) throw new Error(`no ${what} to click`);
   fireEvent.click(el);
@@ -42,36 +44,38 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
   const sheet = root.querySelector<HTMLElement>('[data-testid="live-prompt"]');
   if (sheet === null) return null;
   const method = sheet.dataset.method ?? '';
-  const submit = () => click(sheet.querySelector('[data-testid="prompt-submit"]'), `${method} submit`);
+  const submit = () => click(sheet.querySelector(`[data-testid="${ANSWER_TESTID.submit}"]`), `${method} submit`);
+  const kind = ANSWER_KIND[method];
+  if (kind === undefined || kind === 'self-answering') return null;
 
-  switch (method) {
-    case 'showConfirmDialog':
+  switch (kind) {
+    case 'bar-default':
       click(
         sheet.querySelector(prefs.confirmAgainstDefault === true ? '.confirm__button:not([data-default])' : '.confirm__button[data-default]'),
         'confirm button',
       );
       return method;
-    case 'confirm':
-    case 'showOptionDialog': {
-      const options = all(sheet, '[data-testid="prompt-option"]');
+    case 'default-option': {
+      const options = all(sheet, `[data-testid="${ANSWER_TESTID.option}"]`);
       click(options.find((o) => o.dataset.default !== undefined) ?? options[0], `${method} option`);
       return method;
     }
-    case 'showInputDialog': {
-      const input = sheet.querySelector<HTMLInputElement | HTMLSelectElement>('[data-testid="prompt-input"]');
+    case 'input': {
+      const input = sheet.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-testid="${ANSWER_TESTID.input}"]`);
       if (input instanceof HTMLInputElement) fireEvent.change(input, { target: { value: prefs.input ?? '1' } });
       submit();
       return method;
     }
-    case 'getAbilityToPlay':
+    case 'choice-or-cancel':
       // Forge can offer an empty list; "None" is then the only answer.
-      click(sheet.querySelector('[data-testid="prompt-choice"]') ?? sheet.querySelector('[data-testid="prompt-cancel"]'), 'ability or None');
+      click(
+        sheet.querySelector(`[data-testid="${ANSWER_TESTID.choice}"]`) ?? sheet.querySelector(`[data-testid="${ANSWER_TESTID.cancel}"]`),
+        'ability or None',
+      );
       return method;
-    case 'getChoices':
-    case 'chooseSingleEntityForEffect':
-    case 'chooseEntitiesForEffect': {
-      const submitButton = sheet.querySelector<HTMLButtonElement>('[data-testid="prompt-submit"]');
-      const choices = all(sheet, 'input[data-testid="prompt-choice"]');
+    case 'tick-until-submittable': {
+      const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);
+      const choices = all(sheet, `input[data-testid="${ANSWER_TESTID.choice}"]`);
       const preferred = prefs.choice === undefined ? undefined : choices.find((c) => prefs.choice!(c.parentElement?.textContent ?? ''));
       if (preferred !== undefined) fireEvent.click(preferred);
       // Tick options in order until the answer is sendable.
@@ -82,14 +86,14 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
       submit();
       return method;
     }
-    case 'assignCombatDamage':
-      click(sheet.querySelector('[data-testid="prompt-auto"]'), 'Auto');
+    case 'auto-then-submit':
+      click(sheet.querySelector(`[data-testid="${ANSWER_TESTID.auto}"]`), 'Auto');
       submit();
       return method;
-    case 'assignGenericAmount': {
+    case 'increment-until-submittable': {
       // No Auto here: press "+" on the first row that takes more, until the
       // whole amount is placed and the answer is sendable.
-      const submitButton = sheet.querySelector<HTMLButtonElement>('[data-testid="prompt-submit"]');
+      const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);
       for (let guard = 0; guard < 100 && submitButton?.disabled === true; guard += 1) {
         const more = all(sheet, 'button[aria-label^="more to"]').find((b) => !(b as HTMLButtonElement).disabled);
         if (more === undefined) break;
@@ -98,20 +102,17 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
       submit();
       return method;
     }
-    case 'order': {
-      const submitButton = sheet.querySelector<HTMLButtonElement>('[data-testid="prompt-submit"]');
-      for (const place of all(sheet, '[data-testid="order-source"] button')) {
+    case 'order-until-submittable': {
+      const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);
+      for (const place of all(sheet, `[data-testid="${ANSWER_TESTID.orderSource}"] button`)) {
         if (submitButton !== null && !submitButton.disabled) break;
         fireEvent.click(place);
       }
       submit();
       return method;
     }
-    case 'manipulateCardList':
-    case 'sideboard':
+    case 'submit-only':
       submit();
       return method;
-    default:
-      return null;
   }
 }

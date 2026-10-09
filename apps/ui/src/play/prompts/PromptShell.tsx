@@ -13,6 +13,7 @@
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
+import { CardTile } from '../../components/CardTile.tsx';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import type { DraftCard } from '@hadoku/shared';
 
@@ -280,4 +281,60 @@ export function nameFromForgeLabel(label: string, forgeId: number): string {
   const suffix = ` (${forgeId})`;
   if (!label.endsWith(suffix)) return label;
   return label.slice(0, -suffix.length).replace(/^\[[^\]]*\] /, '');
+}
+
+/**
+ * A row's face: the board's `CardTile` when it stands for a card, the words
+ * otherwise. `OrderPrompt`'s dual list (a mix of cards and abilities) and
+ * `ManipulateCardListPrompt`'s pile (always cards) shared this by hand (T5) —
+ * the pile just never takes the words branch.
+ */
+export function cardOrWordsFace(lookup: PromptLookup, cardId: number | undefined, label?: string): ReactNode {
+  if (cardId !== undefined) return <CardTile card={promptTileFor(lookup, cardId, label)} />;
+  return <span className="prompt__item">{label}</span>;
+}
+
+/**
+ * One answer button in a row of them — `showOptionDialog`'s options,
+ * `confirm`'s yes/no (`DialogPrompts.tsx`) and `GetAbilityToPlayPrompt`'s
+ * abilities (`ChoicePrompts.tsx`) rendered this same shape under three
+ * separate hands before T1 folded them into one. The content (plain text, a
+ * `ManaPip`, `RulesText`) and the markers that make sense for it are the
+ * caller's; this owns only the button itself.
+ */
+export function OptionButton({
+  testId,
+  className,
+  dataDefault,
+  dataAnswer,
+  autoFocus,
+  ariaLabel,
+  onClick,
+  children,
+}: {
+  testId: string;
+  className?: string;
+  /** `data-default` — Forge's own default for this ask, where one exists. */
+  dataDefault?: boolean;
+  /** `data-answer` — `confirm`'s own true/false shape, read by `LiveBoard.test.ts`. */
+  dataAnswer?: string;
+  autoFocus?: boolean;
+  ariaLabel?: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={className}
+      data-testid={testId}
+      data-default={dataDefault || undefined}
+      data-answer={dataAnswer}
+      aria-label={ariaLabel}
+      autoFocus={autoFocus === true}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
 }

@@ -1612,6 +1612,39 @@ export function nothingToDecide(match: LiveMatch): boolean {
   return !attackersLeft(view);
 }
 
+/** Forge's own yield window after End Turn (`lblYieldingUntil*`) — moved here from `LiveBoard.tsx` (T9), the one other reader of this fact. */
+export const YIELDING = /^Yielding until /;
+
+/**
+ * This seat genuinely has something to decide right now, rather than Forge's
+ * raw per-frame `hasPriority` ping-ponging through an auto-passed exchange
+ * (T9, from wave 63 lane F's own finding: *"the rail, the control bar and End
+ * Turn's highlight never move during an auto-passed UNTAP/UPKEEP/DRAW. What
+ * moves is `Board.tsx`'s own `.seat__flag`"*). `LiveBoard.tsx`'s priority-flag
+ * gate is the one caller; `ownDecisionOpen` and `waitingForOpponent` are its
+ * own `myOwnDecisionOpen`/`isWaitingForOpponent(match)` — both already
+ * computed there for the pop-ups themselves, so this is the one place that
+ * COMBINES them into the flag's fact, replacing the inline combining step
+ * ("F's seam filter") that used to live beside `withGatedPriority`'s call.
+ * `withGatedPriority` itself (the view transform) is unchanged.
+ *
+ * `'you'`: that own-decision set, or the bare case neither covers — Forge's
+ * bar simply live with nothing else open (an ordinary "your move, nothing on
+ * the stack" priority pass). `'them'`: the viewer's own is false AND the
+ * server's own `waitingForOpponent` fact is true — never both at once
+ * (`isWaitingForOpponent`'s own note on staleness).
+ */
+export function genuinelyAsked(
+  match: LiveMatch,
+  seat: 'you' | 'them',
+  open: { ownDecisionOpen: boolean; waitingForOpponent: boolean },
+): boolean {
+  const yielding = YIELDING.test(match.prompt ?? '');
+  const bar = match.buttons;
+  const viewerOpen = open.ownDecisionOpen || (!yielding && bar !== null && (bar.enable1 || bar.enable2));
+  return seat === 'you' ? viewerOpen : open.waitingForOpponent && !viewerOpen;
+}
+
 /**
  * This seat is declaring attackers or blockers — the two moments when a press on
  * one of its OWN battlefield cards is an answer to Forge rather than a tidy-up.

@@ -279,6 +279,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  genuinelyAsked,
   isAutoYieldOn,
   nothingToDecide,
   noteAutoAnswered,
@@ -293,6 +294,7 @@ import {
   setAutoYield,
   setFullControl,
   subscribe,
+  YIELDING,
   type LiveAsk,
   type LiveClickables,
   type LiveMatch,
@@ -394,8 +396,6 @@ function reportClient(transport: Pick<MatchTransport, 'emit'>, matchId: string, 
 }
 
 /** Forge's own yield window after End Turn (`lblYieldingUntilEndOfTurn`, `lblYieldingUntilPhaseFmt`, `lblYieldingUntilStackClears`). */
-const YIELDING = /^Yielding until /;
-
 /** Forge's priority status block with something on the stack: "Priority: … / Turn: … / Phase: … / Stack: N to Resolve." */
 const PRIORITY_OVER_STACK = /^Priority: [^\n]*\nTurn: [^\n]*\nPhase: [^\n]*\nStack: \d+ to Resolve\.?$/;
 
@@ -1179,8 +1179,9 @@ export function useCrawlGuard(phase: string | null): boolean {
  * `view`, with each player's `hasPriority` gated on `open` — true only while
  * that seat genuinely has something to decide. An auto-passed window draws
  * no flag at all; a real one draws exactly Forge's own value. The caller
- * keeps `viewerOpen` and `opponentOpen` mutually exclusive, so at most one
- * flag is ever lit. `view` itself, unchanged, when nothing needs correcting.
+ * passes `match.ts`'s own `genuinelyAsked(match, seat, …)` (T9) for both
+ * arguments, which keeps them mutually exclusive, so at most one flag is ever
+ * lit. `view` itself, unchanged, when nothing needs correcting.
  */
 export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponentOpen: boolean): BoardView {
   let changed = false;
@@ -1741,16 +1742,17 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const myOwnDecisionOpen = askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || decision;
   /*
-   * See `withGatedPriority`'s own note. `viewerOpen` is `myOwnDecisionOpen`
-   * plus the one case it does not cover: a bare "your move, nothing on the
-   * stack" pass, where Forge's bar is simply live with no pop-up over it.
+   * `genuinelyAsked` (`./match.ts`, T9) is now the one place that combines
+   * `myOwnDecisionOpen` with the one case it does not cover — a bare "your
+   * move, nothing on the stack" pass, Forge's bar simply live with no pop-up
+   * over it — and, for the other seat, with `waitingForOpponent` (never both
+   * at once: see that flag's own note on staleness). `withGatedPriority`
+   * itself is unchanged; this replaces what used to be the inline formula
+   * beside its call ("F's seam filter").
    */
-  const viewerOpen = myOwnDecisionOpen || (!yielding && bar !== null && (bar.enable1 || bar.enable2));
-  // `!viewerOpen`: the same guard the banner above already needs (a stale
-  // `waitingForOpponent` fact can outlive the frame that clears it — see its
-  // own note) — this seat's own live decision is never the stale one, so
-  // both flags are never drawn at once.
-  const opponentOpen = waitingForOpponent && !viewerOpen;
+  const asked = { ownDecisionOpen: myOwnDecisionOpen, waitingForOpponent };
+  const viewerOpen = genuinelyAsked(match, 'you', asked);
+  const opponentOpen = genuinelyAsked(match, 'them', asked);
   const visualView = match.view === null ? null : withGatedPriority(match.view, viewerOpen, opponentOpen);
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the

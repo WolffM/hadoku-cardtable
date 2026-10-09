@@ -52,7 +52,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -61,7 +61,7 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { roomIdFromHash } from './play/board.ts';
+import { roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -679,10 +679,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   const offHosts = [...alice.blocked, ...bob.blocked].filter((u) => !ART_HOSTS.has(new URL(u).hostname));
 
   // ── evidence, written before anything below can fail.
-  const serverLog = readFileSync(resolve(RUN_DIR, 'server.jsonl'), 'utf8')
-    .split('\n')
-    .filter((l) => l.startsWith('{'))
-    .map((l) => JSON.parse(l) as Record<string, unknown>);
+  const serverLog = readServerLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') });
   const aliceParticipant = aliceId?.kind === 'human' ? aliceId.participantId : '';
   refresh.guarded = serverLog
     .filter((l) => l.evt === 'disconnected' && l.participantId === aliceParticipant)

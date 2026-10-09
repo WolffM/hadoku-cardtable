@@ -21,8 +21,8 @@ import { useState } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { PromptShell, promptTileFor } from './PromptShell.tsx';
-import { isZoneDividerLabel, plainRulesText, promptText, refName, type PromptLookup } from './lookup.ts';
+import { OptionButton, PromptShell, promptTileFor } from './PromptShell.tsx';
+import { isZoneDividerLabel, plainRulesText, promptText, refName, translateTargetWords, type PromptLookup } from './lookup.ts';
 import { RulesText } from './RulesText.tsx';
 import {
   abilityProblems,
@@ -201,7 +201,13 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
             return <li key={c.key} className="prompt__divider" role="separator" aria-hidden="true" />;
           }
           const cardRef = cardOfOption(c.ref);
-          const name = plainRulesText(c.label);
+          // NOT `plainRulesText` (T4 stripped its card-id suffix): this label
+          // is an IDENTITY `ChoiceTile` can fall back to (`nameFromForgeLabel`,
+          // `PromptShell.tsx`), which only strips the suffix when it matches
+          // THIS card's own id — blindly stripping it first would let a
+          // mismatched id's art be guessed (`choices.test.ts`'s own safety
+          // case: "a label whose parenthesis is not this card's id").
+          const name = translateTargetWords(c.label);
           return (
             <li key={c.key} data-card-id={cardRef !== null ? cardRef.id : undefined}>
               {bounds.max === 0 ? (
@@ -355,9 +361,14 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
       <ul className="prompt__list">
         {ask.abilities.map((ab) => (
           <li key={ab.id}>
-            <button type="button" className="prompt__choice" data-testid="prompt-choice" aria-label={plainRulesText(refName(lookup, ab))} onClick={() => answer(ab)}>
+            <OptionButton
+              testId="prompt-choice"
+              className="prompt__choice"
+              ariaLabel={plainRulesText(refName(lookup, ab))}
+              onClick={() => answer(ab)}
+            >
               <RulesText text={refName(lookup, ab)} />
-            </button>
+            </OptionButton>
           </li>
         ))}
       </ul>

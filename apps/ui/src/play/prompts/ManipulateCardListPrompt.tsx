@@ -75,11 +75,9 @@
 
 import { useState } from 'react';
 
-import { CardTile } from '../../components/CardTile.tsx';
-
-import { PromptShell, promptTileFor } from './PromptShell.tsx';
+import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
-import { manipulateProblems, moveItem } from './rules.ts';
+import { dropBeforeIndex, manipulateProblems, moveItem } from './rules.ts';
 import { rowIdUnder, testIdUnder, usePressDragLift } from './scry-drag.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
 
@@ -133,12 +131,12 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     setPlaced((chosen) => chosen.filter((x) => x !== id));
     setArmed(null);
   };
-  /** Drop `id` just before the tile that is currently at `before`. */
+  /** Drop `id` just before the tile that is currently at `before` (T5). */
   const dropBefore = (id: number, before: number) => {
     setCards((pile) => {
       const from = pile.findIndex((c) => c.id === id);
       if (from === -1 || from === before) return pile;
-      return moveItem(pile, from, from < before ? before - 1 : before);
+      return moveItem(pile, from, dropBeforeIndex(from, before));
     });
     setPlaced((chosen) => chosen.filter((x) => x !== id));
     setArmed(null);
@@ -228,7 +226,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
           // this whole file is about, so it is not drawn.
           const clickable = canMove && ends.length > 0;
           const name = refName(lookup, card);
-          const tile = <CardTile card={promptTileFor(lookup, card.id)} />;
+          const tile = cardOrWordsFace(lookup, card.id);
           return (
             <li
               key={card.id}
