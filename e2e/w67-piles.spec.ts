@@ -84,8 +84,14 @@ test(titled('a huge graveyard opens as a pile view: a buried flashback card can 
     await expect(view(alice.page), 'Esc closes the pile view').toHaveCount(0, { timeout: 2_000 });
     await alice.page.mouse.click(theirs.x + theirs.width / 2, theirs.y + 4);
     await expect(view(alice.page)).toHaveCount(1, { timeout: 5_000 });
-    const mid = (await alice.page.getByTestId('board-mid').boundingBox())!;
-    await alice.page.mouse.click(mid.x + mid.width / 2, mid.y + mid.height / 2);
+    // Outside: a point of her own battlefield the panel does not cover.
+    const open = (await view(alice.page).boundingBox())!;
+    const field = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    const outside = [field.x + field.width - 8, field.x + 8, field.x + field.width / 2]
+      .map((x) => ({ x, y: field.y + 8 }))
+      .find((p) => p.x < open.x || p.x > open.x + open.width || p.y < open.y || p.y > open.y + open.height)!;
+    console.log(`[piles] bob's pile view at ${Math.round(open.x)},${Math.round(open.y)} ${Math.round(open.width)}×${Math.round(open.height)}; clicking outside at ${Math.round(outside.x)},${Math.round(outside.y)}`);
+    await alice.page.mouse.click(outside.x, outside.y);
     await expect(view(alice.page), 'a click outside closes the pile view').toHaveCount(0, { timeout: 2_000 });
     console.log('[piles] Esc and a click outside each close the view');
 
@@ -120,7 +126,10 @@ test(titled('a huge graveyard opens as a pile view: a buried flashback card can 
         { timeout: 15_000, message: "Think Twice's flashback cast starts" },
       )
       .toBe(true);
-    console.log(`[piles] after the click: says "${(await says(alice.page)).trim()}", payment window ${await alice.page.getByTestId('live-payment-ok').count()}, stack ${await stackCount(alice.page)}`);
+    const exiled = await alice.page.locator('.seat[data-viewer] [data-zone="exile"] .card__name').allTextContents();
+    console.log(
+      `[piles] after the click: payment window ${await alice.page.getByTestId('live-payment-ok').count()}, stack ${await stackCount(alice.page)}, graveyard ${await pile(alice.page, 'you').getAttribute('data-count')}, exile [${exiled.join(', ')}], says "${(await says(alice.page)).replace(/\s+/g, ' ').trim()}"`,
+    );
   } finally {
     await stack.stop();
   }
