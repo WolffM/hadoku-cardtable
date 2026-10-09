@@ -134,3 +134,196 @@ test(titled('a card parked on a question stands still on the opponent’s screen
     await stack.stop();
   }
 });
+
+/*
+ * AE18 — a second prod report (2026-10-08, 22:55Z), on top of AE12: "i just
+ * played a card and from the opponent side, i watched it go to the board
+ * from where it was released. and then a second later it did it again. how
+ * can this happen twice?" Suspect: `presence.ts`'s inferred-handoff fallback
+ * (`backWas`/`HANDOFF_MS`, wave 64/J13) firing a SECOND `landCastGhost` trip
+ * for the same card, independent of the normal `forge:placement` →
+ * `onPlacement` → `flyTile` path AE12/AC8 already proved. This file's own
+ * `watchBack` records the back's POSITION; a second flight can start and end
+ * between two position samples (the ghost's own start and end points can
+ * coincide with the back's last-known spot), so it does not reliably show up
+ * there — hence a dedicated observer on the one DOM signal a flight always
+ * leaves behind: a fresh `.presence__handoff` element.
+ *
+ * Both of this file's existing scenarios cover a PERMANENT (the only case
+ * `landCastGhost` ever fires for — AD4 rule 2 keeps a spell from travelling
+ * at all): `land-into-middle` plays a plain land with no question at all,
+ * `w62-parked` plays one that parks on a question first. Meaningful against
+ * BOTH the pre-fold `presence.ts` (expected to show more than one flight —
+ * reproducing the report) and the fold (expected exactly one): nothing here
+ * depends on this wave's deletion, only on what `.presence__handoff` the
+ * opponent's own page ever creates.
+ */
+
+/**
+ * Bob's whole record for the AE18 window: every `.presence__handoff` tile-copy his page ever
+ * creates (one per "flight" — `landCastGhost`'s own trip), timestamped, AND every change of his
+ * `.presence__back`'s own state — `held` (a back exists with no `data-waiting`, `draw()`'s
+ * `echo.held` branch), `placing` (a back exists WITH `data-waiting`, the `echo.placing !== null`
+ * branch), or `none` (no back at all) — the external, DOM-visible proxy for exactly the three
+ * states `presence.ts`'s own `handsOf()`/`draw()` distinguish, since nothing in this harness can
+ * read that module's closed-over variables directly. Watched from `document.body`, the same scope
+ * `watchBack` already uses, because `landCastGhost` appends into `.board`, not
+ * `[data-board-overlay]`.
+ */
+async function watchBob(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const t0 = performance.now();
+    const flights: { t: number; left: string; top: string }[] = [];
+    const presence: { t: number; state: string }[] = [];
+    const w = window as unknown as { __flights: () => typeof flights; __presence: () => typeof presence };
+    w.__flights = () => flights;
+    w.__presence = () => presence;
+    const stateOf = (): string => {
+      const back = document.querySelector<HTMLElement>('[data-board-overlay] .presence__back');
+      if (back === null) return 'none';
+      return back.hasAttribute('data-waiting') ? 'placing' : 'held';
+    };
+    let lastState = stateOf();
+    presence.push({ t: 0, state: lastState });
+    new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const node of Array.from(m.addedNodes)) {
+          if (node instanceof HTMLElement && node.classList.contains('presence__handoff')) {
+            flights.push({ t: Math.round(performance.now() - t0), left: node.style.left, top: node.style.top });
+          }
+        }
+      }
+      const state = stateOf();
+      if (state === lastState) return;
+      lastState = state;
+      presence.push({ t: Math.round(performance.now() - t0), state });
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-waiting'] });
+  });
+}
+
+/** Alice's own `data-cast-lift` timeline — the sender's half of AE18's fix (cleared the frame the card lands, in one place). Every element that ever carries the attribute, by whichever id/class distinguishes it. */
+async function watchAliceLift(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const t0 = performance.now();
+    const seen: { t: number; who: string; value: string | null }[] = [];
+    const w = window as unknown as { __lift: () => typeof seen };
+    w.__lift = () => seen;
+    const describe = (el: Element): string =>
+      el.hasAttribute('data-cast-ghost')
+        ? `ghost#${el.getAttribute('data-cast-ghost')}`
+        : el.hasAttribute('data-board-card')
+          ? `card#${el.getAttribute('data-board-card')}`
+          : el.tagName.toLowerCase();
+    new MutationObserver((muts) => {
+      for (const m of muts) {
+        if (m.attributeName !== 'data-cast-lift' || !(m.target instanceof Element)) continue;
+        seen.push({ t: Math.round(performance.now() - t0), who: describe(m.target), value: m.target.getAttribute('data-cast-lift') });
+      }
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-cast-lift'] });
+  });
+}
+
+type Flight = { t: number; left: string; top: string };
+type PresenceState = { t: number; state: string };
+type LiftChange = { t: number; who: string; value: string | null };
+const flights = (page: Page): Promise<Flight[]> => page.evaluate(() => (window as unknown as { __flights: () => Flight[] }).__flights());
+const presenceTimeline = (page: Page): Promise<PresenceState[]> => page.evaluate(() => (window as unknown as { __presence: () => PresenceState[] }).__presence());
+const liftTimeline = (page: Page): Promise<LiftChange[]> => page.evaluate(() => (window as unknown as { __lift: () => LiftChange[] }).__lift());
+const describeFlights = (record: Flight[]): string => record.map((f) => `${f.t}ms @${f.left},${f.top}`).join(', ') || 'none';
+const describePresence = (record: PresenceState[]): string => record.map((s) => `${s.t}ms ${s.state}`).join(' → ');
+const describeLift = (record: LiftChange[]): string => record.map((s) => `${s.t}ms ${s.who}=${s.value ?? 'gone'}`).join(' → ') || 'none';
+
+/**
+ * Read every record after the card has landed and the dust (AE18's suspect race) has had a real
+ * window to settle, print it all as `[flights]`/`[presence]` lines, and assert: exactly one
+ * flight, and no back at all survives past it — alice lifts nothing else in these two tests, so
+ * `none` for the WHOLE post-landing window is the only correct reading.
+ */
+async function assertOneFlightAndSettle(bob: Page, alice: Page, label: string): Promise<void> {
+  // AE18's own window: 3 s after the landing, for a second flight or a fresh phantom to show up.
+  await bob.waitForTimeout(3_000);
+  const record = await flights(bob);
+  const presence = await presenceTimeline(bob);
+  const lift = await liftTimeline(alice);
+  console.log(`[flights] ${label}: ${record.length} flight(s) — ${describeFlights(record)}`);
+  console.log(`[presence] ${label} (bob's back state): ${describePresence(presence)}`);
+  console.log(`[presence] ${label} (alice's data-cast-lift): ${describeLift(lift)}`);
+  expect(record.length, `exactly one flight for one played card\n${JSON.stringify(record)}`).toBe(1);
+  // "Two sets of animations" is two EPISODES of a back existing (none → held/placing), whether or
+  // not each one eventually cleans itself up — counting only the clean-up would miss a second
+  // phantom that happens to vanish again before this read. Alice lifts nothing else in either
+  // test, so exactly one episode is the only correct reading.
+  let episodes = 0;
+  for (let i = 1; i < presence.length; i++) {
+    if (presence[i - 1]!.state === 'none' && presence[i]!.state !== 'none') episodes++;
+  }
+  expect(episodes, `exactly one episode of a back existing — "two sets of card play animations" is a second one\n${describePresence(presence)}`).toBe(1);
+  // And, directly, nothing is left standing right now — the one episode did end.
+  const stillThere = await bob.locator('[data-board-overlay] .presence__back').count();
+  expect(stillThere, 'no back is left standing 3 s after the landing').toBe(0);
+}
+
+test(titled('a plain land drop fires the opponent’s handoff flight exactly once (AE18)'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Island' }).not.toEqual([]);
+    const island = (await offered(alice.page))[0]!;
+    const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    const to = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
+
+    await watchBob(bob.page);
+    await watchAliceLift(alice.page);
+    expect(await dragHandCard(alice.page, island, to), 'the press lifted the land').toBe(true);
+    // Realistic, not a scripted stillness: her pointer keeps moving after the release, the way a
+    // person's actually does — exactly the presence traffic the suspected race needs a window in.
+    for (const step of [20, -15, 30, -10]) {
+      await alice.page.mouse.move(to.x + step, to.y + step, { steps: 2 });
+      await alice.page.waitForTimeout(120);
+    }
+    await expect(
+      bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name', { hasText: 'Island' }),
+      'Island is on his view of her battlefield',
+    ).toHaveCount(1, { timeout: 15_000 });
+    await assertOneFlightAndSettle(bob.page, alice.page, 'land-drop');
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('a parked card answered fires the opponent’s handoff flight exactly once (AE18)'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w62-parked');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Godless Shrine' }).not.toEqual([]);
+    const shrine = (await offered(alice.page))[0]!;
+    const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    const to = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
+
+    await watchBob(bob.page);
+    await watchAliceLift(alice.page);
+    expect(await dragHandCard(alice.page, shrine, to), 'the press lifted the land').toBe(true);
+    await expect.poll(() => confirmOpen(alice.page), { timeout: 15_000, message: 'the shockland asks to pay 2 life' }).toBe(true);
+    await confirmYes(alice.page).click();
+    // The same realistic continued movement as the plain-land case, right after the answer.
+    for (const step of [20, -15, 30, -10]) {
+      await alice.page.mouse.move(to.x + step, to.y + step, { steps: 2 });
+      await alice.page.waitForTimeout(120);
+    }
+    await expect(
+      bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name', { hasText: 'Godless Shrine' }),
+      'Godless Shrine is on his view of her battlefield',
+    ).toHaveCount(1, { timeout: 15_000 });
+    await assertOneFlightAndSettle(bob.page, alice.page, 'parked-answered');
+  } finally {
+    await stack.stop();
+  }
+});

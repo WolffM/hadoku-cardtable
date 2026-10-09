@@ -315,6 +315,49 @@ describe('sending', () => {
     handle.dispose();
   });
 
+  /*
+   * AE18 (2026-10-08, the operator, a second report on top of AE12: "it looks
+   * like we have two sets of card play animations going on... a new card
+   * phantom pops into the cursor"): `settleParkedIfResolved`
+   * (`gestures/install.ts`) sets `CAST_LANDING_ATTR` on the real card the
+   * exact frame landing is confirmed, but the ghost's own `data-cast-lift`
+   * does not flip to `'returning'` until the NEXT animation frame
+   * (`landCastGhost`'s own one-frame wait for a painted start point). A
+   * regular, throttled presence tick that lands in that one frame still
+   * finds the ghost `'parked'` and would send `placing.at` once more for a
+   * card this seat already knows is landing.
+   */
+  it('a card mid-landing — CAST_LANDING_ATTR set, the ghost not yet flipped to returning — sends neither held nor parked (AE18, the sender half)', async () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t), aiming: () => false } });
+    const settle = async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+    const ghost = document.createElement('li');
+    ghost.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 });
+    canvas.querySelector('.board')!.append(ghost);
+    ghost.setAttribute('data-cast-lift', 'parked');
+    await settle();
+    expect(t.sent, 'parked: spoken at once').toHaveLength(1);
+    expect(t.sent[0]!.payload).toMatchObject({ held: false, placing: { at: { zone: 'battlefield', x: 0.3, y: 0.515 } } });
+
+    // The real card has landed (`settleParkedIfResolved`'s own synchronous mark) — the ghost's
+    // `data-cast-lift` has NOT changed yet (still `'parked'`, exactly as `landCastGhost` left it
+    // one frame ago). A regular pointer-driven tick, not the lift-change observer, is what a
+    // tick straddling this exact frame would be.
+    const real = document.createElement('li');
+    real.setAttribute('data-cast-landing', '');
+    canvas.querySelector('.board')!.append(real);
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 301, clientY: 501, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    const last = t.sent[t.sent.length - 1]!.payload;
+    expect(last, 'landing in progress: neither held nor parked, whatever the ghost still says').toMatchObject({ held: false, placing: null });
+    handle.dispose();
+  });
+
   it('letting go of a held card sends at once, outside the throttle: held false, the release spot as `placing.at`, no `from`', () => {
     vi.useFakeTimers();
     const { canvas } = board();
@@ -688,6 +731,54 @@ describe('receiving', () => {
     expect(canvas.querySelector('.presence__back'), 'gone — the reservation cleared it').toBeNull();
     expect(placedMod.commitSpell, 'a permanent is never handed to the placed-cards layer').not.toHaveBeenCalled();
     expect(placedMod.placeSpell).not.toHaveBeenCalled();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
+  /*
+   * AE18, the receiver half: the operator's own words are in the test title.
+   * The sender's `placing` was true when SENT (their card was still
+   * `carried`, waiting for their own board to draw the real one) but
+   * `forge:placement` already told this screen the SAME point is done, and
+   * the flight already ran. Presence names no card, so the point the ONE
+   * `forge:placement` of this episode carried is the one thing both messages
+   * share.
+   */
+  it('a `placing` echo naming the same point as an already-flown placement is ignored — "a new card phantom pops into the cursor" (AE18, the receiver half)', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 77, slot: 'back', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.5, y: 0.5 } });
+    const li = document.createElement('li');
+    li.setAttribute('data-board-card', '77');
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
+    theirs = [77];
+    forgetPendingPlacements();
+    wake!();
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    expect(canvas.querySelector('.presence__back'), 'gone — the reservation cleared it').toBeNull();
+
+    // A regular presence tick, sent (truthfully) while their card was still `carried`, delivered
+    // only now — naming the EXACT point the placement that already flew carried.
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: 'battlefield', x: 0.9, y: 0.1 },
+      held: false,
+      from: null,
+      handRows: 1,
+      arranging: null,
+      placing: { at: { zone: 'battlefield', x: 0.5, y: 0.5 } },
+    });
+    expect(canvas.querySelector('.presence__back'), 'no phantom stands back up for a placement already flown').toBeNull();
     handle.dispose();
     forgetPendingPlacements();
   });

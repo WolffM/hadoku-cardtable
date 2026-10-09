@@ -80,7 +80,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 
 import { arrowShape } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
-import { expectedGapBox, landCastGhost } from './gestures/cast.ts';
+import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
@@ -93,6 +93,8 @@ export const WAITING_MS = 15_000;
 export const CLEARED_GRACE_MS = 1500;
 /** How long a hand-move's glide runs — the same number `./gestures/hand.ts`'s own FLIP uses, so the two screens move in step. */
 export const HAND_MOVE_MS = 300;
+/** AE18: how long a `forge:placement`'s own point stays "recently placed" — long enough to catch a `placing` echo sent before it, delivered after; the race is one network hop, never seconds. */
+export const RECENTLY_PLACED_MS = 3000;
 
 /**
  * `live/gestures/hand.ts`'s own seam into this module: a hand reorder
@@ -151,6 +153,9 @@ function boardBox(canvas: HTMLElement): DOMRect | null {
 }
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/** Close enough to call the same client point — a couple of CSS pixels of rounding, never a real move. */
+const samePoint = (a: Point, b: Point): boolean => Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2;
 
 /**
  * A client point as the wire carries it: a fraction of the WHOLE board, plus
@@ -301,6 +306,22 @@ function arrangingOf(canvas: HTMLElement): { card: number; at: Point } | null {
  * `placing.at`, on every message for as long as the card is parked.
  */
 function handsOf(canvas: HTMLElement, aiming: boolean): { held: boolean; parked: Point | null; from: Point | null } {
+  /*
+   * AE18 (2026-10-08, the operator, on top of AE12: "it looks like we have two
+   * sets of card play animations going on... a new card phantom pops into
+   * the cursor"): `settleParkedIfResolved` (`gestures/install.ts`) confirms
+   * landing and sets `CAST_LANDING_ATTR` on the real card SYNCHRONOUSLY, the
+   * same frame — but the ghost's own `CAST_LIFT_ATTR` does not flip to
+   * `'returning'` until the NEXT animation frame (`landCastGhost`'s own
+   * one-frame wait, so the flight has a painted start point to transition
+   * from). A presence tick that lands in that one-frame gap still finds the
+   * ghost `'parked'`, and sends `placing.at` once more for a card this very
+   * seat already knows is landing — the sender's own half of the stale
+   * `placing` the receiver's fix (`draw()`'s `recentlyPlaced` check) now also
+   * guards against. Checked first, cheaply: this is never true outside that
+   * one frame.
+   */
+  if (canvas.querySelector(`[${CAST_LANDING_ATTR}]`) !== null) return { held: false, parked: null, from: null };
   const standing = canvas.querySelector<HTMLElement>(
     '[data-cast-ghost][data-cast-lift="parked"], [data-cast-lift="parked"], [data-cast-lift="carried"]',
   );
@@ -558,6 +579,20 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let backAt: Point | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
+  /**
+   * AE18: the ONE `forge:placement` this episode ever sends, remembered by its
+   * own point — the one thing a `placing` echo of the SAME episode and this
+   * message both carry, since presence names no card. `onPlacement` sets this
+   * the instant it accepts the message, not when the flight actually fires:
+   * motion off, or no settled element yet, still means this episode is over
+   * for presence purposes, same as a flight that ran. `draw()`'s `placing`
+   * branch reads it to ignore a STALE echo — sent (truthfully, at the time)
+   * while this seat's own card was still `carried`, delivered after this
+   * message already told the other screen it is done. `RECENTLY_PLACED_MS`
+   * is generous on purpose: the race it guards is a presence tick straddling
+   * one network hop, never seconds.
+   */
+  let recentlyPlaced: { at: Point; until: number } | null = null;
 
   function overlay(): HTMLElement | null {
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
@@ -743,14 +778,22 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // attached to the cursor came from inferring the first state from the second.
     if (echo.placing !== null) {
       const placingAt = placeSpot(canvas, echo.placing.at);
-      if (waiting === null && placingAt !== null) {
+      // AE18: this echo was true when it was SENT — the sender's own card was still `carried`,
+      // because their board had not yet drawn the real one — but `forge:placement` already told
+      // this screen the SAME point is done, and may have already flown it. Presence names no
+      // card, so the point this episode's one `forge:placement` carried is the one thing both
+      // messages share; a `placing` naming it, arriving after, is that message's stale tail, not
+      // a new episode.
+      const stale = recentlyPlaced !== null && Date.now() < recentlyPlaced.until && placingAt !== null && samePoint(placingAt, recentlyPlaced.at);
+      if (waiting === null && placingAt !== null && !stale) {
         // AD4 rule 2: wait right here — a point, not a battlefield gap — until the spell's id
         // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
         waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null };
       }
-      // A wait already holds the back — the placement's gap, or this point: it stays put.
+      // A wait already holds the back — the placement's gap, or this point: it stays put. A
+      // stale echo with no wait to hold is simply not acted on — see `stale`, above.
     } else if (echo.held) {
       // Lifted: the back follows the pointer. A wait pending (a card of theirs still arriving)
       // keeps its stand-in; their new lift is drawn once that wait ends.
@@ -896,6 +939,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (theirs === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
     expectPlacement(theirs, slot, target, card);
+    recentlyPlaced = { at: from, until: Date.now() + RECENTLY_PLACED_MS };
     stopWaiting();
     const already = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     if (already !== null) {

@@ -643,10 +643,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // (if any) is in progress above, so it is reconciled every paint
     // regardless of branch — a drag or a box-draw does not hide it.
     //
-    // §S superseded the other two of `auto-targets.ts`'s original four
-    // producers: a stack item's own target (`autoTargetArrows`) and the
-    // counterspell arc (`stackTargetArrows`) are now `live/placed.ts`'s own
-    // `.placed__arrow`s, drawn FROM the placed element — the old row's box —
+    // §S superseded, and wave 64/J6 deleted, the other two of `auto-targets.ts`'s
+    // original four producers: a stack item's own target (`autoTargetArrows`)
+    // and the counterspell arc (`stackTargetArrows`) are `live/placed.ts`'s own
+    // `.placed__arrow`s now, drawn FROM the placed element — the old row's box —
     // so feeding them here too would draw every stack-item arrow twice. Only
     // the lasting attack arrow and the lasting block arrow — neither a
     // stack-item concern — stay on this reconciler.
