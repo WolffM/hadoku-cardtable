@@ -258,6 +258,42 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       `back after landing: ${after.length === 0 ? 'none' : after.map((s) => `${rel(s.at, t0)}ms @${s.x},${s.y} ${s.w}x${s.h} [${s.attrs}]`).join(' | ')}; last back change ${lastBack === undefined ? 'none' : `${rel(lastBack.at, t0)}ms [${lastBack.attrs}]`}; alice's pointer still from ${rel(stillFrom, t0)}ms`,
     );
     say(`summary: in alice's battlefield DOM at ${ms(inDom(mine))}, shown for good at ${ms(lastShown(mine))}; in bob's at ${ms(inDom(theirs))}, shown for good at ${ms(lastShown(theirs))}`);
+
+    // B1 — once bob's waiting back has handed over, no back of hers stands up again: a stale
+    // `placing` echo opened a second one, and her pointer traffic kept it alive.
+    const firstWait = backs.find((s) => s.attrs.includes('data-waiting'));
+    const handedOver = firstWait === undefined ? undefined : backs.find((s) => s.at > firstWait.at && s.attrs === 'gone');
+    const phantom = handedOver === undefined ? [] : backs.filter((s) => s.at > handedOver.at && s.attrs !== 'gone');
+    expect(
+      phantom.map((s) => `${rel(s.at, t0)}ms @${s.x},${s.y} ${s.w}x${s.h} [${s.attrs}]`),
+      `no phantom back on bob's screen after the hand-over at ${handedOver === undefined ? '?' : rel(handedOver.at, t0)}ms`,
+    ).toEqual([]);
+
+    // B2 — on both screens the stack card is drawn where the stand-in waits (the gap the card
+    // lands in), never back at the release point.
+    for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
+      const end = rec.filter((s) => s.what === 'field' && s.attrs !== 'gone').at(-1);
+      if (end === undefined) continue;
+      const away = rec.filter((s) => s.at >= t0 && /^stack\d*$/.test(s.what) && s.attrs !== 'gone' && !s.attrs.includes('hidden') && Math.hypot(s.x - end.x, s.y - end.y) > 12);
+      expect(away.map((s) => `${rel(s.at, t0)}ms @${s.x},${s.y}`), `${who}: the stack card stands where the card lands (${end.x},${end.y}), not back at the release`).toEqual([]);
+    }
+
+    // B3 — bob's real card is never shown in its slot before a flight to it starts.
+    const firstFlight = theirs.find((s) => s.at >= t0 && s.what === 'handoff' && s.attrs !== 'gone');
+    if (firstFlight !== undefined) {
+      const early = theirs.filter((s) => s.at >= t0 && s.at < firstFlight.at && s.what === 'field' && s.attrs.includes('vis=visible'));
+      expect(early.map((s) => `${rel(s.at, t0)}ms`), `bob's card shown before its flight at ${rel(firstFlight.at, t0)}ms`).toEqual([]);
+    }
+
+    // No flight to nowhere: a stand-in already standing where the card is drawn is a swap in place,
+    // never a 300 ms "trip" from the gap to the gap with the real card hidden under it.
+    for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
+      const end = rec.filter((s) => s.what === 'field' && s.attrs !== 'gone').at(-1);
+      const flights = rec.filter((s) => s.at >= t0 && (s.what === 'handoff' || /data-cast-lift=returning/.test(s.attrs)));
+      const first = flights[0];
+      if (end === undefined || first === undefined) continue;
+      expect(Math.hypot(first.x - end.x, first.y - end.y), `${who}: a landing flight starts where it ends (${rel(first.at, t0)}ms @${first.x},${first.y})`).toBeGreaterThan(4);
+    }
   } finally {
     await stack.stop();
   }

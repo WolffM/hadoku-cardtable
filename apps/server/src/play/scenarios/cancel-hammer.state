@@ -1,0 +1,19 @@
+# A cast cancelled mid-aim, seen from the other screen (playtest 15, 2026-10-09: "the phantom card
+# back still remains on the board, it should have returned to the hand"). Alice (seat 0) holds
+# Volcanic Hammer ({1}{R} sorcery, 3 damage to any target) and a Mountain, with two untapped
+# Mountains, in an uncontested turn-1 Main Phase 1; bob (seat 1) has Grizzly Bears to aim at. The
+# Mountain in hand gives her hand a second back on bob's screen, so the flight home has a row to
+# land in. Both libraries hold lands so no draw step loses.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Volcanic Hammer;Mountain
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
