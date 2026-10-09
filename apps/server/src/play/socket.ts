@@ -996,6 +996,13 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			arrangements.set(key, echo);
 			if (arrangements.size > ARRANGEMENTS_KEPT) arrangements.delete(arrangements.keys().next().value as string);
 			socket.to(roomFor(match).roomId).emit(ARRANGEMENT_EVENT, echo);
+			// The reason `placement` is logged: the next board-order report (AE19:
+			// match m-55c8f741c53f left no row order behind, and could not be
+			// reproduced) needs this reconstructable from the log. One row per
+			// zone — a type-separated layout sends several in one message.
+			for (const [zone, piles] of Object.entries(echo.rows)) {
+				log({ evt: 'arrangement', matchId: match.id, seat, zone, ids: piles.flat(), pileSizes: piles.map((pile) => pile.length) });
+			}
 		});
 
 		/*

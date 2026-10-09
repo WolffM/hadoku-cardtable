@@ -346,6 +346,11 @@ describe('two seats over the socket', () => {
 		expect(bob.arrangements[0]).toEqual({ ...message, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.arrangements, 'nothing comes back to the sender').toHaveLength(0);
+		// AE19 (match m-55c8f741c53f left no row order behind, and could not be
+		// reproduced): a relay is logged with the board it carried, one row per zone.
+		expect(h.logs.filter((l) => l.evt === 'arrangement')).toEqual([
+			{ evt: 'arrangement', matchId, seat: 0, zone: 'all', ids: [3, 4, 7], pileSizes: [2, 1] },
+		]);
 		// A hand row names hidden cards: refused by the schema, logged, never relayed.
 		alice.socket.emit('forge:arrangement', { ...message, rows: { hand: [[9]] } });
 		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'arrangement-malformed')).toHaveLength(1));
