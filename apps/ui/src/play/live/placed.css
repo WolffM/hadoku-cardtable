@@ -17,7 +17,8 @@
   position: absolute;
   z-index: var(--z-overlay, 20);
   translate: -50% -50%;
-  width: 6.5rem;
+  /* `placed.ts` sets `--card-w` from the battlefield's own measured card (`card-size.ts`); the fallback is `card.css`'s. */
+  width: var(--card-w, 5.5rem);
   /*
    * Unlike an arrow or a floating number — guidance, never a claim — a
    * placed card is a real card: item 3's own rule is that hovering it opens

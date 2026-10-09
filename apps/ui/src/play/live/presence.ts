@@ -82,6 +82,7 @@ import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
+import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
 
@@ -681,13 +682,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** The one back, at `at` (its centre): made if missing, sized like a card in their hand. */
   function standBack(root: HTMLElement, box: DOMRect, at: Point): void {
     if (back === null) back = backElement(root);
-    // A touch smaller than a card in their hand (the operator, 2026-10-07: the back looked a fifth
-    // bigger than a hand card; "it could be 5% smaller"). Their hand's own backs are the measure;
-    // this seat's hand when theirs is empty; the stylesheet's size when neither is drawn.
-    const handCard =
-      canvas.querySelector('[data-zone="hand"][data-owner="them"] li') ?? canvas.querySelector('[data-zone="hand"][data-owner="you"] li');
-    const w = handCard?.getBoundingClientRect().width ?? 0;
-    back.style.width = w > 0 ? `${Math.round(w * 0.95)}px` : '';
+    // A battlefield card's size — the size their lifted card is drawn at (AD2) and the size it lands
+    // at — from the one measure (`card-size.ts`); never a hand card's, never a stylesheet guess.
+    sizeAsBattlefieldCard(back, battlefieldCardWidth(canvas, 'them') ?? battlefieldCardWidth(canvas, 'you'));
     back.style.left = `${at.x - box.left}px`;
     back.style.top = `${at.y - box.top}px`;
     backAt = at;
@@ -1023,6 +1020,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) return;
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
+    sizeAsBattlefieldCard(ghost, battlefieldCardWidth(canvas, 'them'));
     ghost.setAttribute('aria-hidden', 'true');
     const copy = tile.cloneNode(true) as HTMLElement;
     for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {

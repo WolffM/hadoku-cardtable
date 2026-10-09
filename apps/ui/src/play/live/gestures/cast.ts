@@ -18,6 +18,7 @@
  * lifted.
  */
 import type { LiveMatch } from '../match.ts';
+import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../../card-size.ts';
 import { cardBox } from './targets.ts';
 import type { Point } from './types.ts';
 
@@ -146,9 +147,8 @@ export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lif
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
   if (mode === 'lifted') {
-    const bf = ownBattlefieldZone(root);
-    const boardCardWidth = bf === null ? '' : getComputedStyle(bf).getPropertyValue('--card-w').trim();
-    if (boardCardWidth !== '') el.style.setProperty('--card-w', boardCardWidth);
+    const width = battlefieldCardWidth(root, 'you');
+    if (width !== null) sizeAsBattlefieldCard(el, width);
   }
 }
 

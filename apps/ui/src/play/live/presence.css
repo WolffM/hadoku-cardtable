@@ -46,11 +46,11 @@
   background: var(--accent);
 }
 
-/* A card back, not a card: no face, no id. `presence.ts` sizes it from a hand card; this is the fallback. */
+/* A card back, not a card: no face, no id. `presence.ts` sets `--card-w` to the battlefield's measured card (`card-size.ts`). */
 .presence__back {
   position: absolute;
   z-index: 2;
-  width: calc(var(--card-w) * 0.8);
+  width: var(--card-w);
   aspect-ratio: calc(1 / var(--card-tall));
   border-radius: var(--radius);
   background: var(--neutral);
@@ -135,7 +135,7 @@
 /* The card they let go, travelling from where its back was to its place (`[data-cast-lift]` positions it; `gestures.css`). */
 .presence__handoff {
   z-index: 3;
-  width: calc(var(--card-w) * 0.8);
+  width: var(--card-w);
   aspect-ratio: calc(1 / var(--card-tall));
   box-shadow: 0 4px 10px var(--shadow);
 }

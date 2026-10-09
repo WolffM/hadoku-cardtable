@@ -76,6 +76,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { cardImageUrl } from '../../draft/cardImage.ts';
+import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
@@ -545,6 +546,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
     promote(view.stack);
     const overlayBox = root.getBoundingClientRect();
+    // Every stack card is a battlefield card's size (`card-size.ts`, the one source) — measured once per paint.
+    const cardWidth = battlefieldCardWidth(canvas, 'you') ?? battlefieldCardWidth(canvas, 'them');
     const currentIds = new Set(view.stack.map((i) => i.id));
 
     // Resolved/left items first, so a leaving one never counts toward `taken` below.
@@ -558,6 +561,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     view.stack.forEach((item, index) => {
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
+      sizeAsBattlefieldCard(d.el, cardWidth);
       if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) {
         d.pendingUntil = null;
         d.el.removeAttribute('data-placed-pending');

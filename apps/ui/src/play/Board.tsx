@@ -395,6 +395,7 @@ import { mountInspector } from './inspect/index.ts';
 import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
 import { Relations } from './Relations.tsx';
+import { cardWidthIn } from './card-size.ts';
 import './board.css';
 import './card.css';
 
@@ -1356,14 +1357,9 @@ function columnPitch(slotEl: HTMLElement): number | null {
   }
   if (estimate === null && lists > 0) {
     const list = field.querySelector<HTMLElement>('.zone__cards')!;
-    const probe = document.createElement('li');
-    probe.className = 'board-card';
-    probe.style.visibility = 'hidden';
-    list.append(probe);
-    const width = probe.getBoundingClientRect().width;
+    const width = cardWidthIn(list);
     const gap = Number.parseFloat(getComputedStyle(list).columnGap) || 0;
-    probe.remove();
-    if (width > 0) estimate = width + gap;
+    if (width !== null) estimate = width + gap;
   }
   return estimate;
 }
