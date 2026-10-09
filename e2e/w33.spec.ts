@@ -18,7 +18,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, clickHandCard, clickOnce, makeTitled, offered, pressPaymentAuto, serverLog, stackCount } from './play/board.ts';
+import { castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount } from './play/board.ts';
 import { passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -426,16 +426,16 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
     await expect(activeSections.locator('.seat__ring'), 'the ring element is inside the active section').toHaveCount(1);
     const firstActive = await activeSections.getAttribute('data-player-id');
 
-    // Pass the turn along until the OTHER seat becomes active.
-    let moved = false;
-    const deadline = Date.now() + 2 * 60_000;
-    while (!moved && Date.now() < deadline) {
-      for (const f of [alice, bob]) await passWhatever(f.page);
-      const now = await page.locator('[data-testid="player"][data-active]').getAttribute('data-player-id');
-      if (now !== null && now !== firstActive) moved = true;
-      await page.waitForTimeout(40);
-    }
-    expect(moved, 'the active ring moved to the other seat across a turn change').toBe(true);
+    // Pass the turn along until the OTHER seat becomes active. T6: `board.ts`'s own
+    // `grindPriority`, with `passWhatever` (OK-or-Cancel) as its own per-page press.
+    await grindPriority(
+      [alice.page, bob.page],
+      async () => {
+        const now = await page.locator('[data-testid="player"][data-active]').getAttribute('data-player-id');
+        return now !== null && now !== firstActive;
+      },
+      { timeoutMs: 2 * 60_000, press: (p) => passWhatever(p) },
+    );
     await expect(page.locator('[data-testid="player"][data-active]'), 'still exactly one active seat after it moved').toHaveCount(1);
   } finally {
     await stack.stop();
@@ -574,25 +574,14 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     // priority", and a press that lands on it the tick the spell reaches the stack has bob auto-pass
     // and Doom Blade resolve before the stack is read (runs 37762992480, 37791664132 — the server
     // rows: payment forwarded, 177 ms later priority, bob's pass withheld, priority again; the same
-    // race as w51/w56's bolt, `pressPaymentAuto`'s own note).
+    // race as w51/w56's bolt — T6: `board.ts`'s own `castUntilOnStack` now owns this loop).
     const theirCreature = alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-selectable]');
-    const deadline = Date.now() + 20_000;
-    while ((await stackCount(alice.page)) === 0 && Date.now() < deadline) {
-      await answerPrompt(alice.page);
-      if ((await theirCreature.count()) > 0) await theirCreature.first().locator('button').first().click();
-      else await pressPaymentAuto(alice.page);
-      await alice.page.waitForTimeout(40);
-    }
-    const asks = serverLog(stack)
-      .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered' || r.evt === 'prompt-withheld')
-      .slice(-8)
-      .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.kind ?? r.method ?? '')}`);
-    await expect
-      .poll(() => stackCount(alice.page), {
-        timeout: 10_000,
-        message: `Doom Blade reached the stack, targeting the lone legal creature — the precondition this spec needs; says: "${await says(alice.page)}"; server's last asks: [${asks.join(' | ')}]`,
-      })
-      .toBeGreaterThan(0);
+    await castUntilOnStack(alice.page, stack, async () => {
+      const has = (await theirCreature.count()) > 0;
+      if (has) await theirCreature.first().locator('button').first().click();
+      return has;
+    });
+    expect(await stackCount(alice.page), 'Doom Blade reached the stack, targeting the lone legal creature').toBeGreaterThan(0);
 
     // bob's one creature — Memnite, the only legal target — and the stack
     // item itself, by their own ids: the arrow's `data-key` is wave 33's

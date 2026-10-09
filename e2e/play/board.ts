@@ -372,6 +372,61 @@ export async function castByDrag(
   ).not.toBe(before);
 }
 
+/**
+ * Drain whatever Forge asks next (`answerPrompt`, `clickTargetIfReady`, or
+ * `pressPaymentAuto` — never `clickOnce(…, 'ok')`, which can land on the
+ * stack's own OK the instant the spell lands) until the stack changes. T6:
+ * the one cast-wait loop w51/w56-numbers/w33 wrote by hand; w63-yield's own
+ * copy skipped the payment fallback and reddened twice for it (bob's Bolt
+ * costs `{R}`, runs 37859797421, 37870730678).
+ */
+export async function castUntilOnStack(
+  page: Page,
+  stack: { serverLogFile: string },
+  clickTargetIfReady: () => Promise<boolean>,
+  opts: { timeoutMs?: number } = {},
+): Promise<void> {
+  const before = await stackCount(page);
+  const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
+  while ((await stackCount(page)) === before && Date.now() < deadline) {
+    await answerPrompt(page);
+    if (!(await clickTargetIfReady())) await pressPaymentAuto(page);
+    await page.waitForTimeout(40);
+  }
+  const asks = serverLog(stack)
+    .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered' || r.evt === 'prompt-withheld')
+    .slice(-8)
+    .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.method ?? r.kind ?? r.ask ?? '')}`);
+  const open = await page
+    .getByTestId('live-prompt')
+    .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-method') ?? ''}#${e.getAttribute('data-call-id') ?? ''}`));
+  await expect
+    .poll(() => stackCount(page), {
+      timeout: 10_000,
+      message: `the spell reached the stack — says: "${await says(page)}"; open prompts: [${open.join(', ')}]; server's last asks: [${asks.join(' | ')}]`,
+    })
+    .not.toBe(before);
+}
+
+/** Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK; w33's own `passWhatever` (OK-or-Cancel) is its own. */
+export async function grindPriority(
+  pages: readonly Page[],
+  until: () => Promise<boolean>,
+  opts: { timeoutMs?: number; intervalMs?: number; press?: (page: Page) => Promise<void> } = {},
+): Promise<void> {
+  const press = opts.press ?? (async (page: Page) => {
+    if ((await enabledOk(page).count()) > 0) await clickOnce(page, await says(page), 'ok');
+  });
+  const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
+  while (Date.now() < deadline) {
+    if (await until()) return;
+    for (const page of pages) await answerPrompt(page);
+    for (const page of pages) await press(page);
+    await pages[0]!.waitForTimeout(opts.intervalMs ?? 40);
+  }
+  throw new Error('grindPriority timed out waiting for its own condition');
+}
+
 /* ── rooms ────────────────────────────────────────────────────────────── */
 
 /** How long the app has to navigate to a room after it is created or joined. */

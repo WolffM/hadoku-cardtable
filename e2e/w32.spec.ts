@@ -31,7 +31,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
-import { enterMatch, enabledOk, makeTitled, says, serverLog } from './play/board.ts';
+import { enterMatch, grindPriority, makeTitled, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { turnNumber } from './play/turn.ts';
@@ -149,13 +149,9 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
     expect(Math.max(...endTurnGaps), 'End Turn: no phase waits out Forge\'s own pause').toBeLessThan(FORGE_PACE_MS - 60);
 
     // ── A pass that is NOT an End Turn: the other seat, on its own turn, presses OK at
-    // its main phase; the phases it passes through keep Forge's pace.
-    for (let i = 0; i < 120 && !(await endTurnOffered(second.page)); i++) {
-      for (const f of [alice, bob]) await answerPrompt(f.page);
-      // The first seat is not the one being measured: pass whatever stops it.
-      if ((await enabledOk(first.page).count()) > 0 && !(await endTurnOffered(first.page))) await enabledOk(first.page).click();
-      await first.page.waitForTimeout(150);
-    }
+    // its main phase; the phases it passes through keep Forge's pace. T6: `board.ts`'s own
+    // `grindPriority` — the first seat is not the one being measured, so it is the only one pressed.
+    await grindPriority([first.page], () => endTurnOffered(second.page), { timeoutMs: 18_000, intervalMs: 150 });
     expect(await endTurnOffered(second.page), `${second.name} reached its own main phase`).toBe(true);
     const passed = await mark(second.page);
     await second.page.getByTestId('live-button-next-phase').click();

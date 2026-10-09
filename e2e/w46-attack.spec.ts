@@ -46,7 +46,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
+import { clickOnce, enabledOk, grindPriority, makeTitled, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -133,22 +133,20 @@ async function passToDeclareAttackers(page: Page): Promise<void> {
  * Press whichever side's OK is enabled, on both pages, until EITHER side's
  * phase rail matches `phase`. Neither seat has a decision once the attack is
  * declared (bob has no creature to block with), so this is a plain "let the
- * main loop run forward" pump, the same shape `keepBothHands` uses for the
- * mulligan.
+ * main loop run forward" pump — T6: `board.ts`'s own `grindPriority`.
  */
 async function passUntilPhase(pages: readonly Page[], phase: RegExp, timeoutMs = 30_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    for (const page of pages) {
-      const current = await phaseOf(page);
-      if (current !== null && phase.test(current)) return;
-    }
-    for (const page of pages) {
-      if ((await enabledOk(page).count()) > 0) await clickOnce(page, await says(page), 'ok');
-    }
-    await pages[0]!.waitForTimeout(40);
-  }
-  throw new Error(`timed out waiting for phase ${phase}`);
+  await grindPriority(
+    pages,
+    async () => {
+      for (const page of pages) {
+        const current = await phaseOf(page);
+        if (current !== null && phase.test(current)) return true;
+      }
+      return false;
+    },
+    { timeoutMs },
+  );
 }
 
 /** A single held pointer gesture: down on `fromId`'s card, up on `toId`'s — a battlefield-to-battlefield drag. */

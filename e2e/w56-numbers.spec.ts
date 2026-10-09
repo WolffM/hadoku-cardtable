@@ -24,10 +24,9 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, makeTitled, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, enabledOk, grindPriority, makeTitled, says, stackCount } from './play/board.ts';
 import { assignBlock, attackingCards, ownBattlefieldCards, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -99,28 +98,14 @@ test(
       await clickHandCard(alice.page, bolt);
 
       // Drain whatever Forge asks next — the ability choice, the target, the payment — until
-      // the bolt is on the stack. The exact loop `w51-control-box.spec.ts` already proved
-      // against this same scenario, under full control.
-      const castBy = Date.now() + 30_000;
-      while ((await stackCount(alice.page)) === 0 && Date.now() < castBy) {
-        await answerPrompt(alice.page);
-        if ((await opponentFace.getAttribute('data-selectable')) === 'true') await opponentFace.click();
-        else await pressPaymentAuto(alice.page);
-        await alice.page.waitForTimeout(40);
-      }
-      // Name what happened before failing — this line reddened twice in one day on busy claws
-      // (runs 37762992480, 37787167091) and twice green alone, with nothing to read but "0".
-      const asks = serverLog(stack)
-        .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered' || r.evt === 'prompt-withheld')
-        .slice(-8)
-        .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.method ?? r.ask ?? '')}`);
-      const open = await alice.page
-        .getByTestId('live-prompt')
-        .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-method') ?? ''}#${e.getAttribute('data-call-id') ?? ''}`));
-      expect(
-        await stackCount(alice.page),
-        `the bolt is on the stack, aimed at bob — says: "${await says(alice.page)}"; open prompts: [${open.join(', ')}]; face selectable: ${String(await opponentFace.getAttribute('data-selectable'))}; server's last asks: [${asks.join(' | ')}]`,
-      ).toBe(1);
+      // the bolt is on the stack (T6: `board.ts`'s own `castUntilOnStack`, the loop
+      // `w51-control-box.spec.ts` already proved against this same scenario, under full control).
+      await castUntilOnStack(alice.page, stack, async () => {
+        const ready = (await opponentFace.getAttribute('data-selectable')) === 'true';
+        if (ready) await opponentFace.click();
+        return ready;
+      });
+      expect(await stackCount(alice.page), 'the bolt is on the stack, aimed at bob').toBe(1);
 
       // Watch BOTH screens for the number BEFORE resolving, so neither poll starts late and
       // misses the one window (`RISE_MS` is 700ms, short next to a network round trip).
@@ -255,16 +240,10 @@ test(
       // Keep passing alice's own held priority (full control holds every stop) forward through
       // end of combat, main 2 and the end step, until the turn's cleanup wipes the damage off —
       // a turn-based action, never a priority stop of its own, so what this waits for is the
-      // pill's own removal, not a named phase.
-      const cleanupBy = Date.now() + 30_000;
-      while ((await alice.page.locator('.board-number__pill').count()) > 0 && Date.now() < cleanupBy) {
-        // alice: every stop is held by full control. bob: the ACTIVE player's own uninteresting
-        // main phase is still a stop by default (it is his turn to act), so his ordinary "Next
-        // Phase" needs the same press even though his hand is empty.
-        if ((await enabledOk(alice.page).count()) > 0) await enabledOk(alice.page).click();
-        if ((await enabledOk(bob.page).count()) > 0) await enabledOk(bob.page).click();
-        await alice.page.waitForTimeout(60);
-      }
+      // pill's own removal, not a named phase. T6: `board.ts`'s own `grindPriority`.
+      await grindPriority([alice.page, bob.page], async () => (await alice.page.locator('.board-number__pill').count()) === 0, {
+        intervalMs: 60,
+      });
       const pillAfterCleanup = await currentPill(alice.page);
       console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'pill-after-cleanup', pillAfterCleanup })}`);
       expect(pillAfterCleanup, 'cleanup wiped the damage off: the pill is gone').toBeNull();

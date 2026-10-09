@@ -19,7 +19,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, makeTitled, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -72,14 +72,16 @@ test(
       await expect(endTurnSlot(page), 'Cancel Yield').toHaveText('Cancel Yield');
       await expect(endTurnSlot(page)).toHaveAttribute('data-yield', 'on');
 
-      // Bob casts his Lightning Bolt at alice.
+      // Bob casts his Lightning Bolt at alice. T6: `board.ts`'s own `castUntilOnStack` — this
+      // loop used to skip the payment fallback entirely, and reddened twice on main for exactly
+      // that (runs 37859797421, 37870730678: Bolt costs {R}, and nothing here ever paid for it).
       const bolt = await offeredNamed(bob.page, 'Lightning Bolt');
       await clickHandCard(bob.page, bolt);
-      const castBy = Date.now() + 30_000;
-      while ((await stackCount(bob.page)) === 0 && Date.now() < castBy) {
-        if ((await opponentFace(bob.page).getAttribute('data-selectable')) === 'true') await opponentFace(bob.page).click();
-        await bob.page.waitForTimeout(40);
-      }
+      await castUntilOnStack(bob.page, stack, async () => {
+        const ready = (await opponentFace(bob.page).getAttribute('data-selectable')) === 'true';
+        if (ready) await opponentFace(bob.page).click();
+        return ready;
+      });
       expect(await stackCount(bob.page), "bob's Bolt is on the stack, targeting alice").toBe(1);
 
       // The claim: alice's own bar never enables for it, the whole time it

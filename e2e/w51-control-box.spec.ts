@@ -29,9 +29,8 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, enabledOk, makeTitled, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -135,18 +134,12 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
 
     /* ── the bolt on the stack: Forge's OK is the pop-up's ────────────── */
     await clickHandCard(page, await offeredNamed(page, 'Lightning Bolt'));
-    const castBy = Date.now() + 30_000;
-    while ((await stackCount(page)) === 0 && Date.now() < castBy) {
-      await answerPrompt(page);
-      if ((await opponentFace(page).getAttribute('data-selectable')) === 'true') await opponentFace(page).click();
-      else await pressPaymentAuto(page);
-      await page.waitForTimeout(40);
-    }
-    const asks = serverLog(stack)
-      .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered')
-      .slice(-8)
-      .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.method ?? r.kind ?? '')}`);
-    expect(await stackCount(page), `the bolt is on the stack — says: "${await says(page)}"; server's last asks: [${asks.join(' | ')}]`).toBe(1);
+    await castUntilOnStack(page, stack, async () => {
+      const ready = (await opponentFace(page).getAttribute('data-selectable')) === 'true';
+      if (ready) await opponentFace(page).click();
+      return ready;
+    });
+    expect(await stackCount(page), 'exactly the one bolt').toBe(1);
     await expect(page.getByTestId('live-decision-ok'), 'a spell on the stack: Forge’s OK is in the pop-up').toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('live-decision-ok')).toHaveText('OK');
     await expect(page.getByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toHaveCount(0);
