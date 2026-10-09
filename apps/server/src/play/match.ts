@@ -216,6 +216,26 @@ import {
 /** Trace every stop decision (`stop-decided`) — probe mode only, see `maybeAutoPass`. */
 const TRACE_STOPS = process.env.CARDTABLE_PLAY_PROBE === '1';
 
+/**
+ * Trace every frame Forge sends (`forge-frame`), every command sent to Forge (`forge-command`) and
+ * every frame put on a seat's wire (`wire-frame`) — probe mode only. Each log line carries the ms
+ * `t` of its own write, so a gap between a cast and its landing reads straight off the log
+ * (w67-shaman: "2 s of lag" had no row to put a number on).
+ */
+const TRACE_FRAMES = process.env.CARDTABLE_PLAY_PROBE === '1';
+
+/** The few fields of a frame that name it in a trace row. */
+function frameGist(frame: unknown): Record<string, unknown> {
+	const f = (frame ?? {}) as Record<string, unknown>;
+	const gist: Record<string, unknown> = { method: f.method, kind: f.kind };
+	if (typeof f.callId === 'string') gist.callId = f.callId;
+	if (typeof f.message === 'string') gist.message = f.message.slice(0, 120);
+	if (f.method === 'updateButtons') gist.bar = [f.label1, f.enable1, f.label2, f.enable2];
+	const card = f.card as { id?: unknown } | undefined;
+	if (card !== undefined && typeof card.id === 'number') gist.card = card.id;
+	return gist;
+}
+
 export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
 
 export interface OpenAsk {
@@ -952,6 +972,19 @@ export class Match {
 		// auto-answer used to throw here.
 		if (this.replaying) return;
 		if (this.host === null) throw new Error(`match ${this.id} was never started`);
+		if (TRACE_FRAMES) {
+			const { t, seat } = command as { t: string; seat?: number };
+			const detail = command as { frame?: unknown; callId?: unknown; result?: unknown };
+			this.deps.log({
+				evt: 'forge-command',
+				matchId: this.id,
+				cmd: t,
+				seat,
+				...(detail.frame !== undefined ? frameGist(detail.frame) : {}),
+				...(typeof detail.callId === 'string' ? { callId: detail.callId } : {}),
+				...(detail.result !== undefined ? { result: JSON.stringify(detail.result).slice(0, 160) } : {}),
+			});
+		}
 		this.host.send(command);
 	}
 
@@ -1500,6 +1533,7 @@ export class Match {
 			this.noteCoinToss(s, frame);
 		}
 		s.seq += 1;
+		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
 		this.deps.emit(s.seat, { matchId: this.id, cursor, frame });
 	}
@@ -1545,6 +1579,7 @@ export class Match {
 				this.deps.log({ evt: 'forge-ready', matchId: this.id, bootMs: line.bootMs });
 				return;
 			case 'frame':
+				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
 				this.onFrame(line.seat, line.frame);
 				return;
 			case 'probe': {

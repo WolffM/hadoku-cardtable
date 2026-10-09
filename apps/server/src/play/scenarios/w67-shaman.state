@@ -1,0 +1,17 @@
+# w67-shaman (playtest report, 2026-10-09): "playing Viridian Shaman with no available targets
+# creates an awkward lag situation" — about 2 s between the release and the creature standing on
+# the board. Alice casts Viridian Shaman ({2}{G}) off three Forests; its "destroy target artifact"
+# enters trigger has no legal target, because there is no artifact anywhere. Bob's board is empty.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Viridian Shaman
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
