@@ -106,10 +106,10 @@ import {
 } from '@hadoku/forge-wire';
 
 import {
-	autoCancelReason,
-	autoPassReason,
-	autoPayReason,
 	chosenCostConfirm,
+	decideCancel,
+	decidePay,
+	decideStop,
 	DEFAULT_STOP_POLICY,
 	onlyAnswer,
 	PAY_MANA,
@@ -120,6 +120,7 @@ import {
 	readPromptFacts,
 	repeatedAbilityToPlay,
 	type Payment,
+	type PromptFacts,
 	type SeatNotes,
 	type StopPolicy,
 	type StopWindow,
@@ -277,20 +278,29 @@ export interface SeatState {
 	 */
 	passedOn: ServerFrame | null;
 	deck: string | null;
-	/** The notice sent when the match failed; re-sent after every later snapshot. */
-	ended: ServerFrame | null;
 	/**
-	 * Forge's own `finishGame()` for this seat, kept once it has been sent.
-	 * The frame that says the game is over for certain: the `GameOver`
-	 * property on the game view travels in whatever delta happens to flush
-	 * after the end, and on 2026-10-08 (runs 37818461156, 1a42930's) a seat
-	 * drew the loser as lost and never received that delta at all — Forge's
-	 * last flush carried the player's outcome and nothing else followed, so the
-	 * result screen never came. `finishGame` is a direct call on the seat's
-	 * GUI, so it always arrives; re-sent after every later snapshot, like
-	 * `ended`.
+	 * Every end-of-game notice this seat has been told, in resend order — the
+	 * ONE latch wave 64 §S (S7) folded `ended` and `finished` into: two
+	 * `ServerFrame | null` fields with the identical "set once (or, for
+	 * `finished`, at most once per kind), resend after every later snapshot"
+	 * shape, kept apart only by what they carry.
+	 *
+	 *  - `'finished'` is Forge's own `finishGame()` for this seat. The frame
+	 *    that says the game is over for certain: the `GameOver` property on the
+	 *    game view travels in whatever delta happens to flush after the end,
+	 *    and on 2026-10-08 (runs 37818461156, 1a42930's) a seat drew the loser
+	 *    as lost and never received that delta at all — Forge's last flush
+	 *    carried the player's outcome and nothing else followed, so the result
+	 *    screen never came. `finishGame` is a direct call on the seat's GUI, so
+	 *    it always arrives. A later one replaces the earlier entry of the same
+	 *    kind rather than appending (Forge may call it more than once).
+	 *  - `'ended'` is the notice fabricated when the MATCH failed (`endNotice`),
+	 *    sent and recorded at most once per seat.
+	 *
+	 * `resendAfterSnapshot` sends `'finished'` before `'ended'` when both are
+	 * present, same order the two separate fields were always sent in.
 	 */
-	finished: ServerFrame | null;
+	endNotices: { kind: 'finished' | 'ended'; frame: ServerFrame }[];
 	/** Armed when the seat's last connection went; aborts its asks when it fires. */
 	departure: NodeJS.Timeout | null;
 	/** A person is on this seat: connected, or gone for less than the grace. Never true for an AI seat. */
@@ -318,8 +328,8 @@ export interface SeatState {
 	 * (wave 26 §E).
 	 *
 	 * Every shortcut decision for this seat is asked of THIS value: `onlyAnswer`,
-	 * `autoPassReason`, `autoPayReason` and `autoCancelReason` each take a
-	 * `StopPolicy` and each got `auto.ts`'s module default until now. It starts as
+	 * `decideStop`, `decidePay` and `decideCancel` each take a `StopPolicy` and
+	 * each got `auto.ts`'s module default until now. It starts as
 	 * `DEFAULT_STOP_POLICY` and {@link Match.setStopPolicy} moves it, so one seat
 	 * can be strict about payments while the other takes Forge's Auto — which is
 	 * what `board-play.jvm.test.ts` needs to prove that clicking a land pays for a
@@ -351,7 +361,7 @@ export interface SeatState {
 	/**
 	 * The cost this seat's Auto was already pressed for. Forge re-sends the
 	 * payment prompt after every tap, and a second press would answer whatever
-	 * it asks next; one press per cost is all `autoPayReason` ever earns.
+	 * it asks next; one press per cost is all `maybeAutoPay` ever earns.
 	 */
 	autoPaid: string | null;
 	/**
@@ -822,8 +832,7 @@ export class Match {
 			buttons: null,
 			passedOn: null,
 			deck: null,
-			ended: null,
-			finished: null,
+			endNotices: [],
 			departure: null,
 			here: false,
 			fullControl: false,
@@ -1150,8 +1159,11 @@ export class Match {
 	/**
 	 * Re-broadcast the seat roster when, and only when, somebody's
 	 * {@link Match.waitingOnFor} actually moved — call from every place
-	 * {@link SeatState.asks} or {@link SeatState.payment} changes (`openAsk`,
-	 * `openMergedChoice`, `openDisplayOnlyReveal`, `closeAsk`, `trackPayment`).
+	 * {@link SeatState.asks} or {@link SeatState.payment} changes. Wave 64 §S
+	 * (S4) folded the three ask-opening call sites into one
+	 * ({@link Match.openAskFrame}'s own tail), so that half of the list is one
+	 * call site now, not three to keep in sync by hand; `closeAsk` and
+	 * `trackPayment` call it directly, same as before.
 	 * Cheap to over-call: the key comparison is the guard, not the call site.
 	 */
 	private checkWaitingOn(): void {
@@ -1251,8 +1263,12 @@ export class Match {
 			this.send(s, { kind: 'notify', method: 'setHighlighted', entities: [...s.highlighted.values()], on: true } as unknown as ServerFrame);
 		}
 		if (s.weakly !== null) this.send(s, s.weakly);
-		if (s.finished !== null) this.send(s, s.finished);
-		if (s.ended !== null) this.send(s, s.ended);
+		// `'finished'` before `'ended'` when both are present — the one order the
+		// two separate fields this replaced were always sent in (S7, wave 64).
+		for (const kind of ['finished', 'ended'] as const) {
+			const notice = s.endNotices.find((n) => n.kind === kind);
+			if (notice !== undefined) this.send(s, notice.frame);
+		}
 	}
 
 	/* ── Browser → Forge ────────────────────────────────────────────── */
@@ -1708,7 +1724,11 @@ export class Match {
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.weakly = null;
 		} else if (frame.method === 'finishGame') {
-			s.finished = frame;
+			// A later `finishGame` replaces the earlier entry of the same kind
+			// rather than appending — Forge may call it more than once.
+			const i = s.endNotices.findIndex((n) => n.kind === 'finished');
+			if (i === -1) s.endNotices.push({ kind: 'finished', frame });
+			else s.endNotices[i] = { kind: 'finished', frame };
 		}
 		this.send(s, frame);
 		// `setSelectables`/`clearSelectables` can open or close the
@@ -2057,6 +2077,31 @@ export class Match {
 	}
 
 	/**
+	 * Wave 64 (S5) — the ONE guard every auto-decision gate used to repeat for
+	 * itself: `maybeAutoPass`, `maybeAutoPay`, `maybeCancelUnpayable` and
+	 * `maybeConfirmChosenCost` each re-checked `s.fullControl || s.ai ||
+	 * this.status !== 'running'` and each turned `this.notesOf(s)` into a fresh
+	 * `PromptFacts` through its own call to `readPromptFacts` (two of them by
+	 * way of a one-line wrapper in `auto.ts` — `autoPassReason` /
+	 * `autoPayReason` / `autoCancelReason`, deleted with this change), so the
+	 * same window's prompt and buttons were read and re-parsed once per gate
+	 * that happened to run this tick. The guard and the read both belong here
+	 * exactly once; every gate below takes the result and asks ONE of
+	 * `decideStop`, `decidePay` or `decideCancel` of it.
+	 *
+	 * Null means "not this gate's seat to decide for" — full control is on, the
+	 * seat is an AI, or the match is not running — and every caller's own no-op
+	 * is that null. `notes` rides along because `chosenCostConfirm` reads it
+	 * directly rather than through `PromptFacts` (it answers a confirm against
+	 * `SeatState.chosenAbility`, which is not a fact `readPromptFacts` carries).
+	 */
+	private autoGateFacts(s: SeatState): { notes: SeatNotes; facts: PromptFacts } | null {
+		if (s.fullControl || s.ai || this.status !== 'running') return null;
+		const notes = this.notesOf(s);
+		return { notes, facts: readPromptFacts(notes) };
+	}
+
+	/**
 	 * Wave 35 §S item 2 — the swallowed first OK press, chased to its cause.
 	 *
 	 * `InputPassPriority.showMessage` (`forge-gui/.../InputPassPriority.java`)
@@ -2157,14 +2202,14 @@ export class Match {
 	 * player a stop they were never actually given (Q17's transient-stack race).
 	 */
 	private maybeAutoPass(s: SeatState): boolean {
-		if (s.fullControl || s.ai || this.status !== 'running') return false;
 		// The prompt in hand was already passed on, so these buttons belong to the input
 		// AFTER it (see `SeatState.passedOn`): not ours to press for.
 		if (s.prompt !== null && s.prompt === s.passedOn) return false;
-		const notes = this.notesOf(s);
-		const facts = readPromptFacts(notes);
+		const gate = this.autoGateFacts(s);
+		if (gate === null) return false;
+		const { facts } = gate;
 		/*
-		 * The auto-yield override, read ahead of `autoPassReason`. Gated on
+		 * The auto-yield override, read ahead of `decideStop`. Gated on
 		 * `decideStop`'s own entry guards plus one new condition, `!facts.myTurn`:
 		 * every priority window on the OTHER seat's turn is passed. Declare
 		 * Blockers' block-assignment ask is never `window === 'priority'`, so
@@ -2179,7 +2224,7 @@ export class Match {
 			facts.confirmLive &&
 			facts.openAsks === 0 &&
 			!facts.myTurn;
-		const phase = yieldsNow ? facts.phaseLabel ?? 'priority' : autoPassReason(notes, s.policy);
+		const phase = yieldsNow ? facts.phaseLabel ?? 'priority' : decideStop(facts, s.policy);
 		/*
 		 * Behind `CARDTABLE_PLAY_PROBE=1` (the e2e harness's servers): every
 		 * decision, kept or passed, with the facts it was made on. 2026-10-03's
@@ -2226,11 +2271,12 @@ export class Match {
 	 */
 	/** Returns whether it pressed Auto for this cost just now, so the caller can withhold the prompt (Z4). */
 	private maybeAutoPay(s: SeatState): boolean {
-		if (s.fullControl || s.ai || this.status !== 'running') return false;
-		const notes = this.notesOf(s);
-		const cost = autoPayReason(notes, s.policy);
+		const gate = this.autoGateFacts(s);
+		if (gate === null) return false;
+		const { facts } = gate;
+		const cost = decidePay(facts, s.policy);
 		if (cost === null) {
-			this.maybeCancelUnpayable(s, notes);
+			this.maybeCancelUnpayable(s, facts);
 			// The payment ended (or never started); the next one earns its press.
 			if (s.payment === null) s.autoPaid = null;
 			return false;
@@ -2249,8 +2295,9 @@ export class Match {
 	 * Returns whether it answered, so the caller withholds the prompt.
 	 */
 	private maybeConfirmChosenCost(s: SeatState): boolean {
-		if (s.fullControl || s.ai || this.status !== 'running') return false;
-		const why = chosenCostConfirm(this.notesOf(s), s.chosenAbility, s.policy);
+		const gate = this.autoGateFacts(s);
+		if (gate === null) return false;
+		const why = chosenCostConfirm(gate.notes, s.chosenAbility, s.policy);
 		if (why === null) return false;
 		s.chosenAbility = null;
 		this.deps.log({ evt: 'auto-confirmed', matchId: this.id, seat: s.seat, why });
@@ -2269,8 +2316,8 @@ export class Match {
 	 * said: the cast never happened, so there is no cost to account for, and the
 	 * board returning to priority IS the answer.
 	 */
-	private maybeCancelUnpayable(s: SeatState, notes: SeatNotes): void {
-		const cost = autoCancelReason(notes, s.policy);
+	private maybeCancelUnpayable(s: SeatState, facts: PromptFacts): void {
+		const cost = decideCancel(facts, s.policy);
 		if (cost === null) {
 			if (s.payment === null) s.autoCancelled = null;
 			return;
@@ -2469,6 +2516,27 @@ export class Match {
 	}
 
 	/**
+	 * The five-line tail every ask-opening path ends in (S4, wave 64 — folded
+	 * from three copies that had drifted into "the same lines", not three
+	 * genuinely different endings): register the open ask with its timeout,
+	 * send the frame, and let `checkWaitingOn` re-read what this seat is
+	 * waiting on. `callId` and `method` travel separately from `frame` because
+	 * {@link Match.openMergedChoice}'s frame is a SYNTHESIZED one — its own
+	 * `callId`/`method` are `choose`'s, not Forge's merged ask's.
+	 *
+	 * `checkWaitingOn`'s own doc used to keep a hand-written list of every
+	 * caller "cheap to over-call" from; now there is exactly one call site for
+	 * the ask-opening half of that list, and this comment is it.
+	 */
+	private openAskFrame(s: SeatState, callId: string, method: string, frame: ServerFrame): void {
+		const timer = setTimeout(() => this.abortAsk(s, callId, 'timeout'), this.deps.askTimeoutMs);
+		timer.unref();
+		s.asks.set(callId, { callId, method, frame, sentAt: this.now(), timer });
+		this.send(s, frame);
+		this.checkWaitingOn();
+	}
+
+	/**
 	 * Register and show one ask, after Forge's own re-ask shortcut and "one
 	 * legal reply is not a question" have each had a chance to answer it first
 	 * — the ask-opening half of `onFrame`'s generic tail, factored out so a
@@ -2512,12 +2580,7 @@ export class Match {
 			this.command({ t: 'reply', seat: s.seat, callId: auto.callId, result: auto.result });
 			return;
 		}
-		const callId = frame.callId;
-		const timer = setTimeout(() => this.abortAsk(s, callId, 'timeout'), this.deps.askTimeoutMs);
-		timer.unref();
-		s.asks.set(callId, { callId, method: frame.method, frame, sentAt: this.now(), timer });
-		this.send(s, frame);
-		this.checkWaitingOn();
+		this.openAskFrame(s, frame.callId, frame.method, frame);
 	}
 
 	/**
@@ -2566,11 +2629,7 @@ export class Match {
 			chooseCallId: choose.callId,
 			keyByRef: new Map(optionRefs.map((c) => [`${c.ref.kind}:${c.ref.id}`, c.key])),
 		});
-		const timer = setTimeout(() => this.abortAsk(s, choose.callId, 'timeout'), this.deps.askTimeoutMs);
-		timer.unref();
-		s.asks.set(choose.callId, { callId: choose.callId, method: 'chooseSingleEntityForEffect', frame: merged, sentAt: this.now(), timer });
-		this.send(s, merged);
-		this.checkWaitingOn();
+		this.openAskFrame(s, choose.callId, 'chooseSingleEntityForEffect', merged);
 	}
 
 	/**
@@ -2593,11 +2652,7 @@ export class Match {
 	 */
 	private openDisplayOnlyReveal(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>): void {
 		s.displayOnlyAsks.add(frame.callId);
-		const timer = setTimeout(() => this.abortAsk(s, frame.callId, 'timeout'), this.deps.askTimeoutMs);
-		timer.unref();
-		s.asks.set(frame.callId, { callId: frame.callId, method: frame.method, frame, sentAt: this.now(), timer });
-		this.send(s, frame);
-		this.checkWaitingOn();
+		this.openAskFrame(s, frame.callId, frame.method, frame);
 	}
 
 	private closeAllAsks(): void {
@@ -2655,14 +2710,15 @@ export class Match {
 	/** One ending, told once per seat and kept for every snapshot after it. */
 	private endNotice(message: string): void {
 		for (const s of this.seats) {
-			if (s.ai || s.playerId === null || s.ended !== null) continue;
-			s.ended = {
+			if (s.ai || s.playerId === null || s.endNotices.some((n) => n.kind === 'ended')) continue;
+			const frame = {
 				kind: 'notify',
 				method: 'showErrorDialog',
 				title: MATCH_ENDED_TITLE,
 				message,
 			} as ServerFrame;
-			this.send(s, s.ended);
+			s.endNotices.push({ kind: 'ended', frame });
+			this.send(s, frame);
 		}
 	}
 

@@ -218,6 +218,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@hadoku/forge-wire':
+        specifier: workspace:*
+        version: link:../forge-wire
       '@wolffm/rooms-protocol':
         specifier: 0.40.19
         version: 0.40.19

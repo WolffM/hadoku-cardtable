@@ -21,6 +21,10 @@ import { describe, expect, it } from 'vitest';
 
 import { available, deck, finishMulligan, forgeFrames, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 import { keyOf, TYPE } from './visibility.js';
+import { onlyAnswer } from './auto.js';
+// Cross-package relative import, the same device `apps/ui/src/play/live/*.jvm.test.ts`
+// already use in the other direction (importing `auto.ts` from this file's own package).
+import { autoAnswer } from '../../../ui/src/play/prompts/rules.ts';
 
 const title = available.ok
 	? 'Auto Yield hides a real response window, against real Forge'
@@ -147,5 +151,150 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 		},
 		180_000,
+	);
+
+	/*
+	 * S13, wave 64 — "full control wins over auto-yield wins over the stop
+	 * policy" was pinned only with synthetic frames (`match.test.ts`'s
+	 * `maybeAutoPass` cases). S5 folded the four auto-decision gates onto one
+	 * guard (`Match.autoGateFacts`, which checks `s.fullControl` BEFORE
+	 * anything else — `match.ts`'s own code is the precedence, this is its
+	 * jar pin), so this is the one case synthetic frames cannot stand in for:
+	 * the SAME seat with BOTH preferences on at once, against a real match.
+	 */
+	it(
+		"full control keeps the window open even with auto-yield also on — the escape hatch wins",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, {
+				seed: 63,
+				decks: DECKS,
+				names: ['alice', 'bob'],
+				scenario: scenarioText('w63-yield'),
+			});
+			try {
+				await finishMulligan(s);
+				await waitUntil(
+					() => s.match.seats[ALICE]?.projector.turnNumber() !== null,
+					"alice's own seat to know the match's current turn",
+					20_000,
+					s,
+				);
+				// Both on, same seat, same turn — the order they were set in must not
+				// matter either, since `autoGateFacts` reads `s.fullControl` fresh
+				// every call, never a value latched at set-time.
+				expect(s.match.setAutoYield(ALICE, true)).toEqual({ ok: true });
+				expect(s.match.setFullControl(ALICE, true)).toEqual({ ok: true });
+
+				const lineMark = s.lines.length;
+				const sentMark = s.sent.length;
+				const aliceLifeBefore = lifeOf(s, ALICE);
+				await boltAlice(s);
+
+				expect(lifeOf(s, ALICE), "bob's Bolt resolved for 3").toBe(aliceLifeBefore - 3);
+				const forgeSaidAlice = forgeFrames(s, ALICE, lineMark);
+				const aliceOffered = forgeSaidAlice.some(
+					(f) => f.method === 'showPromptMessage' && /^Priority: alice/.test(f.message ?? '') && /Stack: 1 to Resolve/.test(f.message ?? ''),
+				);
+				expect(aliceOffered, "Forge never gave alice a window with bob's spell on the stack").toBe(true);
+				// The claim: full control's window reached alice's own wire —
+				// auto-yield did NOT hide it, even though it is also on.
+				expect(aliceBars(s, sentMark).length, "full control's window must reach alice's wire despite auto-yield").toBeGreaterThan(0);
+				expect(
+					s.logs.some((l) => l.evt === 'auto-passed' && l.seat === ALICE),
+					'full control must never auto-pass for this seat',
+				).toBe(false);
+			} finally {
+				await s.stop();
+			}
+		},
+		180_000,
+	);
+});
+
+/*
+ * S6, wave 64 — does the UI's `onlyStackTarget` (reached through `rules.ts`'s
+ * exported `autoAnswer`) ever answer something the server's `onlyAnswer`
+ * would not? Against real Forge, not a hand-typed fixture: a Counterspell
+ * targeting a real Memnite on the stack (`w49-a-counterspell-opponent.state`,
+ * already a committed scenario — the same shape wave 32's own measurement
+ * named for Mana Leak, `docs/planning/wave32-evidence/q17-holding-priority.md`
+ * §Q7: a cast's own target question is `min: 0` — Forge lets the caster
+ * decline a target by cancelling the cast — so `onlyAnswer`'s "one option,
+ * `min === 1`" arm never fires here, by design: answering it server-side
+ * would also answer an unrelated optional "you may sacrifice a creature"
+ * question the same shape. The client-side rule is narrower on purpose — ONE
+ * stack-item option, never any other `getChoices` shape — which is exactly
+ * what makes it safe to answer where the server's general rule must not.
+ */
+const title6 = available.ok
+	? 'S6: onlyStackTarget answers the one case onlyAnswer must leave, against real Forge'
+	: `S6: onlyStackTarget answers the one case onlyAnswer must leave, against real Forge — SKIPPED: ${available.reason}`;
+
+describe.skipIf(!available.ok)(title6, () => {
+	it(
+		"a real \"Select target spell\" ask is min 0 (onlyAnswer leaves it); onlyStackTarget answers it anyway",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, {
+				seed: 49,
+				decks: [deck('S6 A', ['40 Mountain']), deck('S6 B', ['40 Mountain'])],
+				names: ['alice', 'bob'],
+				scenario: scenarioText('w49-a-counterspell-opponent'),
+			});
+			try {
+				await finishMulligan(s);
+				const memnite = await (async () => {
+					await waitUntil(() => {
+						s.answerAsks();
+						return s.zone(0, 'Hand').some((c) => c.name === 'Memnite');
+					}, 'alice to hold Memnite', 20_000, s);
+					const card = s.zone(0, 'Hand').find((c) => c.name === 'Memnite');
+					if (card === undefined) throw new Error('no Memnite in alice’s hand');
+					return card;
+				})();
+				s.select(0, memnite.id);
+				await waitUntil(() => {
+					s.answerAsks();
+					return /Stack: 1 to Resolve/.test(s.prompt(1)) && s.buttons(1)?.enable1 === true;
+				}, 'bob to hold priority with Memnite on the stack', 20_000, s);
+				const counterspell = s.zone(1, 'Hand').find((c) => c.name === 'Counterspell');
+				if (counterspell === undefined) throw new Error('no Counterspell in bob’s hand');
+				const askedBefore = s.asks.length;
+				s.select(1, counterspell.id);
+				await waitUntil(() => {
+					s.answerAsks();
+					return s.asks.slice(askedBefore).some((a) => (a as unknown as { method?: string }).method === 'getChoices');
+				}, 'the "Select target spell" ask', 20_000, s);
+				const ask = s.asks.slice(askedBefore).find((a) => (a as unknown as { method?: string }).method === 'getChoices') as unknown as {
+					method: string;
+					message: string;
+					min: number;
+					max: number;
+					choices: { key: string; ref: { kind: string; id: number } | null }[];
+				};
+
+				// Counterspell's own wording ("Select target card") differs from Mana
+				// Leak's ("Select target spell") — the SHAPE is what S6 is about, not
+				// the sentence.
+				expect(ask.message).toMatch(/^Select target/);
+				expect(ask.choices).toHaveLength(1);
+				expect(ask.choices[0]?.ref?.kind).toBe('stackItem');
+				// The whole of S6's premise: it is NOT a one-answer ask by `onlyAnswer`'s
+				// own rule (`min === 1` required for its "one option" arm).
+				expect(ask.min, 'a real cast’s own target question is optional — the caster can always cancel').toBe(0);
+				expect(onlyAnswer(ask as never)).toBeNull();
+
+				// The claim: `autoAnswer` (client-side; `rules.ts`'s `onlyStackTarget`)
+				// answers it anyway — the one case this file's header describes.
+				const clientAnswer = autoAnswer(ask as never);
+				expect(clientAnswer, 'onlyStackTarget must answer a lone stack-item target').not.toBeNull();
+				expect(clientAnswer?.method).toBe('getChoices');
+				expect(clientAnswer?.reply).toEqual([ask.choices[0]?.key]);
+			} finally {
+				await s.stop();
+			}
+		},
+		60_000,
 	);
 });

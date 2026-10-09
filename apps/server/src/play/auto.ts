@@ -12,11 +12,15 @@
  * ## The model, in four parts
  *
  * 1. **A stop preference** is a named field of {@link StopPolicy}. Every field
- *    is either a Forge `FPref.YIELD_*` value or a Forge `skipPhases` set, so the
- *    whole policy can be handed to Forge verbatim — {@link toYieldUpdates} is
- *    that translation, and it emits nothing but `YieldUpdate` arms Forge's own
- *    `YieldController.apply` already consumes
- *    (`forge-gui/.../gamemodes/match/YieldController.java:365-393`).
+ *    is either a Forge `FPref.YIELD_*` value or a Forge `skipPhases` set — the
+ *    exact Forge mechanism each one maps to is in the field's own doc, on the
+ *    interface below. **Nothing here translates the policy to Forge's own
+ *    `YieldUpdate` frames**: wave 64 §S deleted `toYieldUpdates` (S2), the
+ *    function that used to do it, because nothing could call it — the bridge
+ *    has no `sendYieldUpdate` act (see "What the next wave must add" below) —
+ *    and a translation with no caller is not a safety net, it is a second copy
+ *    of the mapping table that can drift from the one the fields themselves
+ *    carry.
  * 2. **{@link PromptFacts} are structured facts** about one window: a
  *    `PhaseType`, whose turn it is, whether the stack is empty, Forge's
  *    actionable multiset, the cost being paid. No prose.
@@ -29,9 +33,12 @@
  *    policy.** They contain no pattern, no card name and no phase spelling. A
  *    new shortcut request is a new POLICY VALUE, not a new branch here.
  *
- * `autoPassReason` and `autoPayReason` keep their names and signatures because
- * `match.ts` calls them and this lane does not own `match.ts`; each is now three
- * lines — read the facts, ask the policy.
+ * Wave 64 §S deleted the three one-line `autoPassReason`/`autoPayReason`/
+ * `autoCancelReason` wrappers that used to stand between `match.ts` and these
+ * functions (S5): both files are this lane's now, so `match.ts` computes
+ * {@link readPromptFacts} ONCE per gate and calls {@link decideStop},
+ * {@link decidePay} and {@link decideCancel} directly on the one result,
+ * instead of each gate re-deriving facts through its own wrapper.
  *
  * ## A stop is a PHASE the player picked, not a card they happen to hold
  *
@@ -52,7 +59,7 @@
  * whole point of {@link PromptFacts} — but it can stop asking a question whose
  * *timing* is the answer.
  *
- * So {@link DEFAULT_STOP_POLICY} adopted {@link ARENA_STOP_POLICY} **wholesale**,
+ * So {@link DEFAULT_STOP_POLICY} adopted Arena's own stop set **wholesale**,
  * not just its `skipNonStopPhases`. That was a real choice and the reason is
  * arithmetic rather than taste: `'always'` on top of the old stop sets
  * (`['MAIN1','MAIN2']` and `[]`) would have left the seat with **no window at all
@@ -74,15 +81,13 @@
  * {@link FULL_CONTROL_POLICY} makes every phase a stop phase, refuses to pass a
  * stack window, refuses to pass for want of actions, asks every payment, leaves
  * a cost Forge cannot pay for the player to cancel, and answers no bounds ask.
- * `match.ts` also gates on the seat's `fullControl` flag,
- * so the escape hatch holds at both levels (the flag short-circuits before the
- * seat's policy is read at all, and setting the policy to
- * {@link FULL_CONTROL_POLICY} reaches the same place the long way round), and
- * `toYieldUpdates` of it emits the
- * frames that CLEAR Forge's yields (`clearMarker`, `stackYield false`,
- * `setAutoPassUntilEndOfTurn false`, `setDisableYields true`, and `skipPhase
- * false` for all thirteen phases on every player) — item 5's "it clears the
- * yields, so every stop comes back", as data.
+ * `match.ts` also gates on the seat's `fullControl` flag, so the escape hatch
+ * holds at both levels: the flag short-circuits before the seat's policy is
+ * read at all, and setting the policy to {@link FULL_CONTROL_POLICY} reaches
+ * the same place the long way round — item 5's "it clears the yields, so every
+ * stop comes back" is true of the flag today; it will also be true of the
+ * policy value once something maps it to Forge's own `YieldUpdate` frames (see
+ * "What the next wave must add" below).
  *
  * ## The rule the whole file still obeys
  *
@@ -101,16 +106,19 @@
  * - `apps/server/src/play/bridge/PlayBridge.java` — `act()`'s switch has no
  *   `sendYieldUpdate` case, so nothing this file computes can reach Forge yet.
  *   `IGameController.sendYieldUpdate(YieldUpdate)` exists
- *   (`IGameController.java:84-86`) and routes to `applyYieldUpdate`.
+ *   (`IGameController.java:84-86`) and routes to `applyYieldUpdate`. **No
+ *   function here turns a {@link StopPolicy} into those frames any more**
+ *   (wave 64 §S deleted the unreachable `toYieldUpdates`, S2) — writing one is
+ *   this bullet's job once the bridge has somewhere to send it, from the
+ *   mapping table on {@link StopPolicy}'s own fields.
  * - `PlayBridge.java:1172` — `isUiSetToSkipPhase` returns a hardcoded `false`,
  *   and our GUI is not a `RemoteClientGuiGame`, so
  *   `PlayerControllerHuman.isUiSetToSkipPhase` asks the GUI rather than the
  *   `YieldController`. Until that delegates to
  *   `getYieldController().isSkippingPhase(turnPlayer, phase)`, a `SkipPhase`
  *   envelope is inert on our bridge.
- * - `apps/server/src/play/match.ts` — the act that ships `toYieldUpdates` on
- *   `openView`, and a `lastAnsweredAsk` note on `SeatNotes` (see
- *   {@link StopPolicy.costConfirm}). **The per-seat `StopPolicy` this list used
+ * - `apps/server/src/play/match.ts` — a `lastAnsweredAsk` note on `SeatNotes`
+ *   (see {@link StopPolicy.costConfirm}). **The per-seat `StopPolicy` this list used
  *   to ask for landed in wave 26 §E**: `SeatState.policy`, set through
  *   `Match.setStopPolicy`, and every decision below is asked of THAT seat's
  *   policy rather than of {@link DEFAULT_STOP_POLICY}. Nothing yet lets a
@@ -138,7 +146,7 @@
  *   and 41 required, and that file is not this lane's.
  */
 
-import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame, type YieldUpdate } from '@hadoku/forge-wire';
+import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
 
 /** An ask that admits exactly one answer, and why. */
 export interface AutoAnswer {
@@ -487,24 +495,6 @@ export const STRICT_PAYMENT_POLICY: StopPolicy = {
 };
 
 /**
- * Item #20 — *"stopping at every priority point when there is something to
- * do"* — as a POLICY VALUE, which is the whole point of the model.
- *
- * Arena's own stop set: your main phases and your declare-attackers step; the
- * opponent's declare-blockers step and end step. Every other phase is passed
- * whether or not the seat could have done something there, which is what stops
- * a held instant turning every step of the opponent's turn into a click.
- *
- * **This IS {@link DEFAULT_STOP_POLICY} as of 2026-09-28** (wave 28, item 5) —
- * the value was written in wave 24 §E and left unadopted for a file-ownership
- * reason, and wave 28 owns those files. The name is kept because it is a name on
- * the wire: `CARDTABLE_PLAY_STOP_POLICY=arena` resolves through
- * {@link NAMED_STOP_POLICIES}, and a hatch that stops answering to a name it
- * once answered to is a worse thing than one alias.
- */
-export const ARENA_STOP_POLICY: StopPolicy = DEFAULT_STOP_POLICY;
-
-/**
  * The stop behaviour that was the default until 2026-09-28: a stop in **every**
  * priority window Forge did not itself call empty.
  *
@@ -565,22 +555,40 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
  * SELECTOR and nothing else — it re-plumbs nothing, it adds no field to
  * {@link StopPolicy}, and every value in it already existed above.
  *
- * `'fullControl'` is {@link FULL_CONTROL_POLICY}, the policy VALUE — not
- * `SeatState.fullControl`, the per-seat escape hatch, which short-circuits
- * ahead of any policy and is set over the wire by the player.
- *
  * A `Map` and not an object literal, and that is not a style choice: a
  * plain-object registry looked up with `reg[name]` answers `'toString'` and
  * `'constructor'` with `Object.prototype`'s own members, so a typo'd
  * environment variable could hand a FUNCTION to a seat as its policy. A `Map`
  * has no prototype chain to walk.
+ *
+ * `'arena'` names {@link DEFAULT_STOP_POLICY} directly (S1, wave 64): the two
+ * were ever only one value under two names — wave 24 §E wrote
+ * `ARENA_STOP_POLICY` as its own constant, and wave 28 made `DEFAULT_STOP_POLICY`
+ * equal to it rather than ever diverging — so there was no second VALUE for a
+ * second export to carry. The alias stays reachable (the wire name must not
+ * stop answering to a name it once did), just with no module constant behind it.
+ *
+ * **Narrowed, wave 64 §S (S3).** `'everyPriority'` and `'fullControl'` used to
+ * resolve here too. Neither had a documented reason to be chosen from an
+ * ENVIRONMENT: `'fullControl'` is {@link FULL_CONTROL_POLICY}, the policy
+ * VALUE, and selecting it this way is a second route to exactly what
+ * `SeatState.fullControl` already gives — the per-seat escape hatch, set over
+ * the wire by the player, which `match.ts` checks *ahead of* a seat's policy on
+ * every gate. Nothing in `docs/` names a reason an operator would reach for the
+ * env hatch instead of the wire flag, so that route is gone; the flag is the
+ * one path. `'everyPriority'` had no documented env-side use either — the
+ * suites that still want wave 20's behaviour (`auto.test.ts`,
+ * `apps/ui/src/play/live/*.jvm.test.ts`) import {@link EVERY_PRIORITY_POLICY}
+ * directly, never through this hatch. Both constants are still exported and
+ * still pinned by those suites; only the env NAME is gone, so
+ * `CARDTABLE_PLAY_STOP_POLICY` answers to exactly the names a documented
+ * operator path uses — `default`, `strictPayment`, `arena` — same as before
+ * for all three, and loud (`stop-policy-unknown`) for the two it dropped.
  */
 export const NAMED_STOP_POLICIES: ReadonlyMap<string, StopPolicy> = new Map<string, StopPolicy>([
 	['default', DEFAULT_STOP_POLICY],
 	['strictPayment', STRICT_PAYMENT_POLICY],
-	['arena', ARENA_STOP_POLICY],
-	['everyPriority', EVERY_PRIORITY_POLICY],
-	['fullControl', FULL_CONTROL_POLICY],
+	['arena', DEFAULT_STOP_POLICY],
 ]);
 
 /** The names {@link namedStopPolicy} answers to, for a refusal that can say so. */
@@ -1249,31 +1257,6 @@ export function decideCancel(facts: PromptFacts, policy: StopPolicy): string | n
 	return facts.noWayToPay ? facts.cost : null;
 }
 
-/* ── What `match.ts` calls ───────────────────────────────────────────── */
-
-/**
- * The phase this seat would be passing, or null when it must be asked.
- *
- * Kept for `match.ts`, which this lane does not own. Read the facts, ask the
- * policy — there is nothing else in here.
- */
-export function autoPassReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
-	return decideStop(readPromptFacts(notes), policy);
-}
-
-/** The cost this seat's payment answers itself, or null when it must be asked. */
-export function autoPayReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
-	return decidePay(readPromptFacts(notes), policy);
-}
-
-/**
- * The cost this seat's payment abandons itself, or null when it must be asked
- * (item 7). Read the facts, ask the policy — as above.
- */
-export function autoCancelReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
-	return decideCancel(readPromptFacts(notes), policy);
-}
-
 /**
  * Wave 52 §S B — Yes to a cost confirm for the ability the seat just chose, or
  * null when the confirm is the player's ({@link StopPolicy.costConfirm}).
@@ -1334,85 +1317,6 @@ export function isOwnMainPhaseEntry(message: string, policy: StopPolicy = DEFAUL
 		openAsks: 0,
 	});
 	return facts.window === 'priority' && facts.stackEmpty && isStopPhase(policy, facts);
-}
-
-/* ── The policy as Forge's own frames ────────────────────────────────── */
-
-/** A `PlayerRefSchema` value — `{ kind: 'player', id }`. */
-export interface PlayerRef {
-	readonly kind: 'player';
-	readonly id: number;
-}
-
-/** The seat a policy is being declared for, and the other players at the table. */
-export interface YieldSeat {
-	readonly me: PlayerRef;
-	readonly others: readonly PlayerRef[];
-}
-
-/**
- * The policy as `YieldUpdate` frames — **Forge's state, not ours**.
- *
- * Every frame is an arm of Forge's own sealed `YieldUpdate`
- * (`YieldUpdate.java:16-58`) and is applied by `YieldController.apply`
- * (`:365-393`), so pushing this is how the player's preferences become the
- * thing FORGE decides from. The order matters: the transient yields are cleared
- * first, then the standing preferences, then the per-phase skips.
- *
- * `costConfirm` maps only as far as `setDisableYields`: Forge's
- * `confirmPayment` does not consult the auto-yield store at all (unlike
- * `confirmTrigger`, which does — `PlayerControllerHuman.confirmTrigger` reads
- * `getTriggerDecision(wrapper.yieldKey())`), so there is no arm that carries
- * "stop asking me to sacrifice the land I just tapped". That is #16's finding.
- *
- * Nothing calls this yet, and that is the honest state of the lane: the bridge
- * has no `sendYieldUpdate` act. The frames are pinned against the wire schema
- * in `packages/forge-wire/src/tier-b.test.ts` and against Forge's arm list in
- * `auto.test.ts`.
- */
-export function toYieldUpdates(policy: StopPolicy, seat: YieldSeat): YieldUpdate[] {
-	const out: YieldUpdate[] = [];
-
-	// Clear every transient yield first: a policy push is a full reset, and this
-	// is what makes FULL_CONTROL_POLICY "clears the yields, so every stop comes
-	// back" (`YieldController.clearActiveYieldAndDispatch`, `:406-428`).
-	out.push({ update: 'clearMarker', player: seat.me });
-	out.push({ update: 'stackYield', player: seat.me, active: false, respectsInterrupts: false });
-	out.push({ update: 'setAutoPassUntilEndOfTurn', player: seat.me, active: false });
-	out.push({ update: 'setDisableYields', disabled: policy.costConfirm === 'ask' });
-
-	// The standing preferences. `YieldController.getStringPref` reads an override
-	// before FModel (`:90-93`), so a `setYieldPref` wins on the host's proxy.
-	const pref = (name: string, value: string): YieldUpdate => ({ update: 'setYieldPref', pref: name, value });
-	out.push(pref('YIELD_AUTO_PASS_NO_ACTIONS', String(policy.passWhenNothingToDo)));
-	out.push(pref('YIELD_AUTO_PASS_RESPECTS_INTERRUPTS', String(policy.interruptsRestoreStops)));
-	// #22's enabler: with the preview on, `pushActionableCards` sends the cards
-	// Forge's own Auto would tap TWICE, which is what makes a two-source payment
-	// provably unambiguous (`PlayerControllerHuman.java:1580-1589`).
-	out.push(pref('UI_SHOW_AUTOTAP_PREVIEW', String(policy.unambiguousPayment !== 'ask')));
-
-	// The per-phase skips: the complement of the stop sets, one frame per
-	// (turn player, phase) pair, exactly as `YieldUpdate.SkipPhase` carries it.
-	const scope = policy.skipNonStopPhases;
-	const sides: { player: PlayerRef; stops: readonly PhaseType[]; skipping: boolean }[] = [
-		{ player: seat.me, stops: policy.stopOnMyTurn, skipping: scope === 'always' },
-		...seat.others.map((player) => ({
-			player,
-			stops: policy.stopOnTheirTurn,
-			skipping: scope === 'always' || scope === 'theirTurn',
-		})),
-	];
-	for (const side of sides) {
-		for (const phase of PHASE_TYPES) {
-			out.push({
-				update: 'skipPhase',
-				turnPlayer: side.player,
-				phase,
-				skip: side.skipping && !side.stops.includes(phase),
-			});
-		}
-	}
-	return out;
 }
 
 /* ── What a cast paid ────────────────────────────────────────────────── */

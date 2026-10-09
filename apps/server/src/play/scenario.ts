@@ -83,10 +83,15 @@ function slug(label: string): string {
 		.slice(0, 80);
 }
 
-/** One `sent` entry, readably — the level of detail a timed-out wait needs to say what Forge offered and when. */
-function frameSummary(x: Stamped): Record<string, unknown> {
-	const f = x.envelope.frame as unknown as Record<string, unknown>;
-	const out: Record<string, unknown> = { seat: x.seat, t: Math.round(x.t), kind: f.kind, method: f.method };
+/**
+ * One sent frame, readably — the level of detail a timed-out wait needs to
+ * say what Forge offered and when. Shared with the UI's jvm harness (S11,
+ * wave 64): `t` is omitted when the caller has no timestamp for it.
+ */
+export function summarizeFrame(seat: number, frame: ServerFrame, t?: number): Record<string, unknown> {
+	const f = frame as unknown as Record<string, unknown>;
+	const out: Record<string, unknown> = { seat, kind: f.kind, method: f.method };
+	if (t !== undefined) out.t = Math.round(t);
 	if (f.callId !== undefined) out.callId = f.callId;
 	if (f.message !== undefined) out.message = f.message;
 	if (f.label1 !== undefined) out.buttons = { label1: f.label1, enable1: f.enable1, label2: f.label2, enable2: f.enable2 };
@@ -94,20 +99,42 @@ function frameSummary(x: Stamped): Record<string, unknown> {
 	return out;
 }
 
+/** One `sent` entry, through {@link summarizeFrame}. */
+function frameSummary(x: Stamped): Record<string, unknown> {
+	return summarizeFrame(x.seat, x.envelope.frame, x.t);
+}
+
+export interface TimeoutDump {
+	label: string;
+	/** Already-summarized frames (`summarizeFrame`), most recent last. */
+	frames: Record<string, unknown>[];
+	/** Server log entries worth keeping — this file's own `stop-decided`/`auto-passed` filter, or the caller's own. */
+	decisions: Record<string, unknown>[];
+	/** Where this match's `bridge.stderr.txt` lives. */
+	stderrPath: string;
+}
+
 /**
- * A timed-out `waitUntil` on a scenario is otherwise a bare "timed out" with
- * nothing to diagnose from, and CI's `forge-jvm` job uploads no artifact.
- * Writes the seat's own last frames, the server's `stop-decided`/
- * `auto-passed` decisions, and the bridge's own stderr tail to one JSON file
- * under `CARDTABLE_PLAY_WORK_DIR`, and returns a short line (the file's path
- * plus the last 20 frame methods) to fold into the thrown error's message —
- * the one place a CI log keeps it.
+ * A timed-out `waitUntil` is otherwise a bare "timed out" with nothing to
+ * diagnose from, and CI's `forge-jvm` job uploads no artifact. Writes the
+ * seat's own last frames, the server's decisions, and the bridge's own
+ * stderr tail to one JSON file under `CARDTABLE_PLAY_WORK_DIR`, and returns a
+ * short line (the file's path plus the last 20 frame methods) to fold into
+ * the thrown error's message — the one place a CI log keeps it.
+ *
+ * **Wave 64 §S (S11): the one function both jvm harnesses call.** Until this
+ * fold, the UI's own `apps/ui/src/play/live/jvm-harness.ts` kept none of
+ * this — its `waitUntil` threw a bare message, no stderr, no frames — because
+ * it also removes the run dir on `stop()`, same as this file, so the ONE
+ * place either harness can still read `bridge.stderr.txt` is before that
+ * call, at the moment of the timeout itself. `flow.jvm.test.ts`'s three reds
+ * of 2026-10-08 timed out with nothing to diagnose from for exactly that
+ * reason. Call this at the timeout, never after `stop()`.
  */
-function dumpOnTimeout(s: Scenario, label: string): string {
+export function dumpTimeoutReport(input: TimeoutDump): string {
 	const dir = process.env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play');
-	const base = `${slug(label)}-${Date.now()}`;
+	const base = `${slug(input.label)}-${Date.now()}`;
 	const path = join(dir, `${base}.dump.json`);
-	const stderrPath = join(s.workDir, s.match.id, 'bridge.stderr.txt');
 	// The WHOLE stderr goes into the dump (`stderr`), the tail stays for a quick
 	// read: `stop()` reaps the match's run dir before CI's evidence step, so
 	// `forge.yml`'s `*/bridge.stderr.txt` upload never finds it, and the tail was
@@ -117,24 +144,35 @@ function dumpOnTimeout(s: Scenario, label: string): string {
 	// that could carry a cause — was gone.
 	let stderr: string | null;
 	try {
-		stderr = readFileSync(stderrPath, 'utf8');
+		stderr = readFileSync(input.stderrPath, 'utf8');
 	} catch {
 		stderr = null;
 	}
 	const stderrTail = stderr === null ? null : stderr.slice(-8000);
-	const frames = s.sent.slice(-DUMP_FRAMES).map(frameSummary);
-	const decisions = s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed');
 	try {
 		mkdirSync(dir, { recursive: true });
-		writeFileSync(path, JSON.stringify({ label, frames, decisions, stderrPath, stderrTail, stderr }, null, 2));
+		writeFileSync(
+			path,
+			JSON.stringify({ label: input.label, frames: input.frames, decisions: input.decisions, stderrPath: input.stderrPath, stderrTail, stderr }, null, 2),
+		);
 	} catch (err) {
 		return `(dump write failed: ${err instanceof Error ? err.message : String(err)})`;
 	}
-	const lastMethods = s.sent
+	const lastMethods = input.frames
 		.slice(-20)
-		.map((x) => `s${x.seat}:${(x.envelope.frame as unknown as { method?: string }).method ?? x.envelope.frame.kind}`)
+		.map((f) => `s${f.seat}:${(f.method as string | undefined) ?? (f.kind as string | undefined) ?? '?'}`)
 		.join(', ');
 	return `dump: ${path} — last 20 frame methods: ${lastMethods}`;
+}
+
+/** This file's own call: a `Scenario`'s frames, decisions and stderr path. */
+function dumpOnTimeout(s: Scenario, label: string): string {
+	return dumpTimeoutReport({
+		label,
+		frames: s.sent.slice(-DUMP_FRAMES).map(frameSummary),
+		decisions: s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed'),
+		stderrPath: join(s.workDir, s.match.id, 'bridge.stderr.txt'),
+	});
 }
 
 /**

@@ -1,0 +1,146 @@
+/*
+ * The match transport contract — wave 64 §S (S1/S8).
+ *
+ * Both apps' own `transport.ts` are now thin re-exports; the cross-package
+ * "no second copy" check lives in `apps/ui/src/play/live/transport.test.ts`
+ * (it has to import both apps to compare them). This file tests the one
+ * source of truth itself: the schemas parse what they must and refuse what
+ * they must, and the two-stage envelope parsers keep their documented
+ * properties.
+ */
+
+import { describe, expect, it } from 'vitest';
+
+import {
+  AutoYieldSchema,
+  autoYieldFrame,
+  ClientEnvelopeSchema,
+  FullControlSchema,
+  fullControlFrame,
+  MATCH_EVENTS,
+  MatchErrorSchema,
+  MatchRequestSchema,
+  MatchSnapshotSchema,
+  parseAutoYield,
+  parseClientEnvelope,
+  parseFullControl,
+  parseMatchRequest,
+  parseServerEnvelope,
+  parseStopPreference,
+  ServerEnvelopeSchema,
+  StopPreferenceSchema,
+  stopPreferenceFrame,
+} from './match-wire.ts';
+
+const VALID_FRAME = { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } };
+
+describe('MATCH_EVENTS', () => {
+  it('names every event this contract uses, both directions', () => {
+    expect(MATCH_EVENTS.join).toBe('forge:join');
+    expect(MATCH_EVENTS.resync).toBe('forge:resync');
+    expect(MATCH_EVENTS.fullControl).toBe('forge:full-control');
+    expect(MATCH_EVENTS.autoYield).toBe('forge:auto-yield');
+    expect(MATCH_EVENTS.stopPreference).toBe('forge:stop-preference');
+    expect(MATCH_EVENTS.seats).toBe('forge:seats');
+    expect(MATCH_EVENTS.role).toBe('forge:role');
+    expect(typeof MATCH_EVENTS.serverToClient).toBe('string');
+    expect(typeof MATCH_EVENTS.clientToServer).toBe('string');
+  });
+});
+
+describe('MatchRequestSchema / parseMatchRequest', () => {
+  it('accepts a bare matchId and refuses an empty one or an extra field', () => {
+    expect(MatchRequestSchema.safeParse({ matchId: 'm1' }).success).toBe(true);
+    expect(parseMatchRequest({ matchId: 'm1' })).toEqual({ ok: true, value: { matchId: 'm1' } });
+    expect(parseMatchRequest({ matchId: '' }).ok).toBe(false);
+    expect(parseMatchRequest({ matchId: 'm1', extra: 1 }).ok).toBe(false);
+  });
+});
+
+describe('ClientEnvelopeSchema / parseClientEnvelope', () => {
+  it('checks the envelope, then the frame — a malformed frame is a frame-path error', () => {
+    const good = parseClientEnvelope({ matchId: 'm1', frame: { kind: 'act', method: 'selectButtonOk' } });
+    expect(good).toEqual({ ok: true, value: { matchId: 'm1', frame: { kind: 'act', method: 'selectButtonOk' } } });
+
+    const bad = parseClientEnvelope({ matchId: 'm1', frame: { kind: 'act', method: 'not-a-real-method' } });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.errors.some((e) => e.path.startsWith('$.frame'))).toBe(true);
+
+    const noMatchId = parseClientEnvelope({ frame: { kind: 'act', method: 'selectButtonOk' } });
+    expect(noMatchId.ok).toBe(false);
+  });
+
+  it('carries an optional placement only with a selectCard act, and refuses an unknown field', () => {
+    expect(ClientEnvelopeSchema.safeParse({ matchId: 'm1', frame: {}, bogus: true }).success).toBe(false);
+  });
+});
+
+describe('FullControlSchema / fullControlFrame — one name, one shape, both directions', () => {
+  it('builds a payload the schema itself accepts', () => {
+    const payload = fullControlFrame('m1', true);
+    expect(FullControlSchema.safeParse(payload).success).toBe(true);
+    expect(payload).toEqual({ matchId: 'm1', on: true });
+  });
+
+  it('refuses a payload missing either field', () => {
+    expect(parseFullControl({ matchId: 'm1' }).ok).toBe(false);
+    expect(parseFullControl({ on: true }).ok).toBe(false);
+  });
+});
+
+describe('AutoYieldSchema / autoYieldFrame', () => {
+  it('is the exact same shape as FullControlSchema, client → server only', () => {
+    const payload = autoYieldFrame('m1', false);
+    expect(AutoYieldSchema.safeParse(payload).success).toBe(true);
+    expect(parseAutoYield(payload)).toEqual({ ok: true, value: payload });
+  });
+});
+
+describe('StopPreferenceSchema / stopPreferenceFrame', () => {
+  it('pins type to the literal "stopPreference"', () => {
+    const payload = stopPreferenceFrame('m1', true);
+    expect(payload).toEqual({ matchId: 'm1', type: 'stopPreference', stopAtEndStep: true });
+    expect(StopPreferenceSchema.safeParse(payload).success).toBe(true);
+    expect(parseStopPreference({ matchId: 'm1', type: 'somethingElse', stopAtEndStep: true }).ok).toBe(false);
+  });
+});
+
+describe('ServerEnvelopeSchema — eager; parseServerEnvelope — not', () => {
+  it('ServerEnvelopeSchema validates the frame inline, as the server side always relied on', () => {
+    const parsed = ServerEnvelopeSchema.safeParse({ matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: VALID_FRAME });
+    expect(parsed.success).toBe(true);
+    expect(ServerEnvelopeSchema.safeParse({ matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'not-a-real-method' } }).success).toBe(false);
+  });
+
+  it('parseServerEnvelope does NOT validate the frame at all — a garbage frame still parses, cursor intact', () => {
+    // The whole point of the split: `ingest()` in `apps/ui/src/play/live/match.ts`
+    // needs the cursor BEFORE it knows whether the frame parses, so it can resync
+    // from it — it calls `safeParseServerFrame` itself, as its own second step,
+    // once it already has this function's `cursor`. Folding frame validation in
+    // HERE broke exactly that: a real regression this test is pinned against
+    // (`match.test.ts`'s "an ask that does not parse is still aborted, and the
+    // client resyncs" times out — no cursor, no resync — when this function
+    // fails the whole envelope over a bad frame instead of leaving it unchecked).
+    const raw = { matchId: 'm1', cursor: { epoch: 'e', seq: 7 }, frame: { kind: 'notify', method: 'not-a-real-method' } };
+    const result = parseServerEnvelope(raw);
+    expect(result).toEqual({ ok: true, value: { matchId: 'm1', cursor: { epoch: 'e', seq: 7 }, frame: { kind: 'notify', method: 'not-a-real-method' } } });
+  });
+
+  it('parseServerEnvelope accepts a good envelope and a good frame', () => {
+    const result = parseServerEnvelope({ matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: VALID_FRAME });
+    expect(result).toEqual({ ok: true, value: { matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: VALID_FRAME } });
+  });
+});
+
+describe('MatchSnapshotSchema / MatchErrorSchema', () => {
+  it('a snapshot carries seat, playerId, cursor (nullable) and frames', () => {
+    expect(MatchSnapshotSchema.safeParse({ matchId: 'm1', seat: 0, playerId: 1, cursor: null, frames: [] }).success).toBe(true);
+    expect(MatchSnapshotSchema.safeParse({ matchId: 'm1', seat: -1, playerId: 1, cursor: null, frames: [] }).success).toBe(false);
+  });
+
+  it('an error carries just the code by default, and the two extra fields only when both are given', () => {
+    expect(MatchErrorSchema.safeParse({ error: 'not-joined' }).success).toBe(true);
+    expect(MatchErrorSchema.safeParse({ error: 'unknown-match', outcome: 'match-gone', message: 'the match ended' }).success).toBe(true);
+    expect(MatchErrorSchema.safeParse({ error: 'not-joined', surprise: true }).success).toBe(false);
+  });
+});

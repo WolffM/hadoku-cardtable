@@ -100,7 +100,7 @@ import { namedStopPolicy, STOP_POLICY_NAMES, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import {
-	fullControlEcho,
+	fullControlFrame,
 	MATCH_EVENTS,
 	parseAutoYield,
 	parseClientEnvelope,
@@ -413,15 +413,25 @@ export const STOP_POLICY_ENV = 'CARDTABLE_PLAY_STOP_POLICY';
  *  - **unset or empty** → `null`. Production, and every deployment. Seats start
  *    on `DEFAULT_STOP_POLICY`, which `socket.test.ts` asserts.
  *  - **a known name** → that policy. `strictPayment` is `STRICT_PAYMENT_POLICY`,
- *    where a payment is the player's to click; `everyPriority` is the stop
- *    behaviour that was the default until wave 28 adopted Arena's stop set
- *    (item 5), which is what a run wanting a window in every phase now asks for.
- *    `arena` still resolves and now names the default.
+ *    where a payment is the player's to click (`docs/.../scenarios/README.md`'s
+ *    documented reason to run a hand-started server under it). `arena` still
+ *    resolves and now names the default.
  *  - **an unknown name** → `{ name, policy: null }`, so `attachPlay` can LOG
  *    the typo. Falling back silently would play the whole match under the
  *    default the operator was trying to move off, and the screenshot would be
  *    of nothing — the exact failure mode `CARDTABLE_PLAY_SEED` spent a week in
  *    when it was set on a server that could not start Forge.
+ *
+ * **Wave 64 §S (S3) narrowed the names this hatch answers to.** `everyPriority`
+ * and `fullControl` used to resolve here too, and neither had a documented
+ * reason to: nothing names a path where an OPERATOR sets
+ * `CARDTABLE_PLAY_STOP_POLICY=fullControl` to get what `forge:full-control` /
+ * `Match.setFullControl` already give over the wire — that is the shadow this
+ * item found — and no doc ever gave `everyPriority` a reason to be chosen from
+ * an environment rather than imported directly, which is how the suites that
+ * still pin it (`auto.test.ts`, and `apps/ui/src/play/live/*.jvm.test.ts`) use
+ * it. `EVERY_PRIORITY_POLICY` and `FULL_CONTROL_POLICY` are still exported
+ * values — this hatch is narrower, not the model.
  */
 export function parseStopPolicyEnv(env: NodeJS.ProcessEnv = process.env): { name: string; policy: StopPolicy | null } | null {
 	const raw = env[STOP_POLICY_ENV];
@@ -489,7 +499,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
 			// — both seats, and spectators — gets the new roster on the event a join
 			// already carries (`forge:seats`), so the board and the chat agree again.
-			io.to(roomFor(match).roomId).emit('forge:seats', { matchId: match.id, seats });
+			io.to(roomFor(match).roomId).emit(MATCH_EVENTS.seats, { matchId: match.id, seats });
 		},
 		emit: (match, seat, envelope) => {
 			emitPerRecipient<PlayApp, PlayClient, typeof envelope>(
@@ -759,7 +769,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * does not is corrected too, in the one direction that is the
 						 * server's to settle.
 						 */
-						socket.emit(MATCH_EVENTS.fullControl, fullControlEcho(result.matchId, match.fullControl(result.seat)));
+						socket.emit(MATCH_EVENTS.fullControl, fullControlFrame(result.matchId, match.fullControl(result.seat)));
 						/*
 						 * Item 4's server half (wave 29 §B): every seat's identity, on its
 						 * own event and for the same reason `forge:full-control` is —
@@ -770,12 +780,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * THIS socket, both seats always (an avatar is not hidden
 						 * information, the same reasoning `routes.ts`'s `tableView` uses).
 						 *
-						 * Not `MATCH_EVENTS.*` — that map is `transport.ts`'s, and this event
-						 * is new this wave. `apps/ui/src/play/live/transport.ts` (lane A's
-						 * file) is where the client-side name and schema for `forge:seats`
-						 * are adopted; the payload shape is `{ matchId, seats: SeatIdentity[] }`.
+						 * `MATCH_EVENTS.seats` since wave 64 §S (S1): the shared transport
+						 * module carries the event NAME now, even though its payload schema
+						 * (`SeatIdentitySchema`/`MatchSeatsSchema`) stays client-side in
+						 * `apps/ui/src/play/live/transport.ts` — nothing here parses it.
 						 */
-						socket.emit('forge:seats', { matchId: result.matchId, seats: match.seatIdentities() });
+						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
 						// Wave 31 §S: and whether THIS socket controls the seat, every time.
 						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'spectator');
 					}

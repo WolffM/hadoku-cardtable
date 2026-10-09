@@ -821,14 +821,27 @@ export const FORGE_PREFERENCES: Readonly<Record<string, string>> = {
 	 * `PlayerControllerHuman.arrangeForScry` hands the GUI
 	 * `player.getCardsIn(ZoneType.Library)` — **the whole library** — as the
 	 * pile to rearrange, with only the scried cards `manipulable`
-	 * (`PlayerControllerHuman.java:1006-1012`). Verified on this host: a
-	 * Preordain scry arrived as `manipulateCardList` with **53** cards and 2
-	 * manipulable. The desktop UI renders that as a drag inside its library
-	 * display; a browser client has no such display and draws 53 rows, 51 of
-	 * them cards the seat is not allowed to see and so cannot name.
+	 * (`PlayerControllerHuman.java:1006-1012`). The desktop UI renders that as
+	 * a drag inside its library display; a browser client has no such display
+	 * and draws every row, most of them cards the seat is not allowed to see
+	 * and so cannot name.
 	 *
-	 * False takes Forge's other branch (`:1013-1027`): it asks with the scried
-	 * cards alone. The seat's own library stops crossing the wire for a scry.
+	 * **Re-measured wave 64 §S (S10), against the pinned jar
+	 * (`702b207eda874df8bae60435284f40836ed8799c`), with this pref flipped
+	 * BOTH ways on the exact same scripted Preordain (`scenarios/w62-scry.state`,
+	 * a 6-card library): `true` (Forge's default) sends `manipulateCardList`
+	 * with all 6 cards and 2 `manipulable` — still exactly the bug #12
+	 * complains about, numbers scaling with the library — and `false` (this
+	 * file's override) sends `order` instead, title "Select cards to be put
+	 * on the bottom of your library", `sourceChoices` carrying ONLY the two
+	 * scried cards. The pref is still the one thing deciding which of these
+	 * two asks Forge opens for a scry — nothing else in this file or in
+	 * `auto.ts` branches on it — so it is still needed, and the value stays
+	 * `'false'`. The method name `order` was missing from this comment before
+	 * this measurement (`docs/.../wave62-evidence/S/scry.md`, 2026-10-08,
+	 * independently confirmed the same false-branch shape for Serum Visions
+	 * and Preordain, from the UI side rather than this pref's own doc) — this
+	 * paragraph is what was stale, not the mechanism.
 	 */
 	UI_SELECT_FROM_CARD_DISPLAYS: 'false',
 };

@@ -37,8 +37,11 @@
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
 import { ARRANGEMENT_EVENT, CLIENT_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
+import { join } from 'node:path';
+
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
+import { dumpTimeoutReport, summarizeFrame } from '../../../../server/src/play/scenario.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 import { MATCH_EVENTS, type ServerEnvelope } from './transport.ts';
 
@@ -85,18 +88,27 @@ export interface SeatClient {
   act(frame: Extract<ClientFrame, { kind: 'act' }>): void;
 }
 
-export interface LiveHarness {
+/**
+ * What a timed-out `waitUntil` needs to dump (S11, wave 64) — a structural
+ * subset of {@link LiveHarness}, so the one internal wait before a
+ * `LiveHarness` exists yet (below) can pass the pieces it already has in
+ * scope without constructing the whole thing early.
+ */
+export interface DumpSource {
   match: Match;
+  emitted: { seat: number; envelope: ServerEnvelope }[];
+  serverLog: Record<string, unknown>[];
+  /** `JvmHostConfig.workDir` this match's JVM ran under — where its `bridge.stderr.txt` lives. */
+  workDir: string;
+}
+
+export interface LiveHarness extends DumpSource {
   seats: [SeatClient, SeatClient];
   asks: AskRecord[];
   /** Every `fromClient` that was refused, reply or act. Should stay empty. */
   refused: { seat: number; frame: ClientFrame; error: string }[];
-  /** Envelopes the server emitted, per seat — for the leak check. */
-  emitted: { seat: number; envelope: ServerEnvelope }[];
   /** Every line the bridge wrote, unprojected — the leak oracle's source of secrets. */
   raw: BridgeLine[];
-  /** The match server's own log entries (`ask-answered`, `ask-aborted`, …). */
-  serverLog: Record<string, unknown>[];
   /** Close both seats (aborting what they hold open) and stop the match and its JVM. Idempotent. */
   stop(): void;
 }
@@ -106,12 +118,34 @@ function later(fn: () => void): void {
   setTimeout(fn, 0);
 }
 
-async function waitUntil(predicate: () => boolean, label: string, timeoutMs: number): Promise<void> {
+/**
+ * `dump`, when given, is captured on a timeout — `apps/server/src/play/
+ * scenario.ts`'s `dumpTimeoutReport`, the ONE function both jvm harnesses
+ * call (S11, wave 64): before this fold this file kept no bridge stderr and
+ * removed the run dir on `stop()`, so a timeout here had nothing to
+ * diagnose from (`flow.jvm.test.ts`'s three reds of 2026-10-08). Call this
+ * BEFORE `stop()` — same rule `scenario.ts`'s own `waitUntil` follows,
+ * because `stop()` is what removes the run dir `bridge.stderr.txt` lives in.
+ */
+async function waitUntil(predicate: () => boolean, label: string, timeoutMs: number, dump?: DumpSource): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+    if (Date.now() > deadline) {
+      const detail = dump === undefined ? '' : ` (${dumpOnTimeout(dump, label)})`;
+      throw new Error(`timed out waiting for ${label}${detail}`);
+    }
     await new Promise((r) => setTimeout(r, 25));
   }
+}
+
+/** This file's own call into the shared dump: a `DumpSource`'s frames, decisions and stderr path. */
+function dumpOnTimeout(dump: DumpSource, label: string): string {
+  return dumpTimeoutReport({
+    label,
+    frames: dump.emitted.slice(-80).map((e) => summarizeFrame(e.seat, e.envelope.frame)),
+    decisions: dump.serverLog.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed'),
+    stderrPath: join(dump.workDir, dump.match.id, 'bridge.stderr.txt'),
+  });
 }
 
 export { waitUntil };
@@ -274,7 +308,12 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
     };
   }) as [SeatClient, SeatClient];
 
-  await waitUntil(() => seats.every((s) => s.live.stats.snapshots >= 1 && s.live.view !== null), 'both seats to hold a board', 30_000);
+  await waitUntil(
+    () => seats.every((s) => s.live.stats.snapshots >= 1 && s.live.view !== null),
+    'both seats to hold a board',
+    30_000,
+    { match, emitted, serverLog, workDir: available.config.workDir },
+  );
 
   return {
     match,
@@ -284,6 +323,7 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
     emitted,
     raw,
     serverLog,
+    workDir: available.config.workDir,
     stop: () => {
       for (const s of seats) if (s.live.connected) closeMatch(s.live);
       match.stop();

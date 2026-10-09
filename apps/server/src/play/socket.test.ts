@@ -18,7 +18,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
-import { ARENA_STOP_POLICY, DEFAULT_STOP_POLICY, FULL_CONTROL_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
+import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
 import type { BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
@@ -1047,9 +1047,21 @@ describe(STOP_POLICY_ENV, () => {
 
 	it('resolves every name it advertises, and trims the shell whitespace off one', () => {
 		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'default' })?.policy).toEqual(DEFAULT_STOP_POLICY);
-		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'arena' })?.policy).toEqual(ARENA_STOP_POLICY);
-		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'fullControl' })?.policy).toEqual(FULL_CONTROL_POLICY);
+		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'arena' })?.policy).toEqual(DEFAULT_STOP_POLICY);
 		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: '  strictPayment\n' })?.policy).toEqual(STRICT_PAYMENT_POLICY);
+	});
+
+	/*
+	 * S3, wave 64: `fullControl` no longer resolves here. It duplicated the wire
+	 * flag (`forge:full-control` / `Match.setFullControl`, checked ahead of any
+	 * policy on every gate) with no documented reason an operator would reach
+	 * for the env hatch instead — `FULL_CONTROL_POLICY` itself is untouched and
+	 * still directly importable for the suites that pin it.
+	 */
+	it('no longer answers to `fullControl` — it duplicated the wire flag', () => {
+		const r = parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'fullControl' });
+		expect(r).not.toBeNull();
+		expect(r?.policy).toBeNull();
 	});
 
 	/*

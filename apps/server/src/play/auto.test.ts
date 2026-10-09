@@ -15,10 +15,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ClientFrameSchema, PHASE_TYPES, REPLY_SCHEMAS, YieldUpdateSchema, parseServerFrame, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, PHASE_TYPES, REPLY_SCHEMAS, parseServerFrame, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
 
 import {
-	ARENA_STOP_POLICY,
 	DEFAULT_STOP_POLICY,
 	EVERY_PRIORITY_POLICY,
 	FULL_CONTROL_POLICY,
@@ -26,9 +25,6 @@ import {
 	STRICT_PAYMENT_POLICY,
 	PHASE_BY_UI_NAME,
 	namedStopPolicy,
-	autoCancelReason,
-	autoPassReason,
-	autoPayReason,
 	chosenCostConfirm,
 	decideCancel,
 	decidePay,
@@ -41,7 +37,6 @@ import {
 	triggerLine,
 	plainCost,
 	readPromptFacts,
-	toYieldUpdates,
 	type SeatNotes,
 	type StopPolicy,
 } from './auto.js';
@@ -311,8 +306,8 @@ describe('the captured turn flow — every rule against frames Forge really sent
 			openAsks: 0,
 		};
 		const want = FLOW_EXPECTED[label]!;
-		expect(autoPassReason(notes), `${label}: auto-pass`).toBe(want.pass);
-		expect(autoPayReason(notes), `${label}: auto-pay`).toBe(want.pay);
+		expect(decideStop(readPromptFacts(notes), DEFAULT_STOP_POLICY), `${label}: auto-pass`).toBe(want.pass);
+		expect(decidePay(readPromptFacts(notes), DEFAULT_STOP_POLICY), `${label}: auto-pay`).toBe(want.pay);
 	});
 
 	it('every ability offer the run produced carried exactly one ability, and its label', () => {
@@ -398,9 +393,9 @@ const IDLE = {
 	openAsks: 0,
 };
 
-describe('autoPassReason', () => {
+describe('decideStop, through readPromptFacts (formerly autoPassReason)', () => {
 	it('passes a priority stop where Forge says the seat can do nothing, and names the phase', () => {
-		expect(autoPassReason(IDLE)).toBe('End of Combat Step');
+		expect(decideStop(readPromptFacts(IDLE), DEFAULT_STOP_POLICY)).toBe('End of Combat Step');
 	});
 
 	it('never passes a phase the player ASKED to stop in, with something to do or nothing', () => {
@@ -408,7 +403,7 @@ describe('autoPassReason', () => {
 		// the default (wave 28). Nothing about what Forge named changes that.
 		for (const message of [THEIR_STOP_MESSAGE, MY_STOP_MESSAGE]) {
 			for (const actionable of [[] as number[], [67], null]) {
-				expect(autoPassReason({ ...IDLE, prompt: prompt(message), actionable }), `${message} ${String(actionable)}`).toBeNull();
+				expect(decideStop(readPromptFacts({ ...IDLE, prompt: prompt(message), actionable }), DEFAULT_STOP_POLICY), `${message} ${String(actionable)}`).toBeNull();
 			}
 		}
 	});
@@ -422,7 +417,7 @@ describe('autoPassReason', () => {
 	 */
 	it('PASSES a phase outside the stop sets whether Forge named something, nothing, or nothing at all', () => {
 		for (const actionable of [[] as number[], [67], null]) {
-			expect(autoPassReason({ ...IDLE, actionable }), String(actionable)).toBe('End of Combat Step');
+			expect(decideStop(readPromptFacts({ ...IDLE, actionable }), DEFAULT_STOP_POLICY), String(actionable)).toBe('End of Combat Step');
 		}
 	});
 
@@ -430,44 +425,44 @@ describe('autoPassReason', () => {
 		// A cleared set is "Forge has not said", not "nothing". Two places still
 		// judge a window that way: every priority window under the superseded
 		// default, and a STACK window under the current one, in any phase.
-		expect(autoPassReason({ ...IDLE, actionable: null }, EVERY_PRIORITY_POLICY)).toBeNull();
-		expect(autoPassReason({ ...IDLE, actionable: [67] }, EVERY_PRIORITY_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, actionable: null }), EVERY_PRIORITY_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, actionable: [67] }), EVERY_PRIORITY_POLICY)).toBeNull();
 		const onStack = prompt('Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nStack: 1 to Resolve.');
-		expect(autoPassReason({ ...IDLE, prompt: onStack, actionable: null })).toBeNull();
-		expect(autoPassReason({ ...IDLE, prompt: onStack, actionable: [67] })).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: onStack, actionable: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: onStack, actionable: [67] }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('never passes a phase spelling it could not identify, now that "always" is the default', () => {
 		// All thirteen spellings are mapped, so an unknown one is Forge saying
 		// something new — "when in doubt the player is asked", not "skip it".
 		const odd = prompt('Priority: A\nTurn: 4 (A)\nPhase: Fourth main phase\nStack: Empty');
-		expect(autoPassReason({ ...IDLE, prompt: odd, actionable: [67] })).toBeNull();
-		expect(autoPassReason({ ...IDLE, prompt: odd, actionable: null })).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: odd, actionable: [67] }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: odd, actionable: null }), DEFAULT_STOP_POLICY)).toBeNull();
 		// Forge's own "nothing here" still passes it: the guard removes the SKIP,
 		// not `passWhenNothingToDo`.
-		expect(autoPassReason({ ...IDLE, prompt: odd, actionable: [] })).toBe('Fourth main phase');
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: odd, actionable: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
 	// Wave 20, #5: this used to be "never passes with something on the stack".
 	// That requirement is what made a creature need two humans to press OK.
 	it('PASSES a priority window with something on the stack — that is what resolves it', () => {
 		const onStack = prompt('Priority: B\nTurn: 4 (A)\nPhase: End step\nStack: 1 to Resolve.');
-		expect(autoPassReason({ ...IDLE, prompt: onStack })).toBe('End step');
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: onStack }), DEFAULT_STOP_POLICY)).toBe('End step');
 	});
 
 	// Wave 20, #7: "dont auto-pass peoples turns".
 	it('never passes the seat’s OWN main phase with an empty stack, even with nothing to do', () => {
 		for (const phase of ['Main phase, precombat', 'Main phase, postcombat']) {
 			const own = prompt(`Priority: B\nTurn: 4 (B)\nPhase: ${phase}\nStack: Empty`);
-			expect(autoPassReason({ ...IDLE, prompt: own }), phase).toBeNull();
+			expect(decideStop(readPromptFacts({ ...IDLE, prompt: own }), DEFAULT_STOP_POLICY), phase).toBeNull();
 		}
 	});
 
 	it('still passes the OTHER seat’s main phase, and its own main phase with a stack', () => {
 		const theirs = prompt('Priority: B\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: Empty');
-		expect(autoPassReason({ ...IDLE, prompt: theirs })).toBe('Main phase, precombat');
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: theirs }), DEFAULT_STOP_POLICY)).toBe('Main phase, precombat');
 		const mineWithStack = prompt('Priority: B\nTurn: 4 (B)\nPhase: Main phase, precombat\nStack: 1 to Resolve.');
-		expect(autoPassReason({ ...IDLE, prompt: mineWithStack })).toBe('Main phase, precombat');
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: mineWithStack }), DEFAULT_STOP_POLICY)).toBe('Main phase, precombat');
 	});
 
 	it('never passes a prompt that is not priority (a mulligan, a payment, a declare step)', () => {
@@ -476,24 +471,24 @@ describe('autoPassReason', () => {
 			'Preordain (70) - B scribes 2.\n\nPay Mana Cost: {U}',
 			'Select creatures to attack with',
 		]) {
-			expect(autoPassReason({ ...IDLE, prompt: prompt(message) }), message).toBeNull();
+			expect(decideStop(readPromptFacts({ ...IDLE, prompt: prompt(message) }), DEFAULT_STOP_POLICY), message).toBeNull();
 		}
 	});
 
 	it('never passes while the seat has a question open', () => {
-		expect(autoPassReason({ ...IDLE, openAsks: 1 })).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, openAsks: 1 }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('never passes when OK is not live, or the prompt belongs to the other seat', () => {
-		expect(autoPassReason({ ...IDLE, buttons: buttons(false) })).toBeNull();
-		expect(autoPassReason({ ...IDLE, prompt: prompt(PRIORITY_MESSAGE, 0) })).toBeNull();
-		expect(autoPassReason({ ...IDLE, buttons: buttons(true, 0) })).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, buttons: buttons(false) }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: prompt(PRIORITY_MESSAGE, 0) }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, buttons: buttons(true, 0) }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('never passes before openView has named the seat, or with nothing said yet', () => {
-		expect(autoPassReason({ ...IDLE, playerId: null })).toBeNull();
-		expect(autoPassReason({ ...IDLE, prompt: null })).toBeNull();
-		expect(autoPassReason({ ...IDLE, buttons: null })).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, playerId: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, prompt: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(readPromptFacts({ ...IDLE, buttons: null }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 });
 
@@ -547,22 +542,22 @@ const PAYING = {
  * (the operator, on item 6); the strict semantics did not go away.
  */
 
-describe('autoPayReason', () => {
+describe('decidePay, through readPromptFacts (formerly autoPayReason)', () => {
 	it('presses Forge’s Auto for a payment with exactly one source, and names the cost', () => {
-		expect(autoPayReason(PAYING)).toBe('{U}');
+		expect(decidePay(readPromptFacts(PAYING), DEFAULT_STOP_POLICY)).toBe('{U}');
 	});
 
 	it('asks when there is more than one source, UNDER THE STRICT VALUE — which land to tap is a real choice', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [67, 68] }, STRICT_PAYMENT_POLICY)).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, actionable: [67, 68] }), STRICT_PAYMENT_POLICY)).toBeNull();
 	});
 
 	it('settles the same window under the default, because the operator chose Forge’s auto-tap', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [67, 68] })).not.toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, actionable: [67, 68] }), DEFAULT_STOP_POLICY)).not.toBeNull();
 	});
 
 	it('asks when Forge named no source, or has not said at all, UNDER THE STRICT VALUE', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [] }, STRICT_PAYMENT_POLICY)).toBeNull();
-		expect(autoPayReason({ ...PAYING, actionable: null }, STRICT_PAYMENT_POLICY)).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, actionable: [] }), STRICT_PAYMENT_POLICY)).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, actionable: null }), STRICT_PAYMENT_POLICY)).toBeNull();
 	});
 
 	/*
@@ -575,35 +570,35 @@ describe('autoPayReason', () => {
 	 * is the opposite shape — Auto DEAD — and `decideCancel` owns it.
 	 */
 	it('settles a window with no source offered under the default — Forge’s Auto live is Forge’s answer', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [] })).not.toBeNull();
-		expect(autoPayReason({ ...PAYING, actionable: null })).not.toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, actionable: [] }), DEFAULT_STOP_POLICY)).not.toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, actionable: null }), DEFAULT_STOP_POLICY)).not.toBeNull();
 	});
 
 	it('never presses a bar that is not the payment input’s own Auto', () => {
-		expect(autoPayReason({ ...PAYING, buttons: autoBar(false) })).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, buttons: autoBar(false) }), DEFAULT_STOP_POLICY)).toBeNull();
 		// A priority window's button 1 is "OK" — pressing it there is the
 		// auto-pass's business, under its own rules.
-		expect(autoPayReason({ ...PAYING, buttons: buttons(true) })).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, buttons: buttons(true) }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('never presses a prompt that is not a payment', () => {
-		expect(autoPayReason({ ...PAYING, prompt: prompt(PRIORITY_MESSAGE) })).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, prompt: prompt(PRIORITY_MESSAGE) }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('leaves life alone: paying life instead of mana is a second payment', () => {
 		const phyrexian = prompt('Pay Mana Cost: {U/P}\nClick on your life total to pay life for phyrexian mana.');
-		expect(autoPayReason({ ...PAYING, prompt: phyrexian })).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, prompt: phyrexian }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('leaves life alone in Forge’s real, parenthesised wording too', () => {
 		const phyrexian = prompt('Pay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)');
-		expect(autoPayReason({ ...PAYING, prompt: phyrexian })).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, prompt: phyrexian }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('never presses while a question is open, before the seat is named, or for the other seat', () => {
-		expect(autoPayReason({ ...PAYING, openAsks: 1 })).toBeNull();
-		expect(autoPayReason({ ...PAYING, playerId: null })).toBeNull();
-		expect(autoPayReason({ ...PAYING, buttons: autoBar(true, 0) })).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, openAsks: 1 }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, playerId: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(readPromptFacts({ ...PAYING, buttons: autoBar(true, 0) }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 });
 
@@ -1373,17 +1368,25 @@ describe('a stop policy can be named from outside', () => {
 	it('resolves each name to the value it names, and nothing else', () => {
 		expect(namedStopPolicy('default')).toEqual(DEFAULT_STOP_POLICY);
 		expect(namedStopPolicy('strictPayment')).toEqual(STRICT_PAYMENT_POLICY);
-		expect(namedStopPolicy('arena')).toEqual(ARENA_STOP_POLICY);
-		expect(namedStopPolicy('everyPriority')).toEqual(EVERY_PRIORITY_POLICY);
-		expect(namedStopPolicy('fullControl')).toEqual(FULL_CONTROL_POLICY);
-		// `arena` still answers, and it now names the default — wave 28 adopted the
-		// value, and a hatch that stops answering to a name it once answered to is
-		// worse than an alias.
+		// `arena` still answers, and it now names the default (S1, wave 64) — wave 28
+		// adopted the value, and a hatch that stops answering to a name it once
+		// answered to is worse than an alias. No separate `ARENA_STOP_POLICY` export
+		// exists any more: the map's `'arena'` entry points at `DEFAULT_STOP_POLICY`
+		// directly.
 		expect(namedStopPolicy('arena')).toEqual(DEFAULT_STOP_POLICY);
 		// The names it advertises are exactly the names it answers to — a refusal
 		// that lists `known` must not list one that then resolves to null.
-		expect([...STOP_POLICY_NAMES].sort()).toEqual(['arena', 'default', 'everyPriority', 'fullControl', 'strictPayment']);
+		expect([...STOP_POLICY_NAMES].sort()).toEqual(['arena', 'default', 'strictPayment']);
 		for (const name of STOP_POLICY_NAMES) expect(namedStopPolicy(name)).not.toBeNull();
+	});
+
+	it('S3, wave 64: the env hatch no longer answers to `everyPriority` or `fullControl` — neither had a documented reason to be chosen from an environment rather than imported, and `fullControl` duplicates the wire flag', () => {
+		expect(namedStopPolicy('everyPriority')).toBeNull();
+		expect(namedStopPolicy('fullControl')).toBeNull();
+		// The values themselves are untouched and still directly importable — only
+		// the env NAME is gone.
+		expect(EVERY_PRIORITY_POLICY.skipNonStopPhases).toBe('never');
+		expect(FULL_CONTROL_POLICY.stopOnMyTurn).toEqual(PHASE_TYPES);
 	});
 
 	it('names nothing for a name it does not have, including a prototype one', () => {
@@ -1503,7 +1506,7 @@ function firstOwnCard(h: Harness, seat: number): { id: number; key: number; name
  * The policy is the model, and these are the assertions that keep it one.
  *
  * Everything above this line exercised `DEFAULT_STOP_POLICY` through
- * `autoPassReason` / `autoPayReason`, which is the behaviour waves 19-22 shipped
+ * `decideStop` / `decidePay` over `readPromptFacts`, which is the behaviour waves 19-22 shipped
  * and which wave 24 preserved exactly — 76 tests of it, unchanged. What follows
  * is what the MODEL adds: that a different stop preference is a different VALUE,
  * that the decision layer reads no prose, that the policy is expressible as
@@ -1643,28 +1646,28 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 	it('#20 — the phases the player DID ask for still stop, with something to do or not', () => {
 		for (const sources of [[], [61]]) {
 			const blockers = facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, sources });
-			expect(decideStop(blockers, ARENA_STOP_POLICY), JSON.stringify(sources)).toBeNull();
+			expect(decideStop(blockers, DEFAULT_STOP_POLICY), JSON.stringify(sources)).toBeNull();
 			const myMain = facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true, sources });
-			expect(decideStop(myMain, ARENA_STOP_POLICY), JSON.stringify(sources)).toBeNull();
+			expect(decideStop(myMain, DEFAULT_STOP_POLICY), JSON.stringify(sources)).toBeNull();
 		}
 	});
 
 	it('the scope of a skip is a value too: theirTurn leaves the player’s own turn alone', () => {
-		const theirTurnOnly: StopPolicy = { ...ARENA_STOP_POLICY, skipNonStopPhases: 'theirTurn' };
+		const theirTurnOnly: StopPolicy = { ...DEFAULT_STOP_POLICY, skipNonStopPhases: 'theirTurn' };
 		expect(decideStop(busyOnTheirUpkeep, theirTurnOnly)).toBe('Upkeep step');
 		const myBusyUpkeep = facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', myTurn: true, sources: [61] });
 		expect(decideStop(myBusyUpkeep, theirTurnOnly)).toBeNull();
-		expect(decideStop(myBusyUpkeep, ARENA_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop(myBusyUpkeep, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
 	});
 
 	it('an unknown phase is never skipped — a spelling we do not know is a stop', () => {
 		const unknown = facts({ phase: null, phaseLabel: 'Fourth main phase', sources: [61] });
-		expect(isStopPhase(ARENA_STOP_POLICY, unknown)).toBe(false);
+		expect(isStopPhase(DEFAULT_STOP_POLICY, unknown)).toBe(false);
 		// Wave 24 §E left this as "`'always'` would pass it; that is deliberate".
 		// Wave 28 made `'always'` the DEFAULT, and an unidentified phase quietly
 		// passing every window it appears in is not a thing to leave deliberate, so
 		// `skipsThisTurn` now refuses a null phase. It holds under every policy.
-		for (const policy of [DEFAULT_STOP_POLICY, EVERY_PRIORITY_POLICY, ARENA_STOP_POLICY, FULL_CONTROL_POLICY]) {
+		for (const policy of [DEFAULT_STOP_POLICY, EVERY_PRIORITY_POLICY, DEFAULT_STOP_POLICY, FULL_CONTROL_POLICY]) {
 			expect(decideStop(unknown, policy)).toBeNull();
 		}
 		// Forge's own "nothing here" still passes it, label and all.
@@ -1690,9 +1693,6 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			attackStopIsTheDeclaration: true,
 			blockStopIsTheDeclaration: true,
 		});
-		// It was adopted WHOLESALE, not just its `skipNonStopPhases` — the stop sets
-		// are the half that keeps a held instant castable at all.
-		expect(DEFAULT_STOP_POLICY).toEqual(ARENA_STOP_POLICY);
 	});
 
 	it('wave 20’s behaviour is still a value, so the change is reversible', () => {
@@ -1885,12 +1885,12 @@ describe('NEVER shortcut (1): a stop with a legal action and something at stake'
 	it('holds under ARENA too: a skipped phase with actions is passed, a stop phase is not', () => {
 		// The one place the policy DOES pass a window with something to do is a
 		// phase the player asked to skip — which is #20, and is a preference.
-		expect(decideStop(facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', sources: [61] }), ARENA_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop(facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', sources: [61] }), DEFAULT_STOP_POLICY)).toBe('Upkeep step');
 		// COMBAT_DECLARE_BLOCKERS, not END_OF_TURN (wave 30 item 2 moved the end
 		// step out of ARENA's — i.e. DEFAULT_STOP_POLICY's — stop set; that change
 		// has its own dedicated test above).
 		expect(
-			decideStop(facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', sources: [61] }), ARENA_STOP_POLICY),
+			decideStop(facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', sources: [61] }), DEFAULT_STOP_POLICY),
 		).toBeNull();
 	});
 });
@@ -2015,13 +2015,13 @@ describe('NEVER shortcut (2): a cost whose payment is a genuine choice', () => {
 		const read = readPromptFacts(notes);
 		expect(read.window).toBe('other');
 		expect(read.cost).toBeNull();
-		for (const policy of [DEFAULT_STOP_POLICY, { ...DEFAULT_STOP_POLICY, costConfirm: 'accept' as const }, ARENA_STOP_POLICY]) {
+		for (const policy of [DEFAULT_STOP_POLICY, { ...DEFAULT_STOP_POLICY, costConfirm: 'accept' as const }, DEFAULT_STOP_POLICY]) {
 			expect(decideStop(read, policy)).toBeNull();
 			expect(decidePay(read, policy)).toBeNull();
 		}
 		// And through the whole `match.ts` entry points, which is what runs live.
-		expect(autoPassReason(notes)).toBeNull();
-		expect(autoPayReason(notes)).toBeNull();
+		expect(decideStop(readPromptFacts(notes), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(readPromptFacts(notes), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 });
 
@@ -2037,8 +2037,8 @@ describe('NEVER shortcut (3): anything at all while full control is on', () => {
 				actionable: w.actionable,
 				openAsks: 0,
 			};
-			expect(autoPassReason(notes, FULL_CONTROL_POLICY), `${w.label}: pass`).toBeNull();
-			expect(autoPayReason(notes, FULL_CONTROL_POLICY), `${w.label}: pay`).toBeNull();
+			expect(decideStop(readPromptFacts(notes), FULL_CONTROL_POLICY), `${w.label}: pass`).toBeNull();
+			expect(decidePay(readPromptFacts(notes), FULL_CONTROL_POLICY), `${w.label}: pay`).toBeNull();
 		}
 	});
 
@@ -2069,99 +2069,6 @@ describe('NEVER shortcut (3): anything at all while full control is on', () => {
 		const ask = allMustBeChosen('fc-1');
 		expect(onlyAnswer(ask, DEFAULT_STOP_POLICY)).not.toBeNull();
 		expect(onlyAnswer(ask, FULL_CONTROL_POLICY)).toBeNull();
-	});
-});
-
-/* ── The policy as Forge's own frames ────────────────────────────────── */
-
-const SEAT = { me: { kind: 'player' as const, id: 1 }, others: [{ kind: 'player' as const, id: 2 }] };
-
-describe('toYieldUpdates — the policy as Forge’s own YieldUpdate arms', () => {
-	it('emits nothing Forge’s sealed interface does not permit', () => {
-		for (const policy of [DEFAULT_STOP_POLICY, ARENA_STOP_POLICY, FULL_CONTROL_POLICY]) {
-			const frames = toYieldUpdates(policy, SEAT);
-			expect(frames.length).toBeGreaterThan(0);
-			for (const frame of frames) {
-				const parsed = YieldUpdateSchema.safeParse(frame);
-				expect(parsed.success ? null : parsed.error.issues, JSON.stringify(frame)).toBeNull();
-			}
-		}
-	});
-
-	it('carries one skipPhase per (turn player, phase) — 13 phases, every player', () => {
-		for (const policy of [DEFAULT_STOP_POLICY, EVERY_PRIORITY_POLICY]) {
-			expect(toYieldUpdates(policy, SEAT).filter((f) => f.update === 'skipPhase')).toHaveLength(PHASE_TYPES.length * 2);
-		}
-		// `skipNonStopPhases: 'never'` skips nothing: every stop is Forge's own to
-		// decide. That was the default until wave 28, and it is what the current
-		// default stopped doing — the case below is the same set, inverted.
-		const never = toYieldUpdates(EVERY_PRIORITY_POLICY, SEAT).filter((f) => f.update === 'skipPhase');
-		expect(never.every((f) => f.update === 'skipPhase' && f.skip === false)).toBe(true);
-		// The default now sends a real skip set, which is what makes the change
-		// something Forge is told about rather than something only we act on.
-		const now = toYieldUpdates(DEFAULT_STOP_POLICY, SEAT).filter((f) => f.update === 'skipPhase' && f.skip);
-		expect(now.length).toBe(PHASE_TYPES.length * 2 - DEFAULT_STOP_POLICY.stopOnMyTurn.length - DEFAULT_STOP_POLICY.stopOnTheirTurn.length);
-	});
-
-	it('ARENA’s skip set is exactly the complement of its stop set, per side', () => {
-		const frames = toYieldUpdates(ARENA_STOP_POLICY, SEAT);
-		const skipped = (id: number): PhaseType[] =>
-			frames
-				.filter((f) => f.update === 'skipPhase' && f.turnPlayer.id === id && f.skip)
-				.map((f) => (f as Extract<typeof f, { update: 'skipPhase' }>).phase);
-		expect(skipped(1).sort()).toEqual(PHASE_TYPES.filter((p) => !ARENA_STOP_POLICY.stopOnMyTurn.includes(p)).sort());
-		expect(skipped(2).sort()).toEqual(PHASE_TYPES.filter((p) => !ARENA_STOP_POLICY.stopOnTheirTurn.includes(p)).sort());
-	});
-
-	it('carries APINA, the interrupt rule and #22’s enabler as Forge’s own prefs', () => {
-		const prefs = (policy: StopPolicy): Record<string, string> =>
-			Object.fromEntries(
-				toYieldUpdates(policy, SEAT)
-					.filter((f) => f.update === 'setYieldPref')
-					.map((f) => [(f as Extract<typeof f, { update: 'setYieldPref' }>).pref, (f as Extract<typeof f, { update: 'setYieldPref' }>).value]),
-			);
-		expect(prefs(DEFAULT_STOP_POLICY)).toEqual({
-			YIELD_AUTO_PASS_NO_ACTIONS: 'true',
-			YIELD_AUTO_PASS_RESPECTS_INTERRUPTS: 'true',
-			UI_SHOW_AUTOTAP_PREVIEW: 'true',
-		});
-		expect(prefs(FULL_CONTROL_POLICY)).toEqual({
-			YIELD_AUTO_PASS_NO_ACTIONS: 'false',
-			YIELD_AUTO_PASS_RESPECTS_INTERRUPTS: 'true',
-			UI_SHOW_AUTOTAP_PREVIEW: 'false',
-		});
-		// Every pref named is one YieldController actually syncs (YieldController.java:46-65).
-		const SYNCED = new Set(['YIELD_AUTO_PASS_NO_ACTIONS', 'YIELD_AUTO_PASS_RESPECTS_INTERRUPTS', 'UI_SHOW_AUTOTAP_PREVIEW']);
-		for (const key of Object.keys(prefs(ARENA_STOP_POLICY))) expect(SYNCED.has(key), key).toBe(true);
-	});
-
-	/*
-	 * Item 5: full control CLEARS the yields, so every stop comes back. These are
-	 * the four frames `YieldController.clearActiveYieldAndDispatch` (:406-428)
-	 * sends for itself, plus the per-ability store, plus every phase un-skipped.
-	 */
-	it('item 5 — full control clears every yield Forge can be holding', () => {
-		const frames = toYieldUpdates(FULL_CONTROL_POLICY, SEAT);
-		expect(frames).toContainEqual({ update: 'clearMarker', player: SEAT.me });
-		expect(frames).toContainEqual({ update: 'stackYield', player: SEAT.me, active: false, respectsInterrupts: false });
-		expect(frames).toContainEqual({ update: 'setAutoPassUntilEndOfTurn', player: SEAT.me, active: false });
-		expect(frames).toContainEqual({ update: 'setDisableYields', disabled: true });
-		// Not one phase is skipped: every stop comes back.
-		expect(frames.filter((f) => f.update === 'skipPhase' && f.skip)).toEqual([]);
-		// And nothing in it ACTIVATES a yield — that is what "clears" means.
-		expect(frames.filter((f) => f.update === 'stackYield' && f.active)).toEqual([]);
-		expect(frames.filter((f) => f.update === 'setAutoPassUntilEndOfTurn' && f.active)).toEqual([]);
-		expect(frames.filter((f) => f.update === 'setMarker')).toEqual([]);
-	});
-
-	it('every policy push is a full reset: the transient yields are cleared first', () => {
-		for (const policy of [DEFAULT_STOP_POLICY, ARENA_STOP_POLICY, FULL_CONTROL_POLICY]) {
-			const frames = toYieldUpdates(policy, SEAT);
-			expect(frames[0]).toEqual({ update: 'clearMarker', player: SEAT.me });
-			const firstPref = frames.findIndex((f) => f.update === 'setYieldPref');
-			const firstSkip = frames.findIndex((f) => f.update === 'skipPhase');
-			expect(firstPref).toBeLessThan(firstSkip);
-		}
 	});
 });
 
@@ -2236,7 +2143,7 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 		// two apart. So the question was never "be cleverer", it was whose auto-tap
 		// decides; the operator's answer, shown the trade, was Forge's.
 		expect(DEFAULT_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
-		expect(ARENA_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
+		expect(DEFAULT_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
 		expect(decidePay(galvanicBlast, DEFAULT_STOP_POLICY)).toBe('{R}');
 		// The strict value still exists and still means what it meant.
 		expect(STRICT_PAYMENT_POLICY.unambiguousPayment).toBe('auto');
@@ -2295,7 +2202,7 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true, stackEmpty: false });
 		expect(decideCancel(unpayable, DEFAULT_STOP_POLICY)).toBe('{1}{U}');
 		// Through the entry point `match.ts` calls, over Forge's own frames.
-		expect(autoCancelReason(notesFor('Mana Leak.\n\nPay Mana Cost: {1}{U}', deadAuto, []))).toBe('{1}{U}');
+		expect(decideCancel(readPromptFacts(notesFor('Mana Leak.\n\nPay Mana Cost: {1}{U}', deadAuto, [])), DEFAULT_STOP_POLICY)).toBe('{1}{U}');
 	});
 
 	it('leaves LIFE alone: alternativePayment stays in front of it', () => {
@@ -2308,7 +2215,7 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		);
 		expect(readPromptFacts(phyrexian).noWayToPay).toBe(true);
 		expect(readPromptFacts(phyrexian).alternativePayment).toBe(true);
-		expect(autoCancelReason(phyrexian)).toBeNull();
+		expect(decideCancel(readPromptFacts(phyrexian), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('leaves LIFE alone in Forge’s real, parenthesised wording: it is an alternative payment, never cancelled', () => {
@@ -2319,7 +2226,7 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		);
 		expect(readPromptFacts(phyrexian).noWayToPay).toBe(true);
 		expect(readPromptFacts(phyrexian).alternativePayment).toBe(true);
-		expect(autoCancelReason(phyrexian)).toBeNull();
+		expect(decideCancel(readPromptFacts(phyrexian), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('never cancels a payment Forge can settle, or a window that is not one', () => {
@@ -2341,7 +2248,7 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		expect(FULL_CONTROL_POLICY.unpayableCost).toBe('ask');
 		expect(decideCancel(unpayable, FULL_CONTROL_POLICY)).toBeNull();
 		expect(decideCancel(unpayable, { ...DEFAULT_STOP_POLICY, unpayableCost: 'ask' })).toBeNull();
-		expect(autoCancelReason(notesFor('Pay Mana Cost: {1}{U}', deadAuto, []), FULL_CONTROL_POLICY)).toBeNull();
+		expect(decideCancel(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, [])), FULL_CONTROL_POLICY)).toBeNull();
 	});
 
 	it('answers no stop and no payment either — Cancel is the only arm it is', () => {
