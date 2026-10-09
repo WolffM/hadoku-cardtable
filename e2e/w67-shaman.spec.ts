@@ -75,7 +75,10 @@ async function record(page: Page, name: string): Promise<void> {
         if (els.length === 0) gone(what);
         els.forEach((el, i) => {
           const r = el.getBoundingClientRect();
-          push(els.length > 1 ? `${what}${i}` : what, r.left + r.width / 2, r.top + r.height / 2, r.width, r.height, attrsOf(el, names));
+          // A hidden element (a placed spell still pending, a carried card) has a box but is not drawn.
+          const hidden = getComputedStyle(el).visibility === 'hidden' ? 'hidden' : '';
+          const attrs = [attrsOf(el, names), hidden].filter((a) => a !== '').join(' ');
+          push(els.length > 1 ? `${what}${i}` : what, r.left + r.width / 2, r.top + r.height / 2, r.width, r.height, attrs);
         });
       }
       const field = Array.from(document.querySelectorAll('[data-zone="battlefield"] [data-board-card]')).find(named);
@@ -232,7 +235,7 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       const off: string[] = [];
       for (const s of rec) {
         if (s.what === pointerKind && s.attrs !== 'gone') pointer = { x: s.x, y: s.y };
-        if (s.at < t0 || !STANDINS.test(s.what) || s.attrs === 'gone') continue;
+        if (s.at < t0 || !STANDINS.test(s.what) || s.attrs === 'gone' || s.attrs.includes('hidden')) continue;
         const d = offSegment(s, from, end);
         if (d <= 40) continue;
         const toPointer = pointer === null ? 'no pointer' : `${Math.round(Math.hypot(s.x - pointer.x, s.y - pointer.y))}px from pointer ${pointer.x},${pointer.y}`;
