@@ -28,6 +28,8 @@ import { startScenarioMatch } from './play/scenario.ts';
 import { closeHeaderSettings, openHeaderSettings } from './play/w32.ts';
 
 const forge = forgeAvailability();
+/** The pacer's own tick for a phase frame (`pace.ts`, the `phase` class) — this spec's bound for how late the opponent's flag may light (AE16). Copied, not imported: the UI's transport chain does not type-check under the e2e tsconfig. */
+const PACE_PHASE_MS = 250;
 const titled = makeTitled(forge);
 
 interface FlashRow {
@@ -333,6 +335,12 @@ test(titled('untap/upkeep/draw does not flash the drawn priority holder, same as
       j++;
     }
     console.log(`[w63-flash] opponent-flag lag behind bob's own real window opening: ${lags.join(', ')} ms`);
+    // AE16: alice's view of bob's flag follows the server's own fact, not a
+    // state delta queued behind her paced End Turn crawl — so it lights within
+    // one pacer tick of his window opening, every time, the crawled turn
+    // included (measured ~4.8 s once per match before the fix).
+    expect(lags.length, 'bob opened a real window at least once').toBeGreaterThan(0);
+    expect(Math.max(...lags), `opponent-flag lag (${lags.join(', ')} ms) stays within one pacer tick`).toBeLessThanOrEqual(PACE_PHASE_MS + 200);
   } finally {
     await stack.stop();
   }

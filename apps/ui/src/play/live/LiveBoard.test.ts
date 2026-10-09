@@ -4270,9 +4270,15 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(out.players.find((p) => !p.isViewer)!.hasPriority).toBe(true);
     });
 
-    it('is false regardless of the gate when Forge’s own fact is false', () => {
-      const view = fakeView([fakePlayer({ id: 1, name: 'Them', hasPriority: false })]);
+    it('the viewer’s own flag is false regardless of the gate when Forge’s own fact is false', () => {
+      const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasPriority: false })]);
       expect(withGatedPriority(view, true, true).players[0]!.hasPriority).toBe(false);
+    });
+
+    it('the opponent’s flag is the server’s waiting fact alone — lit while the paced view still says they lack priority (AE16, the ~4.8 s lag behind an End Turn crawl)', () => {
+      const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasPriority: false }), fakePlayer({ id: 1, name: 'Them', hasPriority: false })]);
+      expect(withGatedPriority(view, false, true).players.find((p) => !p.isViewer)!.hasPriority).toBe(true);
+      expect(withGatedPriority(view, false, false).players.find((p) => !p.isViewer)!.hasPriority).toBe(false);
     });
 
     it('returns the SAME view, unchanged, when nothing needs correcting — no object rebuilt most frames', () => {

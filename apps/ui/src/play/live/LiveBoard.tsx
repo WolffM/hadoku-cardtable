@@ -1186,7 +1186,13 @@ export function useCrawlGuard(phase: string | null): boolean {
 export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponentOpen: boolean): BoardView {
   let changed = false;
   const players = view.players.map((p) => {
-    const want = (p.isViewer ? viewerOpen : opponentOpen) && p.hasPriority;
+    // The viewer's own flag is Forge's own fact, gated. The OPPONENT's flag is
+    // the server's "waiting for them" fact alone (AE16): that fact rides the
+    // seats channel, which the pacer never holds, while `p.hasPriority` is a
+    // state delta that sits in the paced queue behind an End Turn crawl's
+    // phase frames — measured ~4.8 s late once per match, the pop-out's fact
+    // already lit and the flag still dark. Both read one server fact now.
+    const want = p.isViewer ? viewerOpen && p.hasPriority : opponentOpen;
     if (p.hasPriority === want) return p;
     changed = true;
     return { ...p, hasPriority: want };
