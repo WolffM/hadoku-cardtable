@@ -4336,18 +4336,23 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(seatFlag(container, 'opp'), 'still nothing — the ping-pong alone never moves the drawn flag').toBeNull();
     });
 
-    it('appears the instant the server reports the opponent genuinely parked on something, and is gone the instant either clears', async () => {
+    it('appears the instant the server reports the opponent genuinely parked on something, and is gone the instant the server clears it — Forge’s paced fact moves neither (AE16)', async () => {
       const { s, m, container } = await liveBoard();
       const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
-      let seq = m.view!.seq + 1;
-      s.send(priorityDelta(seq++, opponentId, true));
-      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
+      const seq = m.view!.seq + 1;
       expect(seatFlag(container, 'opp')).toBeNull();
 
+      // The server's fact alone lights it, while the paced view still says "no priority".
       await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
       await waitFor(() => expect(seatFlag(container, 'opp')).not.toBeNull());
 
+      // A late raw delta does not move it either way…
       s.send(priorityDelta(seq, opponentId, false));
+      await waitFor(() => expect(m.view!.seq).toBe(seq));
+      expect(seatFlag(container, 'opp')).not.toBeNull();
+
+      // …the server clearing its fact does.
+      await sendTheirWaitingOn(s, m, null);
       await waitFor(() => expect(seatFlag(container, 'opp')).toBeNull());
     });
 
