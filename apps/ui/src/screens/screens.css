@@ -971,10 +971,19 @@
   align-items: stretch;
 }
 
+/*
+ * The art takes every pixel the footer does not (operator, 2026-10-09: *"allow
+ * for the card art to take more of the box's space"*). The name and the colours
+ * share one footer row instead of stacking, and the footer is a fixed two-line
+ * height so every deck's art band is the same size whatever its name's length.
+ */
 .deckpick__option {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template:
+    'art art' minmax(0, 1fr)
+    'name colors' auto / minmax(0, 1fr) auto;
+  align-items: center;
   min-width: 0;
   height: 100%;
   padding: 0;
@@ -1017,7 +1026,7 @@
 }
 
 /*
- * The partial art: a band of the card, cropped by the box rather than by the URL.
+ * The partial art: a window onto the card, cropped by the box rather than by the URL.
  *
  * `cardImageUrl` asks for `normal`, the whole unmodified card face, and this
  * window shows the strip where the art is. `object-position: center 22%` lands on
@@ -1025,9 +1034,10 @@
  * missing or oddly sized still fills the band instead of letterboxing.
  */
 .deckpick__art {
+  grid-area: art;
   display: block;
-  width: 100%;
-  height: 68px;
+  align-self: stretch;
+  min-height: 0;
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border-light);
 }
@@ -1053,7 +1063,10 @@
  * `title` on the element carries the name a clamp cuts off (`ConstructedScreen.tsx`).
  */
 .deckpick__name {
-  padding: 8px 10px 0;
+  grid-area: name;
+  box-sizing: content-box;
+  min-height: calc(2em * 1.3);
+  margin: 6px 0 6px 8px;
   font-weight: 600;
   font-size: 13px;
   line-height: 1.3;
@@ -1066,7 +1079,9 @@
 }
 
 .deckpick__option .deckcolors {
-  padding: 4px 10px 8px;
+  grid-area: colors;
+  align-self: start;
+  padding: 6px 8px 0 6px;
 }
 
 .deckpick__mark {
