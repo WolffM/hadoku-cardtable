@@ -3397,7 +3397,8 @@ describe('T2 — a calm "waiting for the other player"', () => {
     const coin = await waitFor(() => getByTestId('coin-toss'));
     expect(coin.getAttribute('data-winner')).toBe('1');
     expect(coin.querySelector('.coin-toss__name')?.textContent).toBe(them.name);
-    expect(coin.querySelector('.coin-toss__avatar'), 'the winner’s own face on the coin').not.toBeNull();
+    expect(coin.querySelector('.coin-toss__face--front .coin-toss__avatar'), 'the winner’s own face on the coin').not.toBeNull();
+    expect(coin.querySelector('.coin-toss__face--back .coin-toss__mark'), 'the loser’s side is a face too, not a blank disc').not.toBeNull();
     expect(queryByTestId('live-waiting-pop'), 'no sentence while the coin is up').toBeNull();
     expect(coin.textContent).not.toContain('Waiting');
     // Withdrawn: the sentence is back for whatever the other seat decides next.

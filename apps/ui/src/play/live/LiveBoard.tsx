@@ -1657,14 +1657,17 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * message carried. Drawn beside the winner's own Play/Draw question, and on
    * the loser's screen INSTEAD of "Waiting for {name}…" for this one moment.
    */
-  const coinToss = ((): { winner: number; name: string; avatarId: string | undefined; at: number } | null => {
+  const coinToss = ((): { winner: number; name: string; avatarId: string | undefined; loserAvatarId: string | undefined; at: number } | null => {
     const toss = match.coinToss;
     if (toss === null) return null;
     const pid = toss.playerId;
     const player = pid === null ? undefined : match.view?.players.find((p) => p.id === pid);
     const name = (pid === null ? undefined : match.nameByPlayerId?.get(pid)) ?? player?.name ?? `Seat ${toss.winner + 1}`;
     const avatarId = (pid === null ? undefined : match.avatarByPlayerId?.get(pid)) ?? player?.avatarId;
-    return { winner: toss.winner, name, avatarId, at: toss.at };
+    // The coin's other face: the seat that lost, so a flip shows both players.
+    const loser = pid === null ? undefined : match.view?.players.find((p) => p.id !== pid);
+    const loserAvatarId = loser === undefined ? undefined : (match.avatarByPlayerId?.get(loser.id) ?? loser.avatarId);
+    return { winner: toss.winner, name, avatarId, loserAvatarId, at: toss.at };
   })();
   /*
    * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a

@@ -44,6 +44,7 @@
   overflow: hidden;
 }
 
+/* The loser's face: the accent ground tells the sides apart when neither has an avatar. */
 .coin-toss__face--back {
   transform: rotateY(0.5turn);
   background: var(--accent);
