@@ -191,7 +191,10 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       page.locator(`.seat${mine ? '[data-viewer]' : ':not([data-viewer])'} [data-zone="battlefield"] [data-board-card] .card__name`, { hasText: run.card });
     await expect(onBoard(alice.page, true), `${run.card} is on alice’s battlefield`).toHaveCount(1, { timeout: 20_000 });
     await expect(onBoard(bob.page, false), 'and on bob’s view of it').toHaveCount(1, { timeout: 20_000 });
-    await alice.page.waitForTimeout(1_000);
+    // Still for longer than presence's CLEARED_GRACE_MS (1.5 s): a back left standing on bob's screen
+    // that only a pointer-free stretch takes down shows its end here.
+    const stillFrom = Date.now();
+    await alice.page.waitForTimeout(3_000);
     pumping = false;
     await pump;
 
@@ -247,6 +250,13 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
     const ms = (s: Sample | undefined) => (s === undefined ? '?' : `${rel(s.at, t0)}ms`);
     const inDom = (rec: Sample[]) => rec.find((s) => s.what === 'field' && s.attrs !== 'gone' && s.at >= t0);
     const lastShown = (rec: Sample[]) => rec.filter((s) => s.what === 'field' && s.attrs.includes('vis=visible') && s.at >= t0).at(-1);
+    const backs = theirs.filter((s) => s.what === 'back' && s.at >= t0);
+    const lastBack = backs.at(-1);
+    const landedAt = lastShown(theirs)?.at ?? Number.POSITIVE_INFINITY;
+    const after = backs.filter((s) => s.at > landedAt - 1_000 && s.attrs !== 'gone');
+    say(
+      `back after landing: ${after.length === 0 ? 'none' : after.map((s) => `${rel(s.at, t0)}ms @${s.x},${s.y} ${s.w}x${s.h} [${s.attrs}]`).join(' | ')}; last back change ${lastBack === undefined ? 'none' : `${rel(lastBack.at, t0)}ms [${lastBack.attrs}]`}; alice's pointer still from ${rel(stillFrom, t0)}ms`,
+    );
     say(`summary: in alice's battlefield DOM at ${ms(inDom(mine))}, shown for good at ${ms(lastShown(mine))}; in bob's at ${ms(inDom(theirs))}, shown for good at ${ms(lastShown(theirs))}`);
   } finally {
     await stack.stop();
