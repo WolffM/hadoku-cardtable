@@ -4333,7 +4333,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['24', '8', '6', '25']);
   });
 
-  it('the ghost follows the pointer, and the indicator names stack-top, stack-bottom and end as the pointer moves', () => {
+  it('the ghost follows the pointer, and the indicator names stack-top, stack-bottom and the next column as the pointer moves', () => {
     const { container } = renderBoard(view, undefined, 'single');
     layOut(container);
     const from = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="24"]')!;
@@ -4358,7 +4358,8 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     move(at(6).left + 10, at(6).bottom - 10);
     expect(bar.dataset.arrangeKind).toBe('stack-bottom');
     move(at(25).right + 20, at(25).top + 40);
-    expect(bar.dataset.arrangeKind).toBe('end');
+    // Past the last card is the next column now (every column that fits the row is a place), never 'end'.
+    expect(bar.dataset.arrangeKind).toBe('at');
     // Z8: well past the last card, a column of its own — the indicator says so.
     move(at(25).right + 200, at(25).top + 40);
     expect(bar.dataset.arrangeKind).toBe('at');
