@@ -54,7 +54,10 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
   const recording = process.env.CARDTABLE_E2E_VIDEO === '1';
   const videoDir = recording ? resolve(RUN_DIR, 'videos', specVideoSlug()) : null;
   if (videoDir !== null) mkdirSync(videoDir, { recursive: true });
-  const context = await browser.newContext(videoDir === null ? {} : { recordVideo: { dir: videoDir, size: VIDEO_SIZE } });
+  // A recording is for the operator's eyes: their game is the dark theme, so the clip is too.
+  const context = await browser.newContext(
+    videoDir === null ? {} : { recordVideo: { dir: videoDir, size: VIDEO_SIZE }, colorScheme: 'dark' },
+  );
   await context.addCookies([
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);
