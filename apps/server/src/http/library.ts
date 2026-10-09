@@ -89,6 +89,8 @@ export interface TableFormat {
 export interface TableDeck {
 	readonly id: string;
 	readonly collection: string;
+	/** The format id of the era its collection was catalogued for — `formatIdOf`. */
+	readonly era: string;
 	readonly deck: LibraryDeck;
 	/** The file, verbatim. What is validated is what is sent. */
 	readonly text: string;
@@ -147,7 +149,7 @@ export function loadTablesLibrary(
 			const path = join(repoRoot, deckPath(collection, entry));
 			try {
 				const text = readFileSync(path, 'utf8');
-				decks.push({ id: entry.id, collection: collection.id, deck: loadLibraryDeck(text), text });
+				decks.push({ id: entry.id, collection: collection.id, era: formatIdOf(collection), deck: loadLibraryDeck(text), text });
 			} catch (err) {
 				faults.push(`${path}: ${(err as Error).message}`);
 			}

@@ -504,7 +504,7 @@ function cardKey(name: string): string {
  */
 async function legalChoice(api: APIRequestContext, origin: string): Promise<Choice> {
   const base = `${origin}${PREFIX}/api/tables`;
-  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string }[] }).formats;
+  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string; source: string }[] }).formats;
   const decks = (
     (await (await api.get(`${base}/decks`)).json()) as {
       decks: { id: string; name: string; date: string; main: DeckLine[]; sideboard: DeckLine[] }[];
@@ -513,21 +513,22 @@ async function legalChoice(api: APIRequestContext, origin: string): Promise<Choi
   // Draw-go decks first: Preordain scries, Squadron Hawk and Stoneforge Mystic
   // search — questions Forge ASKS, which is what this test needs to reach.
   decks.sort((a, b) => Number(/Caw/.test(b.name)) - Number(/Caw/.test(a.name)));
-  const legal = async (deck: string, format: string): Promise<boolean> => {
-    const res = await api.post(`${base}/check`, { data: { deck: { library: deck }, rules: { kind: 'standard', format } } });
-    return res.status() === 200 && ((await res.json()) as { legal: boolean }).legal;
-  };
+  // What the room's picker offers in an era (`GET /legal/:format`) — legal, AND that era's own.
+  const offeredIn = async (format: string): Promise<Set<string>> =>
+    new Set(((await (await api.get(`${base}/legal/${encodeURIComponent(format)}`)).json()) as { legal: string[] }).legal);
   const pickOf = (d: (typeof decks)[number]): DeckPick => ({
     id: d.id,
     name: d.name,
     cards: new Set([...d.main, ...d.sideboard].map((l) => cardKey(l.name))),
   });
-  for (const f of formats) {
+  // Eras only: the `format` select offers neither a drafted pool nor Free pick.
+  for (const f of formats.filter((x) => x.source !== 'draft' && x.source !== 'free')) {
+    const offered = await offeredIn(f.id);
     // A deck is dated by the event it was played at; a format is dated by its pool.
     const candidates = [...decks.filter((d) => d.date === f.id), ...decks.filter((d) => d.date !== f.id)];
     let first: DeckPick | null = null;
     for (const d of candidates) {
-      if (!(await legal(d.id, f.id))) continue;
+      if (!offered.has(d.id)) continue;
       const pick = pickOf(d);
       if (first === null) {
         first = pick;

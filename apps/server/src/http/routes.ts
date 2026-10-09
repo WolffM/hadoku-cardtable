@@ -126,7 +126,7 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import type { DraftRooms } from '../room/draftRooms.js';
 import { viewForParticipant } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
-import { draftIdOfPool, draftPoolId } from '../room/lobby.js';
+import { FREE_PICK, draftIdOfPool, draftPoolId } from '../room/lobby.js';
 import {
 	checkSeat,
 	legalLibraryDecks,
@@ -462,6 +462,18 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		res.json({
 			formats: [
 				...draftedPoolsFor(req),
+				// Free pick (`FREE_PICK`): a pool row so every browser can name it, with
+				// no sets and no cards of its own — the whole library is its list.
+				{
+					id: FREE_PICK,
+					name: 'Free pick',
+					effective: '',
+					sets: [],
+					banned: [],
+					cardCount: 0,
+					source: 'free',
+					family: 'standard',
+				},
 				...library.formats.map((f) => ({
 					id: f.id,
 					name: f.fixture.name,
@@ -604,6 +616,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	function poolName(room: RoomViewLike): string {
 		const draftId = draftIdOfPool(room.format);
 		if (draftId !== null) return `their own pool from ${draftId}`;
+		if (room.format === FREE_PICK) return 'Free pick';
 		return library.format(room.format)?.pool.name ?? room.format;
 	}
 
@@ -695,6 +708,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * draft in, and nobody can be checked against another player's 45.
 	 */
 	function roomRules(room: RoomViewLike): DeckRules {
+		if (room.format === FREE_PICK) return { kind: 'free' };
 		const draftId = draftIdOfPool(room.format);
 		return draftId === null ? { kind: 'standard', format: room.format } : { kind: 'draft', draftId };
 	}
@@ -716,7 +730,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	function unknownPool(room: RoomViewLike, res: Response): boolean {
 		const draftId = draftIdOfPool(room.format);
 		if (draftId === null) {
-			if (library.format(room.format) !== undefined) return false;
+			if (room.format === FREE_PICK || library.format(room.format) !== undefined) return false;
 			res.status(409).json({ error: `this room's format ${JSON.stringify(room.format)} is not one this server has` });
 			return true;
 		}
@@ -958,21 +972,20 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				return;
 			}
 		}
-		// The bot's deck: a random library deck that is legal in the room's own
-		// pool, checked by the same gate as the player's. A drafted pool has no
-		// library deck that is legal in it, so a drafted room cannot have a bot.
+		// The bot's deck: a random one of the decks the room's pool offers a player
+		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
+		// checked by the same gate as the player's. A drafted pool offers no library
+		// deck, so a drafted room cannot have a bot.
 		let botDeck: string | null = null;
 		if (vsBot) {
 			const owner = players[0]!.member.id;
-			const legal = library.decks.filter((d) => {
-				const v = checkSeat({ deck: { dck: d.text }, rules: roomRules(room) }, contextFor(owner));
-				return !('error' in v) && v.legal;
-			});
-			if (legal.length === 0) {
+			const swept = draftIdOfPool(room.format) === null ? legalLibraryDecks(room.format, contextFor(owner)) : { ids: [] };
+			const offered = 'error' in swept ? [] : swept.ids;
+			if (offered.length === 0) {
 				res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
 				return;
 			}
-			botDeck = legal[Math.floor(Math.random() * legal.length)]!.text;
+			botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
 		}
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {

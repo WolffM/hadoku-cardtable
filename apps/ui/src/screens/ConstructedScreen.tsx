@@ -174,7 +174,9 @@ import {
   type RoomsClient,
 } from '../rooms/api.ts';
 import {
+  FREE_PICK,
   RANDOM_DECK,
+  isEra,
   legalDecksIn,
   newestFormat,
   pickRandom,
@@ -319,7 +321,8 @@ const LIBRARY_ART_IDS: ArtIdIndex = artIdIndexFromTable(artIdsData as ArtIdTable
 
 function poolLabel(formats: readonly TableFormat[], id: string): string {
   const found = formats.find((f) => f.id === id);
-  return found === undefined ? id : `${found.id} — ${found.name}`;
+  if (found === undefined) return id;
+  return found.source === 'free' ? found.name : `${found.id} — ${found.name}`;
 }
 
 /* ── the format tab selector (wave 48 §U) ─────────────────────────────── */
@@ -350,7 +353,7 @@ const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
  */
 export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): TableFormat[] {
   return formats
-    .filter((f) => f.source !== 'draft' && f.family === tab)
+    .filter((f) => isEra(f) && f.family === tab)
     .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 }
 
@@ -979,6 +982,8 @@ function RoomTableScreen({
   const pod = draftPoolPod(poolId);
   /** The pool's own catalogue row: its name, and for an era its set list. */
   const poolFormat = loaded?.formats.find((f) => f.id === poolId) ?? null;
+  /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
+  const freePick = poolId === FREE_PICK;
   /** Which tab the table is actually on — a pod's own tab, or its era's family. */
   const tabOfPool = pod !== null ? 'draft' : poolFormat?.family ?? 'standard';
   /**
@@ -1802,7 +1807,7 @@ function RoomTableScreen({
                             key={tab.id}
                             type="button"
                             role="tab"
-                            aria-selected={formatTab === tab.id}
+                            aria-selected={!freePick && formatTab === tab.id}
                             data-testid={`format-tab-${tab.id}`}
                             disabled={busy || matchId !== null}
                             onClick={() => {
@@ -1811,7 +1816,7 @@ function RoomTableScreen({
                               // (newest, the list's order) at once, rather than showing nothing chosen
                               // until the leader picks (the operator, 2026-10-07: "selecting modern
                               // should default the year selection to the first available").
-                              if (loaded !== null && !poolIsOnTab(loaded.formats, tab.id, poolId, pod)) {
+                              if (loaded !== null && (freePick || !poolIsOnTab(loaded.formats, tab.id, poolId, pod))) {
                                 const first = erasOf(loaded.formats, tab.id)[0];
                                 if (first !== undefined) choosePool(first.id);
                               }
@@ -1824,7 +1829,7 @@ function RoomTableScreen({
                           <button
                             type="button"
                             role="tab"
-                            aria-selected={formatTab === 'draft'}
+                            aria-selected={!freePick && formatTab === 'draft'}
                             data-testid="format-tab-draft"
                             disabled={busy || matchId !== null}
                             onClick={() => setFormatTab('draft')}
@@ -1832,6 +1837,25 @@ function RoomTableScreen({
                             Drafted pool
                           </button>
                         )}
+                        {/* Free pick: any deck against any deck. Off goes back to the
+                            browsed tab's newest era — Standard's from a drafted pool. */}
+                        <button
+                          type="button"
+                          className="lobby__free-pick"
+                          aria-pressed={freePick}
+                          data-testid="free-pick"
+                          disabled={busy || matchId !== null}
+                          onClick={() => {
+                            if (!freePick) {
+                              choosePool(FREE_PICK);
+                              return;
+                            }
+                            const era = erasOf(loaded.formats, formatTab === 'draft' ? 'standard' : formatTab)[0];
+                            choosePool(era?.id ?? newestFormat(loaded.formats));
+                          }}
+                        >
+                          Free pick
+                        </button>
                       </div>
                       {/* The era the room is ACTUALLY on is not always one this
                           tab offers (you are browsing Modern while the room
@@ -1845,28 +1869,30 @@ function RoomTableScreen({
                           EMPTY placeholder option — never any text — keeps
                           the select correctly showing nothing chosen on this
                           tab, so every real era here is a genuine change. */}
-                      <select
-                        id="format"
-                        data-testid="format"
-                        value={poolOnTab ? poolId : ''}
-                        disabled={busy || matchId !== null}
-                        onChange={(e) => choosePool(e.target.value)}
-                      >
-                        {!poolOnTab && <option value="" disabled hidden />}
-                        {formatTab === 'draft'
-                          ? loaded.formats
-                              .filter((f) => f.source === 'draft')
-                              .map((f) => (
+                      {!freePick && (
+                        <select
+                          id="format"
+                          data-testid="format"
+                          value={poolOnTab ? poolId : ''}
+                          disabled={busy || matchId !== null}
+                          onChange={(e) => choosePool(e.target.value)}
+                        >
+                          {!poolOnTab && <option value="" disabled hidden />}
+                          {formatTab === 'draft'
+                            ? loaded.formats
+                                .filter((f) => f.source === 'draft')
+                                .map((f) => (
+                                  <option key={f.id} value={f.id}>
+                                    {f.name} — {f.cardCount} cards
+                                  </option>
+                                ))
+                            : erasOf(loaded.formats, formatTab).map((f) => (
                                 <option key={f.id} value={f.id}>
-                                  {f.name} — {f.cardCount} cards
+                                  {f.id} — {f.name}
                                 </option>
-                              ))
-                          : erasOf(loaded.formats, formatTab).map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.id} — {f.name}
-                              </option>
-                            ))}
-                      </select>
+                              ))}
+                        </select>
+                      )}
                     </>
                   ) : (
                     <>
@@ -1881,7 +1907,7 @@ function RoomTableScreen({
                       own ask, for a Standard era. A drafted pool has none and draws none; an
                       eternal format's forty-odd sets drew a strip the operator called
                       ridiculous (2026-10-07), so those draw none either. */}
-                  {poolFormat?.family === 'standard' && <PoolSets format={poolFormat} />}
+                  {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
 
                   {/* The two actions sit ABOVE the list, not after it. Operator,
                       2026-09-30: *"the random button should be at the top, the

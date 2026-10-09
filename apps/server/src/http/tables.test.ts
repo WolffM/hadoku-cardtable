@@ -568,7 +568,7 @@ describe('the catalog routes', () => {
 	// Every era against every deck, by the route and one deck at a time: about 21,000 legality
 	// checks. 0.95 s on hokon; past vitest's 5 s default on warm-claw-4 under the full check
 	// (CI run 37588858089, 2026-10-07). The budget below is the measurement with room, not a pin.
-	it('answers an era’s legal decks in one call, the same answer as checking each deck', { timeout: 30_000 }, async () => {
+	it('answers an era’s own legal decks in one call, the same answer as checking each deck', { timeout: 30_000 }, async () => {
 		const h = await boot();
 		const ctx = { library, draftPool: null };
 		for (const format of library.formats) {
@@ -576,6 +576,7 @@ describe('the catalog routes', () => {
 			expect(res.status, format.id).toBe(200);
 			const oneByOne = library.decks
 				.filter((d) => {
+					if (d.era !== format.id) return false;
 					const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format: format.id } }, ctx);
 					return 'legal' in v && v.legal;
 				})
@@ -583,6 +584,31 @@ describe('the catalog routes', () => {
 			expect(res.body, format.id).toEqual({ format: format.id, legal: oneByOne });
 		}
 		expect(h.specs).toEqual([]);
+	});
+
+	// The operator, 2026-10-09: "every year of modern has the same decks". Legality
+	// alone offered every year the same Modern-legal Standard decks first.
+	it('offers each Modern year its own decks, and no two years the same list', async () => {
+		const h = await boot();
+		const lists: string[] = [];
+		for (const format of library.formats.filter((f) => f.family === 'modern')) {
+			const res = await call(h, 'GET', `/api/tables/legal/${encodeURIComponent(format.id)}`);
+			const ids = (res.body as { legal: string[] }).legal;
+			expect(ids.length, format.id).toBeGreaterThan(0);
+			for (const id of ids) expect(library.deck(id)?.era, `${format.id} offers ${id}`).toBe(format.id);
+			lists.push(ids.join());
+		}
+		expect(lists.length).toBeGreaterThan(1);
+		expect(new Set(lists).size).toBe(lists.length);
+	});
+
+	it('offers the whole library on Free pick', async () => {
+		const h = await boot();
+		const res = await call(h, 'GET', '/api/tables/legal/free');
+		expect(res.status).toBe(200);
+		expect((res.body as { legal: string[] }).legal).toEqual(library.decks.map((d) => d.id));
+		const formats = (await call(h, 'GET', '/api/tables/formats')).body as { formats: { id: string; source: string }[] };
+		expect(formats.formats.filter((f) => f.id === 'free')).toEqual([expect.objectContaining({ name: 'Free pick', source: 'free' })]);
 	});
 
 	it('refuses an era it does not have', async () => {
@@ -935,6 +961,25 @@ describe('a room table', () => {
 		expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
 	});
 
+	// The operator, 2026-10-09: "a lobby toggle for 'Free pick' which allows anyone
+	// to pick any deck regardless of format to play against each other".
+	it('on Free pick, seats a Legacy deck against a Modern one and starts', async () => {
+		const h = await boot();
+		openRoom(h, undefined, 'free');
+		const legacy = library.decks.find((d) => d.era.startsWith('legacy-'))!;
+		const modern = library.decks.find((d) => d.era.startsWith('modern-'))!;
+		expect((await putDeck(h, 'alice', deckBody(legacy.id))).status).toBe(200);
+		const loaded = await putDeck(h, 'bob', deckBody(modern.id));
+		expect(players(loaded.body).map((p) => [p.legal, p.rulesName])).toEqual([
+			[true, 'Free pick'],
+			[true, 'Free pick'],
+		]);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect((await startRoom(h, 'alice')).status).toBe(201);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([legacy.text, modern.text]);
+	});
+
 	/*
 	 * A bot (the operator, 2026-10-02): the room's only member plays Forge's AI.
 	 * The bot's deck is a random library deck legal in the room's own pool, and
@@ -969,6 +1014,16 @@ describe('a room table', () => {
 			const matchId = res.body.matchId as string;
 			expect(h.matches.get(matchId)?.seatOf(ALICE)).toBe(0);
 			expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+		});
+
+		it('plays a library deck from any era on Free pick', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }], undefined, 'free');
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+			const res = await startBot(h, 'alice');
+			expect(res.status).toBe(201);
+			const seats = h.specs[0]!.seats as { deck: string | null }[];
+			expect(library.decks.some((d) => d.text === seats[1]?.deck)).toBe(true);
 		});
 
 		it('is refused when a second person is in the room: they play each other', async () => {

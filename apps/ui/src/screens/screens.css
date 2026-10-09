@@ -216,6 +216,17 @@
   border-color: var(--color-primary);
 }
 
+/* Free pick is a switch, not a fourth format: pushed to the row's far end. */
+.lobby__format-tabs .lobby__free-pick {
+  margin-left: auto;
+}
+
+.lobby__format-tabs button[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
 .lobby__format-tabs button:disabled {
   cursor: default;
   opacity: 0.6;

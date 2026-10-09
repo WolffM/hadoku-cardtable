@@ -14,6 +14,8 @@
  *                                                  frozen Standard pool
  *          `{ kind: 'draft', draftId }`           `deckIssues` against the
  *                                                  CALLER's own drafted pool
+ *          `{ kind: 'free' }`                     the `.dck` shape only — Free
+ *                                                  pick plays any deck
  *
  * Both arms parse the text with `parseDck`, build the deck with
  * `deckFromDeckFile`, and return `DeckIssue[]` from `@hadoku/deck` — the
@@ -50,6 +52,7 @@ import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, typ
 import { libraryPoolMismatch, type LibraryDeck } from '@hadoku/deck/library';
 import type { DraftCard } from '@hadoku/shared';
 
+import { FREE_PICK } from '../room/lobby.js';
 import { draftPoolEntries } from './draftPool.js';
 import type { TablesLibrary } from './library.js';
 
@@ -57,7 +60,7 @@ import type { TablesLibrary } from './library.js';
 export const MAX_DCK_BYTES = 64 * 1024;
 
 export type DeckRef = { library: string } | { dck: string };
-export type DeckRules = { kind: 'standard'; format: string } | { kind: 'draft'; draftId: string };
+export type DeckRules = { kind: 'standard'; format: string } | { kind: 'draft'; draftId: string } | { kind: 'free' };
 
 export interface SeatRequest {
 	deck: DeckRef;
@@ -367,6 +370,10 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 		};
 	}
 
+	if (seat.rules.kind === 'free') {
+		return { deckName, rulesName: 'Free pick', legal: shape.length === 0, issues: shape, note: null, text };
+	}
+
 	if (ctx.draftPool === null) return { error: 'this server has no draft rooms' };
 	const pool = ctx.draftPool(seat.rules.draftId);
 	if (!pool.ok) return { error: pool.error };
@@ -396,17 +403,28 @@ export function refusalLine(seat: number, verdict: SeatVerdict): string {
 }
 
 /**
- * Which library decks are legal in a Standard-family era: `checkSeat` over the
- * whole library, so the picker's filter is the gate's own answer.
+ * Which library decks an era offers: its OWN collection's decks that are legal
+ * in it, by `checkSeat`, so the picker's filter is the gate's own answer.
+ *
+ * Its own collection only (operator, 2026-10-09: *"every year of modern has the
+ * same decks"*). Modern and Legacy pools only grow, so legality alone offered
+ * modern-2016 127 decks — every Modern-legal Standard deck since 2004 first, in
+ * catalog order — and the year's own twelve were lost at the bottom. A deck from
+ * another era can still be loaded and is still checked; it is just not offered.
+ * Free pick (`FREE_PICK`) offers the whole library.
  *
  * One call instead of one `POST /check` per deck: at 338 decks the browser was
  * paying ~3.5 s of round trips per era for work that takes the gate well under
  * a second. An unknown era resolves nothing, and says so once.
  */
 export function legalLibraryDecks(format: string, ctx: GateContext): { ids: string[] } | SeatUnresolved {
+	const free = format === FREE_PICK;
+	if (!free && ctx.library.format(format) === undefined) return { error: `no format ${JSON.stringify(format)}` };
+	const rules: DeckRules = free ? { kind: 'free' } : { kind: 'standard', format };
 	const ids: string[] = [];
 	for (const d of ctx.library.decks) {
-		const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format } }, ctx);
+		if (!free && d.era !== format) continue;
+		const v = checkSeat({ deck: { library: d.id }, rules }, ctx);
 		if ('error' in v) return v;
 		if (v.legal) ids.push(d.id);
 	}

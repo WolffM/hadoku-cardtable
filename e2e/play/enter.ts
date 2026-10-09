@@ -14,20 +14,18 @@ import { TURN_TEXT } from './turn.ts';
 
 const PREFIX = '/cardtable';
 
-/** A format and two library decks legal in it, the way the room's picker would offer them. */
+/** An era and two library decks it offers, asked the way the room's picker asks (`GET /legal/:format`). */
 export async function twoLegalDecks(api: APIRequestContext, origin: string): Promise<{ format: string; decks: [string, string] }> {
   const base = `${origin}${PREFIX}/api/tables`;
-  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string }[] }).formats;
+  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string; source: string }[] }).formats;
   const decks = ((await (await api.get(`${base}/decks`)).json()) as { decks: { id: string; name: string }[] }).decks;
   // Draw-go decks first: they cast spells that ASK.
   decks.sort((a, b) => Number(/Caw/.test(b.name)) - Number(/Caw/.test(a.name)));
-  for (const f of formats) {
-    const legal: string[] = [];
-    for (const d of decks) {
-      const res = await api.post(`${base}/check`, { data: { deck: { library: d.id }, rules: { kind: 'standard', format: f.id } } });
-      if (res.status() === 200 && ((await res.json()) as { legal: boolean }).legal) legal.push(d.id);
-      if (legal.length === 2) return { format: f.id, decks: [legal[0], legal[1]] };
-    }
+  // Eras only: the `format` select offers neither a drafted pool nor Free pick.
+  for (const f of formats.filter((x) => x.source !== 'draft' && x.source !== 'free')) {
+    const offered = new Set(((await (await api.get(`${base}/legal/${encodeURIComponent(f.id)}`)).json()) as { legal: string[] }).legal);
+    const legal = decks.filter((d) => offered.has(d.id)).map((d) => d.id);
+    if (legal.length >= 2) return { format: f.id, decks: [legal[0]!, legal[1]!] };
   }
   throw new Error(`no format has two legal library decks (${formats.length} formats, ${decks.length} decks)`);
 }

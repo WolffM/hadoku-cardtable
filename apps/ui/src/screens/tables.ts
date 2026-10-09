@@ -49,6 +49,18 @@ export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
  */
 export type FormatFamily = 'standard' | 'modern' | 'legacy';
 
+/**
+ * The Free pick pool's id — any library deck, whatever its era. A mirror of the
+ * server's `FREE_PICK` (`apps/server/src/room/lobby.ts`); its `/formats` row has
+ * `source: 'free'` and, like a pod's, a `family` nobody reads.
+ */
+export const FREE_PICK = 'free';
+
+/** A frozen era — not a drafted pool and not Free pick, whose rows also carry a `family`. */
+export function isEra(f: TableFormat): boolean {
+  return f.source !== 'draft' && f.source !== 'free';
+}
+
 export interface TableFormat {
   id: string;
   name: string;
@@ -331,7 +343,7 @@ export function pickRandom<T>(items: readonly T[], rand: () => number = secureRa
 export function newestFormat(formats: readonly TableFormat[]): string {
   let newest: TableFormat | null = null;
   for (const f of formats) {
-    if (f.family === 'standard' && (newest === null || f.id > newest.id)) newest = f;
+    if (isEra(f) && f.family === 'standard' && (newest === null || f.id > newest.id)) newest = f;
   }
   return newest?.id ?? '';
 }

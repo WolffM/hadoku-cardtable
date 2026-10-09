@@ -166,6 +166,14 @@ export const NO_FORMAT: FormatId = 'unavailable';
  */
 export const DRAFT_POOL_PREFIX = 'draft:';
 
+/**
+ * The pool that is no pool: any library deck against any other, whatever era
+ * each was built for (operator, 2026-10-09: *"a lobby toggle for 'Free pick'
+ * which allows anyone to pick any deck regardless of format"*). Neither a date
+ * nor `draft:`-prefixed, so it can never be mistaken for an era or a pod.
+ */
+export const FREE_PICK: FormatId = 'free';
+
 /** A pod's id as a room's pool id. The one place this string is built. */
 export function draftPoolId(draftId: string): FormatId {
 	return `${DRAFT_POOL_PREFIX}${draftId}`;

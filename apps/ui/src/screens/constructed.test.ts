@@ -121,6 +121,8 @@ const FORMATS = [
   },
 ];
 /** A Modern era: forty-odd sets behind one date, the shape the set strip is NOT drawn for. */
+/** Free pick's row, as the server sends it: a name, and a `family` nobody reads. */
+const FREE = { id: 'free', name: 'Free pick', effective: '', sets: [], banned: [], cardCount: 0, source: 'free', family: 'standard' as const };
 const MODERN = { id: 'modern-2014-07-18', name: 'Modern (M15)', effective: '2014-07-18', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1477, source: 'x', family: 'modern' as const };
 
 
@@ -382,7 +384,7 @@ function stubServer(table: Table) {
         // Unused: the picker's "Drafted pool" tab is `source === 'draft'`.
         family: 'standard' as const,
       }));
-      return json(200, { formats: [...pods, ...FORMATS, MODERN] });
+      return json(200, { formats: [...pods, FREE, ...FORMATS, MODERN] });
     }
     if (url.endsWith('/tables/decks')) return json(200, { decks: decks() });
     // One per era, each time the room's pool moves: how the picker learns
@@ -392,6 +394,7 @@ function stubServer(table: Table) {
     if (legalFor !== null) {
       if (table.checkFails === true) return json(503, { error: 'the gate is restarting' });
       const format = decodeURIComponent(legalFor[1]!);
+      if (format === FREE.id) return json(200, { format, legal: decks().map((d) => d.id) });
       const legal = decks()
         .filter((d) => verdictFor({ deck: { library: d.id }, rules: { kind: 'standard', format } }).legal)
         .map((d) => d.id);
@@ -1201,6 +1204,40 @@ describe('the table’s pool', () => {
     await pick(SECOND_DECK);
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
+  });
+
+  // The operator, 2026-10-09: "a lobby toggle for 'Free pick' which allows anyone to pick any
+  // deck regardless of format to play against each other".
+  it('Free pick: the leader’s toggle puts the room on every deck, and off again on an era', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null, format: '2011-07-15' });
+    await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
+    const toggle = screen.getByTestId('free-pick');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ format: 'free' }]);
+    // Every deck, whatever its era — the deck 2011 bans included — and no era to choose.
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
+    expect(screen.queryByTestId('format')).toBeNull();
+    expect(screen.getByTestId('format-tab-standard').getAttribute('aria-selected')).toBe('false');
+
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('false'));
+    // Back on the browsed tab's newest era.
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ format: 'free' }, { format: '2011-07-15' }]);
+    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15');
+  });
+
+  it('Free pick reads as its name to a non-leader, who gets no toggle', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, leader: false, format: 'free' });
+    expect(screen.getByTestId('format-fixed').textContent).toBe('Free pick');
+    expect(screen.queryByTestId('free-pick')).toBeNull();
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
   });
 
   it('follows the pool the leader moved it to, on a browser that pressed nothing', async () => {
