@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { WireObject } from '../wire.ts';
 import { cardStateKey, deltaKey, WireType } from '../wire.ts';
-import { isZoneDividerLabel, lookupFromState, plainRulesText, translateTargetWords } from './lookup.ts';
+import { isZoneDividerLabel, lookupFromState, plainRulesText, promptText, translateTargetWords } from './lookup.ts';
 
 const card = (id: number): [string, WireObject] => [deltaKey(WireType.Card, id), { _type: WireType.Card, _id: id }];
 const face = (id: number, name: string, setCode: string): [string, WireObject] => [
@@ -171,6 +171,17 @@ describe('isZoneDividerLabel', () => {
 
   it.each([['Lightning Bolt'], ['[FINISH TARGETING]'], ['player']])('%s is a real choice, not a divider', (label) => {
     expect(isZoneDividerLabel(label)).toBe(false);
+  });
+});
+
+describe('plainRulesText: the card-id suffix (T4)', () => {
+  // The operator, 2026-10-08: "Dragonskull Summit (31)… just the name" — AD-era
+  // rule, previously only `promptText` honoured it; `plainRulesText` (every
+  // aria-label, dialog name and log line that reads through `live-says`) did
+  // not. One pipeline now.
+  it('strips the suffix, same as promptText', () => {
+    expect(plainRulesText('Dragonskull Summit (31)')).toBe('Dragonskull Summit');
+    expect(promptText('Dragonskull Summit (31)')).toBe('Dragonskull Summit');
   });
 });
 

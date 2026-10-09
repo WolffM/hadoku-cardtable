@@ -150,6 +150,18 @@ export function refName(lookup: PromptLookup, ref: { kind: string; id: number })
   }
 }
 
+/** Forge writes a card as "Dragonskull Summit (31)" — its own id. The seat reads the name (the operator, 2026-10-08). */
+const CARD_ID_SUFFIX = /\s\(\d{1,5}\)/g;
+
+/**
+ * {@link translateTargetWords}, with the card-id suffix stripped — nothing
+ * else. For text that will still draw through `RulesText` itself (braces and
+ * all), rather than through plain prose.
+ */
+export function promptText(text: string): string {
+  return translateTargetWords(text).replace(CARD_ID_SUFFIX, '');
+}
+
 /**
  * Forge's rules text writes symbols in braces — `{T}: Add {R}.` The tap symbol
  * is a WotC mark (CLAUDE.md), so a prompt that shows an ability's text says it
@@ -160,17 +172,14 @@ export function refName(lookup: PromptLookup, ref: { kind: string; id: number })
  * prompt's title happens to carry — `Card.inZoneStack` and the rest — reads
  * as words too. A string with no such expression in it passes through
  * unchanged, so doing this unconditionally is safe everywhere this already runs.
+ *
+ * Strips the card-id suffix too (T4, a drift fix: the operator's "Dragonskull
+ * Summit (31)… just the name" rule, AD-era, now holds on this path as well as
+ * {@link promptText}'s).
  */
-/** {@link translateTargetWords} only: Forge's `{…}` symbols kept, for `RulesText` to draw. */
-/** Forge writes a card as "Dragonskull Summit (31)" — its own id. The seat reads the name (the operator, 2026-10-08). */
-const CARD_ID_SUFFIX = /\s\(\d{1,5}\)/g;
-
-export function promptText(text: string): string {
-  return translateTargetWords(text).replace(CARD_ID_SUFFIX, '');
-}
-
 export function plainRulesText(text: string): string {
   return translateTargetWords(text)
+    .replace(CARD_ID_SUFFIX, '')
     .replace(ATTACK_PROMPT, 'Select creatures to attack.')
     .replace(/\{T\}/g, 'Tap')
     .replace(/\{Q\}/g, 'Untap')
