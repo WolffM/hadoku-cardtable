@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { dragHandCard, handCardNamed, makeTitled, offered, says } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -72,7 +72,14 @@ test(titled('the opponent’s committed spell is one object on this screen: the 
 
     await watch(bob.page);
     expect(await dragHandCard(alice.page, memnite!, to), 'the press lifted Memnite').toBe(true);
-    // Bob holds Counterspell: Forge stops at his priority with her Memnite on the stack.
+    // The caster holds priority first on her own spell (her main phase is a stop): she passes it,
+    // and bob — who holds Counterspell — is stopped at his with her Memnite on the stack.
+    await expect
+      .poll(async () => (/^Priority:/.test(await says(alice.page)) ? await clickOnce(alice.page, await says(alice.page), 'ok') : false), {
+        timeout: 20_000,
+        message: 'alice passes priority on her own cast Memnite',
+      })
+      .toBe(true);
     await expect.poll(() => says(bob.page), { timeout: 20_000, message: 'bob is asked to resolve her Memnite' }).toMatch(/Resolve Memnite\?|Memnite/);
     await expect(bob.page.locator('[data-placed-spell]:not([data-mine])'), 'her Memnite is a placed card on bob’s screen').toHaveCount(1, { timeout: 10_000 });
     // Five seconds of watching after the face exists: long enough for every grace timer this
