@@ -1309,9 +1309,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (castFromHand) {
         const spell = needsTarget(handCardTypeLine(match, under.id));
         const overHand = overOwnHand(event.target);
-        const overBf = overOwnBattlefield(event.target);
         drawCastLift(canvas, under.id, at, 'lifted');
-        updateDropCues(canvas, spell, overHand, overBf);
+        updateDropCues(canvas, spell, overHand);
       }
       paint();
       return;
@@ -1359,10 +1358,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
           // The press has left the hand: the mode change to the cast gesture, same press.
           scheduleHandIndicator(null);
           const spell = needsTarget(handCardTypeLine(match, next.source));
-          const overBf = overOwnBattlefield(event.target);
-          updateDropCues(canvas, spell, overHand, overBf);
+          updateDropCues(canvas, spell, overHand);
           // Only a no-target card ever lands in a row.
-          previewAt(!spell && overBf ? at : null);
+          previewAt(!spell && overOwnBattlefield(event.target) ? at : null);
         }
       }
     } else if (marquee !== null) {

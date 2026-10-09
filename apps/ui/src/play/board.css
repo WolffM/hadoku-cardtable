@@ -1143,10 +1143,6 @@
   border-radius: calc(var(--radius) * 0.75);
 }
 
-.seat > .zone--battlefield .zone__tiers > .zone__cards[data-arrange-target] {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
 /*
  * When to add a row, and it is ONE decision per zone.
  *
@@ -1522,7 +1518,7 @@
  *     every move; nothing about its box changes;
  *   - the INDICATOR is a bar at the place the card will land — vertical between
  *     two cards or at the end of a row, horizontal where it will stack — and the
- *     slot box it snapped to is lit while it is the target.
+ *     column it snapped to is marked (`[data-arrange-target]`, below).
  *
  * No canvas, no WebGL, no library: DOM and transforms. All three are removed on
  * drop and on cancel.
@@ -1579,15 +1575,9 @@
   background: color-mix(in srgb, var(--accent) 80%, transparent);
 }
 
-.board [data-arrange-slot][data-arrange-target] {
-  outline: 1px dashed var(--accent);
-  outline-offset: -1px;
-}
-
 /*
  * A gap (ledger Z8): a column the player left open. It holds its column in the
- * row's grid like a card does and draws nothing — until a card is being
- * arranged, when its outline shows where a drop would land.
+ * row's grid like a card does and draws nothing until a card is on the move.
  */
 .zone__gap {
   margin: 0;
@@ -1597,9 +1587,26 @@
   border-radius: var(--radius);
 }
 
-.board[data-arrange-active] .zone__gap {
+/*
+ * The placement scaffold (`Board.tsx` `showPlacementColumns`): while a card the
+ * viewer moves could land on their battlefield — a rearrange or a card carried
+ * out of the hand — every column of every one of THEIR rows is outlined, a
+ * card's width and a card's height even in a row with no card to stretch it,
+ * and the one a release would fill is marked. The other seat's gaps never are.
+ * A column is a drawing, never what a press or a release lands on: the
+ * scaffold is taken down at the release, and a release whose target was a
+ * removed column would read as one off the battlefield.
+ */
+.board[data-placing] .seat[data-viewer] [data-zone='battlefield'] .zone__gap {
+  pointer-events: none;
+  aspect-ratio: 1 / var(--card-tall);
   outline: 1px dashed color-mix(in srgb, var(--ink) 35%, transparent);
   outline-offset: -1px;
+}
+
+.board[data-placing] .seat[data-viewer] [data-zone='battlefield'] .zone__gap[data-arrange-target] {
+  outline: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .board .board-card[data-arrange-target] > .board-card__face {

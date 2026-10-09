@@ -2156,7 +2156,9 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
-    expect(myBattlefield.getAttribute('data-drop'), 'the battlefield lights up, solid, over it').toBe('ok');
+    const board = canvas.querySelector<HTMLElement>('.board')!;
+    expect(board.hasAttribute('data-placing'), 'her rows show their columns while it is carried').toBe(true);
+    expect(myBattlefield.hasAttribute('data-drop'), 'and nothing outlines the battlefield as a whole').toBe(false);
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
@@ -2169,7 +2171,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(standIn.getAttribute('data-cast-lift'), 'it waits where it was let go, not back in the hand').toBe('parked');
     expect(standIn.style.left).toBe('400px');
     expect(standIn.style.top).toBe('300px');
-    expect(myBattlefield.hasAttribute('data-drop'), 'the cue clears with the release').toBe(false);
+    expect(board.hasAttribute('data-placing'), 'the columns clear with the release').toBe(false);
   });
 
   it('a no-target card released off the viewer’s own battlefield floats back, and nothing is sent', async () => {
@@ -2177,15 +2179,17 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const board = canvas.querySelector<HTMLElement>('.board')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(board.hasAttribute('data-placing'), 'still in the hand: no columns').toBe(false);
     fireEvent.pointerMove(document.body, { clientX: 900, clientY: 900 });
-    expect(myBattlefield.getAttribute('data-drop'), 'a dim hint, not the solid cue').toBe('hint');
+    expect(board.hasAttribute('data-placing'), 'out of the hand, the same columns wherever it is carried').toBe(true);
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
     fireEvent.pointerUp(document.body, { clientX: 900, clientY: 900 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back').toBe('returning');
+    expect(board.hasAttribute('data-placing'), 'and the columns are gone').toBe(false);
     await new Promise((r) => setTimeout(r, 350));
     expect(s.clientFrames()).toHaveLength(0);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
@@ -2226,7 +2230,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
-    expect(myBattlefield.hasAttribute('data-drop'), 'a targeted card never lands in a row — no battlefield cue').toBe(false);
+    expect(canvas.querySelector('.board')!.hasAttribute('data-placing'), 'a targeted card never lands in a row — no columns').toBe(false);
     expect(cardEl(canvas, hand[2]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
     expect(s.clientFrames()).toHaveLength(0);
 

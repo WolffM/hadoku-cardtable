@@ -14,9 +14,9 @@
  * is in motion: the card following the pointer (`drawCastLift`), the card
  * parked at its release point while a cast is being aimed, the float-back
  * animation when it returns to the hand (`floatCastLiftHome`), and the cues
- * drawn on the viewer's own hand and battlefield zones while a card is
- * lifted.
+ * drawn on the viewer's own hand and battlefield while a card is lifted.
  */
+import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
 import type { LiveMatch } from '../match.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../../card-size.ts';
 import { cardBox } from './targets.ts';
@@ -59,31 +59,22 @@ export function overOwnHand(node: EventTarget | null): boolean {
   return node instanceof Element && node.closest('[data-zone="hand"][data-owner="you"]') !== null;
 }
 
-/** The viewer's own battlefield zone element, for the drop cue — null before `Board` mounts one. */
-function ownBattlefieldZone(root: ParentNode): HTMLElement | null {
-  return root.querySelector('[data-zone="battlefield"][data-owner="you"]');
-}
-
 /** The viewer's own hand zone element, for the cancel cue. */
 function ownHandZone(root: ParentNode): HTMLElement | null {
   return root.querySelector('[data-zone="hand"][data-owner="you"]');
 }
 
 /**
- * The two cues drawn on lane A's own zone markup while a hand card is
- * lifted: the viewer's own battlefield lights up (`data-drop`, "ok" over it,
- * "hint" elsewhere — never for a card that needs a target, which never lands
- * in a row there); the hand shows the cancel cue (`data-cancel-hint`)
- * whenever ANY lifted card sits over it, whatever that card is, since
- * releasing over the hand always returns it. `./gestures.css` draws both
- * attributes.
+ * The two cues drawn while a hand card is lifted. Out of the hand, a card
+ * that needs no target could land on the viewer's battlefield, so its rows
+ * show their columns — `Board.tsx`'s placement scaffold, the same one a
+ * rearrange draws (a card that needs a target never lands in a row, so it
+ * gets none). Over the hand, the cancel cue (`data-cancel-hint`, drawn by
+ * `./gestures.css`): releasing there always returns the card, whatever it is.
  */
-export function updateDropCues(canvas: ParentNode, spell: boolean, overHand: boolean, overBattlefield: boolean): void {
-  const bf = ownBattlefieldZone(canvas);
-  if (bf !== null) {
-    if (spell) bf.removeAttribute('data-drop');
-    else bf.setAttribute('data-drop', overBattlefield ? 'ok' : 'hint');
-  }
+export function updateDropCues(canvas: ParentNode, spell: boolean, overHand: boolean): void {
+  if (spell || overHand) clearPlacementColumns(canvas);
+  else showPlacementColumns(canvas);
   const hand = ownHandZone(canvas);
   if (hand !== null) {
     if (overHand) hand.setAttribute('data-cancel-hint', '');
@@ -93,7 +84,7 @@ export function updateDropCues(canvas: ParentNode, spell: boolean, overHand: boo
 
 /** Every drop cue off, whichever it was — a release, a cancel, or a dispose mid-flight. */
 export function clearDropCues(canvas: ParentNode): void {
-  ownBattlefieldZone(canvas)?.removeAttribute('data-drop');
+  clearPlacementColumns(canvas);
   ownHandZone(canvas)?.removeAttribute('data-cancel-hint');
 }
 

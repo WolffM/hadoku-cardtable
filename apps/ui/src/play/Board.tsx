@@ -1105,13 +1105,17 @@ export function withColumnsToWidth(slot: SlotGeometry): SlotGeometry {
   return { ...slot, piles };
 }
 
-/** How many of the columns `withColumnsToWidth` adds fit the row WHOLE — the outlines to draw (a partly fitting one would reflow the grid mid-drag). */
-export function virtualColumns(rowBox: Box, lastRight: number | null, count: number, step: number | null): number {
-  if (step === null || step <= 0) return 0;
-  const width = step - 6;
-  let left = lastRight === null ? rowBox.left + 4 : lastRight + 6;
+/**
+ * How many of the columns `withColumnsToWidth` adds fit the row WHOLE — the empty columns the placement
+ * scaffold draws (a partly fitting one would reflow the grid mid-drag). `row` is the list's content box,
+ * `width` a card's (`card-size.ts`), `gap` the list's own `column-gap`.
+ */
+export function virtualColumns(row: { readonly left: number; readonly right: number }, lastRight: number | null, count: number, width: number | null, gap: number): number {
+  if (width === null || width <= 0) return 0;
+  const step = width + gap;
+  let left = lastRight === null ? row.left : lastRight + gap;
   let n = 0;
-  while (left + width <= rowBox.right + 1 && count + n < 64) {
+  while (left + width <= row.right + 1 && count + n < 64) {
     n += 1;
     left += step;
   }
@@ -1464,26 +1468,102 @@ function withExpectedGap(rows: Grouped, row: BoardRow, target: DropTarget): { ro
   return { rows: { ...rows, [row]: into }, index };
 }
 
+/** The board a root holds (or is): the gestures layer's canvas sits around it, an arrange-drag's root is it. */
+function boardIn(root: ParentNode): HTMLElement | null {
+  return root instanceof HTMLElement && root.matches('.board') ? root : root.querySelector<HTMLElement>('.board');
+}
+
+/** The `<ul>` of cards a slot element holds (a tier is its own list, a lane holds one). */
+function cardsOf(slotEl: HTMLElement): HTMLElement | null {
+  return slotEl.matches('.zone__cards') ? slotEl : slotEl.querySelector<HTMLElement>(':scope > .zone__cards');
+}
+
 /**
- * The SAME indicator bar an arrange-drag draws (`[data-arrange-indicator]`,
- * `card.css`'s existing rules — no new stylesheet here), driven for a cast in
- * flight instead: call on every pointer move while a castable card is lifted
- * over the battlefield; `null` clears it (release, Escape, leaving the
- * battlefield). Cannot collide with a real arrange-drag's own indicator — a
- * card being cast from hand is never `useArrangeDrag`'s own to begin with
- * (`CardOnBoard`'s `draggable`, above, excludes every hand card), and this one
- * only ever targets the viewer's own board, same as that one. The element is
- * created once and reused (hidden between calls, the same
- * economy `useArrangeDrag`'s indicator uses), and re-parented if `Board`
- * itself remounted since the last call.
+ * The placement scaffold — the one thing drawn while a card the viewer moves could land on their
+ * battlefield, a rearrange and a permanent carried out of the hand alike: every column of every one of
+ * the VIEWER's rows (`board.css`, `[data-placing]`) — the gaps a row holds, and one empty column for each
+ * more that fits the row whole. The other seat's rows are never part of it: no card of theirs is ours to
+ * place. Idempotent, so a gesture may call it on every move.
+ */
+export function showPlacementColumns(root: ParentNode): void {
+  const board = boardIn(root);
+  if (board === null || board.hasAttribute('data-placing')) return;
+  board.setAttribute('data-placing', '');
+  for (const el of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot]')) {
+    const list = cardsOf(el);
+    if (list === null) continue;
+    const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap');
+    const last = items.length === 0 ? null : items[items.length - 1]!.getBoundingClientRect().right;
+    const box = list.getBoundingClientRect();
+    const style = getComputedStyle(list);
+    const row = { left: box.left + (Number.parseFloat(style.paddingLeft) || 0), right: box.right - (Number.parseFloat(style.paddingRight) || 0) };
+    const n = virtualColumns(row, last, items.length, cardWidthIn(list), Number.parseFloat(style.columnGap) || 0);
+    for (let i = 0; i < n; i += 1) {
+      const li = document.createElement('li');
+      li.className = 'zone__gap';
+      li.setAttribute('data-gap', '');
+      li.setAttribute('data-virtual', '');
+      li.setAttribute('aria-hidden', 'true');
+      list.append(li);
+    }
+  }
+}
+
+/** The scaffold off again: a release, a cancel, or the carried card back over the hand. */
+export function clearPlacementColumns(root: ParentNode): void {
+  const board = boardIn(root);
+  if (board === null) return;
+  board.removeAttribute('data-placing');
+  for (const li of board.querySelectorAll('li.zone__gap[data-virtual]')) li.remove();
+}
+
+/**
+ * The column a snap lands in, as drawn: the gap or scaffold column it fills (`at`, and `end` where the
+ * row has room past its last card), else the card it goes before or onto.
+ */
+function snapColumn(board: HTMLElement, snap: Snap): Element | null {
+  const slotEl = [...board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')].find((el) => el.getAttribute('data-arrange-slot') === snap.slot);
+  const list = slotEl === undefined ? null : cardsOf(slotEl);
+  if (list !== null && snap.target.kind === 'at') return list.querySelectorAll(':scope > li.board-card, :scope > li.zone__gap')[snap.target.column] ?? null;
+  const past = list !== null && snap.target.kind === 'end' ? list.querySelector(':scope > li.zone__gap[data-virtual]') : null;
+  if (past !== null) return past;
+  return snap.card === null ? null : board.querySelector(`.seat[data-viewer] li.board-card[data-card-id="${snap.card}"]`);
+}
+
+/**
+ * Where a release would land, drawn: the indicator bar at the snap and its column marked
+ * (`data-arrange-target`); `null` hides both. Returns what it marked, for the next call to clear.
+ */
+function drawSnap(board: HTMLElement, bar: HTMLElement, snap: Snap | null, marked: readonly Element[]): Element[] {
+  for (const el of marked) el.removeAttribute('data-arrange-target');
+  if (snap === null || snap.slot === 'hand') {
+    bar.setAttribute('hidden', '');
+    return [];
+  }
+  const box = board.getBoundingClientRect();
+  bar.removeAttribute('hidden');
+  bar.setAttribute('data-arrange-kind', snap.kind);
+  bar.setAttribute('data-arrange-slot', snap.slot);
+  bar.style.width = `${snap.bar.width}px`;
+  bar.style.height = `${snap.bar.height}px`;
+  bar.style.left = `${snap.bar.left - box.left}px`;
+  bar.style.top = `${snap.bar.top - box.top}px`;
+  const column = snapColumn(board, snap);
+  if (column === null) return [];
+  column.setAttribute('data-arrange-target', snap.kind);
+  return [column];
+}
+
+/**
+ * The cast gesture's half of the placement preview (`live/gestures/install.ts`): call on every pointer
+ * move while a castable card is lifted over the battlefield; `null` clears it (release, Escape, leaving
+ * the battlefield). The same indicator bar and column mark an arrange-drag draws (`drawSnap`), on the
+ * scaffold the gesture put up (`showPlacementColumns`, via `cast.ts`'s drop cues). The bar is created
+ * once and reused, and re-parented if `Board` itself remounted since the last call.
  */
 let previewEl: HTMLElement | null = null;
 let previewMarked: Element[] = [];
 export function previewPlayedTo(point: { x: number; y: number } | null): void {
-  const clearMarks = (): void => {
-    for (const el of previewMarked) el.removeAttribute('data-arrange-target');
-    previewMarked = [];
-  };
   const board = document.querySelector<HTMLElement>('.board');
   if (board === null) return;
   if (previewEl === null) {
@@ -1493,39 +1573,7 @@ export function previewPlayedTo(point: { x: number; y: number } | null): void {
     previewEl.setAttribute('hidden', '');
   }
   if (!board.contains(previewEl)) board.append(previewEl);
-  if (point === null) {
-    previewEl.setAttribute('hidden', '');
-    clearMarks();
-    return;
-  }
-  const snap = snapTo(liveViewerGeometry(), point.x, point.y);
-  clearMarks();
-  if (snap === null) {
-    previewEl.setAttribute('hidden', '');
-    return;
-  }
-  const box = board.getBoundingClientRect();
-  previewEl.removeAttribute('hidden');
-  previewEl.setAttribute('data-arrange-kind', snap.kind);
-  previewEl.setAttribute('data-arrange-slot', snap.slot);
-  previewEl.style.width = `${snap.bar.width}px`;
-  previewEl.style.height = `${snap.bar.height}px`;
-  previewEl.style.left = `${snap.bar.left - box.left}px`;
-  previewEl.style.top = `${snap.bar.top - box.top}px`;
-  const slotEl = [...board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')].find(
-    (el) => el.getAttribute('data-arrange-slot') === snap.slot,
-  );
-  if (slotEl !== undefined) {
-    slotEl.setAttribute('data-arrange-target', snap.kind);
-    previewMarked.push(slotEl);
-  }
-  if (snap.card !== null) {
-    const cardEl = board.querySelector(`.seat[data-viewer] li.board-card[data-card-id="${snap.card}"]`);
-    if (cardEl !== null) {
-      cardEl.setAttribute('data-arrange-target', snap.kind);
-      previewMarked.push(cardEl);
-    }
-  }
+  previewMarked = drawSnap(board, previewEl, point === null ? null : snapTo(liveViewerGeometry(), point.x, point.y), previewMarked);
 }
 
 /**
@@ -3028,11 +3076,6 @@ function useArrangeDrag(
       return out;
     };
 
-    const clearMarks = (p: Press): void => {
-      for (const el of p.marked) el.removeAttribute('data-arrange-target');
-      p.marked = [];
-    };
-
     const draw = (p: Press, x: number, y: number): void => {
       const box = boardBox();
       if (p.ghost !== null) {
@@ -3048,34 +3091,7 @@ function useArrangeDrag(
        */
       const snap = found !== null && found.slot !== 'hand' ? found : null;
       p.snap = snap;
-      clearMarks(p);
-      if (snap === null) {
-        p.indicator?.setAttribute('hidden', '');
-        return;
-      }
-      const slotEl = [...board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')].find(
-        (el) => el.getAttribute('data-arrange-slot') === snap.slot,
-      );
-      if (slotEl !== undefined) {
-        slotEl.setAttribute('data-arrange-target', snap.kind);
-        p.marked.push(slotEl);
-      }
-      if (snap.card !== null) {
-        const cardEl = board.querySelector(`.seat[data-viewer] li.board-card[data-card-id="${snap.card}"]`);
-        if (cardEl !== null) {
-          cardEl.setAttribute('data-arrange-target', snap.kind);
-          p.marked.push(cardEl);
-        }
-      }
-      const bar = p.indicator;
-      if (bar === null) return;
-      bar.removeAttribute('hidden');
-      bar.setAttribute('data-arrange-kind', snap.kind);
-      bar.setAttribute('data-arrange-slot', snap.slot);
-      bar.style.width = `${snap.bar.width}px`;
-      bar.style.height = `${snap.bar.height}px`;
-      bar.style.left = `${snap.bar.left - box.left}px`;
-      bar.style.top = `${snap.bar.top - box.top}px`;
+      if (p.indicator !== null) p.marked = drawSnap(board, p.indicator, snap, p.marked);
     };
 
     /** The press has moved far enough to be a drag: draw the ghost and the indicator. */
@@ -3115,22 +3131,7 @@ function useArrangeDrag(
       p.indicator = indicator;
       p.li.setAttribute('data-arrange-dragging', '');
       board.setAttribute('data-arrange-active', '');
-      // Every column that fits each battlefield row, outlined — the operator: "always draw all the placement locations".
-      for (const el of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot]')) {
-        const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
-        if (list === null) continue;
-        const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])');
-        const last = items.length === 0 ? null : items[items.length - 1]!.getBoundingClientRect().right;
-        const n = virtualColumns(el.getBoundingClientRect(), last, items.length, columnPitch(el));
-        for (let i = 0; i < n; i += 1) {
-          const li = document.createElement('li');
-          li.className = 'zone__gap';
-          li.setAttribute('data-gap', '');
-          li.setAttribute('data-virtual', '');
-          li.setAttribute('aria-hidden', 'true');
-          list.append(li);
-        }
-      }
+      showPlacementColumns(board);
       draw(p, x, y);
     };
 
@@ -3139,12 +3140,12 @@ function useArrangeDrag(
       press = null;
       window.removeEventListener('keydown', onKey, true);
       if (p === null) return;
-      clearMarks(p);
+      for (const el of p.marked) el.removeAttribute('data-arrange-target');
       p.ghost?.remove();
       p.indicator?.remove();
       p.li.removeAttribute('data-arrange-dragging');
       board.removeAttribute('data-arrange-active');
-      for (const li of board.querySelectorAll('li.zone__gap[data-virtual]')) li.remove();
+      clearPlacementColumns(board);
     };
 
     const forgetClick = (): void => {

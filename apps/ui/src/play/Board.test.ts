@@ -30,14 +30,17 @@ import {
 } from './adapter.ts';
 import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArrangement, type OwnArrangementListener,
   Board,
+  clearPlacementColumns,
   commitHandMove,
   forgetArrangements,
   forgetPendingPlacements,
   handOrder,
   notePlayedTo,
   previewPlayedTo,
+  showPlacementColumns,
   slotKey,
   snapTo,
+  virtualColumns,
   withColumnsToWidth,
   withHandMove,
   withMove,
@@ -4324,7 +4327,8 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(bar.dataset.arrangeKind).toBe('before');
     expect(bar.dataset.arrangeSlot).toBe('back');
     expect(container.querySelector('[data-card-id="8"]')!.getAttribute('data-arrange-target'), 'the card it is on').toBe('before');
-    expect(container.querySelector('.seat[data-viewer] [data-arrange-slot="back"]')!.getAttribute('data-arrange-target')).toBe('before');
+    expect(container.querySelector('.seat[data-viewer] [data-arrange-slot="back"]')!.hasAttribute('data-arrange-target'), 'a column is marked, never a whole row').toBe(false);
+    expect(board.hasAttribute('data-placing'), 'her rows show their columns').toBe(true);
     // Nothing has moved yet: the drag is a preview until it is let go.
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
 
@@ -4332,8 +4336,71 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(board.querySelector('[data-arrange-ghost], [data-arrange-indicator]'), 'ghost and bar are gone').toBeNull();
     expect(board.hasAttribute('data-arrange-active')).toBe(false);
     expect(container.querySelectorAll('[data-arrange-dragging], [data-arrange-target]'), 'and every mark').toHaveLength(0);
+    expect(board.hasAttribute('data-placing'), 'and the columns').toBe(false);
+    expect(board.querySelectorAll('li[data-virtual]'), 'every scaffold column removed').toHaveLength(0);
     // And the card went where the bar said.
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['24', '8', '6', '25']);
+  });
+
+  it('a rearrange outlines the columns of HER rows only, and marks the empty column a release would fill', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    // A card is 70px wide here (`card-size.ts` reads the inherited px value where nothing is laid out), no gap.
+    boardOf(container).style.setProperty('--card-w', '70px');
+    const back = container.querySelector<HTMLElement>('.seat[data-viewer] [data-arrange-slot="back"]')!;
+    const row = back.getBoundingClientRect();
+    // Column 6 of the back row: past its four cards, a column the scaffold draws.
+    const release = dragCard(container, 24, { point: { x: 10 + 6 * 70 + 30, y: row.top + 50 } }, true);
+    const board = boardOf(container);
+    const columns = [...back.querySelectorAll<HTMLElement>(':scope > li')];
+    expect(columns.slice(4).every((li) => li.matches('li.zone__gap[data-virtual]')), 'every column past the cards is a scaffold column').toBe(true);
+    expect(columns.length, 'as many as fit the row whole: 14 at a 70px pitch in 1000px').toBe(14);
+    expect(columns[6]!.getAttribute('data-arrange-target'), 'the column it would fill is marked').toBe('at');
+    expect(board.querySelectorAll('[data-arrange-target]'), 'and only that one').toHaveLength(1);
+    expect(board.querySelectorAll('.seat:not([data-viewer]) li[data-virtual]'), 'nothing on his side').toHaveLength(0);
+    for (const slot of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot]')) {
+      expect(slot.querySelectorAll('li.zone__gap').length, `${slot.dataset.arrangeSlot} shows its columns`).toBeGreaterThan(0);
+    }
+    release();
+  });
+
+  it('the scaffold is one drawing, put up and taken down the same for any gesture, and idempotent', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    boardOf(container).style.setProperty('--card-w', '70px');
+    const board = boardOf(container);
+    showPlacementColumns(container);
+    const count = board.querySelectorAll('li[data-virtual]').length;
+    expect(count, 'columns drawn').toBeGreaterThan(0);
+    showPlacementColumns(container);
+    expect(board.querySelectorAll('li[data-virtual]'), 'a second call draws nothing twice').toHaveLength(count);
+    clearPlacementColumns(container);
+    expect(board.hasAttribute('data-placing')).toBe(false);
+    expect(board.querySelectorAll('li[data-virtual]')).toHaveLength(0);
+  });
+
+  it('board.css outlines a column only on the viewer’s side, never a whole row, and a gap is card-tall', () => {
+    expect(BOARD_RULES, 'no whole-row outline').not.toMatch(/\[data-arrange-slot\]\[data-arrange-target\]/);
+    expect(BOARD_RULES, 'no whole-row tint').not.toMatch(/\.zone__cards\[data-arrange-target\]/);
+    const gapRules = [...BOARD_RULES.matchAll(/([^{}]*\.zone__gap[^{}]*)\{([^{}]*)\}/g)].filter((m) => /outline/.test(m[2]!));
+    expect(gapRules.length, 'the scaffold rules exist').toBeGreaterThan(0);
+    for (const [, selector] of gapRules) expect(selector!.trim(), 'only the viewer’s own columns').toMatch(/^\.board\[data-placing\] \.seat\[data-viewer\] /);
+    expect(declarationIn(".board[data-placing] .seat[data-viewer] [data-zone='battlefield'] .zone__gap", 'aspect-ratio'), 'an empty row’s column is a card tall, not a line').toBe('1 / var(--card-tall)');
+    // A release over a column must hit the row, not a column the release itself takes down.
+    expect(declarationIn(".board[data-placing] .seat[data-viewer] [data-zone='battlefield'] .zone__gap", 'pointer-events')).toBe('none');
+    // Only while placing: a reserved gap in an empty row is no box to glide into (`cast.ts` `expectedGapBox`).
+    expect(declarationIn('.zone__gap', 'aspect-ratio')).toBeUndefined();
+  });
+
+  it('virtualColumns reads the row’s own column gap, not a fixed one', () => {
+    // 60px cards and a 10px gap in a row 0..300: from an empty row, 0, 70, 140, 210 fit whole.
+    expect(virtualColumns({ left: 0, right: 300 }, null, 0, 60, 10)).toBe(4);
+    // After a card ending at 60, the next column starts one gap later, at 70: 70, 140, 210 fit.
+    expect(virtualColumns({ left: 0, right: 300 }, 60, 1, 60, 10)).toBe(3);
+    // A 1px gap: a 61px pitch — 0, 61, 122, 183, 244 (to 304) fit 310; a 10px gap fits only four there.
+    expect(virtualColumns({ left: 0, right: 310 }, null, 0, 60, 1)).toBe(5);
+    expect(virtualColumns({ left: 0, right: 310 }, null, 0, 60, 10)).toBe(4);
+    expect(virtualColumns({ left: 0, right: 300 }, null, 0, null, 4), 'no card width, no columns').toBe(0);
   });
 
   it('the ghost follows the pointer, and the indicator names stack-top, stack-bottom and the next column as the pointer moves', () => {
@@ -4652,6 +4719,7 @@ describe('notePlayedTo hands a cast’s drop point to Board', () => {
     expect(bar.dataset.arrangeKind).toBe('before');
     expect(bar.dataset.arrangeSlot).toBe('back');
     expect(container.querySelector('[data-card-id="24"]')!.getAttribute('data-arrange-target')).toBe('before');
+    expect(container.querySelector('.seat[data-viewer] [data-arrange-slot="back"]')!.hasAttribute('data-arrange-target'), 'no whole-row mark').toBe(false);
 
     previewPlayedTo(null);
     expect(bar.hasAttribute('hidden'), 'hidden on null').toBe(true);

@@ -208,30 +208,6 @@
   visibility: hidden;
 }
 
-/*
- * The other two cues, both on LANE A's own zone markup — the same technique
- * `[data-cast-lift]` already uses on a card's `<li>`. Scoped to
- * `[data-owner="you"]`: an opponent's zones never light up for the viewer's
- * own drag.
- *
- * The battlefield lights up only for a card that needs no target
- * (`./cast.ts`'s `updateDropCues` removes `data-drop` outright for a card
- * that needs one — it never lands in a row, so highlighting the battlefield
- * for it would promise something that drops it on the floor): solid while
- * the pointer is over it (`ok`, it would be played there), a dimmer hint
- * elsewhere (`hint`, it would float back).
- */
-[data-zone='battlefield'][data-owner='you'][data-drop='ok'] {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-[data-zone='battlefield'][data-owner='you'][data-drop='hint'] {
-  outline: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
-  outline-offset: -1px;
-}
-
 /* The hand's own cancel cue: ANY lifted card over the hand returns, whatever it is. */
 [data-zone='hand'][data-owner='you'][data-cancel-hint] {
   outline: 2px solid var(--warn);
