@@ -741,7 +741,7 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('a creature placed to a column but held on the STACK (the other seat has a response) hands the back to the placed card at its point — never a back in the gap beside a face (AE26)', () => {
+  it('a creature placed to a column but held on the STACK (the other seat has a response) hands the back to the placed card at its point — never a back in the gap beside a face (AE26)', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
@@ -758,6 +758,8 @@ describe('receiving', () => {
     // Forge puts it on the STACK (the viewer holds priority): the id is public, nowhere on the battlefield.
     theirs = [121];
     wake!();
+    // Read past React's commit, the way the reservation itself is — a land would be on the battlefield by now.
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(placedMod.placeSpell, 'the back hands over to the placed card at its own point').toHaveBeenCalledWith(121, expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }), 'them');
     expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
     expect(canvas.querySelector('.presence__back'), 'no back stands beside the face').toBeNull();

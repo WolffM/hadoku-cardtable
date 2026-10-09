@@ -897,23 +897,24 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // which may be AFTER this listener runs — so the reservation is read on the next frame, past
       // the commit. A SPELL's wait has no reservation to read; only the id check below clears it.
       if (waiting.forBattlefield) {
-        // AE26 (the Mana Leak screenshot): a CREATURE dragged to the battlefield carries a placement
-        // (a column is reserved, this wait expects it there) — but while the other seat holds
-        // priority it sits on the STACK first. Its id shows up on the stack, never the battlefield,
-        // and this wait would stand the back beside the face until its timer. A fresh id of theirs
-        // that is on the stack is the spell case: the back hands over to the placed card at its own
-        // point, turned over in place; the column's reservation stays for the day it resolves.
-        const onStack = fresh.find((id) => !onTheirBattlefield(id));
-        if (onStack !== undefined) {
-          handToSpell(onStack);
-          return;
-        }
         const theirs = host.theirPlayerId?.() ?? null;
         const standIn = back;
         const card = waiting.card;
         requestAnimationFrame(() => {
           if (waiting === null || back !== standIn) return;
-          if (theirs === null || pendingPlacementFor(theirs) !== null) return;
+          if (theirs === null) return;
+          if (pendingPlacementFor(theirs) !== null) {
+            // AE26 (the Mana Leak screenshot): a CREATURE dragged to the battlefield carries a
+            // placement (a column is reserved, this wait expects it there) — but while the other
+            // seat holds priority it sits on the STACK first. Past React's commit (this frame) a
+            // fresh id of theirs that is still nowhere on the battlefield, with the reservation
+            // still pending, is on the stack: the spell case — the back hands over to the placed
+            // card at its own point, turned over in place; the column's reservation stays for the
+            // day it resolves. A land is on the battlefield by now, and its reservation consumed.
+            const onStack = fresh.find((id) => !onTheirBattlefield(id));
+            if (onStack !== undefined) handToSpell(onStack);
+            return;
+          }
           // The card is in its column. The stand-in was still on its 300 ms glide there more often
           // than not (Forge answers a cast faster than that), and taking it down here cut the glide
           // short: the back vanished mid-flight and the card popped into the gap — the owner's own
