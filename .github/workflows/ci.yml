@@ -85,9 +85,11 @@ jobs:
       # `node-version` MUST be passed: the action defaults to 22 and does not
       # read .nvmrc, which pins 24.
       - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
         with:
           node-version: '24'
           npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
       # NODE_AUTH_TOKEN must be HADOKU_NPM_READ_TOKEN — never GITHUB_TOKEN and
       # never HADOKU_SITE_TOKEN:
@@ -107,7 +109,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: Typecheck
         run: pnpm run typecheck

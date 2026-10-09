@@ -232,14 +232,16 @@ jobs:
 
       # Same as `check` — see the comments there.
       - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
         with:
           node-version: '24'
           npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
       - name: Install
         run: pnpm install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: Build the bundle
         run: pnpm --filter @hadoku/ui build
@@ -500,14 +502,16 @@ jobs:
 
       # Same as `check` and `forge-e2e` — see the comments on `check`.
       - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
         with:
           node-version: '24'
           npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
       - name: Install
         run: pnpm install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       # Per-pin bundle (ledger Y26, carried forward by wave forge-claws) — see
       # the identical step in `forge-e2e` for why. `GITHUB_ENV` carries
