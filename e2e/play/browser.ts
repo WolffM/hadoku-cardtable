@@ -24,12 +24,18 @@ import { playMessagesOf, type PlayMessage } from './frames.ts';
 /** The context's own default (no `use.viewport` override in `playwright.config.ts`). */
 const VIDEO_SIZE = { width: 1280, height: 720 };
 
-/** The running test's own title path, filesystem-safe — one folder per spec under `<RUN_DIR>/videos/`. */
+/**
+ * The running test's own title path, filesystem-safe — one folder per spec under `<RUN_DIR>/videos/`, and one per
+ * repetition and retry: a `--repeat-each=3` proof ran each spec three times into the same folder and kept only the
+ * last pair of videos.
+ */
 function specVideoSlug(): string {
-  const title = test.info().titlePath.filter((p) => p !== '').join(' ');
+  const info = test.info();
+  const title = info.titlePath.filter((p) => p !== '').join(' ');
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   // A long title is a path segment over NAME_MAX (255): cut it, and keep it unique by the title's hash.
-  return slug.length <= 120 ? slug : `${slug.slice(0, 110).replace(/-+$/, '')}-${createHash('sha1').update(title).digest('hex').slice(0, 8)}`;
+  const base = slug.length <= 120 ? slug : `${slug.slice(0, 110).replace(/-+$/, '')}-${createHash('sha1').update(title).digest('hex').slice(0, 8)}`;
+  return `${base}${info.repeatEachIndex > 0 ? `-rep${info.repeatEachIndex}` : ''}${info.retry > 0 ? `-retry${info.retry}` : ''}`;
 }
 
 export interface Friend {
