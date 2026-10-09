@@ -3037,7 +3037,8 @@ describe('the stack’s art (#10)', () => {
     const items = [...container.querySelectorAll<HTMLElement>('[data-placed-spell]')];
     expect(items).toHaveLength(2);
     for (const item of items) {
-      const name = item.querySelector('.card__name')!.textContent!;
+      // A spell draws its card; an ability its chip (AE29) — either names the source.
+      const name = item.querySelector('.card__name, .placed__chip-name')!.textContent!;
       const img = item.querySelector('img');
       expect(img, `${name} on the stack has art`).not.toBeNull();
       expect(img!.getAttribute('src')).toBe(cardImageUrl(TEST_IDS.get(name)));
@@ -3056,8 +3057,10 @@ describe('the stack’s art (#10)', () => {
     const item = container.querySelector<HTMLElement>(`[data-placed-spell="${view.stack[0]!.id}"]`)!;
     expect(item, 'drawn, at the default spot (no sourceCardId to draw beside)').not.toBeNull();
     expect(item.querySelector('img')).toBeNull();
-    // `live/placed.ts`'s own fallback: the description, never a guessed name or a drawn `.stack__art`.
-    expect(item.querySelector('.placed__text')?.textContent).toBe(view.stack[0]!.description);
+    // `live/placed.ts`'s own fallback: the description, never a guessed name or a drawn `.stack__art` —
+    // in the ability chip's text when the item is an ability (AE29; `RulesText`, which sets
+    // parenthesised reminder text apart), the bare text box otherwise.
+    expect(item.querySelector('.placed__text, .placed__chip-text')?.textContent).toContain(view.stack[0]!.description.split('.')[0]!);
   });
 });
 
