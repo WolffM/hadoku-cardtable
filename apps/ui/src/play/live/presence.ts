@@ -811,7 +811,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         if (unhanded !== null && Date.now() - unhanded.at < UNHANDED_MS) {
           const { id } = unhanded;
           unhanded = null;
-          if (!onTheirBattlefield(id)) handToSpell(id);
+          if (onTheirStack(id)) handToSpell(id);
         }
       }
       // A wait already holds the back — the placement's gap, or this point: it stays put. A
@@ -860,6 +860,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   /**
+   * Whether a fresh card of theirs is a SPELL on the stack. The host's own reader when it
+   * has one: "not on the battlefield yet" is also true of a land in the frame before React
+   * draws it, and that misread handed a land drop to the stack layer (presence.spec's
+   * release case, 3/3 red on the first AE26 cut).
+   */
+  function onTheirStack(id: number): boolean {
+    const stack = host.theirStackCards?.();
+    return stack === undefined ? !onTheirBattlefield(id) : stack.includes(id);
+  }
+
+  /**
    * A SPELL of theirs: its id is public now — the stand-in's point goes to the
    * placed-cards layer (`placeSpell` at `backAt`, the CENTRE `.presence__back` is
    * transformed onto) and the card is turned over there; the back is retired.
@@ -890,7 +901,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // AE26: a spell arriving with no wait to hand it to is remembered for the point wait that
       // may be a message behind it (Forge's frame beat presence here). A permanent's arrival is
       // `onPlacement`'s, never this.
-      const spell = fresh.find((id) => !onTheirBattlefield(id));
+      const spell = fresh.find((id) => onTheirStack(id));
       if (spell !== undefined) unhanded = { id: spell, at: Date.now() };
     }
     if (waiting !== null && back !== null) {
@@ -914,8 +925,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             // card at its own point, turned over in place; the column's reservation stays for the
             // day it resolves. The host says which of their cards are on the stack; without that
             // reader (tests), "not on the battlefield" stands in for it.
-            const stack = host.theirStackCards?.();
-            const onStack = fresh.find((id) => (stack === undefined ? !onTheirBattlefield(id) : stack.includes(id)));
+            const onStack = fresh.find((id) => onTheirStack(id));
             if (onStack !== undefined) handToSpell(onStack);
             return;
           }
