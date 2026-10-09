@@ -522,6 +522,11 @@ export interface BoardInteraction {
    * every fixture and `live/parity.test.ts` render in.
    */
   highlighted?: ReadonlySet<number>;
+  /**
+   * While this seat blocks: the attacker the next blocker click goes to (`live/match.ts`'s
+   * `blockFocusOf`) — drawn as the block focus, never as picked. Absent outside the block step.
+   */
+  blockFocus?: number;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -2155,6 +2160,7 @@ function CardOnBoard({
       data-selectable={selectable || undefined}
       /* A picked card keeps `data-selectable` too — see `BoardInteraction.highlighted`'s own note. */
       data-picked={picked || undefined}
+      data-block-focus={(interaction?.blockFocus === entry.id) || undefined}
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
       /* Forge says this card is attached to something: not the player's doing. */

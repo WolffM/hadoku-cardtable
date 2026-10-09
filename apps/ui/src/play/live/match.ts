@@ -1422,6 +1422,24 @@ export function declaringBlockers(match: LiveMatch): boolean {
   return view !== null && view.phase === 'COMBAT_DECLARE_BLOCKERS' && view.activePlayerId !== viewerIdOf(view);
 }
 
+const NO_PICKS: ReadonlySet<number> = new Set();
+
+/**
+ * While this seat blocks, Forge's one highlighted card is `InputBlock`'s current attacker — the one
+ * the next blocker click is assigned to (`InputBlock.java:192`, `setCurrentAttacker`) — not a choice
+ * this seat made. It is the block focus; null outside the block step.
+ */
+export function blockFocusOf(match: LiveMatch): number | null {
+  if (!declaringBlockers(match)) return null;
+  const [first] = match.highlighted ?? NO_PICKS;
+  return first ?? null;
+}
+
+/** Forge's highlighted cards drawn as PICKED: every one, except the block step's current attacker (`blockFocusOf`). */
+export function pickedOf(match: LiveMatch): ReadonlySet<number> {
+  return declaringBlockers(match) ? NO_PICKS : (match.highlighted ?? NO_PICKS);
+}
+
 /**
  * This seat's player id, off the view. `BoardView` carries no `viewerPlayerId`
  * — the projection marks the seat with `isViewer`, which is the same fact and

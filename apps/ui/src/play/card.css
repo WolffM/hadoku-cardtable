@@ -566,6 +566,19 @@
   outline-offset: 3px;
 }
 
+/* ── block focus: the attacker the next blocker click goes to ───────────── */
+
+/*
+ * The operator, 2026-10-09: "i just entered 'declare blockers' phase and i see a green checkmark on
+ * one of the attackers? that's weird". It was Forge's current attacker (`InputBlock.setCurrentAttacker`)
+ * drawn as PICKED. It is a focus, not a choice: a ring and glow in the accent, no badge.
+ */
+.board-card[data-block-focus] > .board-card__face {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 12px var(--accent);
+}
+
 /* ── picked: this one of the offer is already chosen ───────────────────── */
 
 /*

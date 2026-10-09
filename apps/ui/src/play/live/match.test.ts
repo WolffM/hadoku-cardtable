@@ -27,7 +27,9 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  blockFocusOf,
   declaringBlockers,
+  pickedOf,
   declaringCombat,
   dismissReveal,
   payingMana,
@@ -1841,6 +1843,20 @@ describe('combat, off the state channel: the intent mark and the block target', 
    * arranging down for an open selection would leave the attacker and the
    * blocker natively draggable — which is §B.2 and §B.3 gone.
    */
+  it('blocking: Forge’s current attacker is the block focus, never a picked card (the operator, 2026-10-09: "a green checkmark on one of the attackers? that\'s weird")', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    // InputBlock marks the attacker the next blocker click goes to (`InputBlock.java:192`).
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_BLOCKERS', them(m).id), mark([theirs[0]!])]);
+    expect(declaringBlockers(m)).toBe(true);
+    expect(blockFocusOf(m)).toBe(theirs[0]);
+    expect(pickedOf(m).size, 'no check on it').toBe(0);
+    // Outside the block step the same mark is a pick, as before.
+    await sendAndApply(s, m, [phase('MAIN2', me(m).id)]);
+    expect(blockFocusOf(m)).toBeNull();
+    expect(pickedOf(m).has(theirs[0]!)).toBe(true);
+  });
+
   it('declaringCombat is the two combat inputs, and neither of them opens a selection', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);

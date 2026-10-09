@@ -277,6 +277,7 @@ import {
   abortAsk,
   answerAsk,
   answerConfirm,
+  blockFocusOf,
   boardInteraction,
   concede,
   currentAsk,
@@ -288,6 +289,7 @@ import {
   noteAutoAnswered,
   choosingMulligan,
   payingMana,
+  pickedOf,
   pressButton,
   relayout,
   SAYS_KEPT,
@@ -1849,7 +1851,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * `declaringAttackers` is handed over beside `offered` above rather than
      * inferred from it.
      */
-    highlighted: match.highlighted ?? EMPTY_CARD_IDS,
+    highlighted: pickedOf(match),
+    blockFocus: blockFocusOf(match) ?? undefined,
     /*
      * Item 17.2's staging area: the hand card this seat clicked to cast,
      * while Forge is asking for its target and nothing else is on top of the
