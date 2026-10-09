@@ -591,6 +591,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
   let unhanded: { id: number; at: number } | null = null;
   /**
+   * A creature of theirs that went to the stack on its way to a reserved column (the other seat
+   * held priority): its back turned into the placed face at the release point. When it resolves,
+   * its tile copy flies from that point into the column — the trip a permanent always makes —
+   * instead of the card popping into the gap (presence.spec's release case, red on 812689e).
+   */
+  let stackBound: { card: number; from: Point; at: number } | null = null;
+  /**
    * AE18: the ONE `forge:placement` this episode ever sends, remembered by its
    * own point — the one thing a `placing` echo of the SAME episode and this
    * message both carry, since presence names no card. `onPlacement` sets this
@@ -897,6 +904,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const cards = host.theirCards?.() ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
+    if (stackBound !== null) {
+      const bound = stackBound;
+      if (Date.now() - bound.at > WAITING_MS) stackBound = null;
+      else
+        requestAnimationFrame(() => {
+          // Past React's commit: the creature has resolved into its column.
+          if (stackBound !== bound || !onTheirBattlefield(bound.card)) return;
+          stackBound = null;
+          flyTile(bound.card, bound.from);
+        });
+    }
     if (waiting === null) {
       // AE26: a spell arriving with no wait to hand it to is remembered for the point wait that
       // may be a message behind it (Forge's frame beat presence here). A permanent's arrival is
@@ -926,7 +944,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             // day it resolves. The host says which of their cards are on the stack; without that
             // reader (tests), "not on the battlefield" stands in for it.
             const onStack = fresh.find((id) => onTheirStack(id));
-            if (onStack !== undefined) handToSpell(onStack);
+            if (onStack !== undefined) {
+              const from = backAt;
+              handToSpell(onStack);
+              if (from !== null) stackBound = { card: onStack, from, at: Date.now() };
+            }
             return;
           }
           // The card is in its column. The stand-in was still on its 300 ms glide there more often
