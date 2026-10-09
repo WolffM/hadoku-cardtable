@@ -378,7 +378,18 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useLayoutEffect, useReducer, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
@@ -394,6 +405,7 @@ import {
 import { mountInspector } from './inspect/index.ts';
 import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
+import { PileView } from './PileView.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
 import './board.css';
@@ -534,6 +546,8 @@ export interface BoardInteraction {
 
 /** Which side of the table a zone is on. The stack belongs to neither. */
 type ZoneOwner = 'you' | 'them' | 'table';
+/** The two zones drawn as piles, each of which opens as a `PileView`. */
+type PileZone = 'graveyard' | 'exile';
 
 /* ── the battlefield's rows ───────────────────────────────────────────── */
 
@@ -2332,6 +2346,7 @@ function Zone({
   cards,
   interaction,
   arranging,
+  onOpen,
 }: {
   owner: string;
   ownerSide: ZoneOwner;
@@ -2339,6 +2354,11 @@ function Zone({
   label: string;
   cards: readonly BoardCard[];
   interaction: BoardInteraction | undefined;
+  /**
+   * A graveyard or an exile only: opens its `PileView`. A click anywhere on the pile does, except
+   * on a card Forge offers — that click is the card's own, exactly as everywhere on the board.
+   */
+  onOpen?: () => void;
   /**
    * Present only on the viewer's own HAND — the one `Zone` whose order is the
    * player's. A graveyard and an exile pile are Forge's own order and get
@@ -2348,7 +2368,21 @@ function Zone({
   arranging?: Arranging;
 }) {
   return (
-    <ZoneShell owner={owner} ownerSide={ownerSide} zone={zone} label={label} count={cards.length}>
+    <ZoneShell
+      owner={owner}
+      ownerSide={ownerSide}
+      zone={zone}
+      label={label}
+      count={cards.length}
+      onClick={
+        onOpen === undefined || cards.length === 0
+          ? undefined
+          : (event) => {
+              if (event.target instanceof Element && event.target.closest('[data-selectable]') !== null) return;
+              onOpen();
+            }
+      }
+    >
       <ul
         className="zone__cards"
         /*
@@ -2403,6 +2437,7 @@ function ZoneShell({
   zone,
   label,
   count,
+  onClick,
   children,
 }: {
   owner: string;
@@ -2411,11 +2446,14 @@ function ZoneShell({
   /** Not drawn — the zone's accessible name. See above. */
   label: string;
   count: number;
+  /** A pile's opener — see `Zone`'s `onOpen`. */
+  onClick?: (event: MouseEvent<HTMLElement>) => void;
   children: ReactNode;
 }) {
   return (
     <section
       className={`zone zone--${zone}`}
+      onClick={onClick}
       aria-label={`${owner} ${label}`}
       data-zone={zone}
       data-owner={ownerSide}
@@ -2839,12 +2877,14 @@ function PlayerArea({
   arranging,
   arranged,
   layout,
+  onOpenPile,
 }: {
   player: BoardPlayer;
   interaction: BoardInteraction | undefined;
   arranging: Arranging | undefined;
   arranged: Arrangement;
   layout: BoardLayout;
+  onOpenPile: (zone: PileZone) => void;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const side: ZoneOwner = player.isViewer ? 'you' : 'them';
@@ -2953,6 +2993,7 @@ function PlayerArea({
             label="Graveyard"
             cards={player.graveyard}
             interaction={interaction}
+            onOpen={() => onOpenPile('graveyard')}
           />
           <Zone
             owner={player.name}
@@ -2961,6 +3002,7 @@ function PlayerArea({
             label="Exile"
             cards={player.exile}
             interaction={interaction}
+            onOpen={() => onOpenPile('exile')}
           />
         </div>
       </div>
@@ -3321,6 +3363,30 @@ export function Board({
       : (viewer?.hand?.find((c) => c.id === interaction.stagedCardId) ?? undefined);
 
   /*
+   * The one pile opened in a `PileView`, if any — this screen's alone. Shown only while that pile
+   * still has cards, and toggled against what is SHOWN, so a pile that emptied under an open view
+   * opens again on the next click.
+   */
+  const [openPile, setOpenPile] = useState<{ playerId: number; zone: PileZone } | null>(null);
+  const pileOwner = openPile === null ? undefined : view.players.find((p) => p.id === openPile.playerId);
+  const pileCards = pileOwner === undefined || openPile === null ? [] : pileOwner[openPile.zone];
+  const shownPile = pileCards.length > 0 ? openPile : null;
+  const closePile = useCallback(() => setOpenPile(null), []);
+  const openPileOf = (playerId: number) => (zone: PileZone) =>
+    setOpenPile(shownPile?.playerId === playerId && shownPile.zone === zone ? null : { playerId, zone });
+  /** A selection made in the view closes it, then answers exactly as the board's own click does. */
+  const pileInteraction: BoardInteraction | undefined =
+    interaction === undefined
+      ? undefined
+      : {
+          ...interaction,
+          onSelectCard: (id) => {
+            setOpenPile(null);
+            interaction.onSelectCard(id);
+          },
+        };
+
+  /*
    * The inspector, booted and nothing more: it attaches its own listeners by
    * delegation and draws into the overlay root. One mount, one dispose.
    */
@@ -3503,6 +3569,7 @@ export function Board({
             arranged={arranged}
             /* Mine only (Q15c): the opponent's board is always the default one. */
             layout="single"
+            onOpenPile={openPileOf(p.id)}
           />
         ))}
       </div>
@@ -3533,6 +3600,7 @@ export function Board({
           arranging={arranging}
           arranged={arranged}
           layout={boardLayout}
+          onOpenPile={openPileOf(viewer.id)}
         />
       )}
 
@@ -3554,7 +3622,21 @@ export function Board({
           {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}
         </p>
       )}
-      <div className="board__overlay" data-board-overlay="" />
+      <div className="board__overlay" data-board-overlay="">
+        {shownPile !== null && pileOwner !== undefined && (
+          <PileView
+            ownerSide={pileOwner.isViewer ? 'you' : 'them'}
+            zone={shownPile.zone}
+            label={shownPile.zone === 'graveyard' ? 'Graveyard' : 'Exile'}
+            count={pileCards.length}
+            onClose={closePile}
+          >
+            {[...pileCards].reverse().map((c) => (
+              <CardOnBoard key={c.id} entry={c} interaction={pileInteraction} inExile={shownPile.zone === 'exile'} />
+            ))}
+          </PileView>
+        )}
+      </div>
     </section>
   );
 }

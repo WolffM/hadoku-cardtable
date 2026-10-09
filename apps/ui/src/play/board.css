@@ -1346,6 +1346,11 @@
   min-height: 0;
 }
 
+/* A pile with cards in it opens as a `PileView` on a click. */
+.board .seat :is(.zone--graveyard, .zone--exile):has(.zone__cards > li) {
+  cursor: pointer;
+}
+
 /*
  * A card in a pile is NOT raised under the pointer. It used to be (`z-index: 1`
  * on hover), which covered the cards below it in the pile — the operator
