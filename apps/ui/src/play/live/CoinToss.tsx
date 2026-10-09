@@ -11,14 +11,14 @@
  * A toss older than `FLIP_MS` when it arrives (a reload, a late joiner) lands
  * at once; `prefers-reduced-motion` lands at once too (`coin-toss.css`).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 import { avatarSquareUrl } from '../../room/avatar.ts';
 
 import './coin-toss.css';
 
-/** The flip's length — the house curve in `coin-toss.css` spends it on ten half-turns. */
-export const FLIP_MS = 1200;
+/** The flip's length — `coin-toss.css` reads it as `--flip-ms` and spends it on six half-turns (the operator, 2026-10-09: "too fast and flips too many times"). */
+export const FLIP_MS = 2400;
 
 /** One side of the coin: a player's avatar, or the silhouette when they have none. */
 function CoinFace({ avatarId, side }: { avatarId: string | undefined; side: 'front' | 'back' }) {
@@ -53,6 +53,8 @@ export function CoinToss({
   // Flipping until the toss is `FLIP_MS` old — measured from the server's own
   // stamp, so both screens land together even when one got the fact later.
   const [flipping, setFlipping] = useState(() => Date.now() - at < FLIP_MS);
+  // How far into the flip this screen arrived, fixed at mount — a later render must not move the animation.
+  const [joinedAt] = useState(() => Math.max(0, Date.now() - at));
   useEffect(() => {
     const left = FLIP_MS - (Date.now() - at);
     if (left <= 0) {
@@ -63,7 +65,15 @@ export function CoinToss({
     return () => clearTimeout(timer);
   }, [at]);
   return (
-    <section className="coin-toss" data-testid="coin-toss" data-winner={winner} data-flipping={flipping || undefined} role="status" aria-live="polite">
+    <section
+      className="coin-toss"
+      data-testid="coin-toss"
+      data-winner={winner}
+      data-flipping={flipping || undefined}
+      role="status"
+      aria-live="polite"
+      style={{ '--flip-ms': `${FLIP_MS}ms`, '--flip-delay': `${-joinedAt}ms` } as CSSProperties}
+    >
       <div className="coin-toss__coin" aria-hidden="true">
         <CoinFace avatarId={avatarId} side="front" />
         <CoinFace avatarId={loserAvatarId} side="back" />

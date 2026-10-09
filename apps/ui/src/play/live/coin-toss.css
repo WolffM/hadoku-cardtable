@@ -18,13 +18,14 @@
 }
 
 .coin-toss[data-flipping] .coin-toss__coin {
-  /* Ten half-turns in FLIP_MS (`CoinToss.tsx`), the house curve, ending face up. */
-  animation: coin-toss-flip 1200ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  /* Six half-turns over `--flip-ms` (`CoinToss.tsx`'s FLIP_MS, the one source), the house curve, ending face up; a late
+     screen joins part-way through (`--flip-delay`, negative). */
+  animation: coin-toss-flip var(--flip-ms) cubic-bezier(0.3, 0.7, 0.3, 1) var(--flip-delay, 0ms) both;
 }
 
 @keyframes coin-toss-flip {
   from {
-    transform: rotateY(5turn) translateY(-1.5rem);
+    transform: rotateY(3turn) translateY(-1.5rem);
   }
   to {
     transform: rotateY(0turn) translateY(0);
