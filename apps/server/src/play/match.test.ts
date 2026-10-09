@@ -18,7 +18,7 @@ import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame }
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { MATCH_ENDED_TITLE, createMatchRegistry, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
+import { MATCH_ENDED_TITLE, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -2196,5 +2196,20 @@ describe('telemetry (match-frames)', () => {
 		expect(ringOf(h)).toHaveLength(1);
 		h.match.stop();
 		expect(ringOf(h)).toHaveLength(1);
+	});
+});
+
+describe('frameGist (the probe-mode frame trace)', () => {
+	it('names a frame by method, kind, message, bar and card — and survives a null card', () => {
+		expect(frameGist({ kind: 'notify', method: 'showPromptMessage', message: 'Priority: Main 1', card: null })).toEqual({
+			method: 'showPromptMessage',
+			kind: 'notify',
+			message: 'Priority: Main 1',
+		});
+		expect(frameGist({ kind: 'act', method: 'selectCard', card: { id: 42 } })).toEqual({ method: 'selectCard', kind: 'act', card: 42 });
+		expect(frameGist({ kind: 'notify', method: 'updateButtons', label1: 'OK', enable1: true, label2: 'End Turn', enable2: false })).toMatchObject({
+			bar: ['OK', true, 'End Turn', false],
+		});
+		expect(frameGist(null)).toEqual({ method: undefined, kind: undefined });
 	});
 });

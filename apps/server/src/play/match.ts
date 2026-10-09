@@ -225,14 +225,14 @@ const TRACE_STOPS = process.env.CARDTABLE_PLAY_PROBE === '1';
 const TRACE_FRAMES = process.env.CARDTABLE_PLAY_PROBE === '1';
 
 /** The few fields of a frame that name it in a trace row. */
-function frameGist(frame: unknown): Record<string, unknown> {
+export function frameGist(frame: unknown): Record<string, unknown> {
 	const f = (frame ?? {}) as Record<string, unknown>;
 	const gist: Record<string, unknown> = { method: f.method, kind: f.kind };
 	if (typeof f.callId === 'string') gist.callId = f.callId;
 	if (typeof f.message === 'string') gist.message = f.message.slice(0, 120);
 	if (f.method === 'updateButtons') gist.bar = [f.label1, f.enable1, f.label2, f.enable2];
-	const card = f.card as { id?: unknown } | undefined;
-	if (card !== undefined && typeof card.id === 'number') gist.card = card.id;
+	const card = f.card as { id?: unknown } | null | undefined;
+	if (typeof card?.id === 'number') gist.card = card.id;
 	return gist;
 }
 
