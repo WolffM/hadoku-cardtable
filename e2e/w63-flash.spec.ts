@@ -154,6 +154,10 @@ async function advanceToTurn(alice: Page, bob: Page, targetTurn: number, timeout
     let clicked = false;
     for (const p of [alice, bob]) {
       if (await nextPhaseOffered(p)) {
+        // Bob holds his window the way a person does before passing: a window answered inside the
+        // server's 150 ms grace is never told to the other seat (no flash, by design), so a driver
+        // that passes in ~100 ms leaves nothing for alice's flag to measure.
+        if (p === bob) await bob.waitForTimeout(600);
         await passOnce(p, 'next-phase');
         clicked = true;
       }
