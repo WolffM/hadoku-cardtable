@@ -27,7 +27,9 @@ async function recordWidths(page: Page): Promise<void> {
         ['back', '.presence__back'],
       ] as const) {
         for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
-          const width = el.getBoundingClientRect().width;
+          // The held back is drawn tilted 3°, which widens its bounding box (68×95 → 73): its layout
+          // width is its size. Everything else by its drawn box, so a scale transform would still count.
+          const width = what === 'back' ? el.offsetWidth : el.getBoundingClientRect().width;
           if (width > 0) w.__widths.push({ t: Math.round(performance.now() - t0), what, width: Math.round(width * 10) / 10 });
         }
       }
