@@ -131,6 +131,47 @@ export function prefetchCardImages(urls: readonly string[], held: Map<string, HT
   }
 }
 
+/** Every art load `artReady` started, kept alive for the page's life, and whether it has finished. */
+const art = new Map<string, { img: HTMLImageElement; done: boolean; waiting: Set<() => void> }>();
+
+/**
+ * Whether a card face can be drawn WITH its art right now: `url`'s image is
+ * fetched and decoded, so a `CardTile` mounted next finds it in the document's
+ * own list of available images and paints it on its first frame. If not, the
+ * load starts (once per URL) and `onReady` is called when it ends — the caller
+ * keeps drawing what it drew (a back) until then, and is never shown the text
+ * tile first. The operator, 2026-10-09: *"i really dont want a no-art card to
+ * show ever."*
+ *
+ * Called only once this screen knows which card it is — a face this seat may
+ * see — never to warm the other seat's hidden cards. A failed load counts as
+ * ready: the text tile is then the card (`cardImageUrl`'s own contract), and
+ * waiting longer would show nothing better. No URL, or no `Image` (a non-DOM
+ * test), is ready at once. `priority` `'low'` is a background warm-up
+ * (`play/live/art-preload.ts`), never a face somebody is waiting to see.
+ */
+export function artReady(url: string | null, onReady: () => void, priority: 'auto' | 'low' = 'auto'): boolean {
+  if (url === null || typeof Image === 'undefined') return true;
+  const known = art.get(url);
+  if (known?.done === true) return true;
+  if (known !== undefined) {
+    known.waiting.add(onReady);
+    return false;
+  }
+  const img = new Image();
+  img.fetchPriority = priority;
+  const entry = { img, done: false, waiting: new Set([onReady]) };
+  art.set(url, entry);
+  const finish = (): void => {
+    entry.done = true;
+    for (const fn of entry.waiting) fn();
+    entry.waiting.clear();
+  };
+  img.src = url;
+  img.decode().then(finish, finish);
+  return false;
+}
+
 /**
  * Deliberately no `srcset`.
  *

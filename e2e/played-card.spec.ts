@@ -260,6 +260,11 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
   return flight;
 }
 
+/** It left the point it was let go: a stand-in seen away from it (the glide into its gap), or a flight. */
+function travelledFrom(flight: Frame[], released: { x: number; y: number }): boolean {
+  return flight.some((f) => f.ghostLift === 'returning' || (f.ghostLift === 'parked' && seenAt(f) !== null && !near(seenAt(f)!, released, 6)));
+}
+
 /** The recording, kept beside the run's other evidence (`e2e/.run/`) whether the test passes or not. */
 async function attach(testInfo: TestInfo, name: string, frames: Frame[]): Promise<void> {
   const dir = resolve(import.meta.dirname, '.run', 'played-card');
@@ -298,7 +303,7 @@ for (const fast of [true, false]) {
     expect(asked.length, 'the question was up for many frames').toBeGreaterThan(10);
     for (const f of asked) expect(near(seenAt(f)!, to), `while the question is up the land is over the board (t=${f.t})`).toBe(true);
     expect(flight.some((f) => f.stack > 0 || f.carried > 0), 'a land never shows on the stack, nor is ever on Forge’s').toBe(false);
-    expect(flight.some((f) => f.ghostLift === 'returning'), 'it travels from the hover to its place, Fast Mode or not').toBe(true);
+    expect(travelledFrom(flight, to), 'it travels from the hover to its place, Fast Mode or not').toBe(true);
   } finally {
     await stack.stop();
   }
@@ -346,9 +351,9 @@ for (const fast of [true, false]) {
       expect(Math.max(...flight.map((f) => f.stack)), `the caster's stack zone draws nothing\n${timeline(flight)}`).toBe(0);
       // Not vacuous: Forge did have the spell on the stack, and the stack left it to the card.
       expect(flight.some((f) => f.carried === 1), `the spell was on Forge's stack while the card stood in for it\n${timeline(flight)}`).toBe(true);
-      const travelled = flight.some((f) => f.ghostLift === 'returning');
-      // Fast Mode is pacing, not motion: the card travels either way (2026-10-08).
-      expect(travelled, 'it travels from the hover to its place, Fast Mode or not').toBe(true);
+      // Fast Mode is pacing, not motion: the card travels either way (2026-10-08) — by its stand-in's
+      // glide into the gap it lands in (the landing is then a swap in place), or by a flight.
+      expect(travelledFrom(flight, to), 'it travels from the hover to its place, Fast Mode or not').toBe(true);
     } finally {
       await stack.stop();
     }

@@ -75,6 +75,7 @@ import {
 	type EmitPolicy,
 } from '@wolffm/rooms-server';
 import {
+	ART_EVENT,
 	ARRANGEMENT_EVENT,
 	ARRANGEMENT_MAX_PER_SECOND,
 	ArrangementSchema,
@@ -96,6 +97,7 @@ import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
 import { AVATAR_ID_MAX } from '../room/lobby.js';
+import { artOf } from './art.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
@@ -786,6 +788,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * `apps/ui/src/play/live/transport.ts` — nothing here parses it.
 						 */
 						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
+						// Every card either seat could show, so this browser decodes the art before any of it is drawn (`@hadoku/shared`'s `art.ts`).
+						socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
 						// Wave 31 §S: and whether THIS socket controls the seat, every time.
 						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'spectator');
 					}

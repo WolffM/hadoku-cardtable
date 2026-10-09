@@ -66,8 +66,8 @@
 /*
  * Waiting in the gap their release reserved (`presence.ts`): it glides there
  * from the release point and sits upright at the row's card size — the same
- * motion their own screen's stand-in makes — then turns over in place when the
- * card is committed to the stack (`data-face`: the card's own tile, copied).
+ * motion their own screen's stand-in makes. A spell's is handed to `placed.ts`,
+ * which turns it over at the same point.
  *
  * `[data-gliding]` (J3, wave 64) is the SAME transition for a different fact
  * — a hand reorder's own back, moving between two slots — kept a separate
@@ -81,17 +81,6 @@
     left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
     top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
     width 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
-}
-.presence__back[data-face] {
-  background: none;
-  box-shadow: 0 4px 10px var(--shadow);
-}
-.presence__back[data-face]::after {
-  content: none;
-}
-.presence__back[data-face] > .card {
-  width: 100%;
-  height: 100%;
 }
 @media (prefers-reduced-motion: reduce) {
   .presence__back[data-waiting],
@@ -132,7 +121,7 @@
   fill: var(--accent);
 }
 
-/* The card they let go, travelling from where its back was to its place (`[data-cast-lift]` positions it; `gestures.css`). */
+/* The card they let go, travelling from where its back was to its place — or, cancelled, a back going home to their hand (`[data-cast-lift]` positions it; `gestures.css`). */
 .presence__handoff {
   z-index: 3;
   width: var(--card-w);
@@ -140,7 +129,8 @@
   box-shadow: 0 4px 10px var(--shadow);
 }
 
-.presence__handoff > .card {
+.presence__handoff > .card,
+.presence__handoff > .card-back {
   width: 100%;
   height: 100%;
 }

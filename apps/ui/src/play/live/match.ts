@@ -236,7 +236,7 @@
  */
 
 import type { Placement } from '@hadoku/shared';
-import { asSeqCursor } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -250,6 +250,7 @@ import { io } from 'socket.io-client';
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
 import { toBoardView, type BoardView } from '../adapter.ts';
+import { preloadMatchArt } from './art-preload.ts';
 import { foldPackets, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
@@ -854,6 +855,10 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(MATCH_EVENTS.role, (payload) => {
     adoptRole(match, payload);
+  });
+
+  match.transport.on(ART_EVENT, (payload) => {
+    preloadMatchArt(match.matchId, payload);
   });
 
   match.transport.on('connect', () => {

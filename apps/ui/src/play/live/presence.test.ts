@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
+import { FLOAT_BACK_MS } from './gestures/cast.ts';
 
 /*
  * `placed.ts` (lane S) is the seam this module calls into for the stack
@@ -866,6 +867,16 @@ describe('receiving', () => {
       placing: { at: { zone: 'battlefield', x: 0.5, y: 0.5 } },
     });
     expect(canvas.querySelector('.presence__back'), 'no phantom stands back up for a placement already flown').toBeNull();
+    // Their stand-in had glided into the gap, so a later tick names THAT point, not the release
+    // (the Viridian Shaman recording): still the same play — no lift since — still nothing.
+    const tick = (placing: { zone: 'battlefield'; x: number; y: number } | null, held = false) =>
+      t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.8, y: 0.2 }, held, from: null, handRows: 1, arranging: null, placing: placing === null ? null : { at: placing } });
+    tick({ zone: 'battlefield', x: 0.52, y: 0.4 });
+    expect(canvas.querySelector('.presence__back'), 'no phantom at the gap either').toBeNull();
+    // A new play begins with a lift: its release waits as ever.
+    tick(null, true);
+    tick({ zone: 'battlefield', x: 0.3, y: 0.3 });
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'the next play’s release stands its back').not.toBeNull();
     handle.dispose();
     forgetPendingPlacements();
   });
@@ -1027,6 +1038,58 @@ describe('receiving', () => {
     expect(overlay.querySelector('.presence__back[data-waiting]'), 'still there: the id may be a frame away').not.toBeNull();
     vi.advanceTimersByTime(CLEARED_GRACE_MS + 1);
     expect(overlay.querySelector('.presence__back'), 'a cancel: gone after the grace, not fifteen seconds').toBeNull();
+    handle.dispose();
+  });
+
+  it('the grace starts once: their pointer moving on after a cancel never keeps the back on the board', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const at = { zone: 'battlefield' as const, x: 0.3, y: 0.5 };
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null, placing: { at } });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null });
+    // Every move after the cancel carries the same cleared state; the old code restarted the grace on each.
+    for (let i = 1; i <= 6; i++) {
+      vi.advanceTimersByTime(CLEARED_GRACE_MS / 4);
+      t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { ...at, x: 0.3 + i * 0.05 }, held: false, from: null, handRows: 1, arranging: null });
+    }
+    expect(canvas.querySelector('.presence__back'), 'gone one grace after the cancel, however they moved').toBeNull();
+    handle.dispose();
+  });
+
+  it('a cancel, as Forge says it — the card back in their hand — flies the back home to their hand’s last back, the caster’s own trip home (`landCastGhost`)', async () => {
+    const { canvas } = board();
+    const backs = theirHandBacks(canvas, 2);
+    const t = fakeTransport();
+    let wake: (() => void) | null = null;
+    const handle = installPresence({ canvas, host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => [], motion: () => true } });
+    const frame = (): Promise<unknown> => new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    const at = { zone: 'battlefield' as const, x: 0.3, y: 0.5 };
+    // Parked before Forge took the card out of their hand (presence beats Forge's frame).
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null, placing: { at } });
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    back.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 });
+    // Forge takes it out of the hand to aim it: one back fewer. Nothing goes home.
+    backs[1]!.remove();
+    wake!();
+    await frame();
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting while they aim').not.toBeNull();
+    // Cancelled: Forge puts it back — one more back than at any point of the wait.
+    const [home] = theirHandBacks(canvas, 1);
+    home!.getBoundingClientRect = () => rect({ left: 170, top: 20, width: 60, height: 84 });
+    wake!();
+    await frame();
+    expect(canvas.querySelector('.presence__back'), 'nothing of theirs stands on the board').toBeNull();
+    const ghost = canvas.querySelector<HTMLElement>('.board > .presence__handoff');
+    expect(ghost, 'a back flies home').not.toBeNull();
+    expect(ghost!.querySelector('.card-back'), 'drawn as a back — the card is still hidden').not.toBeNull();
+    expect(ghost!.getAttribute('data-cast-lift')).toBe('returning');
+    expect([ghost!.style.left, ghost!.style.top], 'to the centre of their hand’s last back').toEqual(['200px', '62px']);
+    expect(home!.hasAttribute('data-cast-landing'), 'that back waits hidden until it lands').toBe(true);
+    await new Promise((r) => setTimeout(r, FLOAT_BACK_MS + 20));
+    expect(canvas.querySelector('.presence__handoff'), 'landed').toBeNull();
+    expect(home!.hasAttribute('data-cast-landing')).toBe(false);
     handle.dispose();
   });
 

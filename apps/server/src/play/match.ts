@@ -744,7 +744,7 @@ export class Match {
 	invalidFrames = 0;
 
 	private readonly deps: MatchDeps;
-	private readonly spec: MatchSpec;
+	readonly spec: MatchSpec;
 	private host: MatchHost | null = null;
 	private readonly now: () => number;
 	private readonly runningWaiters: ((outcome: ClientOutcome) => void)[] = [];

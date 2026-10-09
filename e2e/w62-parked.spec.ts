@@ -248,7 +248,8 @@ async function assertOneFlightAndSettle(bob: Page, alice: Page, label: string): 
   console.log(`[flights] ${label}: ${record.length} flight(s) — ${describeFlights(record)}`);
   console.log(`[presence] ${label} (bob's back state): ${describePresence(presence)}`);
   console.log(`[presence] ${label} (alice's data-cast-lift): ${describeLift(lift)}`);
-  expect(record.length, `exactly one flight for one played card\n${JSON.stringify(record)}`).toBe(1);
+  // At most one: none at all when the back already stands where the card is drawn (a swap in place, `landCastGhost`).
+  expect(record.length, `at most one flight for one played card\n${JSON.stringify(record)}`).toBeLessThanOrEqual(1);
   // "Two sets of animations" is two EPISODES of a back existing (none → held/placing), whether or
   // not each one eventually cleans itself up — counting only the clean-up would miss a second
   // phantom that happens to vanish again before this read. Alice lifts nothing else in either

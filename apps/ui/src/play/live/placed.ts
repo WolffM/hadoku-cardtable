@@ -84,7 +84,7 @@ import { createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
-import { cardImageUrl } from '../../draft/cardImage.ts';
+import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
@@ -455,7 +455,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   /** `d.committed` tracks what is CURRENTLY mounted — a face, true; a back, false — so this only remounts on an actual flip. */
   function ensureElement(item: StackEntry, record: Placement | undefined): Drawn {
     let d = drawn.get(item.id);
-    const wantBack = record !== undefined && record.side === 'them' && !record.committed;
+    const wantBack = record !== undefined && record.side === 'them' && (!record.committed || !artReady(cardImageUrl(item.sourceCard?.scryfallId), requestRepaint));
     if (d === undefined) {
       const el = document.createElement('div');
       el.className = 'placed';

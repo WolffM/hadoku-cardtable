@@ -776,6 +776,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const gap = expectedGapBox(canvas, 'you');
         if (gap === null) return;
         me.at = { x: gap.left + gap.width / 2, y: gap.top + gap.height / 2 };
+        // A creature held on the stack first is drawn where its stand-in now waits, not back at
+        // the release point (the Viridian Shaman recording, 2026-10-09). Only while the
+        // registration is still the card's own: once promoted it is the stack item's.
+        if (isPlaced(source)) placeSpell(source, me.at, 'you');
         ghost.style.left = `${me.at.x}px`;
         ghost.style.top = `${me.at.y}px`;
         ghost.style.width = `${gap.width}px`;

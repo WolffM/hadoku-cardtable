@@ -174,34 +174,36 @@ export function clearCastLift(root: ParentNode, id: number): void {
  * timer outright, rather than letting a now-instant transition still hold
  * the attribute for `FLOAT_BACK_MS`, keeps the clean-up synchronous for a
  * caller that needs it to be.
+ *
+ * `id` null: a stand-in for a card this screen cannot name — the other seat's
+ * card going back into their hidden hand (`../presence.ts`) — so there is no
+ * card of its own to let go, only `el`, which `onDone` takes away.
  */
 export function floatCastLiftHome(
   root: ParentNode,
-  id: number,
+  id: number | null,
   home: Point,
   onDone: () => void,
-  el: Element | null = cardBox(root, id),
+  el: Element | null = id === null ? null : cardBox(root, id),
 ): void {
   if (!(el instanceof HTMLElement)) {
     onDone();
     return;
   }
-  cancelReturnTimer(id);
+  if (id !== null) cancelReturnTimer(id);
   el.setAttribute(CAST_LIFT_ATTR, 'returning');
   el.style.left = `${home.x}px`;
   el.style.top = `${home.y}px`;
-  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) {
-    clearCastLift(root, id);
-    onDone();
-    return;
-  }
-  const timer = setTimeout(() => {
+  const done = (): void => {
+    if (id === null) return onDone();
     returnTimers.delete(id);
     clearCastLift(root, id);
     onDone();
-  }, FLOAT_BACK_MS);
-  returnTimers.set(id, timer);
+  };
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return done();
+  const timer = setTimeout(done, FLOAT_BACK_MS);
+  if (id !== null) returnTimers.set(id, timer);
 }
 
 /** Marks the stand-in `parkedGhost` draws; it carries no card id, so `cardBox` never finds it. */
@@ -249,6 +251,9 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
   return ghost;
 }
 
+/** How close a stand-in's centre is to its card's to count as already there (`landCastGhost`). */
+export const IN_PLACE_PX = 4;
+
 /** On a card's own battlefield element while its stand-in is still travelling to it. `./gestures.css` hides it; the row keeps its place. */
 export const CAST_LANDING_ATTR = 'data-cast-landing';
 
@@ -261,10 +266,25 @@ export const CAST_LANDING_ATTR = 'data-cast-landing';
  * The stand-in is the travelling thing, never `arrived` itself: a transform on
  * a card inside the battlefield counts toward that zone's scroll overflow, and
  * a card lifted out of the row would close the gap it is flying to.
+ *
+ * The same trip takes the other seat's cancelled card home (`../presence.ts`):
+ * `arrived` is then a back in their hand, and `id` null — see
+ * `floatCastLiftHome`.
+ *
+ * A stand-in already standing where the card is drawn (it waited in the gap the
+ * card took) does not travel: it is a swap in place. The trip it used to make
+ * there — the gap to itself, 300 ms with the real card hidden under it — was on
+ * every landing (the Viridian Shaman recording, 2026-10-09: `dx: 0, dy: 0`).
  */
-export function landCastGhost(root: ParentNode, id: number, ghost: HTMLElement, from: Point, arrived: HTMLElement): void {
+export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement): void {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX) {
+    ghost.remove();
+    if (id !== null) clearCastLift(root, id);
+    arrived.removeAttribute(CAST_LANDING_ATTR);
+    return;
+  }
   ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
   ghost.style.left = `${from.x}px`;
   ghost.style.top = `${from.y}px`;

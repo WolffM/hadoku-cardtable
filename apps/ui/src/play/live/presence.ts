@@ -90,7 +90,7 @@ import './presence.css';
 export const PRESENCE_STALE_MS = 6000;
 /** How long a back waits in its reserved gap for the card; a cast that never resolves just ages out (`Board`'s own TTL). */
 export const WAITING_MS = 15_000;
-/** A point wait's remaining life once the sender says its card is no longer parked (a cancel, or the id a frame away). */
+/** A point wait's remaining life once the sender says its card is no longer parked and Forge has not yet said where it went. Started once, never pushed back by later messages. */
 export const CLEARED_GRACE_MS = 1500;
 /**
  * AE26: how long a spell of theirs that showed up on the stack BEFORE their
@@ -99,10 +99,10 @@ export const CLEARED_GRACE_MS = 1500;
  * face until a timer ends it (the Mana Leak screenshot, 2026-10-09).
  */
 export const UNHANDED_MS = 5000;
+/** How many frames a placement's stand-in looks for the gap the board reserves for it before giving up. */
+const GAP_FRAMES = 30;
 /** How long a hand-move's glide runs — the same number `./gestures/hand.ts`'s own FLIP uses, so the two screens move in step. */
 export const HAND_MOVE_MS = 300;
-/** AE18: how long a `forge:placement`'s own point stays "recently placed" — long enough to catch a `placing` echo sent before it, delivered after; the race is one network hop, never seconds. */
-export const RECENTLY_PLACED_MS = 3000;
 
 /**
  * `live/gestures/hand.ts`'s own seam into this module: a hand reorder
@@ -163,9 +163,6 @@ function boardBox(canvas: HTMLElement): DOMRect | null {
 }
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
-
-/** Close enough to call the same client point — a couple of CSS pixels of rounding, never a real move. */
-const samePoint = (a: Point, b: Point): boolean => Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2;
 
 /**
  * A client point as the wire carries it: a fraction of the WHOLE board, plus
@@ -354,7 +351,7 @@ function handsOf(canvas: HTMLElement, aiming: boolean): { held: boolean; parked:
    * from). A presence tick that lands in that one-frame gap still finds the
    * ghost `'parked'`, and sends `placing.at` once more for a card this very
    * seat already knows is landing — the sender's own half of the stale
-   * `placing` the receiver's fix (`draw()`'s `recentlyPlaced` check) now also
+   * `placing` the receiver's own rule (`draw()`'s `lifted` check) also
    * guards against. Checked first, cheaply: this is never true outside that
    * one frame.
    */
@@ -610,9 +607,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * reserved for a PERMANENT (`forBattlefield: true`, `Board`'s own
    * reservation clears it below), or at the exact point for a SPELL
    * (`forBattlefield: false`, cleared by `handoff`'s id check instead) —
-   * or this times out.
+   * or this times out. `hand` is the fewest backs their hand has had since the
+   * wait began: one more than that is the card coming home (`flyHome`).
+   * `cleared`: the sender has said the card is no longer parked, and the
+   * short grace is running.
    */
-  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null } | null = null;
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean } | null = null;
   let backAt: Point | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
@@ -620,25 +620,26 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let unhanded: { id: number; at: number } | null = null;
   /**
    * A creature of theirs that went to the stack on its way to a reserved column (the other seat
-   * held priority): its back turned into the placed face at the release point. When it resolves,
-   * its tile copy flies from that point into the column — the trip a permanent always makes —
-   * instead of the card popping into the gap (presence.spec's release case, red on 812689e).
+   * held priority): its back turned into the placed face where it stood. When it resolves, its
+   * tile copy flies from there into the column — the trip a permanent always makes — instead of
+   * the card popping into the gap (presence.spec's release case, red on 812689e). Watched on the
+   * DOM itself, so the flight starts in the same frame the board draws the card: waiting for the
+   * next match change showed the card in its slot for 13–79 ms first (the Viridian Shaman
+   * recording, 2026-10-09).
    */
-  let stackBound: { card: number; from: Point; at: number } | null = null;
+  let stackBound: MutationObserver | null = null;
   /**
-   * AE18: the ONE `forge:placement` this episode ever sends, remembered by its
-   * own point — the one thing a `placing` echo of the SAME episode and this
-   * message both carry, since presence names no card. `onPlacement` sets this
-   * the instant it accepts the message, not when the flight actually fires:
-   * motion off, or no settled element yet, still means this episode is over
-   * for presence purposes, same as a flight that ran. `draw()`'s `placing`
-   * branch reads it to ignore a STALE echo — sent (truthfully, at the time)
-   * while this seat's own card was still `carried`, delivered after this
-   * message already told the other screen it is done. `RECENTLY_PLACED_MS`
-   * is generous on purpose: the race it guards is a presence tick straddling
-   * one network hop, never seconds.
+   * A play of theirs begins with a lift: a `placing` opens a wait only if their
+   * card has been lifted (`held`) since the last wait ended. Every message sent
+   * while their card stood parked carries `placing.at` — and the stand-in glides
+   * into the gap meanwhile, so the point moves — and one sent just before their
+   * screen let it go can arrive after this screen already handed the play over
+   * (`forge:placement`, the spell's id, or the card home). Matched by POINT it
+   * stood up a second back wherever the point had moved to, for as long as their
+   * pointer kept sending (the Viridian Shaman recording, 2026-10-09; AE18 before
+   * it). True at the start: a joiner may arrive mid-play.
    */
-  let recentlyPlaced: { at: Point; until: number } | null = null;
+  let lifted = true;
 
   function overlay(): HTMLElement | null {
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
@@ -665,6 +666,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   function stopWaiting(): void {
+    lifted = false;
     if (waiting === null) return;
     clearTimeout(waiting.timer);
     waiting = null;
@@ -821,19 +823,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // attached to the cursor came from inferring the first state from the second.
     if (echo.placing !== null) {
       const placingAt = placeSpot(canvas, echo.placing.at);
-      // AE18: this echo was true when it was SENT — the sender's own card was still `carried`,
-      // because their board had not yet drawn the real one — but `forge:placement` already told
-      // this screen the SAME point is done, and may have already flown it. Presence names no
-      // card, so the point this episode's one `forge:placement` carried is the one thing both
-      // messages share; a `placing` naming it, arriving after, is that message's stale tail, not
-      // a new episode.
-      const stale = recentlyPlaced !== null && Date.now() < recentlyPlaced.until && placingAt !== null && samePoint(placingAt, recentlyPlaced.at);
-      if (waiting === null && placingAt !== null && !stale) {
+      // A play already handed over (no lift since): this echo was true when it was SENT, and is
+      // that play's stale tail now — see `lifted`.
+      if (waiting === null && placingAt !== null && lifted) {
         // AD4 rule 2: wait right here — a point, not a battlefield gap — until the spell's id
         // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
-        waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null };
+        waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
         // the one object, in place — never a back beside a face until a timer ends it.
@@ -843,20 +840,22 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
           if (onTheirStack(id)) handToSpell(id);
         }
       }
-      // A wait already holds the back — the placement's gap, or this point: it stays put. A
-      // stale echo with no wait to hold is simply not acted on — see `stale`, above.
+      // A wait already holds the back — the placement's gap, or this point: it stays put.
     } else if (echo.held) {
+      lifted = true;
       // Lifted: the back follows the pointer. A wait pending (a card of theirs still arriving)
       // keeps its stand-in; their new lift is drawn once that wait ends.
       if (waiting === null) standBack(root, box, at);
     } else if (waiting === null) {
       back?.remove();
       back = null;
-    } else if (!waiting.forBattlefield) {
-      // Their parked card is gone from their screen with no placement and no id yet: a cancel
-      // (the card went home), or the id is a frame away. The point wait is given a short grace
-      // instead of its full timeout — a cast that commits inside it still hands over as usual
-      // (`handoff`); a cancel takes the back down in a moment, not in fifteen seconds.
+    } else if (!waiting.forBattlefield && !waiting.cleared) {
+      // Their parked card is gone from their screen with no placement and no id yet. Forge says
+      // which: the id on the stack (`handoff` hands over), or the card back in their hand
+      // (`flyHome`). The grace only covers a cast Forge never took at all, so it starts once —
+      // every pointer move after a cancel carries this same state, and restarting it on each one
+      // kept the back on the board for as long as they kept moving.
+      waiting.cleared = true;
       clearTimeout(waiting.timer);
       waiting.timer = setTimeout(stopWaiting, CLEARED_GRACE_MS);
     }
@@ -921,22 +920,54 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     stopWaiting();
   }
 
+  function theirHandBacks(): NodeListOf<HTMLElement> {
+    return canvas.querySelectorAll<HTMLElement>('[data-zone="hand"][data-owner="them"] li.card-back');
+  }
+
+  /**
+   * Their cast was cancelled: Forge has put the card back in their hand (one
+   * more back there than at any point of the wait). The stand-in goes home the
+   * way the caster's own screen sends it — `landCastGhost`, the one trip a card
+   * makes to its place on either screen — from where it stands to the last back
+   * of their hand, which waits hidden until it lands. The operator, 2026-10-09:
+   * *"it should have returned to the hand using the same animation as how cards
+   * return to the hand when viewed from the active players side."*
+   */
+  function flyHome(): void {
+    const from = back?.getBoundingClientRect() ?? null;
+    const backs = theirHandBacks();
+    const slot = backs[backs.length - 1];
+    stopWaiting();
+    if (from === null || from.width === 0 || slot === undefined || host.motion?.() !== true) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'presence__handoff';
+    ghost.setAttribute('aria-hidden', 'true');
+    const face = document.createElement('div');
+    face.className = 'card-back';
+    ghost.append(face);
+    ghost.style.width = `${from.width}px`;
+    landCastGhost(canvas, null, ghost, { x: from.left + from.width / 2, y: from.top + from.height / 2 }, slot);
+  }
+
+  /** `stackBound`: fly `card` from `from` the moment the board draws it in their battlefield. */
+  function flyWhenDrawn(card: number, from: Point): void {
+    stackBound?.disconnect();
+    const until = Date.now() + WAITING_MS;
+    const watch = new MutationObserver(() => {
+      if (Date.now() < until && !onTheirBattlefield(card)) return;
+      watch.disconnect();
+      if (stackBound === watch) stackBound = null;
+      if (Date.now() < until) flyTile(card, from);
+    });
+    watch.observe(canvas, { childList: true, subtree: true });
+    stackBound = watch;
+  }
+
   /** The card they were holding has appeared: its copy travels from the back's last place to its own. */
   function handoff(): void {
     const cards = host.theirCards?.() ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
-    if (stackBound !== null) {
-      const bound = stackBound;
-      if (Date.now() - bound.at > WAITING_MS) stackBound = null;
-      else
-        requestAnimationFrame(() => {
-          // Past React's commit: the creature has resolved into its column.
-          if (stackBound !== bound || !onTheirBattlefield(bound.card)) return;
-          stackBound = null;
-          flyTile(bound.card, bound.from);
-        });
-    }
     if (waiting === null) {
       // AE26: a spell arriving with no wait to hand it to is remembered for the point wait that
       // may be a message behind it (Forge's frame beat presence here). A permanent's arrival is
@@ -969,7 +1000,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             if (onStack !== undefined) {
               const from = backAt;
               handToSpell(onStack);
-              if (from !== null) stackBound = { card: onStack, from, at: Date.now() };
+              if (from !== null) flyWhenDrawn(onStack, from);
             }
             return;
           }
@@ -986,7 +1017,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         });
         return;
       }
-      if (fresh.length === 0) return;
+      if (fresh.length === 0) {
+        // Past React's commit, their hand's backs are what Forge says now.
+        const standIn = back;
+        requestAnimationFrame(() => {
+          if (waiting === null || waiting.forBattlefield || back !== standIn) return;
+          const n = theirHandBacks().length;
+          if (n < waiting.hand) waiting.hand = n;
+          else if (n > waiting.hand) flyHome();
+        });
+        return;
+      }
       const id = fresh[0]!;
       // A permanent's own arrival is handled above, by the reservation going null — never here.
       if (onTheirBattlefield(id)) return;
@@ -1041,31 +1082,43 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (theirs === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
     expectPlacement(theirs, slot, target, card);
-    recentlyPlaced = { at: from, until: Date.now() + RECENTLY_PLACED_MS };
-    stopWaiting();
     const already = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     if (already !== null) {
       // The frame came first: the reservation moves the card on the next commit; its tile flies
       // from the release point to wherever it settles.
+      stopWaiting();
       requestAnimationFrame(() => flyTile(card, from));
       return;
     }
-    const rootBox = root.getBoundingClientRect();
-    if (back === null) back = backElement(root);
-    const standIn = back;
-    standIn.style.left = `${from.x - rootBox.left}px`;
-    standIn.style.top = `${from.y - rootBox.top}px`;
+    // The back this play already drew — following their pointer, or waiting at the release point —
+    // is the stand-in from here, at a hand card's size; taking it down and making a new one drew the
+    // stylesheet's fallback size, twice a battlefield card (the Viridian Shaman recording).
+    if (waiting !== null) clearTimeout(waiting.timer);
+    waiting = null;
+    lifted = false;
+    standBack(root, root.getBoundingClientRect(), from);
+    const standIn = back!;
     standIn.setAttribute('data-waiting', '');
-    waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: true, card };
-    requestAnimationFrame(() => {
+    waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
+    // The board draws the reserved gap on its next commit — usually before the next frame, not
+    // always under load (a busy claw left the back at the release point, w67-shaman): looked for
+    // again each frame until it is there.
+    const glide = (frames: number): void => {
       if (waiting === null || back !== standIn) return;
       const gap = expectedGapBox(canvas, 'them');
       const box2 = overlay()?.getBoundingClientRect();
-      if (gap === null || box2 === undefined) return;
-      standIn.style.left = `${gap.left + gap.width / 2 - box2.left}px`;
-      standIn.style.top = `${gap.top + gap.height / 2 - box2.top}px`;
+      if (gap === null || box2 === undefined) {
+        if (frames > 0) requestAnimationFrame(() => glide(frames - 1));
+        return;
+      }
+      // It stands in the gap from here: a spell it hands over to (a creature held on the stack)
+      // is drawn there, not back at the release point (the Viridian Shaman recording).
+      backAt = { x: gap.left + gap.width / 2, y: gap.top + gap.height / 2 };
+      standIn.style.left = `${backAt.x - box2.left}px`;
+      standIn.style.top = `${backAt.y - box2.top}px`;
       standIn.style.width = `${gap.width}px`;
-    });
+    };
+    requestAnimationFrame(() => glide(GAP_FRAMES));
   }
 
   function onEcho(payload: unknown): void {
@@ -1146,6 +1199,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   return {
     dispose() {
       stopWaiting();
+      stackBound?.disconnect();
       live = false;
       unwatch?.();
       unwatchSpellMoved();
