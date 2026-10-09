@@ -7,7 +7,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, offeredNamed } from './play/board.ts';
+import { makeTitled, offeredNamed, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -71,6 +71,9 @@ test(titled('on a squeezed window a released spell never draws wider than a batt
     await alice.page.mouse.down();
     await alice.page.mouse.move(field.x + field.width * 0.6, field.y + field.height * 0.4, { steps: 12 });
     await alice.page.mouse.up();
+    // Parked on its target ask; aimed at bob's face it goes to the stack where it was let go.
+    await expect.poll(() => says(alice.page), { timeout: 15_000, message: 'the Bolt asks for its target' }).toMatch(/Lightning Bolt.*target/is);
+    await alice.page.locator('[data-player-face]:not([data-viewer])').click();
     await expect(alice.page.locator('[data-placed-spell]'), 'the Bolt is a stack card at the release point').toHaveCount(1, { timeout: 15_000 });
     await alice.page.waitForTimeout(1500);
 
