@@ -208,8 +208,15 @@ test(
         await expect(page.locator(`.placed__arrow[data-for="${remandStackId}"]`), 'Remand’s own arrow').toHaveCount(1);
       }
 
-      // Released where they were let go: pixel-exact on the caster's own screen, inside the opponent's equivalent zone on the other.
-      expect(near((await centerOf(placedSpell(alice.page, 'Keiga, the Tide Star')))!, keigaPoint), 'Keiga sits where alice released it, on her own screen').toBe(true);
+      // A spell sits where it was let go: pixel-exact on the caster's own screen, inside the opponent's equivalent zone on
+      // the other. A PERMANENT spell (Keiga) waits in the column its release reserved, where it will land — the
+      // operator, 2026-10-08: the stand-in glides into the gap and waits there, "it must look the same" from both sides;
+      // drawing it back at the release point was the back-and-forth AE37 removed (fb1c3ef).
+      const keigaGap = await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.zone__gap[data-expected]').boundingBox();
+      const keigaAt = (await centerOf(placedSpell(alice.page, 'Keiga, the Tide Star')))!;
+      console.log(`[w59] keiga at ${Math.round(keigaAt.x)},${Math.round(keigaAt.y)} released ${Math.round(keigaPoint.x)},${Math.round(keigaPoint.y)} gap ${JSON.stringify(keigaGap)}`);
+      expect(keigaGap, 'its release reserved a column').not.toBeNull();
+      expect(near(keigaAt, { x: keigaGap!.x + keigaGap!.width / 2, y: keigaGap!.y + keigaGap!.height / 2 }), 'Keiga waits in its reserved column, on her own screen').toBe(true);
       expect(
         await insideZone(bob.page, placedSpell(bob.page, 'Keiga, the Tide Star'), '[data-zone="battlefield"][data-owner="them"]'),
         'Keiga sits inside alice’s battlefield as bob draws it',
