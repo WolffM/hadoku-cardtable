@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says } from './play/board.ts';
+import { dragHandCard, handCardNamed, makeTitled, offered, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -72,16 +72,11 @@ test(titled('the opponent’s committed spell is one object on this screen: the 
 
     await watch(bob.page);
     expect(await dragHandCard(alice.page, memnite!, to), 'the press lifted Memnite').toBe(true);
-    // The caster holds priority first on her own spell (her main phase is a stop): she passes it,
-    // and bob — who holds Counterspell — is stopped at his with her Memnite on the stack.
-    await expect
-      .poll(async () => (/^Priority:/.test(await says(alice.page)) ? await clickOnce(alice.page, await says(alice.page), 'ok') : false), {
-        timeout: 20_000,
-        message: 'alice passes priority on her own cast Memnite',
-      })
-      .toBe(true);
-    await expect.poll(() => says(bob.page), { timeout: 20_000, message: 'bob is asked to resolve her Memnite' }).toMatch(/Resolve Memnite\?|Memnite/);
-    await expect(bob.page.locator('[data-placed-spell]:not([data-mine])'), 'her Memnite is a placed card on bob’s screen').toHaveCount(1, { timeout: 10_000 });
+    // Her own priority after the cast is auto-passed (measured: `prompt-withheld s0 priority
+    // auto-pass`); bob — who holds Counterspell — is stopped at his with her Memnite on the stack
+    // (`prompt-forwarded s1 priority kept`). What this screen draws for it is the claim.
+    await expect(bob.page.locator('[data-placed-spell]:not([data-mine])'), 'her Memnite is a placed card on bob’s screen').toHaveCount(1, { timeout: 30_000 });
+    await expect.poll(() => says(bob.page), { timeout: 10_000, message: 'bob holds priority with her Memnite on the stack' }).toMatch(/Priority/);
     // Five seconds of watching after the face exists: long enough for every grace timer this
     // module has (1.5 s cleared-grace, the 300 ms pending window) to show its hand.
     await bob.page.waitForTimeout(5_000);
