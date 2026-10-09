@@ -473,6 +473,11 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   let edge: Server | null = null;
   const reap = (): ReapedJvm[] => reapJvms(workDir);
   const stop = async (options: { reap?: boolean } = {}): Promise<void> => {
+    // AE20: while recording (`CARDTABLE_E2E_VIDEO=1`), close this stack's own
+    // friends HERE rather than leaving them for the next stack's
+    // `closeStaleFriends` — otherwise the LAST test in a run never flushes
+    // its `.webm` at all. Absent when the flag is unset: no behaviour change.
+    if (process.env.CARDTABLE_E2E_VIDEO === '1') await closeStaleFriends();
     edge?.closeAllConnections();
     edge?.close();
     edge = null;

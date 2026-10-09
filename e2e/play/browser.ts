@@ -8,14 +8,31 @@
  * match snapshot is an ack.
  */
 
-import type { Browser, BrowserContext, Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import type { RawCapture } from '../frames.ts';
 import { SESSION_COOKIE } from '../identities.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
-import { PLAY_EDGE_ORIGIN } from './harness.ts';
+import { PLAY_EDGE_ORIGIN, RUN_DIR } from './harness.ts';
 import { registerFriendContext } from './open-friends.ts';
 import { playMessagesOf, type PlayMessage } from './frames.ts';
+
+/** The context's own default (no `use.viewport` override in `playwright.config.ts`). */
+const VIDEO_SIZE = { width: 1280, height: 720 };
+
+/** The running test's own title path, filesystem-safe — one folder per spec under `<RUN_DIR>/videos/`. */
+function specVideoSlug(): string {
+  return test
+    .info()
+    .titlePath.filter((p) => p !== '')
+    .join(' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
 export interface Friend {
   name: string;
@@ -33,8 +50,13 @@ function isPolling(url: string): boolean {
 }
 
 export async function openFriend(browser: Browser, name: string): Promise<Friend> {
-  const context = await browser.newContext();
-  registerFriendContext(context);
+  // AE20, the operator's own acceptance gate: "a recorded video of the thing
+  // working must be shown to me before it passes." Off by default — a plain
+  // config flag, no behaviour change when it is unset.
+  const recording = process.env.CARDTABLE_E2E_VIDEO === '1';
+  const videoDir = recording ? resolve(RUN_DIR, 'videos', specVideoSlug()) : null;
+  if (videoDir !== null) mkdirSync(videoDir, { recursive: true });
+  const context = await browser.newContext(videoDir === null ? {} : { recordVideo: { dir: videoDir, size: VIDEO_SIZE } });
   await context.addCookies([
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);
@@ -45,6 +67,7 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
   // back off for the seat it measures, through the real settings checkbox.
   await setPlayFastModeDefault(context, true);
   const page = await context.newPage();
+  registerFriendContext(context, videoDir === null ? undefined : { page, dir: videoDir, name });
   const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
 
   await context.route('**/*', (route) => {
