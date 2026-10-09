@@ -69,6 +69,13 @@
   color: var(--ink);
 }
 
+/* The seat that lost, once the coin lands: whose choice it now waits on. */
+.coin-toss__wait {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--ink-dim);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .coin-toss[data-flipping] .coin-toss__coin {
     animation: none;

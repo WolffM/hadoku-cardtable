@@ -61,6 +61,13 @@ test(titled('the coin toss lands on the winner’s face on BOTH screens, the sam
     expect(name, 'the coin carries the winner’s name').toContain(winner.name);
     // The flip settles.
     await expect(coin(loser.page), 'the coin lands').not.toHaveAttribute('data-flipping', '', { timeout: 5_000 });
+    // Landed: the loser reads whose choice it waits on; the winner, who is choosing, never does.
+    const wait = loser.page.getByTestId('coin-toss-wait');
+    await expect(wait, `${loser.name}: the winner is choosing`).toBeVisible();
+    await expect(wait).toContainText(winner.name);
+    await expect(wait).toContainText('is choosing to play or draw');
+    await expect(winner.page.getByTestId('coin-toss-wait'), `${winner.name}: never told to wait on themself`).toHaveCount(0);
+    console.log(`[cointoss] ${loser.name} reads "${await wait.textContent()}"`);
 
     await playOrDraw(winner.page).click();
     // Withdrawn on both screens once the winner answers; the match goes on to the opening mulligan.

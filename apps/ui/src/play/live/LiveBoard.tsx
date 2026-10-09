@@ -2573,7 +2573,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
         <div className="live__prompt" data-testid="live-coin-toss-host">
-          <CoinToss {...coinToss} />
+          <CoinToss {...coinToss} waiting={match.seat !== coinToss.winner} />
         </div>
       )}
       {waitingForOpponent && !myOwnDecisionOpen && coinToss === null && (

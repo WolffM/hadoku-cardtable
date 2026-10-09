@@ -43,12 +43,15 @@ export function CoinToss({
   avatarId,
   loserAvatarId,
   at,
+  waiting = false,
 }: {
   winner: number;
   name: string;
   avatarId: string | undefined;
   loserAvatarId: string | undefined;
   at: number;
+  /** This screen waits on the winner's play-or-draw choice (the seat that lost, or a spectator). */
+  waiting?: boolean;
 }) {
   // Flipping until the toss is `FLIP_MS` old — measured from the server's own
   // stamp, so both screens land together even when one got the fact later.
@@ -79,6 +82,11 @@ export function CoinToss({
         <CoinFace avatarId={loserAvatarId} side="back" />
       </div>
       <p className="coin-toss__name">{name}</p>
+      {waiting && !flipping && (
+        <p className="coin-toss__wait" data-testid="coin-toss-wait">
+          {name} is choosing to play or draw…
+        </p>
+      )}
     </section>
   );
 }
