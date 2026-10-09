@@ -26,8 +26,8 @@ The report (operator, verbatim):
   Forge sends), `forge-command` (every command sent to Forge) and `wire-frame` (every frame put on
   a seat's socket), behind `CARDTABLE_PLAY_PROBE=1` (the e2e harness's servers; never production).
   Each row carries the log's own ms `t`, so the spec prints it relative to alice's `pointerup`.
-- Five green claw jobs (forge.yml `only=e2e`, video on): runs 37980414562, 37980425279 (Shaman
-  only), 37982030321, 37982040517, 37984569931 (all three runs each). All times below are ms after
+- Six green claw jobs (forge.yml `only=e2e`, video on): runs 37980414562, 37980425279 (Shaman
+  only), 37982030321, 37982040517, 37984569931, 37984580611 (all three runs each). All times below are ms after
   alice's `pointerup`.
 
 ## (a) The timeline
@@ -88,7 +88,7 @@ are: was bob's priority `prompt-forwarded … kept` while the Shaman was on the 
 
 ## (b) Does anything chase alice's pointer?
 
-**Nothing moves toward the post-release pointer — on either screen, in any of the 11 recorded
+**Nothing moves toward the post-release pointer — on either screen, in any of the 14 recorded
 runs.** The spec measures every drawn stand-in's distance from the straight path between the release
 point and the card's final place: alice's screen has 0 off-path frames in every run; bob's off-path
 frames are all explained below and none is near the pointer (62–302 px from it).
@@ -102,8 +102,12 @@ Run 37984569931, `shaman`: at 194 ms, the instant bob's back hands over to the s
 release point (441,332), a **new** card back appears in the reserved gap (452,291), `data-waiting`,
 at the fallback size **152×212** — more than twice a battlefield card (68×95). It stands there
 through the stack, through the landing flight, after the card is shown, and goes at **5665 ms** —
-1484 ms after alice's pointer stopped (4181 ms). Run 37982030321 shows the same phantom in `bears`
-(from 346 ms) and `shaman-held` (from 387 ms), each still standing when the record ended.
+1484 ms after alice's pointer stopped (4181 ms). Run 37984580611: `shaman` 180 → 5719 ms (pointer
+still from 4236), `shaman-held` 165 → **7663 ms** (pointer still from 6178) — standing beside the
+stack card through bob's whole 2 s hold and the landing. Run 37982030321 shows it in `bears` (from
+346 ms) and `shaman-held` (from 387 ms). Every end is 1483–1485 ms after the pointer stopped. It is a
+race (not every run has it: 3 of 3 in 37984580611, 1 of 3 in 37984569931), and it is not about the
+Shaman — Grizzly Bears gets it too.
 
 Cause, two parts, both `apps/ui/src/play/live/presence.ts`:
 
