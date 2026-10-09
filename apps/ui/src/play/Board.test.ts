@@ -4154,7 +4154,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     // Pitch 70, the row 1000 wide: columns 0–13 fit. `withColumnsToWidth` is what the readers apply.
     const gap = (i: number) => ({ id: null, box: box(10 + i * 70, 8, 60, 84) });
     const lone = withColumnsToWidth({ slot: 'front' as const, box: box(0, 0, 1000, 100), piles: [gap(0), gap(1), gap(2), gap(3), gap(4), gap(5), { id: 6, box: box(430, 8, 60, 84) }], step: 70 });
-    expect(lone.piles.length, 'every column that fits the row').toBe(14);
+    expect(lone.piles.length, 'every column that starts inside the row').toBe(15);
     expect(snapTo([lone], 530, 50, 6)?.target, 'just right of it: column 7').toEqual({ kind: 'at', column: 7 });
     expect(snapTo([lone], 600, 50, 6)?.target, 'a pitch further: column 8').toEqual({ kind: 'at', column: 8 });
     expect(snapTo([lone], 950, 50, 6)?.target, 'at the row\'s right edge: the last column that fits').toEqual({ kind: 'at', column: 13 });

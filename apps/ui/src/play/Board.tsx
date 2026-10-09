@@ -1090,14 +1090,16 @@ export function withColumnsToWidth(slot: SlotGeometry): SlotGeometry {
   const top = last?.top ?? slot.box.top + 4;
   const bottom = last?.bottom ?? slot.box.bottom - 4;
   let left = last === null ? slot.box.left + 4 : last.left + step;
-  while (left + width <= slot.box.right + 1 && piles.length < 64) {
+  // A column counts while it STARTS inside the row: a pointer one pitch past the last card is in a
+  // column that may only partly fit, and it still lands there (ledger Z8's proof, `stacking.spec.ts`).
+  while (left < slot.box.right - 4 && piles.length < 64) {
     piles.push({ id: null, box: { left, top, right: left + width, bottom } });
     left += step;
   }
   return { ...slot, piles };
 }
 
-/** How many columns `withColumnsToWidth` would add to a row drawn with `count` real columns (the outlines to draw). */
+/** How many of the columns `withColumnsToWidth` adds fit the row WHOLE — the outlines to draw (a partly fitting one would reflow the grid mid-drag). */
 export function virtualColumns(rowBox: Box, lastRight: number | null, count: number, step: number | null): number {
   if (step === null || step <= 0) return 0;
   const width = step - 6;
