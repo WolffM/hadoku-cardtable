@@ -353,6 +353,25 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
 	});
 
+	it('a wait that appears is told after the grace even while frames keep re-checking it — the grace is a delay, never a debounce (AE16)', () => {
+		// An End Turn crawl re-checks on almost every frame; resetting the timer each time told the
+		// wait only when the crawl stopped, ~5 s late (claws: 451, 5045, 837 ms).
+		vi.useFakeTimers();
+		const h = waitingHarness();
+		h.host.push(...OPENING);
+		h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		vi.advanceTimersByTime(200);
+		const before = h.told.length;
+		h.host.push(PROBE_ASK);
+		const recheck = (h.match as unknown as { checkWaitingOn(): void }).checkWaitingOn.bind(h.match);
+		for (let i = 0; i < 10; i++) {
+			vi.advanceTimersByTime(40);
+			recheck();
+		}
+		expect(h.told.length, 'told within the grace of the wait appearing, not after the re-checks stopped').toBeGreaterThan(before);
+		expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
+	});
+
 	it('clears on disconnect (abort) and on timeout, the same as any other open ask', () => {
 		const h = waitingHarness();
 		h.host.push(...OPENING, PROBE_ASK);

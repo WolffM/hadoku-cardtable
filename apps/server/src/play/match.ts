@@ -782,6 +782,8 @@ export class Match {
 	 * is told at once — see {@link Match.checkWaitingOn}. The pending tell, if any.
 	 */
 	private waitingOnTimer: ReturnType<typeof setTimeout> | null = null;
+	/** The fact set `waitingOnTimer` will tell when it fires — a repeat of it leaves the timer running. */
+	private pendingWaitingOnKey: string | null = null;
 	/** See {@link SeatIdentity.coinToss}: set and cleared in {@link Match.send}. */
 	private coinToss: { winner: number; at: number } | null = null;
 	/**
@@ -1169,10 +1171,16 @@ export class Match {
 	private checkWaitingOn(): void {
 		const facts = this.seats.map((s) => this.waitingOnFor(s));
 		const key = JSON.stringify(facts);
+		// The same not-yet-told fact as the timer already pending: let that timer run. Resetting it
+		// on every call turned the 150 ms grace into a debounce — an End Turn crawl re-checks on
+		// almost every frame, so a wait that appeared mid-crawl was told only when the crawl stopped,
+		// ~5 s late (AE16: lags 451, 5045, 837 ms on the claws).
+		if (this.waitingOnTimer !== null && key === this.pendingWaitingOnKey) return;
 		if (this.waitingOnTimer !== null) {
 			clearTimeout(this.waitingOnTimer);
 			this.waitingOnTimer = null;
 		}
+		this.pendingWaitingOnKey = null;
 		// Back to what was last told — an ask that opened and closed inside the grace: nothing to say.
 		if (key === this.lastWaitingOnKey) return;
 		const tell = (): void => {
@@ -1191,7 +1199,11 @@ export class Match {
 			tell();
 			return;
 		}
-		this.waitingOnTimer = setTimeout(tell, WAITING_ON_GRACE_MS);
+		this.pendingWaitingOnKey = key;
+		this.waitingOnTimer = setTimeout(() => {
+			this.pendingWaitingOnKey = null;
+			tell();
+		}, WAITING_ON_GRACE_MS);
 		this.waitingOnTimer.unref();
 	}
 
