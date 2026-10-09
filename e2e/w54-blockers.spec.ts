@@ -147,12 +147,21 @@ test(
         everyCreature,
       );
       await expect(blockArrow(alice.page, blockerX, attackerA), 'no arrow before any block').toHaveCount(0);
+      // Forge's current attacker (the next blocker click goes to it) is a focus ring, never the
+      // picked check — the operator, 2026-10-09: "a green checkmark on one of the attackers?".
+      await expect(alice.page.locator('.board-card__picked'), 'no check on any card while blocking').toHaveCount(0);
+      await expect(alice.page.locator('[data-block-focus]'), 'one attacker is the block focus').toHaveCount(1);
+      const focus = Number(await alice.page.locator('[data-block-focus]').getAttribute('data-card-id'));
+      expect([attackerA, attackerB], 'the focus is an attacker').toContain(focus);
+      console.log(`[block-focus] focus on ${focus} (attackers ${attackerA}, ${attackerB})`);
 
       // Block A with X: arrow X → A drawn, off the PLANNED map while declaring.
       await assignBlock(alice.page, blockerX, attackerA);
       await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'X is marked blocking').toHaveAttribute('data-blocking', 'true', {
         timeout: 10_000,
       });
+      await expect(alice.page.locator(`[data-card-id="${attackerA}"][data-block-focus]`), 'clicking A made it the focus').toHaveCount(1);
+      await expect(alice.page.locator('.board-card__picked'), 'still no check').toHaveCount(0);
       const key = blockArrowKey(blockerX, attackerA);
       await expect(blockArrow(alice.page, blockerX, attackerA), 'the arrow from X to A is drawn').toHaveCount(1, { timeout: 10_000 });
       const tip1 = await alice.page.evaluate(arrowTip, key);
