@@ -75,6 +75,8 @@ import { createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
+import { cardImageUrl } from '../../draft/cardImage.ts';
+import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
 import { cardBox, centreOf, faceBox } from './gestures/targets.ts';
@@ -145,6 +147,11 @@ export function placeSpell(id: number, at: Point, side: 'you' | 'them'): void {
   const existing = placements.get(id);
   placements.set(id, { at, side, committed: existing?.committed ?? side === 'you', registeredAt: existing?.registeredAt ?? Date.now() });
   requestRepaint();
+}
+
+/** Whether `id` has a registered point (a placed spell, or an ability the viewer has moved). */
+export function isPlaced(id: number): boolean {
+  return placements.has(id);
 }
 
 /** Move an already-placed spell. No-op for an id nothing ever placed. */
@@ -282,7 +289,32 @@ function deferUnmount(root: Root | null): void {
 }
 
 function faceNode(item: StackEntry): ReactElement | null {
+  if (item.isAbility) return abilityChip(item);
   return item.sourceCard === null ? null : createElement(CardTile, { card: item.sourceCard });
+}
+
+/**
+ * AE29 (the operator, 2026-10-09: "ability chip is the correct thing to do"): a triggered or
+ * activated ability on the stack is an EFFECT of its card, never a second copy of it — half a card
+ * tall, the source's art as a band with its name, the ability's own text beneath, rounded, no frame,
+ * an accent glow. Mock-up: the operator's `ae29-options.html`, option 1.
+ */
+function abilityChip(item: StackEntry): ReactElement {
+  const art = item.sourceCard === null ? null : cardImageUrl(item.sourceCard.scryfallId);
+  const name = item.sourceName ?? item.sourceCard?.name ?? '';
+  // Forge's description leads with the source's own name ("Eternal Witness - When …"): the band says that already.
+  const text = name !== '' && item.description.startsWith(`${name} - `) ? item.description.slice(name.length + 3) : item.description;
+  return createElement(
+    'div',
+    { className: 'placed__chip', 'data-ability-chip': '' },
+    createElement(
+      'div',
+      { className: 'placed__chip-band' },
+      art === null ? null : createElement('img', { className: 'placed__chip-art', src: art, alt: '', 'aria-hidden': 'true', draggable: false }),
+      createElement('span', { className: 'placed__chip-name' }, name),
+    ),
+    createElement('div', { className: 'placed__chip-text' }, createElement(RulesText, { text })),
+  );
 }
 
 /**
@@ -539,7 +571,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.style.left = `${p.x}px`;
       d.el.style.top = `${p.y}px`;
       d.el.setAttribute('aria-label', itemLabel(item));
-      if (record !== undefined && record.side === 'you') d.el.setAttribute('data-mine', '');
+      // AE28: a trigger or ability of the viewer's own has no placement record (nothing was released
+      // anywhere) — it is still theirs to move, like a spell they placed.
+      const viewerName = lastView?.players.find((p) => p.isViewer)?.name ?? null;
+      const ownUnplaced = record === undefined && item.isAbility && viewerName !== null && item.controllerName === viewerName;
+      if ((record !== undefined && record.side === 'you') || ownUnplaced) d.el.setAttribute('data-mine', '');
       else d.el.removeAttribute('data-mine');
       const selectable = !item.isAbility && item.sourceCardId !== null && interaction?.isSelectable(item.sourceCardId) === true;
       if (selectable) d.el.setAttribute('data-selectable', '');

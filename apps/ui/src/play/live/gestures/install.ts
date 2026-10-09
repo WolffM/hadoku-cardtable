@@ -213,7 +213,7 @@ import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '.
 // (`placeSpell`); a drag of the viewer's own placed spell moves it
 // (`moveSpell`), which is also what tells lane W to relay it; `onSpellDrawn`
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
-import { moveSpell, onSpellDrawn, placeSpell } from '../placed.ts';
+import { isPlaced, moveSpell, onSpellDrawn, placeSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
@@ -1371,7 +1371,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // click-targeting arrow (if any OTHER cast is being aimed right now)
       // keeps reading the real pointer, not this drag.
       placedDrag = { ...placedDrag, moved: placedDrag.moved || past(placedDrag.press, at) };
-      if (placedDrag.moved) moveSpell(placedDrag.id, at);
+      if (placedDrag.moved) {
+        // AE28: an own trigger/ability has no point until it is first moved; register it there.
+        if (!isPlaced(placedDrag.id)) placeSpell(placedDrag.id, at, 'you');
+        moveSpell(placedDrag.id, at);
+      }
     } else {
       hover = canvas.contains(event.target instanceof Node ? event.target : null) ? { at, node: event.target } : null;
     }

@@ -42,7 +42,7 @@ function draftCard(name: string): NonNullable<StackEntry['sourceCard']> {
 function stackItem(id: number, opts: Partial<StackEntry> = {}): StackEntry {
   return {
     id,
-    description: `stack item ${id}`,
+    description: opts.description ?? `stack item ${id}`,
     sourceCardId: opts.sourceCardId ?? 100 + id,
     sourceName: opts.sourceName ?? `Card ${id}`,
     sourceCard: 'sourceCard' in opts ? opts.sourceCard! : draftCard(`Card ${id}`),
@@ -225,6 +225,29 @@ describe('installPlaced: drawing', () => {
     // The source's own box is left:100 top:500 width:80 height:110 — beside it is to its right.
     expect(Number.parseFloat(el.style.left)).toBeGreaterThan(180);
     expect(Number.parseFloat(el.style.top)).toBeCloseTo(555, 0);
+    handle.dispose();
+  });
+
+  it('AE29: an ability is the chip — the source\'s name and art band over the ability\'s own text, never a second card face', async () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201, sourceName: 'Eternal Witness', description: 'Eternal Witness - When it enters, return target card.' })]));
+    // A fresh React root commits on its own clock — one macrotask (see the flip test above).
+    await new Promise((r) => setTimeout(r, 0));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.querySelector('[data-ability-chip]'), 'the chip').not.toBeNull();
+    expect(el.querySelector('.card'), 'no card face').toBeNull();
+    expect(el.querySelector('.placed__chip-name')!.textContent).toBe('Eternal Witness');
+    expect(el.querySelector('.placed__chip-text')!.textContent, 'the name is not repeated in the text').toBe('When it enters, return target card.');
+    handle.dispose();
+  });
+
+  it('AE28: the viewer\'s own ability is theirs to drag (data-mine) though nothing placed it; the opponent\'s is not', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201, controllerName: 'Alice' }), stackItem(8, { isAbility: true, sourceCardId: 202, controllerName: 'Bob' })]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')!.hasAttribute('data-mine')).toBe(true);
+    expect(canvas.querySelector('[data-placed-spell="8"]')!.hasAttribute('data-mine')).toBe(false);
     handle.dispose();
   });
 

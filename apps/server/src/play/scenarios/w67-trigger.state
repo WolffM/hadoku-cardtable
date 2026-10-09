@@ -1,0 +1,15 @@
+# AE28/AE29: alice casts Eternal Witness; its "enters" trigger goes on the stack while bob (Full
+# Control) holds priority, so the trigger stays there to be drawn as the ability chip and dragged.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Eternal Witness
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Lightning Bolt
+aihand=
+aibattlefield=Island
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
