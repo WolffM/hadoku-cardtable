@@ -40,18 +40,40 @@ export function registerFriendContext(context: BrowserContext, video?: FriendVid
   });
 }
 
-/** Close one context, and — only when it was recording — rename its video to `<name>.webm`. */
+/**
+ * Close one context, and — only when it was recording — name its videos: the
+ * page that showed the MATCH becomes `<name>.webm`, every other page of the
+ * context `<name>-<n>.webm`. The first cut kept only the page `openFriend`
+ * created, which sits on `about:blank` (a white frame) while Forge starts and
+ * is not always the page a spec plays the match in — the operator's review
+ * page got twelve seconds of white and the real footage stayed behind under
+ * Playwright's own `page@…` name (2026-10-09, "there's still a ton of just
+ * white screen").
+ */
 async function closeOneFriend(context: BrowserContext): Promise<void> {
   const video = videos.get(context);
+  // The pages' urls are only readable while the context is open; the video
+  // files only land once it is closed.
+  const pages = video === undefined ? [] : context.pages().map((p) => ({ page: p, url: p.url() }));
   await context.close().catch(() => undefined);
   if (video === undefined) return;
-  const recorded = await video.page.video()?.path().catch(() => undefined);
-  if (recorded === undefined) return;
-  try {
-    renameSync(recorded, `${video.dir}/${video.name}.webm`);
-  } catch (err) {
-    // A rename failing is not a reason to fail the test over — but it is said, not swallowed.
-    console.warn(`[video] ${video.name}: could not rename ${recorded}: ${String(err)}`);
+  const recorded: { path: string; url: string; registered: boolean }[] = [];
+  for (const { page, url } of pages) {
+    const path = await page.video()?.path().catch(() => undefined);
+    if (path !== undefined) recorded.push({ path, url, registered: page === video.page });
+  }
+  if (recorded.length === 0) return;
+  const isMatch = (url: string) => /\/match\//.test(url);
+  const main = recorded.find((r) => isMatch(r.url)) ?? recorded.find((r) => r.registered) ?? recorded[0]!;
+  let n = 0;
+  for (const r of recorded) {
+    const target = r === main ? `${video.dir}/${video.name}.webm` : `${video.dir}/${video.name}-${++n}.webm`;
+    try {
+      renameSync(r.path, target);
+    } catch (err) {
+      // A rename failing is not a reason to fail the test over — but it is said, not swallowed.
+      console.warn(`[video] ${video.name}: could not rename ${r.path}: ${String(err)}`);
+    }
   }
 }
 
