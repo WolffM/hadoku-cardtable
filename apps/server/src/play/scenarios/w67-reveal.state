@@ -1,0 +1,18 @@
+# The operator, 2026-10-09: Dark Confidant's upkeep reveal (Genju of the Spires on top) opened an OK
+# window on both screens. Bob (seat 1) holds his own main phase with a creature to cast, so nothing
+# moves until he presses End Turn; from there to alice's main phase neither seat has anything to
+# decide — the reveal included. Alice's Mountain lets her cast the Genju she draws, so her main phase
+# is a real priority stop.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Dark Confidant;Mountain
+humanlibrary=Genju of the Spires;Genju of the Spires;Genju of the Spires;Genju of the Spires;Genju of the Spires;Genju of the Spires
+humangraveyard=
+aihand=Grizzly Bears
+aibattlefield=Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
