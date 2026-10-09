@@ -2088,6 +2088,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             ...view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!),
           ];
         },
+        theirStackCards: () => {
+          const view = match.view;
+          if (view === null) return [];
+          const mine = view.players.find((p) => p.isViewer)?.name ?? null;
+          return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!);
+        },
         motion: motionWanted,
       },
     });

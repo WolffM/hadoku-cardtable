@@ -749,7 +749,7 @@ describe('receiving', () => {
     let wake: (() => void) | null = null;
     const handle = installPresence({
       canvas,
-      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
     });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
     // Their creature's placement names a column: the back glides into the reserved gap and waits for the battlefield.

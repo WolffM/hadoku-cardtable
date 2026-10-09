@@ -131,6 +131,8 @@ export interface PresenceHost {
   readonly watch?: (onChange: () => void) => () => void;
   /** The ids of the other seat's cards the board draws as cards: their battlefield, and their spells on the stack. */
   readonly theirCards?: () => readonly number[];
+  /** AE26: the subset of `theirCards` that is on the STACK (by card id) — a spell held there, never a permanent still being drawn. */
+  readonly theirStackCards?: () => readonly number[];
   /** Whether motion is on (Fast Mode off); the handoff travels only then. */
   readonly motion?: () => boolean;
   /**
@@ -910,8 +912,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             // fresh id of theirs that is still nowhere on the battlefield, with the reservation
             // still pending, is on the stack: the spell case — the back hands over to the placed
             // card at its own point, turned over in place; the column's reservation stays for the
-            // day it resolves. A land is on the battlefield by now, and its reservation consumed.
-            const onStack = fresh.find((id) => !onTheirBattlefield(id));
+            // day it resolves. The host says which of their cards are on the stack; without that
+            // reader (tests), "not on the battlefield" stands in for it.
+            const stack = host.theirStackCards?.();
+            const onStack = fresh.find((id) => (stack === undefined ? !onTheirBattlefield(id) : stack.includes(id)));
             if (onStack !== undefined) handToSpell(onStack);
             return;
           }
