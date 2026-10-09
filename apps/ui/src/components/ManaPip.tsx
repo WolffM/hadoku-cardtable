@@ -143,6 +143,22 @@ function isColor(token: string): boolean {
   return token in COLOR_NAME;
 }
 
+/**
+ * The inverse of {@link COLOR_NAME}, plus the colourless spelling: Forge's
+ * colour question ("Select Mana to Produce": Black / Red) names the colours
+ * in words, and the seat reads the mana symbol instead (the operator,
+ * 2026-10-08, after Z10 and Y23: "i said to use the black and red mana
+ * symbols"). Every prompt surface that draws a colour-word label reads it.
+ */
+const COLOR_WORD: Readonly<Record<string, string>> = {
+  white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G', colorless: 'C', colourless: 'C',
+};
+
+/** A Forge colour-question label ("Black") → the mana token to draw, or `null` when the label names no colour. */
+export function colorWordToken(label: string): string | null {
+  return COLOR_WORD[label.trim().toLowerCase()] ?? null;
+}
+
 export interface ManaSymbol {
   /**
    * Mana's class suffix — `w`, `wu`, `2w`, `bp`, `tap` — or `null` when the

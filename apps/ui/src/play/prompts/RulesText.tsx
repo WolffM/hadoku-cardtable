@@ -14,7 +14,7 @@
 
 import { Fragment } from 'react';
 
-import { ManaPip, readManaToken } from '../../components/ManaPip.tsx';
+import { colorWordToken, ManaPip, readManaToken } from '../../components/ManaPip.tsx';
 
 import { plainRulesText, promptText } from './lookup.ts';
 
@@ -22,6 +22,14 @@ const SYMBOL = /\{([^}]{1,5})\}/g;
 
 export function RulesText({ text }: { text: string }) {
   const src = promptText(text);
+  // A caller whose WHOLE label is one of Forge's colour words — a bare
+  // `getChoices` option ("Black") beside a card tile's own `RulesText` fall-
+  // through (`ChoicePrompts.tsx`'s `GetChoicesPrompt`, `GetAbilityToPlayPrompt`)
+  // — draws the symbol, not the word (the operator, repeated: Z10, Y23, AD6,
+  // 2026-10-08, Underground River). Exact-match only: prose that merely
+  // MENTIONS a colour ("target black creature") is never this.
+  const bareColour = colorWordToken(src);
+  if (bareColour !== null) return <ManaPip token={bareColour} />;
   const parts: React.ReactNode[] = [];
   let at = 0;
   for (const m of src.matchAll(SYMBOL)) {

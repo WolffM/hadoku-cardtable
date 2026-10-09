@@ -29,12 +29,17 @@ import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 afterEach(cleanup);
 
 const labels = (els: HTMLElement[]) => els.map((e) => e.closest('li')!.textContent);
+// A bare colour choice draws the symbol now, not the word (T1/T2/T3, the
+// operator's repeated Underground River report) — the word survives as the
+// pip's own `aria-label`, read off the row rather than off visible text.
+const colourLabels = (els: HTMLElement[]) => els.map((e) => e.closest('li')!.querySelector('[aria-label]')?.getAttribute('aria-label'));
 
 describe('getChoices', () => {
   it('chooses one colour and answers its key', () => {
     const { getAllByTestId, answers, submit } = mountPrompt('getChoices', askFor('getChoices'));
     const boxes = getAllByTestId('prompt-choice') as HTMLInputElement[];
-    expect(labels(boxes)).toEqual(['white', 'blue', 'black', 'red', 'green']);
+    expect(colourLabels(boxes)).toEqual(['white', 'blue', 'black', 'red', 'green']);
+    expect(labels(boxes), 'no bare colour word in the visible text').toEqual(['', '', '', '', '']);
     fireEvent.click(boxes[3]!);
     fireEvent.click(submit());
     expect(answers).toEqual([['red']]);

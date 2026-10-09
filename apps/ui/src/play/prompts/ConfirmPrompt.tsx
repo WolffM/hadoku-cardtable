@@ -105,6 +105,7 @@
  */
 import { useId } from 'react';
 
+import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
 import '../live/live.css';
 import { RulesText } from './RulesText.tsx';
@@ -258,11 +259,20 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
             data-testid={b.testId}
             data-answer={b.answer}
             data-default={b.isDefault || undefined}
+            aria-label={b.label}
             autoFocus={b.isDefault === true}
             disabled={!b.enabled}
             onClick={b.onClick}
           >
-            {b.label}
+            {/*
+             * The operator, repeated (Z10, Y23, AD6, 2026-10-08): Underground
+             * River's colour choice reaches THIS bar, through
+             * `InputConfirm`'s non-libgdx branch (`showMessage`/`updateButtons`,
+             * never `getGui().confirm()` — this bridge is not libgdx), with the
+             * two colour NAMES as Forge's own button labels. Same table every
+             * other colour choice in this lane reads now.
+             */}
+            {colorWordToken(b.label) === null ? b.label : <ManaPip token={colorWordToken(b.label)!} />}
           </button>
         ))}
       </div>

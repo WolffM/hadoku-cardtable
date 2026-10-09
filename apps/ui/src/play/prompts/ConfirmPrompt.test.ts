@@ -220,6 +220,44 @@ describe('ConfirmPrompt — the bar-driven yes/no, as LiveBoard.tsx renders it',
     );
     expect(container.querySelector('.confirm__title')).toBeNull();
   });
+
+  // The operator, repeated (Z10, Y23, AD6, 2026-10-08): Underground River's
+  // colour choice is EXACTLY two colours, which `InputConfirm`'s non-libgdx
+  // branch routes through this very bar (`showMessage`/`updateButtons`,
+  // never `getGui().confirm()`) with the colour NAMES as Forge's own button
+  // labels — measured against the real jar, `e2e/w64-river.spec.ts`.
+  it('draws a mana pip, not the bare word, when Forge’s own label is a colour (Underground River)', () => {
+    const { getByTestId } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Add {U} or {B}. Underground River deals 1 damage to you.',
+        button1: { label: 'Blue', enabled: true, testId: 'prompt-confirm-yes', onClick: () => {} },
+        button2: { label: 'Black', enabled: true, testId: 'prompt-confirm-no', onClick: () => {} },
+      }),
+    );
+    const yes = getByTestId('prompt-confirm-yes');
+    const no = getByTestId('prompt-confirm-no');
+    expect(yes.textContent, 'no bare "Blue" word').toBe('');
+    expect(no.textContent, 'no bare "Black" word').toBe('');
+    expect(yes.querySelector('.ms-u'), 'the blue pip').not.toBeNull();
+    expect(no.querySelector('.ms-b'), 'the black pip').not.toBeNull();
+    // The word survives as the accessible name — a pip alone carries nothing a screen reader reads.
+    expect(yes.getAttribute('aria-label')).toBe('Blue');
+    expect(no.getAttribute('aria-label')).toBe('Black');
+  });
+
+  it('still renders a non-colour label verbatim beside a colour one', () => {
+    const { getByTestId } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'x',
+        button1: { label: 'Green', enabled: true, testId: 'prompt-confirm-yes', onClick: () => {} },
+        button2: { label: 'Cancel', enabled: true, testId: 'prompt-confirm-no', onClick: () => {} },
+      }),
+    );
+    expect(getByTestId('prompt-confirm-yes').querySelector('.ms-g')).not.toBeNull();
+    expect(getByTestId('prompt-confirm-no').textContent).toBe('Cancel');
+  });
 });
 
 describe('ConfirmPrompt — `showConfirmDialog`’s own shape (title, alertdialog, data-answer/data-default)', () => {

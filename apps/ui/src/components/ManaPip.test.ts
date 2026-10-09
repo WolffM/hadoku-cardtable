@@ -26,7 +26,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render } from '@testing-library/react';
 
-import { ManaCost, ManaPip, SetSymbol, readManaToken } from './ManaPip.tsx';
+import { colorWordToken, ManaCost, ManaPip, SetSymbol, readManaToken } from './ManaPip.tsx';
 import { CardTile } from './CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
 
@@ -140,6 +140,24 @@ describe('reading a cost token', () => {
     // `{1/2}` is not a hybrid of 1 and 2 — the half symbol's token is `½`.
     expect(readManaToken('1/2').mana).toBe(null);
     expect(readManaToken('½').mana).toBe('1-2');
+  });
+});
+
+describe('reading a Forge colour-question label', () => {
+  // `DialogPrompts.tsx`'s `showOptionDialog` — Forge's "Select Mana to
+  // Produce" names the colours in words (T2: folded here from a second table).
+  it('maps the five colour words and both colourless spellings to a token', () => {
+    expect(colorWordToken('White')).toBe('W');
+    expect(colorWordToken(' blue ')).toBe('U');
+    expect(colorWordToken('Black')).toBe('B');
+    expect(colorWordToken('Red')).toBe('R');
+    expect(colorWordToken('Green')).toBe('G');
+    expect(colorWordToken('Colorless')).toBe('C');
+    expect(colorWordToken('Colourless')).toBe('C');
+  });
+
+  it('is null for a label that names no colour, so the caller draws it as text', () => {
+    expect(colorWordToken('Play first')).toBeNull();
   });
 });
 
