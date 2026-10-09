@@ -1,0 +1,16 @@
+# w67-shaman's baseline: the same board as w67-shaman.state, but the creature is Grizzly Bears
+# ({1}{G}, 2/2, no ability at all), so the Shaman's enters trigger is the only difference between
+# the two runs of e2e/w67-shaman.spec.ts.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Grizzly Bears
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

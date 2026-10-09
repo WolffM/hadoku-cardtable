@@ -12,11 +12,14 @@
  * stand-in of the card (the lift, the parked ghost, the stack card, the opponent's back, a flight
  * copy, the real battlefield card) and the pointer: alice's own, and bob's drawing of hers. The
  * server's probe-mode trace (`forge-frame`/`forge-command`/`wire-frame`) gives Forge's side.
- * Everything is printed as `[shaman]` lines — a green claw run keeps no artifacts.
+ * Everything is printed as `[shaman] <run>` lines — a green claw run keeps no artifacts.
  *
- * The one assertion is the end state: the Shaman stands on both boards.
+ * Three runs: the Shaman as reported; Grizzly Bears (a vanilla 2/2, no trigger) as the baseline the
+ * Shaman's extra cost is read against; and the Shaman with bob holding priority for 2 s while it is
+ * on the stack — a long wait like the reported one, for anything that drifts toward the pointer
+ * meanwhile. The one assertion is the end state: the creature stands on both boards.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 import { makeTitled, offeredNamed, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -24,8 +27,6 @@ import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
-
-const NAME = 'Viridian Shaman';
 
 type Sample = { at: number; what: string; x: number; y: number; w: number; h: number; attrs: string };
 
@@ -105,23 +106,44 @@ const samples = (page: Page): Promise<Sample[]> => page.evaluate(() => (window a
 
 const rel = (at: number, t0: number) => Math.round(at - t0);
 
-test(titled('Viridian Shaman with no artifact to target: where the time goes from release to board, and what each screen draws meanwhile'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(3 * 60_000);
-  const stack = await startPlayStack(forge);
+type Run = {
+  /** Printed on every evidence line after `[shaman]`. */
+  label: string;
+  scenario: string;
+  card: string;
+  /** Bob holds priority (full control) this long after the release, then passes; 0: the server passes for him. */
+  bobHoldsMs: number;
+};
+
+/** Distance from `p` to the segment `a`–`b`. */
+function offSegment(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const k = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + k * dx), p.y - (a.y + k * dy));
+}
+
+async function measure(browser: Browser, jar: { jar: string; res: string }, run: Run): Promise<void> {
+  const stack = await startPlayStack(jar);
+  const say = (line: string) => console.log(`[shaman] ${run.label} ${line}`);
   try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'w67-shaman');
+    const { alice, bob } = await startScenarioMatch(browser, stack, run.scenario);
     for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
-    let shaman: number | undefined;
-    await expect.poll(async () => (shaman = await offeredNamed(alice.page, NAME)), { timeout: 60_000, message: 'alice is offered Viridian Shaman' }).not.toBeUndefined();
-    await record(alice.page, NAME);
-    await record(bob.page, NAME);
+    if (run.bobHoldsMs > 0) {
+      await bob.page.getByTestId('live-full-control').click();
+      await expect(bob.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
+    }
+    let cardId: number | undefined;
+    await expect.poll(async () => (cardId = await offeredNamed(alice.page, run.card)), { timeout: 60_000, message: `alice is offered ${run.card}` }).not.toBeUndefined();
+    await record(alice.page, run.card);
+    await record(bob.page, run.card);
     const logFrom = serverLog(stack).length;
 
     // Anything the match asks of either seat is answered without moving alice's pointer (a dispatched
     // click), and stamped: a press is a phase of the timeline too.
     const presses: { at: number; who: string; what: string }[] = [];
+    let releasedAt = Number.POSITIVE_INFINITY;
     let pumping = true;
     const pump = (async () => {
       while (pumping) {
@@ -136,7 +158,7 @@ test(titled('Viridian Shaman with no artifact to target: where the time goes fro
           presses.push({ at: Date.now(), who: 'alice', what: `prompt ${method} (seen)` });
         }
         const bobOk = bob.page.locator('[data-testid="live-decision-ok"]:enabled');
-        if ((await bobOk.count()) > 0) {
+        if ((await bobOk.count()) > 0 && Date.now() - releasedAt >= run.bobHoldsMs) {
           presses.push({ at: Date.now(), who: 'bob', what: `ok "${(await bobOk.first().textContent().catch(() => '')) ?? ''}"` });
           await bobOk.first().dispatchEvent('click').catch(() => undefined);
         }
@@ -146,24 +168,25 @@ test(titled('Viridian Shaman with no artifact to target: where the time goes fro
 
     // The operator's gesture: press on the card, drag to the middle of her battlefield, let go, and
     // move the pointer 300 px away AT ONCE, then keep it drifting slowly for four seconds.
-    const card = (await alice.page.locator(`[data-board-card="${shaman}"]`).boundingBox())!;
+    const card = (await alice.page.locator(`[data-board-card="${cardId}"]`).boundingBox())!;
     const field = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
     const release = { x: Math.round(field.x + field.width * 0.4), y: Math.round(field.y + field.height * 0.5) };
     await alice.page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
     await alice.page.mouse.down();
     await alice.page.mouse.move(release.x, release.y, { steps: 10 });
     await alice.page.mouse.up();
+    releasedAt = Date.now();
     const away = { x: release.x + 300, y: release.y - 40 };
     await alice.page.mouse.move(away.x, away.y, { steps: 6 });
     const drift = Date.now();
-    for (let i = 0; Date.now() - drift < 4_000; i++) {
+    for (let i = 0; Date.now() - drift < 4_000 + run.bobHoldsMs; i++) {
       await alice.page.mouse.move(away.x - i * 6, away.y + Math.round(30 * Math.sin(i / 4)), { steps: 2 });
       await alice.page.waitForTimeout(60);
     }
 
     const onBoard = (page: Page, mine: boolean) =>
-      page.locator(`.seat${mine ? '[data-viewer]' : ':not([data-viewer])'} [data-zone="battlefield"] [data-board-card] .card__name`, { hasText: NAME });
-    await expect(onBoard(alice.page, true), 'the Shaman is on alice’s battlefield').toHaveCount(1, { timeout: 20_000 });
+      page.locator(`.seat${mine ? '[data-viewer]' : ':not([data-viewer])'} [data-zone="battlefield"] [data-board-card] .card__name`, { hasText: run.card });
+    await expect(onBoard(alice.page, true), `${run.card} is on alice’s battlefield`).toHaveCount(1, { timeout: 20_000 });
     await expect(onBoard(bob.page, false), 'and on bob’s view of it').toHaveCount(1, { timeout: 20_000 });
     await alice.page.waitForTimeout(1_000);
     pumping = false;
@@ -171,58 +194,71 @@ test(titled('Viridian Shaman with no artifact to target: where the time goes fro
 
     const mine = await samples(alice.page);
     const theirs = await samples(bob.page);
-    const up = mine.find((s) => s.what === 'up');
-    const t0 = up?.at ?? drift;
-    console.log(`[shaman] release at ${release.x},${release.y} (alice px); pointer then to ${away.x},${away.y} and drifting; t0 = alice's pointerup`);
+    const t0 = mine.find((s) => s.what === 'up')?.at ?? releasedAt;
+    say(`release at ${release.x},${release.y} (alice px); pointer then to ${away.x},${away.y} and drifting; t0 = alice's pointerup`);
 
-    // Forge's side: every frame, command and wire frame after the scenario was ready, relative to t0.
-    const rows = serverLog(stack).slice(logFrom);
-    for (const r of rows) {
+    // Forge's side: every frame, command and wire frame from 3 s before the release, relative to t0.
+    for (const r of serverLog(stack).slice(logFrom)) {
       const at = Date.parse(String(r.t));
       if (Number.isNaN(at) || at < t0 - 3_000) continue;
       const { t: _t, svc: _svc, matchId: _m, evt, ...rest } = r;
-      console.log(`[shaman] server ${rel(at, t0)}ms ${String(evt)} ${JSON.stringify(rest).slice(0, 260)}`);
+      say(`server ${rel(at, t0)}ms ${String(evt)} ${JSON.stringify(rest).slice(0, 260)}`);
     }
-    for (const p of presses) console.log(`[shaman] press ${rel(p.at, t0)}ms ${p.who} ${p.what}`);
+    for (const p of presses) say(`press ${rel(p.at, t0)}ms ${p.who} ${p.what}`);
 
-    // Each page's whole record from 500 ms before the release, one line per change.
+    // Each page's record from 500 ms before the release (the status line and the stack count from
+    // the start), one line per change.
     for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
       for (const s of rec) {
-        if (s.at < t0 - 500) continue;
+        if (s.at < t0 - 500 && s.what !== 'says' && s.what !== 'stackcount') continue;
         const pos = s.w === 0 && s.h === 0 && s.x === 0 && s.y === 0 ? '' : ` ${s.x},${s.y}${s.w > 0 ? ` ${s.w}x${s.h}` : ''}`;
-        console.log(`[shaman] ${who} ${rel(s.at, t0)}ms ${s.what}${pos}${s.attrs === '' ? '' : ` [${s.attrs}]`}`);
+        say(`${who} ${rel(s.at, t0)}ms ${s.what}${pos}${s.attrs === '' ? '' : ` [${s.attrs}]`}`);
       }
     }
 
-    // (b) — any drawn stand-in that, after the release, is nearer the pointer's CURRENT spot than the
-    // release point and has left the release point by more than 40 px: it is chasing the pointer.
+    // (b) — after the release, any drawn stand-in more than 40 px off the straight path from where the
+    // card was let go (on that screen) to where it finally stands is off its route; how near the
+    // pointer (alice's own, or bob's drawing of hers) was on that frame says whether it chased it.
     const STANDINS = /^(lift|ghost|stack|back|handoff|plift)\d*$/;
     for (const [who, rec, pointerKind] of [['alice', mine, 'mouse'], ['bob', theirs, 'cursor']] as const) {
-      const releasedAt = who === 'alice' ? release : (() => {
-        const atRelease = rec.filter((s) => s.what === pointerKind && s.attrs !== 'gone' && s.at <= t0 + 150).at(-1);
-        return atRelease === undefined ? null : { x: atRelease.x, y: atRelease.y };
-      })();
-      if (releasedAt === null) {
-        console.log(`[shaman] chase ${who}: no pointer drawn near the release, cannot judge`);
+      const firstBack = rec.find((s) => s.at >= t0 && s.what === 'back' && s.attrs.includes('data-waiting'));
+      const from = who === 'alice' ? release : firstBack === undefined ? null : { x: firstBack.x, y: firstBack.y };
+      const end = rec.filter((s) => s.what === 'field' && s.attrs !== 'gone').at(-1);
+      if (from === null || end === undefined) {
+        say(`chase ${who}: no release point or no final place drawn, cannot judge`);
         continue;
       }
       let pointer: { x: number; y: number } | null = null;
-      const chased: string[] = [];
+      const off: string[] = [];
       for (const s of rec) {
         if (s.what === pointerKind && s.attrs !== 'gone') pointer = { x: s.x, y: s.y };
-        if (s.at < t0 || !STANDINS.test(s.what) || s.attrs === 'gone' || pointer === null) continue;
-        const fromRelease = Math.hypot(s.x - releasedAt.x, s.y - releasedAt.y);
-        const fromPointer = Math.hypot(s.x - pointer.x, s.y - pointer.y);
-        if (fromRelease > 40 && fromPointer < fromRelease) chased.push(`${rel(s.at, t0)}ms ${s.what} @${s.x},${s.y} pointer ${pointer.x},${pointer.y} release ${releasedAt.x},${releasedAt.y}`);
+        if (s.at < t0 || !STANDINS.test(s.what) || s.attrs === 'gone') continue;
+        const d = offSegment(s, from, end);
+        if (d <= 40) continue;
+        const toPointer = pointer === null ? 'no pointer' : `${Math.round(Math.hypot(s.x - pointer.x, s.y - pointer.y))}px from pointer ${pointer.x},${pointer.y}`;
+        off.push(`${rel(s.at, t0)}ms ${s.what} @${s.x},${s.y} ${Math.round(d)}px off-path, ${toPointer}`);
       }
-      console.log(`[shaman] chase ${who}: ${chased.length} frame(s) nearer the pointer than the release point${chased.length === 0 ? '' : ` — ${chased.slice(0, 30).join(' | ')}`}`);
+      say(`chase ${who}: path ${from.x},${from.y} → ${end.x},${end.y}; ${off.length} frame(s) off it${off.length === 0 ? '' : ` — ${off.slice(0, 30).join(' | ')}`}`);
     }
 
-    const firstField = (rec: Sample[]) => rec.find((s) => s.what === 'field' && s.attrs !== 'gone' && s.at >= t0);
-    const fa = firstField(mine);
-    const fb = firstField(theirs);
-    console.log(`[shaman] summary: on alice's battlefield (DOM) at ${fa === undefined ? '?' : rel(fa.at, t0)}ms, on bob's at ${fb === undefined ? '?' : rel(fb.at, t0)}ms`);
+    const ms = (s: Sample | undefined) => (s === undefined ? '?' : `${rel(s.at, t0)}ms`);
+    const inDom = (rec: Sample[]) => rec.find((s) => s.what === 'field' && s.attrs !== 'gone' && s.at >= t0);
+    const lastShown = (rec: Sample[]) => rec.filter((s) => s.what === 'field' && s.attrs.includes('vis=visible') && s.at >= t0).at(-1);
+    say(`summary: in alice's battlefield DOM at ${ms(inDom(mine))}, shown for good at ${ms(lastShown(mine))}; in bob's at ${ms(inDom(theirs))}, shown for good at ${ms(lastShown(theirs))}`);
   } finally {
     await stack.stop();
   }
-});
+}
+
+for (const run of [
+  { label: 'shaman', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 0 },
+  { label: 'bears', scenario: 'w67-bears', card: 'Grizzly Bears', bobHoldsMs: 0 },
+  { label: 'shaman-held', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 2_000 },
+] satisfies Run[]) {
+  test(titled(`${run.label}: where the time goes from release to board, and what each screen draws meanwhile`), async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(3 * 60_000);
+    await measure(browser, forge, run);
+  });
+}
