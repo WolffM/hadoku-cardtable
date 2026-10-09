@@ -897,6 +897,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // which may be AFTER this listener runs — so the reservation is read on the next frame, past
       // the commit. A SPELL's wait has no reservation to read; only the id check below clears it.
       if (waiting.forBattlefield) {
+        // AE26 (the Mana Leak screenshot): a CREATURE dragged to the battlefield carries a placement
+        // (a column is reserved, this wait expects it there) — but while the other seat holds
+        // priority it sits on the STACK first. Its id shows up on the stack, never the battlefield,
+        // and this wait would stand the back beside the face until its timer. A fresh id of theirs
+        // that is on the stack is the spell case: the back hands over to the placed card at its own
+        // point, turned over in place; the column's reservation stays for the day it resolves.
+        const onStack = fresh.find((id) => !onTheirBattlefield(id));
+        if (onStack !== undefined) {
+          handToSpell(onStack);
+          return;
+        }
         const theirs = host.theirPlayerId?.() ?? null;
         const standIn = back;
         const card = waiting.card;

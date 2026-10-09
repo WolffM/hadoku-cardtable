@@ -741,6 +741,30 @@ describe('receiving', () => {
     handle.dispose();
   });
 
+  it('a creature placed to a column but held on the STACK (the other seat has a response) hands the back to the placed card at its point — never a back in the gap beside a face (AE26)', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    // Their creature's placement names a column: the back glides into the reserved gap and waits for the battlefield.
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'a back waits for the placement').not.toBeNull();
+    // Forge puts it on the STACK (the viewer holds priority): the id is public, nowhere on the battlefield.
+    theirs = [121];
+    wake!();
+    expect(placedMod.placeSpell, 'the back hands over to the placed card at its own point').toHaveBeenCalledWith(121, expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }), 'them');
+    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
+    expect(canvas.querySelector('.presence__back'), 'no back stands beside the face').toBeNull();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `commitSpell`', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
