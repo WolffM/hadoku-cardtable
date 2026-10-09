@@ -1,0 +1,17 @@
+# The operator's board, 2026-10-09 (ledger AE19, the screenshot): ONE land on seat 0's
+# battlefield and nothing in hand — an uncontested turn-1 Main Phase 1 whose only job is
+# to sit still while `w62-adjacent.spec.ts` drags that lone land right, column by column,
+# and back. Seat 1 has nothing to do and is not driven.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

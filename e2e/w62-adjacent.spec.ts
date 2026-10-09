@@ -165,7 +165,7 @@ test(titled('AE19, the operator\'s board: a LONE land dragged right moves right 
   test.setTimeout(4 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'bitterblossom');
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w65-lone');
     await expect.poll(() => columnsOf(ownRow(alice.page)), { timeout: 30_000, message: 'one lone land drawn' }).toHaveLength(1);
     const [id] = (await columnsOf(ownRow(alice.page))) as [string];
     const card = () => alice.page.locator(`.seat[data-viewer] li.board-card[data-card-id="${id}"]`);
