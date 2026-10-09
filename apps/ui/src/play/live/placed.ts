@@ -64,6 +64,11 @@
  *     AC8 reservation (`Board.tsx`'s `notePlayedTo`/`expectPlacement`) is
  *     already drawing its arrival there, and drawing it twice is the bug
  *     this wave exists to retire.
+ *   - An ability (triggered or activated) is drawn only once the chain HALTS
+ *     over it — someone holds priority or must answer with it on the stack
+ *     (`setChainHalted`, `LiveBoard`'s own facts). One nobody stopped is never
+ *     drawn: when it leaves, its source card on the battlefield shimmers
+ *     instead (`data-shimmer` on the board card, `card.css`).
  *   - `.placed__arrow[data-for="<item.id>"]` — one per target the item has
  *     (`aimAt`, `gestures/arrow.ts`, reused exactly as Settled requires — no
  *     second geometry), redrawn on every `notify` and on every `moveSpell`
@@ -88,6 +93,8 @@ export type { Point };
 
 /** How long a resolve-away fade (decision c) takes. Reduced motion skips straight to it. */
 export const LEAVE_FADE_MS = 250;
+/** One turn of the sheen round a card whose ability resolved with nobody stopping it (`card.css`). */
+export const SHIMMER_MS = 1100;
 
 /** A placement nobody ever promoted (a land, a cancelled cast) is forgotten after this long. */
 const PENDING_TTL_MS = 12_000;
@@ -138,6 +145,22 @@ function requestRepaint(): void {
   for (const hook of repaintHooks) hook();
 }
 
+/** See `setChainHalted`. */
+let chainHalted = false;
+
+/**
+ * Whether the chain is halted right now: this seat has a decision open (a live bar, an ask, a
+ * payment) or the server says the other seat holds a window (`LiveBoard`'s `viewerOpen`/
+ * `opponentOpen`). An ability on the stack is drawn only while this is true — one that resolves with
+ * nobody stopping never reaches a screen as a chip, and its source shimmers instead. A withheld
+ * window never reaches the wire, so it never halts anything here.
+ */
+export function setChainHalted(halted: boolean): void {
+  if (chainHalted === halted) return;
+  chainHalted = halted;
+  requestRepaint();
+}
+
 /**
  * Register (or move) a spell's point. See the module header for what `id`
  * means at this call. A fresh `id` starts `committed` on `side === 'you'`
@@ -184,9 +207,10 @@ export function onSpellDrawn(listener: (id: number) => void): () => void {
   return () => drawnListeners.delete(listener);
 }
 
-/** Test-only: drop every placement, so one test's ids never leak into the next. */
+/** Test-only: drop every placement and the halt fact, so one test's state never leaks into the next. */
 export function forgetPlacements(): void {
   placements.clear();
+  chainHalted = false;
 }
 
 /* ── pure geometry, unit-tested directly ──────────────────────────────── */
@@ -337,6 +361,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;
   const drawn = new Map<number, Drawn>();
+  /** Abilities on the stack never drawn (nobody stopped), by stack id → their source card's id. */
+  const undrawn = new Map<number, number | null>();
+  /** The latest shimmer on each board card, so an earlier one's timer never cuts a fresh one short. */
+  const shimmers = new WeakMap<Element, number>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
@@ -497,6 +525,22 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     schedule(() => removeNow(id), LEAVE_FADE_MS);
   }
 
+  /** An ability nobody stopped has resolved: its source card on the battlefield, if it is there, shimmers once. */
+  function shimmer(cardId: number | null): void {
+    if (cardId === null || !onBattlefieldNow(cardId)) return;
+    const el = cardBox(canvas, cardId);
+    if (el === null) return;
+    const turn = (shimmers.get(el) ?? 0) + 1;
+    shimmers.set(el, turn);
+    // Off and on again in one task restarts the animation for a second ability of the same card.
+    el.removeAttribute('data-shimmer');
+    void (el as HTMLElement).offsetWidth;
+    el.setAttribute('data-shimmer', '');
+    schedule(() => {
+      if (shimmers.get(el) === turn) el.removeAttribute('data-shimmer');
+    }, SHIMMER_MS);
+  }
+
   function drawArrows(items: readonly StackEntry[]): void {
     const root = overlay();
     if (root === null) return;
@@ -556,9 +600,19 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const was = drawn.get(id);
       leave(id, was?.isAbility === true ? null : was?.sourceCardId ?? null);
     }
+    for (const [id, sourceCardId] of undrawn) {
+      if (currentIds.has(id)) continue;
+      undrawn.delete(id);
+      shimmer(sourceCardId);
+    }
 
     const taken: Rect[] = [];
     view.stack.forEach((item, index) => {
+      if (item.isAbility && !drawn.has(item.id) && !chainHalted) {
+        undrawn.set(item.id, item.sourceCardId);
+        return;
+      }
+      undrawn.delete(item.id);
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
       sizeAsBattlefieldCard(d.el, cardWidth);
@@ -608,6 +662,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       for (const id of [...drawn.keys()]) removeNow(id);
+      undrawn.clear();
     },
   };
 }

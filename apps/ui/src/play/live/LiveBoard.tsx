@@ -270,6 +270,7 @@ import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type Ask
 import { installGestures } from './gestures/index.ts';
 import { stackAsk } from './gestures/stack.ts';
 import { installPresence } from './presence.ts';
+import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import {
@@ -1778,6 +1779,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const asked = { ownDecisionOpen: myOwnDecisionOpen, waitingForOpponent: opponentHoldsAWindow(match) };
   const viewerOpen = genuinelyAsked(match, 'you', asked);
   const opponentOpen = genuinelyAsked(match, 'them', asked);
+  /* Someone must act with the stack as it is: an ability on it is drawn as its chip (`placed.ts`). */
+  const chainHalted = viewerOpen || opponentOpen;
+  useEffect(() => setChainHalted(chainHalted), [chainHalted]);
   const visualView = match.view === null ? null : withGatedPriority(match.view, viewerOpen, opponentOpen);
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the

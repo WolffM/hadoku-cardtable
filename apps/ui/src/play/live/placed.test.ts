@@ -20,7 +20,10 @@ import {
   onSpellMoved,
   placeSpell,
   type Rect,
- PLACED_PENDING_MS } from './placed.ts';
+  PLACED_PENDING_MS,
+  setChainHalted,
+  SHIMMER_MS,
+} from './placed.ts';
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
 
@@ -219,6 +222,7 @@ describe('installPlaced: drawing', () => {
 
   it('an ability draws beside its source when the source is on the board, never a row', () => {
     const { canvas } = board();
+    setChainHalted(true);
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 })]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
@@ -230,6 +234,7 @@ describe('installPlaced: drawing', () => {
 
   it('AE29: an ability is the chip — the source\'s name and art band over the ability\'s own text, never a second card face', async () => {
     const { canvas } = board();
+    setChainHalted(true);
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201, sourceName: 'Eternal Witness', description: 'Eternal Witness - When it enters, return target card.' })]));
     // A fresh React root commits on its own clock — one macrotask (see the flip test above).
@@ -244,6 +249,7 @@ describe('installPlaced: drawing', () => {
 
   it('AE28: the viewer\'s own ability is theirs to drag (data-mine) though nothing placed it; the opponent\'s is not', () => {
     const { canvas } = board();
+    setChainHalted(true);
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201, controllerName: 'Alice' }), stackItem(8, { isAbility: true, sourceCardId: 202, controllerName: 'Bob' })]));
     expect(canvas.querySelector('[data-placed-spell="9"]')!.hasAttribute('data-mine')).toBe(true);
@@ -280,6 +286,7 @@ describe('installPlaced: drawing', () => {
 
   it('Q18: a spell offered by its own card id is selectable and clicking it answers; an ability never is', () => {
     const { canvas } = board();
+    setChainHalted(true);
     const handle = installPlaced(canvas);
     const selected: number[] = [];
     const interaction = { isSelectable: (id: number) => id === 301, onSelect: (id: number) => selected.push(id) };
@@ -376,6 +383,60 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     const stayingLeft = staying.style.left;
     handle.notify(view([stackItem(10, { sourceCardId: 302 })])); // 9 resolved away
     expect(staying.style.left, 'untouched by the other item leaving').toBe(stayingLeft);
+    handle.dispose();
+  });
+});
+
+describe('installPlaced: an ability is drawn only when the chain halts over it', () => {
+  it('nobody stopped: never drawn; once it resolves, its source on the battlefield shimmers for SHIMMER_MS', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
+    handle.notify(view([trigger], [{ id: 201 }]));
+    handle.notify(view([trigger], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell]'), 'no chip while nobody has stopped').toBeNull();
+    const source = canvas.querySelector('[data-card-id="201"]')!;
+    expect(source.hasAttribute('data-shimmer'), 'no shimmer before it resolves').toBe(false);
+    handle.notify(view([], [{ id: 201 }]));
+    expect(source.hasAttribute('data-shimmer'), 'the source shimmers as it resolves').toBe(true);
+    expect(canvas.querySelector('[data-placed-spell]'), 'still never drawn').toBeNull();
+    vi.advanceTimersByTime(SHIMMER_MS);
+    expect(source.hasAttribute('data-shimmer')).toBe(false);
+    handle.dispose();
+  });
+
+  it('a source no longer on the battlefield does not shimmer', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 })]));
+    handle.notify(view([]));
+    expect(canvas.querySelector('[data-shimmer]')).toBeNull();
+    handle.dispose();
+  });
+
+  it('the chain halts: the chip appears; it stays once the halt clears, until it resolves — and then fades, never shimmers', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas, { reducedMotion: () => true });
+    const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
+    handle.notify(view([trigger], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')).toBeNull();
+    setChainHalted(true);
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'drawn the moment the halt is known').not.toBeNull();
+    setChainHalted(false);
+    handle.notify(view([trigger], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'still drawn: it halted once').not.toBeNull();
+    handle.notify(view([], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')).toBeNull();
+    expect(canvas.querySelector('[data-shimmer]'), 'a drawn ability never shimmers').toBeNull();
+    handle.dispose();
+  });
+
+  it('a spell is drawn whether or not the chain halts', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9)]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')).not.toBeNull();
     handle.dispose();
   });
 });

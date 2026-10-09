@@ -715,6 +715,72 @@
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
+/* ── an ability that resolved with nobody stopping it ───────────────── */
+
+/*
+ * The operator, 2026-10-09: *"abilities don't really need to go on the stack … if there is no
+ * response. … just making the actual card do a shimmering glow effect as to indicate their effect
+ * triggered would be good."* `live/placed.ts` puts `data-shimmer` on the source card for
+ * `SHIMMER_MS`: an accent sheen runs once round the card's edge (`ae29-options.html`, option 3 — a
+ * conic gradient masked to the border). The face is the box in either orientation, so a tapped card's
+ * sheen follows its landscape edge. Reduced motion: a still glow that fades, never a sweep.
+ */
+@property --shimmer-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.board-card[data-shimmer] > .board-card__face::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  padding: 3px;
+  border-radius: calc(var(--radius) + 3px);
+  background: conic-gradient(from var(--shimmer-angle), transparent, var(--accent), transparent 40%);
+  mask:
+    linear-gradient(var(--accent) 0 0) content-box exclude,
+    linear-gradient(var(--accent) 0 0);
+  pointer-events: none;
+  animation: card-shimmer 1s linear forwards;
+}
+
+@keyframes card-shimmer {
+  0% {
+    --shimmer-angle: 0deg;
+
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    --shimmer-angle: 360deg;
+
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-shimmer] > .board-card__face::after {
+    background: none;
+    box-shadow: 0 0 0 2px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent);
+    animation: card-shimmer-still 1s ease-out forwards;
+  }
+}
+
+@keyframes card-shimmer-still {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 /* ── a player's face ─────────────────────────────────────────────────── */
 
 /*
