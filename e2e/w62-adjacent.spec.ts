@@ -69,3 +69,92 @@ test(titled('a battlefield card dragged one column to the right lands there — 
     await stack.stop();
   }
 });
+
+/*
+ * AE19 — a second regression report on top of AE15 (2026-10-08): "big regression on card
+ * placement. it's much less responsive now at letting me put cards anywhere. it seems to only
+ * draw locations for card slots to the left of where the card currently is." And: "why did this
+ * get more complicated." Suspect named by the manager: `snapTo`'s AE15-era special case ("its own
+ * single-card column is never a target; the column after it counts as where it came from")
+ * plausibly swallows every slot to the right. Measured here against a real board, over FIVE of
+ * the scenario's eight lone Plains (`1 2 3 4 5` by position): every gap to the right of the
+ * leftmost card while it is dragged, then a release at two of them; the mirror, every gap to the
+ * left of the rightmost card.
+ *
+ * `Board.test.ts`'s own `AE19:` unit tests prove the same claim against `snapTo` directly, with
+ * exact pixel geometry — this file is the real-browser, real-drag proof beside it.
+ */
+test(titled('AE19: dragging the leftmost card offers every gap to its right, and the mirror leftward from the rightmost'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { timeout: 30_000, message: 'eight lone lands drawn' }).toHaveLength(8);
+    const all = (await columnsOf(ownRow(alice.page))) as string[];
+    // The scenario is EIGHT lone lands, not five — the first version of this test built its
+    // expected arrays with only five slots (`[c1..c5]`) and a sixth-through-eighth card the row
+    // genuinely has fell off every comparison. That is a test bug, not a `snapTo` one: the FIRST
+    // claw run's own diff showed the real board produced exactly the right order, with three
+    // trailing cards this test's own expectation never included. Fixed here by using the whole
+    // row and by treating the ACTUAL last card (8th), not the 5th, as "the end".
+    const [c1, c2, c3, c4, c5, c6, c7, c8] = all as [string, string, string, string, string, string, string, string];
+    const card = (id: string) => alice.page.locator(`.seat[data-viewer] li.board-card[data-card-id="${id}"]`);
+    const indicator = alice.page.locator('[data-arrange-indicator]:not([hidden])');
+
+    /** Press `from`, move to `to`'s box without releasing, assert a drop IS offered there, then release. */
+    async function dragAndCheckOffered(from: string, to: { x: number; y: number }, why: string): Promise<void> {
+      const box = await boxOf(card(from));
+      await alice.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await alice.page.mouse.down();
+      await alice.page.mouse.move(box.x + box.width / 2 + 8, box.y + box.height / 2 + 8, { steps: 3 });
+      await alice.page.mouse.move(to.x, to.y, { steps: 6 });
+      await expect(indicator, `${why}: a drop is offered, not nowhere`).toHaveCount(1, { timeout: 3_000 });
+      await alice.page.mouse.up();
+    }
+
+    // Every gap to the RIGHT of the leftmost card (1) offers a real target, sampled across the
+    // whole row, and past the ACTUAL last card (8) — none comes back "nowhere" the way the
+    // report described.
+    const after2 = await boxOf(card(c2));
+    await dragAndCheckOffered(c1, { x: after2.x + after2.width - 3, y: after2.y + after2.height / 2 }, 'after 2');
+    const afterTwo = [c2, c1, c3, c4, c5, c6, c7, c8];
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released after 2' }).toEqual(afterTwo);
+
+    const after4 = await boxOf(card(c4));
+    await dragAndCheckOffered(c1, { x: after4.x + after4.width + 2, y: after4.y + after4.height / 2 }, 'after 4');
+    const afterFour = [c2, c3, c4, c1, c5, c6, c7, c8];
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released after 4' }).toEqual(afterFour);
+    await expect.poll(() => columnsOf(theirRow(bob.page)), { timeout: 10_000, message: 'bob sees the same' }).toEqual(afterFour);
+
+    const after6 = await boxOf(card(c6));
+    await dragAndCheckOffered(c1, { x: after6.x + after6.width + 2, y: after6.y + after6.height / 2 }, 'after 6');
+    const afterSix = [c2, c3, c4, c5, c6, c1, c7, c8];
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released after 6' }).toEqual(afterSix);
+
+    const last = await boxOf(card(c8));
+    await dragAndCheckOffered(c1, { x: last.x + last.width + 40, y: last.y + last.height / 2 }, 'past 8, the actual end');
+    const atEnd = [c2, c3, c4, c5, c6, c7, c8, c1];
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released past 8 (the end)' }).toEqual(atEnd);
+    console.log(`[w62-adjacent] AE19 rightward: start ${all.join(' ')} → after2 ${afterTwo.join(' ')} → after4 ${afterFour.join(' ')} → after6 ${afterSix.join(' ')} → end ${atEnd.join(' ')}`);
+
+    // The mirror: every gap to the LEFT of the rightmost card (now c1, at the row's actual end)
+    // offers a real target too.
+    const c1Box = await boxOf(card(c1));
+    const before6 = await boxOf(card(c6));
+    await dragAndCheckOffered(c1, { x: before6.x + 2, y: before6.y + before6.height / 2 }, 'before 6, one step left of the end');
+    const oneLeftOfEnd = [c2, c3, c4, c5, c1, c6, c7, c8];
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released before 6' }).toEqual(oneLeftOfEnd);
+
+    const start = await boxOf(card(c2));
+    await dragAndCheckOffered(c1, { x: start.x - 20, y: start.y + start.height / 2 }, 'before 2, the very start of the row');
+    const atStart = [c1, c2, c3, c4, c5, c6, c7, c8];
+    await expect.poll(() => columnsOf(ownRow(alice.page)), { message: 'released at the very start' }).toEqual(atStart);
+    console.log(`[w62-adjacent] AE19 leftward (from ${JSON.stringify(c1Box)}): one left of the end ${oneLeftOfEnd.join(' ')} → start ${atStart.join(' ')}`);
+  } finally {
+    await stack.stop();
+  }
+});
