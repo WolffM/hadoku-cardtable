@@ -442,6 +442,7 @@ item you have checked comes back, it is listed here with both dates and builds.
 
 | item | ✅ on | build | reported again | build | note |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-09 03:24Z | `dce32ee` (w64-S `27957da`, the one auto-gate guard) | a declare-blockers window is auto-passed ~340 ms after it opens with no input (`blockers.jvm` Q12 on run 37878652615: PROMPT "Select creatures to block…" [OK][Cancel] → "Waiting for A…" [OK-] at +459 ms); in prod from 03:24:55Z until the revert — a player attacked cannot block | revert requested 03:42Z; S's fold returns next wave with the recording |
 
 ## How the tracker keeps this
 
