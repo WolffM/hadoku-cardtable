@@ -20,7 +20,7 @@ import {
   onSpellMoved,
   placeSpell,
   type Rect,
-} from './placed.ts';
+ PLACED_PENDING_MS } from './placed.ts';
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
 
@@ -185,6 +185,35 @@ describe('installPlaced: drawing', () => {
     expect(el.style.left).toBe(`${spot.x}px`);
     expect(el.style.top).toBe(`${spot.y}px`);
     expect(el.hasAttribute('data-mine'), 'nobody ever claimed it').toBe(false);
+    handle.dispose();
+  });
+
+  it('an unregistered spell is drawn hidden for PLACED_PENDING_MS; a registration inside the window draws the back AT the point, then the face there (AE26)', async () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(5, { sourceCardId: 48 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="5"]');
+    expect(el, 'drawn at once').not.toBeNull();
+    expect(el!.hasAttribute('data-placed-pending'), 'but not shown yet').toBe(true);
+    placeSpell(48, { x: 400, y: 320 }, 'them');
+    expect(el!.hasAttribute('data-placed-pending'), 'the registration shows it').toBe(false);
+    expect(el!.querySelector('.placed__back'), 'as the back, at the point').not.toBeNull();
+    expect(el!.style.left).toBe('400px');
+    expect(el!.style.top).toBe('320px');
+    commitSpell(5);
+    await Promise.resolve();
+    expect(el!.querySelector('.placed__back'), 'turned over in place').toBeNull();
+    handle.dispose();
+  });
+
+  it('an unregistered spell with no registration shows at the default spot once the window closes (a click cast)', async () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(6, { sourceCardId: 49 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="6"]')!;
+    expect(el.hasAttribute('data-placed-pending')).toBe(true);
+    await new Promise((r) => setTimeout(r, PLACED_PENDING_MS + 40));
+    expect(el.hasAttribute('data-placed-pending'), 'shown at the default spot').toBe(false);
     handle.dispose();
   });
 

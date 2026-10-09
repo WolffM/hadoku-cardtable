@@ -88,6 +88,18 @@ export const LEAVE_FADE_MS = 250;
 
 /** A placement nobody ever promoted (a land, a cancelled cast) is forgotten after this long. */
 const PENDING_TTL_MS = 12_000;
+/**
+ * AE26 (2026-10-09, the Mana Leak screenshot): a spell of THEIRS that reaches the
+ * stack before this screen hears where they let it go (`forge:placement` names
+ * no spell; the release point rides on presence, which can lose the race to
+ * Forge's frame) used to be drawn face-up at the default spot at once — beside
+ * the back still standing at the release point, two objects for one card. For
+ * this long a freshly arrived, unregistered spell is drawn but hidden: a
+ * registration inside the window (presence handing the point over) draws it as
+ * the back AT that point and the flip turns it over there; past the window it
+ * shows at the default spot, which is a click-cast's own place (AD4 decision a).
+ */
+export const PLACED_PENDING_MS = 300;
 
 /** How far a card sits to the right of its source's own box (the ephemeral tile, Settled). */
 const BESIDE_GAP = 6;
@@ -247,6 +259,8 @@ interface Drawn {
   /** The underlying card's id, remembered from when this was drawn — `view.stack` no longer has it once the item is gone. */
   readonly sourceCardId: number | null;
   leaving: boolean;
+  /** AE26: hidden until a registration arrives or the window closes — see `PLACED_PENDING_MS`. */
+  pendingUntil: number | null;
 }
 
 /** Overlay-relative centre of a box. */
@@ -385,7 +399,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         });
       }
       overlay()?.append(el);
-      d = { el, root: null, committed: !wantBack, isAbility: item.isAbility, sourceCardId: item.sourceCardId, leaving: false };
+      const pending = record === undefined && !item.isAbility;
+      if (pending) el.setAttribute('data-placed-pending', '');
+      d = { el, root: null, committed: !wantBack, isAbility: item.isAbility, sourceCardId: item.sourceCardId, leaving: false, pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null };
+      if (pending) schedule(render, PLACED_PENDING_MS + 1);
       d.root = mount(el, item, wantBack);
       drawn.set(item.id, d);
       // Synchronous, now that the element (and, for a face, its CardTile — a
@@ -509,6 +526,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     view.stack.forEach((item, index) => {
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
+      if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) {
+        d.pendingUntil = null;
+        d.el.removeAttribute('data-placed-pending');
+      }
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
       const resolved = positionOf(item, taken);
       if (resolved === null) return;

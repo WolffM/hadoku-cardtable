@@ -91,6 +91,13 @@ export const PRESENCE_STALE_MS = 6000;
 export const WAITING_MS = 15_000;
 /** A point wait's remaining life once the sender says its card is no longer parked (a cancel, or the id a frame away). */
 export const CLEARED_GRACE_MS = 1500;
+/**
+ * AE26: how long a spell of theirs that showed up on the stack BEFORE their
+ * release point reached this screen is remembered, so the point wait that
+ * arrives next hands the back to it at once instead of standing beside the
+ * face until a timer ends it (the Mana Leak screenshot, 2026-10-09).
+ */
+export const UNHANDED_MS = 5000;
 /** How long a hand-move's glide runs — the same number `./gestures/hand.ts`'s own FLIP uses, so the two screens move in step. */
 export const HAND_MOVE_MS = 300;
 /** AE18: how long a `forge:placement`'s own point stays "recently placed" — long enough to catch a `placing` echo sent before it, delivered after; the race is one network hop, never seconds. */
@@ -579,6 +586,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let backAt: Point | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
+  /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
+  let unhanded: { id: number; at: number } | null = null;
   /**
    * AE18: the ONE `forge:placement` this episode ever sends, remembered by its
    * own point — the one thing a `placing` echo of the SAME episode and this
@@ -794,6 +803,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
         waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null };
+        // AE26: their spell beat this message here (Forge's frame won the race against presence):
+        // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
+        // the one object, in place — never a back beside a face until a timer ends it.
+        if (unhanded !== null && Date.now() - unhanded.at < UNHANDED_MS) {
+          const { id } = unhanded;
+          unhanded = null;
+          if (!onTheirBattlefield(id)) handToSpell(id);
+        }
       }
       // A wait already holds the back — the placement's gap, or this point: it stays put. A
       // stale echo with no wait to hold is simply not acted on — see `stale`, above.
@@ -836,11 +853,44 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     staleTimer = setTimeout(takeDown, PRESENCE_STALE_MS);
   }
 
+  function onTheirBattlefield(id: number): boolean {
+    return canvas.querySelector(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`) !== null;
+  }
+
+  /**
+   * A SPELL of theirs: its id is public now — the stand-in's point goes to the
+   * placed-cards layer (`placeSpell` at `backAt`, the CENTRE `.presence__back` is
+   * transformed onto) and the card is turned over there; the back is retired.
+   */
+  function handToSpell(id: number): void {
+    if (backAt !== null) {
+      placeSpell(id, backAt, 'them');
+      // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
+      // call — which, the moment `id` (the CARD's) matches a `view.stack` entry's `sourceCardId`,
+      // re-keys the registration onto that entry's OWN id at once. `commitSpell(id)` right after
+      // would silently no-op on a key that is already gone, so the real id — the one the element
+      // `placeSpell` just (re)drew at this exact point now carries — is read back off the DOM,
+      // the same way every other geometry fact here is.
+      const committed = findPlacedSpellAt(backAt) ?? id;
+      commitSpell(committed);
+    } else {
+      commitSpell(id);
+    }
+    stopWaiting();
+  }
+
   /** The card they were holding has appeared: its copy travels from the back's last place to its own. */
   function handoff(): void {
     const cards = host.theirCards?.() ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
+    if (waiting === null) {
+      // AE26: a spell arriving with no wait to hand it to is remembered for the point wait that
+      // may be a message behind it (Forge's frame beat presence here). A permanent's arrival is
+      // `onPlacement`'s, never this.
+      const spell = fresh.find((id) => !onTheirBattlefield(id));
+      if (spell !== undefined) unhanded = { id: spell, at: Date.now() };
+    }
     if (waiting !== null && back !== null) {
       // A PERMANENT (`forBattlefield`): `Board` consumes the reservation when it draws the card in
       // the gap, and the stand-in simply goes. That happens in React's commit of this very change,
@@ -869,25 +919,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       if (fresh.length === 0) return;
       const id = fresh[0]!;
       // A permanent's own arrival is handled above, by the reservation going null — never here.
-      const onBattlefield = canvas.querySelector(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`) !== null;
-      if (onBattlefield) return;
-      // A SPELL: its id is public now — hand the stand-in to the placed-cards layer, in the same
-      // spot this back has been waiting at (`backAt`, the CENTRE `.presence__back` is transformed
-      // onto).
-      if (backAt !== null) {
-        placeSpell(id, backAt, 'them');
-        // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
-        // call — which, the moment `id` (the CARD's) matches a `view.stack` entry's `sourceCardId`,
-        // re-keys the registration onto that entry's OWN id at once. `commitSpell(id)` right after
-        // would silently no-op on a key that is already gone, so the real id — the one the element
-        // `placeSpell` just (re)drew at this exact point now carries — is read back off the DOM,
-        // the same way every other geometry fact here is.
-        const committed = findPlacedSpellAt(backAt) ?? id;
-        commitSpell(committed);
-      } else {
-        commitSpell(id);
-      }
-      stopWaiting();
+      if (onTheirBattlefield(id)) return;
+      handToSpell(id);
       return;
     }
     // No wait pending: a permanent's arrival with no placement message is not this seat's to

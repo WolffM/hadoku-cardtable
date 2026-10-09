@@ -33,6 +33,11 @@
 }
 
 /* The viewer's own placed spell may be picked up (item 5, `gestures/install.ts`'s new drag). */
+/* AE26: a spell of theirs whose release point has not reached this screen yet is drawn but not shown (`PLACED_PENDING_MS`). */
+.placed[data-placed-pending] {
+  visibility: hidden;
+}
+
 .placed[data-mine] {
   cursor: grab;
 }

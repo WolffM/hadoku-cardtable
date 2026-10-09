@@ -709,6 +709,38 @@ describe('receiving', () => {
     handle.dispose();
   });
 
+  it('their spell reaching the stack BEFORE the release point arrives still hands the point over at once — never a back beside the face until a timer (AE26, the Mana Leak screenshot)', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'stack', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    // Forge's frame wins the race: the spell is on the stack before their release message lands here.
+    theirs = [48];
+    wake!();
+    expect(placedMod.placeSpell, 'nothing to hand it to yet').not.toHaveBeenCalled();
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: 'stack', x: 0.4, y: 0.6 },
+      held: false,
+      from: null,
+      handRows: 1,
+      arranging: null,
+      placing: { at: { zone: 'stack', x: 0.4, y: 0.6 } },
+    });
+    expect(placedMod.placeSpell, 'the point goes to the placed-cards layer the moment it arrives').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(48);
+    expect(canvas.querySelector('.presence__back'), 'no back stands beside the face').toBeNull();
+    handle.dispose();
+  });
+
   it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `commitSpell`', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
