@@ -3432,15 +3432,30 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
   });
 
-  it('`priority` — the other seat merely holds priority — draws NO pop-out: it is for an effect being resolved, never a wait', async () => {
+  it('`priority` over an EMPTY stack — the other seat merely holds priority — draws NO pop-out: it is for an effect being resolved, never a wait', async () => {
     // The operator, 2026-10-08: "'Waiting for Hadoku…' this shouldn't be showing at all times, that
     // was not the intent. i wanted this to show when player is resolving an effect not simply when
     // waiting on them."
     const { s, m, queryByTestId } = await liveBoard();
+    s.send(stackDelta(m));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
     await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
     await new Promise((r) => setTimeout(r, 50));
     expect(queryByTestId('live-waiting-pop')).toBeNull();
     expect(isWaitingForOpponent(m)).toBe(false);
+  });
+
+  it('`priority` over the stack is a wait: they are deciding whether to respond to its top item', async () => {
+    // The operator, 2026-10-09: "if i'm waiting on my opponent to respond to 'Resolve Cranial
+    // Plating?' then there should at least be some kind of waiting indicator for me".
+    const { s, m, getByTestId } = await liveBoard();
+    const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
+    const top = m.view!.stack[0]!;
+    expect(top, 'the fixture has a stack').toBeDefined();
+    await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
+    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
+    expect(waiting.textContent).toBe(`Waiting for ${theirName} to respond to ${top.sourceName}…`);
+    expect(isWaitingForOpponent(m)).toBe(true);
   });
 
   /** The shipped verb table (Settled), one row each, plus no-host-card and the unmapped fallback. */
@@ -4337,8 +4352,10 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(seatFlag(container, 'opp'), 'still nothing — the ping-pong alone never moves the drawn flag').toBeNull();
     });
 
-    it('lights for a plain priority hold too — the pop-out ignores `priority`, the flag must not (the 0670a98 regression AE16 found)', async () => {
+    it('lights for a plain priority hold too — the pop-out ignores `priority` over an empty stack, the flag must not (the 0670a98 regression AE16 found)', async () => {
       const { s, m, container } = await liveBoard();
+      s.send(stackDelta(m));
+      await waitFor(() => expect(m.view!.stack).toHaveLength(0));
       expect(seatFlag(container, 'opp')).toBeNull();
       await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
       await waitFor(() => expect(seatFlag(container, 'opp')).not.toBeNull());

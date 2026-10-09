@@ -448,12 +448,16 @@ export function decisionMessage(prompt: string, topStack: StackEntry | null): st
 function theirWaitingOn(match: LiveMatch): { method: string; hostCard: string | null } | null {
   if (match.seat === null || match.waitingOn === null) return null;
   const fact = match.waitingOn.get(match.seat === 0 ? 1 : 0) ?? null;
+  if (fact === null || fact.method !== 'priority') return fact;
   // `priority` is the server's word for a seat that merely holds priority (an ordinary "Priority: …"
-  // window with a live bar). That is not a decision, and the pop-out is for a decision — the operator,
-  // 2026-10-08: *"'Waiting for Hadoku…' this shouldn't be showing at all times, that was not the
-  // intent. i wanted this to show when player is resolving an effect not simply when waiting on
-  // them."* The fact stays on the wire for the board's priority flag; here it is nothing to wait for.
-  return fact === null || fact.method === 'priority' ? null : fact;
+  // window with a live bar). Over an EMPTY stack that is nothing to wait for — the operator,
+  // 2026-10-08: *"'Waiting for Hadoku…' this shouldn't be showing at all times … i wanted this to
+  // show when player is resolving an effect not simply when waiting on them."* Over a stack it is
+  // exactly that: they are deciding whether to respond to it — the operator, 2026-10-09: *"if i'm
+  // waiting on my opponent to respond to 'Resolve Cranial Plating?' then there should at least be
+  // some kind of waiting indicator for me"*. The top of the stack (`view.stack[0]`) is what they hold.
+  const top = match.view?.stack[0];
+  return top === undefined ? null : { method: 'priority', hostCard: top.sourceName ?? null };
 }
 
 /**
@@ -474,10 +478,11 @@ const WAITING_VERB: Readonly<Record<string, string>> = {
 };
 
 /**
- * "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example. Only ever called
- * for a decision: a held priority window never reaches here (`theirWaitingOn`).
+ * "Waiting for Hadoku to choose for Thirst for Knowledge…" — Settled's own example; a priority hold
+ * over the stack reads "Waiting for Hadoku to respond to Cranial Plating…" (`theirWaitingOn`).
  */
 function waitingSentence(name: string, fact: { method: string; hostCard: string | null }): string {
+  if (fact.method === 'priority') return fact.hostCard === null ? `Waiting for ${name} to respond…` : `Waiting for ${name} to respond to ${fact.hostCard}…`;
   const verb = WAITING_VERB[fact.method] ?? 'decide';
   return fact.hostCard === null ? `Waiting for ${name} to ${verb}…` : `Waiting for ${name} to ${verb} for ${fact.hostCard}…`;
 }
