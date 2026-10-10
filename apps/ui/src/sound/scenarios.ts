@@ -37,9 +37,10 @@ export interface Identities {
 
 export function beatEvent(beat: Beat, identities: Identities): SoundEvent {
   const seat = beat.seat ?? 'me';
-  const row = identities[seat];
+  const layer = beat.layer === 'basic' && !rowHasParadigm(identities[seat], 'basic') ? 'land' : beat.layer;
   // A land beat is the seat's basic land, which only a mono row has: any other row plays its `land`.
-  const layer = beat.layer === 'basic' && !rowHasParadigm(row, 'basic') ? 'land' : beat.layer;
+  // An artifact sounds the colourless row's whatever the seat's colours, as in a game (`play/live/sound-events.ts`).
+  const row = layer !== undefined && !rowHasParadigm(identities[seat], layer) ? 'C' : identities[seat];
   const colourCell = beat.colourCell !== undefined ? beat.colourCell : layer === undefined ? null : `${row}|${layer}`;
   return { role: beat.role, colourCell, seat };
 }
@@ -85,7 +86,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'A quiet turn',
     beats: sorted([
       { at: 0, role: 'g.turn-mine', label: 'Your turn' },
-      { at: 600, role: 'g.untap-all', label: 'Untap step' },
+      ...run(600, 4, 90, { role: 'g.untap', label: 'Untap' }),
       { at: 1000, role: 'g.phase', label: 'Draw step' },
       { at: 1200, role: 'g.draw', label: 'Draw' },
       { at: 1700, role: 'g.phase', label: 'Main phase' },
@@ -106,7 +107,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'Their turn',
     beats: sorted([
       { at: 0, role: 'g.turn-theirs', label: 'Their turn' },
-      { at: 600, role: 'g.untap-all', label: 'Untap step', seat: 'opp' },
+      ...run(600, 4, 90, { role: 'g.untap', label: 'Untap', seat: 'opp' }),
       { at: 1100, role: 'g.draw', label: 'Draw', seat: 'opp' },
       { at: 1900, role: 'g.land', label: 'Play a land', seat: 'opp', layer: 'basic' },
       ...creature(2600, 'opp', 'Creature'),

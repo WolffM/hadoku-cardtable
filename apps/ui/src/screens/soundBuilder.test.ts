@@ -52,15 +52,24 @@ type Saved = { cell: string; files: string[]; gain?: number };
 function stubClient(
   assignments: Omit<Assignments, 'gains'> & { gains?: Record<string, number> },
   takes = [TAKE_A, TAKE_B],
-): SoundsClient & { saves: Saved[]; retires: { file: string; reason: string }[] } {
+): SoundsClient & { saves: Saved[]; retires: { file: string; reason: string }[]; marked: { file: string; mark: string | null }[] } {
   const saves: Saved[] = [];
   const retires: { file: string; reason: string }[] = [];
+  const marked: { file: string; mark: string | null }[] = [];
   // The server's own state, so a retire and its restore read back as the server would answer.
   let live = [...takes];
   const out = new Set<string>();
   return {
     saves,
     retires,
+    marked,
+    async marks() {
+      return {};
+    },
+    async mark(file, mark) {
+      marked.push({ file, mark });
+      return true;
+    },
     async catalogue() {
       return live;
     },
@@ -138,6 +147,8 @@ describe('SoundBuilder', () => {
       save: vi.fn(async (_cell, files) => ({ files: [...files], gain: 1 })),
       retire: vi.fn(async () => []),
       restore: vi.fn(async () => true),
+      marks: vi.fn(async () => ({})),
+      mark: vi.fn(async () => true),
       takeUrl: (file) => file,
     };
 
@@ -236,9 +247,9 @@ describe('SoundBuilder', () => {
     fireEvent.click(cell);
 
     await vi.waitFor(() => expect(cell.getAttribute('data-unsaved')).toBe(''));
-    // The ONLY content is the pill the click placed and the random-play button —
+    // The ONLY content is the pill the click placed (its ▶ sits with its level, beside the cell) —
     // no extra banner node explaining the failure in words.
-    expect(cell.children.length).toBe(2);
+    expect(cell.children.length).toBe(1);
     expect(cell.querySelector('.sound-builder__hint')).toBeNull();
   });
 
@@ -281,6 +292,33 @@ describe('SoundBuilder', () => {
     expect(client.retires.at(-1)).toEqual({ file: TAKE_B.file, reason: 'broken' });
   });
 
+  it('middle-click marks a take keep, right-click delete, the same click again clears it; the queue never offers a delete', async () => {
+    const client = stubClient({ cells: {}, canEdit: true });
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+    const pill = (): HTMLElement => screen.getByRole('button', { name: /Water · 1: play and pick up/ });
+    fireEvent(pill(), new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
+    expect(pill().getAttribute('data-mark')).toBe('keep');
+    fireEvent.contextMenu(pill());
+    expect(pill().getAttribute('data-mark')).toBe('trash');
+    fireEvent.contextMenu(pill());
+    expect(pill().getAttribute('data-mark')).toBeNull();
+    fireEvent.contextMenu(pill());
+    await act(async () => undefined);
+    expect(client.marked).toEqual([
+      { file: TAKE_A.file, mark: 'keep' },
+      { file: TAKE_A.file, mark: 'trash' },
+      { file: TAKE_A.file, mark: null },
+      { file: TAKE_A.file, mark: 'trash' },
+    ]);
+    // Marking is not picking up, and not deleting.
+    expect(pill().getAttribute('aria-pressed')).toBe('false');
+    expect(client.retires).toEqual([]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Queue' }));
+    expect(screen.getAllByTestId('sound-queue-choice').map((c) => c.getAttribute('data-file'))).not.toContain(TAKE_A.file);
+  });
+
   it('Delete does nothing with no take in hand, or while typing in the search', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
     render(createElement(SoundBuilder, { client, player: stubPlayer() }));
@@ -306,18 +344,20 @@ describe('SoundBuilder', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Queue' }));
       return player;
     }
-    const title = (): string => screen.getByRole('heading', { level: 2 }).textContent ?? '';
+    // The order is random (2026-10-10): read the cell and its choices off the screen.
+    const current = (): string => screen.getByTestId('sound-queue').getAttribute('data-cell') ?? '';
+    const files = (): string[] => screen.getAllByTestId('sound-queue-choice').map((c) => c.getAttribute('data-file') ?? '');
 
-    it('serves the first empty cell; a number only plays, Space picks the take last heard, Enter places and moves on', async () => {
+    it('serves an empty cell; a number only plays, Space picks the take last heard, Enter places and moves on', async () => {
       const client = stubClient({ cells: {}, canEdit: true });
       const player = await openQueue(client);
-      expect(title()).toBe('Hover a card');
-      const choices = screen.getAllByTestId('sound-queue-choice');
-      expect(choices.map((c) => c.getAttribute('data-file'))).toEqual([TAKE_A.file, TAKE_B.file]);
+      const cell = current();
+      const offered = files();
+      expect([...offered].sort()).toEqual([TAKE_A.file, TAKE_B.file]);
       const picks = screen.getAllByTestId('sound-queue-pick');
 
       fireEvent.keyDown(document, { key: '2' });
-      expect(player.playFile).toHaveBeenCalledWith(TAKE_B.file);
+      expect(player.playFile).toHaveBeenCalledWith(offered[1]);
       expect(picks[1]!.getAttribute('aria-pressed'), 'hearing is not picking').toBe('false');
       fireEvent.keyDown(document, { key: ' ' });
       expect(picks[1]!.getAttribute('aria-pressed')).toBe('true');
@@ -327,26 +367,29 @@ describe('SoundBuilder', () => {
         fireEvent.keyDown(document, { key: 'Enter' });
       });
       // In the order offered, not the order picked.
-      expect(client.saves).toEqual([{ cell: 'ui.hover-card|play', files: [TAKE_A.file, TAKE_B.file] }]);
-      expect(title()).toBe('Hover a button');
+      expect(client.saves).toEqual([{ cell, files: offered }]);
+      expect(current()).not.toBe(cell);
     });
 
-    it('a card click only plays, its check picks and unpicks; none picked moves on, a skip sends the cell to the back', async () => {
+    it('a card click only plays, its check picks and unpicks; none picked moves on, a skip moves on too', async () => {
       const client = stubClient({ cells: {}, canEdit: true });
       const player = await openQueue(client);
+      const first = current();
       fireEvent.click(screen.getAllByTestId('sound-queue-choice')[0]!);
-      expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file);
+      expect(player.playFile).toHaveBeenCalledWith(files()[0]);
       expect((screen.getByTestId('sound-queue-place') as HTMLButtonElement).disabled, 'a click to listen picks nothing').toBe(true);
       fireEvent.click(screen.getAllByTestId('sound-queue-pick')[0]!);
       expect((screen.getByTestId('sound-queue-place') as HTMLButtonElement).textContent).toContain('1');
       fireEvent.click(screen.getAllByTestId('sound-queue-pick')[0]!);
       expect((screen.getByTestId('sound-queue-place') as HTMLButtonElement).disabled).toBe(true);
       fireEvent.keyDown(document, { key: 'Enter' });
-      expect(title()).toBe('Hover a button');
+      const second = current();
+      expect(second).not.toBe(first);
       fireEvent.keyDown(document, { key: 's' });
-      expect(title()).toBe('Select');
+      const third = current();
+      expect(third).not.toBe(second);
       fireEvent.click(screen.getByTestId('sound-queue-skip'));
-      expect(title()).toBe('Pick up a card');
+      expect(current()).not.toBe(third);
       expect(client.saves).toEqual([]);
     });
 
@@ -355,12 +398,13 @@ describe('SoundBuilder', () => {
       await openQueue(client);
       fireEvent.keyDown(document, { key: 'Delete' });
       expect(client.retires).toEqual([]);
+      const heard = files()[0]!;
       fireEvent.keyDown(document, { key: '1' });
       await act(async () => {
         fireEvent.keyDown(document, { key: 'Delete', shiftKey: true });
       });
-      expect(client.retires).toEqual([{ file: TAKE_A.file, reason: 'broken' }]);
-      expect(screen.getAllByTestId('sound-queue-choice').map((c) => c.getAttribute('data-file'))).not.toContain(TAKE_A.file);
+      expect(client.retires).toEqual([{ file: heard, reason: 'broken' }]);
+      expect(files()).not.toContain(heard);
     });
   });
 
@@ -374,7 +418,10 @@ describe('SoundBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: /Water · 1: play and pick up/ }));
     player.playFile.mockClear();
     const cell = container.querySelector('[data-cell="W|spell"]')!;
-    fireEvent.click(within(cell as HTMLElement).getByRole('button', { name: /Play one of 1 at random/ }));
+    // The ▶ shares a line with the level, under the cell's takes (2026-10-10).
+    const play = within(cell.closest('td')!).getByRole('button', { name: /Play one of 1 at random/ });
+    expect(play.closest('.sound-builder__ctl')!.querySelector('input[type="range"]')).not.toBeNull();
+    fireEvent.click(play);
     expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file, 1);
     expect(client.saves).toEqual([]);
   });

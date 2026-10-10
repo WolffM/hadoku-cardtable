@@ -7,10 +7,12 @@
  *
  * ## Order
  *
- * Empty cells only. Roles first, in the registry's own group order (interface,
- * casting, battlefield, cards moving, combat, turn), then the colour matrix by
- * family: mono, guilds, shards, wedges, four-plus, colourless. Music is left
- * out: its takes are found tracks, not candidates to choose between.
+ * Empty cells only, shuffled (the operator, 2026-10-10: *"next time can you make
+ * it so queue chooses something random rather than go in order?"*) by a seed
+ * the screen draws once, so the order holds still for the session and a skip
+ * still goes to the back. `emptyCells` keeps the registry's order — roles in
+ * group order, then the colour matrix mono first — for anything that wants it.
+ * Music is left out: its takes are found tracks, not candidates.
  *
  * ## Candidates
  *
@@ -76,14 +78,34 @@ export function emptyCells(cells: Readonly<Record<string, readonly string[]>>): 
  * The queue as it is served: the empty cells, with the ones skipped this
  * session moved to the back in the order they were skipped.
  */
-export function queueOrder(cells: Readonly<Record<string, readonly string[]>>, skipped: readonly string[]): QueueItem[] {
-  const all = emptyCells(cells);
+export function queueOrder(cells: Readonly<Record<string, readonly string[]>>, skipped: readonly string[], seed?: number): QueueItem[] {
+  const all = seed === undefined ? emptyCells(cells) : shuffled(emptyCells(cells), seed);
   const later = new Set(skipped);
   const back = skipped.map((c) => all.find((i) => i.cell === c)).filter((i): i is QueueItem => i !== undefined);
   return [...all.filter((i) => !later.has(i.cell)), ...back];
 }
 
+/** A seeded shuffle (mulberry32 + Fisher-Yates): the same seed, the same order. */
+function shuffled<T>(items: readonly T[], seed: number): T[] {
+  let a = seed >>> 0;
+  const rand = (): number => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
 const folderOf = (t: SoundTake): string => t.file.slice(0, t.file.indexOf('/'));
+/** A take cut or turned from another (`-first`, `-half`, `take-rev-`): the operator asked for it, so it comes first. */
+const isEdited = (t: SoundTake): boolean => /-(?:first|half)\.ogg$|\/take-rev-/.test(t.file);
 /** `wu.spell`, `g.creature`, `bgu.r2`: a colour code and what it was generated as. */
 const COLOUR_FOLDER = /^([wubrgc]+)\.(spell|creature|land|artifact|artifact-creature|r2)$/;
 
@@ -94,6 +116,8 @@ function rankFor(cell: string, folder: string): number | null {
     if (folder === row) return 0;
     // The older moment folders: `m-draw` was made for what is now `g.draw`.
     if (row.startsWith('g.') && folder === `m-${row.slice(2)}`) return 0;
+    // The retired untap step's takes are untaps (2026-10-10).
+    if (row === 'g.untap' && folder === 'g.untap-all') return 1;
     return null;
   }
   const code = row.toLowerCase();
@@ -120,7 +144,13 @@ export function candidatesFor(cell: string, takes: readonly SoundTake[], placed:
   const ranked = takes
     .map((t) => ({ t, rank: rankFor(cell, folderOf(t)) }))
     .filter((x): x is { t: SoundTake; rank: number } => x.rank !== null)
-    .sort((a, b) => a.rank - b.rank || Number(placed.has(a.t.file)) - Number(placed.has(b.t.file)) || a.t.file.localeCompare(b.t.file))
+    .sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        Number(isEdited(b.t)) - Number(isEdited(a.t)) ||
+        Number(placed.has(a.t.file)) - Number(placed.has(b.t.file)) ||
+        a.t.file.localeCompare(b.t.file),
+    )
     .map((x) => x.t);
   const out = ranked.slice(0, QUEUE_CHOICES);
   if (out.length < MIN_CHOICES) {

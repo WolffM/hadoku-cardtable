@@ -666,3 +666,32 @@ a.sound-builder__btn {
   margin: 24px 0;
   font-size: 16px;
 }
+
+/* Keep and delete marks (middle-click, right-click): a colour only, for now. Keep is a solid fill, so it
+   never reads as the thin "placed somewhere" outline, which is the same success colour. */
+.sound-builder__pill[data-mark='keep'],
+.sound-queue__choice[data-mark='keep'] {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-on-success);
+}
+
+.sound-builder__pill[data-mark='trash'],
+.sound-queue__choice[data-mark='trash'] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  text-decoration: line-through;
+}
+
+/* A filled cell's ▶ and level share one line under its takes. */
+.sound-builder__ctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.sound-builder__ctl .sound-gain {
+  flex: 1 1 auto;
+  min-width: 0;
+}

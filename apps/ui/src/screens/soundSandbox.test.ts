@@ -43,6 +43,8 @@ function stubClient(canEdit: boolean, cells: Record<string, string[]> = {}) {
     },
     retire: async () => [],
     restore: async () => true,
+    marks: async () => ({}),
+    mark: async () => true,
     takeUrl: (f) => f,
   };
   return { client, saves };

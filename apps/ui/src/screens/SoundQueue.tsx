@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import type { RetireReason, SoundTake } from '@hadoku/shared';
+import type { RetireReason, SoundMark, SoundTake } from '@hadoku/shared';
 
 import { candidatesFor, queueOrder } from '../sound/queue.ts';
 
@@ -33,13 +33,19 @@ export interface SoundQueueProps {
   cells: Readonly<Record<string, readonly string[]>>;
   placed: ReadonlySet<string>;
   play: (file: string) => void;
+  /** The picker's keep / delete marks: a take marked delete is never offered. */
+  marks: Readonly<Record<string, SoundMark>>;
+  /** Middle-click keep, right-click delete, as in the bin. */
+  markHandlers: (file: string) => Record<string, unknown>;
   place: (cell: string, files: string[]) => void;
   retire: (file: string, reason: RetireReason) => void;
 }
 
-export function SoundQueue({ takes, cells, placed, play, place, retire }: SoundQueueProps) {
+export function SoundQueue({ takes, cells, placed, play, marks, markHandlers, place, retire }: SoundQueueProps) {
   const [skipped, setSkipped] = useState<string[]>([]);
-  const queue = useMemo(() => queueOrder(cells, skipped), [cells, skipped]);
+  // Drawn once per visit to the tab: random, but still for the session (see `queue.ts`).
+  const [seed] = useState(() => Math.floor(Math.random() * 2 ** 32));
+  const queue = useMemo(() => queueOrder(cells, skipped, seed), [cells, skipped, seed]);
   const item = queue[0];
   return item === undefined ? (
     <p className="sound-queue__done" data-testid="sound-queue-done">
@@ -52,7 +58,12 @@ export function SoundQueue({ takes, cells, placed, play, place, retire }: SoundQ
       title={item.title}
       sub={item.sub}
       left={queue.length}
-      choices={candidatesFor(item.cell, takes, placed)}
+      choices={candidatesFor(
+        item.cell,
+        takes.filter((t) => marks[t.file] !== 'trash'),
+        placed,
+      )}
+      markHandlers={markHandlers}
       play={play}
       onPlace={(files) => place(item.cell, files)}
       onSkip={() => setSkipped((s) => [...s.filter((c) => c !== item.cell), item.cell])}
@@ -71,10 +82,11 @@ interface QueueItemViewProps {
   onPlace: (files: string[]) => void;
   onSkip: () => void;
   retire: (file: string, reason: RetireReason) => void;
+  markHandlers: (file: string) => Record<string, unknown>;
 }
 
 /** One cell's turn. Keyed by the cell, so picks and the last-heard take start fresh for each. */
-function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip, retire }: QueueItemViewProps) {
+function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip, retire, markHandlers }: QueueItemViewProps) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [heard, setHeard] = useState<string | null>(null);
 
@@ -145,6 +157,7 @@ function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip,
               data-testid="sound-queue-choice"
               data-file={t.file}
               data-heard={heard === t.file ? '' : undefined}
+              {...markHandlers(t.file)}
               aria-label={`Play ${t.label}`}
               title={t.prompt}
               onClick={() => hear(t.file)}

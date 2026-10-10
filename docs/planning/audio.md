@@ -120,7 +120,7 @@ object, but the id may still be stable.
 
 | Role | Trigger |
 | --- | --- |
-| `g.tap` / `g.untap` | `tapped` flips; an untap-step burst collapses to one `g.untap-all` |
+| `g.tap` / `g.untap` | `tapped` flips; the untap step plays `g.untap` once per card, 90 ms apart, at most 8 (2026-10-10; `g.untap-all` retired) |
 | `g.counter-on` / `g.counter-off` | `counters` count changes |
 | `g.attach` | `attachedToId` changes |
 | `g.transform` | `changedFrom` appears or changes |

@@ -65,6 +65,9 @@ export {
   AssignmentsSchema,
   PutAssignmentBodySchema,
   RETIRE_REASONS,
+  SOUND_MARKS,
+  MarksSchema,
+  PutMarkBodySchema,
   RetireBodySchema,
   RestoreBodySchema,
   GainSchema,
@@ -87,6 +90,7 @@ export {
   type PutAssignmentBody,
   type RetireBody,
   type RetireReason,
+  type SoundMark,
 } from './sounds.ts';
 
 export {

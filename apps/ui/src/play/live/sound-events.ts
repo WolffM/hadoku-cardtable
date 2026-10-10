@@ -32,6 +32,10 @@ import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
 
+/** Between one untap and the next in the untap step: past the mixer's 80 ms collapse window. */
+export const UNTAP_REPEAT_GAP_MS = 90;
+/** The most untaps one view sounds. */
+export const UNTAP_REPEAT_MAX = 8;
 /** Between the creature's voice and the thud of it landing. */
 export const LAND_THUD_DELAY_MS = 380;
 /** A view that changes this much at once is a snapshot (a join, a resync), not a moment. */
@@ -113,6 +117,8 @@ export function colourCell(entry: BoardCard): string | null {
     const basic = /\bBasic\b/.test(entry.card.typeLine) && colours.length === 1;
     return `${row}|${basic ? 'basic' : 'land'}`;
   }
+  // An artifact sounds the same whatever its colours: only the colourless row has the column.
+  if (paradigm === 'artifact' || paradigm === 'artifact-creature') return `C|${paradigm}`;
   return `${colourRow(entry.card.colors)}|${paradigm}`;
 }
 
@@ -276,8 +282,9 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
       if ((c.attachedToId ?? null) !== null && c.attachedToId !== was.attachedToId) push('g.attach', seat);
       if ((c.changedFrom?.name ?? null) !== (was.changedFrom?.name ?? null)) push('g.transform', seat);
     }
-    if (untappedHere >= 2) push('g.untap-all', seat);
-    else if (untappedHere === 1) push('g.untap', seat);
+    // The untap step is the untap once per card (the operator, 2026-10-10), spaced past the mixer's
+    // collapse window so each is heard, and capped so a full board is a flourish, not a drumroll.
+    for (let i = 0; i < Math.min(untappedHere, UNTAP_REPEAT_MAX); i++) push('g.untap', seat, i === 0 ? {} : { delayMs: i * UNTAP_REPEAT_GAP_MS });
 
     // ── the player ───────────────────────────────────────────────────────
     const drew = Math.min(p.handCount - prevP.handCount, prevP.libraryCount - p.libraryCount);

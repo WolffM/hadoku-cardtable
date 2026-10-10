@@ -58,6 +58,7 @@ import {
   SOUND_ROLES,
   type CellId,
   type RetireReason,
+  type SoundMark,
   type SoundTake,
 } from '@hadoku/shared';
 
@@ -125,6 +126,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
   const [unplacedOnly, setUnplacedOnly] = useState(false);
   const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(new Set());
   const [holding, setHolding] = useState<string | null>(null);
+  const [marks, setMarks] = useState<Record<string, SoundMark>>({});
   /** The last take retired from here, while its Undo is offered. */
   const [retired, setRetired] = useState<{ take: SoundTake; reason: RetireReason } | null>(null);
   const lastPickRef = useRef<Map<string, string>>(new Map());
@@ -137,6 +139,58 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
     setCanEdit(a.canEdit);
     setLoaded(true);
   }, [client]);
+
+  useEffect(() => {
+    let alive = true;
+    void client.marks().then((m) => {
+      if (alive) setMarks(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [client]);
+
+  /*
+   * Middle-click marks a take keep, right-click marks it delete, the same click
+   * again clears it (2026-10-10). A label only — nothing leaves the catalogue;
+   * the delete marks are harvested by hand later. Saved as it is set; a refused
+   * save puts the mark back as it was.
+   */
+  function toggleMark(file: string, mark: SoundMark): void {
+    const was = marks[file];
+    const next = was === mark ? null : mark;
+    setMarks((m) => {
+      const copy = { ...m };
+      if (next === null) delete copy[file];
+      else copy[file] = next;
+      return copy;
+    });
+    void client.mark(file, next).then((ok) => {
+      if (ok) return;
+      setMarks((m) => {
+        const copy = { ...m };
+        if (was === undefined) delete copy[file];
+        else copy[file] = was;
+        return copy;
+      });
+    });
+  }
+  const markHandlers = (file: string) => ({
+    'data-mark': marks[file],
+    // Not the browser's middle-click autoscroll, nor its context menu.
+    onMouseDown: (e: React.MouseEvent) => {
+      if (e.button === 1) e.preventDefault();
+    },
+    onAuxClick: (e: React.MouseEvent) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      toggleMark(file, 'keep');
+    },
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault();
+      toggleMark(file, 'trash');
+    },
+  });
 
   useEffect(() => {
     let alive = true;
@@ -369,6 +423,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                         type="button"
                         className="sound-builder__pill"
                         data-placed={placed.has(t.file) ? '' : undefined}
+                        {...markHandlers(t.file)}
                         aria-pressed={holding === t.file}
                         aria-label={`${t.label}: play and pick up`}
                         title={t.prompt}
@@ -398,6 +453,8 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
               cells={cells}
               placed={placed}
               play={(f) => player.playFile(f)}
+              marks={marks}
+              markHandlers={markHandlers}
               place={(cell, files) => void persist(cell, files)}
               retire={(f, reason) => void retire(f, reason)}
             />
@@ -484,14 +541,16 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                                   onAddTo={addTo}
                                   onRemoveFrom={removeFrom}
                                   onDrop={onDropOnCell}
-                                  onPlayRandom={playRandom}
                                   onPlayPill={(f) => player.playFile(f, gainOf(cellId))}
                                 />
                                 {files.length > 0 && (
-                                  <GainSlider
+                                  <CellControls
+                                    cellId={cellId}
+                                    files={files}
                                     label={role.name}
-                                    value={gainOf(cellId)}
-                                    onCommit={(v) => commitGain(cellId, v)}
+                                    gain={gainOf(cellId)}
+                                    onPlayRandom={playRandom}
+                                    onGain={commitGain}
                                   />
                                 )}
                               </td>
@@ -577,17 +636,59 @@ function ColourRowEl({
                 onAddTo={onAddTo}
                 onRemoveFrom={onRemoveFrom}
                 onDrop={onDrop}
-                onPlayRandom={onPlayRandom}
                 onPlayPill={(f) => onPlayPill(f, cellId)}
               />
               {files.length > 0 && (
-                <GainSlider label={`${row.name} ${p.name}`} value={gains[cellId] ?? 1} onCommit={(v) => onGain(cellId, v)} />
+                <CellControls
+                  cellId={cellId}
+                  files={files}
+                  label={`${row.name} ${p.name}`}
+                  gain={gains[cellId] ?? 1}
+                  onPlayRandom={onPlayRandom}
+                  onGain={onGain}
+                />
               )}
             </td>
           );
         })}
       </tr>
     </>
+  );
+}
+
+/**
+ * A filled cell's ▶ and its level, on one line under its takes (the operator,
+ * 2026-10-10: "the play button still gets its own row, can we put that on the
+ * same line as the audio slider?").
+ */
+function CellControls({
+  cellId,
+  files,
+  label,
+  gain,
+  onPlayRandom,
+  onGain,
+}: {
+  cellId: string;
+  files: string[];
+  label: string;
+  gain: number;
+  onPlayRandom: (cell: string, files: string[]) => void;
+  onGain: (cell: string, gain: number) => void;
+}) {
+  return (
+    <div className="sound-builder__ctl">
+      <button
+        type="button"
+        className="sound-builder__rand"
+        aria-label={`Play one of ${files.length} at random`}
+        title={files.length > 1 ? `${files.length} variations, one at random` : '1 take'}
+        onClick={() => onPlayRandom(cellId, files)}
+      >
+        ▶
+      </button>
+      <GainSlider label={label} value={gain} onCommit={(v) => onGain(cellId, v)} />
+    </div>
   );
 }
 
@@ -601,7 +702,6 @@ interface CellProps {
   onAddTo: (cell: string, file: string) => void;
   onRemoveFrom: (cell: string, file: string) => void;
   onDrop: (cell: string, e: React.DragEvent<HTMLDivElement>) => void;
-  onPlayRandom: (cell: string, files: string[]) => void;
   onPlayPill: (file: string) => void;
 }
 
@@ -615,7 +715,6 @@ function Cell({
   onAddTo,
   onRemoveFrom,
   onDrop,
-  onPlayRandom,
   onPlayPill,
 }: CellProps) {
   return (
@@ -631,19 +730,6 @@ function Cell({
     >
       {files.length > 0 ? (
         <>
-          <button
-            type="button"
-            className="sound-builder__rand"
-            aria-label={`Play one of ${files.length} at random`}
-            title={files.length > 1 ? `${files.length} variations, one at random` : '1 take'}
-            onClick={(e) => {
-              // Always a play, even with a take in hand: placing is a click on the cell itself.
-              e.stopPropagation();
-              onPlayRandom(cellId, files);
-            }}
-          >
-            ▶
-          </button>
           {files.map((f) => {
             const take = byFile.get(f);
             if (take === undefined) return null;

@@ -92,6 +92,10 @@ describe('SCENARIOS', () => {
     expect(beatEvent(land, { me: 'C', opp: 'UB' }).colourCell).toBe('C|land');
   });
 
+  it('an artifact beat is the colourless cell whatever the seat’s colours', () => {
+    expect(beatEvent({ at: 0, role: 'g.enter', label: 'Artifact', layer: 'artifact' }, { me: 'RG', opp: 'UB' }).colourCell).toBe('C|artifact');
+  });
+
   it('beats are in time order and ids are unique', () => {
     expect(new Set(SCENARIOS.map((s) => s.id)).size).toBe(SCENARIOS.length);
     for (const s of SCENARIOS) {

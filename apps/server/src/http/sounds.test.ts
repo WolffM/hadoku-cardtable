@@ -491,3 +491,30 @@ describe('POST /api/sounds/retire and /restore', () => {
 		expect(((await call(h, 'GET', '/api/sounds/catalogue')).json() as { takes: { file: string }[] }).takes).toHaveLength(2);
 	});
 });
+
+/* ── keep / delete marks ────────────────────────────────────────────── */
+
+describe('GET and PUT /api/sounds/marks', () => {
+	it('sets, changes and clears a take’s mark, and anyone may read them', async () => {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE, TAKE2]);
+		const h = await openApp(dir);
+		expect((await call(h, 'GET', '/api/sounds/marks')).json()).toEqual({ marks: {} });
+		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'admin', body: { file: TAKE.file, mark: 'trash' } })).status).toBe(200);
+		await call(h, 'PUT', '/api/sounds/marks', { tier: 'admin', body: { file: TAKE2.file, mark: 'keep' } });
+		expect((await call(h, 'GET', '/api/sounds/marks', { tier: 'friend' })).json()).toEqual({ marks: { [TAKE.file]: 'trash', [TAKE2.file]: 'keep' } });
+		await call(h, 'PUT', '/api/sounds/marks', { tier: 'admin', body: { file: TAKE.file, mark: null } });
+		expect((await call(h, 'GET', '/api/sounds/marks')).json()).toEqual({ marks: { [TAKE2.file]: 'keep' } });
+		// A label only: the take is still in the catalogue.
+		expect(((await call(h, 'GET', '/api/sounds/catalogue')).json() as { takes: unknown[] }).takes).toHaveLength(2);
+	});
+
+	it('is admin-only to write, refuses an unknown mark, and 404s a take that is not in the catalogue', async () => {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE]);
+		const h = await openApp(dir);
+		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'friend', body: { file: TAKE.file, mark: 'keep' } })).status).toBe(403);
+		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'admin', body: { file: TAKE.file, mark: 'maybe' } })).status).toBe(400);
+		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'admin', body: { file: 'm-win/take-ghost.ogg', mark: 'keep' } })).status).toBe(404);
+	});
+});

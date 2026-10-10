@@ -22,6 +22,16 @@ describe('the queue’s order', () => {
     expect(q.some((i) => i.cell === 'WU|basic')).toBe(false);
   });
 
+  it('with a seed the order is random but repeatable, and holds every empty cell once', () => {
+    const plain = queueOrder({}, []).map((i) => i.cell);
+    const a = queueOrder({}, [], 42).map((i) => i.cell);
+    expect(a).not.toEqual(plain);
+    expect([...a].sort()).toEqual([...plain].sort());
+    expect(queueOrder({}, [], 42).map((i) => i.cell)).toEqual(a);
+    expect(queueOrder({}, [], 7).map((i) => i.cell)).not.toEqual(a);
+    expect(queueOrder({}, [a[0]!], 42).at(-1)!.cell).toBe(a[0]);
+  });
+
   it('a skipped cell goes to the back, in the order it was skipped', () => {
     const q = queueOrder({}, ['ui.select|play', 'ui.hover-card|play']);
     expect(q.slice(-2).map((i) => i.cell)).toEqual(['ui.select|play', 'ui.hover-card|play']);
@@ -46,6 +56,15 @@ describe('the queue’s candidates', () => {
 
   it('offers a role its own takes, and the older moment folder made for it', () => {
     expect(candidatesFor('g.draw|play', takes, new Set()).map((t) => t.file)).toEqual(['g.draw/take-1.ogg', 'm-draw/take-1.ogg', expect.stringMatching(/^lib-/)]);
+  });
+
+  it('offers a cut or reversed take before the take it was made from', () => {
+    const c = candidatesFor('g.counter-on|play', [take('g.counter-on/take-v1-5000.ogg'), take('g.counter-on/take-v1-5000-half.ogg')], new Set());
+    expect(c[0]!.file).toBe('g.counter-on/take-v1-5000-half.ogg');
+    expect(candidatesFor('g.untap|play', [take('g.untap-all/take-v1-5000.ogg'), take('g.untap/take-rev-v3-5002.ogg')], new Set()).map((t) => t.file).slice(0, 2)).toEqual([
+      'g.untap/take-rev-v3-5002.ogg',
+      'g.untap-all/take-v1-5000.ogg',
+    ]);
   });
 
   it('puts a takes already placed elsewhere after the ones placed nowhere', () => {

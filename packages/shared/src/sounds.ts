@@ -178,7 +178,6 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.token', 'Token appears', 'A token is created.'),
 			game('g.tap', 'Tap', 'A permanent turns sideways.'),
 			game('g.untap', 'Untap', 'A single permanent untaps.'),
-			game('g.untap-all', 'Untap step', 'Everything untaps at the start of a turn.'),
 			game('g.counter-on', 'Counter added', 'A +1/+1, loyalty or other counter is put on.'),
 			game('g.counter-off', 'Counter removed', 'A counter comes off.'),
 			game('g.attach', 'Attach', 'An aura or equipment attaches.'),
@@ -306,9 +305,21 @@ const PARADIGM_ID_SET: ReadonlySet<string> = new Set(PARADIGM_IDS);
 export const MONO_COLOUR_IDS: readonly ColourId[] = ['W', 'U', 'B', 'R', 'G'];
 const MONO_SET: ReadonlySet<string> = new Set(MONO_COLOUR_IDS);
 
-/** Whether a colour row carries this paradigm column: every row does, but `basic` is mono only. */
+/** The columns only the colourless row carries: an artifact sounds the same whatever its colours (2026-10-10). */
+const COLOURLESS_ONLY: ReadonlySet<string> = new Set(['artifact', 'artifact-creature']);
+
+/**
+ * Whether a colour row carries this paradigm column: `basic` is a mono row's
+ * only, `artifact` and `artifact-creature` the colourless row's only (the
+ * operator: *"artifact & artifact creature do not need seperate sounds in color
+ * identities. just the colorless versions are fine"*), every other column is
+ * every row's.
+ */
 export function rowHasParadigm(row: string, paradigm: string): boolean {
-	return PARADIGM_ID_SET.has(paradigm) && (paradigm !== 'basic' || MONO_SET.has(row));
+	if (!PARADIGM_ID_SET.has(paradigm)) return false;
+	if (paradigm === 'basic') return MONO_SET.has(row);
+	if (COLOURLESS_ONLY.has(paradigm)) return row === 'C';
+	return true;
 }
 
 /**
@@ -423,6 +434,21 @@ export const RetireBodySchema = z.object({
 	reason: z.enum(RETIRE_REASONS),
 });
 export type RetireBody = z.infer<typeof RetireBodySchema>;
+
+/**
+ * A mark on a take, set from the picker (the operator, 2026-10-10: *"i need a
+ * way to mark sounds as keep but not assign them … middle mouse for keep and
+ * right click for delete … we'll do the actual delete harvesting manually
+ * later"*). Only a label: nothing is removed. Stored in `marks.json`.
+ */
+export const SOUND_MARKS = ['keep', 'trash'] as const;
+export type SoundMark = (typeof SOUND_MARKS)[number];
+export const MarksSchema = z.object({ marks: z.record(z.string().regex(TAKE_FILE_RE), z.enum(SOUND_MARKS)) });
+/** `PUT /api/sounds/marks`: `mark: null` clears it. */
+export const PutMarkBodySchema = z.object({
+	file: z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg'),
+	mark: z.enum(SOUND_MARKS).nullable(),
+});
 
 /** `POST /api/sounds/restore`: undo the last retirement of a file. */
 export const RestoreBodySchema = z.object({

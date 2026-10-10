@@ -53,7 +53,9 @@ import { join, resolve as resolvePath, sep } from 'node:path';
 import {
 	CatalogueSchema,
 	GainSchema,
+	MarksSchema,
 	PutAssignmentBodySchema,
+	PutMarkBodySchema,
 	RestoreBodySchema,
 	RetireBodySchema,
 	SoundTakeSchema,
@@ -414,6 +416,51 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		if (outcome === null) return res.status(404).json({ error: 'nothing retired to restore' });
 		log({ event: 'sounds-take-restored', file, cells: outcome.cells.length });
 		res.json({ file, take: outcome.take, cells: outcome.cells });
+	});
+
+	/* The keep / delete marks: labels only, read by the picker and harvested by hand. */
+	const readMarks = async (): Promise<Record<string, 'keep' | 'trash'>> => {
+		let raw: string;
+		try {
+			raw = await readFile(join(dir, 'marks.json'), 'utf8');
+		} catch (err) {
+			if (isEnoent(err)) return {};
+			throw err;
+		}
+		let json: unknown;
+		try {
+			json = JSON.parse(raw);
+		} catch {
+			log({ event: 'sounds-file-corrupt', file: 'marks.json', reason: 'invalid JSON' });
+			return {};
+		}
+		const parsed = MarksSchema.safeParse(json);
+		if (!parsed.success) {
+			log({ event: 'sounds-file-corrupt', file: 'marks.json', reason: 'schema' });
+			return {};
+		}
+		return parsed.data.marks;
+	};
+
+	sounds.get('/marks', async (_req: Request, res: Response) => {
+		res.json({ marks: await readMarks() });
+	});
+
+	sounds.put('/marks', async (req: Request, res: Response) => {
+		if (!isAdmin(req)) return res.status(403).json({ error: 'admin tier required' });
+		const parsed = PutMarkBodySchema.safeParse(req.body);
+		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+		const { file, mark } = parsed.data;
+		const catalogue = await readCatalogue(dir, log);
+		if (!catalogue.takes.some((t) => t.file === file)) return res.status(404).json({ error: 'no such take' });
+		await withWriteLock(async () => {
+			const marks = await readMarks();
+			if (mark === null) delete marks[file];
+			else marks[file] = mark;
+			await atomicWriteJson(join(dir, 'marks.json'), { marks });
+		});
+		log({ event: 'sounds-take-marked', file, mark });
+		res.json({ file, mark });
 	});
 
 	api.use('/sounds', sounds);

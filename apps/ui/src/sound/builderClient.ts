@@ -27,7 +27,9 @@ import {
   AssignmentsSchema,
   CatalogueSchema,
   type CellId,
+  MarksSchema,
   type RetireReason,
+  type SoundMark,
   type SoundTake,
 } from '@hadoku/shared';
 
@@ -89,6 +91,10 @@ export interface SoundsClient {
   retire(file: string, reason: RetireReason): Promise<string[] | null>;
   /** `POST /api/sounds/restore`: undo the last retirement. Whether it worked. */
   restore(file: string): Promise<boolean>;
+  /** `GET /api/sounds/marks`: every take's keep / delete mark; nothing on a failure. */
+  marks(): Promise<Record<string, SoundMark>>;
+  /** `PUT /api/sounds/marks`: set or (`null`) clear one take's mark. Whether it was stored. */
+  mark(file: string, mark: SoundMark | null): Promise<boolean>;
   /** The same-origin URL a take's audio streams from. */
   takeUrl(file: string): string;
 }
@@ -169,6 +175,31 @@ export function soundsClient(
           credentials: 'same-origin',
           headers: JSON_HEADERS,
           body: JSON.stringify({ file }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    },
+
+    async marks() {
+      try {
+        const res = await fetchImpl(url('/marks'), { credentials: 'same-origin' });
+        if (!res.ok) return {};
+        const parsed = MarksSchema.safeParse(await bodyOf(res));
+        return parsed.success ? parsed.data.marks : {};
+      } catch {
+        return {};
+      }
+    },
+
+    async mark(file, mark) {
+      try {
+        const res = await fetchImpl(url('/marks'), {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ file, mark }),
         });
         return res.ok;
       } catch {

@@ -5,7 +5,7 @@ import type { DraftCard } from '@hadoku/shared';
 import { toBoardView, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
-import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, wasShuffled } from './sound-events.ts';
+import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
 
 function card(typeLine: string, colors: DraftCard['colors'] = [], oracleText = ''): DraftCard {
   return {
@@ -88,6 +88,9 @@ describe('colours and types', () => {
     expect(colourCell(entry(1, GOLEM))).toBe('C|artifact-creature');
     expect(colourCell(entry(1, FOREST))).toBe('G|basic');
     expect(colourCell(entry(1, card('Enchantment')))).toBeNull();
+    // An artifact sounds the colourless cell whatever its colours (2026-10-10).
+    expect(colourCell(entry(1, card('Artifact Creature — Construct', ['U', 'R'])))).toBe('C|artifact-creature');
+    expect(colourCell(entry(1, card('Artifact — Equipment', ['W'])))).toBe('C|artifact');
   });
 
   it('splits a mono colour’s basic land from its other lands (2026-10-10)', () => {
@@ -158,13 +161,20 @@ describe('deriveSoundEvents', () => {
     ]);
   });
 
-  it('several permanents untapping at once is the untap step, one tap is a tap', () => {
+  it('the untap step is the untap once per card, spaced past the collapse window and capped; one tap is a tap', () => {
     const tapped = [entry(1, FOREST, { tapped: true }), entry(2, FOREST, { tapped: true })];
     const before = view(1, { battlefield: tapped });
     const after = view(2, { battlefield: [entry(1, FOREST), entry(2, FOREST, { tapped: true })] });
     expect(deriveSoundEvents(before, after).map((e) => e.role)).toEqual(['g.untap']);
     const all = view(3, { battlefield: [entry(1, FOREST), entry(2, FOREST)] });
-    expect(deriveSoundEvents(before, all).map((e) => e.role)).toEqual(['g.untap-all']);
+    expect(deriveSoundEvents(before, all)).toEqual([
+      { role: 'g.untap', seat: 'me' },
+      { role: 'g.untap', seat: 'me', delayMs: UNTAP_REPEAT_GAP_MS },
+    ]);
+    const board = Array.from({ length: 12 }, (_, i) => entry(i + 1, FOREST, { tapped: true }));
+    const untapped = deriveSoundEvents(view(5, { battlefield: board }), view(6, { battlefield: board.map((c) => ({ ...c, tapped: false })) }));
+    expect(untapped).toHaveLength(UNTAP_REPEAT_MAX);
+    expect(UNTAP_REPEAT_GAP_MS).toBeGreaterThan(80);
     const tap = view(4, { battlefield: [entry(1, FOREST, { tapped: true }), entry(2, FOREST, { tapped: true }), entry(3, FOREST, { tapped: true })] });
     expect(deriveSoundEvents(view(3, { battlefield: [...all.players[0]!.battlefield, entry(3, FOREST)] }), tap).map((e) => e.role)).toEqual([
       'g.tap',
@@ -283,7 +293,7 @@ describe('against a real captured game', () => {
       }
       prev = next;
     }
-    for (const role of ['g.turn-mine', 'g.turn-theirs', 'g.draw', 'g.land', 'g.cast.creature', 'g.resolve', 'g.creature', 'g.enter', 'g.tap', 'g.untap-all', 'g.attack', 'g.block', 'g.dies', 'g.damage-player']) {
+    for (const role of ['g.turn-mine', 'g.turn-theirs', 'g.draw', 'g.land', 'g.cast.creature', 'g.resolve', 'g.creature', 'g.enter', 'g.tap', 'g.untap', 'g.attack', 'g.block', 'g.dies', 'g.damage-player']) {
       expect(roles, role).toContain(role);
     }
     expect(roles, 'no false shuffles in an ordinary game').not.toContain('g.shuffle');

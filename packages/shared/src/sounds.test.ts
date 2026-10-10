@@ -47,6 +47,16 @@ describe('CellId', () => {
 		expect(isCellId('WU|land')).toBe(true);
 	});
 
+	it('carries artifact and artifact-creature cells on the colourless row only (2026-10-10)', () => {
+		expect(isCellId('C|artifact')).toBe(true);
+		expect(isCellId('C|artifact-creature')).toBe(true);
+		for (const c of ['W', 'WU', 'BRG', 'WUBRG']) {
+			expect(isCellId(`${c}|artifact`), c).toBe(false);
+			expect(isCellId(`${c}|artifact-creature`), c).toBe(false);
+			expect(isCellId(`${c}|creature`), c).toBe(true);
+		}
+	});
+
 	it('accepts a role paired with play', () => {
 		expect(isCellId('g.draw|play')).toBe(true);
 		expect(isCellId('g.cast.creature|play')).toBe(true);
