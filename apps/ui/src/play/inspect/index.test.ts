@@ -393,6 +393,68 @@ describe('dismissing', () => {
     expect(panel()).toBeNull();
   });
 
+  it('a press on the card being read puts it away, and the card stays quiet until the pointer leaves it', () => {
+    const { panel, board, theirCard } = mountBoard();
+    const face = theirCard().querySelector('.card')!;
+    hover(face);
+    expect(panel()).not.toBeNull();
+    fireEvent.pointerDown(face, { pointerType: 'mouse' });
+    expect(panel(), 'the press put it away').toBeNull();
+    hover(theirCard());
+    hover(face);
+    expect(panel(), 'moving within the pressed card brings nothing back').toBeNull();
+    hover(board.querySelector('.seat__counts')!);
+    hover(face);
+    expect(panel(), 'back on the card after leaving it').not.toBeNull();
+  });
+
+  it('a pointer that leaves the window from the pressed card has left it', () => {
+    const { panel, theirCard } = mountBoard();
+    const face = theirCard().querySelector('.card')!;
+    hover(face);
+    fireEvent.pointerDown(face, { pointerType: 'mouse' });
+    fireEvent.pointerOut(face, { pointerType: 'mouse', relatedTarget: null });
+    hover(face);
+    expect(panel()).not.toBeNull();
+  });
+
+  it('a press elsewhere leaves the card being read alone, and another card opens at once after a press', () => {
+    const { panel, theirCard, yourHandCard } = mountBoard();
+    hover(theirCard().querySelector('.card')!);
+    fireEvent.pointerDown(theirCard().querySelector('.card')!, { pointerType: 'mouse' });
+    hover(yourHandCard().querySelector('.card')!);
+    expect(panel()!.querySelector('.card__name')!.textContent, 'a different card is not the quiet one').toBe('Your Hand Card');
+    fireEvent.pointerDown(theirCard().ownerDocument.body, { pointerType: 'mouse' });
+    expect(panel(), 'a press that is not on the card being read changes nothing').not.toBeNull();
+  });
+
+  it('Escape keeps the card quiet too: a nudge inside it does not reopen it', () => {
+    const { panel, theirCard } = mountBoard();
+    hover(theirCard().querySelector('.card')!);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    hover(theirCard());
+    expect(panel()).toBeNull();
+  });
+
+  it('clicking a graveyard open puts away the card it was reading; a card in the pile view opens as usual', () => {
+    const view: BoardView = { ...VIEW, players: [{ ...YOU, graveyard: [card(4, 'Buried One'), card(5, 'Buried Two')] }, THEM] };
+    const utils = render(createElement(Board, { view }));
+    const board = utils.container.querySelector<HTMLElement>('.board')!;
+    disposers.push(mountInspector(board));
+    const panel = (): HTMLElement | null => board.ownerDocument.querySelector('[data-inspect]');
+    const top = board.querySelector('.seat [data-zone="graveyard"][data-owner="you"] li[data-card-id="5"]')!;
+    hover(top.querySelector('.card')!);
+    expect(panel()).not.toBeNull();
+    fireEvent.pointerDown(top.querySelector('.card')!, { pointerType: 'mouse' });
+    fireEvent.click(top.querySelector('.card')!);
+    expect(board.querySelector('[data-testid="pile-view"]'), 'the pile view opened').not.toBeNull();
+    expect(panel(), 'the inspector is gone with it').toBeNull();
+    hover(top);
+    expect(panel(), 'still on the clicked card: nothing').toBeNull();
+    hover(board.querySelector('[data-testid="pile-view"] li[data-card-id="4"] .card')!);
+    expect(panel()!.querySelector('.card__name')!.textContent).toBe('Buried One');
+  });
+
   it('moving the pointer onto anything that is not a card closes it', () => {
     const { panel, board, theirCard } = mountBoard();
     hover(theirCard().querySelector('.card')!);

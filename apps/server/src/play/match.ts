@@ -509,6 +509,12 @@ export interface SeatState {
 	 * without a second press.
 	 */
 	answeredWindow: string | null;
+	/**
+	 * Forge is saying its declare-attackers farewell ({@link ATTACK_FAREWELL}) to this seat: its
+	 * bar and its attacker highlights are withheld with the prompt, until the input's own stop
+	 * (`clearWeaklySelectable`), the next prompt or an ask.
+	 */
+	attackFarewell: boolean;
 }
 
 export interface MatchDeps {
@@ -697,6 +703,18 @@ const PROMPT_HOLD_FLUSH_MS = 2000;
  * refresh above all).
  */
 type WindowShape = 'priority' | 'payment' | 'confirm';
+
+/**
+ * The attack window Forge draws on its way OUT of declare-attackers. `InputAttack.onOk` calls
+ * `setCurrentDefender(null)` before `stop()`, and `setCurrentDefender` ends in `updateMessage`, which
+ * re-sends the whole window — the prompt (with the defender spelled `null`, `lblSelectAttackCreatures`
+ * + " null " + `lblSelectAttackTarget`), its live OK / Call Back bar and the undeclared creatures —
+ * AFTER the seat's OK. Forge never formats a null defender anywhere else (`showMessage` returns
+ * before `updateMessage` when there is no defender), so this sentence is that farewell and nothing
+ * else. The operator, 2026-10-10: *"after clicking 'Ok' i notice it disppears but then flashes on the
+ * screen once more before disappearing again."*
+ */
+const ATTACK_FAREWELL = /^Select creatures to attack null\b/;
 
 function promptShape(frame: PromptFrame): WindowShape | null {
 	if (frame.confirmAbility != null) return 'confirm';
@@ -935,6 +953,7 @@ export class Match {
 			pendingTimer: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
+			attackFarewell: false,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -1673,6 +1692,16 @@ export class Match {
 			return;
 		}
 		const frame = parsed.value;
+
+		if (frame.method === 'showPromptMessage' && ATTACK_FAREWELL.test(frame.message)) {
+			s.attackFarewell = true;
+			this.deps.log({ evt: 'prompt-withheld', matchId: this.id, seat, kind: 'attack', why: 'attack-farewell' });
+			return;
+		}
+		if (s.attackFarewell) {
+			if (frame.method === 'updateButtons' || frame.method === 'setWeaklySelectable') return;
+			if (frame.kind === 'ask' || frame.method === 'showPromptMessage' || frame.method === 'clearWeaklySelectable') s.attackFarewell = false;
+		}
 
 		// An ask is a different window altogether, so whatever is held was not
 		// going to pair. State and actionable-set frames do not flush: a payment

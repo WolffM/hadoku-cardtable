@@ -57,6 +57,17 @@
  * arrow needs the pointer, not a preview. Escape dismisses, either way,
  * WITHOUT consuming the key: a prompt that also wants Escape still gets it.
  *
+ * A press on the card being read puts the preview away too — the player is
+ * acting on the card now, not reading it — and so does Escape. Either way the
+ * card it was on stays QUIET until the pointer (or the focus) has left it: the
+ * operator, 2026-10-10, on clicking a graveyard open with its top card
+ * enlarged: *"when expand graveyard/exile is clicked can we dispose the
+ * currently expanded card being shown? and also make sure the cursor has to
+ * exit the current expand trigger zone before it can trigger a new expand?
+ * that way it won't immediately block the view again when the cursor moves
+ * slightly."* One rule for every card, not a pile-view case: a press opens
+ * the pile view, so the press is what puts the preview away.
+ *
  * ## Where it draws, and what it may never cover
  *
  * Only into lane A's `[data-board-overlay]` root — looked up, never moved —
@@ -442,6 +453,8 @@ export function mountInspector(root: ParentNode): () => void {
   let pressing: InspectTarget | null = null;
   /** The card whose release-click a touch long-press just opened; swallowed once. */
   let swallowClickIn: Element | null = null;
+  /** The card a press or Escape put the preview away on: it opens nothing until the pointer or focus leaves it. */
+  let quiet: Element | null = null;
 
   const overlay = (): HTMLElement | null => root.querySelector('[data-board-overlay]');
 
@@ -458,6 +471,16 @@ export function mountInspector(root: ParentNode): () => void {
     watcher?.disconnect();
     watcher = null;
   }
+
+  /** Dismiss, and keep the card the preview was on quiet until it is left. */
+  function putAway(): void {
+    if (current === null) return;
+    quiet = current.trigger ?? current.card;
+    dismiss();
+  }
+
+  /** Whether `node` is inside the quiet card. */
+  const inQuiet = (node: EventTarget | null): boolean => quiet !== null && node instanceof Node && quiet.contains(node);
 
   function show(target: InspectTarget): void {
     const overlayEl = overlay();
@@ -523,6 +546,8 @@ export function mountInspector(root: ParentNode): () => void {
       dismiss();
       return;
     }
+    if (inQuiet(event.target)) return;
+    quiet = null;
     const target = inspectedCardFrom(event.target, root);
     if (target === null) {
       dismiss();
@@ -532,7 +557,10 @@ export function mountInspector(root: ParentNode): () => void {
   }
 
   function onPointerOut(event: PointerEvent): void {
-    if (current === null || event.pointerType === 'touch') return;
+    if (event.pointerType === 'touch') return;
+    // Out of the quiet card — including out of the window, where no pointerover follows.
+    if (inQuiet(event.target) && !inQuiet(event.relatedTarget)) quiet = null;
+    if (current === null) return;
     const zone = current.trigger ?? current.card;
     if (!(event.target instanceof Node) || !zone.contains(event.target)) return;
     const to = event.relatedTarget;
@@ -546,17 +574,23 @@ export function mountInspector(root: ParentNode): () => void {
   // The keyboard gets what the pointer gets: a card name in the log is a tab
   // stop, and focusing it shows the card the same way hovering it does.
   function onFocusIn(event: FocusEvent): void {
+    // The press that put a log name's preview away also focuses it.
+    if (inQuiet(event.target)) return;
     const target = inspectedCardFrom(event.target, root);
     if (target?.trigger !== undefined) show(target);
   }
 
   function onFocusOut(event: FocusEvent): void {
+    if (event.target === quiet) quiet = null;
     if (current?.trigger !== undefined && event.target === current.trigger) dismiss();
   }
 
   function onPointerDown(event: PointerEvent): void {
     swallowClickIn = null;
-    if (event.pointerType !== 'touch') return;
+    if (event.pointerType !== 'touch') {
+      if (current !== null && event.target instanceof Node && (current.trigger ?? current.card).contains(event.target)) putAway();
+      return;
+    }
     cancelPress();
     const target = inspectedCardFrom(event.target, root);
     // A tap anywhere the game is not showing a card closes the preview — and
@@ -608,7 +642,7 @@ export function mountInspector(root: ParentNode): () => void {
 
   function onKeyDown(event: KeyboardEvent): void {
     // Dismiss and let the key go: a prompt that wants Escape still gets it.
-    if (event.key === 'Escape' && panel !== null) dismiss();
+    if (event.key === 'Escape' && panel !== null) putAway();
   }
 
   function cancelPress(): void {
