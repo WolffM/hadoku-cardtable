@@ -645,6 +645,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
   }
 
+  /** Where `el`'s centre is drawn this frame — mid-glide included — or null when it has no box. */
+  function drawnCentre(el: Element): Point | null {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+  }
+
   /**
    * The `[data-placed-spell]` element `placed.ts` drew at exactly `at` (its
    * own `overlayPoint`, inverted) — this seam's only way to recover an id
@@ -900,19 +906,23 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   /**
    * A SPELL of theirs: its id is public now — the stand-in's point goes to the
-   * placed-cards layer (`placeSpell` at `backAt`, the CENTRE `.presence__back` is
-   * transformed onto) and the card is turned over there; the back is retired.
+   * placed-cards layer (`placeSpell` where the back's CENTRE is drawn right now)
+   * and the card is turned over there; the back is retired. Right now, not
+   * `backAt`: a creature's back is often still on its 300 ms glide to the
+   * reserved column when Forge puts it on the stack, and a face drawn at the
+   * glide's END appeared up to ~30 px from the back it replaced.
    */
   function handToSpell(id: number): void {
-    if (backAt !== null) {
-      placeSpell(id, backAt, 'them');
+    const at = (back === null ? null : drawnCentre(back)) ?? backAt;
+    if (at !== null) {
+      placeSpell(id, at, 'them');
       // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
       // call — which, the moment `id` (the CARD's) matches a `view.stack` entry's `sourceCardId`,
       // re-keys the registration onto that entry's OWN id at once. `commitSpell(id)` right after
       // would silently no-op on a key that is already gone, so the real id — the one the element
       // `placeSpell` just (re)drew at this exact point now carries — is read back off the DOM,
       // the same way every other geometry fact here is.
-      const committed = findPlacedSpellAt(backAt) ?? id;
+      const committed = findPlacedSpellAt(at) ?? id;
       commitSpell(committed);
     } else {
       commitSpell(id);
@@ -998,7 +1008,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             // reader (tests), "not on the battlefield" stands in for it.
             const onStack = fresh.find((id) => onTheirStack(id));
             if (onStack !== undefined) {
-              const from = backAt;
+              const from = drawnCentre(standIn) ?? backAt;
               handToSpell(onStack);
               if (from !== null) flyWhenDrawn(onStack, from);
             }
@@ -1010,8 +1020,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
           // screen glides the whole way (`landCastGhost`). So the back hands over to the card's own
           // tile copy from wherever it is right now, which finishes the trip; the card waits hidden
           // under it. From the gap itself (Forge was slow), the trip is a stand-still reveal.
-          const now = standIn.getBoundingClientRect();
-          const from = now.width > 0 ? { x: now.left + now.width / 2, y: now.top + now.height / 2 } : backAt;
+          const from = drawnCentre(standIn) ?? backAt;
           stopWaiting();
           if (card !== null && from !== null) flyTile(card, from);
         });

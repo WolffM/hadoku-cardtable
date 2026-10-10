@@ -797,6 +797,30 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
+  it('a creature put on the stack while its back is still gliding to the column is turned over where the back IS drawn, not at the glide’s end (w65-commit: 32 px off)', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    // Mid-glide: the run's own numbers, the back drawn at 570,339 on its way to the gap.
+    back.getBoundingClientRect = () => ({ left: 540, top: 297, right: 600, bottom: 381, width: 60, height: 84, x: 540, y: 297, toJSON() {} }) as DOMRect;
+    theirs = [121];
+    wake!();
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    expect(placedMod.placeSpell).toHaveBeenCalledWith(121, { x: 570, y: 339 }, 'them');
+    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `commitSpell`', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
