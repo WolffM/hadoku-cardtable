@@ -293,9 +293,15 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
  * 20 s budget below, rather than let a caller's own "is anything offered"
  * poll run out looking exactly like that. Returns once both boards are up,
  * no mulligan question is outstanding on either side, and both scripted
- * hands have landed.
+ * hands have landed. `beforeBob` runs on bob's page before it opens the match —
+ * where a spec routes his socket (`page.routeWebSocket` must precede the connection).
  */
-export async function startScenarioMatch(browser: Browser, stack: PlayStack, scenarioName: string): Promise<ScenarioMatch> {
+export async function startScenarioMatch(
+  browser: Browser,
+  stack: PlayStack,
+  scenarioName: string,
+  options: { beforeBob?: (page: Page) => Promise<void> } = {},
+): Promise<ScenarioMatch> {
   const scenario = readScenario(scenarioName);
   const alice = await openFriend(browser, 'alice');
   const bob = await openFriend(browser, 'bob');
@@ -316,6 +322,7 @@ export async function startScenarioMatch(browser: Browser, stack: PlayStack, sce
   // alice FIRST and settled before bob opens, so claim order gives her seat 0.
   await alice.page.goto(matchUrl(stack.origin, matchId));
   await boardUp(alice.page);
+  await options.beforeBob?.(bob.page);
   await bob.page.goto(matchUrl(stack.origin, matchId));
   await boardUp(bob.page);
 

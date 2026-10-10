@@ -18,8 +18,13 @@
  * Shaman's extra cost is read against; and the Shaman with bob holding priority for 2 s while it is
  * on the stack — a long wait like the reported one, for anything that drifts toward the pointer
  * meanwhile. The one assertion is the end state: the creature stands on both boards.
+ *
+ * A fourth run makes the race the operator hit (w67, 2026-10-10) happen every time instead of one
+ * run in three: bob's socket holds what the server sends him from alice's release until Forge has
+ * her spell on the stack, then hands him the placement and, 40 ms after it — early in the back's
+ * 300 ms glide into its gap — Forge's frames: Forge answering faster than the glide, as on a quick claw.
  */
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page, type WebSocketRoute } from '@playwright/test';
 
 import { makeTitled, offeredNamed, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -116,7 +121,43 @@ type Run = {
   card: string;
   /** Bob holds priority (full control) this long after the release, then passes; 0: the server passes for him. */
   bobHoldsMs: number;
+  /** Bob's screen gets Forge's frames 40 ms after her placement, early in the back's glide, whenever Forge answered (`gateSocket`). */
+  midGlide: boolean;
 };
+
+/** What the server sends a page, held while `holding` and let through in order on `flush`. */
+interface Gate {
+  holding: boolean;
+  /** Sends everything held up to and including the last message that contains `marker`; false when none does. */
+  flushThrough(marker: string): boolean;
+  flushAll(): void;
+}
+
+async function gateSocket(page: Page): Promise<Gate> {
+  const held: { to: WebSocketRoute; message: string | Buffer }[] = [];
+  const gate: Gate = {
+    holding: false,
+    flushThrough(marker) {
+      const last = held.findLastIndex((h) => typeof h.message === 'string' && h.message.includes(marker));
+      if (last < 0) return false;
+      for (const h of held.splice(0, last + 1)) h.to.send(h.message);
+      return true;
+    },
+    flushAll() {
+      for (const h of held.splice(0)) h.to.send(h.message);
+      gate.holding = false;
+    },
+  };
+  await page.routeWebSocket(/\/socket\.io\//, (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      if (gate.holding) held.push({ to: ws, message });
+      else ws.send(message);
+    });
+  });
+  return gate;
+}
 
 /** Distance from `p` to the segment `a`–`b`. */
 function offSegment(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
@@ -131,7 +172,12 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
   const stack = await startPlayStack(jar);
   const say = (line: string) => console.log(`[shaman] ${run.label} ${line}`);
   try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, run.scenario);
+    let gate: Gate | null = null;
+    const { alice, bob } = await startScenarioMatch(browser, stack, run.scenario, {
+      beforeBob: async (page) => {
+        if (run.midGlide) gate = await gateSocket(page);
+      },
+    });
     for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
     if (run.bobHoldsMs > 0) {
       await bob.page.getByTestId('live-full-control').click();
@@ -177,8 +223,20 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
     await alice.page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
     await alice.page.mouse.down();
     await alice.page.mouse.move(release.x, release.y, { steps: 10 });
+    const held = gate as Gate | null;
+    if (held !== null) held.holding = true;
     await alice.page.mouse.up();
     releasedAt = Date.now();
+    const gated = (async () => {
+      if (held === null) return;
+      // Forge has her spell on the stack once her own screen draws it there.
+      await expect(alice.page.locator('[data-placed-spell][data-mine]'), 'Forge has her spell on the stack').toHaveCount(1, { timeout: 15_000 });
+      expect(held.flushThrough('"forge:placement"'), 'bob’s socket held her placement').toBe(true);
+      const placed = Date.now();
+      await alice.page.waitForTimeout(40);
+      held.flushAll();
+      say(`gate: bob got her placement at ${placed - releasedAt}ms after the release, Forge's frames at ${Date.now() - releasedAt}ms`);
+    })();
     const away = { x: release.x + 300, y: release.y - 40 };
     await alice.page.mouse.move(away.x, away.y, { steps: 6 });
     const drift = Date.now();
@@ -186,6 +244,7 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       await alice.page.mouse.move(away.x - i * 6, away.y + Math.round(30 * Math.sin(i / 4)), { steps: 2 });
       await alice.page.waitForTimeout(60);
     }
+    await gated;
 
     const onBoard = (page: Page, mine: boolean) =>
       page.locator(`.seat${mine ? '[data-viewer]' : ':not([data-viewer])'} [data-zone="battlefield"] [data-board-card] .card__name`, { hasText: run.card });
@@ -259,6 +318,19 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
     );
     say(`summary: in alice's battlefield DOM at ${ms(inDom(mine))}, shown for good at ${ms(lastShown(mine))}; in bob's at ${ms(inDom(theirs))}, shown for good at ${ms(lastShown(theirs))}`);
 
+    // The hand-over, on each screen: where the stand-in last stood, where the stack card was first
+    // drawn, how far that is from where the card lands (the hop), and the landing flight's length.
+    for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
+      const end = rec.filter((s) => s.what === 'field' && s.attrs !== 'gone').at(-1);
+      const firstStack = rec.find((s) => s.at >= t0 && /^stack\d*$/.test(s.what) && s.attrs !== 'gone' && !s.attrs.includes('hidden'));
+      const standIn = firstStack === undefined ? undefined : rec.filter((s) => s.at >= t0 && s.at <= firstStack.at && /^(back|ghost|lift)$/.test(s.what) && s.attrs !== 'gone').at(-1);
+      const flight = rec.find((s) => s.at >= t0 && (s.what === 'handoff' || /data-cast-lift=returning/.test(s.attrs)));
+      const px = (a: Sample | undefined) => (a === undefined || end === undefined ? '-' : `${Math.round(Math.hypot(a.x - end.x, a.y - end.y))}px`);
+      console.log(
+        `[w67-hand] ${run.label} ${who}: lands ${end === undefined ? '?' : `${end.x},${end.y}`}; stand-in last ${standIn === undefined ? '-' : `${standIn.what}@${standIn.x},${standIn.y} ${rel(standIn.at, t0)}ms`}; stack first ${firstStack === undefined ? 'never shown' : `@${firstStack.x},${firstStack.y} ${rel(firstStack.at, t0)}ms`} hop ${px(firstStack)}; landing ${flight === undefined ? 'swap in place' : `flight from ${flight.x},${flight.y} ${rel(flight.at, t0)}ms, ${px(flight)}`}`,
+      );
+    }
+
     // B1 — once bob's waiting back has handed over, no back of hers stands up again: a stale
     // `placing` echo opened a second one, and her pointer traffic kept it alive.
     const firstWait = backs.find((s) => s.attrs.includes('data-waiting'));
@@ -300,9 +372,10 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
 }
 
 for (const run of [
-  { label: 'shaman', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 0 },
-  { label: 'bears', scenario: 'w67-bears', card: 'Grizzly Bears', bobHoldsMs: 0 },
-  { label: 'shaman-held', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 2_000 },
+  { label: 'shaman', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 0, midGlide: false },
+  { label: 'bears', scenario: 'w67-bears', card: 'Grizzly Bears', bobHoldsMs: 0, midGlide: false },
+  { label: 'shaman-held', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 2_000, midGlide: false },
+  { label: 'shaman-midglide', scenario: 'w67-shaman', card: 'Viridian Shaman', bobHoldsMs: 2_000, midGlide: true },
 ] satisfies Run[]) {
   test(titled(`${run.label}: where the time goes from release to board, and what each screen draws meanwhile`), async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
