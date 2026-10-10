@@ -1680,8 +1680,8 @@ export function genuinelyAsked(
  * `setHighlighted` and nothing more (`:99`, `:292-328`, `:356`). `InputBlock` is
  * the same (`InputBlock.java:73`). So `match.selectables` is null throughout
  * both, and a rule that only stood arranging down for an open selection would
- * leave the attacker and the blocker natively draggable — see
- * `gestures/install.ts`'s `onDragStart`.
+ * leave the attacker and the blocker to the arrange gesture — see
+ * `gestures/install.ts`'s `arrangeable`.
  */
 export function declaringCombat(match: LiveMatch): boolean {
   return declaringAttackers(match) || declaringBlockers(match);

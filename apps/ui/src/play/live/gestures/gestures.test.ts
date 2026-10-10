@@ -378,9 +378,9 @@ describe('dragging a card, and the targeter arrow', () => {
    * Wave 20's zone drop, and it is asserted from the HAND.
    *
    * *"Dragging a land onto the table is #6's whole point"* — and #6 is a card in
-   * hand. No hand card is ever `Board.tsx`'s own native drag, because dragging
+   * hand. No hand card is ever `Board.tsx`'s own arrangement, because dragging
    * one out of hand is how it is played — so every hand card is this layer's,
-   * which the `draggable` assertion below pins from this side. The battlefield
+   * which the `data-arrange-card` assertion below pins from this side. The battlefield
    * side of the partition has its own case further down.
    */
   it('outside a selection, a hand card dropped on the table is the one frame a click sends — and it is not sent twice', async () => {
@@ -389,7 +389,7 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(hand.length).toBeGreaterThan(0);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    expect(cardEl(canvas, hand[0]!).getAttribute('draggable')).toBeNull();
+    expect(cardEl(canvas, hand[0]!).hasAttribute('data-arrange-card')).toBe(false);
 
     // R7: a hand card only casts by crossing into the VIEWER'S OWN
     // battlefield (`./cast.ts`'s `overOwnBattlefield`) — dropping it on the
@@ -434,16 +434,15 @@ describe('dragging a card, and the targeter arrow', () => {
     const hand = mineOf(m).hand!.map((c) => c.id);
     /*
      * A hand card, Forge-offered or not, is this layer's OWN press now — the
-     * hand reorder — never the arrangement's: `CardOnBoard` no longer makes
-     * ANY hand card `draggable`, so there is no native drag left to collide
-     * with here, only this layer's own claim. Right-click lets the lift go
+     * hand reorder — never the arrangement's: `CardOnBoard` never makes ANY
+     * hand card arrangeable, so there is only this layer's own claim. Right-click lets the lift go
      * with nothing sent, so the dangling press does not reach the next
      * assertion.
      */
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
     const arrangeable = cardEl(canvas, hand.at(-1)!);
-    expect(arrangeable.hasAttribute('draggable'), 'never the arrangement’s to begin with').toBe(false);
+    expect(arrangeable.hasAttribute('data-arrange-card'), 'never the arrangement’s to begin with').toBe(false);
     expect(
       fireEvent.pointerDown(arrangeable, { button: 0, clientX: 10, clientY: 10 }),
       'the hand reorder claims the press',
@@ -659,19 +658,18 @@ describe('dragging a card, and the targeter arrow', () => {
  * Lane A's §A.1 arrange gesture and this layer both start on a press. The
  * partition, checked here from both sides:
  *
- *  - a card `boardInteraction` OFFERED is this layer's, `draggable` or not;
- *  - anything the browser will drag natively is lane A's, and this layer starts
+ *  - a card `boardInteraction` OFFERED is this layer's, arrangeable or not;
+ *  - anything carrying `data-arrange-card` is lane A's, and this layer starts
  *    no gesture on it and sends nothing on release;
  *  - empty table space is unchanged — both the box-draw and the source-less
  *    pointing gesture still start there.
  *
- * `draggable` is set by hand in these cases rather than waited for, so the
- * partition is pinned whichever order the two lanes' halves land in (lane A's
- * half is `draggable = arranging !== undefined && row !== undefined &&
- * !selectable`). Either half alone is enough; both is the point.
+ * `data-arrange-card` is set by hand in these cases rather than waited for, so
+ * the partition is pinned whatever `CardOnBoard`'s own rule draws. A press this
+ * layer claims is cancelled, and `useArrangeDrag` skips a cancelled press.
  */
 describe('the press is partitioned with lane A’s arrange gesture', () => {
-  it('declaring blockers, the offered creature is THIS layer’s though it stays draggable — and the native drag is cancelled', async () => {
+  it('declaring blockers, the offered creature is THIS layer’s though it stays arrangeable — the press is claimed', async () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     const blocker = mineOf(m).battlefield[0]!.id;
@@ -681,14 +679,11 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([theirs[0]!], true)])) s.send(f);
     await waitFor(() => expect(m.highlighted!.size).toBe(1));
     // Forge publishes NO selection in combat declaration, so lane A's rule
-    // (`!selectionOpen`) leaves the blocker draggable. This layer must still win.
-    cardEl(canvas, blocker).setAttribute('draggable', 'true');
+    // (`!selectionOpen`) leaves the blocker arrangeable. This layer must still win.
+    cardEl(canvas, blocker).setAttribute('data-arrange-card', 'creatures');
     expect(boardInteraction(m).selectionOpen).toBe(false);
 
-    fireEvent.pointerDown(cardEl(canvas, blocker), { button: 0, clientX: 10, clientY: 10 });
-    // The browser would take every pointer event from here; the layer says no.
-    const started = fireEvent.dragStart(cardEl(canvas, blocker), { bubbles: true, cancelable: true });
-    expect(started).toBe(false); // preventDefault was called
+    expect(fireEvent.pointerDown(cardEl(canvas, blocker), { button: 0, clientX: 10, clientY: 10 }), 'claimed').toBe(false);
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
@@ -702,20 +697,11 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(2));
     // At priority Forge's ACTIONABLE set names most of the viewer's own
     // permanents — "you could", not "I am asking" — and lane A keeps those
-    // draggable. Claiming the press is what turned `e2e/table-fit.spec.ts` red.
-    expect(cardEl(canvas, mine[0]!).getAttribute('draggable')).toBe('true');
+    // arrangeable. Claiming the press is what turned `e2e/table-fit.spec.ts` red.
+    expect(cardEl(canvas, mine[0]!).hasAttribute('data-arrange-card')).toBe(true);
 
-    // Nothing claimed: the press is not cancelled, and this layer does not stop
-    // the card's own `dragstart` from reaching it. (Whether the Board then lets
-    // the BROWSER drag run is the Board's — wave 32 cancels it for its own
-    // pointer drag — so the return value of `dragStart` is not asserted here.)
-    let reached = 0;
-    cardEl(canvas, mine[0]!).addEventListener('dragstart', () => {
-      reached += 1;
-    });
+    // Nothing claimed: the press is not cancelled, so the arrangement keeps it.
     expect(fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
-    fireEvent.dragStart(cardEl(canvas, mine[0]!), { bubbles: true, cancelable: true });
-    expect(reached).toBe(1);
     fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
     fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
@@ -728,15 +714,15 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
   });
 
-  it('a NON-offered draggable card starts no gesture and sends nothing on release', async () => {
+  it('a NON-offered arrangeable card starts no gesture and sends nothing on release', async () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     // A selection is open and names only the OPPONENT's creature, so the
-    // viewer's own battlefield is all un-offered — and all draggable.
+    // viewer's own battlefield is all un-offered — and all arrangeable.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    for (const id of mine) cardEl(canvas, id).setAttribute('draggable', 'true');
+    for (const id of mine) cardEl(canvas, id).setAttribute('data-arrange-card', 'creatures');
     expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
 
     // THE SAFETY CONTROL. Without the guard this press starts the source-less
@@ -759,7 +745,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
    * Wave 27 §A.6: **rearranging is not an act**, so a press that starts one must
    * be claimable with NO OFFER OPEN — which is most of a game.
    *
-   * `install.ts` gets there twice over and both halves matter. `nativelyDraggable`
+   * `install.ts` gets there twice over and both halves matter. `arrangeable`
    * returns before every branch, so the arrangement owns the press whatever else
    * is true; and with `match.selectables === null` the source-less pointing
    * gesture does not start at all, which is the line the brief names. Neither is
@@ -781,8 +767,8 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const offered = boardInteraction(m);
     expect(offered.selectable.size + offered.selectablePlayers.size, 'and nothing on the board is Forge’s').toBe(0);
     expect(offered.selectionOpen, 'no selection is open either').toBe(false);
-    // Which is exactly when lane A makes the viewer's own battlefield draggable.
-    expect(cardEl(canvas, mine[0]!).getAttribute('draggable'), 'the arrangement owns this press').toBe('true');
+    // Which is exactly when lane A makes the viewer's own battlefield arrangeable.
+    expect(cardEl(canvas, mine[0]!).hasAttribute('data-arrange-card'), 'the arrangement owns this press').toBe(true);
 
     /*
      * Asserted WHILE THE PRESS IS HELD, which is the only moment that can tell
@@ -805,19 +791,18 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(boardInteraction(m).selectable.size).toBe(0);
   });
 
-  it('declaring attackers, a box-draw MAY start on a draggable permanent — and the native drag is cancelled', async () => {
+  it('declaring attackers, a box-draw MAY start on an arrangeable permanent — the press is claimed', async () => {
     const { s, m, canvas } = await declaringAttackersBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const [offered, from] = [mine[0]!, mine[1]!];
     for (const f of notify([prompt('Declare attackers'), actionable([offered])])) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
-    cardEl(canvas, from).setAttribute('draggable', 'true');
+    cardEl(canvas, from).setAttribute('data-arrange-card', 'creatures');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, offered), 120, 120);
     boxAt(cardEl(canvas, from), 100, 100);
 
-    fireEvent.pointerDown(cardEl(canvas, from), { button: 0, clientX: 100, clientY: 100 });
-    expect(fireEvent.dragStart(cardEl(canvas, from), { bubbles: true, cancelable: true })).toBe(false);
+    expect(fireEvent.pointerDown(cardEl(canvas, from), { button: 0, clientX: 100, clientY: 100 }), 'claimed').toBe(false);
     fireEvent.pointerMove(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
@@ -834,24 +819,16 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
    * them apart, and `payingMana` reads that off the prompt's own card plus the
    * payment input's button label — never off the prompt's prose.
    */
-  it('during a payment, an offered battlefield land is THIS layer’s though it stays draggable — and the native drag is cancelled', async () => {
+  it('during a payment, an offered battlefield land is THIS layer’s though it stays arrangeable — the press is claimed', async () => {
     const { s, m, canvas } = await gestureBoard();
     const land = mineOf(m).battlefield[0]!.id;
     // Forge's payment input: the bar first (it is emitted before the prompt), then
     // the prompt naming the ability paid for, then what can pay.
     for (const f of [autoBar(true), promptFor('Pay {1}{U}', land), actionable([land])]) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
-    expect(cardEl(canvas, land).getAttribute('draggable')).toBe('true');
+    expect(cardEl(canvas, land).hasAttribute('data-arrange-card')).toBe(true);
 
-    // Lane A's own `dragstart` must not run either: a cancelled `dragstart`
-    // fires no `dragend`, so its `arranging.start()` would never be balanced.
-    let laneA = 0;
-    cardEl(canvas, land).addEventListener('dragstart', () => {
-      laneA += 1;
-    });
-    fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 });
-    expect(fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true })).toBe(false);
-    expect(laneA).toBe(0);
+    expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 }), 'claimed').toBe(false);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
@@ -892,14 +869,8 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(m.buttons!.enable1).toBe(true);
     expect(boardInteraction(m).selectable.has(land)).toBe(true);
 
-    let laneA = 0;
-    cardEl(canvas, land).addEventListener('dragstart', () => {
-      laneA += 1;
-    });
+    // Nothing claimed, so lane A's arrange gesture keeps the press.
     expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
-    // Nothing claimed, so lane A's arrange gesture keeps the press — and SEES it.
-    fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true });
-    expect(laneA).toBe(1);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
@@ -918,13 +889,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     for (const f of [okBar(), prompt('Priority'), actionable([land])]) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
 
-    let reached = 0;
-    cardEl(canvas, land).addEventListener('dragstart', () => {
-      reached += 1;
-    });
     expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
-    fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true });
-    expect(reached).toBe(1);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
@@ -932,12 +897,12 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(s.clientFrames()).toHaveLength(0);
   });
 
-  it('outside declare-attackers a draggable permanent starts no box-draw at all', async () => {
+  it('outside declare-attackers an arrangeable permanent starts no box-draw at all', async () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
-    cardEl(canvas, mine[1]!).setAttribute('draggable', 'true');
+    cardEl(canvas, mine[1]!).setAttribute('data-arrange-card', 'creatures');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, mine[0]!), 120, 120);
     boxAt(cardEl(canvas, mine[1]!), 100, 100);
@@ -955,8 +920,8 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Declare attackers'), actionable([mine[0]!])])) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
-    // Every card draggable, as lane A's old markup had it — the ZONE is not.
-    for (const id of mine) cardEl(canvas, id).setAttribute('draggable', 'true');
+    // Every card arrangeable — the ZONE is not.
+    for (const id of mine) cardEl(canvas, id).setAttribute('data-arrange-card', 'creatures');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, mine[0]!), 120, 120);
 
@@ -975,7 +940,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    for (const id of mine) cardEl(canvas, id).setAttribute('draggable', 'true');
+    for (const id of mine) cardEl(canvas, id).setAttribute('data-arrange-card', 'creatures');
 
     const stack = canvas.querySelector<HTMLElement>('[data-zone="stack"]') ?? canvas.querySelector<HTMLElement>('.board')!;
     fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });

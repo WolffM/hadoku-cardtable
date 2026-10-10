@@ -5,10 +5,8 @@
  *
  * Before this, a hand card Forge offered started `install.ts`'s cast gesture
  * on the very first press, so a reorder was reachable only on a card Forge
- * was not offering (native HTML5 drag, `Board.tsx`'s `useArrangeDrag`, which
- * used to stand down whenever a hand card was `selectable` — and now never
- * arranges a hand card at all: `CardOnBoard` no longer makes one
- * `draggable`, so the press always reaches here first). Now EVERY press on
+ * was not offering (`Board.tsx`'s `useArrangeDrag`, which now never arranges
+ * a hand card at all, so the press always reaches here first). Now EVERY press on
  * the viewer's own hand card, offered or not, is this gesture, and
  * `install.ts` keeps reusing its own existing `drag`/`resolveLift` machinery
  * end to end — this module supplies only what is NEW: the hand's own
@@ -22,10 +20,7 @@
  * `DragState.held`'s own doc comment — rather than this module inventing a
  * second click-arm state machine). What is new is WHERE that press is read
  * from: every own-hand card, not only an offered one (`handCardPress`, called
- * from `install.ts`'s `onPointerDown` ahead of the native-drag stand-down, so
- * a non-offered hand card's `draggable="true"` never reaches the browser —
- * `onDragStart`'s existing capture listener, keyed off `drag !== null`,
- * already cancels it once this module's press claims `drag`).
+ * from `install.ts`'s `onPointerDown` ahead of the arrangement stand-down).
  *
  * While the pointer stays over the viewer's own hand, `install.ts`'s move
  * handler calls into this module instead of `./cast.ts`'s drop cues

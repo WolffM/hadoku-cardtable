@@ -147,9 +147,8 @@
  * own `onClick` in `Board.tsx` and send a premature `selectCard` before this
  * layer ever gets to decide anything — `suppressClick` marks exactly the
  * presses this module has claimed, and the capturing `click` listener on
- * `canvas` swallows that one native click the same way `onDragStart` already
- * swallows the native HTML5 drag — before React's own delegated handler,
- * attached to this same element, ever sees it. The same flag, left untouched,
+ * `canvas` swallows that one native click before React's own delegated
+ * handler, attached to this same element, ever sees it. The same flag, left untouched,
  * also swallows the native click the resolving press leaves behind (see
  * `onPointerDown`): that press may land on something Forge offers for an
  * unrelated reason (a land offered for its mana ability, say), and the native
@@ -449,39 +448,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
     node instanceof Element && (node.closest('.board') !== null || node.closest('[data-zone]') !== null);
 
   /**
-   * The press began on something the BROWSER will drag natively.
+   * The press began on a card `Board.tsx`'s own arrange gesture picks up
+   * (`data-arrange-card`: the viewer's battlefield, never a hand card, never
+   * one an open selection is waiting on). A press there starts no gesture of
+   * ours, or one press would rearrange the battlefield AND send `selectCard`
+   * for whatever it was released over.
    *
-   * Lane A's arrange gesture makes the cards of the viewer's own battlefield
-   * `draggable="true"` and hangs HTML5 `dragstart`/`drop` on them (`Board.tsx`'s
-   * `CardOnBoard`) — never a hand card, which `handCardPress` (this module's
-   * own branch, above) claims before this guard is even reached, and which
-   * `CardOnBoard` never makes `draggable` in the first place. The expensive
-   * half this guard still earns its keep for is a BATTLEFIELD permanent while
-   * a selection is open: it is draggable, so the native drag runs, and the
-   * source-less pointing gesture below would run too — one press that
-   * rearranges the battlefield AND sends `selectCard` for whatever it was
-   * released over. So a press that started on a natively-draggable element
-   * starts no gesture of ours.
-   *
-   * ## It stands down during combat declaration, and `onDragStart` says why
-   *
-   * Lane A's own half stands arranging down while Forge has an OPEN SELECTION
-   * (`LiveClickables.selectionOpen`). **Forge publishes no selection during
-   * declare-attackers or declare-blockers** — `../match.ts`'s `declaringCombat`
-   * carries the call sites — so in those two moments the viewer's own creatures
-   * stay natively draggable, and a guard that stood down there would hand the
-   * attack and the block gestures to the arrange gesture entirely. So the
-   * guard yields to `declaringCombat`, and `onDragStart` cancels the native
-   * drag for exactly the presses this layer claimed.
-   *
-   * It yields to `payingMana` for the same reason and from the same kind of
-   * fact: a payment can be made by dragging a land ALREADY on the
-   * battlefield, and a payment opens no selection either, so that land is
-   * natively draggable too.
+   * **Forge publishes no selection during declare-attackers or
+   * declare-blockers, nor for a mana payment** — `../match.ts`'s
+   * `declaringCombat` and `payingMana` carry the call sites — so in those
+   * moments the viewer's own permanents stay arrangeable, and the guard yields
+   * to both: the press claimed here (`claim`) is one `useArrangeDrag` skips.
    */
-  const nativelyDraggable = (node: EventTarget | null): boolean => {
+  const arrangeable = (node: EventTarget | null): boolean => {
     if (!(node instanceof Element)) return false;
-    const found = node.closest('[draggable="true"]');
+    const found = node.closest('[data-arrange-card]');
     return found !== null && canvas.contains(found);
   };
 
@@ -671,12 +652,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * `DRAG_SLOP_PX` — and the browser begins selecting on the press itself. So
    * the default is refused at the press, before there is anything to undo.
    *
-   * **Only on a press this layer CLAIMED.** A press on a natively-draggable
-   * element (lane A's arrangement) returns above this without cancelling
-   * anything, because cancelling `pointerdown` is also how the native HTML5
-   * drag is cancelled — it would take the arrangement with it. That press
-   * selects no text either, from the static rule on the card itself
-   * (`../../board.css`).
+   * **Only on a press this layer CLAIMED.** A press on an arrangeable card
+   * returns above this without cancelling anything, because a cancelled
+   * `pointerdown` is one `useArrangeDrag` leaves alone — it would take the
+   * arrangement with it.
    *
    * Cancelling `pointerdown` suppresses the compatibility mouse events and
    * the selection; it does NOT suppress `click`, which is not one of them, so
@@ -1158,9 +1137,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     /*
      * A press on the viewer's own hand card, Forge-offered or not, is a
      * REORDER unless it leaves the hand — ahead of every other branch below.
-     * `CardOnBoard` never makes a hand card `draggable` at all now, so this
-     * is not racing `Board.tsx`'s own arrange gesture for the press; it is
-     * simply the branch that answers it.
+     * `CardOnBoard` never makes a hand card arrangeable, so this is not
+     * racing `Board.tsx`'s own arrange gesture for the press.
      *
      * Presses are left alone, exactly as before, when Forge is
      * asking something ELSE: an open ASK (a dialog) outranks the actionable
@@ -1205,8 +1183,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     /*
      * Item 5: a press on the viewer's own placed spell picks it up — UNLESS
      * Forge is asking the stack-target question that element ALSO answers
-     * (`stackAsk`), which keeps the press below. Checked before the native-
-     * drag guard: a placed element is never `draggable="true"`.
+     * (`stackAsk`), which keeps the press below. Checked before the
+     * arrangement guard: a placed element is never arrangeable.
      */
     if (stackAsk(match) === null) {
       const placedEl = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-placed-spell][data-mine]') : null;
@@ -1220,7 +1198,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       }
     }
     /*
-     * Lane A's arrange gesture owns a press on a natively-draggable element —
+     * Lane A's arrange gesture owns a press on an arrangeable card —
      * EVEN one Forge offered. At ordinary priority Forge's actionable set names
      * most of a player's own permanents ("you could"), and claiming those presses
      * would break the arrangement gesture. A CLICK still plays the card,
@@ -1233,10 +1211,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * prose — see `../match.ts`'s `declaringCombat` and `payingMana`.
      *
      * Before EVERY branch, so the box-draw has it too: a marquee started on a
-     * draggable permanent would otherwise rearrange the battlefield and declare
+     * arrangeable permanent would otherwise rearrange the battlefield and declare
      * attackers in one press.
      */
-    if (nativelyDraggable(event.target) && !declaringCombat(match) && !payingMana(match)) return;
+    if (arrangeable(event.target) && !declaringCombat(match) && !payingMana(match)) return;
     const at = { x: event.clientX, y: event.clientY };
     if (stackAsk(match) !== null && inside(event.target)) {
       // A question about the stack: the press may start anywhere on the table, and
@@ -1484,38 +1462,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
-   * This layer claimed the press, so the browser's native drag must not have it.
-   *
-   * **There is no `pointerup` after a `dragstart`.** Once the native drag begins
-   * the browser delivers drag events and ends with `dragend`, so `commitDrag` and
-   * `commitMarquee` would never run and the gesture would silently do nothing.
-   * jsdom does not model that, so only a browser would have caught it.
-   *
-   * Cancelling `dragstart` aborts that one drag and nothing else: a press this
-   * layer did not claim never reaches here with `drag` or `marquee` set, so lane
-   * A's arrange gesture is untouched everywhere it owns the press.
-   *
-   * **In the CAPTURE phase, and it also stops propagation.** `preventDefault`
-   * alone aborts the browser's drag but still lets lane A's own `onDragStart`
-   * run — and a `dragstart` that was cancelled fires no `dragend`, so that
-   * lane's `arranging.end()` would never balance its `arranging.start()` and it
-   * would be left believing a drag was in flight. Capturing on the canvas runs
-   * before any handler on the card and before React's own root listener, so for
-   * a press this layer claimed lane A never sees the event at all.
-   */
-  function onDragStart(event: Event): void {
-    if (drag === null && marquee === null) return;
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  /**
    * The native `click` a plain press leaves behind, for a press this module
    * is about to settle ITSELF (see `onPointerUp` and the module header's
-   * section on `suppressClick`). Same technique as `onDragStart` just above
-   * and the same reason — before React's own delegated handler on this
-   * element ever sees it — except this one is conditional: every click this
-   * module did NOT just claim passes through untouched.
+   * section on `suppressClick`), swallowed in the capture phase before React's
+   * own delegated handler on this element ever sees it. Conditional: every
+   * click this module did NOT just claim passes through untouched.
    */
   function onClickCapture(event: Event): void {
     if (!suppressClick) return;
@@ -1525,7 +1476,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('dragstart', onDragStart, true);
   canvas.addEventListener('click', onClickCapture, true);
   canvas.addEventListener('contextmenu', onContextMenu);
   window.addEventListener('pointermove', onPointerMove);
@@ -1580,7 +1530,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
     dispose(): void {
       live = false;
       canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('dragstart', onDragStart, true);
       canvas.removeEventListener('click', onClickCapture, true);
       canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('pointermove', onPointerMove);

@@ -549,8 +549,12 @@ import { fixtureFrames, startReplayServer, until, type ReplayServer } from './re
 // to the interaction lane) — five hand cards' worth of two now-absent
 // attributes (-210 characters), none of it art. At the previous pin (39577, b3f0173a…) with those
 // two attributes restored on a hand card, this test passes again.
-const BASELINE_SHA256 = 'd1008669893304e3b9b96e77e06f1fbd5f504f8d6d988dee02569e2e3a488a93';
-const BASELINE_LENGTH = 39367;
+//
+// Re-recorded again: `draggable="true"` is gone from the five arrangeable
+// battlefield cards (`data-arrange-card` is the seam now) — 5 × 17 = -85
+// characters, 39367 (d1008669…) -> 39282, and nothing else moved.
+const BASELINE_SHA256 = '1fa565aeec186307f7f405656e67c8fbbd3730da18b61d81f3c6c1b85673e67b';
+const BASELINE_LENGTH = 39282;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

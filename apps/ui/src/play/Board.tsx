@@ -93,7 +93,7 @@
  *
  * A card the arrangement names that is no longer on the battlefield is
  * ignored, and a permanent that arrives while an arrangement stands joins the
- * end of its own row. Only the viewer's own side is draggable: the arrangement
+ * end of its own row. Only the viewer's own side is arrangeable: the arrangement
  * is theirs, and the opponent arranges their own side on their own screen.
  *
  * ## The hand is arranged too, but not by this component's own gesture
@@ -115,10 +115,9 @@
  * above / below" on a battlefield mean nothing here and a drop is always a
  * reorder.
  *
- * `CardOnBoard` never makes a hand card `draggable`, whatever Forge is
- * doing, so `useArrangeDrag` (below) never starts from one — the press
- * always reaches the interaction lane first. A battlefield permanent keeps
- * its own drag-to-arrange exactly as before.
+ * `CardOnBoard` never marks a hand card `data-arrange-card`, whatever Forge
+ * is doing, so `useArrangeDrag` (below) never starts from one — the press
+ * always reaches the interaction lane first.
  *
  * ## Stacking: deliberate as well as free
  *
@@ -306,8 +305,8 @@
  *     `table` for the stack, which belongs to no seat);
  *   - a battlefield's rows each carry `data-board-row` (`lands`, `artifacts`,
  *     `creatures`, `other`), in that order, and `data-empty` when the row
- *     holds nothing. A draggable card carries `draggable` — on the viewer's own
- *     battlefield and in their own hand — and the viewer's SEAT carries one
+ *     holds nothing. A card the viewer may arrange carries `data-arrange-card` —
+ *     on their own battlefield only — and the viewer's SEAT carries one
  *     `[data-arrange-reset]` control, which resets the whole seat; it used to
  *     hang off the battlefield's label column, and §A.3 took that column with the
  *     label;
@@ -330,28 +329,21 @@
  *     there. A DOM-only probe that adds cards to a lane owes it `--cols`, the
  *     way `e2e/table-fit.spec.ts`'s crowd probe owed it the grow;
  *
- *   - this lane's gesture is HTML5 DRAG-AND-DROP and nothing else:
- *     `dragstart` / `dragend` on an arrangeable card's `<li>`, `dragover` /
- *     `drop` on that `<li>` and on the box it sits in — a battlefield row's
- *     `<li>`, or the hand's own `<ul class="zone__cards">`. **No pointer event is
- *     bound anywhere in this file**, so the interaction lane's delegated pointer
- *     handling has the pointer to itself. A card whose press is an ARRANGEMENT
- *     needs no offer from Forge and sends nothing, which is why it is this
- *     gesture and not the pointer layer's. Nothing here reads, writes or styles
- *     `data-attack-intent`; this lane's own attributes are `data-arrange-reset`,
- *     `data-pile-size`, `data-pile-depth`, `data-attached` and `data-pt*`;
+ *   - this lane's gesture is `useArrangeDrag`'s press-drag on a
+ *     `[data-arrange-card]` `<li>`. A card whose press is an ARRANGEMENT needs
+ *     no offer from Forge and sends nothing, which is why it is this gesture
+ *     and not the pointer layer's. Nothing here reads, writes or styles
+ *     `data-attack-intent`; this lane's own attributes are `data-arrange-card`,
+ *     `data-arrange-reset`, `data-pile-size`, `data-pile-depth`,
+ *     `data-attached` and `data-pt*`;
  *
- *     **A card Forge is ASKING ABOUT is never `draggable`, and that is the
- *     seam, not a detail.** A `draggable="true"` element starts the browser's
- *     native drag from the same press the interaction lane starts a targeter
- *     drag on, so a card that was both would fire both gestures at once. The
- *     condition on a BATTLEFIELD is `interaction.selectionOpen && selectable` —
- *     an OPEN SELECTION, not merely Forge's actionable set, whose own docs are
- *     on `BoardInteraction.selectionOpen`. In the HAND it is `selectable`
- *     alone, because drag-to-play out of a hand may not be given up (the hand's
- *     own section above). So a natively-draggable element is never a card an
- *     open selection is waiting on, and in a hand never a card Forge offered at
- *     all;
+ *     **A card Forge is ASKING ABOUT is never `data-arrange-card`, and that is
+ *     the seam, not a detail.** The interaction lane stands down on a press
+ *     that starts on one (`live/gestures/install.ts`'s `arrangeable`), so a
+ *     card that was both would lose the targeter drag. The condition is
+ *     `interaction.selectionOpen && selectable` — an OPEN SELECTION, not merely
+ *     Forge's actionable set, whose own docs are on
+ *     `BoardInteraction.selectionOpen`;
  *   - `data-board-overlay` is a positioned root covering the canvas exactly,
  *     at the board's top level, for those lanes to render into. This file adds
  *     no pointer handler to it and draws nothing in it.
@@ -455,8 +447,8 @@ export interface BoardInteraction {
    * selection inputs; `InputAttack` publishes none — it calls `updateButtons`
    * and, on stop, `clearActionableCards` (`InputAttack.java:87-101`), so its
    * creatures arrive as Forge's ACTIONABLE set with no selection open. Without
-   * this field they would be `draggable`, and the interaction lane's pointer
-   * layer stands down on any natively-draggable element — so arranging would
+   * this field they would be `data-arrange-card`, and the interaction lane's
+   * pointer layer stands down on every one of those — so arranging would
    * shadow attacking for the whole step.
    *
    * Only the viewer's own creatures stand down (by the card's own type line, not
@@ -1301,7 +1293,7 @@ function subscribeCarriedCast(listener: () => void): () => void {
  * A cast's intended battlefield slot, remembered by the card's own (stable)
  * id until Forge actually plays it — the seam with the gestures lane's cast
  * gesture, which otherwise has nowhere to record "where you dropped it" (no
- * hand card is ever arrangeable by `CardOnBoard`'s own `draggable`, because
+ * hand card is ever `CardOnBoard`'s `data-arrange-card`, because
  * dragging it out of hand is how it is PLAYED). Module-level like
  * `ARRANGED`: a resync may remount `Board` and a cast in
  * flight must outlive that exactly the same way a rearrange does.
@@ -1727,7 +1719,7 @@ export function commitHandMove(orderedIds: readonly number[], cardId: number, ta
  * It carries nothing because nothing in the markup runs the drag any more: the
  * pointer events are `Board`'s own, on `window` (`useArrangeDrag`), and the markup
  * only says WHICH cards are pick-up-able (`data-arrange-card`, never a hand
- * card — see `CardOnBoard`'s `draggable`) and which boxes are slots
+ * card — see `CardOnBoard`'s `arrangeable`) and which boxes are slots
  * (`data-arrange-slot`, the hand's own included: a cast's placement preview,
  * `liveViewerGeometry`, still needs it to know a point is OVER the hand, not a
  * legal drop).
@@ -2144,9 +2136,9 @@ function CardOnBoard({
    * Why it has to stand down at all: the two gestures on this board are not
    * exclusive on their own. The interaction lane starts its targeter drag on
    * `pointerdown` over a card in `interaction.selectable`
-   * (`live/gestures/install.ts`), and a `draggable="true"` element ALSO starts
-   * the browser's own HTML5 drag from the same press — so one press would both
-   * rearrange the board and send a `selectCard` on release.
+   * (`live/gestures/install.ts`), and `useArrangeDrag` ALSO starts from the
+   * same press on a `data-arrange-card` — so one press would both rearrange
+   * the board and send a `selectCard` on release.
    *
    * Why the condition is `selectionOpen && selectable` and not `selectable`:
    * `selectable` also carries Forge's ACTIONABLE set (`setWeaklySelectable`),
@@ -2154,7 +2146,7 @@ function CardOnBoard({
    * that made the board unarrangeable for most of a game — the opposite of
    * *"i dont want these snapping zones… put cards wherever they want"*, and
    * `e2e/table-fit.spec.ts` red on it: a permanent it dragged between rows was
-   * not `draggable`, so `dragstart` never fired and the card did not move. An
+   * not arrangeable, so the drag never started and the card did not move. An
    * actionable highlight is Forge saying "you could", not "I am asking".
    *
    * So: arranging is what you do with a card Forge is not asking about. Both
@@ -2184,7 +2176,7 @@ function CardOnBoard({
    * hand card still arranges (the header's "The hand is arranged too" has the
    * argument), just not through this attribute.
    */
-  const draggable = arranging !== undefined && slot !== undefined && slot !== 'hand' && !inOpenSelection && !itsAttackToDeclare;
+  const arrangeable = arranging !== undefined && slot !== undefined && slot !== 'hand' && !inOpenSelection && !itsAttackToDeclare;
   const above = pile === undefined ? [] : pile.slice(1);
   /*
    * The fan every card in the pile is narrowed by, computed ONCE from the
@@ -2229,19 +2221,11 @@ function CardOnBoard({
       data-pile-size={above.length > 0 ? pile!.length : undefined}
       data-pile-depth={depth > 0 ? depth : undefined}
       /*
-       * `draggable="true"` is kept as the SEAM, not as the mechanism, and
-       * `draggable` (above) never sets it for a hand card any more: the
-       * gestures layer stands down on a natively-draggable element
-       * (`live/gestures/install.ts: nativelyDraggable`), and that is exactly
-       * the set of BATTLEFIELD presses this card owns. The BROWSER's own
-       * drag never runs — the press is cancelled by `useArrangeDrag` and
-       * `dragstart` is cancelled here as a backstop — because the drag is
-       * ours, with our own ghost. `data-arrange-card` names the slot the
-       * card is in and is what the pointer handler looks for.
+       * The slot the card is in, on exactly the presses `useArrangeDrag` owns;
+       * the gestures layer stands down on it (`live/gestures/install.ts`'s
+       * `arrangeable`).
        */
-      draggable={draggable || undefined}
-      data-arrange-card={draggable ? slot : undefined}
-      onDragStart={draggable ? (e) => e.preventDefault() : undefined}
+      data-arrange-card={arrangeable ? slot : undefined}
     >
       {/*
        * R10 (wave 35), diagnosed: this used to be a `<button>` when `selectable`
@@ -2361,7 +2345,7 @@ function Zone({
   /**
    * Present only on the viewer's own HAND — the one `Zone` whose order is the
    * player's. A graveyard and an exile pile are Forge's own order and get
-   * `undefined`, so no card in them is draggable and the list takes no drop.
+   * `undefined`, so no card in them is arrangeable and the list takes no drop.
    * `cards` arrives already in the player's order (`handOrder`).
    */
   arranging?: Arranging;
@@ -3051,9 +3035,8 @@ function PlayerArea({
  *      layer has had it. That layer claims a press by cancelling it
  *      (`install.ts: claim`) — in combat declaration and a mana payment, where a
  *      permanent's press is Forge's answer — and a press already claimed is not
- *      ours. Otherwise we cancel it ourselves, which is what keeps the browser's
- *      own drag from starting from the same press. A press that never moves stays
- *      a plain click.
+ *      ours. Otherwise we cancel it ourselves, so the press selects no text. A
+ *      press that never moves stays a plain click.
  *   2. `pointermove` past `SLOP` pixels: the drag begins. The card's `<li>` is
  *      dimmed in place (`data-arrange-dragging`), a clone of it — the GHOST,
  *      `data-arrange-ghost`, stripped of every id so card ids stay unique — is
@@ -3125,7 +3108,7 @@ function useArrangeDrag(
       }
       const found = snapTo(geometry(), x, y, p.cardId);
       /*
-       * `p.slot` is never `'hand'` (no hand card is ever draggable, so this
+       * `p.slot` is never `'hand'` (no hand card is ever arrangeable, so this
        * drag never starts from one) — a permanent dropped over the hand is
        * nowhere, same as it always was: playing a card out of a hand is
        * Forge's, never ours.
@@ -3147,7 +3130,6 @@ function useArrangeDrag(
           'data-arrange-card',
           'data-arrange-dragging',
           'data-arrange-target',
-          'draggable',
           'data-selectable',
           'data-can-act',
           // A card lifted out of a pile is one card: the pile's own layout rules must not reach its copy.
@@ -3204,7 +3186,7 @@ function useArrangeDrag(
       const li = target.closest<HTMLElement>('li.board-card');
       const slot = li?.getAttribute('data-arrange-card');
       if (li === null || li === undefined || slot === null || slot === undefined) return;
-      // Ours now: the browser's own drag must not start from this press.
+      // Ours now: the press selects no text.
       if (event.cancelable) event.preventDefault();
       press = {
         pointerId: event.pointerId,
@@ -3293,7 +3275,7 @@ function useArrangeDrag(
  * asking about here is exactly as selectable (or not) as it would have been
  * in the hand, and reusing it is what keeps `data-can-act`, the tapped state
  * and the selectable button all correct with no second copy of that logic.
- * No `slot` and no `arranging`, so it is never draggable here — moving it
+ * No `slot` and no `arranging`, so it is never arrangeable here — moving it
  * back into the hand is Forge's answer to the question, not a rearrangement.
  */
 function StagingArea({ card, interaction }: { card: BoardCard; interaction: BoardInteraction | undefined }) {
@@ -3464,7 +3446,7 @@ export function Board({
   const arranged = viewer === undefined ? (ARRANGED.get(key) ?? NO_ARRANGEMENT) : arrangementFor(key, viewer.id);
   /**
    * One drop, applied — a BATTLEFIELD rearrange only: `useArrangeDrag`,
-   * below, never starts from a hand card (`CardOnBoard`'s `draggable`
+   * below, never starts from a hand card (`CardOnBoard`'s `arrangeable`
    * excludes every one of them), so `slot` here is never `'hand'`. The
    * hand's own reorder is `commitHandMove`'s seam instead, written from
    * `live/gestures/install.ts`.

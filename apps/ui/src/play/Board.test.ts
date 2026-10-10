@@ -2029,7 +2029,7 @@ describe('drag to arrange (#10)', () => {
     const { interaction, onSelectCard, onSelectPlayer } = spyInteraction([8, 24], [0, 1]);
     const { container, rowIds } = renderBoard(view, interaction);
     expect(container.querySelector<HTMLElement>('[data-card-id="8"]')!.dataset.selectable, 'armed on 8').toBe('true');
-    expect(container.querySelector<HTMLElement>('[data-card-id="8"]')!.getAttribute('draggable'), 'and still draggable').toBe('true');
+    expect(container.querySelector<HTMLElement>('[data-card-id="8"]')!.hasAttribute('data-arrange-card'), 'and still draggable').toBe(true);
     drag(container, 8, { card: 24 });
     drag(container, 24, { row: 'artifacts' });
     expect(rowIds(0, 'artifacts')).toEqual([24]);
@@ -2043,14 +2043,14 @@ describe('drag to arrange (#10)', () => {
     const { container, seat } = renderBoard();
     // Five permanents. The hand is never this component's own drag, whatever
     // `interaction` says — see `describe('a hand card is never this component’s own drag')`.
-    expect(seat(0).querySelectorAll('[data-zone="battlefield"] .board-card[draggable="true"]')).toHaveLength(5);
-    expect(seat(0).querySelectorAll('[data-zone="hand"] .board-card[draggable]')).toHaveLength(0);
-    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
+    expect(seat(0).querySelectorAll('[data-zone="battlefield"] .board-card[data-arrange-card]')).toHaveLength(5);
+    expect(seat(0).querySelectorAll('[data-zone="hand"] .board-card[data-arrange-card]')).toHaveLength(0);
+    expect(seat(0).querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(5);
     // A pile is Forge's own order, never the player's.
-    expect(seat(0).querySelectorAll('[data-zone="graveyard"] .board-card[draggable]')).toHaveLength(0);
-    expect(seat(0).querySelectorAll('[data-zone="exile"] .board-card[draggable]')).toHaveLength(0);
+    expect(seat(0).querySelectorAll('[data-zone="graveyard"] .board-card[data-arrange-card]')).toHaveLength(0);
+    expect(seat(0).querySelectorAll('[data-zone="exile"] .board-card[data-arrange-card]')).toHaveLength(0);
     // The opponent's side is theirs to arrange, on their own screen.
-    expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(0);
     expect(container.querySelectorAll('[data-arrange-reset]'), 'Regroup is gone (§A.3)').toHaveLength(0);
   });
 
@@ -2278,7 +2278,7 @@ describe('drag to stack (#1, #19)', () => {
     const { container } = renderBoard(view, interaction);
     expect(container.querySelectorAll('.board-card[data-selectable]').length, 'the senders really are armed').toBe(5);
     expect(
-      container.querySelectorAll('.seat[data-viewer] [data-zone="battlefield"] .board-card[draggable="true"]'),
+      container.querySelectorAll('.seat[data-viewer] [data-zone="battlefield"] .board-card[data-arrange-card]'),
       'and all of them draggable',
     ).toHaveLength(5);
     dragOnto(container, 24, 8, 'top');
@@ -2300,7 +2300,7 @@ describe('drag to stack (#1, #19)', () => {
   it('rejects the gesture on an opponent’s battlefield — no drag, no drop, no pile', () => {
     const { container, seat } = renderBoard();
     // Nothing on their side is draggable or a drop target in the first place.
-    expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(0);
 
     // Their own card: a press on it starts nothing, so there is no ghost.
     const theirCard = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-card-id="78"]')!;
@@ -2427,17 +2427,17 @@ describe('drag to stack (#1, #19)', () => {
  * between them is an OPEN SELECTION — not Forge's actionable set.
  *
  * The interaction lane starts its targeter drag on `pointerdown` over a card in
- * `interaction.selectable`; a `draggable="true"` element starts the BROWSER's own
- * HTML5 drag from the same press, so a card that was both would rearrange the
- * board and send a `selectCard` from one gesture.
+ * `interaction.selectable`; a `data-arrange-card` element starts `useArrangeDrag`
+ * from the same press, so a card that was both would rearrange the board and
+ * send a `selectCard` from one gesture.
  *
  * The first cut at this gated on `selectable` alone and was wrong, which the real
  * e2e caught: `selectable` also carries `setWeaklySelectable`, Forge's
  * ACTIONABLE set, which on your own turn is most of your own permanents — so
  * arranging was dead for most of a game and `e2e/table-fit.spec.ts` red with a
  * permanent that would not move between rows. `selectionOpen` is the narrow
- * fact, and every assertion below is on the ATTRIBUTE because that is what the
- * browser reads.
+ * fact, and every assertion below is on the ATTRIBUTE because that is what both
+ * gestures read.
  */
 describe('an OPEN SELECTION stands the arrangement down; merely actionable does not', () => {
   const view = boardFromFixture(fixture);
@@ -2468,7 +2468,7 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     const { container, zone } = renderBoard(view, interaction);
     expect(container.querySelectorAll('.board-card[data-selectable]').length, 'Forge really did offer them').toBe(5);
     expect(
-      zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]'),
+      zone(0, 'battlefield').querySelectorAll('.board-card[data-arrange-card]'),
       'all five stay arrangeable: actionable is not a question',
     ).toHaveLength(5);
     // And the drag really works, which is what the e2e was asserting.
@@ -2483,17 +2483,17 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
 
     for (const id of chosen) {
       expect(card(container, id).dataset.selectable, `card ${id} is what Forge is asking about`).toBe('true');
-      expect(card(container, id).hasAttribute('draggable'), `card ${id} is Forge’s while it asks`).toBe(false);
+      expect(card(container, id).hasAttribute('data-arrange-card'), `card ${id} is Forge’s while it asks`).toBe(false);
     }
     for (const id of lands.filter((l) => !chosen.includes(l))) {
       expect(card(container, id).dataset.selectable, `card ${id} is not in the selection`).toBeUndefined();
-      expect(card(container, id).getAttribute('draggable'), `card ${id} is still yours to arrange`).toBe('true');
+      expect(card(container, id).hasAttribute('data-arrange-card'), `card ${id} is still yours to arrange`).toBe(true);
     }
-    expect(card(container, 21).getAttribute('draggable'), 'and the creature').toBe('true');
+    expect(card(container, 21).hasAttribute('data-arrange-card'), 'and the creature').toBe(true);
     // No card is ever both, however it got there.
     for (const el of container.querySelectorAll<HTMLElement>('.board-card')) {
       expect(
-        el.hasAttribute('draggable') && el.hasAttribute('data-selectable'),
+        el.hasAttribute('data-arrange-card') && el.hasAttribute('data-selectable'),
         `card ${el.dataset.cardId} is both draggable and in the selection`,
       ).toBe(false);
     }
@@ -2502,7 +2502,7 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
   it('with a selection open over the whole battlefield, nothing is draggable', () => {
     const { interaction } = spyInteraction(me.battlefield.map((c) => c.id), [], true);
     const { container } = renderBoard(view, interaction);
-    expect(container.querySelectorAll('.board-card[draggable]'), 'the whole board is Forge’s while it asks').toHaveLength(0);
+    expect(container.querySelectorAll('.board-card[data-arrange-card]'), 'the whole board is Forge’s while it asks').toHaveLength(0);
   });
 
   it('defaults to no selection open when the field is absent', () => {
@@ -2517,15 +2517,15 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     };
     expect('selectionOpen' in interaction, 'the field really is absent').toBe(false);
     const { zone } = renderBoard(view, interaction);
-    expect(zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
+    expect(zone(0, 'battlefield').querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(5);
   });
 
   it('with nothing offered at all, every card of your own battlefield is draggable — the hand never is', () => {
     const { interaction } = spyInteraction([]);
     const { container, seat, zone } = renderBoard(view, interaction);
-    expect(zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
-    expect(zone(0, 'hand').querySelectorAll('.board-card[draggable]'), 'no hand card is ever this component’s own drag').toHaveLength(0);
-    expect(seat(1).querySelectorAll('.board-card[draggable]'), 'still never theirs').toHaveLength(0);
+    expect(zone(0, 'battlefield').querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(5);
+    expect(zone(0, 'hand').querySelectorAll('.board-card[data-arrange-card]'), 'no hand card is ever this component’s own drag').toHaveLength(0);
+    expect(seat(1).querySelectorAll('.board-card[data-arrange-card]'), 'still never theirs').toHaveLength(0);
     expect(container.querySelectorAll('[data-selectable]')).toHaveLength(0);
   });
 
@@ -2551,9 +2551,9 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     const member = container.querySelector<HTMLElement>('[data-card-id="8"] > .board-card__pile > [data-card-id="24"]');
     expect(member, 'the pile survived the remount').not.toBeNull();
     expect(member!.dataset.selectable, 'and Forge is asking about the member').toBe('true');
-    expect(member!.hasAttribute('draggable'), 'so it is not draggable, pile or no pile').toBe(false);
+    expect(member!.hasAttribute('data-arrange-card'), 'so it is not draggable, pile or no pile').toBe(false);
     expect(stacked.dataset.selectable, 'the base is not in the selection').toBeUndefined();
-    expect(stacked.getAttribute('draggable'), 'and stays draggable').toBe('true');
+    expect(stacked.hasAttribute('data-arrange-card'), 'and stays draggable').toBe(true);
   });
 
   /*
@@ -2563,7 +2563,7 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
    * calls `updateButtons` and `clearActionableCards`, `InputAttack.java:87-101`).
    * So during declare-attackers the seat's creatures arrive as Forge's ACTIONABLE
    * set with NO selection open — and the interaction lane's pointer layer stands
-   * down on any natively-draggable element, so a draggable creature here means
+   * down on any `data-arrange-card` element, so an arrangeable creature here means
    * you cannot attack with it.
    */
   it('stands down on your own CREATURES while you are declaring attackers, and on nothing else', () => {
@@ -2571,11 +2571,11 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     interaction.declaringAttackers = true;
     const { container, seat } = renderBoard(view, interaction);
     // The creature is the attack gesture's; the four lands are still yours.
-    expect(card(container, 21).hasAttribute('draggable'), 'the creature is the attack gesture’s').toBe(false);
+    expect(card(container, 21).hasAttribute('data-arrange-card'), 'the creature is the attack gesture’s').toBe(false);
     for (const id of lands) {
-      expect(card(container, id).getAttribute('draggable'), `land ${id} is still arrangeable`).toBe('true');
+      expect(card(container, id).hasAttribute('data-arrange-card'), `land ${id} is still arrangeable`).toBe(true);
     }
-    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(4);
+    expect(seat(0).querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(4);
     // Forge is still offering the creature — the stand-down is about the
     // gesture, not about what may be clicked.
     expect(card(container, 21).dataset.selectable).toBe('true');
@@ -2592,8 +2592,8 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     const { interaction } = spyInteraction([]);
     interaction.declaringAttackers = true;
     const { container } = renderBoard(view, interaction);
-    expect(card(container, 21).hasAttribute('draggable'), 'still the attack gesture’s').toBe(false);
-    expect(card(container, 8).getAttribute('draggable'), 'the lands beside it are not').toBe('true');
+    expect(card(container, 21).hasAttribute('data-arrange-card'), 'still the attack gesture’s').toBe(false);
+    expect(card(container, 8).hasAttribute('data-arrange-card'), 'the lands beside it are not').toBe(true);
   });
 
   it('defaults to not declaring attackers when the field is absent', () => {
@@ -2601,7 +2601,7 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     expect(interaction.declaringAttackers, 'the field really is absent').toBeUndefined();
     const { zone } = renderBoard(view, interaction);
     expect(
-      zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]'),
+      zone(0, 'battlefield').querySelectorAll('.board-card[data-arrange-card]'),
       'every permanent, creature included',
     ).toHaveLength(5);
   });
@@ -2613,8 +2613,8 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     // the browser, so there is no reason it should not be.
     const { interaction } = spyInteraction([8], [], true);
     const { container } = renderBoard(view, interaction);
-    expect(card(container, 8).hasAttribute('draggable')).toBe(false);
-    expect(container.querySelectorAll('.board-card[draggable="true"]')).toHaveLength(4);
+    expect(card(container, 8).hasAttribute('data-arrange-card')).toBe(false);
+    expect(container.querySelectorAll('.board-card[data-arrange-card]')).toHaveLength(4);
   });
 });
 
@@ -2645,14 +2645,13 @@ describe('a hand card is never this component’s own drag', () => {
   const handOf = (container: HTMLElement) => container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"]')!;
   const handIds = (container: HTMLElement): number[] =>
     [...handOf(container).querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId));
-  const draggableInHand = (container: HTMLElement) => handOf(container).querySelectorAll('.board-card[draggable="true"]');
+  const draggableInHand = (container: HTMLElement) => handOf(container).querySelectorAll('.board-card[data-arrange-card]');
 
-  it('is never draggable, Forge-offered or not — nor does it carry data-arrange-card', () => {
+  it('never carries data-arrange-card, Forge-offered or not', () => {
     const { interaction } = spyInteraction([hand[0]!, hand[1]!]);
     const { container } = renderBoard(view, interaction);
     for (const id of hand) {
       const el = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
-      expect(el.hasAttribute('draggable'), `hand card ${id}`).toBe(false);
       expect(el.hasAttribute('data-arrange-card'), `hand card ${id}`).toBe(false);
     }
     expect(draggableInHand(container)).toHaveLength(0);
@@ -2676,7 +2675,7 @@ describe('a hand card is never this component’s own drag', () => {
     expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
     // The opponent's hand is backs, and none of them is draggable either.
     expect(seat(1).querySelectorAll('[data-zone="hand"] .board-card')).toHaveLength(0);
-    expect(seat(1).querySelectorAll('[draggable="true"]'), 'nothing of theirs is ours to drag').toHaveLength(0);
+    expect(seat(1).querySelectorAll('[data-arrange-card]'), 'nothing of theirs is ours to drag').toHaveLength(0);
   });
 });
 
@@ -4555,7 +4554,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     fireEvent.pointerMove(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
     fireEvent.pointerUp(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['25', '8', '24', '6']);
-    expect(declarationIn('.board .seat .board-card[draggable=\'true\']', 'touch-action'), 'or the browser claims it to scroll').toBe('none');
+    expect(declarationIn('.board .seat .board-card[data-arrange-card]', 'touch-action'), 'or the browser claims it to scroll').toBe('none');
   });
 
   it('a press that never moves is a plain click, and the click after a real drag is swallowed', () => {
@@ -4605,16 +4604,15 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
   });
 
-  it('cancels the browser’s own drag, and keeps no HTML5 drag-and-drop in the source', () => {
+  it('keeps no HTML5 drag-and-drop in the source', () => {
     const { container } = renderBoard(view, undefined, 'single');
     const li = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!;
-    expect(li.getAttribute('draggable'), 'still the seam the gestures layer stands down on').toBe('true');
-    // `fireEvent` returns false when the event was cancelled: the browser's ghost never starts.
-    expect(fireEvent.dragStart(li), 'dragstart is cancelled').toBe(false);
+    expect(li.hasAttribute('data-arrange-card'), 'the seam the gestures layer stands down on').toBe(true);
+    expect(li.hasAttribute('draggable'), 'the browser is never asked to drag it').toBe(false);
     const source = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'Board.tsx'), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '');
-    expect(source).not.toMatch(/dataTransfer|onDrop\b|onDragOver\b|onDragEnd\b|dropEffect|effectAllowed|DragEvent/);
+    expect(source).not.toMatch(/draggable=|dataTransfer|onDrag|onDrop\b|dropEffect|effectAllowed|DragEvent/);
   });
 
 });
@@ -4622,7 +4620,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
 /*
  * ── a cast's drop point, handed to Board by the gestures lane ──
  *
- * No hand card is ever arrangeable (`CardOnBoard`'s `draggable`), so a
+ * No hand card is ever arrangeable (`CardOnBoard`'s `arrangeable`), so a
  * cast's drop point has nowhere to land on its own — left alone, the
  * permanent that eventually arrives always joins the end of its type row.
  * `notePlayedTo`/`previewPlayedTo` are the seam with the gestures lane's cast

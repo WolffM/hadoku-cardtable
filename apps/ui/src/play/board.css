@@ -968,12 +968,12 @@
    `touch-action: none` is what lets the pointer drag work under a finger: without
    it the browser claims the gesture for scrolling and sends `pointercancel`. The
    board never scrolls, so nothing is given up. */
-.board .seat .board-card[draggable='true'] {
+.board .seat .board-card[data-arrange-card] {
   cursor: grab;
   touch-action: none;
 }
 
-.board .seat .board-card[draggable='true']:active {
+.board .seat .board-card[data-arrange-card]:active {
   cursor: grabbing;
 }
 

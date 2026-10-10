@@ -1138,7 +1138,7 @@ test(TITLE, async ({ browser }) => {
       // is carried to the right of the target row's last card (the end slot) with a
       // real mouse; the ghost and the target indicator are on screen halfway.
       const cardEl = f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${moved}"]`);
-      expect(await cardEl.getAttribute('draggable'), `${f.name}: the card is the board's own drag source (the seam marker)`).toBe('true');
+      expect(await cardEl.getAttribute('data-arrange-card'), `${f.name}: the card is the board's own drag source`).not.toBeNull();
       const to = await endOfSlot(viewerSlot(f.page, target.row));
       const trace = await pointerDrag(f.page, cardEl, to);
       expect(trace.midway.pickedUp, `${f.name}: the board is in a drag mid-drag`).toBe(1);
