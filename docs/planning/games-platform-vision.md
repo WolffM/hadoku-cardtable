@@ -102,12 +102,12 @@ table under them is the only part that should change.
 | - | ---- | ----- | ----- |
 | A | Generic stats in the user-data store | **Live** | hadoku_site `49116439`: prefs-api `/_games/:gameId/*`, D1 `hadoku_prefs`; `@wolffm/prefs-client/games` 1.0.15; design `docs/planning/game-stats-2026-10-09.md` there |
 | B | Cardtable reports matches + Stats screen | **Landed** `5c5eea6`; recording waits on the prod service key | `apps/server/src/stats/`, `apps/ui/src/stats/`, `#/stats` |
-| C | Bomberman in its own repo, cardtable-shaped | **Repo live**, port in progress | `WolffM/hadoku-bomberman` (private); `docs/PORT_BRIEF.md` there is its task list |
+| C | Bomberman in its own repo, cardtable-shaped | **Repo live**: relay, CI game pipeline, stats reporting, lobby parity (characters, countdown, session crown), embed bundle (`e8065e1`). In-page mount in progress (needs Rust changes, see brief task 4). Not yet served: DNS/ingress, repo secrets, service key | `WolffM/hadoku-bomberman` (private); `docs/PORT_BRIEF.md` there is its task list |
 | D | Both games clickable from the games host | Cardtable **live**; Bomberman card inert until its page serves | hadoku_site `c78c22cf`, `src/pages/games/index.astro` |
-| E | Cardtable loadable inside watchparty | **Built** on branch `embed`, not landed; watchparty's slot built in parallel | D21; `apps/ui/src/embed/`, `/cardtable/embed/cardtable-embed.js`, `POST /api/rooms/watchparty`, `e2e/embed.spec.ts` |
+| E | Both games loadable inside watchparty | **Landed**, off in prod: watchparty loads games from data (`d490b0f6`, `GAMES` env); cardtable's bundle `/cardtable/embed/cardtable-embed.js` (`fa9c593`, D21); bomberman's `/bomberman/embed/bomberman-embed.js` (`e8065e1`). Turn on by setting watchparty's `GAMES` | contract in `@wolffm/rooms-protocol` 0.41.4; cardtable `apps/ui/src/embed/`; watchparty `GameBundleSlot.tsx` |
 | F | Watchparty's player as "just another game bundle" | **Not started** | |
-| G | Shared stats UI package | **Built**: `@wolffm/game-stats-ui` 0.1.0 (hadoku_site `847fc9ac`); cardtable's `#/stats` draws through it, its own tables deleted | `apps/ui/src/stats/StatsScreen.tsx` |
-| H | Bomberman history import + watchparty-stats deletion | Not started | bomberman brief §5, §7 |
+| G | Shared stats UI package | **Landed**: `@wolffm/game-stats-ui` (hadoku_site `847fc9ac`, fixes `c24fa4c2`); cardtable's `#/stats` draws through it (`39c7ee7`, −393 lines). Bomberman's stats screen not built yet | hadoku_site `packages/game-stats-ui` |
+| H | Bomberman history import + watchparty cutover | Not started. Cutover = point watchparty's bomberman `GAMES` entry at bomberman's bundle, then delete watchparty's `GameModule.tsx`, `game/`, `gameStatic.ts`, game-dist pipeline, `d1Sync.ts` and hadoku_site `watchparty-stats-api` | bomberman brief §5, §7 |
 | I | Rewards (unlockable art, loot) | Future — an inventory table beside game stats | |
 | J | Draft stats | Future — `mode: 'draft'` already has a rating pool | |
 
