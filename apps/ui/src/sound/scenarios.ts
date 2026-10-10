@@ -9,7 +9,7 @@
  * to know.
  */
 
-import type { ParadigmId } from '@hadoku/shared';
+import { rowHasParadigm, type ParadigmId } from '@hadoku/shared';
 
 import type { Seat, SoundEvent } from './mix.ts';
 
@@ -37,8 +37,10 @@ export interface Identities {
 
 export function beatEvent(beat: Beat, identities: Identities): SoundEvent {
   const seat = beat.seat ?? 'me';
-  const colourCell =
-    beat.colourCell !== undefined ? beat.colourCell : beat.layer === undefined ? null : `${identities[seat]}|${beat.layer}`;
+  const row = identities[seat];
+  // A land beat is the seat's basic land, which only a mono row has: any other row plays its `land`.
+  const layer = beat.layer === 'basic' && !rowHasParadigm(row, 'basic') ? 'land' : beat.layer;
+  const colourCell = beat.colourCell !== undefined ? beat.colourCell : layer === undefined ? null : `${row}|${layer}`;
   return { role: beat.role, colourCell, seat };
 }
 
@@ -90,7 +92,7 @@ export const SCENARIOS: readonly Scenario[] = [
       { at: 2100, role: 'ui.hover-card', label: 'Hover a land' },
       { at: 2400, role: 'ui.lift', label: 'Pick up the land' },
       { at: 2800, role: 'ui.place', label: 'Put it down' },
-      { at: 2830, role: 'g.land', label: 'Play a land', layer: 'land' },
+      { at: 2830, role: 'g.land', label: 'Play a land', layer: 'basic' },
       { at: 3400, role: 'g.tap', label: 'Tap a land' },
       { at: 3550, role: 'g.tap', label: 'Tap a land' },
       { at: 3600, role: 'g.mana', label: 'Mana' },
@@ -106,7 +108,7 @@ export const SCENARIOS: readonly Scenario[] = [
       { at: 0, role: 'g.turn-theirs', label: 'Their turn' },
       { at: 600, role: 'g.untap-all', label: 'Untap step', seat: 'opp' },
       { at: 1100, role: 'g.draw', label: 'Draw', seat: 'opp' },
-      { at: 1900, role: 'g.land', label: 'Play a land', seat: 'opp', layer: 'land' },
+      { at: 1900, role: 'g.land', label: 'Play a land', seat: 'opp', layer: 'basic' },
       ...creature(2600, 'opp', 'Creature'),
       { at: 4600, role: 'g.phase', label: 'Combat' },
       { at: 5000, role: 'g.attack', label: 'Attack', seat: 'opp' },
@@ -171,7 +173,7 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'colour-tour',
     name: 'Colour tour',
     beats: sorted([
-      { at: 0, role: 'g.land', label: 'Land', layer: 'land' },
+      { at: 0, role: 'g.land', label: 'Land', layer: 'basic' },
       ...creature(1000, 'me', 'Creature'),
       { at: 3200, role: 'g.cast.artifact', label: 'Cast an artifact' },
       { at: 4000, role: 'g.resolve', label: 'Resolves' },

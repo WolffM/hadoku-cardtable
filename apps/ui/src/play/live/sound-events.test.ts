@@ -7,7 +7,7 @@ import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
 import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, wasShuffled } from './sound-events.ts';
 
-function card(typeLine: string, colors: DraftCard['colors'] = []): DraftCard {
+function card(typeLine: string, colors: DraftCard['colors'] = [], oracleText = ''): DraftCard {
   return {
     cardId: typeLine,
     name: typeLine,
@@ -15,7 +15,7 @@ function card(typeLine: string, colors: DraftCard['colors'] = []): DraftCard {
     manaValue: 0,
     colors,
     typeLine,
-    oracleText: '',
+    oracleText,
     setCode: 'tst',
     collectorNumber: '1',
     rarity: 'common',
@@ -86,8 +86,20 @@ describe('colours and types', () => {
   it('layers a card by its paradigm, and a basic land by its land type', () => {
     expect(colourCell(entry(1, BEAR))).toBe('G|creature');
     expect(colourCell(entry(1, GOLEM))).toBe('C|artifact-creature');
-    expect(colourCell(entry(1, FOREST))).toBe('G|land');
+    expect(colourCell(entry(1, FOREST))).toBe('G|basic');
     expect(colourCell(entry(1, card('Enchantment')))).toBeNull();
+  });
+
+  it('splits a mono colour’s basic land from its other lands (2026-10-10)', () => {
+    expect(colourCell(entry(1, card('Basic Snow Land — Island')))).toBe('U|basic');
+    // A nonbasic land is coloured by the mana its text adds.
+    expect(colourCell(entry(1, card('Land', [], '{T}: Add {C}.\n{T}, Pay 1 life: Add {R}.')))).toBe('R|land');
+    expect(colourCell(entry(1, card('Land', [], '{T}: Add {W} or {U}.')))).toBe('WU|land');
+    // A dual by its basic types, Wastes and a land that adds nothing coloured are colourless.
+    expect(colourCell(entry(1, card('Land — Island Mountain')))).toBe('UR|land');
+    expect(colourCell(entry(1, card('Basic Land')))).toBe('C|land');
+    expect(colourCell(entry(1, card('Land', [], '{T}: Add {C}.')))).toBe('C|land');
+    expect(colourCell(entry(1, card('Land', [], '{T}: Add one mana of any color.')))).toBe('WUBRG|land');
   });
 
   it('names the cast by the most specific type', () => {
@@ -134,7 +146,7 @@ describe('deriveSoundEvents', () => {
   it('a land from hand plays the land role layered with its basic type', () => {
     const before = view(1, { hand: [entry(7, FOREST)], handCount: 1 });
     const after = view(2, { hand: [], handCount: 0, battlefield: [entry(7, FOREST)] });
-    expect(deriveSoundEvents(before, after)).toEqual([{ role: 'g.land', seat: 'me', colourCell: 'G|land' }]);
+    expect(deriveSoundEvents(before, after)).toEqual([{ role: 'g.land', seat: 'me', colourCell: 'G|basic' }]);
   });
 
   it("a creature dying on your turn is your doing; a token appearing is its owner's", () => {
@@ -275,7 +287,8 @@ describe('against a real captured game', () => {
       expect(roles, role).toContain(role);
     }
     expect(roles, 'no false shuffles in an ordinary game').not.toContain('g.shuffle');
-    expect(cells).toContain('R|land');
+    // Mountain and Island are their colour's basic; Great Furnace (adds {R}) and Izzet Guildgate (adds {U} or {R}) are lands.
+    for (const cell of ['R|basic', 'U|basic', 'R|land', 'UR|land']) expect(cells, cell).toContain(cell);
     expect(cells).toContain('R|creature');
   });
 });

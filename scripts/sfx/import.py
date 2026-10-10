@@ -58,7 +58,7 @@ EVENT_NAMES = {
 	'm-win': 'Victory', 'm-lose': 'Defeat',
 }
 # The mono identity letter -> this snapshot's land-take folder name -> its basic land's display
-# name. A mono identity's Land cell is relabelled with its basic land (Settled).
+# name. A mono identity's Basic land cell is hinted with its basic land (Settled; split from Land 2026-10-10).
 MONO_LAND_FOLDER = {'W': 'land-plains', 'U': 'land-island', 'B': 'land-swamp', 'R': 'land-mountain', 'G': 'land-forest'}
 LAND_NAMES = {'land-plains': 'Plains', 'land-island': 'Island', 'land-swamp': 'Swamp', 'land-mountain': 'Mountain', 'land-forest': 'Forest'}
 

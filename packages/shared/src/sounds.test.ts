@@ -38,6 +38,15 @@ describe('CellId', () => {
 		expect(parseCellId('WU|spell')).toBe('WU|spell');
 	});
 
+	it('carries a basic-land cell on the five mono rows only (2026-10-10)', () => {
+		for (const c of ['W', 'U', 'B', 'R', 'G']) {
+			expect(isCellId(`${c}|basic`), c).toBe(true);
+			expect(isCellId(`${c}|land`), c).toBe(true);
+		}
+		for (const c of ['WU', 'BRG', 'WUBRG', 'C']) expect(isCellId(`${c}|basic`), c).toBe(false);
+		expect(isCellId('WU|land')).toBe(true);
+	});
+
 	it('accepts a role paired with play', () => {
 		expect(isCellId('g.draw|play')).toBe(true);
 		expect(isCellId('g.cast.creature|play')).toBe(true);

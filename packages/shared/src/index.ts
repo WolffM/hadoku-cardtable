@@ -52,6 +52,8 @@ export { semanticIssues, formatPath } from './semantics.ts';
 export {
   COLOUR_IDS,
   PARADIGM_IDS,
+  MONO_COLOUR_IDS,
+  rowHasParadigm,
   SOUND_ROLE_GROUPS,
   SOUND_ROLES,
   SOUND_MATRIX,

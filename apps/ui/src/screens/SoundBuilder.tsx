@@ -42,7 +42,7 @@
  *
  * ## Why the matrix and the bin are plain markup, not canvas
  *
- * 27 colour identities × 5 paradigms plus the roles is ~190 cells and a bin of
+ * 27 colour identities × 5 paradigms, a basic land on the 5 mono rows, plus the roles is ~190 cells and a bin of
  * however many keepers exist; a `<table>` wrapped in its own scrolling box
  * (`.sound-builder__table-wrap`) keeps the PAGE from scrolling sideways at
  * phone width while the matrix itself does, which is the same trick the
@@ -51,7 +51,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { SOUND_MATRIX, SOUND_ROLE_GROUPS, SOUND_ROLES, type CellId, type SoundTake } from '@hadoku/shared';
+import { rowHasParadigm, SOUND_MATRIX, SOUND_ROLE_GROUPS, SOUND_ROLES, type CellId, type SoundTake } from '@hadoku/shared';
 
 import { ManaCost } from '../components/ManaPip.tsx';
 import { pickRandom, soundsClient, type SoundsClient } from '../sound/builderClient.ts';
@@ -205,7 +205,8 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
 
   if (!loaded || !canEdit) return null;
 
-  const total = SOUND_MATRIX.colour.length * SOUND_MATRIX.paradigms.length + SOUND_ROLES.size;
+  const colourCells = SOUND_MATRIX.colour.reduce((n, row) => n + SOUND_MATRIX.paradigms.filter((p) => rowHasParadigm(row.id, p.id)).length, 0);
+  const total = colourCells + SOUND_ROLES.size;
   const filled = Object.values(cells).filter((f) => f.length > 0).length;
 
   const bySound = new Map<string, SoundTake[]>();
@@ -475,10 +476,12 @@ function ColourRowEl({
           </div>
         </th>
         {SOUND_MATRIX.paradigms.map((p) => {
+          // `basic` is a mono row's only: every other row has no basic land to sound.
+          if (!rowHasParadigm(row.id, p.id)) return <td key={p.id} className="sound-builder__none" />;
           const cellId = `${row.id}|${p.id}`;
           const files = cells[cellId] ?? [];
           const hint =
-            p.id === 'land'
+            p.id === 'basic'
               ? (SOUND_MATRIX.landNames as Record<string, string | undefined>)[row.id]
               : undefined;
           return (
@@ -553,7 +556,7 @@ function Cell({
             aria-label={`Play one of ${files.length} at random`}
             title={files.length > 1 ? `${files.length} variations, one at random` : '1 take'}
             onClick={(e) => {
-              if (holding !== null) return;
+              // Always a play, even with a take in hand: placing is a click on the cell itself.
               e.stopPropagation();
               onPlayRandom(cellId, files);
             }}

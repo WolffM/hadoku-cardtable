@@ -85,6 +85,13 @@ describe('SCENARIOS', () => {
     expect(beats).toContainEqual(expect.objectContaining({ role: 'g.land', colourCell: 'R|land' }));
   });
 
+  it('a land beat is a mono seat’s basic land, and any other seat’s land', () => {
+    const land = { at: 0, role: 'g.land', label: 'Land', layer: 'basic' as const };
+    expect(beatEvent(land, { me: 'R', opp: 'UB' }).colourCell).toBe('R|basic');
+    expect(beatEvent({ ...land, seat: 'opp' }, { me: 'R', opp: 'UB' }).colourCell).toBe('UB|land');
+    expect(beatEvent(land, { me: 'C', opp: 'UB' }).colourCell).toBe('C|land');
+  });
+
   it('beats are in time order and ids are unique', () => {
     expect(new Set(SCENARIOS.map((s) => s.id)).size).toBe(SCENARIOS.length);
     for (const s of SCENARIOS) {

@@ -88,8 +88,12 @@ export interface ParadigmCol {
 	readonly name: string;
 }
 
-/** The five paradigm columns a colour-identity row carries. */
-export const PARADIGM_IDS = ['spell', 'creature', 'land', 'artifact', 'artifact-creature'] as const;
+/**
+ * The paradigm columns a colour-identity row carries. `basic` — a basic land —
+ * is a mono row's only (the operator, 2026-10-10: *"split land and basic land
+ * for mono colors"*): `land` is then every other land of that colour.
+ */
+export const PARADIGM_IDS = ['spell', 'creature', 'land', 'basic', 'artifact', 'artifact-creature'] as const;
 export type ParadigmId = (typeof PARADIGM_IDS)[number];
 
 /** The 27 colour-identity rows: 5 mono, 10 guild, 10 three-colour, four-plus, colourless. */
@@ -254,6 +258,7 @@ export const SOUND_MATRIX: {
 		{ id: 'spell', name: 'Spell' },
 		{ id: 'creature', name: 'Creature' },
 		{ id: 'land', name: 'Land' },
+		{ id: 'basic', name: 'Basic land' },
 		{ id: 'artifact', name: 'Artifact' },
 		{ id: 'artifact-creature', name: 'Artifact creature' },
 	],
@@ -297,6 +302,14 @@ export const SOUND_MATRIX: {
 
 const COLOUR_ID_SET: ReadonlySet<string> = new Set(COLOUR_IDS);
 const PARADIGM_ID_SET: ReadonlySet<string> = new Set(PARADIGM_IDS);
+/** The rows that carry a `basic` cell: one basic land each. */
+export const MONO_COLOUR_IDS: readonly ColourId[] = ['W', 'U', 'B', 'R', 'G'];
+const MONO_SET: ReadonlySet<string> = new Set(MONO_COLOUR_IDS);
+
+/** Whether a colour row carries this paradigm column: every row does, but `basic` is mono only. */
+export function rowHasParadigm(row: string, paradigm: string): boolean {
+	return PARADIGM_ID_SET.has(paradigm) && (paradigm !== 'basic' || MONO_SET.has(row));
+}
 
 /**
  * Parse a raw string as a `CellId`, enforcing the row/column pairing: a
@@ -309,7 +322,7 @@ export function parseCellId(raw: string): CellId | null {
 	const row = raw.slice(0, i);
 	const col = raw.slice(i + 1);
 	if (row === '' || col === '') return null;
-	if (COLOUR_ID_SET.has(row)) return PARADIGM_ID_SET.has(col) ? (raw as CellId) : null;
+	if (COLOUR_ID_SET.has(row)) return rowHasParadigm(row, col) ? (raw as CellId) : null;
 	if (SOUND_ROLES.has(row)) return col === 'play' ? (raw as CellId) : null;
 	return null;
 }

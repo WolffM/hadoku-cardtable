@@ -84,15 +84,34 @@ function types(entry: BoardCard): string {
 
 const isType = (entry: BoardCard, t: string): boolean => types(entry).includes(t);
 
+/**
+ * A land's colours, which it has none of as a card: its basic land types (a
+ * Plains, a Steam Vents) and the mana its own text adds (`Add {W}`, `Add {B} or
+ * {R}`). "Any color" is all five.
+ */
+function landColours(entry: BoardCard): string[] {
+  const found = new Set(
+    Object.entries(BASIC_LAND)
+      .filter(([name]) => entry.card.typeLine.includes(name))
+      .map(([, letter]) => letter),
+  );
+  const text = entry.card.oracleText;
+  if (/\bany (?:one )?colou?r\b/i.test(text)) return ['W', 'U', 'B', 'R', 'G'];
+  for (const clause of text.matchAll(/\bAdd\b[^.]*/g)) for (const m of clause[0].matchAll(/\{([WUBRG])\}/g)) found.add(m[1]!);
+  return [...found];
+}
+
 /** The colour cell a card's arrival is layered with, or null for a card that has none. */
 export function colourCell(entry: BoardCard): string | null {
   const paradigm = paradigmOf(entry);
   if (paradigm === null) return null;
   if (paradigm === 'land') {
-    const basics = Object.entries(BASIC_LAND)
-      .filter(([name]) => entry.card.typeLine.includes(name))
-      .map(([, letter]) => letter);
-    return `${colourRow(basics)}|land`;
+    const colours = landColours(entry);
+    const row = colourRow(colours);
+    // A basic land of one colour has its own cell on the mono rows (2026-10-10); every
+    // other land — a mono-coloured nonbasic, a dual, Wastes — is its colour's `land`.
+    const basic = /\bBasic\b/.test(entry.card.typeLine) && colours.length === 1;
+    return `${row}|${basic ? 'basic' : 'land'}`;
   }
   return `${colourRow(entry.card.colors)}|${paradigm}`;
 }

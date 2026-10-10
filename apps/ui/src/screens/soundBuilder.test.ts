@@ -18,7 +18,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { SoundBuilder } from './SoundBuilder.tsx';
 import type { Assignments, SoundsClient } from '../sound/builderClient.ts';
@@ -222,14 +222,32 @@ describe('SoundBuilder', () => {
     expect(cell.querySelector('.sound-builder__hint')).toBeNull();
   });
 
-  it('a mono identity\'s Land cell is hinted with its basic land name when empty', async () => {
+  it('a mono row has a Basic land cell, hinted with its basic, beside its Land; other rows have no basic', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
     const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     await screen.findByText('Sound Builder');
     showColours();
 
-    const landCell = container.querySelector('[data-cell="W|land"]')!;
-    expect(landCell.textContent).toBe('Plains');
+    expect(container.querySelector('[data-cell="W|basic"]')!.textContent).toBe('Plains');
+    expect(container.querySelector('[data-cell="W|land"]')!.textContent).toBe('');
+    expect(container.querySelector('[data-cell="WU|land"]')).not.toBeNull();
+    expect(container.querySelector('[data-cell="WU|basic"]')).toBeNull();
+    expect(container.querySelectorAll('[data-cell$="|basic"]')).toHaveLength(5);
+  });
+
+  it('the ▶ on a filled cell plays it even with a take in hand, and places nothing', async () => {
+    const client = stubClient({ cells: { 'W|spell': [TAKE_A.file] }, canEdit: true });
+    const player = stubPlayer();
+    const { container } = render(createElement(SoundBuilder, { client, player }));
+    await screen.findByText('Sound Builder');
+    showColours();
+
+    fireEvent.click(screen.getByRole('button', { name: /Water · 1: play and pick up/ }));
+    player.playFile.mockClear();
+    const cell = container.querySelector('[data-cell="W|spell"]')!;
+    fireEvent.click(within(cell as HTMLElement).getByRole('button', { name: /Play one of 1 at random/ }));
+    expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file, 1);
+    expect(client.saves).toEqual([]);
   });
 
   it('opens on the roles, and a take placed on a role saves that role cell', async () => {
