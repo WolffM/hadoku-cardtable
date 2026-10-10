@@ -1474,9 +1474,13 @@ describe('POST /api/rooms/watchparty', () => {
 
 		const elsewhere = (await call(h, 'POST', '/api/rooms/watchparty', { as: 'bob', body: { room: 'other-room' } })).json() as { id: string };
 		expect(elsewhere.id).not.toBe(made.id);
+
+		// The watchparty id is opaque: any shape still makes a valid table id.
+		const opaque = (await call(h, 'POST', '/api/rooms/watchparty', { as: 'bob', body: { room: 'F3E1C0DE-UUID_Like.Room 9' } })).json() as { id: string };
+		expect(opaque.id).toMatch(/^wp-[0-9a-f]{20}$/);
 	});
 
-	it('never prints the watchparty name, which may be a leader key', async () => {
+	it('never prints the watchparty name, even a leader key passed by mistake', async () => {
 		const h = await openApp(await tempDir());
 		const leaderKey = 'movie-night-0123456789abcdef';
 		const bound = (await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: leaderKey } })).json() as { id: string; name: string };

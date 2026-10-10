@@ -231,7 +231,7 @@ function parseJoin(body: unknown): Parsed<{ password: string | undefined }> {
 }
 
 /** Same allow-list discipline as the others: `{ ready: boolean }` and nothing else. */
-/** Watchparty's room keys are slugs plus a hex suffix; this only bounds what is hashed. */
+/** Watchparty's room id is opaque to us; this only bounds what is hashed. */
 const WATCHPARTY_ROOM_MAX = 200;
 
 function parseWatchpartyBind(body: unknown): Parsed<{ room: string }> {
@@ -407,7 +407,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	// room whose game slot this is, made on first use. Joining it spends a join
 	// token exactly as `/:id/join` does for a newcomer, so binding is no cheaper
 	// a way to probe or flood than joining is. The watchparty name is never
-	// logged: it may be a leader key (see `watchpartyRoomId`).
+	// logged (see `watchpartyRoomId`).
 	rooms.post('/watchparty', (req: Request, res: Response) => {
 		const parsed = parseWatchpartyBind(req.body);
 		if (!parsed.ok) return badRequest(res, parsed.error);
