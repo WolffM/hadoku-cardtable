@@ -27,6 +27,7 @@ import {
   AssignmentsSchema,
   CatalogueSchema,
   type CellId,
+  type RetireReason,
   type SoundTake,
 } from '@hadoku/shared';
 
@@ -80,6 +81,14 @@ export interface SoundsClient {
    * something that does not parse.
    */
   save(cell: CellId, files: readonly string[], gain?: number): Promise<SavedCell | null>;
+  /**
+   * `POST /api/sounds/retire`: the take leaves the catalogue and every cell, and
+   * the reason is logged for the next batch. The cells it left, or `null` when
+   * the server refused or could not be reached.
+   */
+  retire(file: string, reason: RetireReason): Promise<string[] | null>;
+  /** `POST /api/sounds/restore`: undo the last retirement. Whether it worked. */
+  restore(file: string): Promise<boolean>;
   /** The same-origin URL a take's audio streams from. */
   takeUrl(file: string): string;
 }
@@ -134,6 +143,37 @@ export function soundsClient(
         files: body.files.filter((f): f is string => typeof f === 'string'),
         gain: typeof body.gain === 'number' ? body.gain : 1,
       };
+    },
+
+    async retire(file, reason) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url('/retire'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ file, reason }),
+        });
+      } catch {
+        return null;
+      }
+      if (!res.ok) return null;
+      const body = await bodyOf(res);
+      return isRecord(body) && Array.isArray(body.cells) ? body.cells.filter((c): c is string => typeof c === 'string') : null;
+    },
+
+    async restore(file) {
+      try {
+        const res = await fetchImpl(url('/restore'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ file }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
     },
 
     takeUrl(file) {

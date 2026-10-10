@@ -41,6 +41,8 @@ function stubClient(canEdit: boolean, cells: Record<string, string[]> = {}) {
       saves.push({ cell, files: [...files], gain });
       return { files: [...files], gain: gain ?? 1 };
     },
+    retire: async () => [],
+    restore: async () => true,
     takeUrl: (f) => f,
   };
   return { client, saves };

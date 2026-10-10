@@ -98,3 +98,16 @@ Each catalogued take with a raw `.wav` under `generated/` is finished again and 
 `seconds` changes in `catalogue.json`. Do not use `import.py --merge` for this: it rebuilds the entries, which loses
 any renames. Browsers pick the new cut up at once: `/api/sounds/audio/…` is served `no-cache` with an ETag.
 
+## What was thrown out
+
+The picker's **Delete** (bad) and **Shift+Delete** (broken) retire the take in hand: it leaves the catalogue and every
+cell, its audio moves to `<sounds dir>/retired/`, and a line lands in `<sounds dir>/retired.jsonl` (Undo restores it).
+Read that before a new batch:
+
+```sh
+python3 scripts/sfx/retired.py apps/server/data/sounds
+```
+
+Per prompt it shows how many takes were thrown out and why, and what is still kept. Mostly *broken* points at
+generation or finishing; mostly *bad* at the prompt — rewrite it, or drop it from the next `roundN.json`.
+

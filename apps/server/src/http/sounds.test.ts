@@ -435,3 +435,59 @@ describe('GET /api/sounds/audio/:folder/:file', () => {
 		await rm(secretPath, { force: true });
 	});
 });
+
+/* ── retiring a take, and undoing it ────────────────────────────────── */
+
+describe('POST /api/sounds/retire and /restore', () => {
+	async function seeded(): Promise<{ dir: string; h: Harness }> {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE, TAKE2]);
+		await writeTakeFile(dir, TAKE.file, 'victory bytes');
+		await writeTakeFile(dir, TAKE2.file);
+		const h = await openApp(dir);
+		for (const cell of ['g.win|play', 'g.lose|play']) {
+			expect((await call(h, 'PUT', cellPath(cell), { tier: 'admin', body: { files: [TAKE.file, TAKE2.file] } })).status).toBe(200);
+		}
+		return { dir, h };
+	}
+
+	it('takes it out of the catalogue and every cell, keeps its audio aside, and logs why', async () => {
+		const { dir, h } = await seeded();
+		const res = await call(h, 'POST', '/api/sounds/retire', { tier: 'admin', body: { file: TAKE.file, reason: 'broken' } });
+		expect(res.status).toBe(200);
+		expect(res.json()).toEqual({ file: TAKE.file, reason: 'broken', cells: ['g.win|play', 'g.lose|play'] });
+
+		expect(((await call(h, 'GET', '/api/sounds/catalogue')).json() as { takes: { file: string }[] }).takes.map((t) => t.file)).toEqual([TAKE2.file]);
+		const { cells } = (await call(h, 'GET', '/api/sounds/assignments')).json() as { cells: Record<string, string[]> };
+		expect(cells).toEqual({ 'g.win|play': [TAKE2.file], 'g.lose|play': [TAKE2.file] });
+		expect((await call(h, 'GET', `/api/sounds/audio/${TAKE.file}`)).status).toBe(404);
+		expect(await readFile(join(dir, 'retired', TAKE.file), 'utf8')).toBe('victory bytes');
+
+		const lines = (await readFile(join(dir, 'retired.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+		expect(lines).toHaveLength(1);
+		expect(lines[0]).toMatchObject({ action: 'retire', file: TAKE.file, reason: 'broken', take: TAKE, cells: ['g.win|play', 'g.lose|play'] });
+		expect(typeof lines[0].at).toBe('string');
+	});
+
+	it('restore puts it back exactly: catalogue entry, cells and audio', async () => {
+		const { h } = await seeded();
+		await call(h, 'POST', '/api/sounds/retire', { tier: 'admin', body: { file: TAKE.file, reason: 'bad' } });
+		const res = await call(h, 'POST', '/api/sounds/restore', { tier: 'admin', body: { file: TAKE.file } });
+		expect(res.status).toBe(200);
+		expect(((await call(h, 'GET', '/api/sounds/catalogue')).json() as { takes: { file: string }[] }).takes).toContainEqual(TAKE);
+		const { cells } = (await call(h, 'GET', '/api/sounds/assignments')).json() as { cells: Record<string, string[]> };
+		expect(cells['g.win|play']).toEqual([TAKE2.file, TAKE.file]);
+		expect((await call(h, 'GET', `/api/sounds/audio/${TAKE.file}`)).text).toBe('victory bytes');
+		// Nothing left to undo.
+		expect((await call(h, 'POST', '/api/sounds/restore', { tier: 'admin', body: { file: TAKE.file } })).status).toBe(404);
+	});
+
+	it('is admin-only, refuses a reason it does not know, and 404s a take that is not in the catalogue', async () => {
+		const { h } = await seeded();
+		expect((await call(h, 'POST', '/api/sounds/retire', { tier: 'friend', body: { file: TAKE.file, reason: 'bad' } })).status).toBe(403);
+		expect((await call(h, 'POST', '/api/sounds/restore', { tier: 'friend', body: { file: TAKE.file } })).status).toBe(403);
+		expect((await call(h, 'POST', '/api/sounds/retire', { tier: 'admin', body: { file: TAKE.file, reason: 'meh' } })).status).toBe(400);
+		expect((await call(h, 'POST', '/api/sounds/retire', { tier: 'admin', body: { file: 'm-win/take-ghost.ogg', reason: 'bad' } })).status).toBe(404);
+		expect(((await call(h, 'GET', '/api/sounds/catalogue')).json() as { takes: { file: string }[] }).takes).toHaveLength(2);
+	});
+});

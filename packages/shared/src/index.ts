@@ -64,6 +64,9 @@ export {
   CatalogueSchema,
   AssignmentsSchema,
   PutAssignmentBodySchema,
+  RETIRE_REASONS,
+  RetireBodySchema,
+  RestoreBodySchema,
   GainSchema,
   isCellId,
   parseCellId,
@@ -82,6 +85,8 @@ export {
   type Catalogue,
   type Assignments,
   type PutAssignmentBody,
+  type RetireBody,
+  type RetireReason,
 } from './sounds.ts';
 
 export {

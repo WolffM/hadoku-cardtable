@@ -406,3 +406,25 @@ export const PutAssignmentBodySchema = z.object({
 	gain: GainSchema.optional(),
 });
 export type PutAssignmentBody = z.infer<typeof PutAssignmentBodySchema>;
+
+/**
+ * Why a take was retired from the catalogue (the operator, 2026-10-10: *"some
+ * sounds are broken and dont need to exist anymore. some sounds are just bad"*).
+ * `broken` is a defect — silence, a glitch, a cut — and points at generation or
+ * finishing; `bad` is taste, and points at the prompt. Both are logged, as
+ * feedback for the next batch.
+ */
+export const RETIRE_REASONS = ['bad', 'broken'] as const;
+export type RetireReason = (typeof RETIRE_REASONS)[number];
+
+/** `POST /api/sounds/retire`. */
+export const RetireBodySchema = z.object({
+	file: z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg'),
+	reason: z.enum(RETIRE_REASONS),
+});
+export type RetireBody = z.infer<typeof RetireBodySchema>;
+
+/** `POST /api/sounds/restore`: undo the last retirement of a file. */
+export const RestoreBodySchema = z.object({
+	file: z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg'),
+});

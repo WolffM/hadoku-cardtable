@@ -51,15 +51,32 @@ type Saved = { cell: string; files: string[]; gain?: number };
 function stubClient(
   assignments: Omit<Assignments, 'gains'> & { gains?: Record<string, number> },
   takes = [TAKE_A, TAKE_B],
-): SoundsClient & { saves: Saved[] } {
+): SoundsClient & { saves: Saved[]; retires: { file: string; reason: string }[] } {
   const saves: Saved[] = [];
+  const retires: { file: string; reason: string }[] = [];
+  // The server's own state, so a retire and its restore read back as the server would answer.
+  let live = [...takes];
+  const out = new Set<string>();
   return {
     saves,
+    retires,
     async catalogue() {
-      return takes;
+      return live;
     },
     async assignments() {
-      return { gains: {}, ...assignments };
+      const cells = Object.fromEntries(Object.entries(assignments.cells).map(([c, fs]) => [c, fs.filter((f) => !out.has(f))]));
+      return { gains: {}, ...assignments, cells };
+    },
+    async retire(file, reason) {
+      retires.push({ file, reason });
+      out.add(file);
+      live = live.filter((t) => t.file !== file);
+      return [];
+    },
+    async restore(file) {
+      out.delete(file);
+      live = takes.filter((t) => !out.has(t.file));
+      return true;
     },
     async save(cell, files, gain) {
       saves.push(gain === undefined ? { cell, files: [...files] } : { cell, files: [...files], gain });
@@ -118,6 +135,8 @@ describe('SoundBuilder', () => {
         return v;
       }),
       save: vi.fn(async (_cell, files) => ({ files: [...files], gain: 1 })),
+      retire: vi.fn(async () => []),
+      restore: vi.fn(async () => true),
       takeUrl: (file) => file,
     };
 
@@ -233,6 +252,43 @@ describe('SoundBuilder', () => {
     expect(container.querySelector('[data-cell="WU|land"]')).not.toBeNull();
     expect(container.querySelector('[data-cell="WU|basic"]')).toBeNull();
     expect(container.querySelectorAll('[data-cell$="|basic"]')).toHaveLength(5);
+  });
+
+  it('Delete retires the take in hand as bad, Shift+Delete as broken: out of the bin and every cell, with an Undo', async () => {
+    const client = stubClient({ cells: { 'W|spell': [TAKE_A.file, TAKE_B.file] }, canEdit: true });
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+    showColours();
+
+    fireEvent.click(screen.getByRole('button', { name: /Water · 1: play and pick up/ }));
+    fireEvent.keyDown(document, { key: 'Delete' });
+    await act(async () => undefined);
+    expect(client.retires).toEqual([{ file: TAKE_A.file, reason: 'bad' }]);
+    expect(screen.queryByRole('button', { name: /Water · 1: play and pick up/ })).toBeNull();
+    expect(container.querySelector('[data-cell="W|spell"]')!.textContent).not.toContain('Water · 1');
+    expect(screen.getByTestId('sound-retired').getAttribute('data-reason')).toBe('bad');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('sound-retired-undo'));
+    });
+    expect(screen.getByRole('button', { name: /Water · 1: play and pick up/ })).toBeTruthy();
+    expect(container.querySelector('[data-cell="W|spell"]')!.textContent).toContain('Water · 1');
+
+    fireEvent.click(screen.getByRole('button', { name: /Water · 2: play and pick up/ }));
+    fireEvent.keyDown(document, { key: 'Delete', shiftKey: true });
+    await act(async () => undefined);
+    expect(client.retires.at(-1)).toEqual({ file: TAKE_B.file, reason: 'broken' });
+  });
+
+  it('Delete does nothing with no take in hand, or while typing in the search', async () => {
+    const client = stubClient({ cells: {}, canEdit: true });
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+    fireEvent.keyDown(document, { key: 'Delete' });
+    fireEvent.click(screen.getByRole('button', { name: /Water · 1: play and pick up/ }));
+    fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Backspace' });
+    await act(async () => undefined);
+    expect(client.retires).toEqual([]);
   });
 
   it('the ▶ on a filled cell plays it even with a take in hand, and places nothing', async () => {

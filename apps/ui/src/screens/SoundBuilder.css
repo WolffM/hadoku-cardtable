@@ -454,3 +454,23 @@ a.sound-builder__btn {
     transition: none;
   }
 }
+
+/* The last deletion, with its Undo, until the next one replaces it. */
+.sound-builder__retired {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.sound-builder__retired button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  padding: 1px 8px;
+  font: inherit;
+  cursor: pointer;
+}

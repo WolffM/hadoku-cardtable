@@ -49,9 +49,17 @@
  * artifact used (`.tw { overflow-x: auto }`).
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { rowHasParadigm, SOUND_MATRIX, SOUND_ROLE_GROUPS, SOUND_ROLES, type CellId, type SoundTake } from '@hadoku/shared';
+import {
+  rowHasParadigm,
+  SOUND_MATRIX,
+  SOUND_ROLE_GROUPS,
+  SOUND_ROLES,
+  type CellId,
+  type RetireReason,
+  type SoundTake,
+} from '@hadoku/shared';
 
 import { ManaCost } from '../components/ManaPip.tsx';
 import { pickRandom, soundsClient, type SoundsClient } from '../sound/builderClient.ts';
@@ -114,7 +122,18 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
   const [unplacedOnly, setUnplacedOnly] = useState(false);
   const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(new Set());
   const [holding, setHolding] = useState<string | null>(null);
+  /** The last take retired from here, while its Undo is offered. */
+  const [retired, setRetired] = useState<{ take: SoundTake; reason: RetireReason } | null>(null);
   const lastPickRef = useRef<Map<string, string>>(new Map());
+
+  const reload = useCallback(async (): Promise<void> => {
+    const [t, a] = await Promise.all([client.catalogue(), client.assignments()]);
+    setTakes(t);
+    setCells(a.cells);
+    setGains(a.gains);
+    setCanEdit(a.canEdit);
+    setLoaded(true);
+  }, [client]);
 
   useEffect(() => {
     let alive = true;
@@ -131,15 +150,48 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
     };
   }, [client]);
 
-  // Esc puts a held take down, wherever the focus is — the artifact's own rule.
+  /*
+   * Esc puts a held take down, wherever the focus is — the artifact's own rule.
+   * Delete retires it as bad and Shift+Delete as broken (the operator,
+   * 2026-10-10: "give me a hotkey to delete a sound … ideally you log when this
+   * happens"): out of the bin and every cell, logged server-side with its prompt
+   * for the next batch, and undoable. Not while typing in the search box.
+   */
   useEffect(() => {
     if (holding === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setHolding(null);
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const el = e.target as HTMLElement | null;
+      if (el !== null && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      e.preventDefault();
+      void retire(holding, e.shiftKey ? 'broken' : 'bad');
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [holding]);
+  });
+
+  async function retire(file: string, reason: RetireReason): Promise<void> {
+    const take = takes.find((t) => t.file === file);
+    if (take === undefined) return;
+    setHolding(null);
+    setTakes((ts) => ts.filter((t) => t.file !== file));
+    setCells((cs) => Object.fromEntries(Object.entries(cs).map(([c, fs]) => [c, fs.filter((f) => f !== file)])));
+    const left = await client.retire(file, reason);
+    if (left === null) {
+      // Refused or unreachable: show what the server actually holds.
+      await reload();
+      return;
+    }
+    setRetired({ take, reason });
+  }
+
+  async function undoRetire(): Promise<void> {
+    if (retired === null) return;
+    const file = retired.take.file;
+    setRetired(null);
+    if (await client.restore(file)) await reload();
+  }
 
   const byFile = useMemo(() => {
     const m = new Map<string, SoundTake>();
@@ -244,6 +296,14 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
             <b>{takes.length}</b> keepers
           </span>
         </div>
+        {retired !== null && (
+          <p className="sound-builder__retired" role="status" data-testid="sound-retired" data-reason={retired.reason}>
+            Deleted {retired.take.label} ({retired.reason})
+            <button type="button" data-testid="sound-retired-undo" onClick={() => void undoRetire()}>
+              Undo
+            </button>
+          </p>
+        )}
         <nav className="sound-builder__tabs" aria-label="Builder view">
           {(['roles', 'colours'] as const).map((t) => (
             <button

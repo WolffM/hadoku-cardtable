@@ -45,12 +45,23 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename } from 'node:fs/promises';
+import { appendFile, mkdir, open, readFile, rename } from 'node:fs/promises';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import { join, resolve as resolvePath, sep } from 'node:path';
 
-import { CatalogueSchema, GainSchema, PutAssignmentBodySchema, TAKE_FILE_RE, isCellId, type Catalogue } from '@hadoku/shared';
+import {
+	CatalogueSchema,
+	GainSchema,
+	PutAssignmentBodySchema,
+	RestoreBodySchema,
+	RetireBodySchema,
+	SoundTakeSchema,
+	TAKE_FILE_RE,
+	isCellId,
+	type Catalogue,
+	type SoundTake,
+} from '@hadoku/shared';
 import { rankOf, tierOf } from '../edge-auth.js';
 
 export interface SoundsDeps {
@@ -193,6 +204,51 @@ async function writeAssignments(dir: string, stored: StoredAssignments): Promise
 	await atomicWriteJson(join(dir, 'assignments.json'), stored);
 }
 
+/**
+ * `retired.jsonl`: one line per retirement and per restore, append-only. It is
+ * the feedback the next generation batch reads — which prompts made a broken or
+ * a bad take, and which cells had been given it — so a retirement is never only
+ * a deletion. The take's whole catalogue entry rides along, which is also what
+ * lets `restore` put it back exactly.
+ */
+interface RetiredLine {
+	at: string;
+	action: 'retire' | 'restore';
+	file: string;
+	reason?: string;
+	take?: SoundTake;
+	cells?: string[];
+}
+
+async function appendRetired(dir: string, line: RetiredLine): Promise<void> {
+	await mkdir(dir, { recursive: true });
+	await appendFile(join(dir, 'retired.jsonl'), `${JSON.stringify(line)}\n`);
+}
+
+/** The last retirement of `file` that no later restore has undone, or null. */
+async function lastRetirement(dir: string, file: string): Promise<RetiredLine | null> {
+	let raw: string;
+	try {
+		raw = await readFile(join(dir, 'retired.jsonl'), 'utf8');
+	} catch (err) {
+		if (isEnoent(err)) return null;
+		throw err;
+	}
+	let open: RetiredLine | null = null;
+	for (const text of raw.split('\n')) {
+		if (text.trim() === '') continue;
+		let line: RetiredLine;
+		try {
+			line = JSON.parse(text) as RetiredLine;
+		} catch {
+			continue;
+		}
+		if (line.file !== file) continue;
+		open = line.action === 'retire' ? line : null;
+	}
+	return open;
+}
+
 export function attachSounds(api: Router, deps: SoundsDeps): void {
 	const { dir } = deps;
 	const log =
@@ -291,6 +347,73 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		});
 		log({ event: 'sounds-assignment-saved', cell, count: files.length });
 		res.json({ cell, files, gain: saved });
+	});
+
+	/*
+	 * Retire a take: out of the catalogue, out of every cell, its audio moved to
+	 * `retired/` (kept, so `restore` can undo it), and a line in `retired.jsonl`.
+	 * Under the same write lock as a PUT, because it rewrites `assignments.json`
+	 * too. This is the one route besides `scripts/sfx/import.py` that writes
+	 * `catalogue.json`.
+	 */
+	sounds.post('/retire', async (req: Request, res: Response) => {
+		if (!isAdmin(req)) return res.status(403).json({ error: 'admin tier required' });
+		const parsed = RetireBodySchema.safeParse(req.body);
+		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+		const { file, reason } = parsed.data;
+		const outcome = await withWriteLock(async () => {
+			const catalogue = await readCatalogue(dir, log);
+			const take = catalogue.takes.find((t) => t.file === file);
+			if (take === undefined) return null;
+			const stored = await readAssignments(dir, log);
+			const cells = Object.keys(stored.cells).filter((c) => stored.cells[c]!.includes(file));
+			for (const c of cells) stored.cells[c] = stored.cells[c]!.filter((f) => f !== file);
+			const target = join(dir, 'retired', file);
+			await mkdir(join(target, '..'), { recursive: true });
+			try {
+				await rename(join(takesDir, file), target);
+			} catch (err) {
+				// A take whose audio is already gone is exactly a broken one: retire the entry regardless.
+				if (!isEnoent(err)) throw err;
+			}
+			await atomicWriteJson(join(dir, 'catalogue.json'), { takes: catalogue.takes.filter((t) => t.file !== file) });
+			await writeAssignments(dir, stored);
+			await appendRetired(dir, { at: new Date().toISOString(), action: 'retire', file, reason, take, cells });
+			return { cells };
+		});
+		if (outcome === null) return res.status(404).json({ error: 'no such take' });
+		log({ event: 'sounds-take-retired', file, reason, cells: outcome.cells.length });
+		res.json({ file, reason, cells: outcome.cells });
+	});
+
+	/* Undo the last retirement of a take: back in the catalogue, back in the cells it left, its audio back. */
+	sounds.post('/restore', async (req: Request, res: Response) => {
+		if (!isAdmin(req)) return res.status(403).json({ error: 'admin tier required' });
+		const parsed = RestoreBodySchema.safeParse(req.body);
+		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+		const { file } = parsed.data;
+		const outcome = await withWriteLock(async () => {
+			const line = await lastRetirement(dir, file);
+			const take = SoundTakeSchema.safeParse(line?.take);
+			if (line === null || !take.success) return null;
+			try {
+				await rename(join(dir, 'retired', file), join(takesDir, file));
+			} catch (err) {
+				if (!isEnoent(err)) throw err;
+			}
+			const catalogue = await readCatalogue(dir, log);
+			if (!catalogue.takes.some((t) => t.file === file)) catalogue.takes.push(take.data);
+			const stored = await readAssignments(dir, log);
+			const cells = (line.cells ?? []).filter(isCellId);
+			for (const c of cells) if (!(stored.cells[c] ?? []).includes(file)) stored.cells[c] = [...(stored.cells[c] ?? []), file];
+			await atomicWriteJson(join(dir, 'catalogue.json'), catalogue);
+			await writeAssignments(dir, stored);
+			await appendRetired(dir, { at: new Date().toISOString(), action: 'restore', file });
+			return { take: take.data, cells };
+		});
+		if (outcome === null) return res.status(404).json({ error: 'nothing retired to restore' });
+		log({ event: 'sounds-take-restored', file, cells: outcome.cells.length });
+		res.json({ file, take: outcome.take, cells: outcome.cells });
 	});
 
 	api.use('/sounds', sounds);
