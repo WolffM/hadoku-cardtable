@@ -48,8 +48,9 @@
  * `parseRoute`, `routeHash` and `routeUrl` take their inputs as arguments and
  * touch no globals, so the interesting behaviour — what a mangled hash means,
  * what an invite URL looks like under the `/cardtable/` prefix — is testable
- * without a DOM. Only `navigate`, `subscribeToHash` and `currentHash` know
- * `window` exists.
+ * without a DOM. Only `navigate`, `subscribeToHash`, `currentHash` and
+ * `appLocation` know `window` exists — and `routeInMemory` is how the embed
+ * (D21) tells them the address bar is not the app's.
  */
 
 import { useMemo, useSyncExternalStore } from 'react';
@@ -167,21 +168,71 @@ export function routeUrl(route: Route, location: { origin: string; pathname: str
 
 const listeners = new Set<() => void>();
 
+/**
+ * The route when the app does not own the address bar, or null when it does.
+ *
+ * Embedded in a watchparty room (D21) the URL is watchparty's: a hash written
+ * there would rewrite THEIR page's route and land in their history. So the
+ * embed holds its route here instead, and `navigate` / `useRoute` read and
+ * write this rather than `location.hash`. One per page, like everything else
+ * the chrome owns ("exactly one chrome per page", `chrome/AppChrome.tsx`).
+ */
+let inMemory: { hash: string } | null = null;
+
 function notify(): void {
   for (const listener of [...listeners]) listener();
 }
 
+/** Whether `hashchange` is subscribed — only ever while the address bar is ours. */
+let listening = false;
+
+function syncHashListener(): void {
+  const want = inMemory === null && listeners.size > 0;
+  if (want === listening) return;
+  listening = want;
+  if (want) globalThis.addEventListener('hashchange', notify);
+  else globalThis.removeEventListener('hashchange', notify);
+}
+
 function subscribeToHash(listener: () => void): () => void {
   listeners.add(listener);
-  if (listeners.size === 1) globalThis.addEventListener('hashchange', notify);
+  syncHashListener();
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) globalThis.removeEventListener('hashchange', notify);
+    syncHashListener();
   };
 }
 
 function currentHash(): string {
+  if (inMemory !== null) return inMemory.hash;
   return globalThis.location?.hash ?? '';
+}
+
+/**
+ * Route in memory from here on, starting at `start`; the returned function
+ * gives the address bar back. The embed calls this before it renders.
+ */
+export function routeInMemory(start: Route): () => void {
+  const mine = { hash: routeHash(start) };
+  inMemory = mine;
+  syncHashListener();
+  notify();
+  return () => {
+    if (inMemory !== mine) return;
+    inMemory = null;
+    syncHashListener();
+  };
+}
+
+/**
+ * The page an invite link is built on: this one standalone, and the
+ * standalone app's own page when embedded — watchparty's URL plus a cardtable
+ * hash would open watchparty, not the room.
+ */
+export function appLocation(): { origin: string; pathname: string } {
+  const origin = globalThis.location?.origin ?? '';
+  if (inMemory !== null) return { origin, pathname: import.meta.env?.BASE_URL ?? '/' };
+  return { origin, pathname: globalThis.location?.pathname ?? '' };
 }
 
 /**
@@ -195,7 +246,8 @@ function currentHash(): string {
  */
 export function navigate(route: Route): void {
   const next = routeHash(route);
-  if (currentHash() !== next) globalThis.location.hash = next;
+  if (inMemory !== null) inMemory.hash = next;
+  else if (currentHash() !== next) globalThis.location.hash = next;
   notify();
 }
 

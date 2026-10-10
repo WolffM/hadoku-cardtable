@@ -54,7 +54,7 @@ import {
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
-import { navigate, routeUrl } from './route.ts';
+import { appLocation, navigate, routeUrl } from './route.ts';
 
 export interface PodScreenProps {
   /** The ROOM's id. The draft runs against it, and the invite link points at it. */
@@ -112,7 +112,7 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
    * they evict a bot. One link, whenever it is clicked.
    */
   const link = useMemo(
-    () => routeUrl({ kind: 'room', roomId: draftId }, globalThis.location ?? { origin: '', pathname: '' }),
+    () => routeUrl({ kind: 'room', roomId: draftId }, appLocation()),
     [draftId],
   );
 

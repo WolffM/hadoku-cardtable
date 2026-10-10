@@ -159,11 +159,11 @@
  *    `globalThis.crypto` (:254). Every screen imports `navigate` from it,
  *    and so does `App.tsx` (`useRoute`). It is deliberate and documented
  *    there, but it means a screen's navigation is not a prop, and a wrapper
- *    that owns routing has to meet it.
- * 3. **`screens/PodScreen.tsx` reads two browser globals directly** —
- *    `globalThis.location` for the invite URL (:100) and
- *    `globalThis.navigator.clipboard` for the copy button (:245, :251).
- *    Both are optional-chained, so neither crashes a host without them.
+ *    that owns routing has to meet it. The watchparty embed (D21) meets it
+ *    with `routeInMemory`, which takes the router off the address bar.
+ * 3. **`screens/PodScreen.tsx` reads `navigator.clipboard` directly** for
+ *    the copy button, optional-chained, so it does not crash a host without
+ *    it. Its invite URL now comes from `route.ts`'s `appLocation()`.
  * 4. **`rooms/RoomList.tsx` subscribes to `document.visibilitychange`** in
  *    the effect that drives its poll, to stop polling on a hidden tab.
  *    Page-visibility is the shell's fact, not a list's. (No line numbers:

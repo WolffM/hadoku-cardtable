@@ -8,8 +8,10 @@
  * diagnosis is that the harness was the front door. It is not deleted; it moved
  * to `#/debug` and is `DebugHarness`.
  *
- * What is here now is a switch over the hash. No router dependency, no server
- * change: see `screens/route.ts` for why the hash and not the path.
+ * What is here now is a switch over the hash — `screens/Screen.tsx`, which the
+ * watchparty embed (`embed/`, D21) renders too — inside the standalone page's
+ * header and room chrome. No router dependency, no server change: see
+ * `screens/route.ts` for why the hash and not the path.
  *
  *   `#/`                 `LobbyScreen` — the room list, the one front door
  *   `#/room/<roomId>`    `ConstructedScreen` — a room: its lobby, then its game
@@ -35,27 +37,13 @@
  * connection — is what ships.
  */
 
-import { useEffect } from 'react';
-
 import { AppHeader } from '@wolffm/task-ui-components';
-import { ConstructedScreen } from './screens/ConstructedScreen.tsx';
-import { DebugHarness } from './screens/DebugHarness.tsx';
-import { DeckScreen } from './screens/DeckScreen.tsx';
-import { LobbyScreen } from './screens/LobbyScreen.tsx';
-import { MatchScreen } from './screens/MatchScreen.tsx';
-import { SoundBuilder } from './screens/SoundBuilder.tsx';
-import { SoundSandbox } from './screens/SoundSandbox.tsx';
-import { StatsScreen } from './stats/StatsScreen.tsx';
-import { navigate, useRoute } from './screens/route.ts';
+import { Screen, type ScreenProps } from './screens/Screen.tsx';
+import { useRoute } from './screens/route.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell, useWhoami } from './room/RoomShell.tsx';
-import type { DraftTransport } from './draft/socket.ts';
-import './screens/screens.css';
 
-export interface AppProps {
-  /** Tests pass a stub socket. Production passes nothing. */
-  transport?: () => DraftTransport;
-}
+export type AppProps = ScreenProps;
 
 /**
  * The watchparty room this route belongs in, or null for the routes that are
@@ -78,53 +66,6 @@ function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
       return route.roomId;
     default:
       return null;
-  }
-}
-
-/**
- * `#/draft/<id>` → `#/room/<id>`, and nothing on screen in between.
- *
- * A draft id and its room id are one id now, so the whole translation is the
- * redirect. It is an effect rather than a render-time `navigate` because
- * navigating during render mutates `location` and notifies subscribers while
- * React is rendering them; the effect fires immediately after the empty commit,
- * so nothing flashes.
- *
- * A pod id that was never a room lands on the room screen's own "no such room".
- * That is the honest answer: the pod it named was in a server's memory and is
- * gone, and pretending otherwise would deal an empty table.
- */
-function LegacyDraftRedirect({ draftId }: { draftId: string }) {
-  useEffect(() => {
-    navigate({ kind: 'room', roomId: draftId });
-  }, [draftId]);
-  return null;
-}
-
-function Screen({ transport }: AppProps) {
-  const route = useRoute();
-
-  switch (route.kind) {
-    case 'debug':
-      return <DebugHarness />;
-    case 'sounds':
-      return <SoundBuilder />;
-    case 'sounds-sandbox':
-      return <SoundSandbox />;
-    case 'draft':
-      return <LegacyDraftRedirect draftId={route.draftId} />;
-    case 'deck':
-      return <DeckScreen draftId={route.draftId} />;
-    case 'play':
-      return <ConstructedScreen />;
-    case 'match':
-      return <MatchScreen matchId={route.matchId} />;
-    case 'room':
-      return <ConstructedScreen roomId={route.roomId} makeTransport={transport} />;
-    case 'lobby':
-      return <LobbyScreen />;
-    case 'stats':
-      return <StatsScreen key={route.player ?? ''} player={route.player} />;
   }
 }
 
