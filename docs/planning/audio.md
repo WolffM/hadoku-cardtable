@@ -9,6 +9,9 @@ Alpha phase 4 (`roadmap-alpha.md`). Opened 2026-10-09.
 | Layering | A **generic** event sound always plays, with the **colour-identity** take mixed on top. An empty colour cell means generic only. |
 | Who hears | The whole table. The opponent's touches and hovers are silent; their game events play **quieter**. |
 | Sandbox | Both: **scripted timelines** and **recorded-match replays**. |
+| Casting a creature (2026-10-09) | A three-sound stack: **spell cast** (generic, one per spell type, low, no colour) → **creature sound** (the colour × creature cell) → **lands on the table** (generic). Spell-cast sounds stay quiet and colourless. |
+| Music | **In scope for alpha.** A couple of found tracks on their own bus. |
+| Shuffle | Has a sound, so the server forwards Forge's shuffle event. |
 | Generation | Claude writes prompts, runs Stable Audio and imports takes; the operator picks. **Only after the operator's first assignment pass.** |
 
 The 140 takes and the server's `assignments.json` come from a scratch builder
@@ -58,14 +61,15 @@ has not been checked against a real dump.
 | Role | Trigger | Colour layer |
 | --- | --- | --- |
 | `g.draw` | id joins `hand`, `libraryCount` falls | — |
-| `g.shuffle` | **no board signal**; `libraryCount` doesn't change | needs a server hint *(unverified)* |
+| `g.shuffle` | Forge's `GameEventShuffle`, forwarded by `PlayBridge` (the board itself shows nothing) | — |
 | `g.land` | land id joins `battlefield` from `hand` | land (basic name) |
-| `g.cast` | spell joins `stack` (`!isAbility`) | spell / creature / artifact by type |
+| `g.cast.<type>` | spell joins `stack` (`!isAbility`). One role per spell type: creature, instant, sorcery, artifact, enchantment, planeswalker, battle. Low in the mix. | **none** (operator: no colours on cast) |
 | `g.ability` | ability joins `stack` (`isAbility`) | — |
 | `g.resolve` | top `stack` entry leaves | — |
-| `g.enter` | permanent joins `battlefield` (not a land play) | creature / artifact *(cast or enter, see open question 1)* |
+| `g.creature` | a creature spell resolves: the creature's own voice, played just before it lands | **colour × creature cell** (artifact creature → colour × artifact-creature) |
+| `g.enter` | permanent joins `battlefield` (not a land play): the generic "lands on the table" | non-creature artifact → colour × artifact cell |
 | `g.token` | `token` card joins `battlefield` | — |
-| `g.counter` | stack entry leaves and the card goes to `graveyard` without entering | heuristic *(unverified)* |
+| `g.counter` | stack entry leaves with no `GameEventSpellResolved` | from Forge's event *(unverified)* |
 | `g.dies` | creature `battlefield → graveyard` | — |
 | `g.destroy` | non-creature permanent `battlefield → graveyard` | — |
 | `g.exile` | any zone → `exile` | — |
@@ -108,13 +112,24 @@ object, but the id may still be stable.
 | `g.mulligan` | a mulligan is taken |
 | `g.win` / `g.lose` | `gameOver`, `hasLost` |
 
+**Forge's own events are the better trigger where they exist.** `forge-game/.../event/`
+has `GameEventShuffle`, `GameEventCardChangeZone` (from and to zone, so it
+answers the card-id question outright), `GameEventSpellResolved` and
+`GameEventCardCounters`. `visibility.ts` already handles `GameEventCardChangeZone`
+for draws. Wave B decides, per role, between a forwarded event and a board diff.
+Whichever it picks, the sound still fires on the **paced release** of the frame
+it rides with.
+
+The colour × `spell` column has no role yet: casting is colourless. It could
+become the instant/sorcery **resolve** flavour. Decide that by ear in the sandbox.
+
 Today's 13 `m-*` events map into this list one to one (`m-tapcard` →
 `g.tap`/`g.untap`, `m-damage` → `g.damage`, …). The colour matrix stays as the
 colour layer.
 
 ## Mixing rules
 
-- Three buses: **ui**, **game** and **colour**, each with its own volume. The
+- Four buses: **ui**, **game**, **colour** and **music**, each with its own volume. Music plays a couple of tracks (lobby/draft and match), loops them, and ducks under `g.win`/`g.lose`/`g.turn-*`. Tracks must carry a licence that allows this use (CC0/CC-BY or similar, with attribution in `NOTICE.md`). Their bytes live in `CARDTABLE_SOUNDS_DIR` like takes, never in the repo. The
   player's settings expose master and per-bus volume. Mute stays.
 - **Opponent multiplier** on game and colour (start around 0.6). The
   opponent's `ui.*` is never sent or played.
@@ -180,14 +195,12 @@ anything records them today)*.
 | --- | --- | --- |
 | **A** | role registry, builder rework, per-role gain, mixer (buses, collapse, duck), scripted sandbox. Delete the cue manifest. | no, so it can run beside alpha work |
 | — | **operator's first assignment pass** | |
-| **B** | deriver + in-game playback in `LiveBoard`, `ui.*` wiring on gestures, opponent multiplier, settings volumes | yes |
-| **C** | replay sandbox, live-match recording | no |
+| **B** | deriver + `PlayBridge` event forwarding (shuffle, zone change, resolved) + in-game playback in `LiveBoard`, `ui.*` wiring on gestures, opponent multiplier, settings volumes | yes |
+| **C** | replay sandbox, live-match recording, music bus + track picker in the builder | no |
 | — | gap generation from the operator's empty roles | |
 
 ## Open questions
 
-1. Does a creature's colour layer play on **cast** or when it **enters**? The
-   sandbox can switch between them so this gets decided by ear.
-2. Music or ambience: out of scope for alpha?
-3. `g.shuffle` needs a server hint, because the board shows no change. Is it
-   worth one?
+1. Is the colour × `spell` cell the resolve sound for instants and sorceries,
+   or is it dropped? Decide by ear in the sandbox.
+2. Which tracks? The operator finds them; the licence goes in `NOTICE.md`.
