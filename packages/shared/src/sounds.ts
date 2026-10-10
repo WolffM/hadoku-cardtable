@@ -147,7 +147,8 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			ui('ui.deny', 'Refused', 'An illegal drop, target or control.'),
 			ui('ui.target', 'Target locks', 'A targeting arrow settles on a target.'),
 			ui('ui.pass', 'Pass / OK', 'Pass priority, OK, end turn.'),
-			ui('ui.prompt', 'Your move', 'A decision window opens for you.'),
+			// Was "Your move", which read as the start of a turn (the operator, 2026-10-10); `g.turn-mine` is that.
+			ui('ui.prompt', 'Decision needed', 'A question opens for you: the coin toss, a mulligan, a target, a yes or no.'),
 			ui('ui.inspect', 'Inspect', 'The expanded card view opens.'),
 			ui('ui.draft-pick', 'Draft pick', 'A pick is taken in the draft.'),
 		],

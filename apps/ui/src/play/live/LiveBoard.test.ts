@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
+import { ClientEventSchema } from '@hadoku/shared';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
@@ -2515,16 +2516,33 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     // what a seat saw is read from the log's `client` events, never deduced from the code's defaults.
     prefsState.prefs = { boardLayout: 'type-separated', stopAtEndStep: true, fastMode: false };
     const { s, getByTestId } = await liveBoard(0, true);
-    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:client')).toHaveLength(1));
-    expect(s.received.filter((r) => r.event === 'forge:client')[0]!.payload).toEqual({
+    const infos = () => s.received.filter((r) => r.event === 'forge:client' && (r.payload as { kind: string }).kind === 'info');
+    await waitFor(() => expect(infos()).toHaveLength(1));
+    expect(infos()[0]!.payload).toEqual({
       matchId: s.matchId,
       kind: 'info',
       data: { fastMode: false, boardLayout: 'type-separated', reducedMotion: false },
     });
     // Toggling Fast Mode sends the new settings, nothing else of the panel's.
     fireEvent.click(getByTestId('live-settings-fast-mode'));
-    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:client')).toHaveLength(2));
-    expect(s.received.filter((r) => r.event === 'forge:client')[1]!.payload).toMatchObject({ kind: 'info', data: { fastMode: true } });
+    await waitFor(() => expect(infos()).toHaveLength(2));
+    expect(infos()[1]!.payload).toMatchObject({ kind: 'info', data: { fastMode: true } });
+  });
+
+  it('every sound a board change raises goes to the match log with why, its roles, the view’s turn and seq, and the mute', async () => {
+    // The operator, 2026-10-10: "as we investigate these things, please make sure we have ample telemetry".
+    const { s } = await liveBoard();
+    const sounds = () => s.received.filter((r) => r.event === 'forge:client' && (r.payload as { kind: string }).kind === 'sound').map((r) => (r.payload as { data: Record<string, unknown> }).data);
+    await waitFor(() => expect(sounds().some((d) => d.why === 'view')).toBe(true));
+    const view = sounds().find((d) => d.why === 'view')!;
+    expect(typeof view.roles).toBe('string');
+    expect(view.count).toBeGreaterThan(0);
+    expect(typeof view.seq).toBe('number');
+    expect(typeof view.turn).toBe('number');
+    expect(typeof view.prevSeq).toBe('number');
+    expect(view.muted).toBe(false);
+    // Every one of them fits the wire's own shape.
+    for (const r of s.received.filter((x) => x.event === 'forge:client')) expect(ClientEventSchema.safeParse(r.payload).success).toBe(true);
   });
 
   it('a persisted OFF preference is still sent on join — force, because off already matches the client default', async () => {

@@ -275,7 +275,7 @@ import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { deriveSoundEvents } from './sound-events.ts';
-import { playRole, playSoundEvents, setMatchMusic } from '../../sound/index.ts';
+import { isMuted, playRole, playSoundEvents, setMatchMusic, type DelayedSoundEvent } from '../../sound/index.ts';
 import {
   abortAsk,
   answerAsk,
@@ -403,6 +403,42 @@ const motionWanted = (): boolean => !(typeof matchMedia === 'function' && matchM
  */
 function reportClient(transport: Pick<MatchTransport, 'emit'>, matchId: string, kind: ClientEvent['kind'], data: ClientEvent['data']): void {
   transport.emit(CLIENT_EVENT, { matchId, kind, data } satisfies ClientEvent);
+}
+
+/** A list for a telemetry field: the schema's scalars stop at 80 characters, so a long one ends in how many it dropped. */
+function listField(items: readonly string[]): string {
+  const all = items.join(',');
+  if (all.length <= 80) return all;
+  let out = '';
+  let n = 0;
+  for (const item of items) {
+    const more = ` +${String(items.length - n)}`;
+    if ((out === '' ? item : `${out},${item}`).length + more.length > 80) return `${out}${more}`;
+    out = out === '' ? item : `${out},${item}`;
+    n += 1;
+  }
+  return out;
+}
+
+/**
+ * What the table raised to play, and why, into the match's log: `view` for a
+ * board change (the roles, their colour cells, the view's turn and seq),
+ * `decision` for a decision window's chime, `press` for a bar button. Raised,
+ * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
+ * `muted` says the last.
+ */
+function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
+  if (events.length === 0) return;
+  reportClient(match.transport, match.matchId, 'sound', {
+    why,
+    roles: listField(events.map((e) => (e.seat === 'opp' ? `${e.role}@opp` : e.role))),
+    cells: listField(events.flatMap((e) => (e.colourCell == null ? [] : [e.colourCell]))),
+    count: events.length,
+    seq: match.view?.seq ?? -1,
+    turn: match.view?.turn ?? -1,
+    muted: isMuted(),
+    ...extra,
+  });
 }
 
 /** Forge's own yield window after End Turn (`lblYieldingUntilEndOfTurn`, `lblYieldingUntilPhaseFmt`, `lblYieldingUntilStackClears`). */
@@ -1738,7 +1774,10 @@ export interface LiveBoardProps {
 /** A control-bar press, with its sound. `pressButton` refuses a disabled button; then nothing plays. */
 function pressWithSound(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   const pressed = pressButton(match, which);
-  if (pressed) playRole('ui.pass');
+  if (pressed) {
+    playRole('ui.pass');
+    reportSound(match, 'press', [{ role: 'ui.pass' }], { button: which });
+  }
   return pressed;
 }
 
@@ -1775,12 +1814,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     lastSoundView.current = soundView;
     if (spectator) return;
     try {
-      playSoundEvents(deriveSoundEvents(prev, soundView));
+      const events = deriveSoundEvents(prev, soundView);
+      playSoundEvents(events);
+      reportSound(match, 'view', events, { prevSeq: prev?.seq ?? -1 });
     } catch (err) {
       // Sound must never take the board down; say so in the console instead.
       console.error('[cardtable] sound events for this view failed', err);
     }
-  }, [soundView, spectator]);
+  }, [soundView, spectator, match]);
   /*
    * One answer is no question (§B, items 4 and 9). `rules.ts`'s `autoAnswer`
    * is the only place that decides it; here it is sent, and the prompt that
@@ -1863,8 +1904,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /* "Your move": a decision window opened for this seat — an ask, or a yes/no in the decision area. */
   const decisionKey = ask !== null ? `ask:${ask.callId}` : confirmPrompt || playOrDraw ? `bar:${bar?.label1 ?? ''}` : null;
   useEffect(() => {
-    if (decisionKey !== null) playRole('ui.prompt');
-  }, [decisionKey]);
+    if (decisionKey === null) return;
+    playRole('ui.prompt');
+    reportSound(match, 'decision', [{ role: 'ui.prompt' }], { key: decisionKey.slice(0, 80) });
+  }, [decisionKey, match]);
   /* An optional trigger's "Always" box: ticked, the Yes or No pressed is the answer Forge keeps giving. Unticked for each new confirm. */
   const [always, setAlways] = useState(false);
   useEffect(() => {
