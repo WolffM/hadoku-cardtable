@@ -52,3 +52,6 @@ card-images/
 
 # wave handoffs (per-wave, not tracked)
 docs/handoff/
+
+# dev-vault caller key (raw service-tier key) — never commit
+.devvault.local.json
