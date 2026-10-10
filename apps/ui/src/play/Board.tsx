@@ -395,6 +395,7 @@ import {
   type PTState,
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
+import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
@@ -1381,7 +1382,7 @@ function columnPitch(slotEl: HTMLElement): number | null {
 
 function liveViewerGeometry(): SlotGeometry[] {
   const out: SlotGeometry[] = [];
-  for (const el of document.querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')) {
+  for (const el of documentScope().querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')) {
     const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
     const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
     const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])') ?? [])].map((li) => ({
@@ -1570,7 +1571,7 @@ function drawSnap(board: HTMLElement, bar: HTMLElement, snap: Snap | null, marke
 let previewEl: HTMLElement | null = null;
 let previewMarked: Element[] = [];
 export function previewPlayedTo(point: { x: number; y: number } | null): void {
-  const board = document.querySelector<HTMLElement>('.board');
+  const board = documentScope().querySelector<HTMLElement>('.board');
   if (board === null) return;
   if (previewEl === null) {
     previewEl = document.createElement('div');
@@ -3175,7 +3176,7 @@ function useArrangeDrag(
       if (press !== null || event.button !== 0 || !event.isPrimary) return;
       // Claimed by the gestures layer: combat declaration, a payment. Not ours.
       if (event.defaultPrevented) return;
-      const target = event.target;
+      const target = eventTarget(event);
       if (!(target instanceof Element) || !board.contains(target)) return;
       const li = target.closest<HTMLElement>('li.board-card');
       const slot = li?.getAttribute('data-arrange-card');

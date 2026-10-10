@@ -22,6 +22,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { battlefieldCardWidth } from './card-size.ts';
+import { eventTarget } from '../dom.ts';
 import './pile-view.css';
 
 /** A card's height over its width — `card.css`'s 488 × 680. */
@@ -133,7 +134,7 @@ export function PileView({
     };
     // A press anywhere but the view — or the pile that opened it, whose own click toggles it — closes it.
     const onPress = (event: PointerEvent): void => {
-      const target = event.target;
+      const target = eventTarget(event);
       if (!(target instanceof Element)) return;
       if (panel.current?.contains(target) === true || target.closest(pileSelector) !== null) return;
       onClose();

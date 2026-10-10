@@ -99,6 +99,7 @@
  */
 
 import { pastSlop } from '../live/gestures/types.ts';
+import { scopeOf } from '../../dom.ts';
 import './inspect.css';
 
 /** A card's height over its width — the 488 × 680 proportion `card.css` draws. */
@@ -425,7 +426,11 @@ const activeMounts = new WeakMap<ParentNode, () => void>();
 export function mountInspector(root: ParentNode): () => void {
   activeMounts.get(root)?.();
 
-  const doc: Document = (root instanceof Element ? root.ownerDocument : null) ?? document;
+  // The document, or the shadow root the board is in when embedded (D21). Hover
+  // and focus inside a shadow tree never reach `document` — a pointerover whose
+  // target and relatedTarget both retarget to the host is not dispatched past
+  // the shadow root — so the listeners go where the cards are.
+  const scope = root instanceof Node ? scopeOf(root) : document;
 
   let current: InspectTarget | null = null;
   let panel: HTMLElement | null = null;
@@ -481,14 +486,14 @@ export function mountInspector(root: ParentNode): () => void {
     // operator, 2026-10-07: "this type of hover expand should not be
     // affected by whats on the screen").
     const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
-    const modal = target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : doc.querySelector(OPEN_WINDOW));
+    const modal = target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : scope.querySelector(OPEN_WINDOW));
     const modalBox = modal?.parentElement ?? null;
     const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
     const hostR = rectOf(host.getBoundingClientRect());
     const spot =
       modal !== null ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR) : placeInspector(hoverR, hostR, handRect());
 
-    const el = doc.createElement('div');
+    const el = document.createElement('div');
     el.className = 'inspect';
     el.dataset.inspect = '';
     // A visual enlargement of content already in the accessibility tree; the
@@ -506,7 +511,7 @@ export function mountInspector(root: ParentNode): () => void {
     watcher = new MutationObserver(() => {
       if (current !== null && (!current.card.isConnected || current.trigger?.isConnected === false)) dismiss();
     });
-    watcher.observe(doc.body, { childList: true, subtree: true });
+    watcher.observe(scope, { childList: true, subtree: true });
   }
 
   function onPointerOver(event: PointerEvent): void {
@@ -613,32 +618,25 @@ export function mountInspector(root: ParentNode): () => void {
     pressAnchor = null;
   }
 
-  doc.addEventListener('pointerover', onPointerOver);
-  doc.addEventListener('pointerout', onPointerOut);
-  doc.addEventListener('focusin', onFocusIn);
-  doc.addEventListener('focusout', onFocusOut);
-  doc.addEventListener('pointerdown', onPointerDown);
-  doc.addEventListener('pointermove', onPointerMove);
-  doc.addEventListener('pointerup', onPointerUpOrCancel);
-  doc.addEventListener('pointercancel', onPointerUpOrCancel);
-  doc.addEventListener('click', onClickCapture, true);
-  doc.addEventListener('contextmenu', onContextMenu);
-  doc.addEventListener('keydown', onKeyDown);
+  const listeners: [string, EventListener, boolean][] = [
+    ['pointerover', onPointerOver as EventListener, false],
+    ['pointerout', onPointerOut as EventListener, false],
+    ['focusin', onFocusIn as EventListener, false],
+    ['focusout', onFocusOut as EventListener, false],
+    ['pointerdown', onPointerDown as EventListener, false],
+    ['pointermove', onPointerMove as EventListener, false],
+    ['pointerup', onPointerUpOrCancel, false],
+    ['pointercancel', onPointerUpOrCancel, false],
+    ['click', onClickCapture as EventListener, true],
+    ['contextmenu', onContextMenu as EventListener, false],
+    ['keydown', onKeyDown as EventListener, false],
+  ];
+  for (const [type, listener, capture] of listeners) scope.addEventListener(type, listener, capture);
 
   const dispose = (): void => {
     cancelPress();
     dismiss();
-    doc.removeEventListener('pointerover', onPointerOver);
-    doc.removeEventListener('pointerout', onPointerOut);
-    doc.removeEventListener('focusin', onFocusIn);
-    doc.removeEventListener('focusout', onFocusOut);
-    doc.removeEventListener('pointerdown', onPointerDown);
-    doc.removeEventListener('pointermove', onPointerMove);
-    doc.removeEventListener('pointerup', onPointerUpOrCancel);
-    doc.removeEventListener('pointercancel', onPointerUpOrCancel);
-    doc.removeEventListener('click', onClickCapture, true);
-    doc.removeEventListener('contextmenu', onContextMenu);
-    doc.removeEventListener('keydown', onKeyDown);
+    for (const [type, listener, capture] of listeners) scope.removeEventListener(type, listener, capture);
     // Only clear the registry if nothing has re-mounted this root since:
     // a superseded instance's own (stale) dispose must stay a harmless no-op.
     if (activeMounts.get(root) === dispose) activeMounts.delete(root);

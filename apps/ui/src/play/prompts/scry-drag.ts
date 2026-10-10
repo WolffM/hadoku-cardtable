@@ -54,6 +54,7 @@ import { useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent
 
 import { clearCastLift, drawCastLift, floatCastLiftHome } from '../live/gestures/cast.ts';
 import { clickLatch, pastSlop, type Point } from '../live/gestures/types.ts';
+import { documentScope, eventTarget } from '../../dom.ts';
 
 /**
  * The nearest ROW's own lift id under a point in the gesture — never a stale
@@ -114,8 +115,8 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
       clicks.arm();
       setLiftedId(state.id);
     }
-    drawCastLift(document, state.id, at, 'lifted');
-    opts.onMove?.(state.id, event.target);
+    drawCastLift(documentScope(), state.id, at, 'lifted');
+    opts.onMove?.(state.id, eventTarget(event));
   }
 
   function onLiftUp(event: PointerEvent): void {
@@ -124,14 +125,14 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
     removeLiftListeners();
     if (state === null) return;
     if (!state.moved) return; // a plain press: whatever click it leaves behind answers as it always has
-    const handled = opts.onDrop(state.id, event.target) ?? false;
+    const handled = opts.onDrop(state.id, eventTarget(event)) ?? false;
     if (handled) {
-      clearCastLift(document, state.id);
+      clearCastLift(documentScope(), state.id);
       setLiftedId(null);
       return;
     }
     // Released nowhere this gesture answers: the house glide back to where it was picked up.
-    floatCastLiftHome(document, state.id, state.home, () => setLiftedId(null));
+    floatCastLiftHome(documentScope(), state.id, state.home, () => setLiftedId(null));
   }
 
   const onRowPointerDown = (id: number) => (event: ReactPointerEvent<HTMLElement>) => {

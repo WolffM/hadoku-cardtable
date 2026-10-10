@@ -308,6 +308,7 @@ import {
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { HeaderSettingsPortal } from '../../chrome/HeaderSettings.tsx';
+import { eventTarget } from '../../dom.ts';
 import './live.css';
 import { CoinToss } from './CoinToss.tsx';
 
@@ -1902,7 +1903,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     if (!logOpen) return undefined;
     const outside = (event: PointerEvent): void => {
-      const target = event.target;
+      const target = eventTarget(event);
       if (!(target instanceof Element)) return;
       if (target.closest(`#${CSS.escape(logbookId)}, [data-testid="live-log-toggle"]`) !== null) return;
       setLogOpen(false);

@@ -10,9 +10,11 @@
  * ## window, not pointer capture
  *
  * The move and the release are listened for on `window` with no pointer
- * capture, so the event's own `target` is the element UNDER the pointer: jsdom
+ * capture, so the event's own target is the element UNDER the pointer: jsdom
  * has no `elementFromPoint`, and a captured pointer would report the source
- * anyway. The e2e arrow spec cancels a drag by dispatching `pointercancel` on
+ * anyway. Read through `eventTarget` (`../../../dom.ts`), never `event.target`:
+ * embedded in a watchparty room the board is in a shadow root, and `window`
+ * sees every event in it retargeted to the shadow host. The e2e arrow spec cancels a drag by dispatching `pointercancel` on
  * `window`, which is the same seam from the other side.
  *
  * ## Which gesture a press starts
@@ -254,6 +256,7 @@ import {
   type MarqueeState,
   type Point,
 } from './types.ts';
+import { eventTarget } from '../../../dom.ts';
 import './gestures.css';
 
 /** Set on the canvas while this layer is installed, so `./gestures.css` can dress it. */
@@ -1097,7 +1100,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * same as any other click-cast — so only a stray press inside the
      * table/board area, naming nothing, is claimed here.
      */
-    if (parked !== null && event.button === 0 && match.selectables !== null && inside(event.target) && targetAt(event.target) === null) {
+    if (parked !== null && event.button === 0 && match.selectables !== null && inside(eventTarget(event)) && targetAt(eventTarget(event)) === null) {
       claim(event);
       cancelLive();
       return;
@@ -1119,7 +1122,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clicks.arm();
       const held = drag;
       drag = null;
-      resolveLift(held, { x: event.clientX, y: event.clientY }, event.target);
+      resolveLift(held, { x: event.clientX, y: event.clientY }, eventTarget(event));
       paint();
       return;
     }
@@ -1146,7 +1149,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * already claim a press anywhere on the table.
      */
     if (event.button === 0 && stackAsk(match) === null && !declaringAttackers(match) && landsToTap(match).length === 0) {
-      const press = handCardPress(event.target);
+      const press = handCardPress(eventTarget(event));
       if (
         press !== null &&
         match.asks.length === 0 &&
@@ -1181,7 +1184,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * arrangement guard: a placed element is never arrangeable.
      */
     if (stackAsk(match) === null) {
-      const placedEl = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-placed-spell][data-mine]') : null;
+      const under = eventTarget(event);
+      const placedEl = under instanceof Element ? under.closest<HTMLElement>('[data-placed-spell][data-mine]') : null;
       if (placedEl !== null) {
         claim(event);
         const id = Number(placedEl.getAttribute('data-placed-spell'));
@@ -1208,9 +1212,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * arrangeable permanent would otherwise rearrange the battlefield and declare
      * attackers in one press.
      */
-    if (arrangeable(event.target) && !declaringCombat(match) && !payingMana(match)) return;
+    if (arrangeable(eventTarget(event)) && !declaringCombat(match) && !payingMana(match)) return;
     const at = { x: event.clientX, y: event.clientY };
-    if (stackAsk(match) !== null && inside(event.target)) {
+    if (stackAsk(match) !== null && inside(eventTarget(event))) {
       // A question about the stack: the press may start anywhere on the table, and
       // the arrow leaves from the card being cast when it is on screen.
       const origin = clickOrigin();
@@ -1220,7 +1224,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         press: at,
         from: origin === null ? at : origin.at,
         at,
-        target: targetAt(event.target),
+        target: targetAt(eventTarget(event)),
         moved: false,
         lifted: false,
         held: true,
@@ -1230,7 +1234,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     const offered = boardInteraction(match);
-    const under = targetUnder(event.target, offered);
+    const under = targetUnder(eventTarget(event), offered);
     if (under !== null && under.kind === 'card') {
       /*
        * The London mulligan's bottom pick: a hand card is offered to be SET
@@ -1280,14 +1284,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
       hover = null;
       if (castFromHand) {
         const spell = needsTarget(handCardTypeLine(match, under.id));
-        const overHand = overOwnHand(event.target);
+        const overHand = overOwnHand(eventTarget(event));
         drawCastLift(canvas, under.id, at, 'lifted');
         updateDropCues(canvas, spell, overHand);
       }
       paint();
       return;
     }
-    if (!inside(event.target)) return;
+    if (!inside(eventTarget(event))) return;
     if (declaringAttackers(match) || landsToTap(match).length > 0) {
       claim(event);
       marquee = { press: at, at, moved: false };
@@ -1313,10 +1317,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
       const moved = drag.moved || pastSlop(drag.press, at);
-      const next: DragState = { ...drag, at, moved, target: targetAt(event.target) };
+      const next: DragState = { ...drag, at, moved, target: targetAt(eventTarget(event)) };
       drag = next;
       if (next.lifted && next.source !== null) {
-        const overHand = overOwnHand(event.target);
+        const overHand = overOwnHand(eventTarget(event));
         // Board-sized on every call, not only the first — `drawCastLift`'s own `'lifted'`
         // rule re-reads the battlefield's current `--card-w` each time; this module never
         // overrides or clears that property, inside the hand or out of it.
@@ -1332,7 +1336,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
           const spell = needsTarget(handCardTypeLine(match, next.source));
           updateDropCues(canvas, spell, overHand);
           // Only a no-target card ever lands in a row.
-          previewAt(!spell && overOwnBattlefield(event.target) ? at : null);
+          previewAt(!spell && overOwnBattlefield(eventTarget(event)) ? at : null);
         }
       }
     } else if (marquee !== null) {
@@ -1351,7 +1355,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
         moveSpell(placedDrag.id, at);
       }
     } else {
-      hover = canvas.contains(event.target instanceof Node ? event.target : null) ? { at, node: event.target } : null;
+      const under = eventTarget(event);
+      hover = canvas.contains(under instanceof Node ? under : null) ? { at, node: under } : null;
     }
     paint();
   }
@@ -1387,15 +1392,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (heldDrag !== null) {
       if (stackAsk(match) !== null) {
         // The release IS the answer, a click on the item as much as a drag onto it.
-        const id = stackItemUnder(event.target, stackAsk(match)!);
+        const id = stackItemUnder(eventTarget(event), stackAsk(match)!);
         if (id !== null) commitStackTarget(match, id);
         return;
       }
       if (heldDrag.lifted) {
-        resolveLift(heldDrag, { x: event.clientX, y: event.clientY }, event.target);
+        resolveLift(heldDrag, { x: event.clientX, y: event.clientY }, eventTarget(event));
         return;
       }
-      if (heldDrag.moved) commitDrag(match, heldDrag, event.target);
+      if (heldDrag.moved) commitDrag(match, heldDrag, eventTarget(event));
       return;
     }
     if (heldMarquee !== null && heldMarquee.moved) {

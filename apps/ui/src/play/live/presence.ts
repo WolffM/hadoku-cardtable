@@ -85,6 +85,7 @@ import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
+import { hitAt, scopeOf } from '../../dom.ts';
 import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */
@@ -206,7 +207,7 @@ const bounded = (v: number): number => Math.max(-50, Math.min(50, v));
  * which prove it against real rectangles.
  */
 export function anchorOf(canvas: HTMLElement, point: Point): PresenceAnchor | null {
-  if (typeof document.elementFromPoint === 'function' && document.elementFromPoint(point.x, point.y)?.closest('[data-placed-spell]')) return null;
+  if (hitAt(scopeOf(canvas), point.x, point.y)?.closest('[data-placed-spell]')) return null;
   const zoneEl = [...canvas.querySelectorAll<HTMLElement>('[data-zone][data-owner]')].find(
     (el) => isAnchorZone(el.getAttribute('data-zone')) && inside(el.getBoundingClientRect(), point),
   );
@@ -717,7 +718,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   function hint(at: Point | null): void {
-    const under = at === null ? null : document.elementFromPoint(at.x, at.y)?.closest('[data-board-card]') ?? null;
+    const under = at === null ? null : hitAt(scopeOf(canvas), at.x, at.y)?.closest('[data-board-card]') ?? null;
     if (under === hinted) return;
     hinted?.removeAttribute('data-presence-hint');
     hinted = under;
