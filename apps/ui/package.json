@@ -17,6 +17,7 @@
     "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",
+    "@wolffm/game-stats-ui": "0.1.0",
     "@wolffm/prefs-client": "1.0.15",
     "@wolffm/rooms-protocol": "0.41.4",
     "@wolffm/task-ui-components": "4.8.6",
