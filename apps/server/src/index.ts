@@ -86,6 +86,8 @@ import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
 import { attachSounds } from './http/sounds.js';
 import { openLobby } from './room/lobby.js';
+import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
+import { recordMatch } from '@wolffm/prefs-client/games';
 
 mkdirSync(CONFIG.logDir, { recursive: true });
 
@@ -175,6 +177,27 @@ app.use(requireMinTier);
 // call to hadoku.me/cardtable/api/thing lands on `/api/thing`.
 const api = express.Router();
 api.use(express.json({ limit: '1mb' }));
+
+// ── Match stats ──────────────────────────────────────────────────────────────
+// Every api request leaves its player's key in an in-memory book, so a room's
+// start can name BOTH players to the game-stats store by their own keys (the
+// store resolves and discards them). Finished games are reported with this
+// server's service key; without one, nothing is recorded. See src/stats/.
+const statsLog = (entry: Record<string, unknown>): void =>
+	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stats', ...entry }));
+const statsKeys = createKeyBook();
+api.use(statsKeys.remember);
+const matchStats = createMatchStats({
+	keys: statsKeys,
+	log: statsLog,
+	reporter: createStatsReporter({
+		log: statsLog,
+		record:
+			CONFIG.statsServiceKey === ''
+				? null
+				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.statsServiceKey }, report),
+	}),
+});
 
 api.get('/whoami', (req: Request, res: Response) => {
 	// Handed straight through from the edge, post-sanitize. Useful as the first
@@ -384,6 +407,7 @@ attachTables(api, {
 	draftRooms,
 	rooms: lobby,
 	matches: () => play?.matches ?? null,
+	matchStarted: matchStats.started,
 });
 
 // ── Matches ──────────────────────────────────────────────────────────────────
@@ -397,6 +421,7 @@ play = attachPlay(io, api, {
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
+	onGameOver: matchStats.gameOver,
 });
 
 // ── The browser bridge ───────────────────────────────────────────────────────

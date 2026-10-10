@@ -153,6 +153,8 @@ export interface PlayDeps {
 	 * rejoin before it is stopped. Default 5 minutes (`createMatchRegistry`).
 	 */
 	rejoinGraceMs?: number;
+	/** A match's game ended: Forge's verdict and every seat's history are final. The stats reporter listens. */
+	onGameOver?(match: Match): void;
 }
 
 export interface PlayHandle {
@@ -497,6 +499,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
+		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
 		seatsChanged: (match, seats) => {
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
 			// — both seats, and spectators — gets the new roster on the event a join

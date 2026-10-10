@@ -123,11 +123,13 @@
 
 import { randomUUID } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
+import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import type { DraftRooms } from '../room/draftRooms.js';
 import { viewForParticipant } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId } from '../room/lobby.js';
+import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
 	checkSeat,
 	legalLibraryDecks,
@@ -233,6 +235,11 @@ export interface TablesDeps {
 	 * the two seats their decks are in.
 	 */
 	matches?: () => TablesMatches | null;
+	/**
+	 * A room's match has its players seated. The match stats keep this until the
+	 * game is over; absent, nothing is recorded.
+	 */
+	matchStarted?(matchId: string, start: MatchStartInput): void;
 }
 
 export interface TablesHandle {
@@ -984,7 +991,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
 		// checked by the same gate as the player's. A drafted pool offers no library
 		// deck, so a drafted room cannot have a bot.
-		let botDeck: string | null = null;
+		let botDeck: { id: string; text: string; name: string } | null = null;
 		if (vsBot) {
 			const owner = players[0]!.member.id;
 			const swept = draftIdOfPool(room.format) === null ? legalLibraryDecks(room.format, contextFor(owner)) : { ids: [] };
@@ -993,7 +1000,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
 				return;
 			}
-			botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
+			const picked = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!;
+			botDeck = { id: picked.id, text: picked.text, name: picked.deck.name || 'Unnamed deck' };
 		}
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {
@@ -1030,6 +1038,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					return answer({ error: refused });
 				}
 				rooms.setMatch(room.id, matchId);
+				deps.matchStarted?.(matchId, matchStartOf(room, players, botDeck));
 				log({ evt: 'room-match-started', room: room.id, matchId, decks: players.map((p) => p.state.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
 				settle(200, { matchId });
 				return answer(payload);
@@ -1049,7 +1058,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// names it itself.
 			req.body = {
 				opponent: 'ai',
-				decks: [players[0]!.state.text, botDeck],
+				decks: [players[0]!.state.text, botDeck!.text],
 				avatarIds: [players[0]!.member.avatarId, undefined],
 				names: [players[0]!.member.name, undefined],
 			};
@@ -1065,6 +1074,35 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			names: players.map((p) => p.member.name),
 		};
 		next();
+	}
+
+	/**
+	 * What the match stats keep from a room's start: who sat where, with which
+	 * deck, in which pool. `memberId` is how the stats find each player's key;
+	 * the AI seat has none. The cost map is the room's era's own plus the
+	 * library's, so a deck's colours fold the same as the room screen's pips.
+	 */
+	function matchStartOf(room: RoomViewLike, players: TablePlayer[], botDeck: { id: string; text: string; name: string } | null): MatchStartInput {
+		const format = library.format(room.format);
+		const costs = format === undefined ? LIBRARY_CARD_COSTS : { ...LIBRARY_CARD_COSTS, ...format.fixture.manaCost };
+		const family = draftIdOfPool(room.format) !== null ? 'draft' : room.format === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
+		const seats: MatchStartInput['seats'] = players.map((p) => {
+			const ref = p.state.choice.deck;
+			return {
+				memberId: p.member.id,
+				displayName: p.member.name,
+				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
+				deck: summarizeDeck(p.state.text, p.state.verdict.deckName, costs, 'library' in ref ? ref.library : undefined),
+			};
+		});
+		if (botDeck !== null) seats.push({ memberId: null, deck: summarizeDeck(botDeck.text, botDeck.name, costs, botDeck.id) });
+		return {
+			mode: 'constructed',
+			roomId: room.id,
+			startedAt: Date.now(),
+			attrs: { format: family, pool: room.format, opponent: botDeck === null ? 'human' : 'bot' },
+			seats,
+		};
 	}
 
 	gate.post('/matches', (req: Request, res: Response, next: NextFunction) => {

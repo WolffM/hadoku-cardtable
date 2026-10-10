@@ -79,6 +79,15 @@ export const CONFIG = {
 	 */
 	devTier: process.env.CARDTABLE_DEV_TIER || process.env.CARDTABLE_MIN_TIER || 'friend',
 
+	/**
+	 * This server's own service-tier key for the game-stats store, from the
+	 * vault via the PM2 wrapper. Unset = match stats are off (logged once).
+	 */
+	statsServiceKey: process.env.CARDTABLE_SERVICE_KEY || '',
+
+	/** The prefs mount the stats are reported to, without `/api/v1`. */
+	statsBaseUrl: process.env.CARDTABLE_STATS_BASE_URL || 'https://hadoku.me/prefs',
+
 	/** Structured access log destination (gitignored, created on boot). */
 	logDir: resolveDir(process.env.CARDTABLE_LOG_DIR || 'logs'),
 } as const;

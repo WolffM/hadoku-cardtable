@@ -399,6 +399,8 @@ export interface SeatState {
 	/** How many asks were answered for this seat, and how many stops passed. */
 	autoAnswered: number;
 	autoPassed: number;
+	/** Times this seat pressed Mulligan on the opening Keep/Mulligan bar — read by the match stats. */
+	mulligans: number;
 	/**
 	 * The last few `message` lines this seat was sent — what a cast paid, and
 	 * whether full control is on. Re-sent after a snapshot so a refresh does not
@@ -538,6 +540,12 @@ export interface MatchDeps {
 	 * with none (a unit suite) simply never tells anyone.
 	 */
 	seatsChanged?(seats: SeatIdentity[]): void;
+	/**
+	 * Forge said the game is over — `winner` and the seats' histories are final.
+	 * Not called for a game-over replayed into a resumed match: the server that
+	 * read it live already told whoever was listening.
+	 */
+	onGameOver?(): void;
 	now?: () => number;
 }
 
@@ -776,6 +784,10 @@ export class Match {
 	status: MatchStatus = 'starting';
 	failure: string | null = null;
 	winner: string | null = null;
+	/** The seat whose concede Forge was sent, or null — the one end reason the board cannot show. */
+	concededBy: number | null = null;
+	/** When Forge said the game was over; null until then. */
+	endedAt: number | null = null;
 	readonly seats: SeatState[];
 	/** Frames Forge sent that forge-wire refused. Dropped, counted, logged. */
 	invalidFrames = 0;
@@ -902,6 +914,7 @@ export class Match {
 			paymentCancelled: false,
 			autoAnswered: 0,
 			autoPassed: 0,
+			mulligans: 0,
 			says: [],
 			lastAbilityToPlay: null,
 			chosenAbility: null,
@@ -1363,6 +1376,8 @@ export class Match {
 				// covers the player's own press and `maybeCancelUnpayable`'s.
 				if (frame.method === 'selectButtonCancel' && s.payment !== null) s.paymentCancelled = true;
 				if (frame.method === 'selectCard') s.clicked = frame.card.id;
+				if (frame.method === 'concede') this.concededBy = seat;
+				if (frame.method === 'selectButtonCancel' && s.buttons?.method === 'updateButtons' && s.buttons.label2 === 'Mulligan') s.mulligans += 1;
 				this.disableStaleButtons(s);
 				this.command({ t: 'act', seat, frame });
 				return { ok: true };
@@ -1609,8 +1624,10 @@ export class Match {
 			case 'gameover':
 				this.status = 'over';
 				this.winner = line.winner;
+				this.endedAt = this.now();
 				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner });
 				this.logFrames();
+				if (!this.replaying) this.deps.onGameOver?.();
 				this.overTimer = setTimeout(() => this.host?.stop(), this.deps.overGraceMs);
 				this.overTimer.unref();
 				return;
@@ -2804,10 +2821,12 @@ export interface MatchRegistry {
 	handOver(): { handed: Match[]; ending: Match[] };
 }
 
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged'> & {
+export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'onGameOver'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
 	/** See {@link MatchDeps.seatsChanged}. */
 	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
+	/** See {@link MatchDeps.onGameOver}. */
+	onGameOver?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
 	attach?(record: JvmRecord, events: HostEvents): MatchHost;
 	/**
@@ -2827,6 +2846,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				...deps,
 				emit: (seat, envelope) => deps.emit(match, seat, envelope),
 				seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
+				onGameOver: () => deps.onGameOver?.(match),
 			});
 			matches.set(id, match);
 			match.start();
@@ -2847,6 +2867,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 					...deps,
 					emit: (seat, envelope) => deps.emit(match, seat, envelope),
 					seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
+					onGameOver: () => deps.onGameOver?.(match),
 				},
 				{ epoch: record.epoch, owners: record.owners },
 			);
