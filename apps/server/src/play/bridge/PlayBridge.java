@@ -36,6 +36,7 @@ import forge.game.Game;
 import forge.game.GameEntityView;
 import forge.game.GameState;
 import forge.game.GameView;
+import forge.game.event.GameEventCombatUpdate;
 import forge.game.card.CardView;
 import forge.game.card.CounterType;
 import forge.game.keyword.KeywordCollectionView;
@@ -94,6 +95,7 @@ import forge.util.FileSection;
 import forge.util.ITriggerEvent;
 
 import com.google.common.collect.Multiset;
+import com.google.common.eventbus.Subscribe;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -1991,16 +1993,56 @@ public final class PlayBridge {
         @Override public HostedMatch hostMatch() {
             final HostedMatch hm = new HostedMatch();
             final String text = scenario;
+            final GameState state;
             if (text != null) {
-                final GameState state = new GameState();
+                state = new GameState();
                 state.parse(Arrays.asList(text.split("\\r?\\n")));
-                hm.setStartGameHook(() -> {
-                    state.applyToGame(hm.getGame());
-                    resyncSeats(hm.getGame());
-                    refreshActionable(hm.getGame());
-                });
+            } else {
+                state = null;
             }
+            hm.setStartGameHook(() -> {
+                hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
+                if (state == null) { return; }
+                state.applyToGame(hm.getGame());
+                resyncSeats(hm.getGame());
+                refreshActionable(hm.getGame());
+            });
             return hm;
+        }
+
+        /**
+         * Every seat sees a declaration as it is made: the defender's blocks on the
+         * attacker's screen, the attacker's attacks on the defender's.
+         *
+         * <p>{@code InputBlock}/{@code InputAttack} fire {@code GameEventCombatUpdate}
+         * after each click has changed {@code Combat} ({@code InputBlock.java:87-88},
+         * {@code InputAttack.java:358-359}). The acting seat's own stream carries the change
+         * with its next prompt, but every other seat hears of it only through its
+         * {@code GameEventForwarder}, which flushes when an event arrives 500 ms or more
+         * after its last flush, or when an input queue changes
+         * ({@code GameEventForwarder.java:38-46}, {@code :65-68}). Inside one input no
+         * queue changes, so a click within 500 ms of the previous one sat in the buffer
+         * until the next click — measured: an undo 300 ms after a block never reached the
+         * attacker. Flushing every seat's buffer here, on the thread that fired the event
+         * (where the forwarder itself flushes), sends each click as it lands.
+         */
+        static final class CombatSync {
+            private final Game game;
+
+            CombatSync(final Game game) {
+                this.game = game;
+            }
+
+            @Subscribe
+            public void combatUpdated(final GameEventCombatUpdate ev) {
+                for (final var player : game.getPlayers()) {
+                    if (player.getController() instanceof PlayerControllerHuman human
+                            && human.getGui() instanceof RemoteClientGuiGame remote
+                            && remote.getForwarder() != null) {
+                        remote.getForwarder().flush();
+                    }
+                }
+            }
         }
 
         /**
