@@ -8,12 +8,16 @@
  * through the picker's own `place` and `retire`, so the Roles and Colours tabs
  * see every choice made here at once.
  *
- * Keys: 1–6 hear a take and pick or unpick it; Enter places the picks (or, with
- * none, moves on); S or → skips to the back of the queue; Delete throws out the
- * take last heard as bad, Shift+Delete as broken. Not while typing in a field.
+ * Listening and picking are two acts (the operator, 2026-10-10: *"it's a bit
+ * annoying that clicking is the same thing for selecting and listening"*): a
+ * card plays its take, its check picks it. Keys: 1–6 hear a take; Space picks or
+ * unpicks the take last heard; Enter places the picks (or, with none, moves on);
+ * S or → skips to the back of the queue; Delete throws out the take last heard
+ * as bad, Shift+Delete as broken. Not while typing in a field.
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { Icon } from '@wolffm/themes';
 
 import type { RetireReason, SoundTake } from '@hadoku/shared';
 
@@ -74,10 +78,11 @@ function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip,
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [heard, setHeard] = useState<string | null>(null);
 
-  const hear = (file: string, toggle: boolean): void => {
+  const hear = (file: string): void => {
     play(file);
     setHeard(file);
-    if (!toggle) return;
+  };
+  const togglePick = (file: string): void => {
     setPicked((p) => {
       const next = new Set(p);
       if (next.has(file)) next.delete(file);
@@ -99,7 +104,11 @@ function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip,
       if (el !== null && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= choices.length) {
-        hear(choices[n - 1]!.file, true);
+        hear(choices[n - 1]!.file);
+      } else if (e.key === ' ') {
+        // Not the focused button's own Space, which would play it again.
+        e.preventDefault();
+        if (heard !== null) togglePick(heard);
       } else if (e.key === 'Enter') {
         e.preventDefault();
         commit();
@@ -129,22 +138,32 @@ function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip,
       <p className="sound-queue__sub">{sub}</p>
       <ol className="sound-queue__choices">
         {choices.map((t, i) => (
-          <li key={t.file}>
+          <li key={t.file} className="sound-queue__card" data-picked={picked.has(t.file) ? '' : undefined}>
             <button
               type="button"
               className="sound-queue__choice"
               data-testid="sound-queue-choice"
               data-file={t.file}
               data-heard={heard === t.file ? '' : undefined}
-              aria-pressed={picked.has(t.file)}
+              aria-label={`Play ${t.label}`}
               title={t.prompt}
-              onClick={() => hear(t.file, true)}
+              onClick={() => hear(t.file)}
             >
               <span className="sound-queue__key" aria-hidden="true">
                 {i + 1}
               </span>
               <span className="sound-queue__label">{t.label}</span>
               <span className="sound-queue__prompt">{promptGist(t.prompt)}</span>
+            </button>
+            <button
+              type="button"
+              className="sound-queue__pick"
+              data-testid="sound-queue-pick"
+              aria-label={`Pick ${t.label}`}
+              aria-pressed={picked.has(t.file)}
+              onClick={() => togglePick(t.file)}
+            >
+              <Icon name="check" size="1rem" />
             </button>
           </li>
         ))}

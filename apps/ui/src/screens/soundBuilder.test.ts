@@ -308,17 +308,21 @@ describe('SoundBuilder', () => {
     }
     const title = (): string => screen.getByRole('heading', { level: 2 }).textContent ?? '';
 
-    it('serves the first empty cell with takes to choose from; a number hears and picks, Enter places and moves on', async () => {
+    it('serves the first empty cell; a number only plays, Space picks the take last heard, Enter places and moves on', async () => {
       const client = stubClient({ cells: {}, canEdit: true });
       const player = await openQueue(client);
       expect(title()).toBe('Hover a card');
       const choices = screen.getAllByTestId('sound-queue-choice');
       expect(choices.map((c) => c.getAttribute('data-file'))).toEqual([TAKE_A.file, TAKE_B.file]);
+      const picks = screen.getAllByTestId('sound-queue-pick');
 
       fireEvent.keyDown(document, { key: '2' });
       expect(player.playFile).toHaveBeenCalledWith(TAKE_B.file);
-      expect(choices[1]!.getAttribute('aria-pressed')).toBe('true');
+      expect(picks[1]!.getAttribute('aria-pressed'), 'hearing is not picking').toBe('false');
+      fireEvent.keyDown(document, { key: ' ' });
+      expect(picks[1]!.getAttribute('aria-pressed')).toBe('true');
       fireEvent.keyDown(document, { key: '1' });
+      fireEvent.keyDown(document, { key: ' ' });
       await act(async () => {
         fireEvent.keyDown(document, { key: 'Enter' });
       });
@@ -327,11 +331,15 @@ describe('SoundBuilder', () => {
       expect(title()).toBe('Hover a button');
     });
 
-    it('none picked moves on, a skip sends the cell to the back, and a pick can be undone before placing', async () => {
+    it('a card click only plays, its check picks and unpicks; none picked moves on, a skip sends the cell to the back', async () => {
       const client = stubClient({ cells: {}, canEdit: true });
-      await openQueue(client);
+      const player = await openQueue(client);
       fireEvent.click(screen.getAllByTestId('sound-queue-choice')[0]!);
-      fireEvent.click(screen.getAllByTestId('sound-queue-choice')[0]!);
+      expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file);
+      expect((screen.getByTestId('sound-queue-place') as HTMLButtonElement).disabled, 'a click to listen picks nothing').toBe(true);
+      fireEvent.click(screen.getAllByTestId('sound-queue-pick')[0]!);
+      expect((screen.getByTestId('sound-queue-place') as HTMLButtonElement).textContent).toContain('1');
+      fireEvent.click(screen.getAllByTestId('sound-queue-pick')[0]!);
       expect((screen.getByTestId('sound-queue-place') as HTMLButtonElement).disabled).toBe(true);
       fireEvent.keyDown(document, { key: 'Enter' });
       expect(title()).toBe('Hover a button');
