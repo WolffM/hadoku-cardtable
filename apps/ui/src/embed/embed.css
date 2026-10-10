@@ -1,0 +1,76 @@
+/*
+ * The embed's frame (D21). Standalone, the chrome is the WINDOW's height on a
+ * table route (`chrome/chrome.css`, `100dvh`); embedded, the window is
+ * watchparty's and the table gets the slot it was mounted in — `:host` is that
+ * element, and the frame fills it.
+ */
+
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
+.cardtable-embed {
+  height: 100%;
+}
+
+.cardtable-chrome.cardtable-chrome--embed,
+.cardtable-chrome.cardtable-chrome--embed:has(.shell--fit, .shell--match) {
+  height: 100%;
+  min-height: 0;
+  position: relative;
+}
+
+/* The match settings' gear: the header's role, in one slim row. */
+.cardtable-embed__bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 2rem 0;
+  position: relative;
+}
+
+.cardtable-embed__gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--color-text));
+}
+
+.cardtable-embed__gear:hover,
+.cardtable-embed__gear[aria-expanded='true'] {
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.cardtable-embed__popout {
+  position: absolute;
+  top: 100%;
+  right: 2rem;
+  z-index: 50;
+  min-width: 16rem;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+}
+
+.cardtable-embed__error {
+  margin: 2rem;
+  color: var(--color-text);
+}
+
+/*
+ * A link to `#/` is "back to the room list". Embedded there is no list — the
+ * watchparty room has one table, and the route goes straight back to it
+ * (`EmbedApp.tsx`) — so the link would be a control that does nothing.
+ */
+.cardtable-chrome--embed a[href='#/'] {
+  display: none;
+}

@@ -121,6 +121,11 @@
   height: 100%;
   min-height: 0;
   max-width: none;
+  /* The full width, said outright. `.shell`'s `margin: 0 auto` makes a flex
+     item shrink to its content instead of stretching, so wherever the shell is
+     the content box's own flex child — no watchparty frame between them, as in
+     the watchparty embed (D21) — the table came out a 234px column. */
+  width: 100%;
   gap: 2px;
   /* No side padding: the page's edge is the header's (see the rule above), and
      the table starts exactly there. It was 8px, which put the table 24px

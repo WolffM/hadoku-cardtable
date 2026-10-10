@@ -382,6 +382,16 @@ export interface RoomsClient {
 }
 
 /**
+ * The embed's one room call (D21), and like `RoomIdentityClient` below not a
+ * screen's: the table a watchparty room's game slot is bound to, made on first
+ * use and joined after. `watchpartyRoom` names the watchparty room; the server
+ * derives the cardtable room id from it, so every member arrives at one table.
+ */
+export interface RoomBindClient {
+  bindWatchparty(watchpartyRoom: string): Promise<RoomOutcome>;
+}
+
+/**
  * The room's identity write, deliberately NOT on `RoomsClient`.
  *
  * `RoomsClient` is what a SCREEN does to a room: list it, enter it, ready up,
@@ -432,7 +442,7 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
   base: string = defaultApiBase(),
-): RoomsClient & RoomIdentityClient {
+): RoomsClient & RoomIdentityClient & RoomBindClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
   /**
@@ -556,6 +566,9 @@ export function roomsClient(
       return write(`/${encodeURIComponent(roomId)}/start`, {}, 'Could not start the draft');
     },
 
+    bindWatchparty(watchpartyRoom) {
+      return write('/watchparty', { room: watchpartyRoom }, 'Could not open this room’s table');
+    },
     setAvatar(roomId, avatarId) {
       return write(`/${encodeURIComponent(roomId)}/identity`, { avatarId }, 'Could not set your avatar');
     },

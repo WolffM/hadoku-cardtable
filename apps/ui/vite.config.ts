@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-import { APP_NAME } from './app-name';
+import { APP_NAME } from './app-name.ts';
 
 /**
  * The app is served under `hadoku.me/cardtable/` behind the friend gate, so the
