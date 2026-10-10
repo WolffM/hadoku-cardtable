@@ -87,6 +87,15 @@ function stackIds(s: Scenario, seat: number): number[] {
 	return idsOf(game, 'Stack');
 }
 
+/** The cards Forge offers `seat` now: its last `setWeaklySelectable`, none after a `clearWeaklySelectable`. */
+function offeredTo(s: Scenario, seat: number): number[] {
+	const last = [...s.lines]
+		.reverse()
+		.find((l) => l.t === 'frame' && l.seat === seat && /^(set|clear)WeaklySelectable$/.test(String((l.frame as { method?: unknown } | null)?.method)));
+	const frame = (last as { frame?: unknown } | undefined)?.frame as { method: string; cards?: { id: number }[] } | undefined;
+	return frame?.method === 'setWeaklySelectable' ? (frame.cards ?? []).map((c) => c.id) : [];
+}
+
 describe.skipIf(!available.ok)(title, () => {
 	it(
 		"seat 1 holds only untapped lands while seat 0's spell is on the stack, and is auto-passed without ever acting",
@@ -108,45 +117,17 @@ describe.skipIf(!available.ok)(title, () => {
 				).then(() => s.zone(0, 'Hand').find((c) => c.name === 'Raging Goblin'));
 				if (goblin === undefined) throw new Error('no Raging Goblin in hand');
 
+				// One select, sent once Forge's own offer names the Goblin — the scenario-start
+				// race (`PlayBridge.java`'s `refreshActionable`) is over then. Never a retry (the
+				// same driver as `w52-s-signet.jvm.test.ts`): a resend cannot tell a dropped click
+				// from one Forge is still taking. The single {R} is paid by `landPayer` (wave 53
+				// §E), which sends the next land only once the payment prompt has changed.
+				await waitUntil(() => { s.answerAsks(); return offeredTo(s, 0).includes(goblin.id); }, 'Forge offers seat 0 the Goblin', 20_000, s);
 				s.select(0, goblin.id);
-				// Pay the single {R}: Forge's own `InputPayMana` plays a single mana
-				// ability without asking (`InputPayMana.java:102-106`), but the bridge
-				// still needs the untapped Mountain clicked once to fire it.
-				// `landPayer` (ledger Y26's neighbour, wave 53 §E) is the fix the other
-				// jvm suites already use for the race this used to hand-roll with its
-				// own `clicked` Set: a click on the NEXT 25 ms tick, before Forge's
-				// reply tapped the land it was already playing, is refused
-				// ("Should wait till previous call to playAbility finishes",
-				// `InputPayMana.java:210-213`) and never retried by a Set keyed on the
-				// land's id alone — only once the "Pay Mana Cost" prompt text has itself
-				// changed does `landPayer` send the next land.
 				const payLand = landPayer(s, 0);
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						// The initial `select` above can land before Forge's own actionable
-						// cache has caught up with the scenario (the same pre-existing,
-						// timing-dependent bridge race `PlayBridge.java`'s `refreshActionable`
-						// doc describes), and the click is silently a no-op when Forge does
-						// not currently consider the card legal to select — retried while it
-						// still sits in hand and no payment window has opened yet, so a cast
-						// already under way is never clicked twice.
-						//
-						// Known hazard, NOT guarded here: retrying on every 25 ms tick can
-						// resend `selectCard` for the same card while Forge's game thread is
-						// still inside the FIRST `chooseSpellAbilityToPlay()` for it — see
-						// `B-auto-pass-land.md` for a reproduced failure and why no order-based
-						// signal (as opposed to a clock) was found to gate the retry on: in the
-						// one capture, the SAME 25 ms tick that sent the retry was also the
-						// very first tick after the original select, with zero new wire traffic
-						// from either seat in between — nothing arrives to tell this test
-						// whether the first attempt is still being processed or was silently
-						// dropped, so there is no signal to wait for, only a clock, which is
-						// not allowed. Left as the pre-existing behaviour; the CI line for this
-						// test stays pinned.
-						if (s.zone(0, 'Hand').some((c) => c.id === goblin.id) && !/Pay Mana Cost/.test(s.prompt(0))) {
-							s.select(0, goblin.id);
-						}
 						payLand();
 						// Wait on the STACK ZONE, not the prompt text: `passOwnSpell` passes
 						// the caster's own window immediately, so the "Stack: 1 to Resolve"
@@ -160,10 +141,6 @@ describe.skipIf(!available.ok)(title, () => {
 						return stackIds(s, 0).length > 0;
 					},
 					"seat 0's own spell to reach the stack",
-					// Generous on purpose: the retry above is a harmless no-op against an
-					// actionable cache Forge has not yet refreshed (never a double-cast —
-					// confirmed directly, mutation-testing this exact budget), and that
-					// cache has been measured taking several real seconds to catch up.
 					45_000,
 					s,
 				);
