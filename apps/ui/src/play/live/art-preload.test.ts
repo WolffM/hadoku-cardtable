@@ -47,6 +47,18 @@ describe('artReady: a face is turned over only once its art is decoded', () => {
     expect(artReady(url, vi.fn())).toBe(true);
   });
 
+  it('an image the page already holds (a tile on screen drew it) is ready at once — no back for a frame', () => {
+    class HeldImage extends FakeImage {
+      complete = true;
+      naturalWidth = 488;
+    }
+    vi.stubGlobal('Image', HeldImage);
+    const url = 'https://cards.scryfall.io/normal/front/a/a/test-held.jpg';
+    expect(artReady(url, vi.fn())).toBe(true);
+    expect(loads, 'no decode waited on').toHaveLength(0);
+    expect(artReady(url, vi.fn())).toBe(true);
+  });
+
   it('a failed load counts as ready — the text tile is then the card — and no URL is ready at once', async () => {
     const url = 'https://cards.scryfall.io/normal/front/a/a/test-404.jpg';
     expect(artReady(url, vi.fn())).toBe(false);
@@ -67,16 +79,16 @@ describe('preloadMatchArt: both decks’ art, a few at a time, at low priority',
     { name: 'Not A Real Card Name', set: null },
   ];
 
-  it('resolves each name through the same art index the board draws with, skips what has no art (Grizzly Bears has no art id), and ignores another match', () => {
+  it('resolves each name through the same art index the board draws with, skips what has no art, and ignores another match', () => {
     const urls = preloadUrls('m-1', { matchId: 'm-1', cards });
     expect(urls).toContain(cardImageUrl(scryfallIdFor(KNOWN_ART_IDS, 'Volcanic Hammer', '')));
-    expect(urls).toHaveLength(4);
+    expect(urls).toHaveLength(5);
     expect(preloadUrls('m-2', { matchId: 'm-1', cards })).toEqual([]);
     expect(preloadUrls('m-1', { matchId: 'm-1', cards: [{ name: 'x', set: null, url: 'https://evil' }] }), 'strict: a URL never rides the wire').toEqual([]);
   });
 
   it(`runs ${PRELOAD_AT_ONCE} loads at once, low priority, and starts the next as each ends`, async () => {
-    expect(preloadMatchArt('m-1', { matchId: 'm-1', cards })).toBe(4);
+    expect(preloadMatchArt('m-1', { matchId: 'm-1', cards })).toBe(5);
     expect(loads).toHaveLength(PRELOAD_AT_ONCE);
     expect(loads.every((l) => l.fetchPriority === 'low')).toBe(true);
     loads[0]!.settle(true);

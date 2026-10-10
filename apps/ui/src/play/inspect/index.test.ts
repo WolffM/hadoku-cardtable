@@ -233,6 +233,32 @@ describe('opening', () => {
     }
   });
 
+  it('a card in an open pile view enlarges beside the view, never over the cards it lists — the run\'s real rects', () => {
+    // Run 38007401024 at 1280×800: alice's 31-card pile view at 125,357 (604×435), Think Twice in it
+    // 68×95. The inspector anchored to the card's right, over the view's middle cards.
+    const { board } = mountBoard();
+    const overlay = board.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const view = document.createElement('section');
+    view.setAttribute('data-testid', 'pile-view');
+    view.innerHTML = '<ul><li data-card-id="143"><article class="card" data-card-id="w143"><span class="card__name">Think Twice</span></article></li></ul>';
+    overlay.appendChild(view);
+    const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
+      ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
+    overlay.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    view.getBoundingClientRect = () => rect({ left: 125, top: 357, right: 729, bottom: 792 });
+    const cardEl = view.querySelector('.card')!;
+    cardEl.getBoundingClientRect = () => rect({ left: 300, top: 400, right: 368, bottom: 495 });
+    hover(cardEl);
+    const shown = document.querySelector<HTMLElement>('[data-inspect]');
+    expect(shown, 'the pile card enlarges').not.toBeNull();
+    expect(shown!.parentElement, 'in the overlay, beside the view').toBe(overlay);
+    expect(shown!.querySelector('.card__name')!.textContent).toBe('Think Twice');
+    // The view's left has no room (125 px), so the view's RIGHT: 729 + GAP.
+    expect(shown!.style.left).toBe('737px');
+    expect(shown!.style.top).toBe('400px');
+    expect(shown!.style.width).toBe('264px');
+  });
+
   it('opens for a prompt-grid tile outside the board root', () => {
     const { panel } = mountBoard();
     // Lane C's grid, as the contract describes it: a tile carrying

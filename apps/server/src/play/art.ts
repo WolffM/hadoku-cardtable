@@ -15,6 +15,22 @@ import type { MatchSpec } from './host.js';
 /** A scenario key that lists cards in a zone (`humanhand=`, `aibattlefield=`, …); `scenarios/README.md` has the format. */
 const SCENARIO_ZONE = /^(?:human|ai)(?:hand|battlefield|library|graveyard|exile|sideboard|command)=(.*)$/;
 
+/**
+ * Every card name a scenario's `[state]` text places, in order of first mention. Also what
+ * `scripts/art/build-art-ids.ts` gives an art row, so a card a scenario plays is drawn with its art.
+ */
+export function scenarioCardNames(scenario: string): string[] {
+	const names = new Set<string>();
+	for (const line of scenario.split(/\r?\n/)) {
+		const listed = SCENARIO_ZONE.exec(line.trim())?.[1] ?? '';
+		for (const entry of listed.split(';')) {
+			const name = entry.split('|')[0]!.trim();
+			if (name !== '') names.add(name);
+		}
+	}
+	return [...names];
+}
+
 export function artOf(spec: Pick<MatchSpec, 'seats' | 'scenario'>): ArtCard[] {
 	const cards = new Map<string, ArtCard>();
 	const add = (name: string, set: string | null): void => {
@@ -27,9 +43,6 @@ export function artOf(spec: Pick<MatchSpec, 'seats' | 'scenario'>): ArtCard[] {
 			for (const { card } of entries) add(card.name, card.set);
 		}
 	}
-	for (const line of (spec.scenario ?? '').split(/\r?\n/)) {
-		const listed = SCENARIO_ZONE.exec(line.trim())?.[1] ?? '';
-		for (const entry of listed.split(';')) add(entry.split('|')[0]!.trim(), null);
-	}
+	for (const name of scenarioCardNames(spec.scenario ?? '')) add(name, null);
 	return [...cards.values()];
 }

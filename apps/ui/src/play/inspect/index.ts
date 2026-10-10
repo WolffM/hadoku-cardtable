@@ -86,7 +86,9 @@
  * the card: *"theres an active decision on my screen, and if i hover serum
  * visions it blocks the card itself … let's try to be a bit smarter about
  * where to place the expanded img."* Neither the window nor the card being
- * read is ever the thing the panel covers.
+ * read is ever the thing the panel covers. An open pile view (`../PileView.tsx`)
+ * is such a window too: a card read in it, or on the board while it is open,
+ * stands beside it by the same rule, never over the cards it lists.
  *
  * ## Staleness, on purpose
  *
@@ -144,6 +146,12 @@ interface InspectTarget {
  * ALREADY DRAWN on the board and that tile is what is enlarged.
  */
 const INSPECT_IDS = 'data-inspect-ids';
+
+/**
+ * A window the panel stands beside, never on: a decision pop-up that asks something (the "waiting for
+ * the other player" pop-up asks nothing), or an open pile view.
+ */
+const OPEN_WINDOW = '.live__prompt:not(:has([data-testid="live-waiting-pop"])), [data-testid="pile-view"]';
 
 /** The box vocabulary `placeInspector` speaks. Client coordinates. */
 export interface Rect {
@@ -468,27 +476,23 @@ export function mountInspector(root: ParentNode): () => void {
     if (art !== null) art.setAttribute('loading', 'eager');
 
     const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
-    // A decision window is open: the panel is a SIBLING of the pop-up, in the
-    // pop-up's own positioned container, because inside the board overlay
-    // (`--z-overlay`) its `--z-zoom` only ranks it within that layer and the
-    // pop-up (`--z-popover`) painted over it. Beside the pop-up, never on it.
-    // The pop-up's parent is `.live` (`position: relative`), its containing
-    // block. The hovered card's own pop-up when it is in one; otherwise the
-    // one that is open and ASKS something — the "waiting for the other
-    // player" pop-up is not a decision. Never for a card in the viewer's own
+    // A window is open: the panel is a SIBLING of it, in its own positioned
+    // container, because inside the board overlay (`--z-overlay`) its
+    // `--z-zoom` only ranks it within that layer and a pop-up (`--z-popover`)
+    // painted over it. Beside the window, never on it. A pop-up's parent is
+    // `.live` (`position: relative`); a pile view's is the board overlay. The
+    // hovered card's own window when it is in one; otherwise the one that is
+    // open (`OPEN_WINDOW`). Never for a card in the viewer's own
     // hand: that one enlarges above the hand whatever is on screen (the
     // operator, 2026-10-07: "this type of hover expand should not be
     // affected by whats on the screen").
     const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
-    const modal =
-      target.tile.closest('.live__prompt') ?? (inHand ? null : doc.querySelector('.live__prompt:not(:has([data-testid="live-waiting-pop"]))'));
+    const modal = target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : doc.querySelector(OPEN_WINDOW));
     const modalBox = modal?.parentElement ?? null;
     const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
     const hostR = rectOf(host.getBoundingClientRect());
     const spot =
-      modal !== null && host !== overlayEl
-        ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR)
-        : placeInspector(hoverR, hostR, handRect());
+      modal !== null ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR) : placeInspector(hoverR, hostR, handRect());
 
     const el = doc.createElement('div');
     el.className = 'inspect';

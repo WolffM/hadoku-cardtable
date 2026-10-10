@@ -222,6 +222,42 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  it('their click-cast (no registration) stays a back until its art is decoded, then turns over; my own is a face at once', async () => {
+    // The operator, 2026-10-09: "i really dont want a no-art card to show ever".
+    const decodes: { src: string; settle: () => void }[] = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        src = '';
+        fetchPriority = 'auto';
+        decode(): Promise<void> {
+          return new Promise((resolve) => decodes.push({ src: this.src, settle: resolve }));
+        }
+      },
+    );
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    try {
+      const card = { ...draftCard('Think Twice'), scryfallId: 'aaaaaaaa-0000-4000-8000-00000000c1a5' };
+      handle.notify(view([stackItem(7, { sourceCard: card, controllerName: 'Bob' }), stackItem(8, { sourceCard: { ...card, scryfallId: 'aaaaaaaa-0000-4000-8000-0000000000e8' } })]));
+      const theirs = canvas.querySelector<HTMLElement>('[data-placed-spell="7"]')!;
+      const mine = canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!;
+      expect(theirs.querySelector('.placed__back'), 'their face waits for its art as a back').not.toBeNull();
+      expect(theirs.querySelector('.card'), 'no face without its art').toBeNull();
+      expect(mine.querySelector('.placed__back'), 'my own click-cast is never a back').toBeNull();
+      expect(decodes.map((d) => d.src)).toHaveLength(1);
+      decodes[0]!.settle();
+      // The decode settles, the flip remounts, and a fresh React root commits one macrotask later.
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(theirs.querySelector('.placed__back'), 'turned over once decoded').toBeNull();
+      expect(theirs.querySelector('.card__name')?.textContent).toBe('Think Twice');
+    } finally {
+      handle.dispose();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('an ability draws beside its source when the source is on the board, never a row', () => {
     const { canvas } = board();
     setChainHalted(true);

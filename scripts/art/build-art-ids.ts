@@ -59,6 +59,9 @@
  *     exact key. Those alias rows — and only those — are added here.
  *   - **a bare-name row per card**, which is the documented fallback: another
  *     printing's art is still that card's art.
+ *   - **a bare-name row per card a test scenario places**
+ *     (`apps/server/src/play/scenarios/*.state`): the e2e suite plays those
+ *     matches on camera, and a scenario's Grizzly Bears had no row at all.
  *
  * NOT in the table: Forge's 505 bundled quest precons (12,722 distinct
  * `Name|SET` references, ~8,900 distinct names — roughly half a megabyte, for
@@ -84,12 +87,23 @@ import { buildCardIndex, resolveCard, type CardIndex } from '../../packages/card
 import { FORGE_TO_SCRYFALL_SET } from '../../packages/carddata/src/set-codes.ts';
 import type { GameplayCard } from '../../packages/carddata/src/scryfall/project.ts';
 import { ART_ID_TABLE_VERSION } from '../../packages/carddata/src/art/ids.ts';
+import { scenarioCardNames } from '../../apps/server/src/play/art.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const DEFAULT_CACHE = join(REPO_ROOT, 'packages', 'carddata', 'data');
 const DEFAULT_OUT = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft', 'art-ids.json');
 const DECKS_DIR = join(REPO_ROOT, 'decks');
 const POOL_FILE = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft', 'pool.json');
+const SCENARIOS_DIR = join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'scenarios');
+
+/** Every card a test scenario (`apps/server/src/play/scenarios/*.state`) places — a match the e2e suite plays shows them. */
+export function scenarioNames(dir = SCENARIOS_DIR): string[] {
+  const names = new Set<string>();
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.state')).sort()) {
+    for (const name of scenarioCardNames(readFileSync(join(dir, file), 'utf8'))) names.add(name);
+  }
+  return [...names];
+}
 
 /** A reference with no set and no collector number — `resolveCard`'s tier 3. */
 function request(name: string, set: string | null): CardRequest {
@@ -674,6 +688,7 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
         for (const entry of entries) bareNames.add(entry.card.name);
       }
     }
+    for (const name of scenarioNames()) bareNames.add(name);
     for (const name of [...bareNames].sort()) {
       if (ids.has(name)) continue;
       const voted = winners.get(name);
@@ -763,7 +778,8 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
       "Forge's wire carries Name + SetCode, never a Scryfall id; this is the table that turns one into the other so " +
       'packages/carddata/src/art/index.ts can resolve a URL. Ids only — no URL, no host, no image metadata (D15). ' +
       'Scope: every basic land under every Forge set code, every card in the committed decks/ lists, the cube pool’s ' +
-      'Forge-code aliases (pool.json already carries the Scryfall-code keys), one bare-name fallback row per name, and ' +
+      'Forge-code aliases (pool.json already carries the Scryfall-code keys), one bare-name fallback row per name (and per ' +
+      'card a test scenario under apps/server/src/play/scenarios/ places), and ' +
       '(R14) every Scryfall token printing under "<name> Token" — the form Forge actually sends — keyed under every ' +
       'Forge edition whose own token set the printing belongs to, plus a bare "<name> Token" fallback row. ' +
       (sourceUpdatedAt === null ? '' : `Built from Scryfall default_cards updated ${sourceUpdatedAt}.`);

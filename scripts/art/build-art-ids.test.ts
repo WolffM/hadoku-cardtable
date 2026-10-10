@@ -10,8 +10,10 @@
  * this file importing cleanly, with no file-system side effect, is the proof.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
-import { mostUsedPrinting, type PrintingVote } from './build-art-ids.ts';
+import { mostUsedPrinting, scenarioNames, type PrintingVote } from './build-art-ids.ts';
 
 describe('mostUsedPrinting', () => {
   it('picks the printing with the most votes, not the first one cast', () => {
@@ -78,5 +80,17 @@ describe('mostUsedPrinting', () => {
     const winners = mostUsedPrinting(votes);
     expect(winners.get('Forest')).toBe('forest-id');
     expect(winners.get('Island')).toBe('island-id');
+  });
+});
+
+describe('the committed table covers every card a test scenario places', () => {
+  it('a scenario card has an art row (the e2e Grizzly Bears was drawn without art)', () => {
+    const read = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
+    const { ids } = read('../../apps/ui/src/draft/art-ids.json') as { ids: Record<string, string> };
+    const { cards } = read('../../apps/ui/src/draft/pool.json') as { cards: { name: string }[] };
+    const known = new Set([...Object.keys(ids).map((key) => key.split('|')[0]), ...cards.map((c) => c.name)]);
+    const names = scenarioNames();
+    expect(names).toContain('Grizzly Bears');
+    expect(names.filter((name) => !known.has(name))).toEqual([]);
   });
 });

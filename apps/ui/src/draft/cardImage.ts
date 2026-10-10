@@ -146,12 +146,12 @@ const art = new Map<string, { img: HTMLImageElement; done: boolean; waiting: Set
  * Called only once this screen knows which card it is — a face this seat may
  * see — never to warm the other seat's hidden cards. A failed load counts as
  * ready: the text tile is then the card (`cardImageUrl`'s own contract), and
- * waiting longer would show nothing better. No URL, or no `Image` (a non-DOM
- * test), is ready at once. `priority` `'low'` is a background warm-up
+ * waiting longer would show nothing better. No URL, or no `Image` that can
+ * decode (a non-DOM test, jsdom), is ready at once. `priority` `'low'` is a background warm-up
  * (`play/live/art-preload.ts`), never a face somebody is waiting to see.
  */
 export function artReady(url: string | null, onReady: () => void, priority: 'auto' | 'low' = 'auto'): boolean {
-  if (url === null || typeof Image === 'undefined') return true;
+  if (url === null || typeof Image === 'undefined' || typeof Image.prototype.decode !== 'function') return true;
   const known = art.get(url);
   if (known?.done === true) return true;
   if (known !== undefined) {
@@ -168,6 +168,12 @@ export function artReady(url: string | null, onReady: () => void, priority: 'aut
     entry.waiting.clear();
   };
   img.src = url;
+  // Already in the page's list of available images (a tile on screen drew it): ready now, not a frame later.
+  if (img.complete && img.naturalWidth > 0) {
+    entry.done = true;
+    entry.waiting.clear();
+    return true;
+  }
   img.decode().then(finish, finish);
   return false;
 }

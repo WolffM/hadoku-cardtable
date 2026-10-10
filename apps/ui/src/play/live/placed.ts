@@ -411,6 +411,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
   }
 
+  function viewerName(): string | null {
+    return lastView?.players.find((p) => p.isViewer)?.name ?? null;
+  }
+
   function onBattlefieldNow(cardId: number): boolean {
     return (lastView?.players ?? []).some((p) => p.battlefield.some((c) => c.id === cardId));
   }
@@ -455,7 +459,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   /** `d.committed` tracks what is CURRENTLY mounted — a face, true; a back, false — so this only remounts on an actual flip. */
   function ensureElement(item: StackEntry, record: Placement | undefined): Drawn {
     let d = drawn.get(item.id);
-    const wantBack = record !== undefined && record.side === 'them' && (!record.committed || !artReady(cardImageUrl(item.sourceCard?.scryfallId), requestRepaint));
+    // Their spell stays a back until it is public AND its art is decoded — a click-cast of theirs too,
+    // which has no placement record: the operator, 2026-10-09, "i really dont want a no-art card to show ever".
+    const theirs = record !== undefined ? record.side === 'them' : !item.isAbility && item.controllerName !== viewerName();
+    const wantBack = theirs && ((record !== undefined && !record.committed) || !artReady(cardImageUrl(item.sourceCard?.scryfallId), requestRepaint));
     if (d === undefined) {
       const el = document.createElement('div');
       el.className = 'placed';
@@ -685,8 +692,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.setAttribute('aria-label', itemLabel(item));
       // AE28: a trigger or ability of the viewer's own has no placement record (nothing was released
       // anywhere) — it is still theirs to move, like a spell they placed.
-      const viewerName = lastView?.players.find((p) => p.isViewer)?.name ?? null;
-      const ownUnplaced = record === undefined && item.isAbility && viewerName !== null && item.controllerName === viewerName;
+      const viewer = viewerName();
+      const ownUnplaced = record === undefined && item.isAbility && viewer !== null && item.controllerName === viewer;
       if ((record !== undefined && record.side === 'you') || ownUnplaced) d.el.setAttribute('data-mine', '');
       else d.el.removeAttribute('data-mine');
       const selectable = !item.isAbility && item.sourceCardId !== null && interaction?.isSelectable(item.sourceCardId) === true;
