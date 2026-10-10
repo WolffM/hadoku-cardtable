@@ -53,15 +53,32 @@ async function freePort(): Promise<number> {
 	return port;
 }
 
+interface Served {
+	status: number;
+	type: string | null;
+	cache: string | null;
+}
+
 interface Booted {
 	health: { status: number; body: { status: string; bundle: string } };
 	page: { status: number; body: string };
+	/** The embed bundle watchparty imports (D21): its entry, a hashed chunk, a name that is not there. */
+	embed: { entry: Served; chunk: Served; missing: Served };
+}
+
+async function served(url: string): Promise<Served> {
+	const res = await fetch(url);
+	await res.arrayBuffer();
+	return { status: res.status, type: res.headers.get('content-type'), cache: res.headers.get('cache-control') };
 }
 
 /** Boot the server against `webDir`, ask it both questions, stop it. */
 async function boot(webDir: string): Promise<Booted> {
 	mkdirSync(webDir, { recursive: true });
 	writeFileSync(join(webDir, 'index.html'), INDEX);
+	mkdirSync(join(webDir, 'embed', 'assets'), { recursive: true });
+	writeFileSync(join(webDir, 'embed', 'cardtable-embed.js'), 'export function mount() {}\n');
+	writeFileSync(join(webDir, 'embed', 'assets', 'chunk-a1b2c3.js'), 'export const x = 1;\n');
 	const port = await freePort();
 
 	const env: NodeJS.ProcessEnv = {
@@ -106,6 +123,11 @@ async function boot(webDir: string): Promise<Booted> {
 		return {
 			health: { status: h.status, body: (await h.json()) as Booted['health']['body'] },
 			page: { status: p.status, body: await p.text() },
+			embed: {
+				entry: await served(`${base}/embed/cardtable-embed.js`),
+				chunk: await served(`${base}/embed/assets/chunk-a1b2c3.js`),
+				missing: await served(`${base}/embed/nope.js`),
+			},
 		};
 	} finally {
 		child.kill('SIGTERM');
@@ -120,6 +142,17 @@ describe('a server started from a path', () => {
 		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
 		expect(page.status).toBe(200);
 		expect(page.body).toContain('fixture');
+	}, 60_000);
+
+	it('serves the embed entry as revalidated JS, its chunks immutable, and a missing file as a 404', async () => {
+		const { embed } = await boot(join(root, 'embed', 'apps', 'ui', 'dist'));
+		expect(embed.entry).toMatchObject({ status: 200, cache: 'no-cache' });
+		expect(embed.entry.type).toMatch(/^(text|application)\/javascript/);
+		expect(embed.chunk.status).toBe(200);
+		expect(embed.chunk.type).toMatch(/^(text|application)\/javascript/);
+		expect(embed.chunk.cache).toContain('immutable');
+		expect(embed.missing.status).toBe(404);
+		expect(embed.missing.type).not.toMatch(/html/);
 	}, 60_000);
 
 	it('under a dot-directory reports degraded, and says why on the page instead of a 404', async () => {

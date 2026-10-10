@@ -57,7 +57,7 @@
  * rather than a member who silently vanishes on the next restart.
  */
 
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -546,6 +546,14 @@ export interface Lobby {
 	 */
 	leave(roomId: string, memberId: string): LeaveResult;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
+	/**
+	 * The room a watchparty room's game slot binds to (D21): `wp-` plus a digest
+	 * of the watchparty room, so everyone in that room arrives at the same table
+	 * without anyone passing an id around. Made on first use with the caller as
+	 * its creator and leader, joined after that; open, builtin, constructed — the
+	 * leader moves it from there exactly as in a room made from the list.
+	 */
+	bindWatchparty(caller: Caller, watchpartyRoom: string): JoinResult;
 	/** Idempotent for an existing member, who needs no password again. */
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
 	/**
@@ -804,6 +812,21 @@ function mintRoomId(): string {
 	return `r-${randomBytes(6).toString('hex')}`;
 }
 
+/**
+ * The cardtable room a watchparty room's game slot is bound to.
+ *
+ * A digest, not the watchparty name: what the embed hands us may be a LEADER
+ * key (`<room>-<16 hex>`, watchparty's `http/routes/rooms.ts`), which is a
+ * secret, and a room id is printed in the list and in every log line. `wp-`
+ * keeps it apart from `r-` (minted) ids; 20 hex is 80 bits, inside `ROOM_ID_RE`.
+ */
+export function watchpartyRoomId(watchpartyRoom: string): string {
+	return `wp-${createHash('sha256').update(watchpartyRoom).digest('hex').slice(0, 20)}`;
+}
+
+/** What a bound room is made as. The leader changes the game type and pool afterwards. */
+const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: DEFAULT_GAME_TYPE, clientMode: DEFAULT_CLIENT_MODE };
+
 function unboxState(app: unknown): unknown {
 	if (typeof app !== 'object' || app === null || !('state' in app)) return undefined;
 	return (app as { state: unknown }).state;
@@ -1018,6 +1041,17 @@ class FileLobby implements Lobby {
 		if (!isDurableParticipantId(caller.id)) return { ok: false, reason: 'not-durable' };
 		let id = mintRoomId();
 		while (this.#rooms.has(id)) id = mintRoomId();
+		return { ok: true, room: this.#insert(id, caller, input) };
+	}
+
+	bindWatchparty(caller: Caller, watchpartyRoom: string): JoinResult {
+		if (!isDurableParticipantId(caller.id)) return { ok: false, reason: 'not-durable' };
+		const id = watchpartyRoomId(watchpartyRoom);
+		if (this.#rooms.has(id)) return this.join(id, caller);
+		return { ok: true, room: this.#insert(id, caller, WATCHPARTY_ROOM), alreadyMember: false };
+	}
+
+	#insert(id: string, caller: Caller, input: CreateRoomInput): RoomView {
 		const now = Math.max(this.#now(), this.#lastCreatedAt + 1);
 		this.#lastCreatedAt = now;
 		const room: RoomRecord = {
@@ -1050,7 +1084,7 @@ class FileLobby implements Lobby {
 			clientMode: room.clientMode,
 			locked: this.#secrets.has(id),
 		});
-		return { ok: true, room: this.#view(room) };
+		return this.#view(room);
 	}
 
 	join(roomId: string, caller: Caller, password?: string): JoinResult {

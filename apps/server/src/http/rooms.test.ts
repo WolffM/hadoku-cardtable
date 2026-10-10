@@ -1451,3 +1451,52 @@ describe('GET /api/rooms and stale rooms', () => {
 		expect(await ids(h, 'bob')).toEqual([room.id]);
 	});
 });
+
+describe('POST /api/rooms/watchparty', () => {
+	it('binds everyone in one watchparty room to one table, made by whoever came first', async () => {
+		const h = await openApp(await tempDir());
+		const first = await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'movie-night' } });
+		expect(first.status).toBe(200);
+		const made = first.json() as import('../room/lobby.ts').RoomView & { you: { leader: boolean } };
+		expect(made.id).toBe(lobbyMod.watchpartyRoomId('movie-night'));
+		expect(made.id).toMatch(/^wp-[0-9a-f]{20}$/);
+		expect(made.you.leader).toBe(true);
+		expect(made.locked).toBe(false);
+
+		const second = (await call(h, 'POST', '/api/rooms/watchparty', { as: 'bob', body: { room: 'movie-night' } })).json() as {
+			id: string;
+			members: { name: string }[];
+			you: { leader: boolean };
+		};
+		expect(second.id).toBe(made.id);
+		expect(second.members.map((m) => m.name)).toEqual(['user-alice', 'user-bob']);
+		expect(second.you.leader).toBe(false);
+
+		const elsewhere = (await call(h, 'POST', '/api/rooms/watchparty', { as: 'bob', body: { room: 'other-room' } })).json() as { id: string };
+		expect(elsewhere.id).not.toBe(made.id);
+	});
+
+	it('never prints the watchparty name, which may be a leader key', async () => {
+		const h = await openApp(await tempDir());
+		const leaderKey = 'movie-night-0123456789abcdef';
+		const bound = (await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: leaderKey } })).json() as { id: string; name: string };
+		expect(bound.id).not.toContain('movie');
+		expect(bound.name).not.toContain('movie');
+		expect(JSON.stringify(logged)).not.toContain(leaderKey);
+	});
+
+	it('refuses a body that names no room, and a caller the edge could not name', async () => {
+		const h = await openApp(await tempDir());
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { body: {} })).status).toBe(400);
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { body: { room: '' } })).status).toBe(400);
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { body: { room: 'x', extra: 1 } })).status).toBe(400);
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { headers: anonymousHeaders(), body: { room: 'x' } })).status).toBe(403);
+	});
+
+	it('spends a join token for a newcomer and none for a member', async () => {
+		const h = await openApp(await tempDir(), { joinRateLimit: { capacity: 1, refillAmount: 1, refillIntervalMs: 60_000 } });
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'a' } })).status).toBe(200);
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'a' } })).status).toBe(200);
+		expect((await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'b' } })).status).toBe(429);
+	});
+});

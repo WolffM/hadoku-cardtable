@@ -104,6 +104,17 @@ export function checkBasePath(indexHtmlPath: string, basePrefix: string): BasePa
 }
 
 /**
+ * The embed bundle's two fixed-name files (D21): `apps/ui/vite.embed.config.ts`
+ * emits them, watchparty imports the `.js`. Every other file in the bundle is
+ * content-hashed; these are the only ones whose bytes change under one name.
+ */
+export const EMBED_ENTRIES = ['cardtable-embed.js', 'cardtable-embed.css'] as const;
+
+export function isEmbedEntry(filePath: string): boolean {
+	return EMBED_ENTRIES.some((name) => filePath.endsWith(`${sep}embed${sep}${name}`));
+}
+
+/**
  * Serve index.html. The ONE place a page leaves this server, shared by the SPA
  * fallback and by `probeIndex`, so the probe cannot drift from what it vouches
  * for: change an option here and the boot check changes with it.

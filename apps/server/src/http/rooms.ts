@@ -101,6 +101,7 @@ import {
 	GAME_TYPES,
 	ROOM_ID_RE,
 	draftIdOfPool,
+	watchpartyRoomId,
 	type Caller,
 	type ClientMode,
 	type FormatId,
@@ -230,6 +231,22 @@ function parseJoin(body: unknown): Parsed<{ password: string | undefined }> {
 }
 
 /** Same allow-list discipline as the others: `{ ready: boolean }` and nothing else. */
+/** Watchparty's room keys are slugs plus a hex suffix; this only bounds what is hashed. */
+const WATCHPARTY_ROOM_MAX = 200;
+
+function parseWatchpartyBind(body: unknown): Parsed<{ room: string }> {
+	const o = asObject(body);
+	if (o === null) return { ok: false, error: 'body must be a JSON object' };
+	const extra = unknownKeys(o, ['room']);
+	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
+	if (typeof o.room !== 'string' || o.room.length === 0 || o.room.length > WATCHPARTY_ROOM_MAX) {
+		return { ok: false, error: `room must be 1–${WATCHPARTY_ROOM_MAX} characters` };
+	}
+	// eslint-disable-next-line no-control-regex
+	if (/[\u0000-\u001f\u007f]/.test(o.room)) return { ok: false, error: 'room must not contain control characters' };
+	return { ok: true, value: { room: o.room } };
+}
+
 function parseReady(body: unknown): Parsed<{ ready: boolean }> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
@@ -384,6 +401,25 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const result = lobby.create(caller, parsed.value);
 		if (!result.ok) return notDurable(res);
 		res.status(201).json(roomBody(result.room, caller.id));
+	});
+
+	// The embed's front door (D21): the cardtable room bound to the watchparty
+	// room whose game slot this is, made on first use. Joining it spends a join
+	// token exactly as `/:id/join` does for a newcomer, so binding is no cheaper
+	// a way to probe or flood than joining is. The watchparty name is never
+	// logged: it may be a leader key (see `watchpartyRoomId`).
+	rooms.post('/watchparty', (req: Request, res: Response) => {
+		const parsed = parseWatchpartyBind(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!lobby.isMember(watchpartyRoomId(parsed.value.room), caller.id) && !joinLimiter.allow(caller.id, 1, now())) {
+			log({ event: 'room-join-refused', reason: 'rate-limited' });
+			res.setHeader('Retry-After', String(Math.ceil((deps.joinRateLimit ?? JOIN_RATE_LIMIT).refillIntervalMs / 1000)));
+			return res.status(429).json({ error: 'too many join attempts; wait a little and try again' });
+		}
+		const result = lobby.bindWatchparty(caller, parsed.value.room);
+		if (!result.ok) return notDurable(res);
+		res.json(roomBody(result.room, caller.id));
 	});
 
 	rooms.get('/:id', (req: Request, res: Response) => {

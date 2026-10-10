@@ -72,7 +72,7 @@ import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
-import { checkBundle, diagnosticPage, sendIndex } from './base-path.js';
+import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { createDraftRooms } from './room/draftRooms.js';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
@@ -220,10 +220,20 @@ if (basePath.ok) {
 			immutable: true,
 			setHeaders: (res, filePath) => {
 				if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-store');
+				else if (isEmbedEntry(filePath)) res.setHeader('Cache-Control', 'no-cache');
 			},
 		})
 	);
 }
+
+// The embed bundle watchparty imports (D21). Its two entry files keep their
+// names across builds, so they revalidate (`no-cache`, answered 304 by ETag);
+// their hashed chunks under `embed/assets/` stay immutable like every other
+// asset. A path under `/embed/` that is not on disk is a 404, never the SPA
+// page: an `import()` handed HTML fails with a MIME error that names nothing.
+app.use('/embed', (_req: Request, res: Response) => {
+	res.status(404).type('text').send('no such embed file');
+});
 
 // ── Streamed Forge, HTTP half ────────────────────────────────────────────────
 // noVNC's pages and assets, straight out of websockify in the containers.
