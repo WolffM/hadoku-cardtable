@@ -289,9 +289,9 @@ test(titled('a card piled behind a tapped card is drawn upright: only its own ta
  * The operator, 2026-10-06: *"can we make it so i can draw boxes to tap things? drawing boxes to
  * attack seems to work, so why not lands?"* Eight Plains and nothing to cast: a box over four of
  * them taps those four, one after another as Forge takes each, and leaves the other four alone.
- * Then the same match proves the way back: a click on the land tapped last is Forge's Undo.
+ * Then the same match proves the way back: a click on any of them untaps that one, in any order.
  */
-test(titled('a box drawn over four lands taps those four and no others, and a click on the last one tapped untaps it'), async ({ browser }) => {
+test(titled('a box drawn over four lands taps those four and no others, and a click on any one of them untaps that one'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -364,20 +364,16 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
     for (const id of lands.slice(4)) await expect(card(id), `land ${id} was outside the box`).not.toHaveAttribute('data-tapped');
 
     /*
-     * And back again, by a click (the operator, 2026-10-04 and 2026-10-06: clicking a land just
-     * tapped should untap it, without the Undo button). Forge's undo is last-in-first-out, so the
-     * one tapped land a click is offered on is the last to tap; once it is untapped, the one
-     * before it.
+     * And back again, by a click (the operator, six times: "just let me untap things if it didn't
+     * trigger anything"). Every land the box tapped takes a click while its mana floats, in any
+     * order: the FIRST to tap, then the third; the other two stay tapped.
      */
-    for (const id of [lands[3]!, lands[2]!]) {
-      await expect(card(id), `land ${id} was the last to tap: it takes a click`).toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
-      for (const earlier of lands.slice(0, lands.indexOf(id))) {
-        await expect(card(earlier), `land ${earlier} tapped before it: no click`).not.toHaveAttribute('data-selectable');
-      }
+    for (const id of lands.slice(0, 4)) await expect(card(id), `land ${id}, tapped, takes a click`).toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
+    for (const id of [lands[0]!, lands[2]!]) {
       await card(id).locator(':scope > .board-card__face').click();
       await expect(card(id), `the click untapped land ${id}`).not.toHaveAttribute('data-tapped', { timeout: 15_000 });
     }
-    for (const id of lands.slice(0, 2)) await expect(card(id), `land ${id} is still tapped`).toHaveAttribute('data-tapped', 'true');
+    for (const id of [lands[1]!, lands[3]!]) await expect(card(id), `land ${id} is still tapped`).toHaveAttribute('data-tapped', 'true');
   } finally {
     await stack.stop();
   }

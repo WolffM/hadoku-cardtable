@@ -2183,93 +2183,44 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
  * covered, by the adapter and fold suites that exercise it directly.
  */
 /*
- * The operator, 2026-10-04 and again 2026-10-06: clicking a land just tapped for
- * mana should untap it, without the Undo button. Forge's undo is last-in-first-out,
- * so the one land a click may untap is the last to tap.
+ * A permanent tapped for mana untaps on a click when its mana is unspent and the
+ * tap fired nothing, in any order (the operator, six times; ledger V6, AC7, AE21).
+ * Forge decides which ones: it offers each such permanent in its actionable set
+ * (`AvailableActions.cardHasActionable`) and undoes that one activation on the
+ * click (`InputPassPriority.onCardSelected` → `PlayerControllerHuman.tryUndo`).
+ * The board keeps no record of its own: the click is a plain `selectCard`.
  */
-describe('the land tapped last is clickable while Forge offers Undo, and the click is that Undo', () => {
+describe('a tapped permanent is clicked to untap exactly when Forge offers it', () => {
   const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
   const tap = (id: number, tapped: boolean) =>
     stateDelta({ [String(id)]: { _type: WireType.Card, _id: id, Tapped: { t: 'bool', v: tapped } } });
   const bar = (label2: string, enable2 = true) =>
     parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2, enable1: true, enable2, focus1: true });
 
-  /** A game at priority with this seat's lands untapped: two of them, and what Forge sends after a click. */
-  async function atPriority() {
+  async function twoTapped() {
     const { s, m } = await fullGame();
     const lands = me(m).battlefield.filter((c) => c.card.typeLine.includes('Land')).map((c) => c.id);
     expect(lands.length, 'the fixture gives this seat two lands').toBeGreaterThanOrEqual(2);
-    await sendAndApply(s, m, [...lands.map((id) => tap(id, false)), prompt('Priority'), bar('End Turn'), actionable(lands)]);
     const [a, b] = lands as [number, number];
-    /** Forge taps `id` and shows priority again, offering the lands still untapped and its Undo. */
-    const forgeTaps = (id: number, untapped: number[]) => sendAndApply(s, m, [tap(id, true), prompt('Priority'), bar('Undo (1)'), actionable(untapped)]);
-    return { s, m, a, b, rest: lands.slice(2), forgeTaps };
+    await sendAndApply(s, m, [tap(a, true), tap(b, true), prompt('Priority'), bar('Undo (2)')]);
+    return { s, m, a, b };
   }
 
-  it('only the LAST land to tap is offered, and clicking it presses Undo', async () => {
-    const { s, m, a, b, rest, forgeTaps } = await atPriority();
-    await forgeTaps(a, [b, ...rest]);
-    expect(boardInteraction(m).selectable.has(a), 'the one land tapped is offered').toBe(true);
-    await forgeTaps(b, rest);
-    expect(boardInteraction(m).selectable.has(b), 'the land tapped last').toBe(true);
-    expect(boardInteraction(m).selectable.has(a), 'not the one before it: Forge’s Undo would not untap that').toBe(false);
-
-    expect(selectCard(m, b)).toBe(true);
-    await until('the click at the server', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectButtonCancel' } });
-
-    // Forge untaps it. The land before it is now the last tapped, and Undo is still offered: its turn.
-    await sendAndApply(s, m, [tap(b, false), prompt('Priority'), bar('Undo (1)'), actionable([b, ...rest])]);
+  it('the FIRST of two tapped lands, offered by Forge, is clicked as a selectCard — no Undo button press', async () => {
+    const { s, m, a, b } = await twoTapped();
+    await sendAndApply(s, m, [actionable([a, b])]);
     expect(boardInteraction(m).selectable.has(a)).toBe(true);
-  });
-
-  it('a creature tapped for mana is the undoable tap, like a land (Llanowar Elves, the operator, three times)', async () => {
-    const { s, m, a, b, rest } = await atPriority();
-    const elves = myNonLand(m);
-    // Untapped and offered beside the lands, the way Forge offers a mana creature at priority.
-    await sendAndApply(s, m, [tap(elves, false), prompt('Priority'), bar('End Turn'), actionable([elves, a, b, ...rest], [elves, a, b, ...rest])]);
-    // Forge taps the creature for its mana and offers Undo.
-    await sendAndApply(s, m, [tap(elves, true), prompt('Priority'), bar('Undo (1)'), actionable([a, b, ...rest])]);
-    expect(boardInteraction(m).selectable.has(elves), 'the creature tapped last is offered for the click').toBe(true);
-    expect(selectCard(m, elves)).toBe(true);
-    await until('the click at the server', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()[0], 'and the click is Forge’s Undo, as for a land').toMatchObject({ ok: true, value: { kind: 'act', method: 'selectButtonCancel' } });
-  });
-
-  it('with no Undo on the bar a tapped land is not clickable, however recently it tapped', async () => {
-    const { s, m, a, b, rest, forgeTaps } = await atPriority();
-    await forgeTaps(a, [b, ...rest]);
-    // The same board, and Forge's second button reads End Turn: nothing to undo (a new phase, or a spell cast with the mana).
-    await sendAndApply(s, m, [prompt('Priority'), bar('End Turn'), actionable([b, ...rest])]);
-    expect(boardInteraction(m).selectable.has(a)).toBe(false);
-    expect(selectCard(m, a)).toBe(false);
-    // Offered, but the button is disabled: the same answer.
-    await sendAndApply(s, m, [bar('Undo (1)', false)]);
-    expect(boardInteraction(m).selectable.has(a)).toBe(false);
-    // And only Forge's own label: another input's button that merely starts with the word is not it.
-    await sendAndApply(s, m, [bar('Undo')]);
-    expect(boardInteraction(m).selectable.has(a)).toBe(false);
-    expect(s.clientFrames()).toHaveLength(0);
-  });
-
-  it('two lands tapping in one update have no order: neither is offered', async () => {
-    const { s, m, a, b, rest } = await atPriority();
-    await sendAndApply(s, m, [
-      stateDelta(Object.fromEntries([a, b].map((id) => [String(id), { _type: WireType.Card, _id: id, Tapped: { t: 'bool', v: true } }]))),
-      prompt('Priority'),
-      bar('Undo (1)'),
-      actionable(rest),
-    ]);
-    expect(boardInteraction(m).selectable.has(a)).toBe(false);
-    expect(boardInteraction(m).selectable.has(b)).toBe(false);
-  });
-
-  it('a tapped land Forge itself offers keeps its own click', async () => {
-    const { s, m, a, b, rest, forgeTaps } = await atPriority();
-    await forgeTaps(a, [a, b, ...rest]);
     expect(selectCard(m, a)).toBe(true);
     await until('the click at the server', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard' } });
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  it('a tapped land Forge does not offer is not clickable, whatever the bar says', async () => {
+    const { s, m, a, b } = await twoTapped();
+    await sendAndApply(s, m, [actionable([b])]);
+    expect(boardInteraction(m).selectable.has(a)).toBe(false);
+    expect(selectCard(m, a)).toBe(false);
+    expect(s.clientFrames()).toHaveLength(0);
   });
 });
 

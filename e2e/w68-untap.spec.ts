@@ -138,6 +138,10 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       base = { pool: await poolTotal(a), tapped: new Set(await tappedIds(a)) };
 
       // Out of order: tap it, tap a basic after it, click the first.
+      if (await isTapped(a, id)) {
+        row(`${name} out-of-order`, false, 'not tried: still tapped from the last-tapped row');
+        continue;
+      }
       const basic = idOf(name === 'Island' || name === 'Forest' ? 'Island' : 'Forest');
       await tapByClick(a, id, name);
       const signetPayer = (await fresh()).filter((t) => t !== id);

@@ -1313,7 +1313,9 @@ public final class PlayBridge {
                             restricted = true;
                         }
                     }
-                    if (mana && !other) { manaOnly.add(ref("card", cv.getId())); }
+                    // A tapped card offered with nothing playable is offered for its untap (a mana
+                    // tap Forge can take back): mana too, never a reason to hold priority.
+                    if (!other && (mana || c.isTapped())) { manaOnly.add(ref("card", cv.getId())); }
                     if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);
