@@ -33,6 +33,25 @@
   transition: opacity 250ms ease;
 }
 
+/*
+ * The other seat's item while they drag it (`placed.ts`'s `placeSpell`): each move arrives as one
+ * message, and a point set straight from it steps across the board a message at a time. The same
+ * short glide their pointer and a card they rearrange get (`presence.css`) turns those samples into
+ * motion. Never where it is first drawn: their release point, a replay, a hand-over stay in place.
+ */
+.placed[data-placed-gliding] {
+  transition:
+    opacity 250ms ease,
+    left 90ms linear,
+    top 90ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placed[data-placed-gliding] {
+    transition: opacity 250ms ease;
+  }
+}
+
 /* The viewer's own placed spell may be picked up (item 5, `gestures/install.ts`'s new drag). */
 /* AE26: a spell of theirs whose release point has not reached this screen yet is drawn but not shown (`PLACED_PENDING_MS`). */
 .placed[data-placed-pending] {

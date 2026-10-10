@@ -1257,7 +1257,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return;
     }
     if (pendingPlaced === payload) pendingPlaced = null;
-    placeStackItem(parsed.data.spell, at, 'them');
+    placeStackItem(parsed.data.spell, at, 'them', true);
     commitSpell(parsed.data.spell);
   }
 
@@ -1267,14 +1267,32 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * `onPlaced` above uses `placeSpell`/`commitSpell` instead): tell the other
    * screen. `theirCards` is a defensive check should anything else ever call
    * `moveSpell` for the opponent's own spell — that must never bounce back
-   * out as if it were this seat's own move.
+   * out as if it were this seat's own move. Throttled to `PRESENCE_SEND_MS`
+   * like the pointer, the latest point of each id winning: every message is a
+   * full repaint of the stack layer on the other screen, which glides between
+   * them (`placed.css`'s `[data-placed-gliding]`), and one per pointer event
+   * outran that screen's frames (the operator, 2026-10-10, of an ability chip:
+   * "weirdly visually laggy … only see from the opponents view").
    */
+  const placedDue = new Map<number, PresenceSpot>();
+  let placedTimer: ReturnType<typeof setTimeout> | null = null;
+  let placedSent = 0;
+  function sendPlaced(): void {
+    placedTimer = null;
+    placedSent = Date.now();
+    for (const [spell, at] of placedDue) host.transport.emit(PLACED_EVENT, { matchId: host.matchId, type: 'placed', spell, at });
+    placedDue.clear();
+  }
   const unwatchSpellMoved = onSpellMoved((id, at) => {
     if (!live || host.seat === null) return;
     if ((host.theirCards?.() ?? []).includes(id)) return;
     const spot = spotOf(canvas, at);
     if (spot === null) return;
-    host.transport.emit(PLACED_EVENT, { matchId: host.matchId, type: 'placed', spell: id, at: spot });
+    placedDue.set(id, spot);
+    if (placedTimer !== null) return;
+    const wait = PRESENCE_SEND_MS - (Date.now() - placedSent);
+    if (wait <= 0) sendPlaced();
+    else placedTimer = setTimeout(sendPlaced, wait);
   });
 
   canvas.addEventListener('pointermove', onPointerMove);
@@ -1308,6 +1326,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       liftWatch.disconnect();
       if (sendTimer !== null) clearTimeout(sendTimer);
       sendTimer = null;
+      if (placedTimer !== null) clearTimeout(placedTimer);
+      placedTimer = null;
       takeDown();
     },
   };

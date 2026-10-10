@@ -324,6 +324,33 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  it('their ability, dragged by them, moves without ever turning over or being rebuilt — it hides no card', async () => {
+    // The operator, 2026-10-10: "moving around ability chips is weirdly visually laggy … only see from
+    // the opponents view." Their first move registers the chip here (`presence.ts`'s `onPlaced`:
+    // `placeSpell(…, 'them')` then `commitSpell`), which used to flip it to a back and back again.
+    const { canvas } = board();
+    setChainHalted(true);
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(8, { isAbility: true, sourceCardId: 202, controllerName: 'Bob', sourceName: 'Eternal Witness' })]));
+    await new Promise((r) => setTimeout(r, 0));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!;
+    const chip = el.querySelector('[data-ability-chip]');
+    expect(chip).not.toBeNull();
+    for (const x of [300, 310, 320]) {
+      placeSpell(8, { x, y: 400 }, 'them', true);
+      expect(el.querySelector('.placed__back'), 'never a back').toBeNull();
+      expect(el.hasAttribute('data-placed-gliding'), 'every move of their drag glides, the first one included').toBe(true);
+      commitSpell(8);
+    }
+    // A point that is not their drag (a release point, a hand-over) is drawn in place.
+    placeSpell(8, { x: 330, y: 400 }, 'them');
+    expect(el.hasAttribute('data-placed-gliding')).toBe(false);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(el.querySelector('[data-ability-chip]'), 'the same chip element, never rebuilt').toBe(chip);
+    expect(el.style.left).toBe('330px');
+    handle.dispose();
+  });
+
   it('AE28: the viewer\'s own ability is theirs to drag (data-mine) though nothing placed it; the opponent\'s is not', () => {
     const { canvas } = board();
     setChainHalted(true);

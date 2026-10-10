@@ -1070,7 +1070,7 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeStackItem).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.placeStackItem).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     // This seat's own echo (a resync) and another match's are both ignored.
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 0, spell: 49, at: { zone: 'stack', x: 0.1, y: 0.1 } });
@@ -1091,7 +1091,7 @@ describe('receiving', () => {
     expect(placedMod.placeStackItem, 'nothing to place it on yet').not.toHaveBeenCalled();
     canvas.querySelector('.board')!.append(overlay);
     vi.advanceTimersByTime(60);
-    expect(placedMod.placeStackItem, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.placeStackItem, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     handle.dispose();
   });
@@ -1111,7 +1111,7 @@ describe('receiving', () => {
     // comes; it has to find this one for itself.
     canvas.querySelector('.board')!.append(overlay);
     const second = installPresence({ canvas, host: host(t, 0) });
-    expect(placedMod.placeStackItem, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.placeStackItem, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     second.dispose();
   });
@@ -1128,6 +1128,21 @@ describe('receiving', () => {
     // Their spell (in `theirCards` — this is `moveSpell`'s own notification from `onPlaced`, above): not resent.
     spellMovedBox.current!(48, { x: 300, y: 200 });
     expect(t.sent, 'the wire’s own echo never bounces back out').toHaveLength(1);
+    handle.dispose();
+  });
+
+  it('a drag of its own placed card is sent at most once per `PRESENCE_SEND_MS`, its latest point winning — never once per pointer event', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    for (let x = 300; x <= 360; x += 10) spellMovedBox.current!(31, { x, y: 200 });
+    expect(t.sent, 'the first move goes at once').toHaveLength(1);
+    vi.advanceTimersByTime(PRESENCE_SEND_MS);
+    expect(t.sent, 'the rest wait for the next window, as one message').toHaveLength(2);
+    expect(t.sent[1]!.payload).toMatchObject({ spell: 31, at: { x: 0.36, y: 0.25 } });
+    vi.advanceTimersByTime(PRESENCE_SEND_MS * 3);
+    expect(t.sent, 'nothing more without a move').toHaveLength(2);
     handle.dispose();
   });
 

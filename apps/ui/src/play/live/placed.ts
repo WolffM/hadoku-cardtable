@@ -132,6 +132,8 @@ interface Placement {
   committed: boolean;
   /** `Date.now()` when this was registered, so an unmatched one can expire — see `PLACEMENT_WAIT_MS`. */
   readonly registeredAt: number;
+  /** The other seat is dragging it: their moves arrive a message at a time, and it glides between them. */
+  gliding: boolean;
 }
 
 /** One record per stack item, by its stack id — module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
@@ -182,9 +184,15 @@ export function setChainHalted(halted: boolean | null): void {
   requestRepaint();
 }
 
-function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them'): void {
+function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them', glide = false): void {
   const existing = records.get(id);
-  records.set(id, { at, side, committed: existing?.committed ?? side === 'you', registeredAt: existing?.registeredAt ?? Date.now() });
+  records.set(id, {
+    at,
+    side,
+    committed: existing?.committed ?? side === 'you',
+    registeredAt: existing?.registeredAt ?? Date.now(),
+    gliding: glide,
+  });
   requestRepaint();
 }
 
@@ -199,9 +207,15 @@ export function placeSpell(cardId: number, at: Point, side: 'you' | 'them'): voi
   register(releases, cardId, at, side);
 }
 
-/** Register (or move) a stack item's point by its own stack id — see the module header. */
-export function placeStackItem(id: number, at: Point, side: 'you' | 'them'): void {
-  register(placements, id, at, side);
+/**
+ * Register (or move) a stack item's point by its own stack id — see the module header.
+ * `glide`: the point is a move of the other seat's drag (`presence.ts`'s `onPlaced`), so the
+ * element glides to it from wherever it is drawn (`[data-placed-gliding]`, `placed.css`) instead of
+ * stepping a message at a time — from their FIRST move on, an ability's first move included. A
+ * release point or a hand-over is drawn in place.
+ */
+export function placeStackItem(id: number, at: Point, side: 'you' | 'them', glide = false): void {
+  register(placements, id, at, side, glide);
 }
 
 /** Keep their spell `cardId` hidden until its point arrives — see `holds`. */
@@ -506,7 +520,9 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     let d = drawn.get(item.id);
     // Their spell stays a back until it is public AND its art is decoded — a click-cast of theirs too,
     // which has no placement record: the operator, 2026-10-09, "i really dont want a no-art card to show ever".
-    const theirs = record !== undefined ? record.side === 'them' : !item.isAbility && item.controllerName !== viewerName();
+    // An ability is never a back: it hides no card, so their first drag of it (which registers it here
+    // face-down, `presence.ts`'s `onPlaced`) must not turn it over and rebuild it mid-move.
+    const theirs = !item.isAbility && (record !== undefined ? record.side === 'them' : item.controllerName !== viewerName());
     const wantBack = theirs && ((record !== undefined && !record.committed) || !artReady(cardImageUrl(item.sourceCard?.scryfallId), requestRepaint));
     if (d === undefined) {
       const el = document.createElement('div');
@@ -741,6 +757,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const { at, reserved } = resolved;
       if (reserved !== null) taken.push(reserved);
       const p = overlayPoint(at, overlayBox);
+      d.el.toggleAttribute('data-placed-gliding', record?.gliding === true);
       d.el.style.left = `${p.x}px`;
       d.el.style.top = `${p.y}px`;
       d.el.setAttribute('aria-label', itemLabel(item));
