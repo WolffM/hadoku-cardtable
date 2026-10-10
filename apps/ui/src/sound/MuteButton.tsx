@@ -18,7 +18,7 @@
  *
  * ## Why `useSyncExternalStore`
  *
- * Mute is a module global outside React (`../sound/mute.ts`), because `playCue`
+ * Mute is a module global outside React (`../sound/mute.ts`), because `playRole`
  * is called from places that are not components and must not need a hook. React
  * 19 will tear if a component reads a mutable external value during render
  * without subscribing to it, and two mute buttons on one page must agree. That
@@ -31,7 +31,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-import { playCue } from './index.ts';
+import { playRole } from './index.ts';
 import { isMuted, subscribeMuted, toggleMuted } from './mute.ts';
 import './sound.css';
 
@@ -65,7 +65,7 @@ export function MuteButton({ className }: MuteButtonProps) {
         // the new value so this needs one call, not a read and a write.
         // There is no import cycle to dodge: `index.ts` deliberately does not
         // re-export this component, so the edge only runs one way.
-        if (!toggleMuted()) playCue('select');
+        if (!toggleMuted()) playRole('ui.select');
       }}
     >
       <svg

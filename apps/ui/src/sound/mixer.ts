@@ -7,8 +7,18 @@
  * Levels are baked into each voice when it starts, so a slider moved mid-sound
  * changes the next sound, which is all a cue of a second or two needs.
  *
- * `webaudio.ts` still owns the synthesised placeholder cues' context. Wave B
- * moves those cues onto roles and deletes it, leaving this the only one.
+ * The only `AudioContext` in the app: the builder, the sandbox and the game
+ * (`./index.ts`) all play through one of these.
+ *
+ * ## Unlocked by the first gesture
+ *
+ * Browsers start a context `suspended` and only let it resume inside a real
+ * gesture. Most of the game's sounds come from server frames and hovers, which
+ * are not gestures, so the context installs a one-shot capture-phase listener
+ * for `pointerdown`, `keydown` and `touchend` the moment it exists and resumes
+ * there. Capture phase, so a handler that stops propagation cannot keep the
+ * page silent. Sounds asked for before that first gesture are dropped: a cue
+ * only means something at the moment it was asked for.
  *
  * Fails soft throughout: a take that will not fetch or decode is remembered as
  * bad and skipped, and nothing here throws into the click that asked for a
@@ -19,6 +29,8 @@ import { createMixPlanner, DEFAULT_MIX, type MixPlanner, type MixSettings, type 
 
 /** Above this many live voices, a new one is dropped rather than stacked. */
 const VOICE_CAP = 12;
+/** A sound that could not start within this long of being asked for is dropped, not played late. */
+const STALE_MS = 1500;
 /** The level everything else drops to under a ducking voice. */
 const DUCK_LEVEL = 0.35;
 
@@ -36,6 +48,20 @@ export interface Mixer {
 interface AudioContextGlobals {
   AudioContext?: typeof AudioContext;
   webkitAudioContext?: typeof AudioContext;
+}
+
+function unlockOnGesture(ac: AudioContext): void {
+  const target = globalThis.document;
+  if (target === undefined || target === null || ac.state !== 'suspended') return;
+  const once = (): void => {
+    void ac.resume().catch(() => undefined);
+    target.removeEventListener('pointerdown', once, true);
+    target.removeEventListener('keydown', once, true);
+    target.removeEventListener('touchend', once, true);
+  };
+  target.addEventListener('pointerdown', once, true);
+  target.addEventListener('keydown', once, true);
+  target.addEventListener('touchend', once, true);
 }
 
 export function createMixer(takeUrl: (file: string) => string, planner: MixPlanner = createMixPlanner()): Mixer {
@@ -60,6 +86,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     master.connect(ctx.destination);
     duckNode = ctx.createGain();
     duckNode.connect(master);
+    unlockOnGesture(ctx);
     return ctx;
   };
 
@@ -95,8 +122,12 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   const start = (file: string, gain: number, ducks: boolean): void => {
     const ac = context();
     if (ac === null) return;
-    if (ac.state === 'suspended') void ac.resume().catch(() => undefined);
-    void load(file).then((buf) => {
+    const asked = performance.now();
+    // Inside a gesture this unlocks the context; outside one the browser holds it, and the
+    // staleness check below drops the sound rather than playing it whenever a gesture comes.
+    const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
+    void Promise.all([load(file), ready]).then(([buf]) => {
+      if (ac.state !== 'running' || performance.now() - asked > STALE_MS) return;
       if (buf === null || master === null || duckNode === null || live >= VOICE_CAP) return;
       const src = ac.createBufferSource();
       src.buffer = buf;

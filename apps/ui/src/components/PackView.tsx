@@ -76,7 +76,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
           className="pack__slot"
           style={layout === 'fan' ? fanStyle(i, cards.length) : undefined}
         >
-          <CardTile card={card} onPick={onPick} disabled={disabled} />
+          <CardTile card={card} onPick={onPick} disabled={disabled} pickRole="ui.draft-pick" />
         </div>
       ))}
     </div>

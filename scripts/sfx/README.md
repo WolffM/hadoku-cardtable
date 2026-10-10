@@ -57,6 +57,21 @@ python3 scripts/sfx/import.py --from <finished dir> --seed <assignments.json> --
   name bin rows: the builder's cells are `SOUND_ROLES` ids, so an `m-*|play` cell in `--seed` is dropped
   by the server. Library sound names and groups come from `round3.json`, read at import time.
 
+## Round 4: role candidates (2026-10-10)
+
+`round4.json` writes candidates for the roles in `SOUND_ROLE_GROUPS` that had no take at all, one folder
+per role id (`ui.select`, `g.cast.instant`, …). Finish and import them on their own, and MERGE them into
+the live catalogue so the earlier keepers stay:
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round4.json --takes 3 --seed 5000
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --only ui.,g. --out finished-r4
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r4 --to <sounds dir> --merge
+```
+
+Without `--merge`, `import.py` rebuilds `catalogue.json` from `--from` alone. Without `--only`, `finish.py`
+re-finishes every folder under `generated/`, rejected rounds included.
+
 Audio bytes never enter this repo or the UI bundle at any point in this pipeline — `import.py` only
 ever reads from a local `finished/` directory and writes to the server's data directory, both outside
 git.

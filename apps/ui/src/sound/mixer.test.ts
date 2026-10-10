@@ -1,0 +1,125 @@
+// @vitest-environment jsdom
+/*
+ * The mixer against the smallest fake `AudioContext` that can show its rules:
+ * it is built lazily, the first real gesture unlocks it, a sound asked for
+ * while it is locked is dropped rather than played late, and an unlocked one
+ * starts a buffer at its planned gain. Nothing about the node graph is
+ * asserted beyond that.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createMixPlanner } from './mix.ts';
+import { createMixer } from './mixer.ts';
+
+interface FakeSource {
+  buffer: unknown;
+  started: boolean;
+  onended: (() => void) | null;
+  connect: () => void;
+  disconnect: () => void;
+  start: () => void;
+}
+
+let contexts: FakeContext[] = [];
+
+class FakeContext {
+  state: 'suspended' | 'running' = 'suspended';
+  currentTime = 0;
+  destination = {};
+  sources: FakeSource[] = [];
+  gains: { gain: { value: number } }[] = [];
+  private pendingResumes: (() => void)[] = [];
+  constructor() {
+    contexts.push(this);
+  }
+  createGain() {
+    const g = {
+      gain: { value: 1, cancelScheduledValues() {}, setValueAtTime() {}, linearRampToValueAtTime() {} },
+      connect() {},
+      disconnect() {},
+    };
+    this.gains.push(g);
+    return g;
+  }
+  createBufferSource(): FakeSource {
+    const s: FakeSource = {
+      buffer: null,
+      started: false,
+      onended: null,
+      connect() {},
+      disconnect() {},
+      start() {
+        s.started = true;
+      },
+    };
+    this.sources.push(s);
+    return s;
+  }
+  async decodeAudioData(): Promise<{ duration: number }> {
+    return { duration: 0.3 };
+  }
+  /** Held until `grant()`: the browser only lets a gesture resume a context, and then every pending resume settles. */
+  resume(): Promise<void> {
+    return new Promise((resolve) => this.pendingResumes.push(resolve));
+  }
+  grant(): void {
+    this.state = 'running';
+    for (const resolve of this.pendingResumes.splice(0)) resolve();
+  }
+}
+
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+};
+
+beforeEach(() => {
+  contexts = [];
+  vi.stubGlobal('AudioContext', FakeContext);
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) })));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+function mixer() {
+  const planner = createMixPlanner(() => 0);
+  planner.setAssignments({ 'ui.select|play': ['a/take-1.ogg'] }, { 'ui.select|play': 0.5 });
+  return createMixer((f) => `/takes/${f}`, planner);
+}
+
+describe('the mixer', () => {
+  it('builds no context until something plays', () => {
+    mixer();
+    expect(contexts).toHaveLength(0);
+  });
+
+  it('a gesture unlocks it, and an unlocked sound starts at its planned gain', async () => {
+    const m = mixer();
+    m.play({ role: 'ui.select' });
+    const ctx = contexts[0]!;
+    document.dispatchEvent(new Event('pointerdown'));
+    ctx.grant();
+    await flush();
+    expect(ctx.state).toBe('running');
+    expect(ctx.sources).toHaveLength(1);
+    expect(ctx.sources[0]!.started).toBe(true);
+    // ui bus 0.5 × the cell's 0.5.
+    expect(ctx.gains.at(-1)!.gain.value).toBeCloseTo(0.25);
+  });
+
+  it('a sound asked for while locked is dropped, not played when the gesture finally comes', async () => {
+    vi.useFakeTimers({ toFake: ['performance'] });
+    const m = mixer();
+    m.play({ role: 'ui.select' });
+    const ctx = contexts[0]!;
+    await flush();
+    expect(ctx.sources).toHaveLength(0);
+    vi.advanceTimersByTime(5000);
+    ctx.grant();
+    await flush();
+    expect(ctx.sources).toHaveLength(0);
+  });
+});

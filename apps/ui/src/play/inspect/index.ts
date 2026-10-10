@@ -100,6 +100,7 @@
 
 import { pastSlop } from '../live/gestures/types.ts';
 import { scopeOf } from '../../dom.ts';
+import { playRole } from '../../sound/index.ts';
 import './inspect.css';
 
 /** A card's height over its width — the 488 × 680 proportion `card.css` draws. */
@@ -572,6 +573,7 @@ export function mountInspector(root: ParentNode): () => void {
       const opened = pressing;
       pressing = null;
       pressAnchor = null;
+      playRole('ui.inspect');
       show(opened);
       swallowClickIn = opened.card;
     }, LONG_PRESS_MS);

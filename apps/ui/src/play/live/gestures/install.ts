@@ -245,6 +245,7 @@ import {
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
+import { playRole } from '../../../sound/index.ts';
 import { boxOf, cardBox, centreOf, targetUnder } from './targets.ts';
 import {
   clickLatch,
@@ -686,6 +687,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const fromIndex = handPressIndex ?? handOrderIds(canvas).indexOf(source);
       handPressIndex = null;
       commitHandReorder(canvas, source, fromIndex, point);
+      playRole('ui.place');
       return;
     }
     // Left the hand before release: `onPointerMove`'s own transition already cleared the
@@ -718,9 +720,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const placement = column === null || spot === null ? undefined : { slot: column.slot, target: column.target, at: spot };
     if (!selectCard(match, source, placement)) {
       // Forge's offer moved on between the lift and the release: nothing went out.
+      playRole('ui.deny');
       floatCastLiftHome(canvas, source, state.from, () => {});
       return;
     }
+    playRole('ui.place');
     // §S's seam: wherever this cast ends up on Forge's stack, `live/placed.ts`
     // draws it at THIS point — the park — once a matching item appears
     // (`StackEntry.sourceCardId` keeps the same id this card had in hand).
@@ -1317,6 +1321,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
       const moved = drag.moved || pastSlop(drag.press, at);
+      // The card is in hand from the moment the press clears the slop, not at the press itself.
+      if (drag.lifted && moved && !drag.moved) playRole('ui.lift');
       const next: DragState = { ...drag, at, moved, target: targetAt(eventTarget(event)) };
       drag = next;
       if (next.lifted && next.source !== null) {
@@ -1393,7 +1399,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (stackAsk(match) !== null) {
         // The release IS the answer, a click on the item as much as a drag onto it.
         const id = stackItemUnder(eventTarget(event), stackAsk(match)!);
-        if (id !== null) commitStackTarget(match, id);
+        if (id !== null && commitStackTarget(match, id)) playRole('ui.target');
         return;
       }
       if (heldDrag.lifted) {

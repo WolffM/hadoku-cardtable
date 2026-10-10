@@ -9,6 +9,7 @@
 import { afterMarked, attackAssignment, boardInteraction, isBlockAssignment, isMarked, landsToTap, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
 import { cardBox, cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
+import { playRole } from '../../../sound/index.ts';
 
 /** Everything a release can mean. */
 export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget | null): void {
@@ -32,6 +33,7 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
     selectCard(match, source);
     return;
   }
+  playRole('ui.target');
   /*
    * Blocking by drag (§B.3), and the ONE place the order is reversed.
    *

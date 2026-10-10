@@ -99,6 +99,10 @@ def classify(folder: str, lib_names: dict) -> tuple[str, str, str, str]:
 		return sound, LAND_NAMES[sound], 'Land types', 'Land types'
 	if base.startswith('m-'):
 		return base, EVENT_NAMES.get(base, base), 'Moments', 'Moments'
+	if folder.startswith(('ui.', 'g.')):
+		# Round 4: the folder is a role id, named in round4.json.
+		entry = lib_names.get(folder, {'name': folder, 'group': 'Moments'})
+		return folder, entry['name'], entry['group'], 'Moments'
 	name = COLOUR_NAMES.get(base, base)
 	return base, name, name, 'Colour sounds'
 
@@ -118,14 +122,17 @@ def main() -> None:
 	ap.add_argument('--seed', help='an assignments.json (or exported seed) to pre-populate assignments.json')
 	ap.add_argument('--to', required=True, dest='dest', help='the destination sounds dir (CARDTABLE_SOUNDS_DIR)')
 	ap.add_argument('--force', action='store_true', help='overwrite an existing assignments.json from --seed')
+	ap.add_argument('--merge', action='store_true',
+		help="add --from's takes to the existing catalogue instead of rebuilding it (folders in --from replace their old entries)")
 	args = ap.parse_args()
 
 	manifest = json.load(open(os.path.join(args.src, 'manifest.json'), encoding='utf-8'))
 
 	lib_names: dict = {}
-	round3_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'round3.json')
-	if os.path.exists(round3_path):
-		lib_names = json.load(open(round3_path, encoding='utf-8'))['sounds']
+	for spec in ('round3.json', 'round4.json'):
+		spec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), spec)
+		if os.path.exists(spec_path):
+			lib_names.update(json.load(open(spec_path, encoding='utf-8'))['sounds'])
 
 	takes = []
 	for folder, items in manifest.items():
@@ -142,6 +149,12 @@ def main() -> None:
 				'seconds': item['seconds'],
 				'prompt': item['prompt'],
 			})
+	if args.merge:
+		catalogue_path = os.path.join(args.dest, 'catalogue.json')
+		if os.path.exists(catalogue_path):
+			replaced = {folder.lower() for folder in manifest}
+			kept = [t for t in json.load(open(catalogue_path, encoding='utf-8'))['takes'] if t['file'].split('/')[0] not in replaced]
+			takes = kept + takes
 	takes.sort(key=lambda t: (SECTION_ORDER.get(t['section'], 9), t['group'], t['name'], t['file']))
 
 	takes_dir = os.path.join(args.dest, 'takes')

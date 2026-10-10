@@ -55,3 +55,6 @@ docs/handoff/
 
 # dev-vault caller key (raw service-tier key) — never commit
 .devvault.local.json
+
+# Python bytecode (scripts/sfx)
+__pycache__/

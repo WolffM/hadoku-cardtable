@@ -34,18 +34,18 @@ import { memo, useMemo } from 'react';
  *
  * ## A tile makes a sound, and owns none of it
  *
- * Hovering a tile cues `hover`; picking one cues `select`. Both go through
- * `playCue` in `../sound/index.ts`, which is the only place in this app that
- * constructs an `AudioContext`. This component holds no audio object, no file
- * name and no volume, and it does not consult the player's mute — for the same
- * reason it holds no image URL: a placeholder the operator intends to replace
- * has to be replaceable in one place.
+ * Hovering a tile plays the `ui.hover-card` role; picking one plays `pickRole`
+ * (`ui.select` unless the caller names another, as the draft pack does with
+ * `ui.draft-pick`). Both go through `../sound/index.ts`. This component holds
+ * no audio object, no file name and no volume, and it does not consult the
+ * player's mute — for the same reason it holds no image URL: what plays is the
+ * operator's assignment, changed in one place.
  */
 
 import type { DraftCard } from '../draft/types.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
-import { cueHandler, playCue } from '../sound/index.ts';
+import { playRole, roleHandler } from '../sound/index.ts';
 
 const RARITY_LETTER: Record<string, string> = {
   common: 'C',
@@ -85,6 +85,8 @@ export interface CardTileProps {
   /** Present on a pack card, absent in the pool. */
   onPick?: (cardId: string) => void;
   disabled?: boolean;
+  /** The role a pick plays. `ui.select` unless the caller names another. */
+  pickRole?: string;
   /**
    * The board's live `AbilityText` (`play/adapter.ts`'s
    * `BoardCard.abilityText`), drawn in place of `card.oracleText` when it
@@ -103,7 +105,7 @@ export interface CardTileProps {
   liveText?: string | null;
 }
 
-function CardTileImpl({ card, onPick, disabled = false, liveText }: CardTileProps) {
+function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui.select' }: CardTileProps) {
   const identity = card.colors.length === 0 ? 'colorless' : card.colors.join('').toLowerCase();
   const shownText = liveText != null && liveText.trim() !== card.oracleText.trim() ? liveText : card.oracleText;
   // Splitting rules text runs a regex per line. It is small per card and
@@ -191,14 +193,11 @@ function CardTileImpl({ card, onPick, disabled = false, liveText }: CardTileProp
     </>
   );
 
-  // A tile makes two sounds and asks for both through `playCue` — it holds no
-  // `AudioContext`, no file and no volume, and it does not know whether the
-  // player has muted. `sound/index.ts` explains why that indirection is the
-  // whole deliverable. `cueHandler` returns the SAME function object every
-  // render, which matters here specifically: this component is `memo`-ised
-  // because a late-draft screen holds 60 tiles, and an inline
-  // `() => playCue('hover')` would allocate a fresh closure per render.
-  const onHover = cueHandler('hover');
+  // `roleHandler` returns the SAME function object every render, which matters
+  // here specifically: this component is `memo`-ised because a late-draft
+  // screen holds 60 tiles, and an inline `() => playRole(...)` would allocate a
+  // fresh closure per render.
+  const onHover = roleHandler('ui.hover-card');
 
   if (!onPick) {
     return (
@@ -223,7 +222,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText }: CardTileProp
         // The cue first, then the pick. `onPick` navigates and re-renders the
         // whole screen, and a cue requested after that has to survive the
         // unmount to be heard.
-        playCue('select');
+        playRole(pickRole);
         onPick(card.cardId);
       }}
       aria-label={`Pick ${card.name}`}

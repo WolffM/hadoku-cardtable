@@ -19,9 +19,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
-import { resetCueSinkForTests, setCueSink } from '../sound/index.ts';
+import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
 import { MUTE_KEY, resetMutedForTests } from '../sound/mute.ts';
-import type { CueRequest } from '../sound/sink.ts';
+import type { SoundEvent } from '../sound/mix.ts';
 import {
   clientModeLabel,
   GAME_TYPES,
@@ -659,20 +659,20 @@ describe('entering a room', () => {
  * The other half of `../sound/sound.test.ts`: that file proves the module, this
  * one proves the wiring on the surface a player lands on first.
  *
- * Every case below injects a RECORDING SINK. jsdom has no WebAudio, so with no
- * sink injected `playCue` is already a no-op here — which means these assertions
+ * Every case below injects a RECORDING PLAYER. jsdom has no WebAudio, so with no
+ * player injected `playRole` is already a no-op here — which means these assertions
  * would pass vacuously if they asserted on silence alone. They assert on the
  * requests instead, and the muted case asserts on silence only after the
  * unmuted case has shown the same click is loud.
  */
 describe('the front page’s cues', () => {
   beforeEach(() => {
-    resetCueSinkForTests();
+    resetRolePlayerForTests();
     unmute();
   });
 
   afterEach(() => {
-    setCueSink(null);
+    setRolePlayer(null);
     // The muted case CLICKS the button, which persists `true`. Leaving it there
     // would silence every case that ran afterwards — and they would pass, since
     // most of what they assert is a cue arriving, so the failure would have read
@@ -691,8 +691,8 @@ describe('the front page’s cues', () => {
   };
 
   const recorder = () => {
-    const requests: CueRequest[] = [];
-    setCueSink({ play: (r: CueRequest) => void requests.push(r) });
+    const requests: SoundEvent[] = [];
+    setRolePlayer({ play: (r: SoundEvent) => void requests.push(r) });
     return requests;
   };
 
@@ -715,7 +715,7 @@ describe('the front page’s cues', () => {
     await act(async () => {
       fireEvent.click(within(rowFor('r-open')).getByTestId('room-enter'));
     });
-    expect(requests.map((r) => r.cue)).toEqual(['select']);
+    expect(requests.map((r) => r.role)).toEqual(['ui.select']);
   });
 
   it('cues deny when a room refuses the join', async () => {
@@ -729,7 +729,7 @@ describe('the front page’s cues', () => {
       fireEvent.click(within(rowFor('r-open')).getByTestId('room-enter'));
     });
     await screen.findByTestId('room-join-error');
-    expect(requests.map((r) => r.cue)).toEqual(['select', 'deny']);
+    expect(requests.map((r) => r.role)).toEqual(['ui.select', 'ui.deny']);
   });
 
   it('cues deny when the create form refuses an empty name, and select when it does not', async () => {
@@ -741,13 +741,13 @@ describe('the front page’s cues', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
-    expect(requests.map((r) => r.cue)).toEqual(['deny']);
+    expect(requests.map((r) => r.role)).toEqual(['ui.deny']);
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Friday night' } });
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
-    expect(requests.map((r) => r.cue)).toEqual(['deny', 'select']);
+    expect(requests.map((r) => r.role)).toEqual(['ui.deny', 'ui.select']);
   });
 
   it('says nothing at all once the player has muted — and the room still opens', async () => {

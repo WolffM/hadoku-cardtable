@@ -1,0 +1,189 @@
+{
+ "note": "Round 4 (2026-10-10): candidates for the roles in SOUND_ROLE_GROUPS (packages/shared/src/sounds.ts) that had no take at all after wave A. Folder = role id, so a take's file says which role it was written for; the operator still places every take. Same prompt style as round 3: the physical source and action named literally, then recording descriptors. Interface sounds are tabletop and paper foley, short and dry, because they fire constantly. Colour and flavour gaps are NOT here: they wait for the operator's first assignment pass (docs/planning/audio.md).",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect.",
+ "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+ "seconds": 3.0,
+ "sounds": {
+  "ui.hover-card": {"group": "Interface", "name": "Hover a card", "seconds": 1.5, "prompts": [
+   "Fingertip brushing lightly across a playing card, very soft paper whisper, close-mic, dry",
+   "Single quiet paper flick of a card corner, close-mic, dry",
+   "Faint soft tick of a fingernail on cardstock, close-mic, dry"]},
+  "ui.hover-control": {"group": "Interface", "name": "Hover a button", "seconds": 1.5, "prompts": [
+   "Very soft wooden tick, a fingertip tapping a small wooden token, close-mic, dry",
+   "Tiny soft click of a plastic game piece set down, close-mic, dry",
+   "Faint felt tap on a game table, close-mic, dry"]},
+  "ui.select": {"group": "Interface", "name": "Select", "seconds": 1.5, "prompts": [
+   "Crisp click of a wooden game token placed firmly on a table, close-mic, dry",
+   "Bright short tap of a glass bead on wood, close-mic, dry",
+   "Clean short click of a card snapped onto a felt table, close-mic, dry"]},
+  "ui.lift": {"group": "Interface", "name": "Pick up a card", "seconds": 1.5, "prompts": [
+   "Playing card slid up off a felt table and lifted, short paper swish, close-mic, dry",
+   "Single card picked up from a table, soft scrape then lift, close-mic, dry",
+   "Quick card pull from a hand of cards, paper slide, close-mic, dry"]},
+  "ui.place": {"group": "Interface", "name": "Put a card down", "seconds": 1.5, "prompts": [
+   "Playing card placed flat onto a felt table, soft slap, close-mic, dry",
+   "Card dealt onto a wooden table, short crisp snap, close-mic, dry",
+   "Card set down gently on cloth, soft pat, close-mic, dry"]},
+  "ui.deny": {"group": "Interface", "name": "Refused", "seconds": 1.5, "prompts": [
+   "Dull wooden thud of a knuckle knocking on a table twice, close-mic, dry",
+   "Short muted clunk of a wooden block dropped on cloth, close-mic, dry",
+   "Low soft buzz of a cardboard box lid rubbed, short, close-mic, dry"]},
+  "ui.target": {"group": "Interface", "name": "Target locks", "seconds": 1.5, "prompts": [
+   "Bow string drawn taut then a soft click of the arrow nocking, short, close-mic",
+   "Small metal latch clicking shut, crisp, close-mic, dry",
+   "Crossbow mechanism cocking, short ratchet click, close-mic, dry"]},
+  "ui.pass": {"group": "Interface", "name": "Pass / OK", "seconds": 1.5, "prompts": [
+   "Hand sliding a stack of cards across a felt table, short soft swish, close-mic, dry",
+   "Two soft knocks of knuckles on a wooden table, close-mic, dry",
+   "Wooden token pushed across a table, short slide, close-mic, dry"]},
+  "ui.prompt": {"group": "Interface", "name": "Your move", "seconds": 2.0, "prompts": [
+   "Single small brass bell struck once softly, short ring, close-mic",
+   "Gentle wooden wind chime single note, short, close-mic",
+   "Soft strike of a small crystal glass with a spoon, short ring, close-mic"]},
+  "ui.inspect": {"group": "Interface", "name": "Inspect", "seconds": 1.5, "prompts": [
+   "Card raised close to the face, quick paper whoosh, close-mic, dry",
+   "Magnifying glass lens set down on a page, soft glass tap, close-mic, dry",
+   "Book page turned once quickly, crisp paper, close-mic, dry"]},
+  "ui.draft-pick": {"group": "Interface", "name": "Draft pick", "seconds": 1.5, "prompts": [
+   "Card pulled from a fan of cards and snapped onto a pile, crisp, close-mic, dry",
+   "Card flicked out of a booster pack, paper snap, close-mic, dry",
+   "Single card tossed onto a stack of cards, short slap, close-mic, dry"]},
+
+  "g.cast.creature": {"group": "Casting and the stack", "name": "Cast a creature", "prompts": [
+   "Heavy card slapped onto a wooden table followed by a low soft whoosh, close-mic",
+   "Leather glove gripping and a deep soft thump, short, close-mic",
+   "Low muted drum hit with a short cloth rustle, close-mic, dry"]},
+  "g.cast.instant": {"group": "Casting and the stack", "name": "Cast an instant", "prompts": [
+   "Fast sharp whoosh of a thin stick swung through air, close-mic",
+   "Quick snap of fingers followed by a short airy swish, close-mic",
+   "Short bright flick of a match striking, close-mic, dry"]},
+  "g.cast.sorcery": {"group": "Casting and the stack", "name": "Cast a sorcery", "prompts": [
+   "Old book slammed shut with a soft dusty puff, close-mic",
+   "Parchment scroll unrolled quickly, paper crackle, close-mic, dry",
+   "Slow heavy whoosh of a cloak swung through the air, close-mic"]},
+  "g.cast.artifact": {"group": "Casting and the stack", "name": "Cast an artifact", "prompts": [
+   "Small metal object set down on a stone table, clink and short ring, close-mic",
+   "Brass gear clicking into place, mechanical clack, close-mic, dry",
+   "Iron key turned in an old lock, short clunk, close-mic, dry"]},
+  "g.cast.enchantment": {"group": "Casting and the stack", "name": "Cast an enchantment", "prompts": [
+   "Soft rub of a wet finger around a wine glass rim, short tone, close-mic",
+   "Gentle brush of fingers across a small set of hanging glass chimes, close-mic",
+   "Silk cloth drawn softly over a table, short whisper, close-mic, dry"]},
+  "g.cast.planeswalker": {"group": "Casting and the stack", "name": "Cast a planeswalker", "prompts": [
+   "Heavy wooden staff struck once on a stone floor, deep resonant knock, close-mic",
+   "Large cloak flourish with a deep whoosh and a boot step on stone, close-mic",
+   "Deep low gong tapped softly once, short, close-mic"]},
+  "g.cast.battle": {"group": "Casting and the stack", "name": "Cast a battle", "prompts": [
+   "War drum struck twice, deep and close, short",
+   "Army banner flag snapping in the wind once, close-mic",
+   "Metal shield struck with a sword hilt once, short ring, close-mic"]},
+  "g.ability": {"group": "Casting and the stack", "name": "Ability", "prompts": [
+   "Short rising whoosh with a soft click at the end, close-mic",
+   "Small lever pulled with a mechanical click, close-mic, dry",
+   "Quick pluck of a single taut wire, short twang, close-mic"]},
+  "g.resolve": {"group": "Casting and the stack", "name": "Resolves", "prompts": [
+   "Soft release of air, a short descending whoosh settling, close-mic",
+   "Card flipped face up onto a table, crisp paper flip, close-mic, dry",
+   "Wooden box lid closing softly with a click, close-mic, dry"]},
+  "g.counter": {"group": "Casting and the stack", "name": "Countered", "prompts": [
+   "Candle flame snuffed out with a short puff, close-mic, dry",
+   "Paper torn sharply in half once, close-mic, dry",
+   "Glass marble caught in a hand, short smack, close-mic, dry"]},
+
+  "g.enter": {"group": "On the battlefield", "name": "Lands on the table", "prompts": [
+   "Heavy wooden game piece set down firmly on a wooden table, solid thunk, close-mic, dry",
+   "Stone block placed on a stone floor, short deep thud, close-mic, dry",
+   "Heavy card stack dropped flat on a table, low thump, close-mic, dry"]},
+  "g.token": {"group": "On the battlefield", "name": "Token appears", "prompts": [
+   "Small poker chip dropped on a felt table, light clack, close-mic, dry",
+   "Coin flipped and landing on wood, short spin and settle, close-mic, dry",
+   "Light wooden bead dropped on a table, small bounce, close-mic, dry"]},
+  "g.tap": {"group": "On the battlefield", "name": "Tap", "seconds": 1.5, "prompts": [
+   "Playing card rotated sideways on a felt table, short soft scrape, close-mic, dry",
+   "Card turned on a wooden table, quick slide and stop, close-mic, dry",
+   "Light tap of a finger on a card then a short paper slide, close-mic, dry"]},
+  "g.untap": {"group": "On the battlefield", "name": "Untap", "seconds": 1.5, "prompts": [
+   "Playing card turned back upright on felt, short soft swish, close-mic, dry",
+   "Card slid straight on a wooden table, quick rub, close-mic, dry",
+   "Paper card pivoted on cloth, soft brush, close-mic, dry"]},
+  "g.untap-all": {"group": "On the battlefield", "name": "Untap step", "prompts": [
+   "Hand sweeping across several playing cards on a felt table, soft rustle, close-mic",
+   "Several cards straightened on a table at once, brief paper shuffle, close-mic, dry",
+   "Quick ruffle of a small stack of cards, close-mic, dry"]},
+  "g.counter-on": {"group": "On the battlefield", "name": "Counter added", "prompts": [
+   "Small glass bead dropped onto a playing card, light click, close-mic, dry",
+   "Plastic die set down on a table, short clatter, close-mic, dry",
+   "Small metal coin placed on wood, short clink, close-mic, dry"]},
+  "g.counter-off": {"group": "On the battlefield", "name": "Counter removed", "prompts": [
+   "Glass bead picked up off a table, small scrape and lift, close-mic, dry",
+   "Plastic die swept off a card, short slide, close-mic, dry",
+   "Coin slid off a wooden table into a hand, short scrape, close-mic, dry"]},
+  "g.attach": {"group": "On the battlefield", "name": "Attach", "prompts": [
+   "Leather strap buckled tight, short metal buckle click, close-mic, dry",
+   "Sword slid into a scabbard, short metal slide and stop, close-mic",
+   "Metal clasp snapped shut on armour, crisp click, close-mic, dry"]},
+  "g.transform": {"group": "On the battlefield", "name": "Transform", "prompts": [
+   "Playing card flipped over quickly on a table, crisp paper flip and slap, close-mic",
+   "Cloth sheet pulled away quickly, fast whoosh, close-mic",
+   "Bones cracking and twisting, short crunch, close-mic, dry"]},
+  "g.mana": {"group": "On the battlefield", "name": "Mana", "seconds": 1.5, "prompts": [
+   "Small crystal tapped once with a fingernail, short bright ping, close-mic",
+   "Single drop of water into a small metal bowl, short plink, close-mic",
+   "Tiny spark crackle, short static snap, close-mic, dry"]},
+
+  "g.destroy": {"group": "Cards moving", "name": "Destroyed", "prompts": [
+   "Wooden crate smashed, short splintering crack, close-mic",
+   "Clay pot shattered on stone, short crash, close-mic",
+   "Metal object crushed, short crunch and clatter, close-mic"]},
+  "g.exile": {"group": "Cards moving", "name": "Exile", "prompts": [
+   "Paper burning up quickly in a short whoosh of flame, close-mic",
+   "Sand poured away fast, short hissing trickle, close-mic, dry",
+   "Strong gust of wind blowing past, short whoosh, close-mic"]},
+  "g.bounce": {"group": "Cards moving", "name": "Returned to hand", "prompts": [
+   "Playing card whipped back into a hand of cards, quick reverse swish, close-mic, dry",
+   "Small leather pouch tossed onto a wooden table, short soft thud, close-mic, dry",
+   "Card slid fast across a table and caught, short swish and pat, close-mic, dry"]},
+  "g.discard": {"group": "Cards moving", "name": "Discard", "prompts": [
+   "Playing card tossed onto a pile of cards, short careless slap, close-mic, dry",
+   "Crumpled paper dropped into a bin, short rustle, close-mic, dry",
+   "Card flicked away across a table, quick swish, close-mic, dry"]},
+  "g.mill": {"group": "Cards moving", "name": "Mill", "prompts": [
+   "Several cards slid off the top of a deck onto a pile, quick paper cascade, close-mic, dry",
+   "Grain mill grinding briefly, short stone scrape, close-mic",
+   "Cards riffled off a deck one by one quickly, close-mic, dry"]},
+  "g.reanimate": {"group": "Cards moving", "name": "Reanimate", "prompts": [
+   "Earth and gravel shifting as something digs up from the ground, short, close-mic",
+   "Old wooden coffin lid creaking open, short, close-mic",
+   "Deep inhale of breath through a hollow tube, short gasp of air, close-mic"]},
+
+  "g.attack": {"group": "Combat and life", "name": "Attack", "prompts": [
+   "Sword drawn from a scabbard with a sharp metal ring, close-mic",
+   "Charging footsteps with clanking armour, short rush, close-mic",
+   "War horn short low blast, close"]},
+  "g.damage-player": {"group": "Combat and life", "name": "Damage to a player", "prompts": [
+   "Heavy punch landing on a leather bag, deep thud, close-mic, dry",
+   "Glass panel cracking under a hit, short crack, close-mic",
+   "Hammer striking a wooden door once, deep knock, close-mic, dry"]},
+  "g.lifegain": {"group": "Combat and life", "name": "Life gain", "prompts": [
+   "Warm water poured into a glass, short gentle pour, close-mic",
+   "Soft rising breath of air through a reed, short, close-mic",
+   "Small cluster of soft wind chimes brushed once, gentle, close-mic"]},
+
+  "g.game-start": {"group": "Turn and game", "name": "Game start", "prompts": [
+   "Coin flipped high, spinning and landing on a wooden table, close-mic",
+   "Deck of cards shuffled briskly then tapped square on the table, close-mic",
+   "Large wooden gate creaking open and a deep thud, close-mic"]},
+  "g.mulligan": {"group": "Turn and game", "name": "Mulligan", "prompts": [
+   "Hand of cards gathered up and pushed back into a deck, paper rustle, close-mic, dry",
+   "Cards swept together across felt, short swish, close-mic, dry",
+   "Short exhale and cards tapped together, close-mic, dry"]},
+  "g.turn-mine": {"group": "Turn and game", "name": "Your turn", "prompts": [
+   "Large bronze bell struck once, warm ring, close",
+   "Hourglass flipped over on wood, clunk and sand starting to fall, close-mic",
+   "Deep wooden drum single hit with a short roll, close"]},
+  "g.turn-theirs": {"group": "Turn and game", "name": "Their turn", "prompts": [
+   "Distant bronze bell struck once, softer ring, medium distance",
+   "Hourglass set down softly on stone, muted clunk, close-mic",
+   "Low soft wooden knock twice, muted, close-mic, dry"]}
+ }
+}

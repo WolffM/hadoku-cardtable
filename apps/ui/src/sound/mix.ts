@@ -39,8 +39,13 @@ export interface MixSettings {
   collapseMs: number;
 }
 
+/**
+ * Interface sounds sit low: they fire constantly, and one as loud as the game
+ * is one a player mutes within a minute (the original cue rule, *"on, at a low
+ * volume"*).
+ */
 export const DEFAULT_MIX: MixSettings = {
-  bus: { ui: 0.8, game: 1, colour: 0.9 },
+  bus: { ui: 0.5, game: 1, colour: 0.9 },
   opponent: 0.6,
   collapseMs: 80,
 };

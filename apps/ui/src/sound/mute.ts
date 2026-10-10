@@ -31,19 +31,6 @@
 /** The `localStorage` key. Namespaced; the origin is shared. */
 export const MUTE_KEY = 'cardtable.sound.muted';
 
-/**
- * Master volume, 0..1, multiplied into every cue's relative gain.
- *
- * Low on purpose — §F.4's *"on, at a low volume"*. A UI cue that is as loud as
- * the game the player is also listening to is a cue they will mute within a
- * minute, and then they will not hear `deny` either. There is no volume slider:
- * mute is the control the brief asked for, and a slider is a preference to
- * store, a widget to place and a range to validate for a gain nobody has tuned
- * against real assets yet. When the assets land, this becomes the interesting
- * number.
- */
-export const CUE_VOLUME = 0.18;
-
 /** `true` when the player has muted. Authoritative once loaded. */
 let muted: boolean | null = null;
 
@@ -77,7 +64,7 @@ function save(value: boolean): void {
   }
 }
 
-/** Whether cues are currently silenced. Reads the store once, then memoises. */
+/** Whether sounds are currently silenced. Reads the store once, then memoises. */
 export function isMuted(): boolean {
   if (muted === null) muted = load() ?? false;
   return muted;

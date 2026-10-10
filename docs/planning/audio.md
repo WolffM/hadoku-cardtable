@@ -229,7 +229,7 @@ anything records them today)*.
 | --- | --- | --- |
 | **A** ✔ 2026-10-10 | role registry, builder rework, per-cell gain, mixer (buses, collapse, duck), scripted sandbox (9 scenarios in `apps/ui/src/sound/scenarios.ts`) | no |
 | — | **operator's first assignment pass** | |
-| **B** | move the placeholder cues (`sound/cues.ts`, `manifest.ts`, `cue-manifest.json`, `webaudio.ts`) onto `ui.*` roles through `sound/mixer.ts` and delete them; deriver + `PlayBridge` event forwarding (shuffle, zone change, resolved) + in-game playback in `LiveBoard`, `ui.*` wiring on gestures, opponent multiplier, settings volumes | yes |
+| **B** ✔ 2026-10-10 | `play/live/sound-events.ts` derives role events from consecutive board views (proved against the committed Tier C capture); `LiveBoard` plays them per paced view, plus `ui.prompt` on a new decision and `ui.pass` on a bar press; gestures play `ui.lift`/`ui.place`/`ui.deny`/`ui.target`; long-press plays `ui.inspect`. The synthesised cues (`cues.ts`, `manifest.ts`, `cue-manifest.json`, `webaudio.ts`, `sink.ts`) are deleted: every sound is a role. Round-4 candidates generated for the 44 roles with no take. **Left over:** a player volume setting (mute only today); `g.shuffle` outside a mulligan needs `PlayBridge` to forward `GameEventShuffle` | yes |
 | **C** | replay sandbox, live-match recording, music bus + track picker in the builder | no |
 | — | gap generation from the operator's empty roles | |
 

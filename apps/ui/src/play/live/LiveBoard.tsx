@@ -273,6 +273,8 @@ import { installPresence } from './presence.ts';
 import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
+import { deriveSoundEvents } from './sound-events.ts';
+import { playRole, playSoundEvents } from '../../sound/index.ts';
 import {
   abortAsk,
   answerAsk,
@@ -1387,7 +1389,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
             data-testid="live-payment-ok"
             data-default={bar !== null && bar.enable1 ? '' : undefined}
             disabled={bar === null || !bar.enable1}
-            onClick={() => pressButton(match, 'ok')}
+            onClick={() => pressWithSound(match, 'ok')}
           >
             {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
           </button>
@@ -1396,7 +1398,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
             className="button confirm__button"
             data-testid="live-payment-cancel"
             disabled={bar === null || !bar.enable2 || !offersSecondButton(match)}
-            onClick={() => pressButton(match, 'cancel')}
+            onClick={() => pressWithSound(match, 'cancel')}
           >
             {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
           </button>
@@ -1596,6 +1598,13 @@ export interface LiveBoardProps {
   roomId?: string | null;
 }
 
+/** A control-bar press, with its sound. `pressButton` refuses a disabled button; then nothing plays. */
+function pressWithSound(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
+  const pressed = pressButton(match, which);
+  if (pressed) playRole('ui.pass');
+  return pressed;
+}
+
 export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
@@ -1612,6 +1621,19 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const spectator = isSpectator(match);
   const over = isOver(match);
   const pending = currentAsk(match);
+  /*
+   * The table's sound: every view the pacer releases is diffed against the one
+   * before it (`./sound-events.ts`), so a sound starts with the change on screen.
+   * A watching window stays silent: the seat's own window is already playing it.
+   */
+  const soundView = match.view;
+  const lastSoundView = useRef<BoardView | null>(null);
+  useEffect(() => {
+    if (soundView === null) return;
+    const prev = lastSoundView.current;
+    lastSoundView.current = soundView;
+    if (!spectator) playSoundEvents(deriveSoundEvents(prev, soundView));
+  }, [soundView, spectator]);
   /*
    * One answer is no question (§B, items 4 and 9). `rules.ts`'s `autoAnswer`
    * is the only place that decides it; here it is sent, and the prompt that
@@ -1691,6 +1713,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * true for the same bar.
    */
   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
+  /* "Your move": a decision window opened for this seat — an ask, or a yes/no in the decision area. */
+  const decisionKey = ask !== null ? `ask:${ask.callId}` : confirmPrompt || playOrDraw ? `bar:${bar?.label1 ?? ''}` : null;
+  useEffect(() => {
+    if (decisionKey !== null) playRole('ui.prompt');
+  }, [decisionKey]);
   /*
    * W18/W16: a Forge SELECTION (`setSelectables`) that needs more than the
    * board's own highlighted ring — the soft-lock (an off-board target, no
@@ -2424,7 +2451,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           className="live__next-phase"
           data-testid="live-button-next-phase"
           disabled={!nextPhaseEnabled}
-          onClick={() => pressButton(match, 'ok')}
+          onClick={() => pressWithSound(match, 'ok')}
         >
           Next Phase
         </button>
@@ -2435,7 +2462,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           data-highlight={!yieldMode && highlightEndTurn ? '' : undefined}
           data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
           disabled={yieldMode ? spectator : !endTurnEnabled}
-          onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : pressButton(match, 'cancel'))}
+          onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : pressWithSound(match, 'cancel'))}
         >
           {yieldMode ? (autoYieldOn ? 'Cancel Yield' : 'Auto Yield') : 'End Turn'}
         </button>
@@ -2497,8 +2524,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <ConfirmPrompt
             testId="live-play-or-draw"
             message={promptText(match.prompt ?? '')}
-            button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressButton(match, 'ok') }}
-            button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressButton(match, 'cancel') }}
+            button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressWithSound(match, 'ok') }}
+            button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressWithSound(match, 'cancel') }}
           />
         </div>
       )}
@@ -2515,8 +2542,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <ConfirmPrompt
             testId="live-confirm"
             message={promptText(match.prompt ?? '')}
-            button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressButton(match, 'ok') }}
-            button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressButton(match, 'cancel') }}
+            button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressWithSound(match, 'ok') }}
+            button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressWithSound(match, 'cancel') }}
           />
         </div>
       )}
@@ -2537,8 +2564,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <ConfirmPrompt
             testId="live-decision"
             message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null)}
-            button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
-            button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
+            button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
+            button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
           />
         </div>
       )}
@@ -2561,8 +2588,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             lookup={lookupFromState(match.state)}
             picked={match.highlighted ?? EMPTY_CARD_IDS}
             onPick={(id) => selectCard(match, id)}
-            done={bar?.enable1 === true ? { label: bar.label1, enabled: true, onClick: () => pressButton(match, 'ok') } : undefined}
-            cancel={bar?.enable2 === true ? { label: bar.label2, enabled: true, onClick: () => pressButton(match, 'cancel') } : undefined}
+            done={bar?.enable1 === true ? { label: bar.label1, enabled: true, onClick: () => pressWithSound(match, 'ok') } : undefined}
+            cancel={bar?.enable2 === true ? { label: bar.label2, enabled: true, onClick: () => pressWithSound(match, 'cancel') } : undefined}
           />
         </div>
       )}

@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "note": "Where a cue's audio FILE lives, when one exists. Empty today: the operator has no audio assets yet, so every cue falls back to its synthesised envelope in cues.ts. Giving a cue a real sound is ONE ROW here and no code change — `\"select\": { \"source\": \"cdn\", \"key\": \"<sha256>.ogg\" }`. Same shape, same rule as apps/ui/src/draft/art-manifest.json: a key, never a URL, and no audio bytes in this repo. See ./manifest.ts.",
-  "entries": {}
-}

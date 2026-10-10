@@ -29,11 +29,11 @@
  *
  * ## Sound lives here, for now
  *
- * Buttons on this screen cue `select`, a refusal cues `deny`, and the module's
+ * Buttons on this screen play `ui.select`, a refusal plays `ui.deny`, and the module's
  * mute sits in the header beside the title — the front page is the one screen
  * every player passes through, so it is where a control they need to be able to
  * find goes while `chrome/AppChrome.tsx` belongs to no wave. Every cue is a
- * `playCue` call; this file constructs nothing. See `../sound/index.ts`, and
+ * `playRole` call; this file constructs nothing. See `../sound/index.ts`, and
  * `../sound/MuteButton.tsx` for where the button should end up.
  */
 
@@ -41,7 +41,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { navigate } from '../screens/route.ts';
 import { MuteButton } from '../sound/MuteButton.tsx';
-import { playCue } from '../sound/index.ts';
+import { playRole } from '../sound/index.ts';
 import {
   CLIENT_MODES,
   clientModeLabel,
@@ -103,7 +103,7 @@ export function RoomList({ client: given }: RoomListProps) {
   }, [refresh]);
 
   const retry = (): void => {
-    playCue('select');
+    playRole('ui.select');
     setState({ kind: 'loading' });
     void refresh();
   };
@@ -180,7 +180,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
     // Every arm below is a refusal, and `deny` is the cue for exactly that —
     // the one sound in the vocabulary that means "no". Raised once, here, rather
     // than in each arm, so a new failure reason cannot arrive without it.
-    playCue('deny');
+    playRole('ui.deny');
     switch (outcome.reason) {
       case 'refused':
         setError(
@@ -202,7 +202,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
     // `select` for the press itself, whichever branch it takes: opening the
     // password prompt is a thing that happened, and a button that is silent
     // half the time reads as a button that did not work.
-    playCue('select');
+    playRole('ui.select');
     if (room.locked) {
       setAsking(true);
       setError(null);
@@ -214,11 +214,11 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
   const onPassword = (e: FormEvent): void => {
     e.preventDefault();
     if (password === '') {
-      playCue('deny');
+      playRole('ui.deny');
       setError('Password required.');
       return;
     }
-    playCue('select');
+    playRole('ui.select');
     void enter(password);
   };
 
@@ -360,17 +360,17 @@ function CreateRoom({ client }: { client: RoomsClient }) {
     e.preventDefault();
     const trimmed = name.trim();
     if (trimmed === '') {
-      playCue('deny');
+      playRole('ui.deny');
       setError('Name required.');
       return;
     }
-    playCue('select');
+    playRole('ui.select');
     setBusy(true);
     setError(null);
     const outcome = await client.create({ name: trimmed, gameType, clientMode, password });
     setBusy(false);
     if (!outcome.ok) {
-      playCue('deny');
+      playRole('ui.deny');
       setError(outcome.message);
       return;
     }
