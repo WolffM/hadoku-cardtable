@@ -1658,16 +1658,6 @@ function RoomTableScreen({
               ? 'Draft'
               : 'Constructed 1v1'}
         </p>
-        <a
-          className="shell__link"
-          href="#/"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate({ kind: 'lobby' });
-          }}
-        >
-          Back to the rooms
-        </a>
         <SettingsGear />
       </header>
 
@@ -1745,8 +1735,7 @@ function RoomTableScreen({
         )}
 
         {!draftRoom && table !== null && (
-          <div className="lobby__table">
-            <div className="lobby__side">
+          <>
             <section className="lobby__card">
               <h2>At the table</h2>
               <ul className="tables__players" data-testid="room-players">
@@ -1789,7 +1778,8 @@ function RoomTableScreen({
               </section>
             ) : (
               loaded !== null && (
-                <section className="lobby__card" data-testid="room-pool">
+                <section className="lobby__card lobby__decks">
+                  <h2>Your deck</h2>
                   {/* The table's pool: "Format" — one pool, both seats, checked
                       against the same list, across Standard, Modern and Legacy
                       alike (wave 48 §U). The LEADER gets a control; everybody else reads
@@ -1917,14 +1907,7 @@ function RoomTableScreen({
                       eternal format's forty-odd sets drew a strip the operator called
                       ridiculous (2026-10-07), so those draw none either. */}
                   {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
-                </section>
-              )
-            )}
-            </div>
 
-            {!spectating && loaded !== null && (
-                <section className="lobby__card lobby__decks">
-                  <h2>Your deck</h2>
                   {/* The two actions sit ABOVE the list, not after it. Operator,
                       2026-09-30: *"the random button should be at the top, the
                       ready button should also be at the top"* — the list is a grid
@@ -2007,8 +1990,9 @@ function RoomTableScreen({
                     </p>
                   )}
                 </section>
+              )
             )}
-          </div>
+          </>
         )}
           </>
         )}

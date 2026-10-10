@@ -56,8 +56,8 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
         <RoomList client={rooms} />
       </main>
 
-      {import.meta.env?.DEV === true && (
-        <footer className="shell__foot">
+      <footer className="shell__foot">
+        {import.meta.env?.DEV === true && (
           <p>
             <a
               className="shell__link"
@@ -70,8 +70,8 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
               Developer harness
             </a>
           </p>
-        </footer>
-      )}
+        )}
+      </footer>
     </div>
   );
 }

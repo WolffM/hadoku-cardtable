@@ -99,106 +99,14 @@
 
 /* ── a screen that fits the window: the front page and a room ─────── */
 
-/* The chrome pins these routes to the window (`chrome/chrome.css`); what is
-   inside shares that height, and only the deck grid and the room list scroll. */
+/* The chrome pins these routes to the window (`chrome/chrome.css`), so the
+   page and watchparty's frame, its chat with it, never grow with the content.
+   The screen keeps the layout it always had and scrolls inside that frame. */
 .shell.shell--fit {
   box-sizing: border-box;
-  width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 16px 24px;
-  gap: 12px;
-}
-
-.shell--fit > .shell__head {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-}
-
-.shell--fit > .shell__head > .shell__link {
-  margin-left: auto;
-}
-
-.shell--fit > main {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-/* A room: the table and its pool on the left, the decks taking the rest. */
-.shell--fit > .lobby {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.shell--fit .lobby__card {
-  padding: 14px;
-  gap: 10px;
-}
-
-.lobby__table {
-  flex: 1 1 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(240px, 30%) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 12px;
-}
-
-.lobby__side {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.lobby__decks {
-  min-width: 0;
-  min-height: 0;
-}
-
-/* The front page: the rooms on the left, the create form beside them. */
-.shell--fit .rooms {
-  flex: 1 1 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 420px);
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas:
-    'head head'
-    'list create'
-    'stale create';
-  align-items: start;
-  column-gap: 20px;
-}
-
-.shell--fit .rooms__head {
-  grid-area: head;
-}
-
-/* The rows keep their size; a long list scrolls inside its own column. */
-.shell--fit .rooms__list {
-  align-self: stretch;
-  min-height: 0;
   overflow-y: auto;
-}
-
-.shell--fit .rooms > .rooms__list,
-.shell--fit .rooms > .rooms__status {
-  grid-area: list;
-}
-
-.shell--fit .rooms__stale {
-  grid-area: stale;
-}
-
-.shell--fit .rooms__create {
-  grid-area: create;
-  border-top: 0;
-  padding-top: 0;
 }
 
 /* ── lobby ─────────────────────────────────────────────────────────── */
@@ -1068,16 +976,13 @@
  * A grid of card-like rows, one per legal deck. `auto-fill` with a `190px`
  * minimum is the same width the table's own card tiles use (`--card-w`), so a
  * deck row and a card read as the same kind of object, and a narrow room screen
- * collapses to one column instead of scrolling sideways. The grid takes what the
- * room card leaves it and scrolls inside itself — Free pick offers the whole
- * library — while the page never does (the operator, 2026-10-10: *"scrolling is
- * fine just not for the whole page"*).
+ * collapses to one column instead of scrolling sideways.
  *
- * `grid-auto-rows` gives every row — including a second row once decks wrap —
- * the same track height, and `align-items: stretch` (the grid default, named
+ * `grid-auto-rows` fixes every row — including a second row once decks wrap —
+ * to the same track height, and `align-items: stretch` (the grid default, named
  * here because the old rule overrode it to `start`) makes each option fill that
  * track instead of sitting at its own content height inside it. Without a
- * clamped `.deckpick__name` a two-line title would still overflow the
+ * clamped `.deckpick__name` a two-line title would still overflow the fixed
  * track, so the two rules below are one fix, not two.
  *
  * This is the first thing in this sheet that is not text, boxes and a status dot:
@@ -1087,17 +992,11 @@
  * repointable from `art-manifest.json` alone.
  */
 .deckpick {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   grid-auto-rows: 190px;
-  align-content: start;
   gap: 10px;
   align-items: stretch;
-  /* Room for the focus ring, which an overflow box would otherwise clip. */
-  padding: 4px;
 }
 
 /*

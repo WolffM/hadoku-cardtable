@@ -14,9 +14,11 @@
  *  - the document does not scroll;
  *  - the chrome is exactly the window's height, and watchparty's room frame —
  *    the chat aside with it — ends at the window's bottom edge;
- *  - the only boxes that may scroll are the deck grid and the room list;
+ *  - the only box that may scroll is the screen itself, inside that frame: the
+ *    operator kept the layout these screens always had ("please revert the
+ *    layout change, it was better before"), so a long list scrolls with it;
  *  - every deck tile keeps its full 190px size, however many decks there are;
- *  - Ready, both seat rows, the room list and Create lie inside the window;
+ *  - Ready, both seat rows and the first room row lie inside the window;
  *  - no verdict is drawn.
  *
  * `[lobby-fit]` lines are the evidence: every scrolling box with its
@@ -35,8 +37,8 @@ const PREFIX = '/cardtable';
 const ROOMS_OPEN = 16;
 /** A deck tile's own size (`screens.css` `.deckpick`). */
 const TILE_PX = 190;
-/** The only boxes that may scroll: they are long lists, and they scroll inside themselves. */
-const MAY_SCROLL = ['deck-mine', 'room-list'];
+/** The only boxes that may scroll: the front page's and a room's own screen, inside the pinned frame. */
+const MAY_SCROLL = ['lobby', 'constructed'];
 const SIZES = [
   { width: 1280, height: 800 },
   { width: 1366, height: 768 },
@@ -129,7 +131,7 @@ async function fitsAt(page: Page, who: string, where: string, mustShow: string, 
   }
 }
 
-test(titled('the page and the chat stay the window’s height on the front page and in a Free pick room; only the deck grid and the room list scroll, at full size'), async ({ browser }) => {
+test(titled('the page and the chat stay the window’s height on the front page and in a Free pick room; only the screen scrolls inside it, tiles at full size'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -150,7 +152,7 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await expect(alice.page.getByTestId('room-create')).toBeVisible();
     await expect(alice.page.getByTestId('room-row')).toHaveCount(ROOMS_OPEN);
-    await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-create-submit"], [data-testid="room-list"]', failures);
+    await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-list"] > :first-child', failures);
 
     await alice.page.getByTestId('room-create-name').fill(`lobby fit ${Date.now()}`);
     await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
@@ -182,11 +184,11 @@ test(titled('the page and the chat stay the window’s height on the front page 
     const decks = await alice.page.getByTestId('deck-mine').locator('[data-deck-id]').count();
     console.log(`[lobby-fit] room on Free pick: ${decks} decks on offer; chat aside drawn: ${await alice.page.locator('.wp-room-chrome').count()}`);
 
-    const mustShow = '[data-testid="ready-toggle"], [data-testid="deck-mine"], [data-testid="room-players"]';
+    const mustShow = '[data-testid="ready-toggle"], [data-testid="room-players"]';
     await fitsAt(alice.page, 'alice', 'room', mustShow, failures);
     await fitsAt(bob.page, 'bob', 'room', mustShow, failures);
 
-    expect(failures, 'the page is the window’s height, only the two lists scroll, every tile is full size, and no verdict').toEqual([]);
+    expect(failures, 'the page is the window’s height, only the screen scrolls inside it, every tile is full size, and no verdict').toEqual([]);
   } finally {
     await stack.stop();
   }
