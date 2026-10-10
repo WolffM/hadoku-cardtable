@@ -4,7 +4,7 @@
  * which is cyan in ocean-light (2.6:1 on white; the e2e measured 2.77).
  * Reads the real theme stylesheet and the real `styles.css`; nothing is restated.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 type Rgb = [number, number, number];
@@ -97,7 +97,7 @@ describe('the accent as text', () => {
 
   it('is a mix toward the ink, and the fill token is still the theme primary', () => {
     expect(mixOf).not.toBeNull();
-    expect(ownCss).toMatch(/--accent:\s*var\(--color-primary,\s*#7bb0ff\);/);
+    expect(ownCss).toMatch(/--accent:\s*var\(--color-primary\);/);
   });
 
   it('clears 4.5:1 on the page and on a card in every theme (the old accent did not)', () => {
@@ -129,11 +129,11 @@ describe('the accent as text', () => {
  */
 describe('danger and success as text', () => {
   const inks = [
-    { token: 'danger', theme: 'danger', fallback: '#d4715f' },
-    { token: 'success', theme: 'success', fallback: '#6da879' },
+    { token: 'danger', theme: 'danger' },
+    { token: 'success', theme: 'success' },
   ];
 
-  for (const { token, theme, fallback } of inks) {
+  for (const { token, theme } of inks) {
     const mixOf = new RegExp(`--${token}-ink:\\s*color-mix\\(in srgb,\\s*var\\(--${token}\\)\\s*(\\d+)%,\\s*var\\(--ink\\)\\)`).exec(ownCss);
     const share = mixOf === null ? 1 : Number(mixOf[1]) / 100;
     const worstAt = (s: number): number => {
@@ -149,7 +149,7 @@ describe('danger and success as text', () => {
     };
 
     it(`--${token} is the theme's own, and --${token}-ink clears 4.5:1 on the page and on a card in every theme`, () => {
-      expect(ownCss).toContain(`--${token}: var(--color-${theme}, ${fallback});`);
+      expect(ownCss).toContain(`--${token}: var(--color-${theme});`);
       expect(mixOf).not.toBeNull();
       expect(worstAt(share)).toBeGreaterThanOrEqual(4.5);
       // The reason the ink token exists: the raw fill does not.
@@ -172,5 +172,54 @@ describe('the stacking scale (wave 32 shape 2)', () => {
   it('declares the four layers on :root, in order', () => {
     const z = (n: string): number => Number(new RegExp(`--z-${n}:\\s*(\\d+);`).exec(ownCss)?.[1] ?? Number.NaN);
     expect([z('board'), z('card-badge'), z('overlay'), z('popover')]).toEqual([0, 1, 20, 40]);
+  });
+});
+
+/*
+ * The operator, 2026-10-10: "do not use hardcoded colors, that is forbidden.
+ * use a color from the theme system". Every stylesheet the app owns, comments
+ * aside, holds no literal colour — not even as a `var()` fallback, which paints
+ * its literal the moment a token is missing. The one exception is the
+ * colour-pie palette in `styles.css`: a card's colour identity, which no theme
+ * has a token for. The vendored symbol fonts' sheets are third-party.
+ */
+describe('no hardcoded colours', () => {
+  const root = new URL('../', import.meta.url);
+  const sheets: string[] = [];
+  const walk = (dir: URL, rel: string): void => {
+    for (const name of readdirSync(dir)) {
+      const url = new URL(name, dir);
+      if (statSync(url).isDirectory()) {
+        if (name !== 'symbols') walk(new URL(`${name}/`, dir), `${rel}${name}/`);
+      } else if (name.endsWith('.css')) sheets.push(`${rel}${name}`);
+    }
+  };
+  walk(root, '');
+  const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(|(?<![-\w])(?:white|black|red|blue|green|gray|grey|silver)(?![-\w])/i;
+  const PALETTE = /^\s*--c-(?:white|blue|black|red|green|generic):\s*#[0-9a-f]{6};\s*$/i;
+
+  it('finds the app’s stylesheets', () => {
+    expect(sheets).toContain('styles.css');
+    expect(sheets).toContain('settings/settings.css');
+  });
+
+  it('no stylesheet writes a literal colour, outside the colour-pie palette', () => {
+    const found: string[] = [];
+    for (const rel of sheets) {
+      const css = readFileSync(new URL(rel, root), 'utf8').replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+      css.split('\n').forEach((line, i) => {
+        if (LITERAL.test(line) && !(rel === 'styles.css' && PALETTE.test(line))) found.push(`${rel}:${String(i + 1)}: ${line.trim()}`);
+      });
+    }
+    expect(found).toEqual([]);
+  });
+
+  it('every theme defines every colour token the stylesheets read, so nothing resolves to nothing', () => {
+    const used = new Set<string>();
+    for (const rel of sheets) for (const m of readFileSync(new URL(rel, root), 'utf8').matchAll(/var\(--color-([a-z-]+)\)/g)) used.add(m[1]);
+    const missing: string[] = [];
+    for (const t of themes) for (const name of used) if (t.vars[name] === undefined) missing.push(`${t.name}: --color-${name}`);
+    expect(used.size).toBeGreaterThan(10);
+    expect(missing).toEqual([]);
   });
 });

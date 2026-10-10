@@ -32,29 +32,32 @@
    * Chrome colours ALIAS the theme (wave 31 P4). `color-scheme` follows the theme in `chrome/chrome.css`. They were fixed dark values, so
    * the game UI ignored the theme selector while the header beside it changed.
    * `@wolffm/themes` publishes `--color-*` on `[data-theme]`; each token below
-   * reads one, with its former dark value as the fallback for a page where no
-   * theme CSS has loaded. The selector list re-declares them wherever a theme is
+   * reads one, and NONE carries a literal fallback (the operator, 2026-10-10:
+   * hardcoded colours are forbidden — a fallback is a literal the moment a token
+   * is missing). A fallback to another theme token is fine. The selector list re-declares them wherever a theme is
    * set, so a container with its own `data-theme` resolves against ITS theme
    * instead of inheriting `:root`'s already-resolved value.
    *
-   * Not aliased, on purpose: the colour-pie `--c-*` hues below and black shadows
-   * are data and shading, the same in every theme.
+   * Not aliased, on purpose: the colour-pie `--c-*` hues below are data — a
+   * card's colour identity — and the same in every theme. They are the only
+   * literal colours in the app's stylesheets, and `screens/tokens.test.ts`
+   * holds every other sheet to that.
    */
-  --bg: var(--color-bg, #14161a);
-  --bg-raised: var(--color-bg-card, #1c1f25);
-  --bg-card: var(--color-bg-hover, #23272f);
-  --line: var(--color-border, #333943);
-  --line-soft: color-mix(in srgb, var(--color-border, #2a2f37) 55%, var(--color-bg, #14161a));
-  --ink: var(--color-text, #e6e9ee);
+  --bg: var(--color-bg);
+  --bg-raised: var(--color-bg-card);
+  --bg-card: var(--color-bg-hover);
+  --line: var(--color-border);
+  --line-soft: color-mix(in srgb, var(--color-border) 55%, var(--color-bg));
+  --ink: var(--color-text);
   /* Both read `--color-text-secondary`, NOT `--color-text-tertiary`: tertiary is
      accent-tinted in some themes (cyan in ocean-light, 2.6:1 on white) and
      secondary is 5.4:1 or better on the page in every theme that defines it. A
      theme without it (izakaya) falls back to the theme's own ink. Plain colours,
      not `color-mix`: the e2e contrast measure reads `rgb()` only, and a mixed
      value computes to `color(srgb ...)`. `screens/tokens.test.ts` measures this. */
-  --ink-dim: var(--color-text-secondary, var(--color-text, #99a1ae));
-  --ink-faint: var(--color-text-secondary, var(--color-text, #6a7280));
-  --accent: var(--color-primary, #7bb0ff);
+  --ink-dim: var(--color-text-secondary, var(--color-text));
+  --ink-faint: var(--color-text-secondary, var(--color-text));
+  --accent: var(--color-primary);
   /*
    * The accent as TEXT (wave 32, a w31 leftover). `--accent` is the theme's fill
    * colour and stays exactly that: as text it is 1.56:1 in izakaya-light and
@@ -65,8 +68,8 @@
    * border.
    */
   --accent-ink: color-mix(in srgb, var(--accent) 35%, var(--ink));
-  --on-accent: var(--color-on-primary, #10131a);
-  --warn: var(--color-warning, #ffb057);
+  --on-accent: var(--color-on-primary);
+  --warn: var(--color-warning);
   /*
    * The three the play surfaces used to write as literals (the operator,
    * 2026-10-08: "hardcoded colors look bad"): a neutral fill (a card back), a
@@ -74,9 +77,9 @@
    * from the theme's overlay colour, so a light theme's shadow is still a
    * shadow and never a tint of its text.
    */
-  --neutral: var(--color-neutral, #778);
-  --scrim: var(--color-bg-overlay, rgb(0 0 0 / 55%));
-  --shadow: color-mix(in srgb, var(--color-bg-overlay, #000) 60%, transparent);
+  --neutral: var(--color-neutral);
+  --scrim: var(--color-bg-overlay);
+  --shadow: color-mix(in srgb, var(--color-bg-overlay) 60%, transparent);
   /*
    * The theme's danger and success, for what the board used to borrow the
    * colour-pie's red, green and blue for: damage, a life gain, a buffed or hurt
@@ -89,8 +92,8 @@
    * the largest share that clears 4.5:1 on the page and on a card in all 18
    * themes (`screens/tokens.test.ts` measures both, and pins the shares).
    */
-  --danger: var(--color-danger, #d4715f);
-  --success: var(--color-success, #6da879);
+  --danger: var(--color-danger);
+  --success: var(--color-success);
   --danger-ink: color-mix(in srgb, var(--danger) 50%, var(--ink));
   --success-ink: color-mix(in srgb, var(--success) 30%, var(--ink));
 
@@ -432,7 +435,7 @@ button {
    * than rasterize-then-reshadow. drop-shadow only earns its cost on a shape
    * with a real alpha silhouette, which this is not.
    */
-  box-shadow: 0 14px 26px rgb(0 0 0 / 60%);
+  box-shadow: 0 14px 26px var(--shadow);
 }
 
 /*
@@ -655,8 +658,8 @@ button {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--c-generic);
-  color: #14161a;
+  background: var(--neutral);
+  color: var(--color-on-neutral);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;

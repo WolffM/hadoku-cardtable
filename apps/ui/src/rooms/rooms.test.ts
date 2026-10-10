@@ -433,13 +433,13 @@ describe('the client mode', () => {
     }
   });
 
-  it('shows every room its mode in the list, not just the streamed ones', async () => {
+  it('labels a streamed room in the list, and says nothing on our own tables', async () => {
     const streamedRoom = room({ id: 'r-forge', name: 'Full client', clientMode: 'streamed' });
     const { client } = server([OPEN, streamedRoom]);
     mount(client);
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
 
-    expect(within(rowFor('r-open')).getByTestId('room-mode').textContent).toBe('our table');
+    expect(within(rowFor('r-open')).queryByTestId('room-mode')).toBeNull();
     expect(within(rowFor('r-forge')).getByTestId('room-mode').textContent).toBe('streamed Forge');
     expect(clientModeLabel('builtin')).toBe('our table');
     expect(clientModeLabel('streamed')).toBe('streamed Forge');

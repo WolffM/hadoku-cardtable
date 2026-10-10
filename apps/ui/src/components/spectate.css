@@ -29,26 +29,26 @@
   gap: 10px;
   align-items: flex-start;
   padding: 10px 14px;
-  border: 1px solid var(--line, #333943);
+  border: 1px solid var(--line);
   border-left-width: 3px;
   border-radius: var(--radius, 8px);
-  background: var(--bg-raised, #1c1f25);
-  color: var(--ink, #e6e9ee);
+  background: var(--bg-raised);
+  color: var(--ink);
 }
 
 /* The phase, as a colour. Never the only signal — the label says it in words. */
 .conn--connecting,
 .conn--reconnecting,
 .conn--resyncing {
-  border-left-color: var(--accent, #7bb0ff);
+  border-left-color: var(--accent);
 }
 
 .conn--offline {
-  border-left-color: var(--warn, #ffb057);
+  border-left-color: var(--warn);
 }
 
 .conn--recovered {
-  border-left-color: var(--c-green, #6da879);
+  border-left-color: var(--c-green);
 }
 
 .conn__dot {
@@ -93,7 +93,7 @@
 }
 
 .conn__detail {
-  color: var(--ink-dim, #99a1ae);
+  color: var(--ink-dim);
 }
 
 /* ── The spectator notice ────────────────────────────────────────────── */
@@ -103,16 +103,16 @@
   gap: 10px;
   align-items: baseline;
   padding: 10px 14px;
-  border: 1px dashed var(--line, #333943);
+  border: 1px dashed var(--line);
   border-radius: var(--radius, 8px);
-  background: var(--bg-raised, #1c1f25);
+  background: var(--bg-raised);
 }
 
 .spectate__tag {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--c-generic, #565d68);
-  color: var(--ink, #e6e9ee);
+  background: var(--c-generic);
+  color: var(--ink);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -121,7 +121,7 @@
 
 .spectate__text {
   margin: 0;
-  color: var(--ink-dim, #99a1ae);
+  color: var(--ink-dim);
 }
 
 /* A held seat in the seat bar. Dashed, because it is an inference. */
@@ -131,7 +131,7 @@
 }
 
 .seat__held {
-  color: var(--warn, #ffb057);
+  color: var(--warn);
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -161,7 +161,7 @@
 .deck__sub,
 .deck__note {
   margin: 4px 0 0;
-  color: var(--ink-dim, #99a1ae);
+  color: var(--ink-dim);
   max-width: 62ch;
 }
 
@@ -179,19 +179,19 @@
 }
 
 .deck__count--quiet {
-  color: var(--ink-faint, #6a7280);
+  color: var(--ink-faint);
   font-size: 16px;
 }
 
 .deck__of {
-  color: var(--ink-dim, #99a1ae);
+  color: var(--ink-dim);
 }
 
 .deck__h2 {
   font-size: 13px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-dim, #99a1ae);
+  color: var(--ink-dim);
 }
 
 .deck__basics {
@@ -200,9 +200,9 @@
   align-items: center;
   flex-wrap: wrap;
   padding: 10px 14px;
-  border: 1px solid var(--line-soft, #2a2f37);
+  border: 1px solid var(--line-soft);
   border-radius: var(--radius, 8px);
-  background: var(--bg-raised, #1c1f25);
+  background: var(--bg-raised);
 }
 
 .deck__basic {
@@ -215,9 +215,9 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--line, #333943);
+  border: 1px solid var(--line);
   border-radius: 4px;
-  background: var(--bg-card, #23272f);
+  background: var(--bg-card);
   color: inherit;
   cursor: pointer;
 }
@@ -236,9 +236,9 @@
 .deck__problems {
   margin: 0;
   padding: 10px 14px 10px 32px;
-  border: 1px solid var(--warn, #ffb057);
+  border: 1px solid var(--warn);
   border-radius: var(--radius, 8px);
-  color: var(--warn, #ffb057);
+  color: var(--warn);
 }
 
 .deck__piles {
@@ -270,7 +270,7 @@
   align-items: center;
   padding: 3px 6px;
   border-radius: 5px;
-  background: var(--bg-card, #23272f);
+  background: var(--bg-card);
   min-width: 0;
 }
 
@@ -278,15 +278,15 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--line, #333943);
+  border: 1px solid var(--line);
   border-radius: 4px;
-  background: var(--bg-raised, #1c1f25);
+  background: var(--bg-raised);
   color: inherit;
   cursor: pointer;
 }
 
 .deckrow__count {
-  color: var(--ink-faint, #6a7280);
+  color: var(--ink-faint);
   font-variant-numeric: tabular-nums;
 }
 
@@ -302,7 +302,7 @@
 }
 
 .deckrow__type {
-  color: var(--ink-faint, #6a7280);
+  color: var(--ink-faint);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -250,12 +250,14 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
         </span>
         <span className="rooms__meta">
           <span data-testid="room-type">{gameTypeLabel(room.gameType)}</span>
-          {/* Every row, not just the streamed ones: "no mode shown" would have
-              to mean "builtin", and a reader cannot tell that apart from a
-              row that simply forgot. */}
-          <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
-            {clientModeLabel(room.clientMode)}
-          </span>
+          {/* Only on a streamed room (the operator, 2026-10-10): the form makes
+              nothing but our table now, so the label is said where it is the
+              exception, not on every row. */}
+          {room.clientMode === 'streamed' && (
+            <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
+              {clientModeLabel(room.clientMode)}
+            </span>
+          )}
           {room.locked && (
             <span className="rooms__lock" data-testid="room-locked">
               password

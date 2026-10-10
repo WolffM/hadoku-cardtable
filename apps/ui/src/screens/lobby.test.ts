@@ -121,9 +121,8 @@ describe('the front door', () => {
     expect(within(rooms).getByTestId('room-create-open')).toBeTruthy();
     expect(within(rooms).queryByTestId('room-create'), 'the form waits behind its button').toBeNull();
     // `ONE_ROOM` carries no `clientMode` — the shape a server older than the
-    // field sends. Nobody joins blind, and nobody joins a streamed room by
-    // accident because a field was missing.
-    expect(within(rooms).getByTestId('room-mode').textContent).toBe('our table');
+    // field sends. It reads as our table, so it carries no streamed label.
+    expect(within(rooms).queryByTestId('room-mode')).toBeNull();
     // The pick-both-decks screen the operator rejected has no way in from here.
     expect(screen.queryByTestId('play-constructed')).toBeNull();
   });

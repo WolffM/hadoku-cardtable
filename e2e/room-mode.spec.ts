@@ -190,7 +190,7 @@ test.describe('the room decides which client', () => {
     await bob.page.goto(`${PREFIX}/`);
     await expect(rowFor(bob.page, builtinId)).toBeVisible();
     await expect(rowFor(bob.page, streamedId)).toBeVisible();
-    await expect(rowFor(bob.page, builtinId).getByTestId('room-mode')).toHaveText('our table');
+    await expect(rowFor(bob.page, builtinId).getByTestId('room-mode')).toHaveCount(0);
     await expect(rowFor(bob.page, streamedId).getByTestId('room-mode')).toHaveText('streamed Forge');
 
     // Nothing reached for anything off this machine EXCEPT card art — and even
