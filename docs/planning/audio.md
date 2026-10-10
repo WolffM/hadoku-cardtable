@@ -31,10 +31,10 @@ Later directions, verbatim, in order:
 
 | Brief item | Where it stands |
 | --- | --- |
-| 1. the corpus | the role list below; `SOUND_ROLE_GROUPS` in `packages/shared/src/sounds.ts` |
-| 2. playing at the right times | wave B |
+| 1. the corpus | `SOUND_ROLE_GROUPS` in `packages/shared/src/sounds.ts` (57 roles); round 4 put 9 candidates on every role that had none (396 takes) |
+| 2. playing at the right times | wave B ✔ (`play/live/sound-events.ts`, live from 2026-10-10) |
 | 3. assigning + testing single sounds | `#/sounds` (wave A) |
-| 4. the scenario sandbox | `#/sounds/sandbox` (wave A); replays in wave C |
+| 4. the scenario sandbox | `#/sounds/sandbox` (wave A); the captured game replays there (wave C) |
 
 ## Operator decisions (2026-10-09)
 
@@ -230,7 +230,7 @@ anything records them today)*.
 | **A** ✔ 2026-10-10 | role registry, builder rework, per-cell gain, mixer (buses, collapse, duck), scripted sandbox (9 scenarios in `apps/ui/src/sound/scenarios.ts`) | no |
 | — | **operator's first assignment pass** | |
 | **B** ✔ 2026-10-10 | `play/live/sound-events.ts` derives role events from consecutive board views (proved against the committed Tier C capture); `LiveBoard` plays them per paced view, plus `ui.prompt` on a new decision and `ui.pass` on a bar press; gestures play `ui.lift`/`ui.place`/`ui.deny`/`ui.target`; long-press plays `ui.inspect`. The synthesised cues (`cues.ts`, `manifest.ts`, `cue-manifest.json`, `webaudio.ts`, `sink.ts`) are deleted: every sound is a role. Round-4 candidates generated for the 44 roles with no take. **Left over:** a player volume setting (mute only today); `g.shuffle` outside a mulligan needs `PlayBridge` to forward `GameEventShuffle` | yes |
-| **C** | replay sandbox, live-match recording, music bus + track picker in the builder | no |
+| **C** (part) 2026-10-10 | music bus: `music.lobby` / `music.match` loop roles, ducked under the big moments, picked per screen (`setScreenMusic`) and per match (`setMatchMusic`); `scripts/sfx/add-track.py` brings a found track in (credit → `NOTICE.md`). The sandbox plays music under a scenario and replays the committed captured game through the live deriver. **Left:** recording live matches to replay; tracks themselves (the operator finds them) | no |
 | — | gap generation from the operator's empty roles | |
 
 ## Open questions
