@@ -104,7 +104,8 @@ describe.skipIf(!available.ok)(title, () => {
 			function answerAsks(): void {
 				for (const { seat, envelope } of sent) {
 					const f = envelope.frame as ServerFrame & Record<string, unknown>;
-					if (f.kind !== 'ask' || answered.has(f.callId as string)) continue;
+					// A reveal (Probe's look at the opponent's hand) is answered by the server and only shown.
+					if (f.kind !== 'ask' || envelope.displayOnly === true || answered.has(f.callId as string)) continue;
 					const callId = f.callId as string;
 					answered.add(callId);
 					let result: unknown = null;
@@ -172,6 +173,10 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(gravesOf(0)).toBe(before.graves + 1);
 			// One card left the hand to be cast and Probe's own draw put one back.
 			expect(handOf(0)).toHaveLength(hand.length);
+			// Probe's look at the opponent's hand reached seat 0 as a notice, never as an ask.
+			const reveals = sent.filter((x) => x.seat === 0 && x.envelope.displayOnly === true && x.envelope.frame.method === 'getChoices');
+			console.log(`[phyrexian] reveals shown to seat 0: ${reveals.length}`);
+			expect(reveals.length).toBeGreaterThan(0);
 
 			match.stop();
 			jvm.reapOnExit();

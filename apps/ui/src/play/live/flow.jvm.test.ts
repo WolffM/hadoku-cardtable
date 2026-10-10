@@ -111,6 +111,8 @@ interface Hands {
   lastVersion: number;
   /** The seat's window stopped moving between the last two ticks. */
   steady: boolean;
+  /** When this seat last clicked its land to play it — {@link playLand} spaces its retries from it. */
+  landClickAt: number;
 }
 
 function mount(h: LiveHarness, seat: number): Hands {
@@ -119,7 +121,7 @@ function mount(h: LiveHarness, seat: number): Hands {
   root.dataset.seat = String(seat);
   document.body.appendChild(root);
   render(createElement(LiveBoard, { match: s.live }), { container: root });
-  return { seat: s, root, acts: [], refused: [], picked: new Map(), lastVersion: -1, steady: false };
+  return { seat: s, root, acts: [], refused: [], picked: new Map(), lastVersion: -1, steady: false, landClickAt: 0 };
 }
 
 /**
@@ -266,6 +268,8 @@ function why(hands: readonly Hands[], log: readonly Record<string, unknown>[] = 
 }
 
 const TICK_MS = 100;
+/** How long {@link playLand} leaves a land click to land before it clicks again. */
+const LAND_RETRY_MS = 3000;
 
 /**
  * Drop the land, and keep trying until it is down — **phase-safe, not
@@ -288,13 +292,20 @@ const TICK_MS = 100;
  *
  * The first click is a recorded {@link click} (a refusal is data — see *"a
  * refused click is rare"*); every later one is a {@link clickAgain}, which is
- * this scenario's own retry and not the double-click item 9 is about.
+ * this scenario's own retry and not the double-click item 9 is about. A retry
+ * waits {@link LAND_RETRY_MS} after the last click: one sent while the drop is
+ * still on its way reaches Forge after the land is on the battlefield, as a
+ * click on the dual land, whose two mana abilities are a real question that
+ * then stands in front of the cast (runs 37999882698, 38008807020:
+ * `acts` ending `play land #15 (retry)`, `showing: getAbilityToPlay`).
  */
 function playLand(p: Hands): void {
   if (!atSteadyOwnMain(p)) return;
   if (zoneOf(p.seat.live, 'battlefield').some((c) => c.name === 'Volcanic Island')) return;
   const land = zoneOf(p.seat.live, 'hand').find((c) => c.name === 'Volcanic Island');
   if (land === undefined) return;
+  if (Date.now() - p.landClickAt < LAND_RETRY_MS) return;
+  p.landClickAt = Date.now();
   if (p.acts.some((a) => /play land/.test(a)) || p.refused.some((a) => /play land/.test(a))) {
     clickAgain(p, land.id, 'play land');
     return;

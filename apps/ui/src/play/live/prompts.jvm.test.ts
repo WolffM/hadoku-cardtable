@@ -97,7 +97,7 @@ import { leaked, rawStatesOf, secretsFor } from '../../../../server/src/play/fix
 import { nightly } from '../../../../server/src/play/scenario.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
-import { promptTileFor } from '../prompts/PromptShell.tsx';
+import { nameFromForgeLabel, promptTileFor } from '../prompts/PromptShell.tsx';
 import { createDriver, drive, type Plan } from './game-driver.ts';
 import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness } from './jvm-harness.ts';
 import { startMatch, type LiveAsk, type LiveMatch, type MatchTransport } from './match.ts';
@@ -264,7 +264,8 @@ function probeLabels(h: LiveHarness, roots: readonly HTMLElement[]): LabelProbeR
   const sample = () => {
     for (const s of h.seats) {
       const lookup = lookupFromState(s.live.state);
-      for (const ask of s.live.asks) {
+      // A reveal is never an ask: the server answered it and the board shows it as a notice (`RevealNotice`).
+      for (const ask of s.live.reveal === null ? s.live.asks : [...s.live.asks, s.live.reveal]) {
         if (seen.has(ask.callId)) continue;
         const options = preRenderedOptions(ask);
         if (options === null) continue;
@@ -559,12 +560,12 @@ describe.skipIf(!available.ok)(title, () => {
         // name the lookup holds is the one the board would key on.
         expect(scryfallIdFor(KNOWN_ART_IDS, r.label, r.facts?.setCode ?? ''), r.label).toBeUndefined();
         expect(r.label, `${r.facts?.name} (${r.id})`).toContain(r.facts?.name ?? '\u0000');
-        // Forge's own wording reached the screen: nothing was removed to fix it.
-        expect([...probe.tileNames], `the tile said ${r.label}`).toContain(r.label);
+        // The notice draws the card by the name inside Forge's label (`RevealNotice`).
+        const shown = nameFromForgeLabel(r.label, r.id);
+        expect([...probe.tileNames], `the tile said ${shown}`).toContain(shown);
         /*
          * And where the art-id table knows the revealed printing, the tile §F
-         * builds carries that art id — from the card's facts, with the label
-         * still on show. Conditional because which card a library reveals is up
+         * builds carries that art id — from the card's facts, never the label. Conditional because which card a library reveals is up
          * to the shuffle: measured runs have revealed `Forest (89)` (in the
          * table, `Forest|TRK`) and `Merfolk Branchwalker (2)` (not in it, and
          * the manifest is empty — the tracker's own watch).
@@ -575,9 +576,9 @@ describe.skipIf(!available.ok)(title, () => {
             `(from ${JSON.stringify(r.facts?.name)}|${r.facts?.setCode ?? ''})`,
         );
         if (byFacts !== undefined) {
-          const tile = promptTileFor(lookupFromState(h.seats[r.seat]!.live.state), r.id, r.label);
+          const tile = promptTileFor(lookupFromState(h.seats[r.seat]!.live.state), r.id, shown);
           expect(tile.scryfallId, 'the tile resolved art through the facts, not the label').toBe(byFacts);
-          expect(tile.name, "and still says Forge's words").toBe(r.label);
+          expect(tile.name, 'and says the card name').toBe(shown);
         }
       }
       expectCleanBridge(h);
