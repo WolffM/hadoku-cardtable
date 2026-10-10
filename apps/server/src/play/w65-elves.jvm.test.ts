@@ -59,14 +59,29 @@ async function atMain(seed: number) {
 	return s;
 }
 
-/** Click `id` until Forge shows it tapped (the scenario-start race drops a first select). */
+/** Past the fork's act-gate hold for a click between two inputs (`ActGate`, 5 s). */
+const RESEND_AFTER_MS = 6_000;
+
+/**
+ * Click `id` once and wait for Forge to show it tapped. Every click is taken now (the fork's act
+ * gate holds one that comes between two inputs rather than dropping it), so a click re-sent while
+ * the first is still on its way is a second click — on a tapped land, the untap. Re-send only once
+ * nothing has come of the first past the gate's own hold.
+ */
 async function tap(s: Awaited<ReturnType<typeof startScenario>>, id: number): Promise<void> {
+	const tapped = (): boolean => s.zone(0, 'Battlefield').some((c) => c.id === id && c.tapped);
+	await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, 'priority before the tap', 20_000, s);
 	s.select(0, id);
+	const sentAt = Date.now();
+	let resent = false;
 	await waitUntil(
 		() => {
 			s.answerAsks();
-			if (!s.zone(0, 'Battlefield').some((c) => c.id === id && c.tapped)) s.select(0, id);
-			return s.zone(0, 'Battlefield').some((c) => c.id === id && c.tapped);
+			if (!resent && !tapped() && Date.now() - sentAt > RESEND_AFTER_MS) {
+				resent = true;
+				s.select(0, id);
+			}
+			return tapped();
 		},
 		`card ${id} tapped`,
 		20_000,
