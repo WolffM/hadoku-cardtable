@@ -1,8 +1,10 @@
 /*
- * The one place in this repo that constructs an `AudioContext`.
+ * The placeholder cues' `AudioContext`. `./mixer.ts` owns the other one, for
+ * recorded takes, until wave B moves these cues onto roles and deletes this
+ * file (`docs/planning/audio.md`).
  *
- * Grep for `AudioContext`, `new Audio(`, `.mp3` or `.ogg` and this file is the
- * only hit outside its own tests. That is the deliverable: when the operator
+ * Outside those two files, grep for `AudioContext`, `new Audio(`, `.mp3` or
+ * `.ogg` and there is no hit. That is the deliverable: when the operator
  * replaces the placeholder cues, or wants them routed through a mixer, or wants
  * them off on a slow machine, there is one file to change and no component to
  * find. `../components/CardTile.tsx` and `../rooms/RoomList.tsx` call `playCue`

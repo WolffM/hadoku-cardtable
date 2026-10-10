@@ -20,6 +20,7 @@
  *   `#/match/<matchId>`  a match: the invite link for the other seat, and the board
  *   `#/debug`            the developer harness that used to be the front door
  *   `#/sounds`           the sound builder (wave 50) — admin-gated, no link points at it
+ *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, admin-gated
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
  * lands on the room list, which offers a way in, rather than on an error page
@@ -62,7 +63,8 @@ export type Route =
   | { kind: 'room'; roomId: string }
   | { kind: 'debug' }
   /** Admin-gated (wave 50 §U). `SoundBuilder` itself renders nothing for anyone else. */
-  | { kind: 'sounds' };
+  | { kind: 'sounds' }
+  | { kind: 'sounds-sandbox' };
 
 /**
  * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
@@ -78,6 +80,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'debug') return { kind: 'debug' };
   if (path === 'play') return { kind: 'play' };
   if (path === 'sounds') return { kind: 'sounds' };
+  if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
 
   const parts = path.split('/');
   if (parts.length !== 2) return { kind: 'lobby' };
@@ -120,6 +123,8 @@ export function routeHash(route: Route): string {
       return '#/debug';
     case 'sounds':
       return '#/sounds';
+    case 'sounds-sandbox':
+      return '#/sounds/sandbox';
     case 'draft':
       return `#/draft/${encodeURIComponent(route.draftId)}`;
     case 'deck':

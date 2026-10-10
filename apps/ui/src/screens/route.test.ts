@@ -26,6 +26,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/')).toEqual({ kind: 'lobby' });
     expect(parseRoute('#/debug')).toEqual({ kind: 'debug' });
     expect(parseRoute('#/sounds')).toEqual({ kind: 'sounds' });
+    expect(parseRoute('#/sounds/sandbox')).toEqual({ kind: 'sounds-sandbox' });
     expect(parseRoute('#/room/r-1a2b3c4d5e6f')).toEqual({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' });
     expect(parseRoute('#/deck/friday-cube')).toEqual({ kind: 'deck', draftId: 'friday-cube' });
   });
@@ -60,6 +61,7 @@ describe('parseRoute', () => {
       { kind: 'lobby' },
       { kind: 'debug' },
       { kind: 'sounds' },
+      { kind: 'sounds-sandbox' },
       { kind: 'draft', draftId: 'amber-lantern-k7q4' },
       { kind: 'deck', draftId: 'amber-lantern-k7q4' },
       { kind: 'play' },

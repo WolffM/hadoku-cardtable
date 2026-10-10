@@ -19,6 +19,7 @@
  *   `#/match/<matchId>`  `MatchScreen` — the invite link and the live board
  *   `#/debug`            `DebugHarness` — the old front door
  *   `#/sounds`           `SoundBuilder` — admin-gated (wave 50 §U), renders nothing for anyone else
+ *   `#/sounds/sandbox`   `SoundSandbox` — admin-gated the same way
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.
  *
@@ -42,6 +43,7 @@ import { DeckScreen } from './screens/DeckScreen.tsx';
 import { LobbyScreen } from './screens/LobbyScreen.tsx';
 import { MatchScreen } from './screens/MatchScreen.tsx';
 import { SoundBuilder } from './screens/SoundBuilder.tsx';
+import { SoundSandbox } from './screens/SoundSandbox.tsx';
 import { navigate, useRoute } from './screens/route.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell, useWhoami } from './room/RoomShell.tsx';
@@ -105,6 +107,8 @@ function Screen({ transport }: AppProps) {
       return <DebugHarness />;
     case 'sounds':
       return <SoundBuilder />;
+    case 'sounds-sandbox':
+      return <SoundSandbox />;
     case 'draft':
       return <LegacyDraftRedirect draftId={route.draftId} />;
     case 'deck':

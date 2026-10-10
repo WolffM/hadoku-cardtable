@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /*
  * The sound builder, driven through its own props — a stub `SoundsClient` and
- * a stub `AudioPool`, never a real fetch or a real `<audio>`. What this pins:
+ * a stub player, never a real fetch or a real `AudioContext`. What this pins:
  *
  *   - a non-admin (`canEdit: false`) gets nothing rendered — the gate is the
  *     server's `canEdit`, and there is no local override;
@@ -21,7 +21,7 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { SoundBuilder } from './SoundBuilder.tsx';
-import type { Assignments, AudioPool, SoundsClient } from '../sound/builderClient.ts';
+import type { Assignments, SoundsClient } from '../sound/builderClient.ts';
 
 afterEach(() => cleanup());
 
@@ -46,19 +46,24 @@ const TAKE_B = {
   prompt: 'a river',
 };
 
-function stubClient(assignments: Assignments, takes = [TAKE_A, TAKE_B]): SoundsClient & { saves: { cell: string; files: string[] }[] } {
-  const saves: { cell: string; files: string[] }[] = [];
+type Saved = { cell: string; files: string[]; gain?: number };
+
+function stubClient(
+  assignments: Omit<Assignments, 'gains'> & { gains?: Record<string, number> },
+  takes = [TAKE_A, TAKE_B],
+): SoundsClient & { saves: Saved[] } {
+  const saves: Saved[] = [];
   return {
     saves,
     async catalogue() {
       return takes;
     },
     async assignments() {
-      return assignments;
+      return { gains: {}, ...assignments };
     },
-    async save(cell, files) {
-      saves.push({ cell, files: [...files] });
-      return [...files];
+    async save(cell, files, gain) {
+      saves.push(gain === undefined ? { cell, files: [...files] } : { cell, files: [...files], gain });
+      return { files: [...files], gain: gain ?? 1 };
     },
     takeUrl(file) {
       return `/api/sounds/takes/${file}`;
@@ -66,8 +71,13 @@ function stubClient(assignments: Assignments, takes = [TAKE_A, TAKE_B]): SoundsC
   };
 }
 
-function stubPool(): AudioPool {
-  return { play: vi.fn(async () => undefined) };
+function stubPlayer() {
+  return { playFile: vi.fn() };
+}
+
+/** The matrix lives on the Colours tab; Roles is the default. */
+function showColours(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'Colours' }));
 }
 
 function dataTransferStub() {
@@ -107,17 +117,17 @@ describe('SoundBuilder', () => {
         assignmentsResolved = true;
         return v;
       }),
-      save: vi.fn(async (_cell, files) => [...files]),
+      save: vi.fn(async (_cell, files) => ({ files: [...files], gain: 1 })),
       takeUrl: (file) => file,
     };
 
-    const { container } = render(createElement(SoundBuilder, { client, audioPool: stubPool() }));
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     expect(client.catalogue).toHaveBeenCalledTimes(1);
     expect(client.assignments).toHaveBeenCalledTimes(1);
     expect(assignmentsResolved).toBe(false); // nothing has resolved yet — the render above proves nothing
 
     await act(async () => {
-      gate.resolve({ cells: {}, canEdit: false });
+      gate.resolve({ cells: {}, gains: {}, canEdit: false });
       // Flush the whole chain inside `act`: the gate settling, `Promise.all`'s
       // own combinator, the component's `.then` (`setTakes`/`setCells`/
       // `setCanEdit`/`setLoaded`), and the resulting re-render. Two extra
@@ -135,20 +145,21 @@ describe('SoundBuilder', () => {
 
   it('renders the builder once canEdit is true', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
-    render(createElement(SoundBuilder, { client, audioPool: stubPool() }));
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     expect(await screen.findByText('Sound Builder')).toBeTruthy();
     expect(screen.getByText('2', { selector: 'b' })).toBeTruthy(); // "2 keepers"
   });
 
   it('click a pill then click a cell sends one PUT with the new list', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
-    const pool = stubPool();
-    const { container } = render(createElement(SoundBuilder, { client, audioPool: pool }));
+    const player = stubPlayer();
+    const { container } = render(createElement(SoundBuilder, { client, player }));
     await screen.findByText('Sound Builder');
+    showColours();
 
     const pill = screen.getByRole('button', { name: /Water · 1: play and pick up/ });
     fireEvent.click(pill);
-    expect(pool.play).toHaveBeenCalledWith(TAKE_A.file);
+    expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file);
     expect(pill.getAttribute('aria-pressed')).toBe('true');
 
     const cell = container.querySelector('[data-cell="W|spell"]');
@@ -160,8 +171,9 @@ describe('SoundBuilder', () => {
 
   it('dragging a placed take to another cell sends two PUTs: source, then target', async () => {
     const client = stubClient({ cells: { 'W|spell': [TAKE_A.file] }, canEdit: true });
-    const { container } = render(createElement(SoundBuilder, { client, audioPool: stubPool() }));
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     await screen.findByText('Sound Builder');
+    showColours();
 
     const source = container.querySelector('[data-cell="W|spell"]')!;
     const target = container.querySelector('[data-cell="U|spell"]')!;
@@ -179,8 +191,9 @@ describe('SoundBuilder', () => {
 
   it('the × on a placed take removes it with one PUT', async () => {
     const client = stubClient({ cells: { 'W|spell': [TAKE_A.file, TAKE_B.file] }, canEdit: true });
-    const { container } = render(createElement(SoundBuilder, { client, audioPool: stubPool() }));
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     await screen.findByText('Sound Builder');
+    showColours();
 
     const cell = container.querySelector('[data-cell="W|spell"]')!;
     const remove = screen.getByRole('button', { name: `Remove ${TAKE_A.label}` });
@@ -193,8 +206,9 @@ describe('SoundBuilder', () => {
   it('marks a cell unsaved, with no text, when the save fails', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
     client.save = async () => null;
-    const { container } = render(createElement(SoundBuilder, { client, audioPool: stubPool() }));
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     await screen.findByText('Sound Builder');
+    showColours();
 
     const pill = screen.getByRole('button', { name: /Water · 1: play and pick up/ });
     fireEvent.click(pill);
@@ -210,10 +224,49 @@ describe('SoundBuilder', () => {
 
   it('a mono identity\'s Land cell is hinted with its basic land name when empty', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
-    const { container } = render(createElement(SoundBuilder, { client, audioPool: stubPool() }));
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
     await screen.findByText('Sound Builder');
+    showColours();
 
     const landCell = container.querySelector('[data-cell="W|land"]')!;
     expect(landCell.textContent).toBe('Plains');
+  });
+
+  it('opens on the roles, and a take placed on a role saves that role cell', async () => {
+    const client = stubClient({ cells: {}, canEdit: true });
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+    expect(container.querySelector('[data-cell="W|spell"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Water · 1: play and pick up/ }));
+    fireEvent.click(container.querySelector('[data-cell="g.draw|play"]')!);
+    expect(client.saves).toEqual([{ cell: 'g.draw|play', files: [TAKE_A.file] }]);
+  });
+
+  it("a filled cell's gain commits once on release, with its files", async () => {
+    const client = stubClient({ cells: { 'g.draw|play': [TAKE_A.file] }, gains: { 'g.draw|play': 0.5 }, canEdit: true });
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+
+    const slider = screen.getByRole('slider', { name: 'Draw gain' }) as HTMLInputElement;
+    expect(slider.value).toBe('0.5');
+    fireEvent.change(slider, { target: { value: '0.8' } });
+    fireEvent.change(slider, { target: { value: '0.9' } });
+    expect(client.saves).toEqual([]);
+    fireEvent.pointerUp(slider);
+    expect(client.saves).toEqual([{ cell: 'g.draw|play', files: [TAKE_A.file], gain: 0.9 }]);
+  });
+
+  it('the search and the unplaced filter narrow the bin', async () => {
+    const client = stubClient({ cells: { 'g.draw|play': [TAKE_A.file] }, canEdit: true });
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Unplaced' }));
+    expect(screen.queryByRole('button', { name: /Water · 1: play and pick up/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Water · 2: play and pick up/ })).toBeTruthy();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search takes' }), { target: { value: 'brook' } });
+    expect(screen.queryByRole('button', { name: /Water · 2: play and pick up/ })).toBeNull();
   });
 });

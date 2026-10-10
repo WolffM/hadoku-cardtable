@@ -1,13 +1,12 @@
 /*
  * The sound builder's client, against a stub fetch — no DOM, no network.
  *
- * `environment: node` (the repo default) is enough: `createAudioPool`'s own
- * tests inject `createAudio`, so no real `HTMLAudioElement` is needed either.
+ * `environment: node` (the repo default) is enough: nothing here plays audio.
  */
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAudioPool, pickRandom, soundsClient, type Fetch } from './builderClient.ts';
+import { pickRandom, soundsClient, type Fetch } from './builderClient.ts';
 
 const TAKE = {
   file: 'lib-water/take-001.ogg',
@@ -63,18 +62,22 @@ describe('soundsClient.assignments', () => {
       vi.fn(async () => okJson({ cells: { 'W|spell': ['lib-water/take-001.ogg'] }, canEdit: true })),
       '/api/',
     );
-    expect(await client.assignments()).toEqual({ cells: { 'W|spell': ['lib-water/take-001.ogg'] }, canEdit: true });
+    expect(await client.assignments()).toEqual({
+      cells: { 'W|spell': ['lib-water/take-001.ogg'] },
+      gains: {},
+      canEdit: true,
+    });
   });
 
   it('refuses a cell key that is not a valid CellId', async () => {
     const client = soundsClient(vi.fn(async () => okJson({ cells: { bogus: ['x'] }, canEdit: true })), '/api/');
     // The superRefine fails the whole parse; the client's fallback is the empty case.
-    expect(await client.assignments()).toEqual({ cells: {}, canEdit: false });
+    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, canEdit: false });
   });
 
   it('is the empty, read-only case on a 403 or an unreachable server', async () => {
     const refused = soundsClient(vi.fn(async () => failed(403)), '/api/');
-    expect(await refused.assignments()).toEqual({ cells: {}, canEdit: false });
+    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, canEdit: false });
   });
 });
 
@@ -83,11 +86,19 @@ describe('soundsClient.save', () => {
     const fetchImpl: Fetch = vi.fn(async () => okJson({ cell: 'W|spell', files: ['a/take-1.ogg'] }));
     const client = soundsClient(fetchImpl, '/api/');
     const saved = await client.save('W|spell', ['a/take-1.ogg']);
-    expect(saved).toEqual(['a/take-1.ogg']);
+    expect(saved).toEqual({ files: ['a/take-1.ogg'], gain: 1 });
     const [reqUrl, init] = (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]!;
     expect(reqUrl).toBe('/api/sounds/assignments/W%7Cspell');
     expect(init.method).toBe('PUT');
     expect(JSON.parse(String(init.body))).toEqual({ files: ['a/take-1.ogg'] });
+  });
+
+  it('sends a gain when one is given, and returns the stored one', async () => {
+    const fetchImpl: Fetch = vi.fn(async () => okJson({ cell: 'W|spell', files: [], gain: 0.3 }));
+    const client = soundsClient(fetchImpl, '/api/');
+    expect(await client.save('W|spell', [], 0.3)).toEqual({ files: [], gain: 0.3 });
+    const [, init] = (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]!;
+    expect(JSON.parse(String(init.body))).toEqual({ files: [], gain: 0.3 });
   });
 
   it('returns null on a 403 (friend, not admin)', async () => {
@@ -143,53 +154,5 @@ describe('pickRandom', () => {
     expect(pickRandom(['a', 'b', 'c'], null, () => 0.999)).toBe('c');
     // excludes 'a' (the last pick), so rng=0 lands on the first of the remainder
     expect(pickRandom(['a', 'b', 'c'], 'a', () => 0)).toBe('b');
-  });
-});
-
-describe('createAudioPool', () => {
-  function stubAudio(): HTMLAudioElement {
-    const a = {
-      src: '',
-      currentTime: 0,
-      pause: vi.fn(),
-      play: vi.fn(async () => undefined),
-    };
-    return a as unknown as HTMLAudioElement;
-  }
-
-  it('fetches a take once and plays it through a pooled element', async () => {
-    const blob = { size: 1 } as Blob;
-    const fetchImpl: Fetch = vi.fn(async () => ({ ok: true, blob: async () => blob }) as unknown as Response);
-    const original = (globalThis as { URL: typeof URL }).URL.createObjectURL;
-    (globalThis as unknown as { URL: { createObjectURL: (b: Blob) => string } }).URL.createObjectURL = vi.fn(
-      () => 'blob:fake',
-    );
-    const audios = [stubAudio(), stubAudio()];
-    let i = 0;
-    const pool = createAudioPool(
-      { takeUrl: (f) => `/x/${f}` },
-      { voices: 2, fetchImpl, createAudio: () => audios[i++ % audios.length] },
-    );
-    await pool.play('a/take-1.ogg');
-    await pool.play('a/take-1.ogg');
-    expect(fetchImpl).toHaveBeenCalledTimes(1); // cached after the first fetch
-    expect(audios[0]!.play).toHaveBeenCalledTimes(1);
-    expect(audios[1]!.play).toHaveBeenCalledTimes(1); // round-robins across voices
-    (globalThis as unknown as { URL: { createObjectURL: unknown } }).URL.createObjectURL = original;
-  });
-
-  it('fails soft when the fetch rejects — no throw, nothing played', async () => {
-    const fetchImpl: Fetch = vi.fn(async () => {
-      throw new Error('404');
-    });
-    const audio = stubAudio();
-    const pool = createAudioPool({ takeUrl: (f) => `/x/${f}` }, { voices: 1, fetchImpl, createAudio: () => audio });
-    await expect(pool.play('missing/take-1.ogg')).resolves.toBeUndefined();
-    expect(audio.play).not.toHaveBeenCalled();
-  });
-
-  it('does nothing when there is no audio element available (no voices)', async () => {
-    const pool = createAudioPool({ takeUrl: (f) => f }, { voices: 0, createAudio: () => stubAudio() });
-    await expect(pool.play('a/take-1.ogg')).resolves.toBeUndefined();
   });
 });

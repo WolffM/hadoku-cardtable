@@ -1,6 +1,5 @@
 /*
- * The sound builder's HTTP client, and the small audio pool it plays takes
- * through.
+ * The sound builder's HTTP client.
  *
  * Every wire shape — `SoundTake`, the catalogue, the assignment map, `CellId`
  * — comes from `@hadoku/shared` (`packages/shared/src/sounds.ts`), which the
@@ -13,7 +12,7 @@
  *
  * A read that cannot reach the server, or that the server answers with
  * something that does not parse, comes back as the EMPTY case — `[]` for the
- * catalogue, `{ cells: {}, canEdit: false }` for assignments — rather than a
+ * catalogue, `{ cells: {}, gains: {}, canEdit: false }` for assignments — rather than a
  * thrown error. `SoundBuilder.tsx` renders nothing useful for a non-admin
  * already, and "the server is unreachable" is not a fact worth a different
  * screen from "you are not an admin": both mean there is nothing to edit here
@@ -37,7 +36,15 @@ export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface Assignments {
   cells: Record<string, string[]>;
+  /** A cell's level relative to the others; a missing entry is 1. */
+  gains: Record<string, number>;
   canEdit: boolean;
+}
+
+/** What a save stored: the cell's file list and its gain. */
+export interface SavedCell {
+  files: string[];
+  gain: number;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -72,7 +79,7 @@ export interface SoundsClient {
    * refused (403, a malformed body, an unknown file), or answered with
    * something that does not parse.
    */
-  save(cell: CellId, files: readonly string[]): Promise<string[] | null>;
+  save(cell: CellId, files: readonly string[], gain?: number): Promise<SavedCell | null>;
   /** The same-origin URL a take's audio streams from. */
   takeUrl(file: string): string;
 }
@@ -101,21 +108,21 @@ export function soundsClient(
       try {
         res = await fetchImpl(url('/assignments'), { credentials: 'same-origin' });
       } catch {
-        return { cells: {}, canEdit: false };
+        return { cells: {}, gains: {}, canEdit: false };
       }
-      if (!res.ok) return { cells: {}, canEdit: false };
+      if (!res.ok) return { cells: {}, gains: {}, canEdit: false };
       const parsed = AssignmentsSchema.safeParse(await bodyOf(res));
-      return parsed.success ? parsed.data : { cells: {}, canEdit: false };
+      return parsed.success ? parsed.data : { cells: {}, gains: {}, canEdit: false };
     },
 
-    async save(cell, files) {
+    async save(cell, files, gain) {
       let res: Response;
       try {
         res = await fetchImpl(url(`/assignments/${encodeURIComponent(cell)}`), {
           method: 'PUT',
           credentials: 'same-origin',
           headers: JSON_HEADERS,
-          body: JSON.stringify({ files }),
+          body: JSON.stringify(gain === undefined ? { files } : { files, gain }),
         });
       } catch {
         return null;
@@ -123,7 +130,10 @@ export function soundsClient(
       if (!res.ok) return null;
       const body = await bodyOf(res);
       if (!isRecord(body) || !Array.isArray(body.files)) return null;
-      return body.files.filter((f): f is string => typeof f === 'string');
+      return {
+        files: body.files.filter((f): f is string => typeof f === 'string'),
+        gain: typeof body.gain === 'number' ? body.gain : 1,
+      };
     },
 
     takeUrl(file) {
@@ -153,88 +163,4 @@ export function pickRandom(
   const options = files.length > 1 && last !== null ? files.filter((f) => f !== last) : files;
   const i = Math.floor(rng() * options.length);
   return options[Math.min(i, options.length - 1)] ?? null;
-}
-
-/**
- * An 8-voice pool, so a sample turn's overlapping cues do not cut each other
- * off — the same shape `../sound/webaudio.ts` uses for in-game cues, kept
- * separate because this one plays SERVER-HOSTED files by URL rather than
- * synthesising an envelope, and the builder is the only caller.
- *
- * Each take is fetched once and cached as an object URL; a take that fails to
- * fetch or decode is remembered as failed and never retried, so one bad file
- * costs one silent take rather than a retry storm.
- */
-export interface AudioPool {
-  play(file: string): Promise<void>;
-}
-
-export interface AudioPoolOptions {
-  voices?: number;
-  fetchImpl?: Fetch;
-  /** Overridable so a test can inject a stub without a real `HTMLAudioElement`. */
-  createAudio?: () => HTMLAudioElement;
-}
-
-function defaultCreateAudio(): HTMLAudioElement | null {
-  return typeof Audio === 'undefined' ? null : new Audio();
-}
-
-export function createAudioPool(client: Pick<SoundsClient, 'takeUrl'>, opts: AudioPoolOptions = {}): AudioPool {
-  const voices = opts.voices ?? 8;
-  const fetchImpl = opts.fetchImpl ?? ((i, init) => fetch(i, init));
-  const make = opts.createAudio ?? defaultCreateAudio;
-
-  const pool: HTMLAudioElement[] = [];
-  for (let i = 0; i < voices; i++) {
-    const a = make();
-    if (a !== null) pool.push(a);
-  }
-  let next = 0;
-
-  /** file -> object URL, or `null` once fetching/decoding it has failed. */
-  const urls = new Map<string, string | null>();
-  const pending = new Map<string, Promise<string | null>>();
-
-  function load(file: string): Promise<string | null> {
-    const cached = urls.get(file);
-    if (cached !== undefined) return Promise.resolve(cached);
-    const inFlight = pending.get(file);
-    if (inFlight !== undefined) return inFlight;
-    const task = (async (): Promise<string | null> => {
-      try {
-        const res = await fetchImpl(client.takeUrl(file));
-        if (!res.ok) throw new Error(String(res.status));
-        const blob = await res.blob();
-        const objectUrl = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : null;
-        urls.set(file, objectUrl);
-        return objectUrl;
-      } catch {
-        urls.set(file, null);
-        return null;
-      } finally {
-        pending.delete(file);
-      }
-    })();
-    pending.set(file, task);
-    return task;
-  }
-
-  return {
-    async play(file) {
-      if (pool.length === 0) return;
-      const src = await load(file);
-      if (src === null) return;
-      const a = pool[next++ % pool.length];
-      try {
-        a.pause();
-        a.currentTime = 0;
-        a.src = src;
-        await a.play();
-      } catch {
-        // A browser that refuses to play (no gesture yet, a codec it does not
-        // have) loses this one take, not the page.
-      }
-    },
-  };
 }

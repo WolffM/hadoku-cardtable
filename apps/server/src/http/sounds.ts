@@ -10,8 +10,8 @@
  *
  *   GET /api/sounds/catalogue            → 200 { takes: SoundTake[] }
  *   GET /api/sounds/takes/:folder/:file   → 200 audio/ogg | 400 | 404
- *   GET /api/sounds/assignments           → 200 { cells, canEdit }
- *   PUT /api/sounds/assignments/:cell     { files: string[] } → 200 { cell, files } | 400 | 403
+ *   GET /api/sounds/assignments           → 200 { cells, gains, canEdit }
+ *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
  *
  * ## Storage, and what a missing directory means
  *
@@ -50,7 +50,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import { join, resolve as resolvePath, sep } from 'node:path';
 
-import { CatalogueSchema, PutAssignmentBodySchema, TAKE_FILE_RE, isCellId, type Catalogue } from '@hadoku/shared';
+import { CatalogueSchema, GainSchema, PutAssignmentBodySchema, TAKE_FILE_RE, isCellId, type Catalogue } from '@hadoku/shared';
 import { rankOf, tierOf } from '../edge-auth.js';
 
 export interface SoundsDeps {
@@ -105,23 +105,28 @@ async function readCatalogue(dir: string, log: Log): Promise<Catalogue> {
 	return parsed.data;
 }
 
+interface StoredAssignments {
+	cells: Record<string, string[]>;
+	gains: Record<string, number>;
+}
+
 /**
- * `assignments.json`'s `cells` map, read loosely (every value coerced to a
- * string array) rather than through the full `AssignmentsSchema` — that
- * schema's `canEdit` is never stored on disk, it is computed per request.
- * A key that is not a valid `CellId`, or a value that is not an array of
- * strings, is DROPPED rather than failing the whole read: a corrupt or
+ * `assignments.json`'s `cells` and `gains` maps, read loosely rather than
+ * through the full `AssignmentsSchema` — that schema's `canEdit` is never
+ * stored on disk, it is computed per request. A key that is not a valid
+ * `CellId`, a cell that is not an array of strings, or a gain outside
+ * `GainSchema`, is DROPPED rather than failing the whole read: a corrupt or
  * hand-edited file degrades to "that one cell is empty", not a 500. Every
  * degrade path is logged — a whole-file corruption as `sounds-file-corrupt`,
  * one or more dropped cells as `sounds-assignments-cells-dropped` with the
  * count — so "silently empty" is never the only trace left.
  */
-async function readAssignments(dir: string, log: Log): Promise<Record<string, string[]>> {
+async function readAssignments(dir: string, log: Log): Promise<StoredAssignments> {
 	let raw: string;
 	try {
 		raw = await readFile(join(dir, 'assignments.json'), 'utf8');
 	} catch (err) {
-		if (isEnoent(err)) return {};
+		if (isEnoent(err)) return { cells: {}, gains: {} };
 		throw err;
 	}
 	let json: unknown;
@@ -129,16 +134,16 @@ async function readAssignments(dir: string, log: Log): Promise<Record<string, st
 		json = JSON.parse(raw);
 	} catch {
 		log({ event: 'sounds-file-corrupt', file: 'assignments.json', reason: 'invalid JSON' });
-		return {};
+		return { cells: {}, gains: {} };
 	}
 	if (typeof json !== 'object' || json === null || Array.isArray(json)) {
 		log({ event: 'sounds-file-corrupt', file: 'assignments.json', reason: 'not an object' });
-		return {};
+		return { cells: {}, gains: {} };
 	}
 	const cellsRaw = (json as Record<string, unknown>).cells;
 	if (typeof cellsRaw !== 'object' || cellsRaw === null || Array.isArray(cellsRaw)) {
 		log({ event: 'sounds-file-corrupt', file: 'assignments.json', reason: 'cells is not an object' });
-		return {};
+		return { cells: {}, gains: {} };
 	}
 	const cells: Record<string, string[]> = {};
 	let dropped = 0;
@@ -149,8 +154,19 @@ async function readAssignments(dir: string, log: Log): Promise<Record<string, st
 		}
 		cells[key] = value as string[];
 	}
+	const gains: Record<string, number> = {};
+	const gainsRaw = (json as Record<string, unknown>).gains;
+	if (typeof gainsRaw === 'object' && gainsRaw !== null && !Array.isArray(gainsRaw)) {
+		for (const [key, value] of Object.entries(gainsRaw as Record<string, unknown>)) {
+			if (!isCellId(key) || !GainSchema.safeParse(value).success) {
+				dropped += 1;
+				continue;
+			}
+			gains[key] = value as number;
+		}
+	}
 	if (dropped > 0) log({ event: 'sounds-assignments-cells-dropped', count: dropped });
-	return cells;
+	return { cells, gains };
 }
 
 /**
@@ -173,8 +189,8 @@ async function atomicWriteJson(target: string, data: unknown): Promise<void> {
 	await rename(tmp, target);
 }
 
-async function writeAssignments(dir: string, cells: Record<string, string[]>): Promise<void> {
-	await atomicWriteJson(join(dir, 'assignments.json'), { cells });
+async function writeAssignments(dir: string, stored: StoredAssignments): Promise<void> {
+	await atomicWriteJson(join(dir, 'assignments.json'), stored);
 }
 
 export function attachSounds(api: Router, deps: SoundsDeps): void {
@@ -237,8 +253,8 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	});
 
 	sounds.get('/assignments', async (req: Request, res: Response) => {
-		const cells = await readAssignments(dir, log);
-		res.json({ cells, canEdit: isAdmin(req) });
+		const { cells, gains } = await readAssignments(dir, log);
+		res.json({ cells, gains, canEdit: isAdmin(req) });
 	});
 
 	sounds.put('/assignments/:cell', async (req: Request, res: Response) => {
@@ -249,20 +265,22 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		if (!parsed.success) {
 			return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.') || 'files'}: ${i.message}`).join('; '));
 		}
-		const { files } = parsed.data;
+		const { files, gain } = parsed.data;
 		// Read-only; does not need the write lock below.
 		const catalogue = await readCatalogue(dir, log);
 		const known = new Set(catalogue.takes.map((t) => t.file));
 		const unknown = files.filter((f) => !known.has(f));
 		if (unknown.length > 0) return badRequest(res, `unknown file(s): ${unknown.join(', ')}`);
 		// The read-modify-write is the critical section: see `withWriteLock`'s header.
-		await withWriteLock(async () => {
-			const cells = await readAssignments(dir, log);
-			cells[cell] = files;
-			await writeAssignments(dir, cells);
+		const saved = await withWriteLock(async () => {
+			const stored = await readAssignments(dir, log);
+			stored.cells[cell] = files;
+			if (gain !== undefined) stored.gains[cell] = gain;
+			await writeAssignments(dir, stored);
+			return stored.gains[cell] ?? 1;
 		});
 		log({ event: 'sounds-assignment-saved', cell, count: files.length });
-		res.json({ cell, files });
+		res.json({ cell, files, gain: saved });
 	});
 
 	api.use('/sounds', sounds);

@@ -32,8 +32,8 @@
  * reload), never playback or decoding, so undecodable bytes behind a real
  * `.ogg`-shaped path prove exactly as much. The `pageerror` collector below is
  * the check that clicking a pill with garbage bytes behind it stays inside
- * `createAudioPool`'s own fail-soft catch (`builderClient.ts`) rather than
- * surfacing as a page-level exception.
+ * the mixer's own fail-soft catch (`sound/mixer.ts`) rather than surfacing as
+ * a page-level exception.
  *
  * ## The admin identity
  *
@@ -67,7 +67,8 @@ const TAKES_DIR = resolve(SOUNDS_DIR, 'takes', 'w50-test');
 
 const TAKE_A = 'w50-test/take-a.ogg';
 const TAKE_B = 'w50-test/take-b.ogg';
-const CELL = 'W|spell';
+/** A role cell: on the builder's default Roles tab, and played by the sandbox's opening. */
+const CELL = 'g.draw|play';
 
 test.beforeAll(async () => {
   await rm(SOUNDS_DIR, { recursive: true, force: true });
@@ -124,8 +125,8 @@ test('admin can place a take and reload to find it saved; a friend gets no edito
 
   // Nothing on this page should ever throw as an uncaught page-level error —
   // in particular, clicking a pill whose bytes are not real audio must stay
-  // inside `createAudioPool`'s own fail-soft `catch` (`builderClient.ts`)
-  // rather than surfacing here. Attached to the ADMIN page, the only one that
+  // inside the mixer's own fail-soft `catch` (`sound/mixer.ts`) rather than
+  // surfacing here. Attached to the ADMIN page, the only one that
   // clicks a pill.
   const pageErrors: Error[] = [];
   admin.page.on('pageerror', (err) => pageErrors.push(err));
@@ -171,12 +172,25 @@ test('admin can place a take and reload to find it saved; a friend gets no edito
     await expect(reloadedPlaced).toContainText('w50 test · a');
     // Click the PLACED pill too: a second path (`onPlayPill`, not the bin's
     // pick-up click) that fetches the same not-really-audio bytes and plays
-    // them through the pool.
+    // them through the mixer.
     await reloadedPlaced.click();
 
-    // Both plays — the bin pill before placement, the placed pill after the
-    // reload — ran against bytes that are not real audio, and neither reached
-    // here: `createAudioPool`'s fail-soft `catch` held both times.
+    // ── the sandbox: the same assignments, played as a scenario ──────────
+    await friend.page.goto(`${PREFIX}/#/sounds/sandbox`);
+    await expect(friend.page.getByRole('heading', { name: 'Card Table' })).toBeVisible();
+    await expect(friend.page.getByRole('heading', { name: 'Sound Sandbox' })).toHaveCount(0);
+
+    await admin.page.getByRole('link', { name: 'Sandbox' }).click();
+    await expect(admin.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
+    await admin.page.getByRole('button', { name: 'Opening hands' }).click();
+    await admin.page.getByRole('button', { name: 'Play' }).click();
+    // A draw beat fired and named the take it played: the assignment above,
+    // through the planner, into the row.
+    await expect(admin.page.locator('tr[data-fired]').filter({ hasText: 'w50 test · a' }).first()).toBeVisible();
+
+    // Every play — the bin pill, the placed pill, the scenario — ran against
+    // bytes that are not real audio, and none reached here: the mixer's
+    // fail-soft `catch` held each time.
     expect(pageErrors).toEqual([]);
   } finally {
     await admin.context.close();

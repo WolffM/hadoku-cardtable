@@ -212,7 +212,7 @@ describe('GET /api/sounds/assignments', () => {
 		const h = await openApp(await tempDir());
 		const res = await call(h, 'GET', '/api/sounds/assignments', { tier: 'friend' });
 		expect(res.status).toBe(200);
-		expect(res.json()).toEqual({ cells: {}, canEdit: false });
+		expect(res.json()).toEqual({ cells: {}, gains: {}, canEdit: false });
 	});
 
 	it('canEdit is true only for admin', async () => {
@@ -236,13 +236,16 @@ describe('GET /api/sounds/assignments', () => {
 		await mkdir(dir, { recursive: true });
 		await writeFile(
 			join(dir, 'assignments.json'),
-			JSON.stringify({ cells: { 'm-win|play': [TAKE.file], 'not-a-cell': ['x'], 'WU|spell': 'not-an-array' } }),
+			JSON.stringify({
+				cells: { 'g.win|play': [TAKE.file], 'not-a-cell': ['x'], 'WU|spell': 'not-an-array' },
+				gains: { 'g.win|play': 0.5, 'g.draw|play': 9 },
+			}),
 			'utf8',
 		);
 		const h = await openApp(dir);
 		const res = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
-		expect((res.json() as { cells: unknown }).cells).toEqual({ 'm-win|play': [TAKE.file] });
-		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-assignments-cells-dropped', count: 2 }));
+		expect(res.json()).toMatchObject({ cells: { 'g.win|play': [TAKE.file] }, gains: { 'g.win|play': 0.5 } });
+		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-assignments-cells-dropped', count: 3 }));
 	});
 });
 
@@ -253,7 +256,7 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir);
-		const res = await call(h, 'PUT', cellPath('m-win|play'), { tier: 'friend', body: { files: [TAKE.file] } });
+		const res = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'friend', body: { files: [TAKE.file] } });
 		expect(res.status).toBe(403);
 		const after = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
 		expect((after.json() as { cells: unknown }).cells).toEqual({});
@@ -263,11 +266,30 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir);
-		const res = await call(h, 'PUT', cellPath('m-win|play'), { tier: 'admin', body: { files: [TAKE.file] } });
+		const res = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [TAKE.file] } });
 		expect(res.status).toBe(200);
-		expect(res.json()).toEqual({ cell: 'm-win|play', files: [TAKE.file] });
+		expect(res.json()).toEqual({ cell: 'g.win|play', files: [TAKE.file], gain: 1 });
 		const after = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
-		expect((after.json() as { cells: unknown }).cells).toEqual({ 'm-win|play': [TAKE.file] });
+		expect((after.json() as { cells: unknown }).cells).toEqual({ 'g.win|play': [TAKE.file] });
+	});
+
+	it('stores a gain beside the files, and a PUT without one keeps it', async () => {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE]);
+		const h = await openApp(dir);
+		const res = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [TAKE.file], gain: 0.4 } });
+		expect(res.json()).toEqual({ cell: 'g.win|play', files: [TAKE.file], gain: 0.4 });
+		await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [] } });
+		const after = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
+		expect(after.json()).toMatchObject({ cells: { 'g.win|play': [] }, gains: { 'g.win|play': 0.4 } });
+	});
+
+	it('a gain outside 0..2 is 400', async () => {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE]);
+		const h = await openApp(dir);
+		const res = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [], gain: 3 } });
+		expect(res.status).toBe(400);
 	});
 
 	it('a malformed cell id is 400, and nothing is persisted', async () => {
@@ -283,7 +305,7 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir);
-		const res = await call(h, 'PUT', cellPath('m-win|play'), {
+		const res = await call(h, 'PUT', cellPath('g.win|play'), {
 			tier: 'admin',
 			body: { files: ['m-win/take-ghost.ogg'] },
 		});
@@ -296,11 +318,11 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir);
-		await call(h, 'PUT', cellPath('m-win|play'), { tier: 'admin', body: { files: [TAKE.file] } });
-		const res = await call(h, 'PUT', cellPath('m-win|play'), { tier: 'admin', body: { files: [] } });
+		await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [TAKE.file] } });
+		const res = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [] } });
 		expect(res.status).toBe(200);
 		const after = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
-		expect((after.json() as { cells: unknown }).cells).toEqual({ 'm-win|play': [] });
+		expect((after.json() as { cells: unknown }).cells).toEqual({ 'g.win|play': [] });
 	});
 
 	it('two concurrent PUTs to different cells both land — no lost update', async () => {
@@ -308,14 +330,14 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 		await writeCatalogue(dir, [TAKE, TAKE2]);
 		const h = await openApp(dir);
 		const [r1, r2] = await Promise.all([
-			call(h, 'PUT', cellPath('m-win|play'), { tier: 'admin', body: { files: [TAKE.file] } }),
+			call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [TAKE.file] } }),
 			call(h, 'PUT', cellPath('WU|spell'), { tier: 'admin', body: { files: [TAKE2.file] } }),
 		]);
 		expect(r1.status).toBe(200);
 		expect(r2.status).toBe(200);
 		const after = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
 		expect((after.json() as { cells: unknown }).cells).toEqual({
-			'm-win|play': [TAKE.file],
+			'g.win|play': [TAKE.file],
 			'WU|spell': [TAKE2.file],
 		});
 	});
@@ -326,13 +348,13 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 		const h = await openApp(dir);
 
 		// A known prior state to prove untouched-ness against.
-		const first = await call(h, 'PUT', cellPath('m-win|play'), { tier: 'admin', body: { files: [TAKE.file] } });
+		const first = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [TAKE.file] } });
 		expect(first.status).toBe(200);
 		const assignmentsPath = join(dir, 'assignments.json');
 		const before = await readFile(assignmentsPath, 'utf8');
 
 		vi.mocked(rename).mockRejectedValueOnce(new Error('simulated crash between write and rename'));
-		const res = await call(h, 'PUT', cellPath('m-win|play'), { tier: 'admin', body: { files: [] } });
+		const res = await call(h, 'PUT', cellPath('g.win|play'), { tier: 'admin', body: { files: [] } });
 		expect(res.status).toBe(500);
 
 		const after = await readFile(assignmentsPath, 'utf8');

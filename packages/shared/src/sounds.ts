@@ -14,10 +14,10 @@
  * ## `CellId` is a grammar, not a free string
  *
  * `<row>|<col>`, where `row` is one of the 27 colour-identity ids or one of
- * the 13 event ids, and `col` is one of the five paradigms (for a colour row)
- * or the literal `play` (for an event row). `isCellId`/`parseCellId` are the
- * one place that pairing is checked — a colour row with `play`, or an event
- * row with `spell`, is not a cell.
+ * the role ids (`SOUND_ROLES`), and `col` is one of the five paradigms (for a
+ * colour row) or the literal `play` (for a role). `isCellId`/`parseCellId` are
+ * the one place that pairing is checked — a colour row with `play`, or a role
+ * with `spell`, is not a cell.
  *
  * ## `TAKE_FILE_RE` is the traversal gate
  *
@@ -34,14 +34,21 @@
  * `SOUND_MATRIX` is the one constant both lanes read: 26 colour identities (5
  * mono, 10 guild, 10 three-colour, one four-plus) plus colourless, each
  * paradigm a mono identity's Land cell is relabelled with its basic land
- * name, and 13 game-moment events. Ported from the operator-approved artifact
+ * name. Ported from the operator-approved artifact
  * (`docs/handoff/snapshot/rows.json`, read-only reference — never read at
  * runtime by anything here).
+ *
+ * ## Roles are the generic layer
+ *
+ * `SOUND_ROLES` is every moment that makes a sound (`docs/planning/audio.md`).
+ * A role's take always plays; a colour × paradigm take, when the event carries
+ * one, mixes on top of it. Each role names the bus it plays on, so the mixer
+ * can level interface, game and colour sounds against each other.
  */
 
 import { z } from 'zod';
 
-/* ── Rows, columns, events — the one shared matrix ──────────────────── */
+/* ── Rows, columns, roles — the one shared matrix ──────────────────── */
 
 /** A colour-identity row's grouping. Mirrors the artifact's own `family` tag. */
 export type ColourFamily = 'mono' | 'guild' | 'shard' | 'wedge' | 'four' | 'extra';
@@ -58,10 +65,22 @@ export interface ColourRow {
 	readonly colours: readonly ManaPip[];
 }
 
-export interface EventRow {
+/** The mixer bus a sound plays on. Colour cells always play on `colour`. */
+export type SoundBus = 'ui' | 'game' | 'colour';
+
+export interface SoundRole {
 	readonly id: string;
 	readonly name: string;
 	readonly sub: string;
+	readonly bus: Exclude<SoundBus, 'colour'>;
+	/** Briefly lowers every other sound while it plays. */
+	readonly duck?: boolean;
+}
+
+export interface SoundRoleGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly roles: readonly SoundRole[];
 }
 
 export interface ParadigmCol {
@@ -105,26 +124,111 @@ export const COLOUR_IDS = [
 ] as const;
 export type ColourId = (typeof COLOUR_IDS)[number];
 
-/** The 13 game-moment events, each with a single `play` column. */
-export const EVENT_IDS = [
-	'm-draw',
-	'm-shuffle',
-	'm-tapcard',
-	'm-resolve',
-	'm-attack',
-	'm-block',
-	'm-damage',
-	'm-damage-player',
-	'm-dies',
-	'm-phase',
-	'm-turn',
-	'm-win',
-	'm-lose',
-] as const;
-export type EventId = (typeof EVENT_IDS)[number];
+const ui = (id: string, name: string, sub: string): SoundRole => ({ id, name, sub, bus: 'ui' });
+const game = (id: string, name: string, sub: string, duck?: boolean): SoundRole =>
+	duck === true ? { id, name, sub, bus: 'game', duck } : { id, name, sub, bus: 'game' };
 
-/** `<ColourId>|<ParadigmId>` or `<EventId>|play`. Validated by `isCellId`. */
-export type CellId = `${ColourId}|${ParadigmId}` | `${EventId}|play`;
+/** Every role, grouped the way the builder lists them. */
+export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
+	{
+		id: 'interface',
+		name: 'Interface',
+		roles: [
+			ui('ui.hover-card', 'Hover a card', 'The pointer arrives on a card. Fires constantly; keep it faint.'),
+			ui('ui.hover-control', 'Hover a button', 'The pointer arrives on a control.'),
+			ui('ui.select', 'Select', 'A click that took effect.'),
+			ui('ui.lift', 'Pick up a card', 'A press-drag takes a card in hand.'),
+			ui('ui.place', 'Put a card down', 'A drag lands somewhere it may.'),
+			ui('ui.deny', 'Refused', 'An illegal drop, target or control.'),
+			ui('ui.target', 'Target locks', 'A targeting arrow settles on a target.'),
+			ui('ui.pass', 'Pass / OK', 'Pass priority, OK, end turn.'),
+			ui('ui.prompt', 'Your move', 'A decision window opens for you.'),
+			ui('ui.inspect', 'Inspect', 'The expanded card view opens.'),
+			ui('ui.draft-pick', 'Draft pick', 'A pick is taken in the draft.'),
+		],
+	},
+	{
+		id: 'stack',
+		name: 'Casting and the stack',
+		roles: [
+			game('g.cast.creature', 'Cast a creature', 'A creature spell goes on the stack. Quiet, colourless.'),
+			game('g.cast.instant', 'Cast an instant', 'An instant goes on the stack.'),
+			game('g.cast.sorcery', 'Cast a sorcery', 'A sorcery goes on the stack.'),
+			game('g.cast.artifact', 'Cast an artifact', 'An artifact spell goes on the stack.'),
+			game('g.cast.enchantment', 'Cast an enchantment', 'An enchantment spell goes on the stack.'),
+			game('g.cast.planeswalker', 'Cast a planeswalker', 'A planeswalker spell goes on the stack.'),
+			game('g.cast.battle', 'Cast a battle', 'A battle spell goes on the stack.'),
+			game('g.ability', 'Ability', 'An activated or triggered ability goes on the stack.'),
+			game('g.resolve', 'Resolves', 'The top of the stack resolves.'),
+			game('g.counter', 'Countered', 'A spell leaves the stack without resolving.'),
+		],
+	},
+	{
+		id: 'battlefield',
+		name: 'On the battlefield',
+		roles: [
+			game('g.land', 'Play a land', 'A land is put onto the battlefield. The colour layer is its land cell.'),
+			game('g.creature', 'Creature voice', "A creature resolves. The colour layer is the colour's creature cell."),
+			game('g.enter', 'Lands on the table', 'A permanent hits the battlefield.'),
+			game('g.token', 'Token appears', 'A token is created.'),
+			game('g.tap', 'Tap', 'A permanent turns sideways.'),
+			game('g.untap', 'Untap', 'A single permanent untaps.'),
+			game('g.untap-all', 'Untap step', 'Everything untaps at the start of a turn.'),
+			game('g.counter-on', 'Counter added', 'A +1/+1, loyalty or other counter is put on.'),
+			game('g.counter-off', 'Counter removed', 'A counter comes off.'),
+			game('g.attach', 'Attach', 'An aura or equipment attaches.'),
+			game('g.transform', 'Transform', 'A card flips or transforms.'),
+			game('g.mana', 'Mana', 'Mana is added to a pool.'),
+		],
+	},
+	{
+		id: 'zones',
+		name: 'Cards moving',
+		roles: [
+			game('g.draw', 'Draw', 'A card moves from library to hand.'),
+			game('g.shuffle', 'Shuffle', 'A library is shuffled.'),
+			game('g.dies', 'Creature dies', 'A creature goes to the graveyard.'),
+			game('g.destroy', 'Destroyed', 'A non-creature permanent goes to the graveyard.'),
+			game('g.exile', 'Exile', 'A card is exiled.'),
+			game('g.bounce', 'Returned to hand', 'A permanent returns to its owner’s hand.'),
+			game('g.discard', 'Discard', 'A card is discarded.'),
+			game('g.mill', 'Mill', 'Cards go from library to graveyard.'),
+			game('g.reanimate', 'Reanimate', 'A card returns from the graveyard to the battlefield.'),
+		],
+	},
+	{
+		id: 'combat',
+		name: 'Combat and life',
+		roles: [
+			game('g.attack', 'Attack', 'Attackers are declared.'),
+			game('g.block', 'Block', 'Blockers are declared.'),
+			game('g.damage', 'Damage to a creature', 'A creature takes damage.'),
+			game('g.damage-player', 'Damage to a player', 'A player or planeswalker loses life to damage.'),
+			game('g.lifegain', 'Life gain', 'A player gains life.'),
+		],
+	},
+	{
+		id: 'turn',
+		name: 'Turn and game',
+		roles: [
+			game('g.game-start', 'Game start', 'The coin toss settles who goes first.'),
+			game('g.mulligan', 'Mulligan', 'A hand goes back.'),
+			game('g.turn-mine', 'Your turn', 'Your turn begins.', true),
+			game('g.turn-theirs', 'Their turn', 'The opponent’s turn begins.', true),
+			game('g.phase', 'Phase change', 'The game moves to the next step.'),
+			game('g.win', 'Victory', 'You win the game.', true),
+			game('g.lose', 'Defeat', 'You lose the game.', true),
+		],
+	},
+];
+
+/** Every role by id. */
+export const SOUND_ROLES: ReadonlyMap<string, SoundRole> = new Map(
+	SOUND_ROLE_GROUPS.flatMap((g) => g.roles.map((r) => [r.id, r] as const)),
+);
+
+/** `<ColourId>|<ParadigmId>` or `<role id>|play`. Validated by `isCellId`. */
+export type CellId = `${ColourId}|${ParadigmId}` | `${string}|play`;
 
 /**
  * Display names, families, colour pips and mono land names — one constant,
@@ -136,7 +240,6 @@ export const SOUND_MATRIX: {
 	readonly paradigms: readonly ParadigmCol[];
 	readonly landNames: Readonly<Record<'W' | 'U' | 'B' | 'R' | 'G', string>>;
 	readonly colour: readonly ColourRow[];
-	readonly events: readonly EventRow[];
 } = {
 	paradigms: [
 		{ id: 'spell', name: 'Spell' },
@@ -181,30 +284,14 @@ export const SOUND_MATRIX: {
 		},
 		{ id: 'C', name: 'Colourless', sub: 'Artifacts and Eldrazi (suggested 27th)', family: 'extra', colours: ['C'] },
 	],
-	events: [
-		{ id: 'm-draw', name: 'Draw a card', sub: 'A card moves from library to hand.' },
-		{ id: 'm-shuffle', name: 'Shuffle', sub: 'A library is shuffled.' },
-		{ id: 'm-tapcard', name: 'Tap or untap a card', sub: 'Any permanent turning sideways or back.' },
-		{ id: 'm-resolve', name: 'Spell resolves', sub: 'The top of the stack resolves.' },
-		{ id: 'm-attack', name: 'Creature attacks', sub: 'An attacker is declared.' },
-		{ id: 'm-block', name: 'Block', sub: 'A blocker is assigned.' },
-		{ id: 'm-damage', name: 'Damage to a creature', sub: 'Combat or spell damage to a creature.' },
-		{ id: 'm-damage-player', name: 'Damage to a player or planeswalker', sub: 'A face or a planeswalker is hit.' },
-		{ id: 'm-dies', name: 'Creature dies', sub: 'A creature goes to the graveyard.' },
-		{ id: 'm-phase', name: 'Phase change', sub: 'The game moves to the next step.' },
-		{ id: 'm-turn', name: 'Your turn', sub: 'Your turn begins.' },
-		{ id: 'm-win', name: 'Victory', sub: 'You win the game.' },
-		{ id: 'm-lose', name: 'Defeat', sub: 'You lose the game.' },
-	],
 };
 
 const COLOUR_ID_SET: ReadonlySet<string> = new Set(COLOUR_IDS);
-const EVENT_ID_SET: ReadonlySet<string> = new Set(EVENT_IDS);
 const PARADIGM_ID_SET: ReadonlySet<string> = new Set(PARADIGM_IDS);
 
 /**
  * Parse a raw string as a `CellId`, enforcing the row/column pairing: a
- * colour row only with a paradigm column, an event row only with `play`.
+ * colour row only with a paradigm column, a role only with `play`.
  * Returns `null` rather than throwing — every caller is a validation site.
  */
 export function parseCellId(raw: string): CellId | null {
@@ -214,7 +301,7 @@ export function parseCellId(raw: string): CellId | null {
 	const col = raw.slice(i + 1);
 	if (row === '' || col === '') return null;
 	if (COLOUR_ID_SET.has(row)) return PARADIGM_ID_SET.has(col) ? (raw as CellId) : null;
-	if (EVENT_ID_SET.has(row)) return col === 'play' ? (raw as CellId) : null;
+	if (SOUND_ROLES.has(row)) return col === 'play' ? (raw as CellId) : null;
 	return null;
 }
 
@@ -261,8 +348,13 @@ export type Catalogue = z.infer<typeof CatalogueSchema>;
 
 const CellsSchema = z.record(z.string(), z.array(z.string()).max(MAX_TAKES_PER_CELL));
 
+/** A cell's level relative to the others, 0..2; a missing entry is 1. */
+export const GainSchema = z.number().min(0).max(2);
+const GainsSchema = z.record(z.string(), GainSchema);
+
 const AssignmentsObjectSchema = z.object({
 	cells: CellsSchema,
+	gains: GainsSchema.default({}),
 	canEdit: z.boolean(),
 });
 
@@ -278,10 +370,17 @@ export const AssignmentsSchema = AssignmentsObjectSchema.superRefine((value, ctx
 			ctx.addIssue({ code: 'custom', message: `not a valid cell id: ${key}`, path: ['cells', key] });
 		}
 	}
+	for (const key of Object.keys(value.gains)) {
+		if (!isCellId(key)) {
+			ctx.addIssue({ code: 'custom', message: `not a valid cell id: ${key}`, path: ['gains', key] });
+		}
+	}
 });
-export type Assignments = z.infer<typeof AssignmentsObjectSchema>;
+export type Assignments = z.output<typeof AssignmentsObjectSchema>;
 
 export const PutAssignmentBodySchema = z.object({
 	files: z.array(z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg')).max(MAX_TAKES_PER_CELL),
+	/** Omitted leaves the stored gain as it is. */
+	gain: GainSchema.optional(),
 });
 export type PutAssignmentBody = z.infer<typeof PutAssignmentBodySchema>;

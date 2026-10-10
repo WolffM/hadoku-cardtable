@@ -11,11 +11,11 @@ produces the three things `apps/server/src/http/sounds.ts` serves:
 
 Labels, groups and sections mirror the operator-approved artifact's own
 catalogue build (`docs/handoff/snapshot/stage-builder.py`, read-only
-reference). Colour-identity and event names/families match
+reference). Colour-identity names/families match
 `packages/shared/src/sounds.ts`'s `SOUND_MATRIX` — the wave 50 "Settled"
-contract — rather than `scripts/sfx/prompts.json`, whose moment vocabulary
-(`m-land`, `m-tap`, `m-counter`, `m-lifegain`) predates the builder and does
-not match `CellId`'s event ids. Library sound names and groups DO come from
+contract. `m-*` take folders are named for the bin only: the builder's cells
+are `SOUND_ROLES` ids (`g.draw|play`, …), so an `m-*|play` cell in a --seed
+is dropped by the server on read. Library sound names and groups DO come from
 `scripts/sfx/round3.json`, which is current and, checked against this
 snapshot, covers every `lib-*` folder in it.
 

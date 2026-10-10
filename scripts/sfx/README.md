@@ -52,10 +52,10 @@ python3 scripts/sfx/import.py --from <finished dir> --seed <assignments.json> --
   (`BG.land` → `bg.land`) — `apps/server/src/http/sounds.ts`'s take-serving route and
   `@hadoku/shared`'s `TAKE_FILE_RE` are lowercase-only, but a source folder carries the colour code's
   own case.
-- Colour-identity and event names/families match `packages/shared/src/sounds.ts`'s `SOUND_MATRIX`
-  (duplicated in the script, since this is a one-off Python tool with no TypeScript dependency), not
-  `prompts.json`'s older moment vocabulary (`m-land`, `m-tap`, `m-counter`, `m-lifegain`). Library
-  sound names and groups come from `round3.json`, read at import time.
+- Colour-identity names/families match `packages/shared/src/sounds.ts`'s `SOUND_MATRIX` (duplicated
+  in the script, since this is a one-off Python tool with no TypeScript dependency). `m-*` folders only
+  name bin rows: the builder's cells are `SOUND_ROLES` ids, so an `m-*|play` cell in `--seed` is dropped
+  by the server. Library sound names and groups come from `round3.json`, read at import time.
 
 Audio bytes never enter this repo or the UI bundle at any point in this pipeline — `import.py` only
 ever reads from a local `finished/` directory and writes to the server's data directory, both outside

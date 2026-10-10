@@ -193,9 +193,9 @@ anything records them today)*.
 
 | Wave | Contents | Touches the board? |
 | --- | --- | --- |
-| **A** | role registry, builder rework, per-role gain, mixer (buses, collapse, duck), scripted sandbox. Delete the cue manifest. | no, so it can run beside alpha work |
+| **A** ✔ 2026-10-10 | role registry, builder rework, per-cell gain, mixer (buses, collapse, duck), scripted sandbox (9 scenarios in `apps/ui/src/sound/scenarios.ts`) | no |
 | — | **operator's first assignment pass** | |
-| **B** | deriver + `PlayBridge` event forwarding (shuffle, zone change, resolved) + in-game playback in `LiveBoard`, `ui.*` wiring on gestures, opponent multiplier, settings volumes | yes |
+| **B** | move the placeholder cues (`sound/cues.ts`, `manifest.ts`, `cue-manifest.json`, `webaudio.ts`) onto `ui.*` roles through `sound/mixer.ts` and delete them; deriver + `PlayBridge` event forwarding (shuffle, zone change, resolved) + in-game playback in `LiveBoard`, `ui.*` wiring on gestures, opponent multiplier, settings volumes | yes |
 | **C** | replay sandbox, live-match recording, music bus + track picker in the builder | no |
 | — | gap generation from the operator's empty roles | |
 

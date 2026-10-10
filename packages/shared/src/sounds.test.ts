@@ -12,6 +12,8 @@ import {
 	MAX_TAKES_PER_CELL,
 	PutAssignmentBodySchema,
 	SOUND_MATRIX,
+	SOUND_ROLE_GROUPS,
+	SOUND_ROLES,
 	SOUND_SECTIONS,
 	SoundTakeSchema,
 	TAKE_FILE_RE,
@@ -36,19 +38,24 @@ describe('CellId', () => {
 		expect(parseCellId('WU|spell')).toBe('WU|spell');
 	});
 
-	it('accepts an event row paired with play', () => {
-		expect(isCellId('m-draw|play')).toBe(true);
+	it('accepts a role paired with play', () => {
+		expect(isCellId('g.draw|play')).toBe(true);
+		expect(isCellId('g.cast.creature|play')).toBe(true);
+	});
+
+	it('rejects the retired m-* event ids', () => {
+		expect(isCellId('m-draw|play')).toBe(false);
 	});
 
 	it('rejects a colour row paired with play', () => {
 		expect(isCellId('WU|play')).toBe(false);
 	});
 
-	it('rejects an event row paired with a paradigm column', () => {
-		expect(isCellId('m-draw|spell')).toBe(false);
+	it('rejects a role paired with a paradigm column', () => {
+		expect(isCellId('g.draw|spell')).toBe(false);
 	});
 
-	it('rejects a row that is neither a colour id nor an event id', () => {
+	it('rejects a row that is neither a colour id nor a role id', () => {
 		expect(isCellId('XX|spell')).toBe(false);
 	});
 
@@ -103,7 +110,7 @@ describe('CatalogueSchema', () => {
 describe('AssignmentsSchema', () => {
 	it('parses cells keyed by valid CellIds', () => {
 		const result = AssignmentsSchema.safeParse({
-			cells: { 'm-win|play': ['m-win/take-synth-1.ogg'], 'WU|spell': [] },
+			cells: { 'g.win|play': ['m-win/take-synth-1.ogg'], 'WU|spell': [] },
 			canEdit: true,
 		});
 		expect(result.success).toBe(true);
@@ -114,9 +121,16 @@ describe('AssignmentsSchema', () => {
 		expect(result.success).toBe(false);
 	});
 
+	it('defaults gains to empty, and rejects a gain outside 0..2 or on a malformed key', () => {
+		const parsed = AssignmentsSchema.parse({ cells: {}, canEdit: false });
+		expect(parsed.gains).toEqual({});
+		expect(AssignmentsSchema.safeParse({ cells: {}, gains: { 'g.win|play': 2.5 }, canEdit: false }).success).toBe(false);
+		expect(AssignmentsSchema.safeParse({ cells: {}, gains: { 'nope|play': 1 }, canEdit: false }).success).toBe(false);
+	});
+
 	it('rejects a cell with more than MAX_TAKES_PER_CELL files', () => {
 		const files = Array.from({ length: MAX_TAKES_PER_CELL + 1 }, (_, i) => `m-win/take-${i}.ogg`);
-		const result = AssignmentsSchema.safeParse({ cells: { 'm-win|play': files }, canEdit: false });
+		const result = AssignmentsSchema.safeParse({ cells: { 'g.win|play': files }, canEdit: false });
 		expect(result.success).toBe(false);
 	});
 });
@@ -133,12 +147,17 @@ describe('PutAssignmentBodySchema', () => {
 });
 
 describe('SOUND_MATRIX', () => {
-	it('carries 27 colour rows and 13 event rows, with every mono colour having a land name', () => {
+	it('carries 27 colour rows, with every mono colour having a land name', () => {
 		expect(SOUND_MATRIX.colour).toHaveLength(27);
-		expect(SOUND_MATRIX.events).toHaveLength(13);
 		for (const letter of ['W', 'U', 'B', 'R', 'G'] as const) {
 			expect(SOUND_MATRIX.landNames[letter]).toBeTruthy();
 		}
+	});
+
+	it('SOUND_ROLES indexes every grouped role once, ui roles on the ui bus', () => {
+		const all = SOUND_ROLE_GROUPS.flatMap((g) => g.roles);
+		expect(SOUND_ROLES.size).toBe(all.length);
+		for (const r of all) expect(r.bus).toBe(r.id.startsWith('ui.') ? 'ui' : 'game');
 	});
 
 	it('SOUND_SECTIONS has exactly the four sections every SoundTake.section must be one of', () => {

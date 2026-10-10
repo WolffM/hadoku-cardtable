@@ -9,10 +9,17 @@
  * cells); Esc puts a held pill down; a cell with more than one take plays one
  * at random on its own click and never repeats the one before it; a placed
  * pill plays on click and `×` removes it; a mono colour identity's Land cell
- * is labelled with its basic land name; "Play a sample turn" sequences the
- * assignments on the artifact's own timeline, overlapping through an 8-voice
- * pool. **No "holding" banner** — the operator asked for exactly that removed
- * from the artifact, and nothing here replaces it with one.
+ * is labelled with its basic land name. **No "holding" banner** — the operator
+ * asked for exactly that removed from the artifact, and nothing here replaces
+ * it with one.
+ *
+ * ## Roles and colours
+ *
+ * Two tabs. **Roles** lists `SOUND_ROLE_GROUPS`, the generic layer every event
+ * plays. **Colours** is the identity × paradigm matrix, the layer mixed on top.
+ * Every filled cell has a gain slider, saved beside its takes, so a level is
+ * tuned once and the game and the sandbox both hear it. Scenarios live in the
+ * sandbox (`#/sounds/sandbox`), which replaced the old "sample turn".
  *
  * ## The gate is the server's, not a client guess
  *
@@ -35,7 +42,7 @@
  *
  * ## Why the matrix and the bin are plain markup, not canvas
  *
- * 27 colour identities × 5 paradigms plus 13 events is ~150 cells and a bin of
+ * 27 colour identities × 5 paradigms plus the roles is ~190 cells and a bin of
  * however many keepers exist; a `<table>` wrapped in its own scrolling box
  * (`.sound-builder__table-wrap`) keeps the PAGE from scrolling sideways at
  * phone width while the matrix itself does, which is the same trick the
@@ -44,24 +51,22 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { SOUND_MATRIX, type CellId, type SoundTake } from '@hadoku/shared';
+import { SOUND_MATRIX, SOUND_ROLE_GROUPS, SOUND_ROLES, type CellId, type SoundTake } from '@hadoku/shared';
 
 import { ManaCost } from '../components/ManaPip.tsx';
-import {
-  createAudioPool,
-  pickRandom,
-  soundsClient,
-  type AudioPool,
-  type SoundsClient,
-} from '../sound/builderClient.ts';
+import { pickRandom, soundsClient, type SoundsClient } from '../sound/builderClient.ts';
+import { GainSlider } from '../sound/GainSlider.tsx';
+import { createMixer, type Mixer } from '../sound/mixer.ts';
 import './SoundBuilder.css';
 
 export interface SoundBuilderProps {
   /** Tests pass a stub. Production builds the real fetch-backed client. */
   client?: SoundsClient;
-  /** Tests pass a stub. Production builds the real 8-voice pool. */
-  audioPool?: AudioPool;
+  /** Tests pass a stub. Production builds the real mixer. */
+  player?: Pick<Mixer, 'playFile'>;
 }
+
+type Tab = 'roles' | 'colours';
 
 const FAMILY_LABEL: Record<string, string> = {
   mono: 'Mono',
@@ -71,26 +76,6 @@ const FAMILY_LABEL: Record<string, string> = {
   four: 'Four or more',
   extra: 'Colourless',
 };
-
-/** The artifact's own sequence: a colour identity's four paradigms plus nine events, overlapping. */
-function sampleSteps(identityId: string): readonly [number, string, string][] {
-  return [
-    [0, 'm-turn|play', 'Your turn'],
-    [450, 'm-draw|play', 'Draw'],
-    [1050, `${identityId}|land`, 'Land'],
-    [1250, 'm-tapcard|play', 'Tap'],
-    [1900, `${identityId}|spell`, 'Spell'],
-    [2500, 'm-resolve|play', 'Resolves'],
-    [3100, `${identityId}|creature`, 'Creature'],
-    [3900, 'm-phase|play', 'Phase'],
-    [4200, 'm-attack|play', 'Attack'],
-    [4600, 'm-block|play', 'Block'],
-    [5000, 'm-damage|play', 'Damage to creature'],
-    [5150, 'm-damage-player|play', 'Damage to player'],
-    [5450, 'm-dies|play', 'Creature dies'],
-    [6200, `${identityId}|artifact`, 'Artifact'],
-  ];
-}
 
 /** `"Water · 1a"` → `"1a"`: the pill's own label minus the sound name the bin row already carries. */
 function shortLabel(take: SoundTake): string {
@@ -115,20 +100,21 @@ function parseDragPayload(raw: string): DragPayload | null {
   }
 }
 
-export function SoundBuilder({ client: givenClient, audioPool: givenPool }: SoundBuilderProps) {
+export function SoundBuilder({ client: givenClient, player: givenPlayer }: SoundBuilderProps) {
   const client = useMemo(() => givenClient ?? soundsClient(), [givenClient]);
-  const pool = useMemo(() => givenPool ?? createAudioPool(client), [givenPool, client]);
+  const player = useMemo(() => givenPlayer ?? createMixer((f) => client.takeUrl(f)), [givenPlayer, client]);
 
   const [loaded, setLoaded] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [takes, setTakes] = useState<SoundTake[]>([]);
   const [cells, setCells] = useState<Record<string, string[]>>({});
+  const [gains, setGains] = useState<Record<string, number>>({});
+  const [tab, setTab] = useState<Tab>('roles');
+  const [query, setQuery] = useState('');
+  const [unplacedOnly, setUnplacedOnly] = useState(false);
   const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(new Set());
   const [holding, setHolding] = useState<string | null>(null);
-  const [sampleId, setSampleId] = useState<string>(SOUND_MATRIX.colour[0]?.id ?? '');
-  const [log, setLog] = useState<string[]>([]);
   const lastPickRef = useRef<Map<string, string>>(new Map());
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -136,6 +122,7 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
       if (!alive) return;
       setTakes(t);
       setCells(a.cells);
+      setGains(a.gains);
       setCanEdit(a.canEdit);
       setLoaded(true);
     });
@@ -154,14 +141,6 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
     return () => document.removeEventListener('keydown', onKey);
   }, [holding]);
 
-  // Clear any in-flight "sample turn" timers on unmount.
-  useEffect(
-    () => () => {
-      for (const id of timersRef.current) clearTimeout(id);
-    },
-    [],
-  );
-
   const byFile = useMemo(() => {
     const m = new Map<string, SoundTake>();
     for (const t of takes) m.set(t.file, t);
@@ -174,9 +153,12 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
     return s;
   }, [cells]);
 
-  async function persist(cell: string, files: string[]): Promise<void> {
+  const gainOf = (cell: string): number => gains[cell] ?? 1;
+
+  async function persist(cell: string, files: string[], gain?: number): Promise<void> {
     setCells((c) => ({ ...c, [cell]: files }));
-    const saved = await client.save(cell as CellId, files);
+    if (gain !== undefined) setGains((g) => ({ ...g, [cell]: gain }));
+    const saved = await client.save(cell as CellId, files, gain);
     setUnsaved((prev) => {
       const next = new Set(prev);
       if (saved === null) next.add(cell);
@@ -214,36 +196,24 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
     const file = pickRandom(files, lastPickRef.current.get(cell) ?? null);
     if (file === null) return;
     lastPickRef.current.set(cell, file);
-    void pool.play(file);
+    player.playFile(file, gainOf(cell));
   }
 
-  function sampleTurn(): void {
-    for (const id of timersRef.current) clearTimeout(id);
-    timersRef.current = [];
-    setLog([]);
-    const heard: string[] = [];
-    for (const [at, cellId, name] of sampleSteps(sampleId)) {
-      const id = setTimeout(() => {
-        const files = cells[cellId] ?? [];
-        const file = pickRandom(files, lastPickRef.current.get(cellId) ?? null);
-        if (file !== null) lastPickRef.current.set(cellId, file);
-        const take = file !== null ? byFile.get(file) : undefined;
-        heard.push(`${(at / 1000).toFixed(2)}s ${name}: ${take !== undefined ? take.label : 'nothing assigned'}`);
-        setLog([...heard]);
-        if (file !== null) void pool.play(file);
-      }, at);
-      timersRef.current.push(id);
-    }
+  function commitGain(cell: string, gain: number): void {
+    void persist(cell, cells[cell] ?? [], gain);
   }
 
   if (!loaded || !canEdit) return null;
 
-  const total = SOUND_MATRIX.colour.length * SOUND_MATRIX.paradigms.length + SOUND_MATRIX.events.length;
+  const total = SOUND_MATRIX.colour.length * SOUND_MATRIX.paradigms.length + SOUND_ROLES.size;
   const filled = Object.values(cells).filter((f) => f.length > 0).length;
 
   const bySound = new Map<string, SoundTake[]>();
   const order: string[] = [];
+  const q = query.trim().toLowerCase();
   for (const t of takes) {
+    if (unplacedOnly && placed.has(t.file)) continue;
+    if (q !== '' && !`${t.name} ${t.group} ${t.label} ${t.prompt}`.toLowerCase().includes(q)) continue;
     const key = `${t.section}\u0000${t.group}\u0000${t.name}`;
     if (!bySound.has(key)) {
       bySound.set(key, []);
@@ -273,23 +243,39 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
             <b>{takes.length}</b> keepers
           </span>
         </div>
-        <div className="sound-builder__sample" role="group" aria-label="Sample turn">
-          <label htmlFor="sound-builder-sample-id">Sample turn as</label>
-          <select id="sound-builder-sample-id" value={sampleId} onChange={(e) => setSampleId(e.target.value)}>
-            {SOUND_MATRIX.colour.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="sound-builder__btn sound-builder__btn--primary" onClick={sampleTurn}>
-            Play a sample turn
-          </button>
-        </div>
+        <nav className="sound-builder__tabs" aria-label="Builder view">
+          {(['roles', 'colours'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className="sound-builder__btn"
+              aria-pressed={tab === t}
+              onClick={() => setTab(t)}
+            >
+              {t === 'roles' ? 'Roles' : 'Colours'}
+            </button>
+          ))}
+          <a className="sound-builder__btn sound-builder__btn--primary" href="#/sounds/sandbox">
+            Sandbox
+          </a>
+        </nav>
       </header>
 
       <div className="sound-builder__panes">
         <aside className="sound-builder__bin" aria-label="Your keepers">
+          <div className="sound-builder__filter">
+            <input
+              type="search"
+              placeholder="Search"
+              aria-label="Search takes"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <label>
+              <input type="checkbox" checked={unplacedOnly} onChange={(e) => setUnplacedOnly(e.target.checked)} />
+              Unplaced
+            </label>
+          </div>
           {order.map((key) => {
             const [s, g, n] = key.split('\u0000') as [string, string, string];
             const list = bySound.get(key)!;
@@ -323,7 +309,7 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
                           e.dataTransfer.setData('text/plain', JSON.stringify({ file: t.file, from: null }))
                         }
                         onClick={() => {
-                          void pool.play(t.file);
+                          player.playFile(t.file);
                           setHolding((h) => (h === t.file ? null : t.file));
                         }}
                       >
@@ -338,6 +324,7 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
         </aside>
 
         <main className="sound-builder__main">
+          {tab === 'colours' && (
           <section className="sound-builder__section">
             <h2>Colour identities</h2>
             <div className="sound-builder__table-wrap">
@@ -369,7 +356,9 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
                           onRemoveFrom={removeFrom}
                           onDrop={onDropOnCell}
                           onPlayRandom={playRandom}
-                          onPlayPill={(f) => void pool.play(f)}
+                          gains={gains}
+                          onGain={commitGain}
+                          onPlayPill={(f, cell) => player.playFile(f, gainOf(cell))}
                         />
                       );
                     });
@@ -378,55 +367,55 @@ export function SoundBuilder({ client: givenClient, audioPool: givenPool }: Soun
               </table>
             </div>
           </section>
+          )}
 
-          <section className="sound-builder__section">
-            <h2>Events</h2>
-            <div className="sound-builder__table-wrap">
-              <table className="sound-builder__matrix">
-                <thead>
-                  <tr>
-                    <th>Event</th>
-                    <th>Sounds (one plays at random)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SOUND_MATRIX.events.map((row) => {
-                    const cellId = `${row.id}|play`;
-                    const files = cells[cellId] ?? [];
-                    return (
-                      <tr key={row.id}>
-                        <th scope="row">
-                          <div className="sound-builder__rowname">
-                            <span>{row.name}</span>
-                            <span className="sound-builder__rowsub">{row.sub}</span>
-                          </div>
-                        </th>
-                        <td>
-                          <Cell
-                            cellId={cellId}
-                            files={files}
-                            byFile={byFile}
-                            holding={holding}
-                            unsaved={unsaved.has(cellId)}
-                            onAddTo={addTo}
-                            onRemoveFrom={removeFrom}
-                            onDrop={onDropOnCell}
-                            onPlayRandom={playRandom}
-                            onPlayPill={(f) => void pool.play(f)}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="sound-builder__section">
-            <h2>Last sample turn</h2>
-            <div className="sound-builder__log">{log.join('\n')}</div>
-          </section>
+          {tab === 'roles' &&
+            SOUND_ROLE_GROUPS.map((group) => (
+              <section key={group.id} className="sound-builder__section">
+                <h2>{group.name}</h2>
+                <div className="sound-builder__table-wrap">
+                  <table className="sound-builder__matrix">
+                    <tbody>
+                      {group.roles.map((role) => {
+                        const cellId = `${role.id}|play`;
+                        const files = cells[cellId] ?? [];
+                        return (
+                          <tr key={role.id}>
+                            <th scope="row">
+                              <div className="sound-builder__rowname">
+                                <span>{role.name}</span>
+                                <span className="sound-builder__rowsub">{role.sub}</span>
+                              </div>
+                            </th>
+                            <td>
+                              <Cell
+                                cellId={cellId}
+                                files={files}
+                                byFile={byFile}
+                                holding={holding}
+                                unsaved={unsaved.has(cellId)}
+                                onAddTo={addTo}
+                                onRemoveFrom={removeFrom}
+                                onDrop={onDropOnCell}
+                                onPlayRandom={playRandom}
+                                onPlayPill={(f) => player.playFile(f, gainOf(cellId))}
+                              />
+                              {files.length > 0 && (
+                                <GainSlider
+                                  label={role.name}
+                                  value={gainOf(cellId)}
+                                  onCommit={(v) => commitGain(cellId, v)}
+                                />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))}
         </main>
       </div>
     </div>
@@ -444,7 +433,9 @@ interface ColourRowProps {
   onRemoveFrom: (cell: string, file: string) => void;
   onDrop: (cell: string, e: React.DragEvent<HTMLDivElement>) => void;
   onPlayRandom: (cell: string, files: string[]) => void;
-  onPlayPill: (file: string) => void;
+  gains: Record<string, number>;
+  onGain: (cell: string, gain: number) => void;
+  onPlayPill: (file: string, cell: string) => void;
 }
 
 function ColourRowEl({
@@ -458,6 +449,8 @@ function ColourRowEl({
   onRemoveFrom,
   onDrop,
   onPlayRandom,
+  gains,
+  onGain,
   onPlayPill,
 }: ColourRowProps) {
   return (
@@ -494,8 +487,11 @@ function ColourRowEl({
                 onRemoveFrom={onRemoveFrom}
                 onDrop={onDrop}
                 onPlayRandom={onPlayRandom}
-                onPlayPill={onPlayPill}
+                onPlayPill={(f) => onPlayPill(f, cellId)}
               />
+              {files.length > 0 && (
+                <GainSlider label={`${row.name} ${p.name}`} value={gains[cellId] ?? 1} onCommit={(v) => onGain(cellId, v)} />
+              )}
             </td>
           );
         })}
