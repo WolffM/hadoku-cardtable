@@ -1186,25 +1186,83 @@ describe('a room table', () => {
 		(h.hosts.at(-1) as ReplayHost).push(...OPENING);
 		const answers = await Promise.all([both, race]);
 
-		// ONE JVM. That is the claim; which of the two interleavings happened is
-		// not, and pinning it is what made an earlier version of this flake: the
-		// second request is refused as in-flight (409) if it arrives while the
-		// first is still starting, and answered the same match (200) if it
-		// arrives after — both correct, and the race decides which.
+		// ONE JVM, and the second ask is never a refusal: whether it arrives while
+		// the first is still starting (it waits and joins) or after (the room's
+		// live match), it is answered the match that was started.
 		expect(h.specs).toHaveLength(1);
-		const statuses = answers.map((r) => r.status);
-		expect(statuses.filter((s) => s === 201)).toHaveLength(1);
-		expect(statuses.filter((s) => s === 200 || s === 409)).toHaveLength(1);
-		// Whoever was told a match id was told the SAME one, and it is the match
-		// that was started.
+		expect(answers.map((r) => r.status).sort()).toEqual([200, 201]);
 		const started = answers.find((r) => r.status === 201)?.body.matchId;
 		expect(typeof started).toBe('string');
-		for (const answer of answers) {
-			if ('matchId' in answer.body) expect(answer.body.matchId).toBe(started);
-		}
+		for (const answer of answers) expect(answer.body.matchId).toBe(started);
 		expect(h.lobby.room(ROOM)?.matchId).toBe(started);
 		expect(h.matches.get(started as string)?.seatOf(ALICE)).toBe(0);
 		expect(h.matches.get(started as string)?.seatOf(BOB)).toBe(1);
+	});
+
+	/** Both ready, alice's start in flight and Forge not yet up: what bob's browser meets when it asks too. */
+	async function aliceStarting(h: Harness, signal?: AbortSignal): Promise<{ pending: Promise<Response> }> {
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const pending = fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ room: ROOM }),
+			signal,
+		});
+		const deadline = Date.now() + 3000;
+		while (h.hosts.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+		expect(h.hosts).toHaveLength(1);
+		return { pending };
+	}
+
+	it('answers an ask made while the start is in flight with that same match once it is up, not a refusal', async () => {
+		const h = await boot();
+		const { pending: first } = await aliceStarting(h);
+		const second = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		await new Promise((r) => setTimeout(r, 50));
+		h.hosts[0]!.push(...OPENING);
+		const [a, b] = [await first, await second];
+		const started = ((await a.json()) as { matchId: string }).matchId;
+		expect(a.status).toBe(201);
+		expect(b).toMatchObject({ status: 200, body: { matchId: started } });
+		expect(h.specs).toHaveLength(1);
+	});
+
+	it('gives an ask that joined a failing start the same refusal', async () => {
+		const h = await boot();
+		const { pending: first } = await aliceStarting(h);
+		const second = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		await new Promise((r) => setTimeout(r, 50));
+		h.hosts[0]!.exit('the JVM died');
+		const [a, b] = [await first, await second];
+		const refusal = (await a.json()) as { error: string };
+		expect(a.status).toBe(500);
+		expect(b.status).toBe(500);
+		expect(b.body.error).toBe(refusal.error);
+		// Freed: the next ask starts afresh.
+		const again = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		const deadline = Date.now() + 3000;
+		while (h.hosts.length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+		h.hosts[1]!.push(...OPENING);
+		expect((await again).status).toBe(201);
+	});
+
+	it('keeps one start when the asker reloads mid-start: the reloaded ask joins it rather than launching a second JVM', async () => {
+		const h = await boot();
+		const gone = new AbortController();
+		const { pending: first } = await aliceStarting(h, gone.signal);
+		gone.abort();
+		await first.catch(() => undefined);
+		await new Promise((r) => setTimeout(r, 50));
+		const reloaded = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		await new Promise((r) => setTimeout(r, 50));
+		h.hosts[0]!.push(...OPENING);
+		const answer = await reloaded;
+		expect(answer.status).toBe(200);
+		expect(h.specs).toHaveLength(1);
+		expect(h.lobby.room(ROOM)?.matchId).toBe(answer.body.matchId);
 	});
 
 	it('refuses a body that names two decks against a person, and says where a match starts', async () => {

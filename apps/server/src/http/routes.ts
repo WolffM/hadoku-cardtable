@@ -100,7 +100,8 @@
  *     (`Match.claim` is otherwise first-come-first-served, so seat 1 would go to
  *     whoever's browser arrived first — which is not necessarily the person
  *     whose deck is in seat 1). Idempotent: a room that already has a live
- *     match answers that match rather than starting a second one.
+ *     match answers that match, and an ask while its start is in flight waits
+ *     for it and is answered the same, rather than starting a second one.
  *   - `{ opponent: 'ai', seats: [{ deck, rules }, { deck, rules }] }` — one
  *     person against Forge's AI. Both decks are that one person's to choose,
  *     since the other seat is the AI, so this arm stays: it is what the deck
@@ -845,8 +846,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const gate = express.Router();
 	gate.use(express.json({ limit: '256kb' }));
 
-	/** Rooms whose start is in flight: two Ready buttons must not launch two JVMs. */
-	const starting = new Set<string>();
+	/**
+	 * Rooms whose start is in flight, each with the asks that arrived while it was.
+	 * Both browsers ask once both players are ready, so a second ask during the
+	 * seconds Forge takes to come up is the normal case, not a conflict: it waits
+	 * and is answered what the first one is — the same match, or the same refusal.
+	 * One JVM per room either way.
+	 */
+	const starting = new Map<string, ((status: number, payload: unknown) => void)[]>();
 
 	/**
 	 * Bind the two players to the two seats their decks are in, before play's
@@ -904,8 +911,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(200).json({ matchId: live });
 			return;
 		}
-		if (starting.has(room.id)) {
-			res.status(409).json({ error: 'this room is already starting a match' });
+		const joiners = starting.get(room.id);
+		if (joiners !== undefined) {
+			joiners.push((status, payload) => res.status(status).json(payload));
 			return;
 		}
 		const players = playersOf(rooms, room);
@@ -993,27 +1001,40 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return;
 		}
 
-		starting.add(room.id);
-		const released = (): void => {
+		const waiting: ((status: number, payload: unknown) => void)[] = [];
+		starting.set(room.id, waiting);
+		let settled = false;
+		/** Answer every ask that joined this start, and let the room start again. */
+		const settle = (status: number, payload: unknown): void => {
+			if (settled) return;
+			settled = true;
 			starting.delete(room.id);
+			for (const join of waiting) join(status, payload);
 		};
-		res.on('close', released);
+		// Play answers through `res.json`, below. A response that ends any other way
+		// still frees the room. A caller who goes away mid-start (a reload) does NOT:
+		// Forge is still coming up, and the reloaded page's ask joins it rather than
+		// launching a second JVM.
+		res.on('finish', () => settle(res.statusCode, { error: 'the match could not be started' }));
 
 		const answer = res.json.bind(res);
 		res.json = ((payload: unknown) => {
 			res.json = answer;
-			released();
 			const matchId = (payload as { matchId?: unknown }).matchId;
 			if (res.statusCode === 201 && typeof matchId === 'string') {
 				const refused = seatPlayers(registry, matchId, players);
 				if (refused !== null) {
 					log({ evt: 'room-seating-failed', room: room.id, matchId, error: refused });
+					settle(500, { error: refused });
 					res.status(500);
 					return answer({ error: refused });
 				}
 				rooms.setMatch(room.id, matchId);
 				log({ evt: 'room-match-started', room: room.id, matchId, decks: players.map((p) => p.state.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
+				settle(200, { matchId });
+				return answer(payload);
 			}
+			settle(res.statusCode, payload);
 			return answer(payload);
 		}) as typeof res.json;
 
