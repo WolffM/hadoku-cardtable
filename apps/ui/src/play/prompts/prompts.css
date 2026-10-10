@@ -608,20 +608,25 @@
 
 /*
  * `RevealNotice.tsx`: a reveal Forge was already answered for. It sits over the
- * table's middle band, left of the question column (`--live-col-x`), so it never
- * covers a decision; it is the revealed cards and nothing else.
+ * table's middle band — the decision column's own band (`.live__prompt`), left
+ * of it (`--live-col-x`), so it never covers a decision. The box is bounded to
+ * that band whatever it holds: a whole library scrolls inside its card list,
+ * and its OK stays in view under the list.
  */
 .reveal-notice {
   position: absolute;
   z-index: var(--z-popover, 40);
-  top: 34%;
+  top: 24%;
   left: 18%;
   max-width: 38%;
+  max-height: 52%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  cursor: pointer;
 }
 
 .reveal-notice__cards {
@@ -633,6 +638,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  /* Shrinks below its content in the bounded column, and scrolls what does not fit. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .reveal-notice__cards > li {
@@ -643,4 +652,8 @@
 .reveal-notice__cards .card {
   aspect-ratio: 488 / 680;
   height: auto;
+}
+
+.reveal-notice > .prompt__submit {
+  align-self: flex-end;
 }

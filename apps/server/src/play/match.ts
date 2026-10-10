@@ -2744,9 +2744,10 @@ export class Match {
 	 * answering it must not take the information away. It reaches it as what
 	 * it is: a `getChoices` reveal ({@link asReveal}), marked
 	 * `displayOnly` on the envelope, never registered as an ask — nothing waits
-	 * on it, nothing replies to it, and the browser draws it as a notice that
-	 * goes away on its own. The operator, 2026-10-09: *"why is it necessary
-	 * for this to require an 'ok' press at all?"*
+	 * on it, nothing replies to it, and the browser draws it as a notice the
+	 * seat closes with its own OK, which sends nothing. The operator,
+	 * 2026-10-09: *"why is it necessary for this to require an 'ok' press at
+	 * all?"* — the game never waits on that OK.
 	 */
 	private showReveal(s: SeatState, frame: RevealFrame): void {
 		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices) });

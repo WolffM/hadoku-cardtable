@@ -79,8 +79,12 @@ test(titled("Dark Confidant's reveal is a notice on both screens, never an OK: a
       await expect
         .poll(async () => (await seen(page)).filter((s) => s.what === 'notice').map((s) => s.detail).join(' | '), { timeout: 10_000, message: `${name}'s screen shows the revealed card` })
         .toContain('Genju of the Spires');
-      await expect(page.getByTestId('live-reveal'), `${name}'s notice goes away on its own`).toHaveCount(0, { timeout: 10_000 });
     }
+
+    // The game went on without it; the notice stays until its own OK, which only closes it.
+    await expect(alice.page.getByTestId('live-reveal'), "alice's notice is still up for her to read").toHaveCount(1);
+    await alice.page.getByTestId('live-reveal-ok').click();
+    await expect(alice.page.getByTestId('live-reveal'), "alice's OK closes her notice").toHaveCount(0, { timeout: 5_000 });
 
     await expect(alice.page.locator('[data-testid="live-button-next-phase"]:enabled'), "alice's priority is live in her main phase").toHaveCount(1, { timeout: 30_000 });
     console.log(`[w67-reveal] alice main phase, priority live: ${await alice.page.getByTestId('live-says').textContent()}`);

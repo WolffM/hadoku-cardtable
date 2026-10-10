@@ -611,7 +611,8 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
  * (`apps/server/src/play/match.ts`'s `onFrame`) and sends the reveal on marked
  * `displayOnly`, so it never reaches this client as an ask: `../live/match.ts`
  * holds it as `LiveMatch.reveal` and `RevealNotice.tsx` draws the cards — the
- * operator's *"shows both players at once and needs no OK"*. Answering it here
+ * operator's *"shows both players at once and needs no OK"*: the game never
+ * waits on the notice's own OK, which only closes it. Answering it here
  * as well would be a second answer to a question Forge no longer has. The
  * "both players" half needs nothing from us: `reveal` is called on each
  * player's own controller by the effect, so a seat is shown a reveal **only
