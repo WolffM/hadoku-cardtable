@@ -1649,6 +1649,66 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 	});
 });
 
+describe('an ask in which nothing may be chosen is a reveal, whatever its shape', () => {
+	/** The one envelope `callId` reached seat 0 in, if any. */
+	const shownTo0 = (h: Harness, callId: string) =>
+		h.sent.find((s) => s.seat === 0 && s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+
+	it('getChoices with max 0: Forge is answered [] at once and the seat is shown it as a notice', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		const frame = {
+			kind: 'ask' as const,
+			callId: 'x-zero-1',
+			method: 'getChoices' as const,
+			message: 'Revealed',
+			min: 0,
+			max: 0,
+			choices: [{ key: 'c0', label: 'Card 940', ref: { kind: 'card' as const, id: 940 } }],
+			selected: [],
+		};
+		h.host.push({ t: 'frame', seat: 0, frame });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-zero-1', result: [] }]);
+		vi.advanceTimersByTime(1000);
+		expect(shownTo0(h, 'x-zero-1')?.envelope).toMatchObject({ frame, displayOnly: true });
+		expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: 'x-zero-1', method: 'getChoices', result: [] }))).toEqual({
+			ok: false,
+			error: 'stale-reply',
+		});
+	});
+
+	it('chooseEntitiesForEffect with max 0: answered [] at once, shown as the getChoices reveal of every card it names', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({
+			t: 'frame',
+			seat: 0,
+			frame: {
+				kind: 'ask',
+				callId: 'x-zero-2',
+				method: 'chooseEntitiesForEffect',
+				title: "Looking at cards in B's library",
+				optionList: [{ kind: 'card', id: 950 }],
+				min: 0,
+				max: 0,
+				delayedReveal: { cards: [{ kind: 'card', id: 950 }, { kind: 'card', id: 951 }], zones: ['Library'], owner: { kind: 'player', id: 1 }, messagePrefix: 'Revealed' },
+			},
+		});
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-zero-2', result: [] }]);
+		vi.advanceTimersByTime(1000);
+		const shown = shownTo0(h, 'x-zero-2');
+		expect(shown?.envelope.displayOnly).toBe(true);
+		expect(shown?.envelope.frame).toMatchObject({
+			method: 'getChoices',
+			message: "Looking at cards in B's library",
+			choices: [{ ref: { kind: 'card', id: 950 } }, { ref: { kind: 'card', id: 951 } }],
+		});
+		expect(safeParseServerFrame(shown?.envelope.frame).ok).toBe(true);
+	});
+});
+
 describe("V7: the whole game's log, not just its last few lines", () => {
 	/**
 	 * `setFullControl` is the simplest caller of `Match.say` that needs no
