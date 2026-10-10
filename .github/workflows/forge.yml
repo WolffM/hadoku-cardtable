@@ -607,8 +607,6 @@ jobs:
           known_flaky=$(pinned <<'LIST'
           # :663 fixed in w49; the declined-click bound (2) is then exceeded 3 of ~11 runs under `taskset -c 0`, 0 of 10 unpinned. docs/planning/wave49-evidence/B/README.md §1
           playing by clicking the board, against a real Forge match a player plays a land and casts spells — one targeted — by clicking their own board
-          # Seat 1's card lookup races the reveal's decode: 'card #47' instead of 'Forest (47)', red and green on main. docs/planning/wave38-evidence/U-prompts-jvm-red.md
-          the fifteen prompts against a real Forge match a reveal: the label carries Forge's "(id)", and the card's own facts are in the browser anyway
           # The block input opens and closes with nobody pressing, 3 of 4 runs. docs/planning/wave38-evidence/J-blockers.md
           Declare Blockers, set up by a scenario, against real Forge Q12: a defender with one creature is NOT auto-passed through Declare Blockers, and can assign the block
           # The first cast after a scenario start never reaches the stack, 1 of 4 CI runs (37204094431; green on 37184116178, 37184691254, 37186194601). Undiagnosed: no frame dump on failure. Owner: w40 (bridge), beside the decode race in wave37-evidence/A-repro.md §8.

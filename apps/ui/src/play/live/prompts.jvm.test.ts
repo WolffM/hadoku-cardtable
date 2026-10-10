@@ -228,6 +228,13 @@ interface LabelProbe {
   label: string;
   id: number;
   facts: PromptCardFacts | undefined;
+  /**
+   * Sampled from the reveal notice, not an open ask. Forge has already been
+   * answered, so its `tempShowCards` is over by the time the notice arrives and
+   * the revealing seat's lookup may no longer hold the card: the notice names it
+   * from the label (`RevealNotice`), and the facts are not its premise.
+   */
+  notice: boolean;
 }
 
 /** The options of the two asks Forge pre-renders, or null for any other ask. */
@@ -267,12 +274,13 @@ function probeLabels(h: LiveHarness, roots: readonly HTMLElement[]): LabelProbeR
       // A reveal is never an ask: the server answered it and the board shows it as a notice (`RevealNotice`).
       for (const ask of s.live.reveal === null ? s.live.asks : [...s.live.asks, s.live.reveal]) {
         if (seen.has(ask.callId)) continue;
+        const notice = ask === s.live.reveal;
         const options = preRenderedOptions(ask);
         if (options === null) continue;
         seen.add(ask.callId);
         for (const o of options) {
           if (o.ref === null || o.ref.kind !== 'card') continue;
-          probes.push({ seat: s.seat, method: ask.method, label: o.label, id: o.ref.id, facts: lookup.card(o.ref.id) });
+          probes.push({ seat: s.seat, method: ask.method, label: o.label, id: o.ref.id, facts: lookup.card(o.ref.id), notice });
         }
       }
     }
@@ -300,7 +308,7 @@ function reportLabelProbe(run: LabelProbeRun): void {
   console.log(`[prompts.jvm] §F.2 pre-rendered card options sampled: ${probes.length}`);
   for (const p of probes.slice(0, 12)) {
     console.log(
-      `[prompts.jvm] §F.2 ${p.method} seat ${p.seat} id ${p.id}: label ${JSON.stringify(p.label)} ` +
+      `[prompts.jvm] §F.2 ${p.notice ? 'notice' : p.method} seat ${p.seat} id ${p.id}: label ${JSON.stringify(p.label)} ` +
         `-> lookup ${p.facts === undefined ? 'MISS' : JSON.stringify({ name: p.facts.name, setCode: p.facts.setCode })}`,
     );
   }
@@ -310,11 +318,12 @@ function reportLabelProbe(run: LabelProbeRun): void {
     `[prompts.jvm] §F.2 labels carrying Forge's "(id)" suffix: ${suffixed.length}/${probes.length}; ` +
       `lookup misses: ${misses.length}/${probes.length}`,
   );
-  if (probes.length > 0) {
+  const asked = probes.filter((p) => !p.notice);
+  if (asked.length > 0) {
     // The premise: the card's own facts ARE in the browser when the ask
     // renders, so separating identity from label is enough on its own.
-    expect(misses, 'every card a pre-rendered ask labelled was in the folded state').toEqual([]);
-    for (const p of probes) {
+    expect(misses.filter((p) => !p.notice), 'every card a pre-rendered ask labelled was in the folded state').toEqual([]);
+    for (const p of asked) {
       expect(p.facts?.name, `id ${p.id} has a real name, not the label`).not.toBe(p.label);
       expect(p.facts?.name?.length, `id ${p.id} has a non-empty name`).toBeGreaterThan(0);
     }
@@ -512,12 +521,14 @@ describe.skipIf(!available.ok)(title, () => {
    * `getChoices` of the `choices` scenario is Blaze's X (numbers, no refs) and
    * its `order` arrived with both lists empty.
    *
-   * So this is the scenario that answers §F.2 from a real match, and it holds
-   * two things: the lookup had the card's own `Name`/`SetCode` while the ask was
-   * open, and no tile anywhere was named with a forge id.
+   * Since the reveal became a notice the server answers for, Forge's
+   * `tempShowCards` is over before the notice arrives, so the revealing seat's
+   * lookup may no longer hold the card (`LabelProbe.notice`). What this holds:
+   * Forge labels the card `<name> (<id>)`, the notice names it without the id,
+   * and its art comes from the card, never from the label.
    */
   it(
-    'a reveal: the label carries Forge\'s "(id)", and the card\'s own facts are in the browser anyway',
+    'a reveal: the label carries Forge\'s "(id)", and the notice names the card without it',
     async () => {
       const h = await startLiveMatch({
         seed: 7,
@@ -559,9 +570,10 @@ describe.skipIf(!available.ok)(title, () => {
         // The label is not a usable art key — that is the whole bug — and the
         // name the lookup holds is the one the board would key on.
         expect(scryfallIdFor(KNOWN_ART_IDS, r.label, r.facts?.setCode ?? ''), r.label).toBeUndefined();
-        expect(r.label, `${r.facts?.name} (${r.id})`).toContain(r.facts?.name ?? '\u0000');
         // The notice draws the card by the name inside Forge's label (`RevealNotice`).
         const shown = nameFromForgeLabel(r.label, r.id);
+        expect(shown, r.label).not.toMatch(FORGE_ID_SUFFIX);
+        if (r.facts?.name !== null && r.facts?.name !== undefined) expect(shown).toBe(r.facts.name);
         expect([...probe.tileNames], `the tile said ${shown}`).toContain(shown);
         /*
          * And where the art-id table knows the revealed printing, the tile §F
@@ -570,7 +582,7 @@ describe.skipIf(!available.ok)(title, () => {
          * table, `Forest|TRK`) and `Merfolk Branchwalker (2)` (not in it, and
          * the manifest is empty — the tracker's own watch).
          */
-        const byFacts = scryfallIdFor(KNOWN_ART_IDS, r.facts?.name ?? '', r.facts?.setCode ?? '');
+        const byFacts = scryfallIdFor(KNOWN_ART_IDS, r.facts?.name ?? shown, r.facts?.setCode ?? '');
         console.log(
           `[prompts.jvm] §F reveal ${JSON.stringify(r.label)} -> art id ${String(byFacts)} ` +
             `(from ${JSON.stringify(r.facts?.name)}|${r.facts?.setCode ?? ''})`,
