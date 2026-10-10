@@ -176,81 +176,73 @@
   color: var(--ink-faint);
 }
 
+/* Create room, at the bottom right of the list (2026-10-10). */
+.rooms__foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/*
+ * The create form is a modal over the page. Theme tokens only, no fallbacks:
+ * a fallback is a literal colour the moment a token is missing.
+ */
+.rooms__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--color-bg-overlay);
+}
+
 .rooms__create {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 420px;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  box-shadow: var(--hdk-shadow-lg);
+}
+
+.rooms__create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 
 .rooms__create h3 {
   font-size: 16px;
-  margin: 0 0 4px;
+  margin: 0;
+}
+
+.rooms__create-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--hdk-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.rooms__create-close:hover,
+.rooms__create-close:focus-visible {
+  border-color: var(--color-border);
 }
 
 .rooms__hint {
   margin: 0;
-  font-size: 13px;
-  color: var(--ink-faint);
-}
-
-/* ── which client the room runs (D19a) ───────────────────────────────── */
-
-.rooms__modes {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 12px 12px;
-  margin: 4px 0 0;
-  min-width: 0;
-}
-
-.rooms__modes legend {
-  color: var(--ink-faint);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0 4px;
-}
-
-/* `.rooms__create label` and `.rooms__create input` style the form's field
-   labels and text boxes — uppercase, full-width, padded and boxed. A radio and
-   its sentence are neither, so both are reset here rather than by making the
-   generic rules narrower, which would touch the fields this lane did not add. */
-.rooms__create .rooms__mode-pick {
-  flex-basis: auto;
-  color: inherit;
-  font-size: inherit;
-  text-transform: none;
-  letter-spacing: normal;
-}
-
-.rooms__create .rooms__mode-pick input {
-  background: none;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  justify-self: start;
-}
-
-.rooms__mode-pick {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: baseline;
-  column-gap: 8px;
-  row-gap: 2px;
-}
-
-.rooms__mode-name {
-  font-weight: 600;
-}
-
-.rooms__mode-note {
-  grid-column: 2;
   font-size: 13px;
   color: var(--ink-faint);
 }

@@ -51,6 +51,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
+import { openCreateRoom } from './play/rooms.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -105,34 +106,32 @@ async function open(browser: Browser, name: string): Promise<Friend> {
 }
 
 /**
- * Fills the create form, picks a mode, submits, and returns the new room's
- * id — this file's own pre- and post-submission checks (the mode radios'
- * default state and labels, the draft option, and what actually went on the
- * wire) around the shared `createRoom`, which only fills the form and
- * submits it.
+ * Makes a room of `mode` and returns its id, with this file's own checks
+ * around the shared `createRoom`: the form, and what actually went on the wire.
+ *
+ * Since 2026-10-10 the form offers no client (the operator: *"the 'Which
+ * Client' question should not exist for now"*), so every room it makes is our
+ * table, and this checks the choice is NOT offered. A streamed room is made
+ * through the API (`createRoom`'s `mode: 'streamed'`): the mode is put away,
+ * not removed, and the rest of this file still proves it works.
  */
 async function createRoomChecked(f: Friend, name: string, mode: 'builtin' | 'streamed'): Promise<string> {
   await f.page.goto(`${PREFIX}/`);
-  await expect(f.page.getByTestId('room-create')).toBeVisible();
-
-  // The choice is visible BEFORE the room is made, and our table is the one
-  // already picked — no hidden default, and never streamed by accident. Labels
-  // only: the UI states the choice, it does not explain it.
-  await expect(f.page.getByTestId('room-create-mode-builtin')).toBeChecked();
-  await expect(f.page.getByTestId('room-create-mode-streamed')).not.toBeChecked();
-  await expect(f.page.getByTestId('room-create-mode')).toContainText('Our table');
-  await expect(f.page.getByTestId('room-create-mode')).toContainText('Forge’s full client');
+  await openCreateRoom(f.page);
+  await expect(f.page.getByTestId('room-create-mode'), 'the form asks no client question').toHaveCount(0);
+  await expect(f.page.getByTestId('room-create')).not.toContainText('Forge’s full client');
 
   // Both game types are pickable now (w23): a draft is a room like any other,
   // so the draft option is no longer disabled and no longer says "coming soon".
   // `e2e/draft.spec.ts` is what drafts through it; this is the form's own proof
-  // that the door is open, next to the modes it already checks.
+  // that the door is open.
   const draftOption = f.page.locator('[data-testid="room-create-type"] option[value="draft"]');
   await expect(draftOption).not.toBeDisabled();
   await expect(draftOption).toHaveText('Draft');
+  if (mode === 'streamed') await f.page.keyboard.press('Escape');
 
   const id = await createRoom(f, name, { mode });
-  // What actually went on the wire, not what the form was showing.
+  // What actually went on the wire.
   expect(f.creates.at(-1)).toMatchObject({ name, gameType: 'constructed-1v1', clientMode: mode });
   return id;
 }

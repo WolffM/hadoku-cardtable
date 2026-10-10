@@ -117,6 +117,11 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
 
 const mount = (client: ReturnType<typeof roomsClient>) => render(createElement(LobbyScreen, { rooms: client }));
 
+/** Open the create dialog from its button at the foot of the list. */
+const openCreate = (): void => {
+  fireEvent.click(screen.getByTestId('room-create-open'));
+};
+
 const rowFor = (id: string): HTMLElement => {
   const row = screen.getAllByTestId('room-row').find((r) => r.getAttribute('data-room-id') === id);
   if (row === undefined) throw new Error(`no row for ${id}`);
@@ -144,20 +149,21 @@ describe('the list', () => {
     expect(within(locked).getByTestId('room-locked')).toBeTruthy();
   });
 
-  it('shows a loading state that already offers the create form', () => {
+  it('shows a loading state that already offers Create room', () => {
     const never: Fetch = () => new Promise<Response>(() => {});
     mount(roomsClient(never, '/cardtable/api/'));
     expect(screen.getByTestId('rooms-loading')).toBeTruthy();
+    openCreate();
     expect(screen.getByTestId('room-create-submit')).toBeTruthy();
   });
 
-  it('shows an empty state that points at the create form, which is right there', async () => {
+  it('shows an empty state with Create room right under it', async () => {
     const { client } = server([]);
     mount(client);
     const empty = await screen.findByTestId('rooms-empty');
     expect(empty.textContent).toContain('No rooms yet');
     expect(screen.queryByTestId('room-row')).toBeNull();
-    expect(screen.getByTestId('room-create-name')).toBeTruthy();
+    expect(screen.getByTestId('room-create-open')).toBeTruthy();
   });
 
   it('shows a failure with a Retry that loads the list', async () => {
@@ -487,6 +493,7 @@ describe('creating a room', () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
+    openCreate();
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: '  Friday night  ' } });
     fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'constructed-1v1' } });
@@ -508,6 +515,7 @@ describe('creating a room', () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
+    openCreate();
 
     // This option used to be disabled and labelled "coming soon", so the only
     // way to draft was the pod button w23 deletes. It is a room now.
@@ -530,6 +538,7 @@ describe('creating a room', () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
+    openCreate();
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Cube night' } });
     fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'draft' } });
@@ -546,34 +555,47 @@ describe('creating a room', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('offers the two clients before the room is made, with our table preselected, and sends the pick', async () => {
-    const { client, calls } = server([]);
+  it('is a dialog behind Create room at the foot of the list, and asks no client question', async () => {
+    // The operator, 2026-10-10: "let's have it just show the rooms … the 'Which Client' question should not exist for now".
+    const { client, calls } = server([OPEN]);
     mount(client);
-    await screen.findByTestId('rooms-empty');
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
+    expect(screen.queryByTestId('room-create')).toBeNull();
+    const button = screen.getByTestId('room-create-open');
+    expect(button.compareDocumentPosition(screen.getByTestId('room-list')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
 
-    // Visible before create, both of them. Labels only — the UI states the
-    // choice, it does not explain it.
-    const pick = screen.getByTestId('room-create-mode');
-    expect(pick.textContent).toContain('Our table');
-    expect(pick.textContent).toContain('Forge’s full client');
-    const builtin = screen.getByTestId('room-create-mode-builtin') as HTMLInputElement;
-    const streamed = screen.getByTestId('room-create-mode-streamed') as HTMLInputElement;
-    expect(builtin.checked).toBe(true);
-    expect(streamed.checked).toBe(false);
-    // And it says the choice is the room's, for the room's whole life.
+    fireEvent.click(button);
+    const dialog = screen.getByRole('dialog', { name: 'Create a room' });
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByTestId('room-create-name'));
+    expect(screen.queryByTestId('room-create-mode')).toBeNull();
+    expect(dialog.textContent).not.toContain('Forge’s full client');
 
-    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Full client night' } });
-    fireEvent.click(streamed);
-    expect((screen.getByTestId('room-create-mode-streamed') as HTMLInputElement).checked).toBe(true);
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Ours' } });
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Ours', gameType: 'constructed-1v1', clientMode: 'builtin' });
+  });
 
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
-      name: 'Full client night',
-      gameType: 'constructed-1v1',
-      clientMode: 'streamed',
-    });
+  it('closes on Escape, on its close button and on a press of the backdrop, and not on a press inside it', async () => {
+    const { client } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+
+    openCreate();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('room-create')).toBeNull();
+
+    openCreate();
+    fireEvent.click(screen.getByTestId('room-create-close'));
+    expect(screen.queryByTestId('room-create')).toBeNull();
+
+    openCreate();
+    fireEvent.pointerDown(screen.getByTestId('room-create-name'));
+    expect(screen.getByTestId('room-create')).toBeTruthy();
+    fireEvent.pointerDown(screen.getByTestId('room-create-backdrop'));
+    expect(screen.queryByTestId('room-create')).toBeNull();
   });
 
   it('carries the mode through to the room it lands you in', async () => {
@@ -588,6 +610,7 @@ describe('creating a room', () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
+    openCreate();
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
@@ -728,6 +751,9 @@ describe('the front page’s cues', () => {
     await screen.findByTestId('rooms-empty');
 
     const requests = recorder();
+    openCreate();
+    expect(requests.map((r) => r.role)).toEqual(['ui.select']);
+    requests.length = 0;
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });

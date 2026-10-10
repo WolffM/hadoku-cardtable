@@ -930,7 +930,7 @@ test(titled('R16 — when the leader presses Main menu and the other player pres
     await resultButton(bob.page, 'rematch').click();
 
     // Alice left the room entirely (Main menu) and is on the lobby list.
-    await expect(alice.page.getByTestId('room-create'), 'alice is back on the lobby list after Main menu').toBeVisible({ timeout: 15_000 });
+    await expect(alice.page.getByTestId('room-create-open'), 'alice is back on the lobby list after Main menu').toBeVisible({ timeout: 15_000 });
     // Bob stayed, landed on deck selection, and is now the leader — the only
     // member left, so leadership passed to him (operator ruling, R16) — proved
     // by the SAME signal the precondition used, now flipped.

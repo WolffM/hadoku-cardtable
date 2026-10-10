@@ -29,6 +29,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { openCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -150,10 +151,11 @@ test(titled('the page and the chat stay the window’s height on the front page 
       expect(made.status()).toBe(201);
     }
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
-    await expect(alice.page.getByTestId('room-create')).toBeVisible();
+    await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
     await expect(alice.page.getByTestId('room-row')).toHaveCount(ROOMS_OPEN);
     await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-list"] > :first-child', failures);
 
+    await openCreateRoom(alice.page);
     await alice.page.getByTestId('room-create-name').fill(`lobby fit ${Date.now()}`);
     await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
     await alice.page.getByTestId('room-create-submit').click();

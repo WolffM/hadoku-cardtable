@@ -140,18 +140,6 @@ export function gameTypeLabel(gameType: string): string {
   return gameType;
 }
 
-/**
- * The two clients the create form offers, in the words a person picks between.
- *
- * `note` is shown beside the pick, not behind a tooltip: "streams your screen
- * from the server" is the whole difference, and someone choosing it should
- * read it before they choose rather than after.
- */
-export const CLIENT_MODES: readonly { value: ClientMode; label: string }[] = [
-  { value: 'builtin', label: 'Our table' },
-  { value: 'streamed', label: 'Forge’s full client' },
-];
-
 /** The mode in two or three words, for a list row or a header. */
 export function clientModeLabel(mode: ClientMode): string {
   return mode === 'streamed' ? 'streamed Forge' : 'our table';
@@ -330,8 +318,8 @@ export interface CreateRequest {
   name: string;
   gameType: GameType;
   /**
-   * Always sent, never inferred. The create form makes the choice visible
-   * before it is made, so there is no hidden default to omit here.
+   * Always sent, never inferred. The create form no longer offers a choice
+   * (2026-10-10) and always sends `builtin`; the API still takes `streamed`.
    */
   clientMode: ClientMode;
   /** Omitted from the body when empty: an empty string is not a password. */

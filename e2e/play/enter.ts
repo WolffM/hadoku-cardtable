@@ -10,6 +10,7 @@
 import { expect, type APIRequestContext } from '@playwright/test';
 
 import type { Friend } from './browser.ts';
+import { openCreateRoom } from './rooms.ts';
 import { TURN_TEXT } from './turn.ts';
 
 const PREFIX = '/cardtable';
@@ -34,6 +35,7 @@ export async function twoLegalDecks(api: APIRequestContext, origin: string): Pro
 export async function enterMatch(alice: Friend, bob: Friend, origin: string): Promise<{ matchId: string; roomUrl: string }> {
   const choice = await twoLegalDecks(alice.context.request, origin);
   await alice.page.goto(`${origin}${PREFIX}/`);
+  await openCreateRoom(alice.page);
   await alice.page.getByTestId('room-create-name').fill(`e2e w31 ${Date.now()}`);
   await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
   await alice.page.getByTestId('room-create-submit').click();

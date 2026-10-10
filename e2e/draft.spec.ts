@@ -62,6 +62,7 @@ import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './ide
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
+import { openCreateRoom } from './play/rooms.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -260,7 +261,7 @@ async function roomState(p: Player, roomId: string): Promise<RoomWire> {
  */
 async function createDraftRoom(p: Player, name: string): Promise<string> {
   await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
-  await expect(p.page.getByTestId('room-create')).toBeVisible();
+  await expect(p.page.getByTestId('room-create-open')).toBeVisible();
 
   // ONE front door. The pod button and the paste-an-id box are gone, and this
   // is the spec that would notice them coming back.
@@ -268,11 +269,9 @@ async function createDraftRoom(p: Player, name: string): Promise<string> {
   await expect(p.page.getByTestId('start-pod')).toHaveCount(0);
   await expect(p.page.getByTestId('join-id')).toHaveCount(0);
 
+  await openCreateRoom(p.page);
   await p.page.getByTestId('room-create-name').fill(name);
   await p.page.getByTestId('room-create-type').selectOption('draft');
-  // Our table, not a streamed Forge — spelled out so a change of default
-  // cannot quietly turn this into a stream test.
-  await p.page.getByTestId('room-create-mode-builtin').check();
   await p.page.getByTestId('room-create-submit').click();
 
   const id = await roomIdFromHash(p.page);

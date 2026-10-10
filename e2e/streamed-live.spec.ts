@@ -34,6 +34,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { STREAM_NAME_PREFIX } from './streamNamespace.ts';
+import { createStreamedRoomByApi, openCreateRoom } from './play/rooms.ts';
 
 const run = promisify(execFile);
 
@@ -128,11 +129,9 @@ async function open(browser: Browser, name: string): Promise<Friend> {
 
 async function createStreamedRoom(f: Friend, name: string): Promise<string> {
   await f.page.goto(`${PREFIX}/`);
-  await expect(f.page.getByTestId('room-create')).toBeVisible();
-  await f.page.getByTestId('room-create-name').fill(name);
-  await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await f.page.getByTestId('room-create-mode-streamed').check();
-  await f.page.getByTestId('room-create-submit').click();
+  await expect(f.page.getByTestId('room-create-open')).toBeVisible();
+  // The form offers no client any more (2026-10-10); the API still makes a streamed room.
+  await createStreamedRoomByApi(f.page, name);
   await f.page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, { timeout: 20_000 });
   return (await f.page.evaluate(() => window.location.hash)).replace('#/room/', '');
 }
@@ -292,9 +291,9 @@ test('a builtin room costs no container at all', async ({ browser }) => {
 
   const alice = await open(browser, 'alice');
   await alice.page.goto(`${PREFIX}/`);
+  await openCreateRoom(alice.page);
   await alice.page.getByTestId('room-create-name').fill(`e2e builtin ${Date.now()}`);
   await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await alice.page.getByTestId('room-create-mode-builtin').check();
   await alice.page.getByTestId('room-create-submit').click();
   await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
   const roomId = (await alice.page.evaluate(() => window.location.hash)).replace('#/room/', '');

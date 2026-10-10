@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { enterMatch, twoLegalDecks } from './enter.ts';
+import { createStreamedRoomByApi, openCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerLoneAbility, answerPrompt } from './prompts.ts';
 
@@ -443,10 +444,11 @@ export async function roomIdFromHash(page: Page): Promise<string> {
 
 /**
  * Fill the front page's create form and submit it, returning the new room's
- * id. A password makes a locked room; a mode picks the builtin or streamed
- * client. The caller is already on the create form — this does not
- * navigate there, and does not assert anything about the form beyond what
- * it needs to fill in.
+ * id. A password makes a locked room. The form offers no client any more
+ * (2026-10-10), so `mode: 'streamed'` goes through the API instead
+ * (`./rooms.ts`). The caller is already on the front page — this opens the
+ * dialog but does not navigate, and asserts nothing about the form beyond
+ * what it needs to fill in.
  *
  * Takes `{ page }` rather than a named `Friend` type: `play.spec.ts` and
  * `room-mode.spec.ts` each have their own, differently-shaped `Friend`
@@ -458,10 +460,15 @@ export async function createRoom(
   name: string,
   opts: { password?: string; mode?: 'builtin' | 'streamed' } = {},
 ): Promise<string> {
+  if (opts.mode === 'streamed') {
+    if (opts.password !== undefined) throw new Error('a streamed room with a password is not a case any spec makes');
+    await createStreamedRoomByApi(f.page, name);
+    return roomIdFromHash(f.page);
+  }
+  await openCreateRoom(f.page);
   await f.page.getByTestId('room-create-name').fill(name);
   await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
   if (opts.password !== undefined) await f.page.getByTestId('room-create-password').fill(opts.password);
-  if (opts.mode !== undefined) await f.page.getByTestId(`room-create-mode-${opts.mode}`).check();
   await f.page.getByTestId('room-create-submit').click();
   return roomIdFromHash(f.page);
 }

@@ -11,10 +11,21 @@
  *
  * ## Four states, each with something to do
  *
- *   loading  — says so; the create form is already usable underneath
+ *   loading  — says so; Create room already works
  *   failed   — says why, and offers Retry
- *   empty    — says so, and points at the create form, which is right there
+ *   empty    — says so, with Create room right under it
  *   rooms    — the list
+ *
+ * ## Just the rooms (2026-10-10)
+ *
+ * The operator: *"let's have it just show the rooms. the entire 'Create a room'
+ * ui can be shown in a popout modal instead behind a button … at the bottom
+ * right of the rooms list. also the 'Which Client' question should not exist
+ * for now"*. So the form is `CreateRoomDialog`, behind `room-create-open`, and
+ * every room it makes is our table. The streamed mode is not gone: the server
+ * still takes `clientMode: 'streamed'`, a streamed room still lists and plays,
+ * and `e2e/room-mode.spec.ts` makes one through the API. Offering it again is
+ * the radio group this file used to draw.
  *
  * ## Freshness
  *
@@ -35,16 +46,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Icon } from '@wolffm/themes';
 
 import { navigate } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import {
-  CLIENT_MODES,
   clientModeLabel,
   GAME_TYPES,
   gameTypeLabel,
   roomsClient,
-  type ClientMode,
   type GameType,
   type RoomView,
   type RoomsClient,
@@ -67,6 +77,7 @@ export interface RoomListProps {
 export function RoomList({ client: given }: RoomListProps) {
   const client = useRef(given ?? roomsClient()).current;
   const [state, setState] = useState<ListState>({ kind: 'loading' });
+  const [creating, setCreating] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -147,7 +158,22 @@ export function RoomList({ client: given }: RoomListProps) {
         </p>
       )}
 
-      <CreateRoom client={client} />
+      <div className="rooms__foot">
+        <button
+          type="button"
+          className="lobby__go"
+          data-testid="room-create-open"
+          aria-haspopup="dialog"
+          onClick={() => {
+            playRole('ui.select');
+            setCreating(true);
+          }}
+        >
+          Create room
+        </button>
+      </div>
+
+      {creating && <CreateRoomDialog client={client} onClose={() => setCreating(false)} />}
     </section>
   );
 }
@@ -340,10 +366,13 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
 
 /* ── create ──────────────────────────────────────────────────────────── */
 
-function CreateRoom({ client }: { client: RoomsClient }) {
+/**
+ * The create form, as a modal over the list. Escape, the close button and a
+ * press on the backdrop close it; the name field has the focus when it opens.
+ */
+function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: () => void }) {
   const [name, setName] = useState('');
   const [gameType, setGameType] = useState<GameType>('constructed-1v1');
-  const [clientMode, setClientMode] = useState<ClientMode>('builtin');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -359,7 +388,7 @@ function CreateRoom({ client }: { client: RoomsClient }) {
     playRole('ui.select');
     setBusy(true);
     setError(null);
-    const outcome = await client.create({ name: trimmed, gameType, clientMode, password });
+    const outcome = await client.create({ name: trimmed, gameType, clientMode: 'builtin', password });
     setBusy(false);
     if (!outcome.ok) {
       playRole('ui.deny');
@@ -369,84 +398,86 @@ function CreateRoom({ client }: { client: RoomsClient }) {
     navigate({ kind: 'room', roomId: outcome.room.id });
   };
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose();
+    };
+    globalThis.document?.addEventListener('keydown', onKey);
+    return () => globalThis.document?.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
-    <form
-      className="rooms__create"
-      data-testid="room-create"
-      aria-labelledby="room-create-title"
-      onSubmit={(e) => void submit(e)}
+    <div
+      className="rooms__backdrop"
+      data-testid="room-create-backdrop"
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <h3 id="room-create-title">Create a room</h3>
-
-      <label htmlFor="room-create-name">Name</label>
-      <input
-        id="room-create-name"
-        data-testid="room-create-name"
-        value={name}
-        maxLength={60}
-        placeholder="Friday night"
-        autoComplete="off"
-        onChange={(e) => {
-          setName(e.target.value);
-          setError(null);
-        }}
-      />
-
-      <label htmlFor="room-create-type">Game type</label>
-      <select
-        id="room-create-type"
-        data-testid="room-create-type"
-        value={gameType}
-        onChange={(e) => setGameType(e.target.value as GameType)}
+      <form
+        className="rooms__create"
+        data-testid="room-create"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="room-create-title"
+        onSubmit={(e) => void submit(e)}
       >
-        {GAME_TYPES.map((t) => (
-          <option key={t.value} value={t.value} disabled={!t.ready}>
-            {t.label}
-          </option>
-        ))}
-      </select>
+        <div className="rooms__create-head">
+          <h3 id="room-create-title">Create a room</h3>
+          <button type="button" className="rooms__create-close" aria-label="Close" data-testid="room-create-close" onClick={onClose}>
+            <Icon name="close" size="1rem" />
+          </button>
+        </div>
 
-      {/* The mode is the ROOM's, chosen here and never again (D19a) — one pick
-          for constructed rooms and draft pods alike, because a pod is a lobby
-          room with `gameType: 'draft'`. Two radios rather than a select: the
-          whole choice, and what each half costs you, is readable without
-          opening anything. */}
-      <fieldset className="rooms__modes" data-testid="room-create-mode">
-        <legend>Which client</legend>
-        {CLIENT_MODES.map((m) => (
-          <label key={m.value} className="rooms__mode-pick" htmlFor={`room-create-mode-${m.value}`}>
-            <input
-              id={`room-create-mode-${m.value}`}
-              data-testid={`room-create-mode-${m.value}`}
-              type="radio"
-              name="room-create-mode"
-              value={m.value}
-              checked={clientMode === m.value}
-              onChange={() => setClientMode(m.value)}
-            />
-            <span className="rooms__mode-name">{m.label}</span>
-          </label>
-        ))}
-      </fieldset>
-      <label htmlFor="room-create-password">Password (optional)</label>
-      <input
-        id="room-create-password"
-        data-testid="room-create-password"
-        type="password"
-        maxLength={200}
-        autoComplete="new-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
-        Create room
-      </button>
+        <label htmlFor="room-create-name">Name</label>
+        <input
+          id="room-create-name"
+          data-testid="room-create-name"
+          value={name}
+          maxLength={60}
+          placeholder="Friday night"
+          autoComplete="off"
+          autoFocus
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
+        />
 
-      {error !== null && (
-        <p className="rooms__error" role="alert" data-testid="room-create-error">
-          {error}
-        </p>
-      )}
-    </form>
+        <label htmlFor="room-create-type">Game type</label>
+        <select
+          id="room-create-type"
+          data-testid="room-create-type"
+          value={gameType}
+          onChange={(e) => setGameType(e.target.value as GameType)}
+        >
+          {GAME_TYPES.map((t) => (
+            <option key={t.value} value={t.value} disabled={!t.ready}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+
+        <label htmlFor="room-create-password">Password (optional)</label>
+        <input
+          id="room-create-password"
+          data-testid="room-create-password"
+          type="password"
+          maxLength={200}
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
+          Create room
+        </button>
+
+        {error !== null && (
+          <p className="rooms__error" role="alert" data-testid="room-create-error">
+            {error}
+          </p>
+        )}
+      </form>
+    </div>
   );
 }

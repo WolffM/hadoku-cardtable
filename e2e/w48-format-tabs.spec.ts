@@ -54,7 +54,7 @@ async function open(browser: Browser, name: string): Promise<Friend> {
 test('the leader switches Standard → Modern → Legacy and picking a Legacy era moves the room', async ({ browser }) => {
   const alice = await open(browser, 'alice');
   await alice.page.goto(`${PREFIX}/`);
-  await expect(alice.page.getByTestId('room-create')).toBeVisible();
+  await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
   const roomId = await createRoom(alice, `w48 tabs ${Date.now()}`);
   expect(roomId.length).toBeGreaterThan(0);
 
@@ -126,7 +126,7 @@ test('a reload on a Legacy room opens the Legacy tab with its era chosen when th
 }) => {
   const alice = await open(browser, 'alice');
   await alice.page.goto(`${PREFIX}/`);
-  await expect(alice.page.getByTestId('room-create')).toBeVisible();
+  await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
   const roomId = await createRoom(alice, `w48 reload ${Date.now()}`);
 
   const select = alice.page.getByTestId('format');
