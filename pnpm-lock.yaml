@@ -106,8 +106,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@wolffm/game-stats-ui':
-        specifier: 0.1.2
-        version: 0.1.2(@wolffm/prefs-client@1.0.15(react@19.2.8)(zod@4.6.5))(@wolffm/themes@5.8.11(react@19.2.8))(react@19.2.8)
+        specifier: 0.1.3
+        version: 0.1.3(@wolffm/prefs-client@1.0.15(react@19.2.8)(zod@4.6.5))(@wolffm/themes@5.8.11(react@19.2.8))(react@19.2.8)
       '@wolffm/prefs-client':
         specifier: 1.0.15
         version: 1.0.15(react@19.2.8)(zod@4.6.5)
@@ -987,8 +987,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/game-stats-ui@0.1.2':
-    resolution: {integrity: sha512-G+XgmpU5yexaP/4c5Jgw8LEDTqyhhLWdtn/ZeMc8KADOHnVl8ZNFVrFLloAuaT5kKItNQwJbC5qd+IPmXpyEYA==, tarball: https://npm.pkg.github.com/download/@wolffm/game-stats-ui/0.1.2/bb16a6e53dd69df508afbe61a61753d71e66a14f}
+  '@wolffm/game-stats-ui@0.1.3':
+    resolution: {integrity: sha512-mZtDNfK9yyXc9ST8ghh2tjr7nr38K/7wOJhHDTR9sGx2bQI25h1Jd2IcsKWaMwhSik/++HfhKTUy417mBf9lHA==, tarball: https://npm.pkg.github.com/download/@wolffm/game-stats-ui/0.1.3/51ea6c0cfd0d9f16ac0f678eec4c075761b98f7a}
     engines: {node: '>=18'}
     peerDependencies:
       '@wolffm/prefs-client': ^1.0.0
@@ -2703,7 +2703,7 @@ snapshots:
     dependencies:
       react: 19.2.8
 
-  '@wolffm/game-stats-ui@0.1.2(@wolffm/prefs-client@1.0.15(react@19.2.8)(zod@4.6.5))(@wolffm/themes@5.8.11(react@19.2.8))(react@19.2.8)':
+  '@wolffm/game-stats-ui@0.1.3(@wolffm/prefs-client@1.0.15(react@19.2.8)(zod@4.6.5))(@wolffm/themes@5.8.11(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/prefs-client': 1.0.15(react@19.2.8)(zod@4.6.5)
       '@wolffm/themes': 5.8.11(react@19.2.8)

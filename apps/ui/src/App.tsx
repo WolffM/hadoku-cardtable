@@ -22,7 +22,7 @@
  *   `#/debug`            `DebugHarness` — the old front door
  *   `#/sounds`           `SoundBuilder` — admin-gated (wave 50 §U), renders nothing for anyone else
  *   `#/sounds/sandbox`   `SoundSandbox` — admin-gated the same way
- *   `#/stats[/<name>]`   `StatsScreen` — a player's record and history, and the boards
+ *   `#/stats[/<name>]`   the lobby with `StatsPopout` over it — a player's record, history and the boards
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.
  *

@@ -14,7 +14,6 @@ import { LobbyScreen } from './LobbyScreen.tsx';
 import { MatchScreen } from './MatchScreen.tsx';
 import { SoundBuilder } from './SoundBuilder.tsx';
 import { SoundSandbox } from './SoundSandbox.tsx';
-import { StatsScreen } from '../stats/StatsScreen.tsx';
 import { navigate, useRoute } from './route.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import './screens.css';
@@ -67,6 +66,7 @@ export function Screen({ transport }: ScreenProps) {
     case 'lobby':
       return <LobbyScreen />;
     case 'stats':
-      return <StatsScreen key={route.player ?? ''} player={route.player} />;
+      // The same element as the lobby's, so opening the popout keeps the lobby mounted.
+      return <LobbyScreen stats={{ player: route.player }} />;
   }
 }

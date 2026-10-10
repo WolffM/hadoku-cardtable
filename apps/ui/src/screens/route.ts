@@ -21,8 +21,8 @@
  *   `#/debug`            the developer harness that used to be the front door
  *   `#/sounds`           the sound builder (wave 50) — admin-gated, no link points at it
  *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, admin-gated
- *   `#/stats`            match stats: your record, history, decks, and the boards
- *   `#/stats/<name>`     the same for another player, by registry name
+ *   `#/stats`            the lobby, with the stats popout over it: your record, history, decks, the boards
+ *   `#/stats/<name>`     the same popout for another player, by registry name
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
  * lands on the room list, which offers a way in, rather than on an error page

@@ -30,15 +30,20 @@
 
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
-import { navigate, routeHash } from './route.ts';
+import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
   rooms?: RoomsClient;
+  /** `#/stats[/<name>]`: the stats popout is open over the lobby, for this player (absent, the viewer). */
+  stats?: { player?: string };
+  /** Tests pass a stats client over a stubbed fetch. Production passes nothing. */
+  statsSource?: StatsSource;
 }
 
-export function LobbyScreen({ rooms }: LobbyScreenProps) {
+export function LobbyScreen({ rooms, stats, statsSource }: LobbyScreenProps) {
   return (
     <div className="shell shell--fit" data-testid="lobby">
       {/* No title here. The fleet's AppHeader already says "Card Table" at the
@@ -47,14 +52,13 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
           screens' `shell__head` earns its place by naming the ROOM or the
           deck; the lobby has nothing to add that the header has not said. */}
       <nav className="shell__head">
-        <a className="shell__link" href={routeHash({ kind: 'stats' })} data-testid="lobby-stats">
-          Stats
-        </a>
+        <StatsButton source={statsSource} />
         <SettingsGear />
       </nav>
       <main className="front">
         <RoomList client={rooms} />
       </main>
+      {stats !== undefined && <StatsPopout player={stats.player} source={statsSource} />}
 
       <footer className="shell__foot">
         {import.meta.env?.DEV === true && (
