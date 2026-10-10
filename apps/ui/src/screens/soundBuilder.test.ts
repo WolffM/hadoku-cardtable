@@ -257,6 +257,17 @@ describe('SoundBuilder', () => {
     expect(client.saves).toEqual([{ cell: 'g.draw|play', files: [TAKE_A.file], gain: 0.9 }]);
   });
 
+  it("a role's name filters the bin to the takes written for it", async () => {
+    const roleTake = { ...TAKE_B, file: 'ui.select/take-v1-5000.ogg', name: 'Select', label: 'Select · 1a', prompt: 'a click' };
+    const client = stubClient({ cells: {}, canEdit: true }, [TAKE_A, roleTake]);
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show takes for Select' }));
+    expect(screen.getByRole('button', { name: /Select · 1a: play and pick up/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Water · 1: play and pick up/ })).toBeNull();
+  });
+
   it('the search and the unplaced filter narrow the bin', async () => {
     const client = stubClient({ cells: { 'g.draw|play': [TAKE_A.file] }, canEdit: true });
     render(createElement(SoundBuilder, { client, player: stubPlayer() }));

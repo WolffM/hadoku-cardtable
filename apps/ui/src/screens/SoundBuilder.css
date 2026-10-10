@@ -385,6 +385,21 @@ a.sound-builder__btn {
   align-items: center;
 }
 
+.sound-builder__rolefind {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sound-builder__rolefind:hover,
+.sound-builder__rolefind:focus-visible {
+  color: var(--color-primary);
+}
+
 .sound-builder__rowsub {
   display: block;
   font-weight: 400;

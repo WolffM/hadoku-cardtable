@@ -383,7 +383,14 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                           <tr key={role.id}>
                             <th scope="row">
                               <div className="sound-builder__rowname">
-                                <span>{role.name}</span>
+                                <button
+                                  type="button"
+                                  className="sound-builder__rolefind"
+                                  aria-label={`Show takes for ${role.name}`}
+                                  onClick={() => setQuery(role.name)}
+                                >
+                                  {role.name}
+                                </button>
                                 <span className="sound-builder__rowsub">{role.sub}</span>
                               </div>
                             </th>
