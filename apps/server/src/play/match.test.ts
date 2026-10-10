@@ -1709,6 +1709,59 @@ describe('an ask in which nothing may be chosen is a reveal, whatever its shape'
 	});
 });
 
+describe("a trigger's one ability is not a question: the server plays it", () => {
+	/** Forge's `getAbilityToPlay` for `hostCard`, offering `abilities` (their ids). */
+	function offer(callId: string, hostCard: number, abilities: number[]) {
+		return {
+			kind: 'ask' as const,
+			callId,
+			method: 'getAbilityToPlay' as const,
+			hostCard: { kind: 'card' as const, id: hostCard },
+			abilities: abilities.map((id) => ({ kind: 'spellAbility' as const, id, label: `ability ${id}` })),
+			triggerEvent: null,
+		};
+	}
+	const onWire = (h: Harness, callId: string) =>
+		h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+	const click = (h: Harness, card: number) =>
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: card }, otherCardViewsToSelect: [], triggerEvent: null }));
+
+	it('nobody clicked the card: Forge gets the one ability and the offer never reaches the wire', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-1', 960, [77]) });
+		expect(onWire(h, 't-1')).toBe(false);
+		expect(h.host.commands).toContainEqual({ t: 'reply', seat: 0, callId: 't-1', result: { kind: 'spellAbility', id: 77, label: 'ability 77' } });
+		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'ask-auto-answered', callId: 't-1', method: 'getAbilityToPlay' }));
+	});
+
+	it("the seat's own click still asks: the offer for the card it clicked reaches the browser", () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		click(h, 961);
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-2', 961, [78]) });
+		expect(onWire(h, 't-2')).toBe(true);
+		// The click is spent on its own offer: a trigger of that same card afterwards is nobody's click.
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-3', 961, [79]) });
+		expect(onWire(h, 't-3')).toBe(false);
+	});
+
+	it('two abilities are a real choice: asked', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-4', 962, [80, 81]) });
+		expect(onWire(h, 't-4')).toBe(true);
+	});
+
+	it('full control: asked', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.setFullControl(0, true);
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-5', 963, [82]) });
+		expect(onWire(h, 't-5')).toBe(true);
+	});
+});
+
 describe("V7: the whole game's log, not just its last few lines", () => {
 	/**
 	 * `setFullControl` is the simplest caller of `Match.say` that needs no
