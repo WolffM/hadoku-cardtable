@@ -1764,7 +1764,7 @@ function Loyalty({ entry }: { entry: BoardCard }) {
   const loyalty = Number(entry.card.loyalty);
   if (!Number.isFinite(loyalty)) return null;
   return (
-    <span className="board-card__pt" data-pt="" aria-label={`loyalty ${loyalty}`}>
+    <span className="board-card__pt" data-pt="loyalty" aria-label={`loyalty ${loyalty}`}>
       <span className="board-card__pt-n" data-pt-of="loyalty">
         {loyalty}
       </span>
