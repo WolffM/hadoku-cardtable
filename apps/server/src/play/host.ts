@@ -616,6 +616,14 @@ const OUT_FIFO = 'out.fifo';
 export const JVM_RECORD_FILE = 'jvm.json';
 /** Every protocol line, as read, so a re-attach can replay the match into a fresh `Match`. */
 export const STREAM_FILE = 'stream.jsonl';
+/**
+ * The JVM's `java.io.tmpdir`. Forge's lz4-java unpacks a native `.so` there on
+ * every boot and only removes it on a clean JVM exit, which a SIGKILLed bridge
+ * never has — so under the default `/tmp` every killed match leaked one copy
+ * (3,036 of them on hokon's RAM-backed /tmp, 2026-10-10). Inside the run dir it
+ * goes wherever the run dir goes: removed on a clean end, pruned on a crash.
+ */
+const JVM_TMP_DIR = 'tmp';
 
 /** An orphan older than this is not re-attached: it is killed and swept. */
 export const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;
@@ -785,6 +793,7 @@ function stageRunDir(config: JvmHostConfig, name: string): string {
 	mkdirSync(join(run, 'user', 'decks', 'constructed'), { recursive: true });
 	mkdirSync(join(run, 'user', 'preferences'), { recursive: true });
 	mkdirSync(join(run, 'cache'), { recursive: true });
+	mkdirSync(join(run, JVM_TMP_DIR), { recursive: true });
 	symlinkSync(config.res, join(run, 'res'));
 	makeFifos(run);
 	writeFileSync(
@@ -1147,7 +1156,7 @@ class BridgeJvm {
 		try {
 			child = spawn(
 				config.java,
-				['-Djava.awt.headless=true', ...config.jvmOpts, ...bridge.args, ...source.args],
+				['-Djava.awt.headless=true', `-Djava.io.tmpdir=${join(run, JVM_TMP_DIR)}`, ...config.jvmOpts, ...bridge.args, ...source.args],
 				// `detached` puts it in its own process group, so a signal aimed at
 				// ours never reaches it; `unref` keeps it off our event loop.
 				{ cwd: run, stdio: [childIn, childOut, stderrFd], detached: true },
