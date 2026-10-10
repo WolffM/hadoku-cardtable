@@ -65,6 +65,10 @@ describe('resolveArtUrl — case 1, a cdn entry', () => {
     );
   });
 
+  it("asks Scryfall for the artwork alone when the size is art_crop", () => {
+    expect(resolveArtUrl(ID_ABSENT, {}, { size: 'art_crop' })).toBe(scryfallUrl(ID_ABSENT, 'art_crop'));
+  });
+
   it('ignores size — a key addresses one stored object at one size', () => {
     const small = resolveArtUrl(ID_CDN, MANIFEST, { size: 'small' });
     const large = resolveArtUrl(ID_CDN, MANIFEST, { size: 'large' });

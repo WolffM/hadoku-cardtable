@@ -85,6 +85,7 @@ import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
 import { attachSounds } from './http/sounds.js';
+import { serveCover } from './cover.js';
 import { openLobby } from './room/lobby.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
@@ -225,6 +226,9 @@ if (basePath.ok) {
 		})
 	);
 }
+
+// The game picker's tile in watchparty: a redirect to the cover's art.
+app.get('/cover', serveCover);
 
 // The embed bundle watchparty imports (D21). Its two entry files keep their
 // names across builds, so they revalidate (`no-cache`, answered 304 by ETag);

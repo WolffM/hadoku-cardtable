@@ -101,8 +101,11 @@ export interface ArtManifestFile {
   readonly entries: ArtManifest;
 }
 
-/** Scryfall's image sizes, in the URL shape they publish. */
-export type ArtImageSize = 'small' | 'normal' | 'large';
+/**
+ * Scryfall's image sizes, in the URL shape they publish. `art_crop` is the
+ * artwork alone, no frame: what a banner or a cover tile wants.
+ */
+export type ArtImageSize = 'small' | 'normal' | 'large' | 'art_crop';
 
 /** Our CDN's origin. Expected to move one day; that is why it is one constant. */
 export const CDN_BASE = 'https://cdn.hadoku.me';
