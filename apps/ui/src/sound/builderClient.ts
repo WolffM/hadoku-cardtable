@@ -143,7 +143,7 @@ export function soundsClient(
       const i = file.indexOf('/');
       const folder = i < 0 ? file : file.slice(0, i);
       const name = i < 0 ? '' : file.slice(i + 1);
-      return url(`/takes/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`);
+      return url(`/audio/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`);
     },
   };
 }

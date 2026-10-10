@@ -368,21 +368,44 @@ describe('PUT /api/sounds/assignments/:cell', () => {
 
 /* ── take audio: serving, and the traversal gate ────────────────────── */
 
-describe('GET /api/sounds/takes/:folder/:file', () => {
-	it('serves the bytes with an audio/ogg content type and a long immutable cache header', async () => {
+describe('GET /api/sounds/audio/:folder/:file', () => {
+	it('serves the bytes as audio/ogg, revalidated rather than cached blind', async () => {
 		const dir = await tempDir();
 		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'fake-ogg-bytes');
 		const h = await openApp(dir);
-		const res = await call(h, 'GET', '/api/sounds/takes/m-win/take-synth-1.ogg');
+		const res = await call(h, 'GET', '/api/sounds/audio/m-win/take-synth-1.ogg');
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toContain('audio/ogg');
-		expect(res.headers.get('cache-control')).toContain('immutable');
+		expect(res.headers.get('cache-control')).toBe('no-cache');
+		expect(res.headers.get('etag')).toMatch(/^"[\w-]+"$/);
 		expect(res.text).toBe('fake-ogg-bytes');
+	});
+
+	it('answers 304 for an unchanged take, and the new bytes once it is re-cut in place', async () => {
+		const dir = await tempDir();
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'first cut');
+		const h = await openApp(dir);
+		const first = await call(h, 'GET', '/api/sounds/audio/m-win/take-synth-1.ogg');
+		const etag = first.headers.get('etag')!;
+		const again = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: { ...headersFor('friend'), 'if-none-match': etag } });
+		expect(again.status).toBe(304);
+
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'second, longer cut');
+		const recut = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: { ...headersFor('friend'), 'if-none-match': etag } });
+		expect(recut.status).toBe(200);
+		expect(await recut.text()).toBe('second, longer cut');
+	});
+
+	it('no longer answers the old immutable path', async () => {
+		const dir = await tempDir();
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg');
+		const h = await openApp(dir);
+		expect((await call(h, 'GET', '/api/sounds/takes/m-win/take-synth-1.ogg')).status).toBe(404);
 	});
 
 	it('404s a well-formed path that does not exist', async () => {
 		const h = await openApp(await tempDir());
-		const res = await call(h, 'GET', '/api/sounds/takes/m-win/take-ghost.ogg');
+		const res = await call(h, 'GET', '/api/sounds/audio/m-win/take-ghost.ogg');
 		expect(res.status).toBe(404);
 	});
 
@@ -396,12 +419,12 @@ describe('GET /api/sounds/takes/:folder/:file', () => {
 		const h = await openApp(dir);
 
 		const attempts = [
-			'/api/sounds/takes/..%2F..%2Fetc/take-1.ogg', // encoded slash, dotdot folder
-			'/api/sounds/takes/etc/..%2F..%2Fsecret.ogg', // encoded slash in file
-			'/api/sounds/takes/%2Fetc/take-1.ogg', // encoded leading slash (absolute-looking)
-			'/api/sounds/takes/m-win/take-1.wav', // wrong extension
-			'/api/sounds/takes/M-Win/take-1.ogg', // uppercase folder
-			'/api/sounds/takes/m-win/other-1.ogg', // missing take- prefix
+			'/api/sounds/audio/..%2F..%2Fetc/take-1.ogg', // encoded slash, dotdot folder
+			'/api/sounds/audio/etc/..%2F..%2Fsecret.ogg', // encoded slash in file
+			'/api/sounds/audio/%2Fetc/take-1.ogg', // encoded leading slash (absolute-looking)
+			'/api/sounds/audio/m-win/take-1.wav', // wrong extension
+			'/api/sounds/audio/M-Win/take-1.ogg', // uppercase folder
+			'/api/sounds/audio/m-win/other-1.ogg', // missing take- prefix
 		];
 		for (const path of attempts) {
 			const res = await call(h, 'GET', path);

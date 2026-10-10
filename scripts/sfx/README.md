@@ -85,3 +85,16 @@ python3 scripts/sfx/add-track.py tavern.mp3 --name "Tavern loop" --credit "Taver
 Audio bytes never enter this repo or the UI bundle at any point in this pipeline — `import.py` only
 ever reads from a local `finished/` directory and writes to the server's data directory, both outside
 git.
+
+## Re-cutting in place
+
+When the finishing limits change, re-cut the live takes without touching their names, groups or placements:
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --into apps/server/data/sounds
+```
+
+Each catalogued take with a raw `.wav` under `generated/` is finished again and written over its own file; only its
+`seconds` changes in `catalogue.json`. Do not use `import.py --merge` for this: it rebuilds the entries, which loses
+any renames. Browsers pick the new cut up at once: `/api/sounds/audio/…` is served `no-cache` with an ETag.
+

@@ -125,7 +125,7 @@ describe('soundsClient.save', () => {
 describe('soundsClient.takeUrl', () => {
   it('splits the folder and the file into two encoded segments', () => {
     const client = soundsClient(vi.fn(), '/api/');
-    expect(client.takeUrl('lib-water/take-001.ogg')).toBe('/api/sounds/takes/lib-water/take-001.ogg');
+    expect(client.takeUrl('lib-water/take-001.ogg')).toBe('/api/sounds/audio/lib-water/take-001.ogg');
   });
 });
 

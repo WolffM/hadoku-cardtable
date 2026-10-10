@@ -66,7 +66,7 @@ function stubClient(
       return { files: [...files], gain: gain ?? 1 };
     },
     takeUrl(file) {
-      return `/api/sounds/takes/${file}`;
+      return `/api/sounds/audio/${file}`;
     },
   };
 }

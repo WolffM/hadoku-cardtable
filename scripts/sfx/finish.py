@@ -24,16 +24,14 @@ GATE_DB = -45.0          # relative to the take's own peak: quieter than this is
 FADE_IN_S, FADE_OUT_S = 0.004, 0.04
 TAIL_PAD_S = 0.03
 
-# The longest each kind of sound may run (operator, 2026-10-05: "most of the sounds you created are too long").
-# Card games keep effects short so one finishes before the next action: Hearthstone's interface pokes are
-# 0.5-0.8 s and its card-play sounds 0.6-3.7 s with the voice line included (Hearthstone wiki audio files).
-# A take longer than its cap is cut there with a fade-out, so an ambience (waves, wind) becomes a gesture.
-MOMENT_CAP = {'m-tap': 0.4, 'm-phase': 0.4, 'm-draw': 0.6, 'm-shuffle': 0.6, 'm-attack': 0.8, 'm-block': 0.8,
-              'm-damage': 0.8, 'm-dies': 0.8, 'm-resolve': 0.8, 'm-turn': 1.0, 'm-win': 3.0, 'm-lose': 3.0}
-# Round 4's role folders are named by role id. Interface sounds fire constantly, so they stay shortest.
-ROLE_CAP = {'ui.prompt': 0.8, 'ui.target': 0.5, 'ui.inspect': 0.5, 'g.tap': 0.4, 'g.untap': 0.4, 'g.mana': 0.5,
-            'g.turn-mine': 1.2, 'g.turn-theirs': 1.0, 'g.game-start': 1.5, 'g.untap-all': 0.7}
-LIB_IMPACT = ('lib-sword', 'lib-shield', 'lib-punch', 'lib-arrow', 'lib-branch', 'lib-glass', 'lib-coins', 'lib-paper', 'lib-zap')
+# The longest each kind of sound may run. First set short (operator, 2026-10-05: "most of the sounds you created
+# are too long"), then measured too short (2026-10-10: "playing the sounds seems a bit cutoff"): at 0.8 s, 82% of
+# the game takes were cut mid-ring, when their median rings 1.7 s to -45 dB and their main hit is over by 0.7 s.
+# So a limit now only stops a runaway take, and a sound keeps its own tail: card games let a tail ring under the
+# next sound rather than chop it (the mixer collapses repeats and caps voices). Interface sounds rarely reach theirs.
+MOMENT_CAP = {'m-turn': 2.5, 'm-win': 4.0, 'm-lose': 4.0}
+ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.turn-theirs': 2.5, 'g.game-start': 2.5}
+UI_CAP, GAME_CAP = 0.6, 2.0
 
 
 def cap_for(folder):
@@ -43,14 +41,8 @@ def cap_for(folder):
     if folder in ROLE_CAP:
         return ROLE_CAP[folder]
     if folder.startswith('ui.'):
-        return 0.35
-    if folder.startswith('g.'):
-        return 0.8
-    if folder.startswith('land-') or folder.endswith('.land'):
-        return 1.0
-    if folder.startswith(LIB_IMPACT):
-        return 0.8
-    return 1.5
+        return UI_CAP
+    return GAME_CAP
 
 
 def db(x):
@@ -73,8 +65,8 @@ def finish(path, cap):
     gain = 10 ** ((TARGET_RMS_DB - db(rms)) / 20)
     gain = min(gain, 10 ** (PEAK_CEILING_DB / 20) / np.abs(clip).max())
     clip *= gain
-    # a capped take gets a long fade (a quarter of it) so the cut reads as a decay, not a chop
-    fade_out = max(FADE_OUT_S, cap * 0.25) if capped else FADE_OUT_S
+    # a capped take fades over its last 30%, so the cut reads as a decay, not a chop
+    fade_out = max(FADE_OUT_S, cap * 0.3) if capped else FADE_OUT_S
     n_in, n_out = int(FADE_IN_S * rate), min(int(fade_out * rate), len(clip) // 2)
     clip[:n_in] *= np.linspace(0, 1, n_in)[:, None]
     clip[-n_out:] *= np.linspace(1, 0, n_out)[:, None]
@@ -91,7 +83,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', default='', help='comma-separated folder prefixes, e.g. "ui.,g." for round 4')
     ap.add_argument('--out', default='finished', help='output dir under ~/.local/share/cardtable-sfx')
+    ap.add_argument('--into', default='', help='re-cut in place: a sounds dir (catalogue.json + takes/); overwrites each '
+                    'take that has a raw source and updates only its seconds, so names, groups and placements stay')
     args = ap.parse_args()
+    if args.into:
+        return recut_in_place(args.into)
     prefixes = tuple(p for p in args.only.split(',') if p)
     out_root = os.path.join(ROOT, args.out)
     manifest = {}
@@ -113,6 +109,41 @@ def main():
         manifest.setdefault(sid, []).append({'file': f'{sid}/{stem}.ogg', 'seed': meta['seed'], 'prompt': meta['prompt'], **measured})
     json.dump(manifest, open(os.path.join(out_root, 'manifest.json'), 'w'), indent=1)
     print(f"{sum(len(v) for v in manifest.values())} takes over {len(manifest)} sounds -> {out_root}")
+
+
+def recut_in_place(sounds_dir):
+    """Re-finish every catalogued take from its raw .wav, under the same file name."""
+    raw = {}
+    for wav in glob.glob(os.path.join(ROOT, 'generated', '*', 'take-*.wav')):
+        sid = os.path.basename(os.path.dirname(wav))
+        raw[f"{sid.lower()}/{os.path.splitext(os.path.basename(wav))[0]}.ogg"] = (wav, sid)
+    cat_path = os.path.join(sounds_dir, 'catalogue.json')
+    catalogue = json.load(open(cat_path, encoding='utf-8'))
+    done = skipped = longer = 0
+    for take in catalogue['takes']:
+        source = raw.get(take['file'])
+        if source is None:
+            skipped += 1
+            continue
+        wav, sid = source
+        result = finish(wav, cap_for(sid))
+        if result is None:
+            skipped += 1
+            continue
+        clip, rate, measured = result
+        target = os.path.join(sounds_dir, 'takes', take['file'])
+        with tempfile.NamedTemporaryFile(suffix='.wav') as tmp:
+            sf.write(tmp.name, clip, rate)
+            part = target + '.recut.ogg'
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', tmp.name, '-ac', '1', '-c:a', 'libopus', '-b:a', '64k', part], check=True)
+            os.replace(part, target)
+        longer += measured['seconds'] > take['seconds'] + 0.01
+        take['seconds'] = measured['seconds']
+        done += 1
+    part = cat_path + '.recut.tmp'
+    json.dump(catalogue, open(part, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    os.replace(part, cat_path)
+    print(f"re-cut {done} takes in place ({longer} now longer), {skipped} with no raw source left as they were")
 
 
 if __name__ == '__main__':

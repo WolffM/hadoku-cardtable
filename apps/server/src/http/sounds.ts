@@ -9,7 +9,7 @@
  * defines and nothing here re-implements.
  *
  *   GET /api/sounds/catalogue            → 200 { takes: SoundTake[] }
- *   GET /api/sounds/takes/:folder/:file   → 200 audio/ogg | 400 | 404
+ *   GET /api/sounds/audio/:folder/:file   → 200 audio/ogg | 304 | 400 | 404
  *   GET /api/sounds/assignments           → 200 { cells, gains, canEdit }
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
  *
@@ -27,7 +27,7 @@
  *
  * ## The traversal gate is the allow-list, not the path check
  *
- * `GET /takes/:folder/:file` resolves a path from two URL segments, which is
+ * `GET /audio/:folder/:file` resolves a path from two URL segments, which is
  * exactly the shape that goes wrong. The real defence is `TAKE_FILE_RE`
  * (`@hadoku/shared`): its folder segment must START with a letter or digit,
  * which makes `..` and an absolute path syntactically impossible, and it
@@ -44,7 +44,7 @@
  * was renamed/removed by a later import run).
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename } from 'node:fs/promises';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
@@ -227,7 +227,14 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		res.json(await readCatalogue(dir, log));
 	});
 
-	sounds.get('/takes/:folder/:file', async (req: Request, res: Response) => {
+	/*
+	 * Revalidated, never cached blind: a take is re-cut in place (same name, new
+	 * bytes) when the finishing limits change, as they did on 2026-10-10. Until
+	 * then this was `immutable` for a year under `/takes/`, which would have kept
+	 * every browser on the old cut forever — hence the new path as well, so those
+	 * copies are never asked for again. An unchanged take answers 304.
+	 */
+	sounds.get('/audio/:folder/:file', async (req: Request, res: Response) => {
 		const folder = String(req.params.folder);
 		const file = String(req.params.file);
 		const rel = `${folder}/${file}`;
@@ -247,8 +254,11 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 			if (isEnoent(err)) return res.status(404).json({ error: 'no such take' });
 			throw err;
 		}
+		const etag = `"${createHash('sha1').update(data).digest('base64url')}"`;
 		res.setHeader('Content-Type', 'audio/ogg');
-		res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+		res.setHeader('Cache-Control', 'no-cache');
+		res.setHeader('ETag', etag);
+		if (req.headers['if-none-match'] === etag) return res.status(304).end();
 		res.status(200).send(data);
 	});
 

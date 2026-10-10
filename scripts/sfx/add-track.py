@@ -5,7 +5,7 @@
         --credit "Tavern loop by Someone, CC-BY 4.0, https://…" --to <sounds dir>
 
 Transcodes the file to Opus (stereo, 128 kbit/s) at
-`<sounds dir>/takes/music-<slug>/take-1.ogg` and merges one catalogue entry in
+`<sounds dir>/takes/music-<slug>/take-1.ogg` (served at `/api/sounds/audio/…`) and merges one catalogue entry in
 the Music section, so it shows up in `#/sounds` ready to place on
 `music.lobby` or `music.match`. The credit is stored as the entry's prompt (the
 builder shows it on hover) and MUST also go in `NOTICE.md`: a track is only
