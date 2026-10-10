@@ -331,6 +331,15 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       );
     }
 
+    // And what each screen reported of them itself (`handover-report.ts`, through the server's log).
+    for (const r of serverLog(stack).slice(logFrom)) {
+      if (r.evt !== 'client' || (r.kind !== 'handover' && r.kind !== 'landing')) continue;
+      const f = (k: string) => (r[k] === undefined ? '-' : String(r[k]));
+      console.log(
+        `[w67-hand] ${run.label} telemetry seat ${f('seat')} ${f('screen')} ${String(r.kind)} ${f('how')}: from ${f('fromX')},${f('fromY')} to ${f('toX')},${f('toY')} dist ${f('dist')}px; glide ${f('glideMs')}ms done=${f('glideDone')}; ${f('msSinceRelease')}ms since release, ${f('msSinceStackFrame')}ms since the stack frame; motion=${f('motion')} doubled=${f('doubled')}`,
+      );
+    }
+
     // B1 — once bob's waiting back has handed over, no back of hers stands up again: a stale
     // `placing` echo opened a second one, and her pointer traffic kept it alive.
     const firstWait = backs.find((s) => s.attrs.includes('data-waiting'));
