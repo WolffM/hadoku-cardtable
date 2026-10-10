@@ -65,6 +65,7 @@ import { ManaCost } from '../components/ManaPip.tsx';
 import { pickRandom, soundsClient, type SoundsClient } from '../sound/builderClient.ts';
 import { GainSlider } from '../sound/GainSlider.tsx';
 import { createMixer, type Mixer } from '../sound/mixer.ts';
+import { SoundQueue } from './SoundQueue.tsx';
 import './SoundBuilder.css';
 
 export interface SoundBuilderProps {
@@ -74,7 +75,9 @@ export interface SoundBuilderProps {
   player?: Pick<Mixer, 'playFile'>;
 }
 
-type Tab = 'roles' | 'colours';
+type Tab = 'roles' | 'colours' | 'queue';
+
+const TAB_LABEL: Record<Tab, string> = { roles: 'Roles', colours: 'Colours', queue: 'Queue' };
 
 const FAMILY_LABEL: Record<string, string> = {
   mono: 'Mono',
@@ -305,15 +308,19 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
           </p>
         )}
         <nav className="sound-builder__tabs" aria-label="Builder view">
-          {(['roles', 'colours'] as const).map((t) => (
+          {(['roles', 'colours', 'queue'] as const).map((t) => (
             <button
               key={t}
               type="button"
               className="sound-builder__btn"
               aria-pressed={tab === t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                // The queue has its own Delete; a take still in hand from the bin would answer it too.
+                setHolding(null);
+                setTab(t);
+              }}
             >
-              {t === 'roles' ? 'Roles' : 'Colours'}
+              {TAB_LABEL[t]}
             </button>
           ))}
           <a className="sound-builder__btn sound-builder__btn--primary" href="#/sounds/sandbox">
@@ -385,6 +392,17 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
         </aside>
 
         <main className="sound-builder__main">
+          {tab === 'queue' && (
+            <SoundQueue
+              takes={takes}
+              cells={cells}
+              placed={placed}
+              play={(f) => player.playFile(f)}
+              place={(cell, files) => void persist(cell, files)}
+              retire={(f, reason) => void retire(f, reason)}
+            />
+          )}
+
           {tab === 'colours' && (
           <section className="sound-builder__section">
             <h2>Colour identities</h2>
