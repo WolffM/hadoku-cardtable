@@ -1,0 +1,18 @@
+# The operator, 2026-10-10: "i use ghost quarter to destroy a land. the opponent has no choice so it
+# just shows them their deck. but the visual to show the deck is cut off at the bottom". Alice (seat 0)
+# holds her main phase with Ghost Quarter; bob (seat 1) has a nonbasic land to destroy and a library of
+# forty cards with no basic land among them, so his search finds nothing and Forge shows him the whole
+# library — a reveal far taller than the table.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Ghost Quarter
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Underground River
+ailibrary=Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears
+aigraveyard=
