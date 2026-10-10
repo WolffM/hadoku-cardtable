@@ -52,6 +52,11 @@
   margin: 0 auto;
 }
 
+/* The stats grid outgrows the viewport; it scrolls inside the chrome's content region. */
+.stats {
+  overflow-y: auto;
+}
+
 .shell__head {
   display: flex;
   flex-direction: column;

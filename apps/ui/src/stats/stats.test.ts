@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /*
  * The stats screen over the REAL game-stats client (`@wolffm/prefs-client/games`)
- * and a stubbed fetch answering in the store's own read shapes: what each
- * section asks for, what it draws, and that one failed read leaves the rest.
+ * and a stubbed fetch answering in the store's own read shapes: what
+ * cardtable passes the shared screen: pips, deck names, turns, links, the pool.
+ * `@wolffm/game-stats-ui` tests the screen itself.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -68,7 +69,7 @@ const RATINGS: LeaderboardRow[] = [
   { rank: 2, name: 'Ash', isMe: false, value: 1490, totals: totals(2, 5) },
 ];
 
-function stub(fail: string[] = []) {
+function stub() {
   const asked: URL[] = [];
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -76,7 +77,6 @@ function stub(fail: string[] = []) {
     expect(init?.credentials).toBe('include');
     const path = url.pathname.replace('/prefs/api/v1/_games/cardtable', '');
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-    if (fail.some((f) => path.startsWith(f))) return json({ message: 'store unavailable' }, 503);
     if (path === '/profile') return json(PROFILE);
     if (path === '/matches') return json({ matches: [MATCH], nextBefore: null });
     if (path === '/leaderboard') return json({ by: 'rating', rows: RATINGS });
@@ -91,78 +91,36 @@ function stub(fail: string[] = []) {
 }
 
 describe('the stats screen', () => {
-  it('draws the record, history, colours, decks and both boards', async () => {
+  it('draws colours as pips, decks on each seat, turns, and names as links to their page, all in the constructed pool', async () => {
     const { client, asked } = stub();
     render(createElement(StatsScreen, { client }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Stats');
 
-    const record = await screen.findByTestId('stats-record');
-    expect(record.textContent).toContain('10');
-    expect(record.textContent).toContain('7–3');
-    expect(record.textContent).toContain('70%');
-    expect(record.textContent).toContain('1562');
-
-    const history = await screen.findByTestId('stats-matches');
+    const history = await screen.findByTestId('gs-matches');
     const row = within(history).getAllByRole('row')[1]!;
-    expect(row.getAttribute('data-outcome')).toBe('win');
-    expect(row.textContent).toContain('Win');
     expect(row.textContent).toContain('Azorius Fliers');
-    expect(row.textContent).toContain('Mono Red');
     expect(row.textContent).toContain('9');
-    expect(row.querySelector('[data-colors="WU"]')).not.toBeNull();
-    const seats = within(row).getAllByRole('listitem');
-    expect(seats[0]!.textContent, "the viewer's own seat first").toContain('Bella');
+    expect(row.querySelector('[data-attr="colors"] [data-colors="WU"]')).not.toBeNull();
+    expect(within(row).getByRole('link', { name: 'Ash' }).getAttribute('href')).toBe('#/stats/Ash');
 
-    const colors = await screen.findByTestId('stats-colors');
+    const colors = await screen.findByTestId('gs-breakdown-colors');
     const colorRows = within(colors).getAllByRole('row').slice(1);
     expect(colorRows.map((r) => r.querySelector('[data-colors]')?.getAttribute('data-colors'))).toEqual(['W', 'U']);
 
-    const winners = await screen.findByTestId('stats-winners');
+    const winners = await screen.findByTestId('gs-breakdown-deck-everyone');
     expect(within(winners).getAllByRole('row')[1]!.textContent).toContain('Azorius Fliers');
 
-    const board = await screen.findByTestId('stats-leaderboard');
-    const link = within(board).getByRole('link', { name: 'Ash' });
-    expect(link.getAttribute('href')).toBe('#/stats/Ash');
-    expect(within(board).getAllByRole('row')[1]!.hasAttribute('data-me')).toBe(true);
+    const board = await screen.findByTestId('gs-leaderboard-rating');
+    expect(within(board).getByRole('link', { name: 'Ash' }).getAttribute('href')).toBe('#/stats/Ash');
 
+    await waitFor(() => expect(asked).toHaveLength(6));
     for (const url of asked) expect(url.searchParams.get('mode')).toBe('constructed');
-    expect(asked.filter((u) => u.searchParams.has('player')).map((u) => u.searchParams.get('player'))).toEqual(['*']);
   });
 
-  it("reads another player's own record when named, and marks their seat, not the viewer's", async () => {
-    const { client, asked } = stub();
+  it("is headed by the named player's name", () => {
+    const { client } = stub();
     render(createElement(StatsScreen, { client, player: 'Ash' }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Ash');
-    const history = await screen.findByTestId('stats-matches');
-    expect(within(history).getAllByRole('row')[1]!.getAttribute('data-outcome')).toBe('loss');
-    await waitFor(() => expect(asked).toHaveLength(6));
-    const named = asked.filter((u) => u.pathname !== '/prefs/api/v1/_games/cardtable/leaderboard' && u.searchParams.get('player') !== '*');
-    for (const url of named) expect(url.searchParams.get('player')).toBe('Ash');
-  });
-
-  it('a failed read fails its own section and nothing else', async () => {
-    const { client } = stub(['/profile']);
-    render(createElement(StatsScreen, { client }));
-    const section = screen.getByTestId('stats-record-section');
-    await waitFor(() => expect(section.textContent).toContain('store unavailable'));
-    expect(await screen.findByTestId('stats-matches')).toBeTruthy();
-  });
-
-  it('says there are no games rather than drawing empty tables', async () => {
-    const empty = createGameStatsClient({
-      gameId: 'cardtable',
-      fetch: (async (input: RequestInfo | URL) => {
-        const path = new URL(String(input)).pathname;
-        const body = path.endsWith('/profile')
-          ? { ...PROFILE, totals: totals(0, 0), ratings: [] }
-          : path.endsWith('/matches')
-            ? { matches: [], nextBefore: null }
-            : { rows: [] };
-        return new Response(JSON.stringify(body), { status: 200 });
-      }) as typeof globalThis.fetch,
-    });
-    render(createElement(StatsScreen, { client: empty }));
-    await waitFor(() => expect(screen.getAllByText('No games yet')).toHaveLength(5));
-    expect(screen.getByTestId('stats-record').textContent).toContain('—');
   });
 });
 
