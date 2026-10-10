@@ -21,7 +21,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, idsOf, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 import { TYPE, type WireObj } from './visibility.js';
 
 const title = available.ok
@@ -36,6 +36,15 @@ function stackIds(s: Scenario, seat: number): number[] {
 }
 
 type Offer = { cards: { id: number }[]; manaOnly?: { id: number }[] };
+
+/** The cards Forge offers `seat` now: its last `setWeaklySelectable`, none after a `clearWeaklySelectable`. */
+function offeredTo(s: Scenario, seat: number): number[] {
+	const last = [...s.lines]
+		.reverse()
+		.find((l) => l.t === 'frame' && l.seat === seat && /^(set|clear)WeaklySelectable$/.test(String((l.frame as { method?: unknown } | null)?.method)));
+	const frame = (last as { frame?: unknown } | undefined)?.frame as ({ method: string } & Partial<Offer>) | undefined;
+	return frame?.method === 'setWeaklySelectable' ? (frame.cards ?? []).map((c) => c.id) : [];
+}
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
@@ -57,22 +66,20 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 				const goblin = s.zone(0, 'Hand').find((c) => c.name === 'Raging Goblin');
 				if (goblin === undefined) throw new Error('no Raging Goblin in hand');
+				// One select, sent once Forge's own offer names the Goblin — the scenario-start
+				// race (`PlayBridge.java`'s `refreshActionable`) is over then. Never a retry: a
+				// second `selectCard` sent while Forge still handles the first runs beside it on
+				// another thread (`GameProtocolHandler`, `FThreads.invokeInBackgroundThread`),
+				// and on main's 38013980995 that left a view's property map unserializable —
+				// every later `getAbilityToPlay` failed to encode (`ArrayIndexOutOfBounds… 214`)
+				// and the Goblin never reached the stack.
+				await waitUntil(() => { s.answerAsks(); return offeredTo(s, 0).includes(goblin.id); }, 'Forge offers seat 0 the Goblin', 20_000, s);
 				s.select(0, goblin.id);
-				const clicked = new Set<number>();
+				const payLand = landPayer(s, 0);
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						// The scenario-start race (`PlayBridge.java`'s `refreshActionable`): a first
-						// select can be dropped, so it is repeated while the card is still in hand
-						// and no payment has opened.
-						if (s.zone(0, 'Hand').some((c) => c.id === goblin.id) && !/Pay Mana Cost/.test(s.prompt(0))) s.select(0, goblin.id);
-						if (/Pay Mana Cost/.test(s.prompt(0))) {
-							const land = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !clicked.has(c.id));
-							if (land !== undefined) {
-								clicked.add(land.id);
-								s.select(0, land.id);
-							}
-						}
+						payLand();
 						return stackIds(s, 0).length > 0;
 					},
 					"seat 0's Raging Goblin to reach the stack",
