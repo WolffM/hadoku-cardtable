@@ -120,3 +120,37 @@ test('the leader switches Standard → Modern → Legacy and picking a Legacy er
   // absence.
   for (const url of alice.blocked) expect(ART_HOSTS.has(new URL(url).hostname), url).toBe(true);
 });
+
+test('a reload on a Legacy room opens the Legacy tab with its era chosen when the room answers before the catalogue', async ({
+  browser,
+}) => {
+  const alice = await open(browser, 'alice');
+  await alice.page.goto(`${PREFIX}/`);
+  await expect(alice.page.getByTestId('room-create')).toBeVisible();
+  const roomId = await createRoom(alice, `w48 reload ${Date.now()}`);
+
+  const select = alice.page.getByTestId('format');
+  await alice.page.getByTestId('format-tab-legacy').click();
+  await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
+  const firstLegacy = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).find(
+    (id) => id !== '',
+  )!;
+  await expect(select).toHaveValue(firstLegacy);
+
+  // On a reload the room record can answer before the deck catalogue (CI, 1 run in ~40). Holding
+  // the catalogue until the room has answered makes that ordering the only one.
+  const roomAnswered = alice.page.waitForResponse(
+    (res) => res.request().method() === 'GET' && new URL(res.url()).pathname.endsWith(`/rooms/${encodeURIComponent(roomId)}`),
+  );
+  await alice.page.route('**/api/tables/decks', async (route) => {
+    await roomAnswered;
+    console.log('[w48-reload] room answered; releasing the deck catalogue');
+    await route.continue();
+  });
+  await alice.page.reload();
+  await expect(select).toBeVisible();
+  const tab = await alice.page.locator('[data-testid^="format-tab-"][aria-selected="true"]').getAttribute('data-testid');
+  console.log(`[w48-reload] room on ${firstLegacy}: open tab ${tab}, select reads "${await select.inputValue()}"`);
+  await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
+  await expect(select).toHaveValue(firstLegacy);
+});
