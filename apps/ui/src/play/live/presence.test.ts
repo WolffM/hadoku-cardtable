@@ -815,7 +815,18 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('a creature placed to a column but held on the STACK (the other seat has a response) hands the back to the placed card at its point — never a back in the gap beside a face (AE26)', async () => {
+  /** Their battlefield's reserved gap (`Board`'s `data-expected` column), centred on 430,242. */
+  function reservedGap(canvas: HTMLElement): HTMLElement {
+    const gap = document.createElement('li');
+    gap.className = 'zone__gap';
+    gap.setAttribute('data-expected', '');
+    gap.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(gap);
+    return gap;
+  }
+  const frame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
+
+  it('a creature placed to a column but held on the STACK, put there while its back is still gliding into the gap, is handed over to the placed card when the glide ends, at the gap — never short of it (AE26; w67-shaman: 16 px, then a hop)', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
@@ -826,22 +837,26 @@ describe('receiving', () => {
       host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
     });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
-    // Their creature's placement names a column: the back glides into the reserved gap and waits for the battlefield.
     t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
-    expect(canvas.querySelector('.presence__back[data-waiting]'), 'a back waits for the placement').not.toBeNull();
-    // Forge puts it on the STACK (the viewer holds priority): the id is public, nowhere on the battlefield.
+    reservedGap(canvas);
+    await frame();
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    expect([back.style.left, back.style.top], 'the back is gliding into the gap').toEqual(['430px', '242px']);
+    // Forge puts it on the stack a frame into the glide.
     theirs = [121];
     wake!();
-    // Read past React's commit, the way the reservation itself is — a land would be on the battlefield by now.
-    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
-    expect(placedMod.placeSpell, 'the back hands over to the placed card at its own point').toHaveBeenCalledWith(121, expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }), 'them');
+    await frame();
+    expect(placedMod.placeSpell, 'not mid-glide').not.toHaveBeenCalled();
+    expect(back.isConnected, 'the back finishes its glide').toBe(true);
+    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    expect(placedMod.placeSpell, 'handed over where the glide ends: the gap the card lands in').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');
     expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
-    expect(canvas.querySelector('.presence__back'), 'no back stands beside the face').toBeNull();
+    expect(canvas.querySelector('.presence__back'), 'one object: the back is gone').toBeNull();
     handle.dispose();
     forgetPendingPlacements();
   });
 
-  it('a creature put on the stack while its back is still gliding to the column is turned over where the back IS drawn, not at the glide’s end (w65-commit: 32 px off)', async () => {
+  it('a creature on the stack before the board has even drawn its gap waits for the gap, and the glide, before it is handed over', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
@@ -853,14 +868,53 @@ describe('receiving', () => {
     });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
     t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
-    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
-    // Mid-glide: the run's own numbers, the back drawn at 570,339 on its way to the gap.
-    back.getBoundingClientRect = () => ({ left: 540, top: 297, right: 600, bottom: 381, width: 60, height: 84, x: 540, y: 297, toJSON() {} }) as DOMRect;
     theirs = [121];
     wake!();
-    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
-    expect(placedMod.placeSpell).toHaveBeenCalledWith(121, { x: 570, y: 339 }, 'them');
-    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
+    await frame();
+    await frame();
+    expect(placedMod.placeSpell, 'not at the release point').not.toHaveBeenCalled();
+    reservedGap(canvas);
+    await frame();
+    expect(placedMod.placeSpell, 'not as the glide starts').not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    expect(placedMod.placeSpell, 'at the gap, once there').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
+  it('a creature that resolves into its column before the glide ends is never handed to the stack layer: its copy finishes the trip', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let onStack: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => onStack, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    const gap = reservedGap(canvas);
+    await frame();
+    theirs = [121];
+    onStack = [121];
+    wake!();
+    await frame();
+    // It resolves: the board draws it in the gap and consumes the reservation.
+    gap.remove();
+    const li = document.createElement('li');
+    li.setAttribute('data-board-card', '121');
+    li.innerHTML = '<button class="board-card__face"><article class="card"><span class="card__name">Viridian Shaman</span></article></button>';
+    li.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(li);
+    onStack = [];
+    forgetPendingPlacements();
+    wake!();
+    await frame();
+    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    expect(placedMod.placeSpell, 'the stack layer never drew it').not.toHaveBeenCalled();
+    expect(canvas.querySelector('.presence__back'), 'the back handed over to the card').toBeNull();
     handle.dispose();
     forgetPendingPlacements();
   });

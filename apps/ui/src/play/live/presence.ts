@@ -637,12 +637,21 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * short grace is running.
    */
   let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean } | null = null;
+  /** Where the back stands, or — on its glide into a placement's gap — where it is heading. */
   let backAt: Point | null = null;
   /** Telemetry for the play in hand (`./handover-report.ts`): when its release reached this screen, its glide began, its spell was seen on the stack. */
   let play: { releasedAt: number; glideStartedAt: number | null; stackFrameAt: number | null } = { releasedAt: 0, glideStartedAt: null, stackFrameAt: null };
   function receiverFacts(card: number, how: string, from: Point | null, to: Point | null): HandoverFacts {
     return { screen: 'receiver', card, how, from, to, glideStartedAt: play.glideStartedAt, releasedAt: play.releasedAt === 0 ? null : play.releasedAt, stackFrameAt: play.stackFrameAt, motion: host.motion?.() === true };
   }
+  /**
+   * The stand-in's glide into its gap (`onPlacement`): `'seeking'` while the board has yet to draw
+   * the gap, then `Date.now()` when the glide ends; null when it is not gliding.
+   */
+  let glide: 'seeking' | number | null = null;
+  /** A hand-over to the stack layer held until that glide ends — see the stack case in `handoff`. */
+  let handTimer: ReturnType<typeof setTimeout> | null = null;
+  let afterSeek: (() => void) | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
   /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
@@ -702,6 +711,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   function stopWaiting(): void {
     lifted = false;
+    if (handTimer !== null) clearTimeout(handTimer);
+    handTimer = null;
+    afterSeek = null;
+    glide = null;
     if (waiting === null) return;
     clearTimeout(waiting.timer);
     waiting = null;
@@ -937,17 +950,16 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   /**
    * A SPELL of theirs: its id is public now — the stand-in's point goes to the
-   * placed-cards layer (`placeSpell` where the back's CENTRE is drawn right now)
-   * and the card is turned over there; the back is retired. Right now, not
-   * `backAt`: a creature's back is often still on its 300 ms glide to the
-   * reserved column when Forge puts it on the stack, and a face drawn at the
-   * glide's END appeared up to ~30 px from the back it replaced.
+   * placed-cards layer (`placeSpell` where the back stands) and the card is
+   * turned over there; the back is retired. A back still gliding into its gap is
+   * never handed over mid-way: the stack case in `handoff` waits for the glide to
+   * end, so the face is drawn where the back came to rest, which is where the
+   * card lands.
    */
-  function handToSpell(id: number): void {
-    const drawn = back === null ? null : drawnCentre(back);
-    const at = drawn ?? backAt;
-    play.stackFrameAt = Date.now();
-    reportHandover(host.report, 'handover', canvas, receiverFacts(id, 'stack', drawn, at));
+  function handToSpell(id: number): Point | null {
+    const at = backAt;
+    play.stackFrameAt ??= Date.now();
+    reportHandover(host.report, 'handover', canvas, receiverFacts(id, 'stack', back === null ? null : drawnCentre(back), at));
     if (at !== null) {
       placeSpell(id, at, 'them');
       // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
@@ -962,6 +974,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       commitSpell(id);
     }
     stopWaiting();
+    return at;
   }
 
   function theirHandBacks(): NodeListOf<HTMLElement> {
@@ -1040,12 +1053,35 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             // card at its own point, turned over in place; the column's reservation stays for the
             // day it resolves. The host says which of their cards are on the stack; without that
             // reader (tests), "not on the battlefield" stands in for it.
+            //
+            // Forge answers a cast in about the glide's own time, so the back may still be on its
+            // way into the gap: handing over then drew the face short of it, and the card hopped the
+            // rest of the way when it landed (w67-shaman, 16 px). The glide finishes first, the stack
+            // card hidden meanwhile in its pending window (`placed.ts`'s `PLACED_PENDING_MS`, which
+            // starts after the glide does: the placement rides ahead of Forge's frames). A spell
+            // that resolves meanwhile is in its column, and the branch below flies it there.
             const onStack = fresh.find((id) => onTheirStack(id));
-            if (onStack !== undefined) {
-              const from = drawnCentre(standIn) ?? backAt;
-              handToSpell(onStack);
-              if (from !== null) flyWhenDrawn(onStack, from);
-            }
+            if (onStack === undefined) return;
+            play.stackFrameAt ??= Date.now();
+            const wait = waiting;
+            const settle = (): void => {
+              handTimer = null;
+              afterSeek = null;
+              if (waiting !== wait || back !== standIn || !onTheirStack(onStack)) return;
+              if (glide === 'seeking') {
+                afterSeek = settle;
+                return;
+              }
+              const left = (glide ?? 0) - Date.now();
+              if (left > 0) {
+                handTimer = setTimeout(settle, left);
+                return;
+              }
+              const at = handToSpell(onStack);
+              if (at !== null) flyWhenDrawn(onStack, at);
+            };
+            if (handTimer !== null) clearTimeout(handTimer);
+            settle();
             return;
           }
           // The card is in its column. The stand-in was still on its 300 ms glide there more often
@@ -1151,12 +1187,18 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // The board draws the reserved gap on its next commit — usually before the next frame, not
     // always under load (a busy claw left the back at the release point, w67-shaman): looked for
     // again each frame until it is there.
-    const glide = (frames: number): void => {
+    // A spell that reaches the stack meanwhile waits for the glide (`handoff`'s `settle`).
+    glide = 'seeking';
+    const seek = (frames: number): void => {
       if (waiting === null || back !== standIn) return;
       const gap = expectedGapBox(canvas, 'them');
       const box2 = overlay()?.getBoundingClientRect();
       if (gap === null || box2 === undefined) {
-        if (frames > 0) requestAnimationFrame(() => glide(frames - 1));
+        if (frames > 0) requestAnimationFrame(() => seek(frames - 1));
+        else {
+          glide = null;
+          afterSeek?.();
+        }
         return;
       }
       // It stands in the gap from here: a spell it hands over to (a creature held on the stack)
@@ -1166,8 +1208,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       standIn.style.top = `${backAt.y - box2.top}px`;
       standIn.style.width = `${gap.width}px`;
       play.glideStartedAt = Date.now();
+      glide = Date.now() + GLIDE_MS;
+      afterSeek?.();
     };
-    requestAnimationFrame(() => glide(GAP_FRAMES));
+    requestAnimationFrame(() => seek(GAP_FRAMES));
   }
 
   function onEcho(payload: unknown): void {

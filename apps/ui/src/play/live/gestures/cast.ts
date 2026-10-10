@@ -240,8 +240,13 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
   return ghost;
 }
 
-/** How close a stand-in's centre is to its card's to count as already there (`landCastGhost`). */
-export const IN_PLACE_PX = 4;
+/**
+ * How close a stand-in's centre is to its card's to count as already there (`landCastGhost`). The
+ * other screen's back can be caught in the last few px of its glide into the gap when the card is
+ * drawn there (w67-shaman's Grizzly Bears: 449,280 and 450,282 against 454,280), and a 300 ms trip
+ * across that is a flight to nowhere with the real card hidden under it.
+ */
+export const IN_PLACE_PX = 8;
 
 /** On a card's own battlefield element while its stand-in is still travelling to it. `./gestures.css` hides it; the row keeps its place. */
 export const CAST_LANDING_ATTR = 'data-cast-landing';

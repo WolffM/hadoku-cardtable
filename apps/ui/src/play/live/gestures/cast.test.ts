@@ -34,6 +34,15 @@ describe('landCastGhost', () => {
     expect(arrived.hasAttribute(CAST_LANDING_ATTR), 'the card is not hidden').toBe(false);
   });
 
+  it('a stand-in at rest in the gap its card took, a few px off the card, swaps in place too (w67-shaman’s bears: a 300 ms flight of 4–5 px)', () => {
+    const arrived = arrivedAt(454, 280);
+    const ghost = document.createElement('div');
+    document.body.append(ghost);
+    landCastGhost(document, 7, ghost, { x: 450, y: 283 }, arrived);
+    expect(ghost.isConnected, 'no flight').toBe(false);
+    expect(arrived.hasAttribute(CAST_LANDING_ATTR), 'the card is shown at once').toBe(false);
+  });
+
   it('from anywhere else it travels, the card hidden until it lands — a card of no id (their hidden hand) included', () => {
     vi.useFakeTimers();
     const arrived = arrivedAt(400, 60);
