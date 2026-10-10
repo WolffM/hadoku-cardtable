@@ -1,0 +1,20 @@
+# w69-hidden (the operator, 2026-10-10): "card hidden by windbrisk heights shows as 'card 59' with no art.
+# … if we need to show a hidden card, can we use a literal 'hidden card' with an ephemeral card back?" and
+# "when multiple hidden cards are there lets make sure they each get their own 'hidden' card. at the moment
+# it's showing 'card 3' and 'card 59' but only if i open the expanded exile view."
+# Alice holds two Windbrisk Heights at her own main phase, and Exploration lets her play both: each
+# Hideaway 4 looks at the top four of her library (eight different cards) and exiles one face down. Forge
+# lets her look at hers (the Hideaway effect's MayLookAt), so her screen is sent their names; bob's is not.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Windbrisk Heights;Windbrisk Heights
+humanbattlefield=Plains;Exploration
+humanlibrary=Serra Angel;Lightning Bolt;Counterspell;Grizzly Bears;Llanowar Elves;Savannah Lions;Giant Growth;Dark Ritual;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
