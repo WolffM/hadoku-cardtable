@@ -63,11 +63,11 @@ importers:
         specifier: 1.0.16
         version: 1.0.16(react@19.2.8)(zod@4.6.5)
       '@wolffm/rooms-protocol':
-        specifier: 0.41.7
-        version: 0.41.7
+        specifier: 0.41.8
+        version: 0.41.8
       '@wolffm/rooms-server':
-        specifier: 0.41.7
-        version: 0.41.7(socket.io@4.8.3)
+        specifier: 0.41.8
+        version: 0.41.8(socket.io@4.8.3)
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -112,8 +112,8 @@ importers:
         specifier: 1.0.16
         version: 1.0.16(react@19.2.8)(zod@4.6.5)
       '@wolffm/rooms-protocol':
-        specifier: 0.41.7
-        version: 0.41.7
+        specifier: 0.41.8
+        version: 0.41.8
       '@wolffm/task-ui-components':
         specifier: 4.8.6
         version: 4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8)
@@ -121,8 +121,8 @@ importers:
         specifier: 5.8.12
         version: 5.8.12(react@19.2.8)
       '@wolffm/watchparty-ui':
-        specifier: 0.41.7
-        version: 0.41.7(@types/react@19.2.18)(@wolffm/task-ui-components@4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 0.41.8
+        version: 0.41.8(@types/react@19.2.18)(@wolffm/task-ui-components@4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -188,8 +188,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@wolffm/rooms-protocol':
-        specifier: 0.41.7
-        version: 0.41.7
+        specifier: 0.41.8
+        version: 0.41.8
 
   packages/forge-wire:
     dependencies:
@@ -203,17 +203,17 @@ importers:
   packages/room-ask:
     dependencies:
       '@wolffm/rooms-protocol':
-        specifier: 0.41.7
-        version: 0.41.7
+        specifier: 0.41.8
+        version: 0.41.8
 
   packages/room-store:
     dependencies:
       '@wolffm/rooms-protocol':
-        specifier: 0.41.7
-        version: 0.41.7
+        specifier: 0.41.8
+        version: 0.41.8
       '@wolffm/rooms-server':
-        specifier: 0.41.7
-        version: 0.41.7(socket.io@4.8.3)
+        specifier: 0.41.8
+        version: 0.41.8(socket.io@4.8.3)
     devDependencies:
       '@hadoku/draft':
         specifier: workspace:*
@@ -228,8 +228,8 @@ importers:
         specifier: workspace:*
         version: link:../forge-wire
       '@wolffm/rooms-protocol':
-        specifier: 0.41.7
-        version: 0.41.7
+        specifier: 0.41.8
+        version: 0.41.8
       zod:
         specifier: 4.5.4
         version: 4.5.4
@@ -1002,11 +1002,11 @@ packages:
       react: ^18.0.0 || ^19.0.0
       zod: ^4.0.0
 
-  '@wolffm/rooms-protocol@0.41.7':
-    resolution: {integrity: sha512-WzGtceKhNp0Nr7pjgDpEmS1vgQSdslKrpwTtAVQ9zWa07jCjZc/l6DBafNYmZvtOnDeqHGnKjMLHau+bOVxmLg==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-protocol/0.41.7/966a4ad2c0a769ea87a23e4bc391b5ab3050febc}
+  '@wolffm/rooms-protocol@0.41.8':
+    resolution: {integrity: sha512-Un1YA3j5rhJeyfRNesYAkRXKzVc/liO06y5wbMMRprTGnYKVN+FiYI6n9qKIlCUMAK5f6Jey0oikpXc53l2oUg==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-protocol/0.41.8/332ad89c5f3f8cf481e3ef1f220027942f947e6f}
 
-  '@wolffm/rooms-server@0.41.7':
-    resolution: {integrity: sha512-R33TcREknYOq92vpm59vHKElIjb8R7CkIfyPbHcJk/BbY4QqD+3mQjjrx1UY5CEjqLaKIIikCE6qyh6tiMqF1g==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-server/0.41.7/727559102e1b446ef5bacce932d409075093fad9}
+  '@wolffm/rooms-server@0.41.8':
+    resolution: {integrity: sha512-GTebRVZ309ZK69uIUt7p99A2PEsdqfXwHNXxRttLFN45uVaZFoAGvI5N8aE5+0EGlggQZyTnhBfrD5b4hL54TA==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-server/0.41.8/5f7d3ded508785ed4b63bb1a4c0142eb294130d5}
     peerDependencies:
       socket.io: ^4.8.3
 
@@ -1022,8 +1022,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/watchparty-ui@0.41.7':
-    resolution: {integrity: sha512-i11r5ZnNLv784oKlu3PXocCdXUc8EURNIWrel2+d0feghqGLGIGcieXq4gKnyLt+FTohepaS+A90VCzmNMxWQQ==, tarball: https://npm.pkg.github.com/download/@wolffm/watchparty-ui/0.41.7/e75856cda0a18e504f226cc4afaebd5b5193ed1e}
+  '@wolffm/watchparty-ui@0.41.8':
+    resolution: {integrity: sha512-H65JDr7Gk4t1+Ztwqu0X0p/iQBF5cLCPHSDNm54MIKShpTqjKg+yAokirk9Aqb/kDdvkq1teGjjt+xCYHjP6fg==, tarball: https://npm.pkg.github.com/download/@wolffm/watchparty-ui/0.41.8/54bf7a161c28560737d46787edf28b11d116e950}
     peerDependencies:
       '@wolffm/task-ui-components': '>=4.8.3'
       react: ^19.2.0
@@ -2714,11 +2714,11 @@ snapshots:
       react: 19.2.8
       zod: 4.6.5
 
-  '@wolffm/rooms-protocol@0.41.7': {}
+  '@wolffm/rooms-protocol@0.41.8': {}
 
-  '@wolffm/rooms-server@0.41.7(socket.io@4.8.3)':
+  '@wolffm/rooms-server@0.41.8(socket.io@4.8.3)':
     dependencies:
-      '@wolffm/rooms-protocol': 0.41.7
+      '@wolffm/rooms-protocol': 0.41.8
       socket.io: 4.8.3
 
   '@wolffm/task-ui-components@4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8)':
@@ -2732,11 +2732,11 @@ snapshots:
       react: 19.2.8
       zod: 4.6.5
 
-  '@wolffm/watchparty-ui@0.41.7(@types/react@19.2.18)(@wolffm/task-ui-components@4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@wolffm/watchparty-ui@0.41.8(@types/react@19.2.18)(@wolffm/task-ui-components@4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/cdn-client': 2.0.0(react@19.2.8)
       '@wolffm/prefs-client': 1.0.16(react@19.2.8)(zod@4.6.5)
-      '@wolffm/rooms-protocol': 0.41.7
+      '@wolffm/rooms-protocol': 0.41.8
       '@wolffm/task-ui-components': 4.8.6(@wolffm/themes@5.8.12(react@19.2.8))(react@19.2.8)
       '@wolffm/themes': 5.8.12(react@19.2.8)
       react: 19.2.8
