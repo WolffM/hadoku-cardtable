@@ -185,9 +185,13 @@ export function spotOf(canvas: HTMLElement, point: Point): PresenceSpot | null {
   return { zone, x: clamp01((point.x - board.left) / board.width), y: clamp01((point.y - board.top) / board.height) };
 }
 
-/** The column slots of a row (or a zone drawn as one), in the order both boards draw them: cards, reserved gaps, a hand's backs. */
-function slotsOf(frame: HTMLElement): HTMLElement[] {
-  return [...frame.querySelectorAll<HTMLElement>('li.board-card, li.zone__gap:not([data-virtual]), li.card-back')];
+/**
+ * What a point anchors to inside `frame`: on the battlefield its cards, each named by its id (public
+ * there, and drawn by both boards wherever their own layouts put it); in any other zone its slots by
+ * index, in the order both boards draw them — a hand's cards or backs.
+ */
+function slotsOf(frame: HTMLElement, battlefield: boolean): HTMLElement[] {
+  return [...frame.querySelectorAll<HTMLElement>(battlefield ? 'li.board-card[data-card-id]' : 'li.board-card, li.card-back')];
 }
 
 const ANCHOR_ZONES = ['hand', 'battlefield', 'graveyard', 'exile'] as const;
@@ -198,13 +202,15 @@ const bounded = (v: number): number => Math.max(-50, Math.min(50, v));
 
 /**
  * A client point, anchored to what BOTH boards draw (`@hadoku/shared`'s
- * "Positions are ANCHORED"): the zone it is in and whose, the battlefield tier
- * or lane by name, the NEAREST column slot by index, and the offset in units
- * of that slot's box — past 0..1 between slots, so the other screen's cursor
- * moves continuously instead of snapping onto a card at its edge. Null outside
- * every zone, and over a stack card (placed by the board fraction itself), so
- * the caller's board fraction is all that is sent. Exported for the tests,
- * which prove it against real rectangles.
+ * "Positions are ANCHORED"): the zone it is in and whose; the NEAREST card
+ * of the tier or lane under it (of the whole zone between them) — on the
+ * battlefield by its id, elsewhere by its index — or, with none, that tier or
+ * lane by name; and the offset in units of that card's box — past 0..1
+ * between cards, so the other screen's cursor moves continuously instead of
+ * snapping onto a card at its edge. Null outside every zone, and over a stack
+ * card (placed by the board fraction itself), so the caller's board fraction
+ * is all that is sent. Exported for the tests, which prove it against real
+ * rectangles.
  */
 export function anchorOf(canvas: HTMLElement, point: Point): PresenceAnchor | null {
   if (hitAt(scopeOf(canvas), point.x, point.y)?.closest('[data-placed-spell]')) return null;
@@ -213,29 +219,34 @@ export function anchorOf(canvas: HTMLElement, point: Point): PresenceAnchor | nu
   );
   if (zoneEl === undefined) return null;
   const zone = zoneEl.getAttribute('data-zone') as AnchorZone;
+  const battlefield = zone === 'battlefield';
   const rowEl = [...zoneEl.querySelectorAll<HTMLElement>('[data-tier], [data-board-row]')].find((el) => inside(el.getBoundingClientRect(), point)) ?? null;
   const row = rowEl === null ? null : (rowEl.getAttribute('data-tier') ?? rowEl.getAttribute('data-board-row'));
   const frame = rowEl ?? zoneEl;
+  let nearest: HTMLElement | null = null;
   let item: number | null = null;
   let box = frame.getBoundingClientRect();
   let best = Infinity;
-  slotsOf(frame).forEach((el, i) => {
+  slotsOf(frame, battlefield).forEach((el, i) => {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return;
     const dx = Math.max(r.left - point.x, 0, point.x - r.right);
     const dy = Math.max(r.top - point.y, 0, point.y - r.bottom);
     if (dx * dx + dy * dy < best) {
       best = dx * dx + dy * dy;
+      nearest = el;
       item = i;
       box = r;
     }
   });
   if (box.width === 0 || box.height === 0) return null;
+  const card = battlefield && nearest !== null ? Number((nearest as HTMLElement).getAttribute('data-card-id')) : null;
   return {
     zone,
     own: zoneEl.getAttribute('data-owner') === 'you',
-    row: row !== null && /^[a-z]{1,16}$/.test(row) ? row : null,
-    item,
+    row: card === null && row !== null && /^[a-z]{1,16}$/.test(row) ? row : null,
+    card,
+    item: card === null ? item : null,
     x: bounded((point.x - box.left) / box.width),
     y: bounded((point.y - box.top) / box.height),
   };
@@ -243,12 +254,13 @@ export function anchorOf(canvas: HTMLElement, point: Point): PresenceAnchor | nu
 
 /**
  * The anchor resolved on THIS board: the twin zone (the sender's own is this
- * board's "them"), the same tier or lane, the same slot index, and the same
- * offset in that slot's box with its height mirrored — the seats are drawn
- * mirrored, so their card's bottom edge is at the top here, and a pointer
- * moving down their board moves up this one everywhere, on a card or between
- * cards alike. Kept inside the twin row or zone. Null when the twin is not
- * drawn here (yet), so the caller falls back to the board fraction.
+ * board's "them"); in it the same card by id, wherever this board draws it,
+ * or the same tier or lane and slot index; and the same offset in that box
+ * with its height mirrored — the seats are drawn mirrored, so their card's
+ * bottom edge is at the top here, and a pointer moving down their board moves
+ * up this one everywhere, on a card or between cards alike. Kept inside the
+ * twin zone (or row). Null when the twin is not drawn here (yet), so the
+ * caller falls back to the board fraction.
  */
 export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor): Point | null {
   if (anchor === null) return null;
@@ -257,8 +269,13 @@ export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor): Point 
   const frame = anchor.row === null ? zoneEl : zoneEl.querySelector<HTMLElement>(`[data-tier="${anchor.row}"], [data-board-row="${anchor.row}"]`);
   if (frame === null) return null;
   const bounds = frame.getBoundingClientRect();
-  const slot = anchor.item === null ? frame : slotsOf(frame)[anchor.item];
-  if (slot === undefined) return null;
+  const slot =
+    anchor.card !== null
+      ? frame.querySelector<HTMLElement>(`li.board-card[data-card-id="${anchor.card}"]`)
+      : anchor.item === null
+        ? frame
+        : slotsOf(frame, anchor.zone === 'battlefield')[anchor.item];
+  if (slot === undefined || slot === null) return null;
   const r = slot.getBoundingClientRect();
   if (r.width === 0 || r.height === 0) return null;
   return {
@@ -306,16 +323,24 @@ function handRowsOf(canvas: HTMLElement): 1 | 2 {
 /**
  * A battlefield card of this seat's being rearranged (`Board.tsx`'s own drag:
  * the pressed card carries `data-arrange-dragging`, its ghost follows the
- * pointer), and where the ghost is — read, like everything else here, off the
- * DOM the gesture already draws.
+ * pointer), and where the ghost's centre is from the centre of the card's own
+ * home box, in units of that box — what the other screen can place against
+ * its own drawing of the card. Read, like everything else here, off the DOM
+ * the gesture already draws.
  */
-function arrangingOf(canvas: HTMLElement): { card: number; at: Point } | null {
+function arrangingOf(canvas: HTMLElement): PresenceMessage['arranging'] {
   const li = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"] [data-arrange-dragging]');
   const ghost = canvas.querySelector<HTMLElement>('.board > [data-arrange-ghost]');
   const id = Number(li?.getAttribute('data-board-card') ?? li?.getAttribute('data-card-id'));
   if (li === null || ghost === null || !Number.isFinite(id)) return null;
   const g = ghost.getBoundingClientRect();
-  return g.width > 0 ? { card: id, at: { x: g.left + g.width / 2, y: g.top + g.height / 2 } } : null;
+  const home = li.getBoundingClientRect();
+  if (g.width === 0 || home.width === 0 || home.height === 0) return null;
+  return {
+    card: id,
+    x: bounded((g.left + g.width / 2 - (home.left + home.width / 2)) / home.width),
+    y: bounded((g.top + g.height / 2 - (home.top + home.height / 2)) / home.height),
+  };
 }
 
 /**
@@ -407,8 +432,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const anchor = pointer === null ? null : anchorOf(canvas, pointer);
     const hands = handsOf(canvas, host.aiming?.() ?? false);
     const from = hands.from === null ? null : spotOf(canvas, hands.from);
-    const lifted = arrangingOf(canvas);
-    const arranging = lifted === null ? null : { card: lifted.card, at: spotOf(canvas, lifted.at) };
     const message: PresenceMessage = {
       matchId: host.matchId,
       type: 'presence',
@@ -417,7 +440,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       held: hands.held,
       from,
       handRows: handRowsOf(canvas),
-      arranging: arranging === null || arranging.at === null ? null : { card: arranging.card, at: arranging.at },
+      arranging: arrangingOf(canvas),
       placing: placingOf(hands.parked),
       handMove: null,
     };
@@ -725,7 +748,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     hinted?.setAttribute('data-presence-hint', '');
   }
 
-  /** Their rearrange, mirrored: their card dims in place and its tile follows where they hold it. */
+  /** Their rearrange, mirrored: their card dims in place and its tile stands as far off it, in cards, as theirs does. */
   let liftedCard: { id: number; el: HTMLElement; tile: HTMLElement } | null = null;
   function drawArranging(root: HTMLElement, box: DOMRect, arranging: PresenceEcho['arranging']): void {
     if (arranging === null) {
@@ -736,9 +759,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       }
       return;
     }
-    const at = placeSpot(canvas, arranging.at);
-    if (at === null) return;
-    if (liftedCard !== null && liftedCard.id !== arranging.card) drawArranging(root, box, null);
+    // A redraw of their row replaces the card's element: the tile is rebuilt on the new one.
+    if (liftedCard !== null && (liftedCard.id !== arranging.card || !liftedCard.el.isConnected)) drawArranging(root, box, null);
     if (liftedCard === null) {
       const el = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${arranging.card}"]`);
       const face = el?.querySelector('.card');
@@ -757,8 +779,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       el.setAttribute('data-arrange-dragging', '');
       liftedCard = { id: arranging.card, el, tile };
     }
-    liftedCard.tile.style.left = `${at.x - box.left}px`;
-    liftedCard.tile.style.top = `${at.y - box.top}px`;
+    // Off the card's home as THIS board draws it, by the same fraction of a card, the height mirrored.
+    const home = liftedCard.el.getBoundingClientRect();
+    liftedCard.tile.style.left = `${home.left + home.width * (0.5 + arranging.x) - box.left}px`;
+    liftedCard.tile.style.top = `${home.top + home.height * (0.5 - arranging.y) - box.top}px`;
   }
 
   /**

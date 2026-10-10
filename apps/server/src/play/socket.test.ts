@@ -434,18 +434,20 @@ describe('two seats over the socket', () => {
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
 		expect(bob.presences[1]).toEqual({ ...message, anchor: null, arranging: null, handMove: { from: 0, to: 2 }, placing: null, seat: 0 });
 
-		// `anchor`: the zone, a tier or lane by name, a slot by INDEX and the offset in its box — never a card id.
-		const anchor = { zone: 'battlefield', own: true, row: 'back', item: 2, x: 1.4, y: 0.6 };
+		// `anchor`: the zone, the nearest battlefield card by id (public there) and the offset in its box.
+		const anchor = { zone: 'battlefield', own: true, row: null, card: 42, item: null, x: 1.4, y: 0.6 };
 		alice.socket.emit('forge:presence', { ...message, anchor });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(3));
 		expect(bob.presences[2]).toEqual({ ...message, anchor, arranging: null, handMove: null, placing: null, seat: 0 });
-		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, zone: 'hand', row: null } });
+		// A hand slot is an INDEX, never a card id; a pre-deploy sender's anchor (no `card`) relays with it null.
+		const { card: _card, ...handSlot } = { ...anchor, zone: 'hand', item: 2 };
+		alice.socket.emit('forge:presence', { ...message, anchor: handSlot });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(4));
-		expect(bob.presences[3]).toEqual({ ...message, anchor: { ...anchor, zone: 'hand', row: null }, arranging: null, handMove: null, placing: null, seat: 0 });
+		expect(bob.presences[3]).toEqual({ ...message, anchor: { ...handSlot, card: null }, arranging: null, handMove: null, placing: null, seat: 0 });
 
 		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema
 		// is strict, and so is a hand row count that is neither 1 nor 2 — and so is an `anchor`
-		// carrying a card id, or an offset past its bound.
+		// whose card is not an id, or an offset past its bound.
 		alice.socket.emit('forge:presence', { ...message, cardId: 42 });
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'hand', x: 2, y: 0 }, held: false, from: null, handRows: 1 });
 		alice.socket.emit('forge:presence', { ...message, handRows: 3 });

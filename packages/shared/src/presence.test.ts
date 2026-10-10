@@ -35,15 +35,22 @@ describe('PresenceSpotSchema', () => {
 });
 
 describe('PresenceAnchorSchema', () => {
-  const anchor = { zone: 'battlefield', own: true, row: 'back', item: 2, x: 1.4, y: -0.2 };
-  it('accepts a slot index and an offset past 0..1 — between cards is still anchored', () => {
+  const anchor = { zone: 'battlefield', own: true, row: null, card: 42, item: null, x: 1.4, y: -0.2 };
+  it('accepts a battlefield card by id, a slot index, and an offset past 0..1 — between cards is still anchored', () => {
     expect(PresenceAnchorSchema.safeParse(anchor).success).toBe(true);
-    expect(PresenceAnchorSchema.safeParse({ ...anchor, row: null, item: null }).success).toBe(true);
+    expect(PresenceAnchorSchema.safeParse({ ...anchor, zone: 'hand', card: null, item: 2 }).success).toBe(true);
+    expect(PresenceAnchorSchema.safeParse({ ...anchor, row: 'back', card: null }).success).toBe(true);
     expect(PresenceAnchorSchema.safeParse(null).success).toBe(true);
   });
 
-  it('rejects a card id, an unknown zone, a row that is not a plain name, a negative index and an unbounded offset', () => {
+  it('a pre-deploy sender’s anchor (a slot index, no `card`) still parses, the card defaulted to null', () => {
+    const parsed = PresenceAnchorSchema.safeParse({ zone: 'battlefield', own: true, row: 'back', item: 2, x: 1.4, y: -0.2 });
+    expect(parsed.success && parsed.data).toEqual({ zone: 'battlefield', own: true, row: 'back', card: null, item: 2, x: 1.4, y: -0.2 });
+  });
+
+  it('rejects a card that is not an id, an unknown zone, a row that is not a plain name, a negative index and an unbounded offset', () => {
     expect(PresenceAnchorSchema.safeParse({ ...anchor, card: '42' }).success).toBe(false);
+    expect(PresenceAnchorSchema.safeParse({ ...anchor, card: -1 }).success).toBe(false);
     expect(PresenceAnchorSchema.safeParse({ ...anchor, zone: 'stack' }).success).toBe(false);
     expect(PresenceAnchorSchema.safeParse({ ...anchor, row: 'a"] *' }).success).toBe(false);
     expect(PresenceAnchorSchema.safeParse({ ...anchor, item: -1 }).success).toBe(false);
@@ -84,6 +91,19 @@ describe('PresenceSchema', () => {
     expect(PresenceSchema.safeParse(aiming).success).toBe(true);
     const releasing = { ...base, held: false, pointer: spot('battlefield'), from: spot('battlefield') };
     expect(PresenceSchema.safeParse(releasing).success).toBe(true);
+  });
+
+  it('a rearrange carries the card and its lifted copy’s offset from home, in units of the card', () => {
+    const parsed = PresenceSchema.safeParse({ ...base, arranging: { card: 7, x: 0.2, y: -0.05 } });
+    expect(parsed.success && parsed.data.arranging).toEqual({ card: 7, x: 0.2, y: -0.05 });
+    expect(PresenceSchema.safeParse({ ...base, arranging: { card: 7, x: 51, y: 0 } }).success).toBe(false);
+    expect(PresenceSchema.safeParse({ ...base, arranging: { card: 7, x: 0, y: 0, at: spot('battlefield') } }).success).toBe(false);
+  });
+
+  it('a pre-deploy sender’s whole-board rearrange (`at`) still parses, as null — it cannot be placed against this board’s card', () => {
+    const parsed = PresenceSchema.safeParse({ ...base, arranging: { card: 7, at: spot('battlefield') } });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.arranging).toBeNull();
   });
 
   it('a pre-deploy sender (no `placing` at all) still parses, defaulted to null', () => {

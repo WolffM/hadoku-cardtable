@@ -12,30 +12,36 @@
  * ## What crosses the wire, and what never does
  *
  * A message is a pointer position, whether a card is held, and where an arrow
- * being aimed starts. It names NO card: `held` is a boolean, and the thing a
- * pointer is over is not sent either — the receiving board reads its own
- * element under the mapped position. So the hidden-information rule
- * (`apps/server/src/play/visibility.ts`; ledger V3, "a card being cast is not
- * shown to the opponent until it is actually on the stack") cannot be broken
- * by this channel, by construction: there is nothing in it to leak.
+ * being aimed starts. It names NO hidden card: `held` is a boolean, and the
+ * only ids it carries are of BATTLEFIELD cards (the one nearest the pointer,
+ * one being rearranged), which both seats already draw face up with their
+ * ids. So the hidden-information rule (`apps/server/src/play/visibility.ts`;
+ * ledger V3, "a card being cast is not shown to the opponent until it is
+ * actually on the stack") cannot be broken by this channel, by construction:
+ * there is nothing in it to leak.
  *
  * ## Positions are ANCHORED to what both boards draw, board-relative otherwise
  *
  * Each seat draws itself at the bottom and the other seat at the top, as a
  * vertical mirror: hand, then battlefield tiers or lanes, the side column
- * reversed. So every zone, every tier or lane, and every column slot in it has
- * a twin on the other screen — at a different size, because the two windows
- * differ. `anchor` names the thing under the pointer by that shared identity —
- * the zone (and whose), the tier or lane by name, the column slot by its INDEX
- * in its row — and the pointer's offset in units of that slot's own box. The
- * receiver finds the twin on its own board and places the cursor at the same
- * offset, mirrored top-to-bottom like the seats themselves. The slot is the
- * NEAREST one, not only the one under the pointer, so the offset runs past
- * 0..1 between cards and the mapping is continuous: the cursor never snaps
- * onto a card as it enters one (the operator, 2026-10-09: the card-anchored
- * `over` this replaces jumped "very awkward[ly]" at every card edge, and did
- * not mirror within the card). A slot never carries a card id — an index in
- * a hand is all that crosses, and the receiver draws that hand as backs.
+ * reversed. So every zone, every tier or lane, and every card in it has a
+ * twin on the other screen — at a different size and often in a different
+ * column, because the two windows differ and each lays its rows out for its
+ * own width. `anchor` names the thing under the pointer by what both boards
+ * share — the zone (and whose); on the battlefield the NEAREST CARD by its
+ * id, elsewhere the nearest slot by its INDEX — and the pointer's offset in
+ * units of that card's own box. The receiver finds the twin on its own board
+ * and places the cursor at the same offset, mirrored top-to-bottom like the
+ * seats themselves. Nearest, not only the one under the pointer, so the
+ * offset runs past 0..1 between cards and the mapping is continuous: the
+ * cursor never snaps onto a card as it enters one (the operator, 2026-10-09:
+ * the card-anchored `over` this replaces jumped "very awkward[ly]" at every
+ * card edge, and did not mirror within the card). A battlefield column's
+ * index is not shared: a row's gaps, or a layout the receiver does not draw,
+ * put the same index a card or more away (the operator, 2026-10-10, a Swamp
+ * nudged 25 px drawn a card-width off on the other screen: "the difference
+ * here is quite jarring"). A hand slot never carries a card id — an index
+ * is all that crosses, and the receiver draws that hand as backs.
  *
  * `pointer`, a fraction of the WHOLE board, is the fallback, and the only
  * placement outside every zone (the stack, the strip between the seats, the
@@ -60,7 +66,12 @@
  *
  * The same holds for `arranging` (absent before it existed) and for
  * `placing` (wave 59): a message missing either still parses, defaulted to
- * `null` — nothing rearranged, nothing just released as a spell.
+ * `null` — nothing rearranged, nothing just released as a spell. An
+ * `arranging` in the old whole-board `at` shape parses as `null` too: a
+ * board fraction cannot be placed against the receiver's own drawing of
+ * the card, so a pre-deploy sender's rearrange is not drawn until it
+ * reloads. An anchor with no `card` is a pre-deploy sender's slot index,
+ * and is placed as one.
  */
 
 import { z } from 'zod';
@@ -71,6 +82,9 @@ export const PRESENCE_EVENT = 'forge:presence';
 export const PresenceZoneSchema = z.enum(['hand', 'battlefield', 'graveyard', 'exile', 'stack']);
 
 const fraction = z.number().min(0).max(1);
+const cardId = z.number().int().nonnegative();
+/** An offset in units of a card's own box: past 0..1 off the card, bounded so a stray value stays strict. */
+const offset = z.number().min(-50).max(50);
 
 /** A point on a board, in a form the other board can place. */
 export const PresenceSpotSchema = z
@@ -91,11 +105,12 @@ export type PresenceSpot = z.output<typeof PresenceSpotSchema>;
 
 /**
  * The pointer, anchored to something both boards draw (see "Positions are
- * ANCHORED" above). `row` is a battlefield tier or lane by name (`data-tier`,
- * `data-board-row`), null for a zone drawn as one box; `item` the nearest
- * column slot's index in it, null when it holds none; `x`/`y` the offset in
- * units of that slot's box (or the row's, or the zone's, without one) —
- * beyond 0..1 between and around slots, bounded so a stray value stays strict.
+ * ANCHORED" above). `card` is the nearest battlefield card's id; `row` a
+ * battlefield tier or lane by name (`data-tier`, `data-board-row`), null for
+ * a zone drawn as one box; `item` the nearest slot's index in a zone that is
+ * not the battlefield, null when it holds none; `x`/`y` the offset in units
+ * of that card's or slot's box (or the row's, or the zone's, without one) —
+ * beyond 0..1 between and around cards, bounded so a stray value stays strict.
  */
 export const PresenceAnchorSchema = z
   .object({
@@ -103,9 +118,11 @@ export const PresenceAnchorSchema = z
     /** The sender's own zone — drawn at the bottom of THEIR board, at the top of the receiver's. */
     own: z.boolean(),
     row: z.string().regex(/^[a-z]{1,16}$/).nullable(),
+    /** Defaults so a pre-deploy sender's battlefield slot index still parses. */
+    card: cardId.nullable().default(null),
     item: z.number().int().nonnegative().max(999).nullable(),
-    x: z.number().min(-50).max(50),
-    y: z.number().min(-50).max(50),
+    x: offset,
+    y: offset,
   })
   .strict()
   .nullable();
@@ -143,13 +160,22 @@ export const PresenceSchema = z
     handRows: z.union([z.literal(1), z.literal(2)]).default(1),
     /**
      * A battlefield card of the sender's being rearranged: which (its id is
-     * public — it is on the battlefield) and where it is held now, so the
-     * other screen draws the same lifted card following the same point (the
-     * operator, 2026-10-08: "all i want is for the views to be completely
-     * mirrored"). Null when nothing is being rearranged; defaults so a
-     * pre-deploy sender still parses.
+     * public — it is on the battlefield) and where its lifted copy's centre
+     * is, as an offset from the centre of the card's own home box in units of
+     * that box. The other screen draws the same lifted card the same fraction
+     * of a card off ITS drawing of that card, whatever width either window
+     * lays the row out at (the operator, 2026-10-08: "all i want is for the
+     * views to be completely mirrored"). Null when nothing is being
+     * rearranged; defaults so a pre-deploy sender still parses, and its
+     * whole-board `at` parses as null (see "A deploy is not a reload").
      */
-    arranging: z.object({ card: z.number().int().nonnegative(), at: PresenceSpotSchema }).strict().nullable().default(null),
+    arranging: z
+      .union([
+        z.object({ card: cardId, x: offset, y: offset }).strict(),
+        z.object({ card: cardId, at: PresenceSpotSchema }).strict().transform(() => null),
+      ])
+      .nullable()
+      .default(null),
     /**
      * A PARKED card's point (AD4 rule 2): where the sender's card stands,
      * let go and waiting — on the release message and on EVERY message after
