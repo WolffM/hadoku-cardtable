@@ -117,6 +117,8 @@ export interface ReplayServer {
    * join and resync answers with, as the real server does: `role`, below.
    */
   sendRole(role: unknown): void;
+  /** Deliver `{ matchId, decisions }` on `forge:trigger-decisions`, as the real server does after a change. */
+  sendTriggerDecisions(decisions: unknown): void;
   /** The role every join and resync is answered with. `'player'` unless a test says otherwise. */
   role: 'player' | 'spectator';
   /** The envelope `send` produced for a given seq, for replaying it. */
@@ -167,6 +169,9 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     },
     sendSeats: (seats) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.seats, { matchId, seats });
+    },
+    sendTriggerDecisions: (decisions) => {
+      for (const socket of joined) socket.emit(MATCH_EVENTS.triggerDecisions, { matchId, decisions });
     },
     sendRole: (role) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.role, { matchId, role });
@@ -271,6 +276,10 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     // `Match.setAutoYield`, this double only has to prove what was sent.
     socket.on(MATCH_EVENTS.autoYield, (payload) => {
       server.received.push({ event: MATCH_EVENTS.autoYield, payload });
+    });
+    // Recorded only; the real handler (`Match.setTriggerDecision`) answers with the list, which a test sends itself.
+    socket.on(MATCH_EVENTS.triggerDecision, (payload) => {
+      server.received.push({ event: MATCH_EVENTS.triggerDecision, payload });
     });
     // Client telemetry: the real handler writes it to the log; this double records what was sent.
     socket.on(CLIENT_EVENT, (payload) => {

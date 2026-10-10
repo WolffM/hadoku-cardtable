@@ -30,6 +30,9 @@ import {
   ServerEnvelopeSchema,
   StopPreferenceSchema,
   stopPreferenceFrame,
+  parseTriggerDecision,
+  parseTriggerDecisions,
+  triggerDecisionFrame,
 } from './match-wire.ts';
 
 const VALID_FRAME = { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } };
@@ -43,6 +46,8 @@ describe('MATCH_EVENTS', () => {
     expect(MATCH_EVENTS.stopPreference).toBe('forge:stop-preference');
     expect(MATCH_EVENTS.seats).toBe('forge:seats');
     expect(MATCH_EVENTS.role).toBe('forge:role');
+    expect(MATCH_EVENTS.triggerDecision).toBe('forge:trigger-decision');
+    expect(MATCH_EVENTS.triggerDecisions).toBe('forge:trigger-decisions');
     expect(typeof MATCH_EVENTS.serverToClient).toBe('string');
     expect(typeof MATCH_EVENTS.clientToServer).toBe('string');
   });
@@ -93,6 +98,23 @@ describe('AutoYieldSchema / autoYieldFrame', () => {
     const payload = autoYieldFrame('m1', false);
     expect(AutoYieldSchema.safeParse(payload).success).toBe(true);
     expect(parseAutoYield(payload)).toEqual({ ok: true, value: payload });
+  });
+});
+
+describe('trigger decisions', () => {
+  const key = 'Whenever another creature enters, you may gain 1 life.';
+  it("a seat sends Forge's own decision for one key, ASK included", () => {
+    for (const decision of ['ACCEPT', 'DECLINE', 'ASK'] as const) {
+      expect(parseTriggerDecision(triggerDecisionFrame('m1', key, decision))).toEqual({ ok: true, value: { matchId: 'm1', key, decision } });
+    }
+    expect(parseTriggerDecision({ matchId: 'm1', key, decision: 'ALWAYS' }).ok).toBe(false);
+    expect(parseTriggerDecision({ matchId: 'm1', key: '', decision: 'ACCEPT' }).ok).toBe(false);
+  });
+  it('the server sends the remembered list with names; ASK is never in it', () => {
+    const decisions = [{ key, name: "Soul's Attendant", decision: 'ACCEPT' }];
+    expect(parseTriggerDecisions({ matchId: 'm1', decisions }).ok).toBe(true);
+    expect(parseTriggerDecisions({ matchId: 'm1', decisions: [{ ...decisions[0], decision: 'ASK' }] }).ok).toBe(false);
+    expect(parseTriggerDecisions({ matchId: 'm1', decisions: [{ key, decision: 'ACCEPT' }] }).ok).toBe(false);
   });
 });
 

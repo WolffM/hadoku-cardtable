@@ -235,7 +235,7 @@
  * hand can be drawn before the client knows whose hand it is.
  */
 
-import type { Placement } from '@hadoku/shared';
+import type { Placement, RememberedTrigger } from '@hadoku/shared';
 import { ART_EVENT, asSeqCursor } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
@@ -265,6 +265,8 @@ import {
   parseServerEnvelope,
   replyFrame,
   stopPreferenceFrame,
+  triggerDecisionFrame,
+  TriggerDecisionsSchema,
   type ClientEnvelope,
   type MatchSnapshot,
   type TransportIssue,
@@ -510,6 +512,14 @@ export interface LiveMatch {
    * real jar. `payingMana` is built on that difference.
    */
   promptCard: number | null;
+  /**
+   * The optional trigger the current prompt asks about — its Forge storage key
+   * and host card's name — or null. From the same frame as {@link prompt}
+   * (`confirmAbility.trigger`), so it is exactly as fresh.
+   */
+  promptTrigger: { key: string; name: string } | null;
+  /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
+  triggerDecisions: readonly RememberedTrigger[];
   buttons: LiveButtons | null;
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
@@ -798,6 +808,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     reveal: null,
     prompt: null,
     promptCard: null,
+    promptTrigger: null,
+    triggerDecisions: [],
     buttons: null,
     selectables: null,
     weaklySelectable: null,
@@ -840,6 +852,13 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(MATCH_EVENTS.fullControl, (payload) => {
     adoptFullControl(match, payload);
+  });
+
+  match.transport.on(MATCH_EVENTS.triggerDecisions, (payload) => {
+    const parsed = TriggerDecisionsSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.matchId !== match.matchId) return;
+    match.triggerDecisions = parsed.data.decisions;
+    notify(match);
   });
 
   match.transport.on(MATCH_EVENTS.seats, (payload) => {
@@ -979,6 +998,16 @@ export function setAutoYield(match: LiveMatch, on: boolean): boolean {
   match.autoYield = { turn, on };
   notify(match);
   return true;
+}
+
+/**
+ * Have Forge answer one optional trigger itself (`ACCEPT`/`DECLINE`) or ask
+ * again (`ASK`). The server echoes the seat's whole remembered list back on
+ * `forge:trigger-decisions`, which is what {@link LiveMatch.triggerDecisions}
+ * holds — nothing here is optimistic.
+ */
+export function setTriggerDecision(match: LiveMatch, key: string, decision: 'ACCEPT' | 'DECLINE' | 'ASK'): void {
+  match.transport.emit(MATCH_EVENTS.triggerDecision, triggerDecisionFrame(match.matchId, key, decision));
 }
 
 /**
@@ -2361,6 +2390,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // Overwritten by EVERY prompt, including with null. That is what makes it
     // fresh: see the field's note, and `payingMana`.
     match.promptCard = frame.card === null ? null : frame.card.id;
+    match.promptTrigger = frame.confirmAbility?.trigger ?? null;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {
     match.buttons = {
@@ -2462,6 +2492,7 @@ function discardLocal(match: LiveMatch): void {
   match.reveal = null;
   match.prompt = null;
   match.promptCard = null;
+  match.promptTrigger = null;
   match.buttons = null;
   match.selectables = null;
   match.weaklySelectable = null;

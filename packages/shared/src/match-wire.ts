@@ -73,6 +73,7 @@ import { z } from 'zod';
 import {
   FORGE_CHANNEL,
   ServerFrameSchema,
+  TriggerDecisionSchema,
   safeParseClientFrame,
   type ClientFrame,
   type ServerFrame,
@@ -125,6 +126,17 @@ export const MATCH_EVENTS = {
    * `transport.ts` for the same reason `seats`' does.
    */
   role: 'forge:role',
+  /**
+   * An optional trigger's remembered answer — "Always" on its confirm, or a
+   * clear in the settings. Client → server, see {@link TriggerDecisionRequestSchema}.
+   */
+  triggerDecision: 'forge:trigger-decision',
+  /**
+   * The seat's remembered trigger answers, all of them. Server → client, to the
+   * seat's own socket, on every change and every join and resync. See
+   * {@link TriggerDecisionsSchema}.
+   */
+  triggerDecisions: 'forge:trigger-decisions',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -220,6 +232,35 @@ export interface StopPreferenceRequest {
 export function stopPreferenceFrame(matchId: string, stopAtEndStep: boolean): StopPreferenceRequest {
   return StopPreferenceSchema.parse({ matchId, type: 'stopPreference', stopAtEndStep }) as StopPreferenceRequest;
 }
+
+/**
+ * `forge:trigger-decision` — Forge's own `AutoYieldStore.TriggerDecision` for
+ * one optional trigger of this seat's: `ACCEPT`/`DECLINE` and Forge answers
+ * that trigger itself from then on, `ASK` and it asks again. `key` is the
+ * storage key the trigger's confirm named (`ShowPromptMessage.confirmAbility.trigger`);
+ * the server takes only a key it showed this seat.
+ */
+export const TriggerDecisionRequestSchema = z
+  .object({ matchId: z.string().min(1), key: z.string().min(1), decision: TriggerDecisionSchema })
+  .strict();
+export type TriggerDecisionRequest = z.infer<typeof TriggerDecisionRequestSchema>;
+
+/** The payload of a `forge:trigger-decision` emit, parsed through its own schema. */
+export function triggerDecisionFrame(matchId: string, key: string, decision: TriggerDecisionRequest['decision']): TriggerDecisionRequest {
+  return TriggerDecisionRequestSchema.parse({ matchId, key, decision });
+}
+
+/** One remembered answer: the trigger's storage key, its host card's name, and the answer. */
+export const RememberedTriggerSchema = z
+  .object({ key: z.string().min(1), name: z.string(), decision: z.enum(['ACCEPT', 'DECLINE']) })
+  .strict();
+export type RememberedTrigger = z.infer<typeof RememberedTriggerSchema>;
+
+/** `forge:trigger-decisions` — every answer the seat has Forge remembering, oldest first. */
+export const TriggerDecisionsSchema = z
+  .object({ matchId: z.string().min(1), decisions: z.array(RememberedTriggerSchema) })
+  .strict();
+export type TriggerDecisions = z.infer<typeof TriggerDecisionsSchema>;
 
 /* ── Server → client ─────────────────────────────────────────────────── */
 
@@ -349,6 +390,14 @@ export function parseAutoYield(raw: unknown): MatchWireParse<AutoYieldRequest> {
 
 export function parseStopPreference(raw: unknown): MatchWireParse<StopPreferenceRequest> {
   return parseWith(StopPreferenceSchema, raw) as MatchWireParse<StopPreferenceRequest>;
+}
+
+export function parseTriggerDecision(raw: unknown): MatchWireParse<TriggerDecisionRequest> {
+  return parseWith(TriggerDecisionRequestSchema, raw);
+}
+
+export function parseTriggerDecisions(raw: unknown): MatchWireParse<TriggerDecisions> {
+  return parseWith(TriggerDecisionsSchema, raw);
 }
 
 /** Envelope first, then the frame — a reply's `result` is checked against its method here. */

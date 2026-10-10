@@ -300,6 +300,7 @@ import {
   sendStopPreference,
   setAutoYield,
   setFullControl,
+  setTriggerDecision,
   subscribe,
   YIELDING,
   type LiveAsk,
@@ -1728,6 +1729,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     if (decisionKey !== null) playRole('ui.prompt');
   }, [decisionKey]);
+  /* An optional trigger's "Always" box: ticked, the Yes or No pressed is the answer Forge keeps giving. Unticked for each new confirm. */
+  const [always, setAlways] = useState(false);
+  useEffect(() => {
+    if (!confirmPrompt) setAlways(false);
+  }, [confirmPrompt]);
+  // The decision goes BEFORE the press, so the server still holds this confirm as the seat's prompt when it checks the key.
+  const answerTrigger = (which: 'ok' | 'cancel') => {
+    const live = bar !== null && (which === 'ok' ? bar.enable1 : bar.enable2);
+    if (live && always && match.promptTrigger !== null) setTriggerDecision(match, match.promptTrigger.key, which === 'ok' ? 'ACCEPT' : 'DECLINE');
+    setAlways(false);
+    pressWithSound(match, which);
+  };
   /*
    * W18/W16: a Forge SELECTION (`setSelectables`) that needs more than the
    * board's own highlighted ring — the soft-lock (an off-board target, no
@@ -2553,8 +2566,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <ConfirmPrompt
             testId="live-confirm"
             message={promptText(match.prompt ?? '')}
-            button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressWithSound(match, 'ok') }}
-            button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressWithSound(match, 'cancel') }}
+            button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') }}
+            button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') }}
+            always={match.promptTrigger === null ? undefined : { checked: always, onChange: setAlways }}
           />
         </div>
       )}

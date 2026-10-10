@@ -18,6 +18,10 @@
  *     transport through `isPacedTransport(match.transport).setFast` and
  *     nothing else. No explanatory text (operator, twice) — one plain toggle,
  *     same as the other two.
+ *   - **Remembered triggers** — every optional trigger this seat ticked
+ *     "Always" on, as the server reports Forge holds them
+ *     (`match.triggerDecisions`), each with a clear that sends `ASK` back to
+ *     Forge (`setTriggerDecision`). Drawn only when there is one.
  *
  * **Fully controlled — no `usePrefs` call of its own.** The popover is closed
  * most of the time and this component is not mounted then, but a preference set
@@ -28,7 +32,8 @@
  */
 
 import type { BoardLayout } from '../Board.tsx';
-import { sendStopPreference, type LiveMatch } from './match.ts';
+import { Icon } from '@wolffm/themes';
+import { sendStopPreference, setTriggerDecision, type LiveMatch } from './match.ts';
 import type { PlayPrefs } from './prefs.ts';
 
 export interface SettingsPanelProps {
@@ -108,6 +113,27 @@ export function SettingsPanel({
         />
         Fast Mode
       </label>
+      {match.triggerDecisions.length > 0 && (
+        <ul className="ct-settings__triggers" aria-label="Remembered triggers">
+          {match.triggerDecisions.map((t) => (
+            <li key={t.key} className="ct-settings__trigger" data-testid="live-settings-trigger">
+              <span>
+                {t.name} — always {t.decision === 'ACCEPT' ? 'yes' : 'no'}
+              </span>
+              <button
+                type="button"
+                className="ct-settings__close"
+                aria-label={`Clear ${t.name}`}
+                data-testid="live-settings-trigger-clear"
+                disabled={inert}
+                onClick={() => setTriggerDecision(match, t.key, 'ASK')}
+              >
+                <Icon name="close" size="0.875rem" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </fieldset>
   );
 }

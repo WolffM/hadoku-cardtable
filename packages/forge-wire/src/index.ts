@@ -130,6 +130,8 @@ export {
   SetWeaklySelectableSchema,
   RestoreOldZonesSchema,
   ApplyYieldUpdateSchema,
+  SendYieldUpdateSchema,
+  type SendYieldUpdate,
   TempShowZonesSchema,
   TempShowZonesReplySchema,
   GetAbilityToPlaySchema,

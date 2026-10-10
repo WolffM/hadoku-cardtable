@@ -675,6 +675,16 @@
   gap: 8px;
 }
 
+.confirm__always {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--ink-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .confirm__button {
   min-width: 88px;
   padding: 8px 14px;

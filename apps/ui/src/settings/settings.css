@@ -96,6 +96,22 @@
   cursor: pointer;
 }
 
+.ct-settings__triggers {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ct-settings__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 .ct-settings__choices {
   display: flex;
   flex-direction: column;

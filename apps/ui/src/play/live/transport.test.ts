@@ -29,6 +29,8 @@ const SHARED_NAMES = [
   'fullControlFrame',
   'AutoYieldSchema',
   'StopPreferenceSchema',
+  'TriggerDecisionRequestSchema',
+  'TriggerDecisionsSchema',
   'ServerEnvelopeSchema',
   'MatchSnapshotSchema',
   'MatchErrorSchema',

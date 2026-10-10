@@ -403,4 +403,12 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, cost: true } }).success).toBe(false);
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
+
+  it("an optional trigger's confirm names the trigger's storage key and host card", () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: "Use triggered ability of Soul's Attendant?", card: null };
+    const trigger = { key: 'Whenever another creature enters, you may gain 1 life.', name: "Soul's Attendant" };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, trigger } }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, trigger: { ...trigger, key: '' } } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, trigger: { name: "Soul's Attendant" } } }).success).toBe(false);
+  });
 });

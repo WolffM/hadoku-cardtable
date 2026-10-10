@@ -109,6 +109,7 @@ import {
 	parseFullControl,
 	parseMatchRequest,
 	parseStopPreference,
+	parseTriggerDecision,
 	type MatchError,
 	type MatchSnapshot,
 } from './transport.js';
@@ -775,6 +776,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * server's to settle.
 						 */
 						socket.emit(MATCH_EVENTS.fullControl, fullControlFrame(result.matchId, match.fullControl(result.seat)));
+						// The seat's remembered trigger answers, for the same reason: Forge still holds them after a refresh.
+						socket.emit(MATCH_EVENTS.triggerDecisions, { matchId: result.matchId, decisions: match.triggerDecisions(result.seat) });
 						/*
 						 * Item 4's server half (wave 29 §B): every seat's identity, on its
 						 * own event and for the same reason `forge:full-control` is —
@@ -882,6 +885,29 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			const outcome = match.setAutoYield(seat, parsed.value.on);
 			if (!outcome.ok) log({ evt: 'auto-yield-refused', participantId, matchId: match.id, seat, error: outcome.error });
+		});
+
+		// An optional trigger's remembered answer, same shape again — the seat is the claimed one,
+		// never a payload's. The list goes back to this socket, so its settings draw what Forge holds.
+		socket.on(MATCH_EVENTS.triggerDecision, (raw: unknown) => {
+			const parsed = parseTriggerDecision(raw);
+			if (!parsed.ok) {
+				log({ evt: 'trigger-decision-malformed', participantId, errors: parsed.errors.slice(0, 3) });
+				return;
+			}
+			const match = matches.get(parsed.value.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined) {
+				log({ evt: 'trigger-decision-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'trigger-decision' });
+				return;
+			}
+			const outcome = match.setTriggerDecision(seat, parsed.value.key, parsed.value.decision);
+			if (!outcome.ok) log({ evt: 'trigger-decision-refused', participantId, matchId: match.id, seat, error: outcome.error });
+			socket.emit(MATCH_EVENTS.triggerDecisions, { matchId: match.id, decisions: match.triggerDecisions(seat) });
 		});
 
 		/*

@@ -2272,6 +2272,48 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
 		});
 	});
+
+	describe("an optional trigger's remembered answer", () => {
+		const KEY = 'Whenever another creature enters the battlefield, you may gain 1 life.';
+		const triggerConfirm = (key = KEY) => ({
+			...promptFrame(1, "Use triggered ability of Soul's Attendant?"),
+			confirmAbility: { hostCard: { kind: 'card' as const, id: 40 }, abilityId: 7, trigger: { key, name: "Soul's Attendant" } },
+		});
+		const yieldActs = (h: Harness) => h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'sendYieldUpdate');
+
+		it("is sent to Forge as its own triggerDecision, and listed with the trigger's card", () => {
+			const h = openedHarness();
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: triggerConfirm() });
+			expect(h.match.setTriggerDecision(SEAT1_ID, KEY, 'ACCEPT')).toEqual({ ok: true });
+			expect(yieldActs(h)).toEqual([
+				{ t: 'act', seat: SEAT1_ID, frame: { kind: 'act', method: 'sendYieldUpdate', update: { update: 'triggerDecision', storageKey: KEY, decision: 'ACCEPT' } } },
+			]);
+			expect(h.match.triggerDecisions(SEAT1_ID)).toEqual([{ key: KEY, name: "Soul's Attendant", decision: 'ACCEPT' }]);
+			expect(h.match.triggerDecisions(0)).toEqual([]);
+		});
+
+		it('ASK clears it — in Forge and in the list — after the confirm is long gone', () => {
+			const h = openedHarness();
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: triggerConfirm() });
+			h.match.setTriggerDecision(SEAT1_ID, KEY, 'DECLINE');
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty') });
+			expect(h.match.setTriggerDecision(SEAT1_ID, KEY, 'ASK')).toEqual({ ok: true });
+			expect(yieldActs(h).map((c) => (c.t === 'act' && c.frame.method === 'sendYieldUpdate' ? c.frame.update : null))).toEqual([
+				{ update: 'triggerDecision', storageKey: KEY, decision: 'DECLINE' },
+				{ update: 'triggerDecision', storageKey: KEY, decision: 'ASK' },
+			]);
+			expect(h.match.triggerDecisions(SEAT1_ID)).toEqual([]);
+		});
+
+		it('a key the seat was never asked about reaches nothing', () => {
+			const h = openedHarness();
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: triggerConfirm() });
+			expect(h.match.setTriggerDecision(SEAT1_ID, 'some other trigger', 'ACCEPT')).toEqual({ ok: false, error: 'not a trigger this seat was asked about' });
+			expect(h.match.setTriggerDecision(0, KEY, 'ACCEPT')).toMatchObject({ ok: false });
+			expect(yieldActs(h)).toEqual([]);
+			expect(h.match.triggerDecisions(SEAT1_ID)).toEqual([]);
+		});
+	});
 });
 
 /**

@@ -219,6 +219,8 @@ export interface ConfirmPromptProps {
   /** Omitted where Forge has not offered the button at all (the bar decision draws only what Forge enabled). */
   button1?: ConfirmPromptButton;
   button2?: ConfirmPromptButton;
+  /** An optional trigger's "Always": ticked, the answer pressed is the one Forge keeps giving. */
+  always?: { checked: boolean; onChange: (checked: boolean) => void };
 }
 
 /**
@@ -229,7 +231,7 @@ export interface ConfirmPromptProps {
  * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this
  * component sends nothing itself.
  */
-export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2 }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, always }: ConfirmPromptProps) {
   const titleId = useId();
   const messageId = useId();
   return (
@@ -251,6 +253,17 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
         <RulesText text={message} />
       </p>
       <div className="confirm__actions">
+        {always !== undefined && (
+          <label className="confirm__always">
+            <input
+              type="checkbox"
+              data-testid={`${testId}-always`}
+              checked={always.checked}
+              onChange={(event) => always.onChange(event.currentTarget.checked)}
+            />
+            Always
+          </label>
+        )}
         {[button1, button2].map((b, i) => b !== undefined && (
           <button
             key={i}

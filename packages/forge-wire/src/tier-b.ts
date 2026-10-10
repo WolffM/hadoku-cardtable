@@ -101,6 +101,10 @@
  * `index.ts` re-export, and `envelope.test.ts`'s three counts. It is not lane
  * F's exclusion any more — it is a file boundary, and the exclusion is recorded
  * rather than quietly widened.
+ *
+ * It is not a BROWSER frame either way: the server builds one, `triggerDecision`
+ * arm only, for the bridge (`Match.setTriggerDecision`, the `forge:trigger-decision`
+ * event), so `SendYieldUpdate` types that command and nothing a seat sends.
  */
 
 import { z } from 'zod';
@@ -246,8 +250,19 @@ export const ShowPromptMessageSchema = z.strictObject({
    * trigger's confirm (`confirmTrigger`) both arrive with `card: null`, so the
    * message alone cannot tell them apart; the ability can. Absent on every other
    * prompt.
+   *
+   * `trigger` is present on an optional trigger's confirm only: `key` is the
+   * storage key Forge keeps a remembered answer under (`AutoYieldStore.abilitySuffix`
+   * of the wrapper's `yieldKey()`, per ability as Forge's default
+   * `UI_AUTO_DECISION_MODE` keeps it), `name` the trigger's host card.
    */
-  confirmAbility: z.strictObject({ hostCard: CardRefSchema, abilityId: z.number().int() }).optional(),
+  confirmAbility: z
+    .strictObject({
+      hostCard: CardRefSchema,
+      abilityId: z.number().int(),
+      trigger: z.strictObject({ key: z.string().min(1), name: z.string() }).optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -382,6 +397,8 @@ export const SendYieldUpdateSchema = z.strictObject({
   method: z.literal('sendYieldUpdate'),
   update: YieldUpdateSchema,
 });
+
+export type SendYieldUpdate = z.infer<typeof SendYieldUpdateSchema>;
 
 /* ── Server → client, blocking (12) ──────────────────────────────────── */
 

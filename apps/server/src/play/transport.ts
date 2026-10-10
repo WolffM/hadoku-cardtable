@@ -28,6 +28,9 @@
  *                    answered a snapshot. One event, one schema, both ways.
  *   client → server  `forge:stop-preference`  `{ matchId, type: 'stopPreference', stopAtEndStep }`
  *   client → server  `forge:auto-yield`  `{ matchId, on }`, no ack
+ *   client → server  `forge:trigger-decision`  `{ matchId, key, decision }`, no ack
+ *   server → client  `forge:trigger-decisions`  `{ matchId, decisions }` — on every
+ *                    change, join and resync
  *
  * The cursor rule, the "no direct `zod` import" rule and every per-schema
  * rationale now live on `@hadoku/shared/match-wire.ts` — read it there; this
@@ -47,6 +50,10 @@ export {
 	type AutoYieldRequest,
 	StopPreferenceSchema,
 	type StopPreferenceRequest,
+	TriggerDecisionRequestSchema,
+	type TriggerDecisionRequest,
+	TriggerDecisionsSchema,
+	type TriggerDecisions,
 	ServerEnvelopeSchema,
 	type ServerEnvelope,
 	MatchSnapshotSchema,
@@ -58,6 +65,7 @@ export {
 	parseFullControl,
 	parseAutoYield,
 	parseStopPreference,
+	parseTriggerDecision,
 	parseClientEnvelope,
 } from '@hadoku/shared';
 export type { WireCursor } from '@hadoku/shared';

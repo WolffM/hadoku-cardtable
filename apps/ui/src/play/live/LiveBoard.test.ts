@@ -3781,6 +3781,79 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
  * moves to the decision area; a priority pass and a mana payment stay on the
  * control bar. See `docs/planning/wave36-evidence/g-shape1.md`.
  */
+/*
+ * The operator, 2026-10-10: *"for things like 'Use triggered ability of Soul's Attendant? Triggered by:
+ * Soul Warden' can we add a checkmark that allows me to always yes?"* — an optional trigger's confirm
+ * carries the trigger (`confirmAbility.trigger`); ticked, the answer pressed goes to Forge to keep.
+ */
+describe("an optional trigger's confirm has an Always box", () => {
+  const KEY = 'Whenever another creature enters the battlefield, you may gain 1 life.';
+  const bar = () =>
+    parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+  function triggerFrames() {
+    return [
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: "Use triggered ability of Soul's Attendant?\nTriggered by: Memnite",
+        card: null,
+        confirmAbility: { hostCard: { kind: 'card', id: 40 }, abilityId: 7, trigger: { key: KEY, name: "Soul's Attendant" } },
+      }),
+      bar(),
+    ];
+  }
+  const sentEvents = (s: { received: { event: string }[] }) =>
+    s.received.filter((r) => r.event === 'forge:trigger-decision' || r.event === 'forge:c2s').map((r) => r.event);
+  const decisionsSent = (s: { received: { event: string; payload: unknown }[] }) =>
+    s.received.filter((r) => r.event === 'forge:trigger-decision').map((r) => r.payload);
+
+  it('ticked with Yes: ACCEPT for the trigger goes before the press', async () => {
+    const { s, getByTestId } = await liveBoard();
+    for (const f of triggerFrames()) s.send(f);
+    const always = (await waitFor(() => getByTestId('live-confirm-always'))) as HTMLInputElement;
+    expect(always.checked).toBe(false);
+    fireEvent.click(always);
+    fireEvent.click(getByTestId('prompt-confirm-yes'));
+    await waitFor(() => expect(sentEvents(s)).toEqual(['forge:trigger-decision', 'forge:c2s']));
+    expect(decisionsSent(s)).toEqual([{ matchId: s.matchId, key: KEY, decision: 'ACCEPT' }]);
+  });
+
+  it('ticked with No: DECLINE', async () => {
+    const { s, getByTestId } = await liveBoard();
+    for (const f of triggerFrames()) s.send(f);
+    fireEvent.click(await waitFor(() => getByTestId('live-confirm-always')));
+    fireEvent.click(getByTestId('prompt-confirm-no'));
+    await waitFor(() => expect(sentEvents(s)).toEqual(['forge:trigger-decision', 'forge:c2s']));
+    expect(decisionsSent(s)).toEqual([{ matchId: s.matchId, key: KEY, decision: 'DECLINE' }]);
+  });
+
+  it('unticked, the press is all that is sent; a confirm that is not a trigger has no box', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    for (const f of triggerFrames()) s.send(f);
+    await waitFor(() => getByTestId('live-confirm-always'));
+    fireEvent.click(getByTestId('prompt-confirm-yes'));
+    await waitFor(() => expect(sentEvents(s)).toEqual(['forge:c2s']));
+
+    s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Watery Grave\n\nPay 2 life?', card: null }));
+    s.send(bar());
+    await waitFor(() => expect(getByTestId('live-confirm').textContent).toContain('Pay 2 life?'));
+    expect(queryByTestId('live-confirm-always')).toBeNull();
+  });
+
+  it('the settings list what the server says Forge remembers, and a clear sends ASK', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard(0, true);
+    expect(queryByTestId('live-settings-trigger')).toBeNull();
+    s.sendTriggerDecisions([{ key: KEY, name: "Soul's Attendant", decision: 'ACCEPT' }]);
+    await waitFor(() => expect(m.triggerDecisions).toHaveLength(1));
+    expect(getByTestId('live-settings-trigger').textContent).toBe("Soul's Attendant — always yes");
+    fireEvent.click(getByTestId('live-settings-trigger-clear'));
+    await waitFor(() => expect(decisionsSent(s)).toEqual([{ matchId: s.matchId, key: KEY, decision: 'ASK' }]));
+    s.sendTriggerDecisions([]);
+    await waitFor(() => expect(queryByTestId('live-settings-trigger')).toBeNull());
+  });
+});
+
 describe('T4 — every yes/no confirm is the pop-up, never the control bar', () => {
   function buttonFrames(message: string, label1: string, label2: string) {
     return [

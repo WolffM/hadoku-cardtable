@@ -103,7 +103,9 @@ import {
 	type ChoiceOption,
 	type ClientFrame,
 	type ServerFrame,
+	type TriggerDecision,
 } from '@hadoku/forge-wire';
+import type { RememberedTrigger } from '@hadoku/shared';
 
 import {
 	chosenCostConfirm,
@@ -343,6 +345,12 @@ export interface SeatState {
 	 * {@link fullControl}, never instead of it.
 	 */
 	autoYield: { turn: number; on: boolean } | null;
+	/**
+	 * The optional triggers this seat told Forge to answer itself ("Always" on
+	 * the trigger's confirm), by Forge's storage key, oldest first. Forge holds
+	 * the decision; this is the list the seat's settings draw and clear.
+	 */
+	triggerDecisions: Map<string, RememberedTrigger>;
 	/**
 	 * This seat's stop preferences — **one policy per seat, not one per server**
 	 * (wave 26 §E).
@@ -900,6 +908,7 @@ export class Match {
 			here: false,
 			fullControl: false,
 			autoYield: null,
+			triggerDecisions: new Map(),
 			// The starting value only — `setStopPolicy` still moves one seat at a
 			// time. Absent is production (`MatchDeps.stopPolicy`).
 			policy: deps.stopPolicy ?? DEFAULT_STOP_POLICY,
@@ -2016,6 +2025,32 @@ export class Match {
 
 	fullControl(seat: number): boolean {
 		return this.seats[seat]?.fullControl ?? false;
+	}
+
+	/**
+	 * Remember (`ACCEPT`/`DECLINE`) or forget (`ASK`) this seat's answer to one
+	 * optional trigger, in Forge: the bridge writes it into the seat's
+	 * `YieldController`, and `confirmTrigger` answers from it instead of asking.
+	 * The key must be one this seat was asked about — the open confirm's own
+	 * trigger — or one it already remembers, so a seat cannot plant a key it
+	 * was never shown.
+	 */
+	setTriggerDecision(seat: number, key: string, decision: TriggerDecision): ClientOutcome {
+		const s = this.seats[seat];
+		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
+		const asked = s.prompt?.method === 'showPromptMessage' ? s.prompt.confirmAbility?.trigger : undefined;
+		const name = asked?.key === key ? asked.name : s.triggerDecisions.get(key)?.name;
+		if (name === undefined) return { ok: false, error: 'not a trigger this seat was asked about' };
+		if (decision === 'ASK') s.triggerDecisions.delete(key);
+		else s.triggerDecisions.set(key, { key, name, decision });
+		this.deps.log({ evt: 'trigger-decision', matchId: this.id, seat, name, decision });
+		this.command({ t: 'act', seat, frame: { kind: 'act', method: 'sendYieldUpdate', update: { update: 'triggerDecision', storageKey: key, decision } } });
+		return { ok: true };
+	}
+
+	triggerDecisions(seat: number): RememberedTrigger[] {
+		return [...(this.seats[seat]?.triggerDecisions.values() ?? [])];
 	}
 
 	/**

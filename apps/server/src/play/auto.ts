@@ -16,8 +16,9 @@
  *    exact Forge mechanism each one maps to is in the field's own doc, on the
  *    interface below. **Nothing here translates the policy to Forge's own
  *    `YieldUpdate` frames**: wave 64 §S deleted `toYieldUpdates` (S2), the
- *    function that used to do it, because nothing could call it — the bridge
- *    has no `sendYieldUpdate` act (see "What the next wave must add" below) —
+ *    function that used to do it, because nothing could call it — the bridge's
+ *    `sendYieldUpdate` act takes a trigger decision only (see "What the next
+ *    wave must add" below) —
  *    and a translation with no caller is not a safety net, it is a second copy
  *    of the mapping table that can drift from the one the fields themselves
  *    carry.
@@ -103,8 +104,9 @@
  *
  * ## What the next wave must add, outside this lane
  *
- * - `apps/server/src/play/bridge/PlayBridge.java` — `act()`'s switch has no
- *   `sendYieldUpdate` case, so nothing this file computes can reach Forge yet.
+ * - `apps/server/src/play/bridge/PlayBridge.java` — `act()`'s `sendYieldUpdate`
+ *   case takes the `triggerDecision` arm only (an optional trigger's "Always",
+ *   `Match.setTriggerDecision`), so nothing this file computes can reach Forge yet.
  *   `IGameController.sendYieldUpdate(YieldUpdate)` exists
  *   (`IGameController.java:84-86`) and routes to `applyYieldUpdate`. **No
  *   function here turns a {@link StopPolicy} into those frames any more**

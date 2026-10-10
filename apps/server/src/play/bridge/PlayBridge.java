@@ -49,12 +49,14 @@ import forge.game.spellability.SpellAbilityStackInstance;
 import forge.game.spellability.SpellAbilityView;
 import forge.game.spellability.StackItemView;
 import forge.game.spellability.TargetChoices;
+import forge.game.trigger.WrappedAbility;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.match.NextGameDecision;
+import forge.gamemodes.match.YieldUpdate;
 import forge.gamemodes.net.ChatMessage;
 import forge.gamemodes.net.DeltaPacket;
 import forge.gamemodes.net.NetworkGuiGame;
@@ -78,6 +80,7 @@ import forge.localinstance.properties.ForgeNetPreferences;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.localinstance.skin.FSkinProp;
 import forge.model.FModel;
+import forge.player.AutoYieldStore;
 import forge.player.PlayerControllerHuman;
 import forge.player.PlayerZoneUpdate;
 import forge.player.PlayerZoneUpdates;
@@ -1097,6 +1100,14 @@ public final class PlayBridge {
          * way {@link #legalPlayers} reads its input. The server answers Yes only when
          * the seat chose this same ability from {@code getAbilityToPlay} just before
          * ({@code auto.ts}'s {@code chosenCostConfirm}); every other confirm still asks.
+         *
+         * <p>An optional trigger's confirm also names the trigger ({@code trigger}): its
+         * {@code InputConfirm.sa} is the {@code WrappedAbility} {@code confirmTrigger} was
+         * handed ({@code PlayerControllerHuman.java:787-828}), and {@code key} is the
+         * storage key Forge's own default auto-decision mode keeps an answer under — per
+         * ability ({@code UI_AUTO_DECISION_MODE} = {@code AUTO_DECISION_PER_ABILITY},
+         * {@code ForgePreferences.java:147}), so {@code AutoYieldStore.abilitySuffix} of the
+         * wrapper's {@code yieldKey()}. {@link #act} stores a decision under it.
          */
         private JsonObject confirmAbility() {
             final forge.game.player.Player mine = liveSelf(liveGame());
@@ -1109,6 +1120,12 @@ public final class PlayBridge {
                 final JsonObject o = new JsonObject();
                 o.add("hostCard", ref("card", sa.getHostCard().getId()));
                 o.addProperty("abilityId", sa.getId());
+                if (sa instanceof WrappedAbility w && w.getTrigger() != null) {
+                    final JsonObject trigger = new JsonObject();
+                    trigger.addProperty("key", AutoYieldStore.abilitySuffix(w.yieldKey()));
+                    trigger.addProperty("name", w.getTrigger().getHostCard().getName());
+                    o.add("trigger", trigger);
+                }
                 return o;
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] confirmAbility: could not read the open confirm (" + e + "); it stays a question");
@@ -1727,6 +1744,7 @@ public final class PlayBridge {
                     }
                     c.selectAbility(sa);
                 }
+                case "sendYieldUpdate" -> setTriggerDecision(frame.getAsJsonObject("update"));
                 default -> throw new IllegalArgumentException("not an act: " + method);
             }
         }
@@ -1789,6 +1807,32 @@ public final class PlayBridge {
             o.addProperty("skipPhaseDelay", off);
             o.addProperty("at", System.currentTimeMillis());
             emit(o);
+        }
+
+        /**
+         * A remembered answer to an optional trigger, or {@code ASK} to forget it. Only the
+         * {@code triggerDecision} arm of {@code YieldUpdate} is taken from a browser.
+         *
+         * <p>Written straight into the server's live {@code YieldController} for the same
+         * reason {@link #setPhaseDelayOff} is: the seat's {@code NetGameController} would
+         * send it as its own network message, dispatched on a fresh thread, racing the Yes
+         * the browser presses right after it. The server's controller for a remote seat
+         * keeps decisions in its per-game cache, and {@code YieldController.apply} is the
+         * path Forge's own {@code sendYieldUpdate} takes into it
+         * ({@code YieldController.java:379-380}), read back by {@code getTriggerDecision}
+         * ({@code :274-281}) when {@code confirmTrigger} next asks.
+         */
+        void setTriggerDecision(final JsonObject update) {
+            if (!"triggerDecision".equals(update.get("update").getAsString())) {
+                throw new IllegalArgumentException("only a triggerDecision is taken from a seat: " + update);
+            }
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) {
+                throw new IllegalStateException("seat " + seat + " has no live PlayerControllerHuman");
+            }
+            human.getYieldController().apply(new YieldUpdate.TriggerDecision(
+                update.get("storageKey").getAsString(),
+                AutoYieldStore.TriggerDecision.valueOf(update.get("decision").getAsString())));
         }
 
         CardView card(final JsonElement ref) {

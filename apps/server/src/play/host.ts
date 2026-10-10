@@ -254,7 +254,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import type { AbortReasonSchema, ClientAction } from '@hadoku/forge-wire';
+import type { AbortReasonSchema, ClientAction, SendYieldUpdate } from '@hadoku/forge-wire';
 
 /* ── What a host is ──────────────────────────────────────────────────── */
 
@@ -294,7 +294,7 @@ type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];
 export type BridgeCommand =
 	| { t: 'reply'; seat: number; callId: string; result: unknown }
 	| { t: 'abort'; seat: number; callId: string; reason: AbortReason }
-	| { t: 'act'; seat: number; frame: ClientAction }
+	| { t: 'act'; seat: number; frame: ClientAction | SendYieldUpdate }
 	| { t: 'probe'; seat: number; probeId: string; message: string }
 	| { t: 'stop' };
 
