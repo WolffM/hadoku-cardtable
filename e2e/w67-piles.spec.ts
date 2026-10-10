@@ -113,6 +113,14 @@ test(titled('a huge graveyard opens as a pile view: a buried flashback card can 
     await alice.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
     await expect(inspector(alice.page).locator('.card__name'), 'hovering it in the view opens the inspector on it').toHaveText('Think Twice', { timeout: 3_000 });
     console.log('[piles] hovering Think Twice in the view shows it in the inspector');
+    // The one inspector stands clear of the open view, as it does of an open decision window.
+    const shown = (await inspector(alice.page).boundingBox())!;
+    const rect = (b: { x: number; y: number; width: number; height: number }): string =>
+      `${Math.round(b.x)},${Math.round(b.y)}–${Math.round(b.x + b.width)},${Math.round(b.y + b.height)}`;
+    const overlapW = Math.max(0, Math.min(shown.x + shown.width, panel.x + panel.width) - Math.max(shown.x, panel.x));
+    const overlapH = Math.max(0, Math.min(shown.y + shown.height, panel.y + panel.height) - Math.max(shown.y, panel.y));
+    console.log(`[piles] inspector ${rect(shown)}, pile view ${rect(panel)}, overlap ${Math.round(overlapW)}×${Math.round(overlapH)}px`);
+    expect(overlapW * overlapH, 'the inspector covers the pile view').toBe(0);
 
     await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(view(alice.page), 'a selection closes the view').toHaveCount(0, { timeout: 3_000 });
