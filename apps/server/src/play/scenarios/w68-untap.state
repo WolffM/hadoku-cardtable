@@ -1,0 +1,21 @@
+# The operator, 2026-10-10, the sixth ask: "just let me untap things if it
+# didn't trigger anything." Seat 0's own turn-1 Main Phase 1 with one of every
+# kind of mana source: basics (Forest, Island), the Tron set (Urza's Mine,
+# Tower and Power Plant: a variable amount), River of Tears (a conditional
+# sub-ability), Izzet Signet ({1},{T}), Llanowar Elves (a creature) and Adarkar
+# Wastes (a painland). An empty hand, so nothing can spend the mana.
+# `e2e/w68-untap.spec.ts` taps each one and clicks it again, last-tapped and
+# out of order.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Forest;Island;Urza's Mine;Urza's Tower;Urza's Power Plant;River of Tears;Izzet Signet;Llanowar Elves;Adarkar Wastes
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
