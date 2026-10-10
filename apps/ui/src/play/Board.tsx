@@ -395,6 +395,7 @@ import {
   type PTState,
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
+import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
 import { PileView } from './PileView.tsx';
@@ -3037,7 +3038,7 @@ function PlayerArea({
  *      permanent's press is Forge's answer — and a press already claimed is not
  *      ours. Otherwise we cancel it ourselves, so the press selects no text. A
  *      press that never moves stays a plain click.
- *   2. `pointermove` past `SLOP` pixels: the drag begins. The card's `<li>` is
+ *   2. `pointermove` past `DRAG_SLOP_PX`: the drag begins. The card's `<li>` is
  *      dimmed in place (`data-arrange-dragging`), a clone of it — the GHOST,
  *      `data-arrange-ghost`, stripped of every id so card ids stay unique — is
  *      drawn lifted under the pointer, and from then on every move re-snaps.
@@ -3046,11 +3047,10 @@ function PlayerArea({
  *      bar there (`data-arrange-indicator`, `data-arrange-kind`) and lights the
  *      slot and card it is on (`data-arrange-target`).
  *   4. `pointerup` commits to the snap; `pointercancel` and Escape do not. The
- *      `click` that follows a real drag is swallowed once.
+ *      `click` that follows a real drag is swallowed once (`clickLatch`).
  *
  * Nothing is sent to Forge. Everything it draws is removed again on every exit.
  */
-const SLOP = 4;
 
 function useArrangeDrag(
   root: { readonly current: HTMLElement | null },
@@ -3079,8 +3079,7 @@ function useArrangeDrag(
       grab: { x: number; y: number };
     }
     let press: Press | null = null;
-    /** The one-shot that eats the click after a real drag; removed unused rather than left to eat the next one. */
-    let eatClick: (() => void) | null = null;
+    const clicks = clickLatch();
 
     const boardBox = (): DOMRect => board.getBoundingClientRect();
 
@@ -3171,13 +3170,8 @@ function useArrangeDrag(
       clearPlacementColumns(board);
     };
 
-    const forgetClick = (): void => {
-      eatClick?.();
-      eatClick = null;
-    };
-
     const onDown = (event: PointerEvent): void => {
-      forgetClick();
+      clicks.reset();
       if (press !== null || event.button !== 0 || !event.isPrimary) return;
       // Claimed by the gestures layer: combat declaration, a payment. Not ours.
       if (event.defaultPrevented) return;
@@ -3208,7 +3202,7 @@ function useArrangeDrag(
       const p = press;
       if (p === null || event.pointerId !== p.pointerId) return;
       if (p.ghost === null) {
-        if (Math.hypot(event.clientX - p.x, event.clientY - p.y) < SLOP) return;
+        if (!pastSlop(p, { x: event.clientX, y: event.clientY })) return;
         begin(p, event.clientX, event.clientY);
         return;
       }
@@ -3224,17 +3218,7 @@ function useArrangeDrag(
       end();
       if (!dragged) return;
       // The release of a real drag is not a click on what it ended over.
-      const swallow = (click: Event): void => {
-        click.stopPropagation();
-        click.preventDefault();
-        forgetClick();
-      };
-      window.addEventListener('click', swallow, true);
-      const timer = setTimeout(forgetClick, 0);
-      eatClick = () => {
-        clearTimeout(timer);
-        window.removeEventListener('click', swallow, true);
-      };
+      clicks.arm();
       if (snap !== null) latest.current(p.cardId, snap.slot, snap.target);
     };
 
@@ -3250,12 +3234,13 @@ function useArrangeDrag(
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('click', clicks.swallow, true);
     return () => {
       window.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
-      forgetClick();
+      window.removeEventListener('click', clicks.swallow, true);
       end();
     };
   }, [root, enabled]);

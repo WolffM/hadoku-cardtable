@@ -169,7 +169,7 @@ export async function touchDrag(page: Page, card: Locator, to: { x: number; y: n
   try {
     await touch('touchStart', from);
     // A first move past any dead-zone, same as `pointerDrag`: arming needs a
-    // move past `SLOP` first.
+    // move past `DRAG_SLOP_PX` first.
     await touch('touchMove', { x: from.x + 8, y: from.y + 8 });
     // Armed here, before the midway sample, so "never armed" and "armed but
     // sampled too early" fail with different messages.

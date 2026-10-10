@@ -145,7 +145,7 @@
  * A plain click's `pointerup` ALSO fires a native `click` right after it with
  * no intervening movement, and that click would otherwise reach the card's
  * own `onClick` in `Board.tsx` and send a premature `selectCard` before this
- * layer ever gets to decide anything — `suppressClick` marks exactly the
+ * layer ever gets to decide anything — the `clicks` latch marks exactly the
  * presses this module has claimed, and the capturing `click` listener on
  * `canvas` swallows that one native click before React's own delegated
  * handler, attached to this same element, ever sees it. The same flag, left untouched,
@@ -245,7 +245,8 @@ import { clearMarquee, drawMarquee } from './marquee.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { boxOf, cardBox, centreOf, targetUnder } from './targets.ts';
 import {
-  DRAG_SLOP_PX,
+  clickLatch,
+  pastSlop,
   type DragState,
   type DropTarget,
   type GestureHandle,
@@ -411,15 +412,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /** The land whose tap is out and not yet shown on the board. */
   let tapSent: number | null = null;
   let tapTimer: ReturnType<typeof setTimeout> | null = null;
-  /**
-   * Set the moment a press is claimed as a hand-card cast — see the module
-   * header's own section — and consumed by the capturing `click` listener
-   * below, which is the only thing that ever reads it. Reset at the top of
-   * every FRESH `pointerdown` so a press that never produces a click (a real
-   * drag, released somewhere else entirely) cannot leave it stuck for an
-   * unrelated later click.
-   */
-  let suppressClick = false;
+  /** Armed the moment a press is claimed — see the module header's own section — and reset at the top of every FRESH `pointerdown`. */
+  const clicks = clickLatch();
   /**
    * Item 5: a press on the viewer's own placed spell (`live/placed.ts`'s
    * `[data-placed-spell][data-mine]`), picking it up to drag it somewhere
@@ -1122,7 +1116,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // land, so the next one lands on it) must not also select that pile's
       // land — a second select while Forge is mid-getAbilityToPlay for the
       // first, and the play never happened (table-fit 2026-10-07).
-      suppressClick = true;
+      clicks.arm();
       const held = drag;
       drag = null;
       resolveLift(held, { x: event.clientX, y: event.clientY }, event.target);
@@ -1132,8 +1126,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Left button only from here: a right-click is Forge's own menu on the
     // desktop and is not this gesture's to take.
     if (event.button !== 0) return;
-    // Reset at the top of every FRESH press — see the flag's own doc comment.
-    suppressClick = false;
+    // Reset at the top of every FRESH press — see the latch's own doc comment.
+    clicks.reset();
     /*
      * A press on the viewer's own hand card, Forge-offered or not, is a
      * REORDER unless it leaves the hand — ahead of every other branch below.
@@ -1162,8 +1156,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
         claim(event);
         // The native click this press leaves behind must not also reach the
         // card's own `onClick` — same reason the old cast-from-hand branch
-        // set this, see `suppressClick`'s own doc comment.
-        suppressClick = true;
+        // armed this, see the latch's own doc comment.
+        clicks.arm();
         const pressAt = { x: event.clientX, y: event.clientY };
         const box = cardBox(canvas, press.id);
         const from = box === null ? pressAt : centreOf(box);
@@ -1271,7 +1265,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         match.selectables === null &&
         match.asks.length === 0 &&
         (match.weaklySelectable?.has(under.id) ?? false);
-      if (castFromHand) suppressClick = true;
+      if (castFromHand) clicks.arm();
       const from = box === null ? at : centreOf(box);
       drag = {
         source: under.id,
@@ -1318,7 +1312,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function onPointerMove(event: PointerEvent): void {
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
-      const moved = drag.moved || past(drag.press, at);
+      const moved = drag.moved || pastSlop(drag.press, at);
       const next: DragState = { ...drag, at, moved, target: targetAt(event.target) };
       drag = next;
       if (next.lifted && next.source !== null) {
@@ -1342,7 +1336,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         }
       }
     } else if (marquee !== null) {
-      marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
+      marquee = { press: marquee.press, at, moved: marquee.moved || pastSlop(marquee.press, at) };
     } else if (placedDrag !== null) {
       // AD3 (item 6): this is the ONLY thing that moves a placed card — never
       // a bare hover, which is what the OLD stand-in's bug was. `moveSpell`
@@ -1350,7 +1344,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // tells lane W to relay it; `hover` stays untouched, so the free
       // click-targeting arrow (if any OTHER cast is being aimed right now)
       // keeps reading the real pointer, not this drag.
-      placedDrag = { ...placedDrag, moved: placedDrag.moved || past(placedDrag.press, at) };
+      placedDrag = { ...placedDrag, moved: placedDrag.moved || pastSlop(placedDrag.press, at) };
       if (placedDrag.moved) {
         // AE28: an own trigger/ability has no point until it is first moved; register it there.
         if (!isPlaced(placedDrag.id)) placeSpell(placedDrag.id, at, 'you');
@@ -1461,22 +1455,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     event.preventDefault();
   }
 
-  /**
-   * The native `click` a plain press leaves behind, for a press this module
-   * is about to settle ITSELF (see `onPointerUp` and the module header's
-   * section on `suppressClick`), swallowed in the capture phase before React's
-   * own delegated handler on this element ever sees it. Conditional: every
-   * click this module did NOT just claim passes through untouched.
-   */
-  function onClickCapture(event: Event): void {
-    if (!suppressClick) return;
-    suppressClick = false;
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
   canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('click', onClickCapture, true);
+  canvas.addEventListener('click', clicks.swallow, true);
   canvas.addEventListener('contextmenu', onContextMenu);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
@@ -1530,7 +1510,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     dispose(): void {
       live = false;
       canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('click', onClickCapture, true);
+      canvas.removeEventListener('click', clicks.swallow, true);
       canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
@@ -1560,10 +1540,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
       canvas.removeAttribute('data-marquee');
     },
   };
-}
-
-function past(press: Point, at: Point): boolean {
-  return Math.hypot(at.x - press.x, at.y - press.y) >= DRAG_SLOP_PX;
 }
 
 /** The card id an origin element carries, for the arrow's `data-source`. */

@@ -46,9 +46,8 @@
  *
  * On a touch screen a tap IS the game's gesture (select, answer), so the
  * inspector opens on a LONG PRESS: hold `LONG_PRESS_MS` without moving past
- * `LONG_PRESS_SLOP_PX` — a drag or a scroll cancels it before it opens, and
- * the slop is lane B's drag slop scale, so the two gestures decide at the same
- * drift. The click that ends a long-press is swallowed, once, in the capture
+ * `DRAG_SLOP_PX` — a drag or a scroll cancels it before it opens: the same
+ * slop the drags use, so the two gestures decide at the same drift. The click that ends a long-press is swallowed, once, in the capture
  * phase: the player asked to read the card, not to select it. An ordinary
  * click that no long-press preceded is never touched.
  *
@@ -99,6 +98,7 @@
  * entirely, which dismisses rather than leave a panel anchored to nothing.
  */
 
+import { pastSlop } from '../live/gestures/types.ts';
 import './inspect.css';
 
 /** A card's height over its width — the 488 × 680 proportion `card.css` draws. */
@@ -113,12 +113,6 @@ export const GAP = 8;
 /** How long a touch must hold before the press counts as a long-press. */
 export const LONG_PRESS_MS = 450;
 
-/**
- * How far the pointer may drift during that hold before the press stops being
- * a long-press. Deliberately lane B's `DRAG_SLOP_PX` scale: a drag and a
- * scroll both cancel the inspect before it opens.
- */
-export const LONG_PRESS_SLOP_PX = 8;
 
 /** A board id: digits only (`data-card-id`). */
 const BOARD_ID = /^\d+$/;
@@ -580,7 +574,7 @@ export function mountInspector(root: ParentNode): () => void {
 
   function onPointerMove(event: PointerEvent): void {
     if (pressTimer === null || pressAnchor === null) return;
-    if (Math.hypot(event.clientX - pressAnchor.x, event.clientY - pressAnchor.y) >= LONG_PRESS_SLOP_PX) cancelPress();
+    if (pastSlop(pressAnchor, { x: event.clientX, y: event.clientY })) cancelPress();
   }
 
   /** The release that ends a long-press KEEPS the preview open; a tap elsewhere or Escape closes it. */

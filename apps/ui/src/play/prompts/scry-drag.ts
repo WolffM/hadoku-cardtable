@@ -45,15 +45,15 @@
  * A press that never passes `DRAG_SLOP_PX` is left to the plain click the
  * row's own checkbox/button already answers — nothing here claims it. A
  * press that DOES become a drag still leaves a native `click` behind it in a
- * real browser once the pointer goes up; `install.ts`'s own `suppressClick`
- * technique is reused here, scoped to one hook instance: `onListClickCapture`,
- * wired to the list's own `onClickCapture`, swallows exactly that one click.
+ * real browser once the pointer goes up; the board's own `clickLatch`
+ * (`../live/gestures/types.ts`) is reused here, one per hook instance: `onListClickCapture`, wired to the
+ * list's own `onClickCapture`, swallows exactly that one click.
  */
 
 import { useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { clearCastLift, drawCastLift, floatCastLiftHome } from '../live/gestures/cast.ts';
-import { DRAG_SLOP_PX, type Point } from '../live/gestures/types.ts';
+import { clickLatch, pastSlop, type Point } from '../live/gestures/types.ts';
 
 /**
  * The nearest ROW's own lift id under a point in the gesture — never a stale
@@ -97,7 +97,7 @@ export interface PressDragLiftOptions {
 export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
   const [liftedId, setLiftedId] = useState<number | null>(null);
   const liftRef = useRef<{ id: number; press: Point; home: Point; moved: boolean } | null>(null);
-  const suppressClickRef = useRef(false);
+  const [clicks] = useState(clickLatch);
 
   const removeLiftListeners = (): void => {
     window.removeEventListener('pointermove', onLiftMove);
@@ -109,9 +109,9 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
     if (state === null) return;
     const at = { x: event.clientX, y: event.clientY };
     if (!state.moved) {
-      if (Math.hypot(at.x - state.press.x, at.y - state.press.y) < DRAG_SLOP_PX) return;
+      if (!pastSlop(state.press, at)) return;
       state.moved = true;
-      suppressClickRef.current = true;
+      clicks.arm();
       setLiftedId(state.id);
     }
     drawCastLift(document, state.id, at, 'lifted');
@@ -139,7 +139,7 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
     if (event.target instanceof Element && event.target.closest('button') !== null) return;
     // Reset at the top of every FRESH press — the same safety net `install.ts` keeps,
     // in case a prior gesture's resolved click never reached `onListClickCapture`.
-    suppressClickRef.current = false;
+    clicks.reset();
     const box = event.currentTarget.getBoundingClientRect();
     liftRef.current = {
       id,
@@ -151,12 +151,5 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
     window.addEventListener('pointerup', onLiftUp);
   };
 
-  const onListClickCapture = (event: ReactMouseEvent): void => {
-    if (!suppressClickRef.current) return;
-    suppressClickRef.current = false;
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  return { liftedId, onRowPointerDown, onListClickCapture };
+  return { liftedId, onRowPointerDown, onListClickCapture: clicks.swallow };
 }

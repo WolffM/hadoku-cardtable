@@ -21,7 +21,8 @@ import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
-import { LONG_PRESS_MS, LONG_PRESS_SLOP_PX, mountInspector } from './index.ts';
+import { LONG_PRESS_MS, mountInspector } from './index.ts';
+import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
 /** Uuid-shaped, so the art resolver accepts it; nothing is fetched in jsdom. */
 const SCRYFALL_ID = '00000000-0000-4000-8000-000000000001';
@@ -416,7 +417,7 @@ describe('touch', () => {
     fireEvent.pointerDown(theirCard().querySelector('.card')!, { pointerType: 'touch', clientX: 40, clientY: 40 });
     fireEvent.pointerMove(theirCard(), {
       pointerType: 'touch',
-      clientX: 40 + LONG_PRESS_SLOP_PX,
+      clientX: 40 + DRAG_SLOP_PX,
       clientY: 40,
     });
     vi.advanceTimersByTime(LONG_PRESS_MS);

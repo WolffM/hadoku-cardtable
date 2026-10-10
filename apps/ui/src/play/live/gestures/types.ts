@@ -40,10 +40,47 @@ export interface Point {
 
 /**
  * How far the pointer must travel before a press is a DRAG (or a box-draw)
- * rather than a click. Below it the card's own button handles the click,
- * exactly as before.
+ * rather than a click — every press-drag on the table and in a prompt, and the
+ * drift that cancels the inspector's long-press. Below it the card's own
+ * button handles the click.
  */
 export const DRAG_SLOP_PX = 6;
+
+/** Whether the pointer has travelled from `press` to `at` far enough to be a drag. */
+export function pastSlop(press: Point, at: Point): boolean {
+  return Math.hypot(at.x - press.x, at.y - press.y) >= DRAG_SLOP_PX;
+}
+
+/**
+ * The native `click` a resolved press leaves behind, swallowed once: `arm` it
+ * when a press is claimed, `reset` it at the top of every fresh press (a press
+ * that never produced a click must not eat an unrelated later one), and hang
+ * `swallow` as a CAPTURE-phase click listener, so it runs before React's own
+ * delegated handler — and the card's `onClick` — ever sees the click.
+ */
+export interface ClickLatch {
+  arm(): void;
+  reset(): void;
+  swallow(event: Pick<Event, 'preventDefault' | 'stopPropagation'>): void;
+}
+
+export function clickLatch(): ClickLatch {
+  let armed = false;
+  return {
+    arm: () => {
+      armed = true;
+    },
+    reset: () => {
+      armed = false;
+    },
+    swallow: (event) => {
+      if (!armed) return;
+      armed = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+  };
+}
 
 export interface DragState {
   /** The card the gesture started on. Null: a pointing gesture inside a selection. */
