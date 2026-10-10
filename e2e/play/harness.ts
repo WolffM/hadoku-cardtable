@@ -354,6 +354,12 @@ export interface PlayStack {
   stop(options?: { reap?: boolean }): Promise<void>;
   /** End every JVM standing in `workDir`. Idempotent; safe after `stop()` either way. */
   reap(): ReapedJvm[];
+  /**
+   * A deploy, mid-test: SIGTERM the server (which hands its live matches over),
+   * then start the next one on the same rooms, work dir, port and log, and wait
+   * for it to be healthy. Rooms and running matches carry over; nothing else does.
+   */
+  restart(): Promise<void>;
 }
 
 async function waitForHealth(server: ChildProcess): Promise<void> {
@@ -409,43 +415,45 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   const serverLog = createWriteStream(serverLogFile, { flags: 'w' });
   const secret = randomBytes(24).toString('hex');
 
-  const server = spawn(process.execPath, [SERVER_JS], {
-    cwd: ROOT,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      PATH: process.env.PATH ?? '',
-      HOME: process.env.HOME ?? '',
-      NODE_ENV: 'production',
-      CARDTABLE_PORT: String(PLAY_SERVER_PORT),
-      CARDTABLE_HOST: '127.0.0.1',
-      CARDTABLE_WEB_DIR: webDir,
-      CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'play-logs'),
-      CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
-      CARDTABLE_PLAY_WORK_DIR: workDir,
-      EDGE_AUTH_SECRET: secret,
-      CARDTABLE_FORGE_JAR: forge.jar,
-      CARDTABLE_FORGE_RES: forge.res,
-      CARDTABLE_PLAY_PROBE: '1',
-      /*
-       * ONE game, every run — and this is the server that plays it.
-       *
-       * The seed reaches Forge through `parseStartBody`, which reads this
-       * variable off the PLAY SERVER's environment (`play/socket.ts`), so it
-       * has to be set on the process spawned here. It was set on
-       * `e2e/harness.ts`'s server instead (wave 20), and that server is the one
-       * started WITHOUT `CARDTABLE_FORGE_JAR` — "deliberately absent … minus
-       * Forge" in its own comment. So no e2e match has ever been seeded: every
-       * run of `play.spec.ts` dealt a fresh shuffle, and the two runs recorded
-       * as "seed 7 verified twice" were two lucky deals.
-       *
-       * With it here the deal is fixed: two cold matches on one seed produce
-       * the same library permutation for both seats, measured through the real
-       * bridge (`MyRandom.setRandom` in `PlayBridge.java`, Forge's shuffle in
-       * `GameAction.java`). A red in `play.spec.ts` is now the product.
-       */
-      CARDTABLE_PLAY_SEED: String(PLAY_SEED),
-    },
-  });
+  /** One server process on this stack's dirs; `restart` launches the next one on the SAME dirs. */
+  const launch = (): ChildProcess =>
+    spawn(process.execPath, [SERVER_JS], {
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        PATH: process.env.PATH ?? '',
+        HOME: process.env.HOME ?? '',
+        NODE_ENV: 'production',
+        CARDTABLE_PORT: String(PLAY_SERVER_PORT),
+        CARDTABLE_HOST: '127.0.0.1',
+        CARDTABLE_WEB_DIR: webDir,
+        CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'play-logs'),
+        CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
+        CARDTABLE_PLAY_WORK_DIR: workDir,
+        EDGE_AUTH_SECRET: secret,
+        CARDTABLE_FORGE_JAR: forge.jar,
+        CARDTABLE_FORGE_RES: forge.res,
+        CARDTABLE_PLAY_PROBE: '1',
+        /*
+         * ONE game, every run — and this is the server that plays it.
+         *
+         * The seed reaches Forge through `parseStartBody`, which reads this
+         * variable off the PLAY SERVER's environment (`play/socket.ts`), so it
+         * has to be set on the process spawned here. It was set on
+         * `e2e/harness.ts`'s server instead (wave 20), and that server is the one
+         * started WITHOUT `CARDTABLE_FORGE_JAR` — "deliberately absent … minus
+         * Forge" in its own comment. So no e2e match has ever been seeded: every
+         * run of `play.spec.ts` dealt a fresh shuffle, and the two runs recorded
+         * as "seed 7 verified twice" were two lucky deals.
+         *
+         * With it here the deal is fixed: two cold matches on one seed produce
+         * the same library permutation for both seats, measured through the real
+         * bridge (`MyRandom.setRandom` in `PlayBridge.java`, Forge's shuffle in
+         * `GameAction.java`). A red in `play.spec.ts` is now the product.
+         */
+        CARDTABLE_PLAY_SEED: String(PLAY_SEED),
+      },
+    });
   /*
    * Both streams land in ONE file, so each is written a whole line at a time.
    * Copying raw chunks let a stdout chunk that ended mid-line be followed by a
@@ -454,21 +462,40 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
    * `…"path":"/r-4270d944{"t":…`). A partial line is held until its newline
    * arrives, and flushed when its stream ends.
    */
-  for (const stream of [server.stdout, server.stderr]) {
-    if (stream === null) continue;
-    let held = '';
-    stream.setEncoding('utf8');
-    stream.on('data', (chunk: string) => {
-      const lines = (held + chunk).split('\n');
-      held = lines.pop() ?? '';
-      for (const line of lines) serverLog.write(`${line}\n`);
-    });
-    stream.on('end', () => {
-      if (held !== '') serverLog.write(`${held}\n`);
-      held = '';
-    });
-  }
-  const exited = new Promise<void>((r) => server.once('exit', () => r()));
+  const pipeLog = (proc: ChildProcess): void => {
+    for (const stream of [proc.stdout, proc.stderr]) {
+      if (stream === null) continue;
+      let held = '';
+      stream.setEncoding('utf8');
+      stream.on('data', (chunk: string) => {
+        const lines = (held + chunk).split('\n');
+        held = lines.pop() ?? '';
+        for (const line of lines) serverLog.write(`${line}\n`);
+      });
+      stream.on('end', () => {
+        if (held !== '') serverLog.write(`${held}\n`);
+        held = '';
+      });
+    }
+  };
+  /** Every line a process wrote is in the log once both its streams have ended. */
+  const drained = (proc: ChildProcess): Promise<void[]> =>
+    Promise.all(
+      [proc.stdout, proc.stderr].map(
+        (s) => new Promise<void>((r) => (s === null || s.readableEnded ? r() : s.once('end', () => r()))),
+      ),
+    );
+  /** SIGTERM — the signal pm2 sends on a deploy, which hands live matches over — and SIGKILL after 10 s. */
+  const terminate = async (proc: ChildProcess): Promise<void> => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return;
+    const exited = new Promise<void>((r) => proc.once('exit', () => r()));
+    proc.kill('SIGTERM');
+    const killed = setTimeout(() => proc.kill('SIGKILL'), 10_000);
+    await exited;
+    clearTimeout(killed);
+  };
+  let server = launch();
+  pipeLog(server);
 
   let edge: Server | null = null;
   const reap = (): ReapedJvm[] => reapJvms(workDir);
@@ -481,12 +508,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     edge?.closeAllConnections();
     edge?.close();
     edge = null;
-    if (server.exitCode === null && server.signalCode === null) {
-      server.kill('SIGTERM');
-      const killed = setTimeout(() => server.kill('SIGKILL'), 10_000);
-      await exited;
-      clearTimeout(killed);
-    }
+    await terminate(server);
     /*
      * The server's LAST lines must be on disk before `stop()` returns, and this
      * is not housekeeping — it decides a verdict.
@@ -504,11 +526,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
      *
      * So: wait for both streams to end, then for the log's own `close`.
      */
-    await Promise.all(
-      [server.stdout, server.stderr].map(
-        (s) => new Promise<void>((r) => (s === null || s.readableEnded ? r() : s.once('end', () => r()))),
-      ),
-    );
+    await drained(server);
     await new Promise<void>((r) => {
       if (serverLog.closed) {
         r();
@@ -543,5 +561,14 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     workDir,
     stop,
     reap,
+    restart: async () => {
+      // The edge stays up, so every browser keeps its origin and its socket
+      // reconnects to the next server exactly as it does across a deploy.
+      await terminate(server);
+      await drained(server);
+      server = launch();
+      pipeLog(server);
+      await waitForHealth(server);
+    },
   };
 }
