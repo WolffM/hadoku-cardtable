@@ -232,6 +232,18 @@ describe.skipIf(!available.ok)(title, () => {
 				return player?.['Hand']?.v?.length ?? -1;
 			}
 
+			function libraryOf(viewer: number, owner: number, upTo: number): number[] {
+				const state = foldFrames(
+					sent
+						.slice(0, upTo + 1)
+						.filter((x) => x.seat === viewer && x.envelope.frame.kind === 'notify')
+						.map((x) => x.envelope.frame as unknown as StateFrame)
+						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+				);
+				const player = state.get(keyOf(TYPE.player, match.seats[owner]!.playerId ?? -1)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
+				return (player?.['Library']?.v ?? []).map((id) => id.v);
+			}
+
 			/** Seat 0 mulligans once, then keeps; seat 1 keeps. Every prompt either seat sees is recorded in order. */
 			const sequence: string[] = [];
 			const buttons = [{ enable1: false, enable2: false }, { enable1: false, enable2: false }];
@@ -292,6 +304,31 @@ describe.skipIf(!available.ok)(title, () => {
 				'seat0 return (7 cards)',
 				'seat0 after',
 			]);
+
+			// The shuffle sound's whole input (`apps/ui/src/play/live/sound-events.ts`'s
+			// `wasShuffled`): a mulligan shuffles the library, and Forge re-sends the
+			// reordered `Library` list (`Zone.shuffle` → `onChanged` →
+			// `updateZoneForView`). Both seats' projections must carry it, ids in a new
+			// order, because the opponent hears the shuffle too.
+			for (const viewer of [0, 1] as const) {
+				const orders: string[] = [];
+				for (let upTo = 0; upTo < sent.length; upTo++) {
+					if (sent[upTo]!.seat !== viewer || sent[upTo]!.envelope.frame.method !== 'applyDelta') continue;
+					const ids = libraryOf(viewer, 0, upTo);
+					if (ids.length > 0 && orders.at(-1) !== ids.join(',')) orders.push(ids.join(','));
+				}
+				// A London mulligan puts the hand back, shuffles and draws in one delta, so
+				// the list changes cards as well as order: compare the cards in both.
+				const reordered = orders.some((o, i) => {
+					if (i === 0) return false;
+					const before = orders[i - 1]!.split(',');
+					const kept = new Set(before);
+					const common = o.split(',').filter((id) => kept.has(id));
+					const shared = new Set(common);
+					return common.length >= 20 && common.join() !== before.filter((id) => shared.has(id)).join();
+				});
+				expect(reordered, `seat ${String(viewer)} never saw seat 0's library reordered in place`).toBe(true);
+			}
 			match.stop();
 			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 15_000);

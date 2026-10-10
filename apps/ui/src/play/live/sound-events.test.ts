@@ -5,7 +5,7 @@ import type { DraftCard } from '@hadoku/shared';
 import { toBoardView, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
-import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS } from './sound-events.ts';
+import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, wasShuffled } from './sound-events.ts';
 
 function card(typeLine: string, colors: DraftCard['colors'] = []): DraftCard {
   return {
@@ -64,6 +64,10 @@ function view(seq: number, me: Partial<BoardPlayer>, them: Partial<BoardPlayer> 
 function spell(id: number, c: DraftCard, controllerName: string, isAbility = false): StackEntry {
   return { id, description: c.name, sourceCardId: 100 + id, sourceName: c.name, sourceCard: c, controllerName, isAbility } as StackEntry;
 }
+
+const ids = (from: number, n: number): number[] => Array.from({ length: n }, (_, i) => from + i);
+/** A fixed reordering that keeps no neighbours: odds then evens, reversed. */
+const scramble = (list: readonly number[]): number[] => [...list.filter((_, i) => i % 2 === 1), ...list.filter((_, i) => i % 2 === 0)].reverse();
 
 const BEAR = card('Creature — Bear', ['G']);
 const GOLEM = card('Artifact Creature — Golem');
@@ -190,12 +194,51 @@ describe('deriveSoundEvents', () => {
   });
 
   it('a mulligan sends the hand back and shuffles', () => {
-    const before = view(1, { handCount: 7, libraryCount: 33 });
-    const after = view(2, { handCount: 0, libraryCount: 40 });
+    const library = ids(1, 33);
+    const before = view(1, { handCount: 7, libraryCount: 33, libraryIds: library });
+    const after = view(2, { handCount: 0, libraryCount: 40, libraryIds: scramble([...library, ...ids(34, 7)]) });
     expect(deriveSoundEvents(before, after)).toEqual([
       { role: 'g.mulligan', seat: 'me' },
       { role: 'g.shuffle', seat: 'me', delayMs: 250 },
     ]);
+  });
+
+  it('a London mulligan is one delta: the same counts, a new hand, the library shuffled', () => {
+    // The shape `mulligan.jvm.test.ts` reads off real Forge: 53 → 53, 7 → 7.
+    const library = ids(1, 53);
+    const before = view(1, { handCount: 7, libraryCount: 53, libraryIds: library });
+    const after = view(2, { handCount: 7, libraryCount: 53, libraryIds: scramble([...library.slice(7), ...ids(60, 7)]) });
+    expect(deriveSoundEvents(before, after)).toEqual([
+      { role: 'g.mulligan', seat: 'me' },
+      { role: 'g.shuffle', seat: 'me', delayMs: 250 },
+    ]);
+  });
+
+  it('a library reordered in place is a shuffle, whoever owns it', () => {
+    const library = ids(1, 30);
+    expect(deriveSoundEvents(view(1, {}, { libraryIds: library }), view(2, {}, { libraryIds: scramble(library) }))).toEqual([
+      { role: 'g.shuffle', seat: 'opp' },
+    ]);
+  });
+
+  it('a tutor is a card leaving and the rest shuffled', () => {
+    const library = ids(1, 30);
+    const after = scramble(library.filter((id) => id !== 12));
+    expect(wasShuffled(library, after)).toBe(true);
+  });
+
+  it('a draw, a mill, a scry or a card put on top is not a shuffle', () => {
+    const library = ids(1, 30);
+    expect(wasShuffled(library, library.slice(1))).toBe(false);
+    expect(wasShuffled(library, library.slice(3))).toBe(false);
+    expect(wasShuffled(library, [...library.slice(2), library[1]!, library[0]!])).toBe(false);
+    expect(wasShuffled(library, [99, ...library])).toBe(false);
+    expect(wasShuffled(library, [library[1]!, library[0]!, ...library.slice(2)])).toBe(false);
+  });
+
+  it('too few shared cards to tell, or nothing known, stays quiet', () => {
+    expect(wasShuffled([1, 2, 3], [3, 1, 2])).toBe(false);
+    expect(wasShuffled(undefined, [1, 2, 3, 4])).toBe(false);
   });
 
   it('a view that changes everything at once is a snapshot, not a moment', () => {
@@ -231,6 +274,7 @@ describe('against a real captured game', () => {
     for (const role of ['g.turn-mine', 'g.turn-theirs', 'g.draw', 'g.land', 'g.cast.creature', 'g.resolve', 'g.creature', 'g.enter', 'g.tap', 'g.untap-all', 'g.attack', 'g.block', 'g.dies', 'g.damage-player']) {
       expect(roles, role).toContain(role);
     }
+    expect(roles, 'no false shuffles in an ordinary game').not.toContain('g.shuffle');
     expect(cells).toContain('R|land');
     expect(cells).toContain('R|creature');
   });

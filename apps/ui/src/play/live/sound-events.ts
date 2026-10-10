@@ -47,6 +47,28 @@ interface Placed {
 
 const BASIC_LAND: Readonly<Record<string, string>> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
 
+/**
+ * Whether a library was shuffled between two views. Forge re-sends the whole
+ * id list on a shuffle, so the order of the cards that are in both lists is
+ * what tells: a draw, a mill or a card put on top or bottom keeps the rest in
+ * order, and a scry moves a few. A shuffle keeps almost no neighbours. Under
+ * four shared cards a shuffle cannot be told from those, so it stays quiet.
+ */
+export function wasShuffled(before: readonly number[] | undefined, after: readonly number[] | undefined): boolean {
+  if (before === undefined || after === undefined) return false;
+  const at = new Map(before.map((id, i) => [id, i] as const));
+  const ranks = after.flatMap((id) => {
+    const i = at.get(id);
+    return i === undefined ? [] : [i];
+  });
+  if (ranks.length < 4) return false;
+  const order = [...ranks].sort((a, b) => a - b);
+  const rank = new Map(order.map((v, i) => [v, i] as const));
+  let kept = 0;
+  for (let i = 1; i < ranks.length; i++) if (rank.get(ranks[i]!)! === rank.get(ranks[i - 1]!)! + 1) kept++;
+  return kept / (ranks.length - 1) < 0.5;
+}
+
 /** The colour-identity row for a set of colours, in `COLOUR_IDS`' own spelling. */
 export function colourRow(colours: readonly string[]): ColourId {
   const set = new Set(colours);
@@ -240,11 +262,21 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
 
     // ── the player ───────────────────────────────────────────────────────
     const drew = Math.min(p.handCount - prevP.handCount, prevP.libraryCount - p.libraryCount);
-    const mulligan = prevP.handCount - p.handCount >= 2 && p.libraryCount > prevP.libraryCount;
-    if (mulligan) {
-      push('g.mulligan', seat);
-      push('g.shuffle', seat, { delayMs: 250 });
-    } else if (drew > 0) push('g.draw', seat);
+    // A London mulligan arrives as one delta: the hand goes back, the library is
+    // shuffled and a new hand drawn, so both counts come out where they were and
+    // the library holds cards it did not before.
+    const shuffled = wasShuffled(prevP.libraryIds, p.libraryIds);
+    const returned = new Set(prevP.libraryIds);
+    const redrawn =
+      shuffled &&
+      p.handCount > 0 &&
+      p.handCount === prevP.handCount &&
+      p.libraryCount === prevP.libraryCount &&
+      (p.libraryIds ?? []).some((id) => !returned.has(id));
+    const mulligan = redrawn || (prevP.handCount - p.handCount >= 2 && p.libraryCount > prevP.libraryCount);
+    if (mulligan) push('g.mulligan', seat);
+    else if (drew > 0) push('g.draw', seat);
+    if (shuffled) push('g.shuffle', seat, mulligan ? { delayMs: 250 } : {});
     if (p.life < prevP.life) push('g.damage-player', active);
     if (p.life > prevP.life) push('g.lifegain', seat);
     if (poolTotal(p) > poolTotal(prevP)) push('g.mana', seat);

@@ -357,6 +357,14 @@ export interface BoardPlayer {
   hand: BoardCard[] | null;
   handCount: number;
   libraryCount: number;
+  /**
+   * The library's card ids, top first — ids only, never a face: the projection
+   * hides every library card. Read so a reorder can be heard as a shuffle
+   * (`live/sound-events.ts`); Forge re-sends the list on every shuffle
+   * (`Zone.shuffle` → `onChanged` → `updateZoneForView`). Optional, like the
+   * other late fields, for hand-typed players in other suites.
+   */
+  libraryIds?: readonly number[];
   battlefield: BoardCard[];
   graveyard: BoardCard[];
   exile: BoardCard[];
@@ -1164,6 +1172,7 @@ export function toBoardView(
       hand: isViewer ? cardsIn(handIds) : null,
       handCount: handIds.length,
       libraryCount: readIds(p, 'Library').length,
+      libraryIds: readIds(p, 'Library'),
       battlefield: cardsIn(readIds(p, 'Battlefield'), true),
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),
