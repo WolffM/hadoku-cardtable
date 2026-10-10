@@ -292,6 +292,10 @@ a.sound-builder__btn {
   align-items: center;
   gap: 4px;
   user-select: none;
+  /* One line, always (the operator, 2026-10-10: "Azorius spell · 1" wrapped to two): a cell that is too
+     narrow wraps whole pills onto its next line, and the matrix's own wrapper scrolls if a column grows. */
+  white-space: nowrap;
+  flex: none;
 }
 
 .sound-builder__pill:hover,

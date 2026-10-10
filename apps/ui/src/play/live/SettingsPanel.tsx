@@ -37,7 +37,15 @@ import { sendStopPreference, setTriggerDecision, type LiveMatch } from './match.
 import type { PlayPrefs } from './prefs.ts';
 
 export interface SettingsPanelProps {
-  match: LiveMatch;
+  /**
+   * The live match, or absent outside one (the operator, 2026-10-10: the gear's
+   * menu has the game settings too). Outside a match a choice is only saved,
+   * and `LiveBoard` applies it on the next join; the remembered triggers are a
+   * match's own and are not drawn.
+   */
+  match?: LiveMatch;
+  /** Outside a match, the saved "always stop at end step"; inside, the match's own echo is the truth. */
+  stopAtEndStep?: boolean;
   /** A watching window: the one setting that reaches the server is refused. */
   inert?: boolean;
   /** The board's CURRENT layout — `LiveBoard`'s own state, passed to `<Board>`. */
@@ -59,6 +67,7 @@ const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
 
 export function SettingsPanel({
   match,
+  stopAtEndStep = false,
   inert = false,
   boardLayout,
   onBoardLayoutChange,
@@ -68,7 +77,7 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   return (
     <fieldset className="ct-settings__section" data-testid="live-settings-panel">
-      <legend>Match</legend>
+      <legend>Game</legend>
       <div className="ct-settings__choices" role="radiogroup" aria-label="Board layout">
         {BOARD_LAYOUT_OPTIONS.map((opt) => (
           <label key={opt.value} className="ct-settings__option">
@@ -90,11 +99,11 @@ export function SettingsPanel({
         <input
           type="checkbox"
           data-testid="live-settings-stop-end-step"
-          checked={match.stopAtEndStep}
+          checked={match === undefined ? stopAtEndStep : match.stopAtEndStep}
           disabled={inert}
           onChange={(event) => {
             const next = event.currentTarget.checked;
-            sendStopPreference(match, next);
+            if (match !== undefined) sendStopPreference(match, next);
             onSave({ stopAtEndStep: next });
           }}
         />
@@ -113,7 +122,7 @@ export function SettingsPanel({
         />
         Fast Mode
       </label>
-      {match.triggerDecisions.length > 0 && (
+      {match !== undefined && match.triggerDecisions.length > 0 && (
         <ul className="ct-settings__triggers" aria-label="Remembered triggers">
           {match.triggerDecisions.map((t) => (
             <li key={t.key} className="ct-settings__trigger" data-testid="live-settings-trigger">

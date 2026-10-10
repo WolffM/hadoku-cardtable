@@ -13,8 +13,9 @@
  *     `onOpenSettings` by `play/live/LiveBoard.tsx`). The match adds its own
  *     section (`play/live/SettingsPanel.tsx`) under the sound one.
  *   - **Anywhere else, `SettingsGear`**, at the right end of each screen's own
- *     head row (lobby, room, pod, deck, stats): sound only. In the flow, not
- *     fixed to a corner: a corner sits over the room's chat.
+ *     head row (lobby, room, pod, deck, stats): sound, and the game section
+ *     (2026-10-10), saved to the same preferences a match reads on join. In the
+ *     flow, not fixed to a corner: a corner sits over the room's chat.
  *
  * The popover sits beside whatever opened it, inside the app's own tree rather
  * than portalled to `<body>`: embedded, the theme is resolved on the embed's
@@ -25,6 +26,10 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@wolffm/themes';
 
+import { usePrefs } from '@wolffm/prefs-client/react';
+
+import { SettingsPanel } from '../play/live/SettingsPanel.tsx';
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
 import './settings.css';
 
@@ -113,6 +118,26 @@ export function useSettingsPopover(): { trigger: Element | null; toggle: (el: El
   return { trigger, toggle, close };
 }
 
+/**
+ * The game section outside a match: the same controls, on the saved preferences
+ * alone. Mounted only while the popover is open, so a screen that never opens
+ * it never builds the preferences client.
+ */
+function SavedGameSettings() {
+  const { prefs, save } = usePrefs(getPlayPrefsClient());
+  const persist = (patch: Parameters<typeof save>[0]): void => void save(patch);
+  return (
+    <SettingsPanel
+      boardLayout={prefs?.boardLayout ?? PLAY_PREFS_DEFAULTS.boardLayout}
+      onBoardLayoutChange={() => undefined}
+      fastMode={prefs?.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode}
+      onFastModeChange={() => undefined}
+      stopAtEndStep={prefs?.stopAtEndStep ?? PLAY_PREFS_DEFAULTS.stopAtEndStep}
+      onSave={persist}
+    />
+  );
+}
+
 /** The way in outside a match: a gear in the screen's head row. */
 export function SettingsGear() {
   const { trigger, toggle, close } = useSettingsPopover();
@@ -128,7 +153,11 @@ export function SettingsGear() {
       >
         <Icon name="gear" size="1.15rem" />
       </button>
-      {trigger !== null && <SettingsPopover trigger={trigger} onClose={close} />}
+      {trigger !== null && (
+        <SettingsPopover trigger={trigger} onClose={close}>
+          <SavedGameSettings />
+        </SettingsPopover>
+      )}
     </>
   );
 }

@@ -34,6 +34,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 vi.mock('@wolffm/prefs-client', () => ({
   whoami: () =>
     Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
+  createPrefsClient: () => ({}),
+}));
+// The gear's game section reads the saved preferences; nothing here is about them.
+vi.mock('@wolffm/prefs-client/react', () => ({
+  usePrefs: () => ({ prefs: null, save: () => Promise.resolve(), loading: false, error: null }),
 }));
 
 import { App } from '../App.tsx';
@@ -91,5 +96,6 @@ describe('the game’s settings are its own, not the header’s', () => {
     fireEvent.click(screen.getByTestId('settings-gear'));
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
+    expect(dialog.querySelector('[data-testid="live-settings-panel"]'), 'the game section, outside a match too').not.toBeNull();
   });
 });
