@@ -34,7 +34,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
-import { clickOnce, dragHandCard, makeTitled, offered, says } from './play/board.ts';
+import { clickOnce, dragHandCard, makeTitled, offered, says, serverLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -327,6 +327,7 @@ for (const fast of [true, false]) {
       if (creature === undefined) throw new Error(`no creature in hand to cast: ${await says(alice.page)}`);
       const to = await releasePoint(alice.page);
       await record(alice.page, creature);
+      const logFrom = serverLog(stack).length;
       expect(await dragHandCard(alice.page, creature, to), 'the press lifted the creature').toBe(true);
 
       // {R} from one of three Mountains: Forge's own Auto pays it.
@@ -349,8 +350,14 @@ for (const fast of [true, false]) {
       // against a row ever coming back. `live/placed.ts`'s own card, found through `seenAt` above, is
       // where "the caster's stack stays aside" actually lives now.
       expect(Math.max(...flight.map((f) => f.stack)), `the caster's stack zone draws nothing\n${timeline(flight)}`).toBe(0);
-      // Not vacuous: Forge did have the spell on the stack, and the stack left it to the card.
-      expect(flight.some((f) => f.carried === 1), `the spell was on Forge's stack while the card stood in for it\n${timeline(flight)}`).toBe(true);
+      // Not vacuous: Forge did have the spell on the stack. Read off the server's record of every
+      // priority it decided (`stop-decided`, the probe trace), never off the sampled frames: in Fast
+      // Mode the spell can come and go between two of them (208 → 331 ms on a busy claw).
+      const withSpell = serverLog(stack)
+        .slice(logFrom)
+        .filter((r) => r.evt === 'stop-decided' && r.window === 'priority' && r.stackEmpty === false);
+      console.log(`[played-card] fast=${fast}: ${withSpell.length} priority decision(s) with the spell on Forge's stack: ${withSpell.map((r) => `seat ${String(r.seat)} ${String(r.decision)}`).join(', ')}`);
+      expect(withSpell.length, `the spell was on Forge's stack while the card stood in for it\n${timeline(flight)}`).toBeGreaterThan(0);
       // Fast Mode is pacing, not motion: the card travels either way (2026-10-08) — by its stand-in's
       // glide into the gap it lands in (the landing is then a swap in place), or by a flight.
       expect(travelledFrom(flight, to), 'it travels from the hover to its place, Fast Mode or not').toBe(true);
