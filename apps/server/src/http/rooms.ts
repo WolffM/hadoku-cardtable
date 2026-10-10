@@ -486,9 +486,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 *
 	 * This is the "Main menu" half of the result screen's two buttons (L's
 	 * seam): leave, then navigate to the lobby list. "Rematch" does not call
-	 * this at all — it stays a member and goes straight to the room, which by
-	 * then has already let go of the finished match (`liveMatchId` in
-	 * `http/routes.ts`).
+	 * this at all — it stays a member and readies at the room's table
+	 * (`POST /api/tables/rooms/:id/ready`).
 	 */
 	rooms.post('/:id/leave', (req: Request, res: Response) => {
 		const parsed = parseStart(req.body);

@@ -258,6 +258,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient } from '../../rooms/api.ts';
+import { tablesClient, type RoomTable, type StartOutcome } from '../../screens/tables.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
@@ -1506,45 +1507,102 @@ const OUTCOME_TITLE: Readonly<Record<GameOutcome, string>> = {
  * `avatarSquareUrl(player.avatarId)`, the one accessor, no new image host —
  * and draws its own, smaller mark so this file's styling stays in `live.css`
  * and does not lean on `board.css`'s private class names.
+ *
+ * `rematch`: this player has pressed Rematch — a check over their face.
  */
-function ResultFace({ player }: { player: BoardPlayer }) {
+function ResultFace({ player, rematch }: { player: BoardPlayer; rematch: boolean }) {
   const avatar = player.avatarId === undefined ? null : avatarSquareUrl(player.avatarId);
   return (
-    <div className="live__result-face" data-lost={player.hasLost || undefined}>
-      {avatar === null ? (
-        <svg className="live__result-avatar" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-          <circle cx="24" cy="19" r="10" />
-          <path d="M8 42a16 16 0 0 1 32 0Z" />
-        </svg>
-      ) : (
-        <img className="live__result-avatar" src={avatar} alt="" />
-      )}
+    <div className="live__result-face" data-testid="game-result-face" data-you={player.isViewer} data-lost={player.hasLost || undefined}>
+      <span className="live__result-portrait">
+        {avatar === null ? (
+          <svg className="live__result-avatar" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+            <circle cx="24" cy="19" r="10" />
+            <path d="M8 42a16 16 0 0 1 32 0Z" />
+          </svg>
+        ) : (
+          <img className="live__result-avatar" src={avatar} alt="" />
+        )}
+        {rematch && (
+          <svg className="live__result-check" data-testid="game-result-check" viewBox="0 0 24 24" role="img" aria-label="Rematch">
+            <circle cx="12" cy="12" r="11" />
+            <path d="M6.5 12.5l3.5 3.5 7.5-7.5" />
+          </svg>
+        )}
+      </span>
       <span className="live__result-name">{player.name}</span>
     </div>
   );
+}
+
+/** How often the result screen reads the room's table: the room screen's own poll. */
+const REMATCH_POLL_MS = 1_500;
+
+/** Who has pressed Rematch, and what pressing it can do now. */
+export interface Rematch {
+  /** I have pressed it. */
+  mine: boolean;
+  /** The other player has pressed it. */
+  theirs: boolean;
+  /** The other player is waiting on me: my button is highlighted. */
+  highlight: boolean;
+  /**
+   * There is someone to rematch: a player still at the table, or the bot in a
+   * game played alone. False until the table answers, and once the other
+   * player has left.
+   */
+  possible: boolean;
+  /** Both have pressed: the new match is to be asked for. */
+  agreed: boolean;
+}
+
+/**
+ * Read off the room's table. A Rematch press is the table's own Ready
+ * (`POST …/ready`), so this is the same fact the room screen starts a match on.
+ * `alone` is latched from the table's first answer: a game against the bot has
+ * one player at the table from the start, a human game two until one leaves.
+ */
+export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
+  const me = table?.players.find((p) => p.you);
+  const other = table?.players.find((p) => !p.you);
+  const mine = me?.ready === true;
+  const theirs = other?.ready === true;
+  return {
+    mine,
+    theirs,
+    highlight: theirs && !mine,
+    possible: me !== undefined && (alone || other !== undefined),
+    agreed: mine && theirs,
+  };
 }
 
 /**
  * The result screen itself (shape 4 + shape 5): drawn over the board — which
  * stays visible behind it, per the brief — when `view.gameOver`.
  *
- * **Rematch** goes to the room's own deck selection: `roomId`'s route, a plain
- * anchor, the same "go there" pattern `live--gone`'s own back-link already uses
- * in this file. It sends nothing — the room letting go of a FINISHED match is
- * the server's own job (lane R, shape 5), so opening the room after a game
- * shows deck selection on its own.
+ * **Rematch** is an agreement, not a jump (the operator, 2026-10-10: *"only
+ * when both players have rematch clicked should it launch into a new game"*).
+ * Pressing it readies you at the room's table — the same Ready the room screen
+ * starts a match on, with the decks both players still hold there — and
+ * pressing it again stands you down. This screen polls the table, draws a
+ * check over each face whose player is ready, and highlights the button of the
+ * player the other is waiting on. Once both are ready either screen asks for
+ * the match (`startRoom`; the server answers one match to both), and a screen
+ * that did not ask follows the room's new `matchId`. In a game played alone
+ * against the bot there is nobody to wait for, so Rematch starts the next bot
+ * game at once.
  *
  * **Main menu** leaves the room (`roomsClient().leave`, lane R shape 5) and
  * THEN goes to the lobby — in that order, `finally`, so a leave that fails
  * still lands the player somewhere rather than stranding them on a result
- * screen for a room that may already be gone. `navigate`, not another anchor,
- * because this one has a side effect to sequence first.
+ * screen for a room that may already be gone. Leaving takes your seat at the
+ * table with you, so the other screen's next poll loses your check and its
+ * highlight, and its Rematch has nobody left to agree with.
  *
  * Without a known room (`roomId === null` — a `#/match/<id>` link from
  * elsewhere, or a room list that failed to load; see `MatchScreen.tsx`'s own
- * comment on the same fact), there is no room to return to OR to leave: both
- * buttons fall back to the lobby, the same degradation `live--gone` already
- * makes for its one link.
+ * comment on the same fact), there is no table to ready at: Rematch is
+ * disabled and Main menu goes straight to the lobby.
  */
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
   const view = match.view!;
@@ -1554,6 +1612,75 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const ending = endingSentence(view);
   const titleId = useId();
   const [leaving, setLeaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [table, setTable] = useState<RoomTable | null>(null);
+  const [alone, setAlone] = useState<boolean | null>(null);
+  const [tables] = useState(tablesClient);
+  /** A start is in flight: not asked again on every poll. */
+  const asked = useRef(false);
+  const rematch = rematchOf(table, alone === true);
+
+  useEffect(() => {
+    if (roomId === null) return;
+    let live = true;
+    const read = (): void => {
+      tables.table(roomId).then(
+        (answer) => {
+          if (!live || !answer.ok) return;
+          setTable(answer.table);
+          setAlone((was) => was ?? answer.table.players.length === 1);
+        },
+        // Unreachable for a moment: the last answer stays on screen and the next poll asks again.
+        () => undefined,
+      );
+    };
+    read();
+    const timer = setInterval(read, REMATCH_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [roomId, tables]);
+
+  // The room's next match, whichever screen asked for it.
+  const next = table?.room.matchId ?? null;
+  useEffect(() => {
+    if (next !== null && next !== match.matchId) navigate({ kind: 'match', matchId: next });
+  }, [next, match.matchId]);
+
+  const refused = (error: string): void => {
+    asked.current = false;
+    setBusy(false);
+    setRefusal(error);
+  };
+  const started = (answer: StartOutcome): void => {
+    if (answer.ok) navigate({ kind: 'match', matchId: answer.matchId });
+    else refused(answer.error);
+  };
+  const unreachable = (err: unknown): void => refused(err instanceof Error ? err.message : String(err));
+
+  useEffect(() => {
+    if (!rematch.agreed || roomId === null || asked.current) return;
+    asked.current = true;
+    tables.startRoom(roomId).then(started, unreachable);
+  }, [rematch.agreed, roomId, tables]);
+
+  const onRematch = (): void => {
+    if (roomId === null) return;
+    setRefusal(null);
+    setBusy(true);
+    if (alone === true) {
+      asked.current = true;
+      tables.startVsBot(roomId).then(started, unreachable);
+      return;
+    }
+    tables.ready(roomId, !rematch.mine).then((answer) => {
+      setBusy(false);
+      if (answer.ok) setTable(answer.table);
+      else setRefusal(answer.error);
+    }, unreachable);
+  };
 
   const onMainMenu = (): void => {
     setLeaving(true);
@@ -1569,17 +1696,26 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
         </h2>
         {ending !== null && <p className="confirm__message live__result-ending">{ending}</p>}
         <div className="live__result-faces">
-          {viewer !== undefined && <ResultFace player={viewer} />}
-          {opponent !== undefined && <ResultFace player={opponent} />}
+          {viewer !== undefined && <ResultFace player={viewer} rematch={rematch.mine} />}
+          {opponent !== undefined && <ResultFace player={opponent} rematch={rematch.theirs} />}
         </div>
+        {refusal !== null && (
+          <p className="live__error" role="alert">
+            {refusal}
+          </p>
+        )}
         <div className="confirm__actions">
-          <a
+          <button
+            type="button"
             className="button"
             data-testid="game-result-rematch"
-            href={routeHash(roomId === null ? { kind: 'lobby' } : { kind: 'room', roomId })}
+            aria-pressed={rematch.mine}
+            data-highlight={rematch.highlight ? 'true' : undefined}
+            disabled={!rematch.possible || busy || leaving}
+            onClick={onRematch}
           >
             Rematch
-          </a>
+          </button>
           <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
             Main menu
           </button>

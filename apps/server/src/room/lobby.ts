@@ -511,13 +511,10 @@ export interface Lobby {
 	setMatch(roomId: string, matchId: string | null): boolean;
 	/**
 	 * Let go of a match that has finished or is simply gone (R16): clears
-	 * `matchId` and drops every member's readiness and table state, the same
-	 * wholesale reset `setFormat` makes when the pool moves out from under a
-	 * held deck. A verdict and a ready flag taken for the match that just ended
-	 * are not a verdict or a readiness for its REMATCH — the operator's own
-	 * shape (`"rematch" … takes the users back to the room where decks are to
-	 * be selected`), so both seats land back on deck selection rather than a
-	 * picker that still thinks it is holding a legal hand from the last game.
+	 * `matchId` and every member's readiness. Each member's table state — the
+	 * deck they hold — stays: a Rematch is both players readying again with the
+	 * decks they just played (the operator, 2026-10-10: *"only when both
+	 * players have rematch clicked should it launch into a new game"*).
 	 *
 	 * Idempotent: a room with no match does nothing and still answers `true`.
 	 * `false` only when there is no such room. The caller — `http/routes.ts`'s
@@ -1012,10 +1009,7 @@ class FileLobby implements Lobby {
 		// keeps for its own idempotent case.
 		if (room.matchId === null) return true;
 		room.matchId = null;
-		for (const member of room.members) {
-			member.ready = false;
-			member.state = undefined;
-		}
+		for (const member of room.members) member.ready = false;
 		this.#persist(room);
 		this.#log({ event: 'room-match-released', roomId });
 		return true;

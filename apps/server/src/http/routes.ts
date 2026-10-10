@@ -188,8 +188,7 @@ export interface TablesRooms {
 	/**
 	 * Clears `matchId` and un-readies every member (R16): what `liveMatchId`
 	 * calls instead of `setMatch(id, null)` once it finds the match is finished
-	 * or gone, so a returning player lands on deck selection rather than a
-	 * picker still holding a verdict for the game that just ended.
+	 * or gone. Each member's table state — the deck they hold — is kept.
 	 */
 	releaseMatch(roomId: string): boolean;
 	/**
@@ -586,18 +585,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * actually stops — the window that lets a disconnected player's socket
 	 * still catch the final frame. Treating only `stopped`/`failed` as "not
 	 * live" left a room holding a genuinely-finished match for that whole
-	 * window, so reading the room during it (the "Rematch" button's own next
-	 * step) sent a returning player straight back into the game that just
-	 * ended rather than to deck selection. The match itself is untouched here
+	 * window, so reading the room during it sent a returning player straight
+	 * back into the game that just ended, and kept a Rematch's Ready refused as
+	 * "the match has already started". The match itself is untouched here
 	 * — this only decides whether the ROOM still points at it — so a player
 	 * still on the match screen mid-grace is unaffected.
 	 *
 	 * This is the one place in the server that can ask play's match registry
 	 * about a room's match, so it is also where the room is told to let go of
-	 * it (`releaseMatch`, not a bare `setMatch(id, null)`): releasing clears
-	 * both the matchId AND every member's readiness, because a ready flag and
-	 * a deck hold taken for the finished game are not a readiness or a hold
-	 * for its rematch.
+	 * it (`releaseMatch`, not a bare `setMatch(id, null)`). The decks stay
+	 * held — a Rematch plays them again — and nobody is ready, because the
+	 * start that made this match spent both Readys.
 	 */
 	function liveMatchId(room: RoomViewLike): string | null {
 		if (room.matchId === null) return null;
@@ -641,13 +639,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * pool in the third person for somebody else.
 	 */
 	function tableView(room: RoomViewLike, me: string): Record<string, unknown> {
-		// `liveMatchId` FIRST: when it releases a finished match it also un-readies
-		// every member and drops their table state (`Lobby.releaseMatch`), and
+		// `liveMatchId` FIRST: it can write the room (`Lobby.releaseMatch`), and
 		// `playersOf` has to read the room AFTER that write or this very response
-		// would show a still-ready player for a match it also reports as gone —
-		// which is the exact "rematch bounces you back" bug restated one field
-		// over. The two were a snapshot-then-write race the one time this read
-		// also happens to be what triggers the release (R16).
+		// could describe a room it also reports as changed (R16).
 		const matchId = liveMatchId(room);
 		const players = rooms === null ? [] : playersOf(rooms, room);
 		return {
@@ -1038,6 +1032,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					return answer({ error: refused });
 				}
 				rooms.setMatch(room.id, matchId);
+				// The start spends both Readys: neither carries into the match, so
+				// nothing is left ready for a later read to start again — not when
+				// the match ends, and not when a restart restores the room without
+				// it. The decks stay held: they are what a Rematch plays.
+				for (const p of players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
 				deps.matchStarted?.(matchId, matchStartOf(room, players, botDeck));
 				log({ evt: 'room-match-started', room: room.id, matchId, decks: players.map((p) => p.state.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
 				settle(200, { matchId });

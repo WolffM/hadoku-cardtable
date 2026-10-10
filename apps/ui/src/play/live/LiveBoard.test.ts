@@ -34,6 +34,7 @@ import {
   MATCH_GONE_SENTENCE,
   reasonLost,
   refusalOf,
+  rematchOf,
   statusText,
   useCrawlGuard,
   withGatedPriority,
@@ -71,6 +72,56 @@ const roomsClientState = vi.hoisted(() => ({
 vi.mock('../../rooms/api.ts', () => ({
   roomsClient: () => ({ leave: roomsClientState.leave }),
 }));
+
+/*
+ * The room's table, as the result screen's Rematch reads and writes it: a fake
+ * `tablesClient` over one table each test sets up. `ready` writes the caller's
+ * own row, as the server's `POST …/ready` does; `other` is the other player's
+ * row, which a test moves by hand to stand in for their screen.
+ */
+const tableState = vi.hoisted(() => ({
+  me: { ready: false, present: true },
+  other: { ready: false, present: true },
+  matchId: null as string | null,
+  startRoom: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-next00000000' })),
+  startVsBot: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-bot000000000' })),
+  ready: vi.fn((_roomId: string, _ready: boolean) => undefined),
+}));
+vi.mock('../../screens/tables.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../screens/tables.ts')>();
+  const row = (you: boolean, ready: boolean) => ({
+    seat: you ? 0 : 1,
+    name: you ? 'me' : 'them',
+    you,
+    deckName: 'Deck',
+    rulesName: '',
+    legal: true,
+    issueCount: 0,
+    ready,
+    choice: null,
+  });
+  const table = () => ({
+    room: { id: 'r-1', name: 'Room', gameType: 'constructed-1v1', matchId: tableState.matchId, seats: 2 },
+    you: { player: true, leader: true },
+    players: [
+      ...(tableState.me.present ? [row(true, tableState.me.ready)] : []),
+      ...(tableState.other.present ? [row(false, tableState.other.ready)] : []),
+    ],
+  });
+  return {
+    ...actual,
+    tablesClient: () => ({
+      table: async () => ({ ok: true as const, table: table() }),
+      ready: async (roomId: string, ready: boolean) => {
+        tableState.ready(roomId, ready);
+        tableState.me.ready = ready;
+        return { ok: true as const, table: table() };
+      },
+      startRoom: tableState.startRoom,
+      startVsBot: tableState.startVsBot,
+    }),
+  };
+});
 
 /*
  * `Board` is mocked to CAPTURE the props it is handed and then render the real
@@ -133,6 +184,12 @@ afterEach(async () => {
   prefsState.prefs = null;
   prefsState.saved = [];
   roomsClientState.leave.mockClear();
+  tableState.me = { ready: false, present: true };
+  tableState.other = { ready: false, present: true };
+  tableState.matchId = null;
+  tableState.startRoom.mockClear();
+  tableState.startVsBot.mockClear();
+  tableState.ready.mockClear();
 });
 
 /**
@@ -3267,7 +3324,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(getByTestId('game-result').textContent).toContain('Victory');
   });
 
-  it('Defeat, over the still-visible board, with no known room: both buttons fall back to the lobby', async () => {
+  it('Defeat, over the still-visible board, with no known room: Rematch has no table to ready at, Main menu goes to the lobby', async () => {
     const { s, m, getByTestId } = await liveBoard();
     const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
     s.send(gameOverDelta(m.view!.seq + 1, viewerId));
@@ -3278,14 +3335,15 @@ describe('R16 — the result screen, drawn over the board', () => {
     // Over the board, which stays visible behind it (shape 4).
     expect(document.querySelector('.board'), 'the board is still drawn underneath').not.toBeNull();
 
-    expect((getByTestId('game-result-rematch') as HTMLAnchorElement).getAttribute('href')).toBe('#/');
+    expect((getByTestId('game-result-rematch') as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(getByTestId('game-result-menu'));
     expect(roomsClientState.leave, 'no room to leave').not.toHaveBeenCalled();
     await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
   });
 
-  it('Victory: the opponent lost — and with a known room, Rematch goes to it and Main menu leaves it first', async () => {
+  /** A finished game in room `r-1`: the opponent lost, so the viewer sees Victory. */
+  async function victoryInRoom() {
     const s = (server = await startReplayServer());
     const m = (match = startMatch({
       matchId: s.matchId,
@@ -3301,11 +3359,77 @@ describe('R16 — the result screen, drawn over the board', () => {
     const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
     s.send(gameOverDelta(m.view!.seq + 1, opponentId));
     await waitFor(() => expect(utils.getByTestId('game-result').dataset.result).toBe('victory'));
-    expect(utils.getByTestId('game-result').textContent).toContain('Victory');
+    const rematch = () => utils.getByTestId('game-result-rematch') as HTMLButtonElement;
+    const check = (you: boolean) =>
+      utils.container.querySelector(`[data-testid="game-result-face"][data-you="${you}"] [data-testid="game-result-check"]`);
+    return { ...utils, rematch, check };
+  }
 
-    expect((utils.getByTestId('game-result-rematch') as HTMLAnchorElement).getAttribute('href')).toBe('#/room/r-1');
+  it('Victory: Rematch readies me — a check over my face, nothing started — and pressing again stands me down', async () => {
+    const { getByTestId, rematch, check } = await victoryInRoom();
+    expect(getByTestId('game-result').textContent).toContain('Victory');
+    await waitFor(() => expect(rematch().disabled, 'the table has answered').toBe(false));
+    expect(check(true)).toBeNull();
 
-    fireEvent.click(utils.getByTestId('game-result-menu'));
+    fireEvent.click(rematch());
+    await waitFor(() => expect(check(true), 'my check').not.toBeNull());
+    expect(tableState.ready).toHaveBeenCalledWith('r-1', true);
+    expect(rematch().getAttribute('aria-pressed')).toBe('true');
+    expect(rematch().hasAttribute('data-highlight'), 'my own press is not a highlight').toBe(false);
+    expect(check(false), 'they have not pressed').toBeNull();
+    expect(tableState.startRoom, 'one press starts nothing').not.toHaveBeenCalled();
+    expect(globalThis.location.hash).not.toBe('#/match/m-next00000000');
+
+    fireEvent.click(rematch());
+    await waitFor(() => expect(check(true), 'pressed again: taken back').toBeNull());
+    expect(tableState.ready).toHaveBeenLastCalledWith('r-1', false);
+    expect(rematch().getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('the other player pressed first: their check, my button highlighted; my press starts the match once and goes to it', async () => {
+    tableState.other.ready = true;
+    const { rematch, check } = await victoryInRoom();
+    await waitFor(() => expect(check(false), 'their check').not.toBeNull());
+    expect(rematch().getAttribute('data-highlight')).toBe('true');
+
+    fireEvent.click(rematch());
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-next00000000'));
+    expect(tableState.startRoom).toHaveBeenCalledTimes(1);
+    expect(tableState.startRoom).toHaveBeenCalledWith('r-1');
+  });
+
+  it("the other screen started the match: this one follows the room's new match", async () => {
+    const { rematch, check } = await victoryInRoom();
+    await waitFor(() => expect(rematch().disabled).toBe(false));
+    fireEvent.click(rematch());
+    await waitFor(() => expect(check(true)).not.toBeNull());
+    tableState.matchId = 'm-theirs000000';
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-theirs000000'), { timeout: 4_000 });
+  });
+
+  it('the other player leaves: their check and my highlight go, and Rematch has nobody to agree with', async () => {
+    tableState.other.ready = true;
+    const { rematch, check } = await victoryInRoom();
+    await waitFor(() => expect(check(false)).not.toBeNull());
+    tableState.other = { ready: false, present: false };
+    await waitFor(() => expect(check(false), 'their check is gone').toBeNull(), { timeout: 4_000 });
+    expect(rematch().hasAttribute('data-highlight')).toBe(false);
+    expect(rematch().disabled).toBe(true);
+  });
+
+  it('a game played alone against the bot: Rematch starts the next one at once', async () => {
+    tableState.other = { ready: false, present: false };
+    const { rematch } = await victoryInRoom();
+    await waitFor(() => expect(rematch().disabled).toBe(false));
+    fireEvent.click(rematch());
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-bot000000000'));
+    expect(tableState.startVsBot).toHaveBeenCalledWith('r-1');
+    expect(tableState.ready).not.toHaveBeenCalled();
+  });
+
+  it('Main menu leaves the room first, then goes to the lobby', async () => {
+    const { getByTestId } = await victoryInRoom();
+    fireEvent.click(getByTestId('game-result-menu'));
     await waitFor(() => expect(roomsClientState.leave).toHaveBeenCalledWith('r-1'));
     await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
   });
@@ -4495,5 +4619,38 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(bothFlagsLit(container), 'the viewer’s own live window is never the stale one').toBe(false);
       expect(seatFlag(container, 'you')).not.toBeNull();
     });
+  });
+});
+
+describe('rematchOf — who has pressed Rematch, read off the room table', () => {
+  const row = (you: boolean, ready: boolean) => ({
+    seat: you ? 0 : 1,
+    name: '',
+    you,
+    deckName: '',
+    rulesName: '',
+    legal: true,
+    issueCount: 0,
+    ready,
+    choice: null,
+  });
+  const table = (...players: ReturnType<typeof row>[]) => ({
+    room: { id: 'r-1', name: '', gameType: 'constructed-1v1', matchId: null, seats: 2 },
+    you: { player: true, leader: false },
+    players,
+  });
+
+  it('nothing until the table answers', () => {
+    expect(rematchOf(null, false)).toEqual({ mine: false, theirs: false, highlight: false, possible: false, agreed: false });
+  });
+
+  it('the other pressed: highlighted for me; both pressed: agreed, no highlight', () => {
+    expect(rematchOf(table(row(true, false), row(false, true)), false)).toMatchObject({ theirs: true, highlight: true, agreed: false });
+    expect(rematchOf(table(row(true, true), row(false, true)), false)).toMatchObject({ mine: true, highlight: false, agreed: true });
+  });
+
+  it('the other left a human game: nothing to agree with; alone against the bot: possible', () => {
+    expect(rematchOf(table(row(true, true)), false)).toMatchObject({ possible: false, agreed: false });
+    expect(rematchOf(table(row(true, false)), true)).toMatchObject({ possible: true, agreed: false });
   });
 });

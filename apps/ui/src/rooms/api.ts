@@ -350,9 +350,8 @@ export interface RoomsClient {
    * remains and joined earliest — the server's ruling, not a choice made here.
    *
    * This is the result screen's "Main menu" button: leave, then go to the
-   * lobby list. "Rematch" never calls this — it stays a member and navigates
-   * straight to the room, which has already let go of the finished match by
-   * the time anyone reads it.
+   * lobby list. "Rematch" never calls this — it stays a member and readies at
+   * the room's table.
    */
   leave(roomId: string): Promise<RoomOutcome>;
   /**

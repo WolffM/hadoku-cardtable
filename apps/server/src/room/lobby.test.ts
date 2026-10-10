@@ -917,7 +917,7 @@ describe('a member\'s avatar', () => {
 /* ── R16: a room lets go of a finished match, and a member can leave ───── */
 
 describe('Lobby.releaseMatch', () => {
-	it('clears matchId, un-readies every member and drops their table state — idempotent, false only for no such room', async () => {
+	it('clears matchId and un-readies every member, keeping their table state (the deck a Rematch plays) — idempotent, false only for no such room', async () => {
 		const dir = await tempDir();
 		const lobby = await openLobby({ dir });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'streamed' });
@@ -936,8 +936,10 @@ describe('Lobby.releaseMatch', () => {
 
 		expect(lobby.get(id)?.matchId).toBeNull();
 		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([false, false]);
-		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
-		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+		// The table state is opaque here and kept whole: `http/routes.ts` owns
+		// its `ready`, and spent it when the match started.
+		expect(lobby.playerState(id, ALICE.id)).toEqual({ v: 1, deck: 'mono-red', ready: true });
+		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, deck: 'mono-red', ready: true });
 		// Nothing else about the room moved — not even the field this exists to
 		// prove is immutable everywhere else.
 		expect(lobby.get(id)?.clientMode).toBe('streamed');

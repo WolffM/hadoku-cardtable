@@ -463,7 +463,8 @@
  * you" rather than "selected" — guarded by `prefers-reduced-motion` like the
  * rail's own transition.
  */
-.live__buttons button[data-highlight] {
+.live__buttons button[data-highlight],
+.live__result .confirm__actions button[data-highlight] {
   border-color: var(--accent);
   color: var(--accent-ink);
   animation: live-ok-pulse 1.6s ease-in-out infinite;
@@ -480,7 +481,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live__buttons button[data-highlight] {
+  .live__buttons button[data-highlight],
+  .live__result .confirm__actions button[data-highlight] {
     animation: none;
   }
 }
@@ -1123,9 +1125,39 @@
   min-width: 0;
 }
 
-/* The loser's face recedes, the same `opacity` treatment `.live__step[data-past]` already uses. */
-.live__result-face[data-lost] {
+/* The loser's face recedes, the same `opacity` treatment `.live__step[data-past]` already uses —
+   the face and the name, not a Rematch check drawn over it. */
+.live__result-face[data-lost] .live__result-avatar,
+.live__result-face[data-lost] .live__result-name {
   opacity: 0.6;
+}
+
+.live__result-portrait {
+  position: relative;
+  display: block;
+}
+
+/* This player has pressed Rematch: a check over the lower corner of their face. */
+.live__result-check {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 22px;
+  height: 22px;
+}
+
+.live__result-check circle {
+  fill: var(--success);
+  stroke: var(--bg-card);
+  stroke-width: 2;
+}
+
+.live__result-check path {
+  fill: none;
+  stroke: var(--bg-card);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .live__result-avatar {
@@ -1146,13 +1178,10 @@
   text-overflow: ellipsis;
 }
 
-/* The anchor (Rematch) reads as the same control the button (Main menu) beside
-   it is — `.button` sets no colour or underline of its own, so a plain `<a>`
-   would otherwise draw with the browser's own link blue. */
-.live__result .confirm__actions a.button {
-  color: var(--ink);
-  text-decoration: none;
-  text-align: center;
+/* Rematch, pressed: the same success ink as the check it put over your face. */
+.live__result .confirm__actions button[aria-pressed='true'] {
+  border-color: var(--success);
+  color: var(--success-ink);
 }
 
 /*

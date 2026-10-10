@@ -32,8 +32,7 @@
  *     S's `match.ts` export) is true.
  * 10. **R11 — the turn counter leaves the phase bar.**
  * 11. **R16 — a real result screen**: Victory/Defeat/Draw from the viewer's
- *     own side, with Rematch (back to the room's deck selection) and Main
- *     menu (to the lobby, leader handoff if the leader is the one who left).
+ *     own side. Its Rematch and Main menu are `w69-rematch.spec.ts`'s.
  *
  * A scenario or a UI contract this file asks for that another lane has not
  * landed yet throws a named, descriptive error (`readScenario`'s own pattern,
@@ -845,18 +844,13 @@ test(titled('R11 — the turn counter is in the logbook, not the phase rail; the
   }
 });
 
-/* ── 11. R16 — result screen, rematch, and leader handoff ────────────────── */
+/* ── 11. R16 — result screen ────────────────────────────────────────────── */
 
-/**
- * `LiveBoard.tsx`'s `GameResultScreen`: `game-result-rematch` is a plain `<a
- * href>` to the room (`routeHash`, no server call — the room lets go of a
- * finished match on its own, lane R shape 5), `game-result-menu` is a
- * `<button>` that calls `roomsClient().leave` and THEN navigates to the
- * lobby.
+/*
+ * `LiveBoard.tsx`'s `GameResultScreen`. Its Rematch and Main menu buttons —
+ * and the leader handoff when the leader leaves — are `w69-rematch.spec.ts`'s.
  */
-const resultButton = (page: Page, which: 'rematch' | 'menu') => page.getByTestId(`game-result-${which}`);
-
-test(titled('R16 — a concede shows Defeat to the conceder and Victory to the other seat; Rematch returns both to deck selection; a leader who presses Main menu while the other presses Rematch hands leadership to the other'), async ({ browser }) => {
+test(titled('R16 — a concede shows Defeat to the conceder and Victory to the other seat'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -864,7 +858,7 @@ test(titled('R16 — a concede shows Defeat to the conceder and Victory to the o
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
-    const { roomUrl } = await enterMatch(alice, bob, stack.origin);
+    await enterMatch(alice, bob, stack.origin);
 
     await bob.page.getByTestId('live-concede').click();
     await bob.page.getByTestId('live-concede-yes').click();
@@ -887,55 +881,6 @@ test(titled('R16 — a concede shows Defeat to the conceder and Victory to the o
     await expect(bobResult, 'the conceding seat sees Defeat').toHaveAttribute('data-result', 'defeat');
     // The board stays visible behind the result screen (shape 4's own requirement).
     await expect(alice.page.locator('[aria-label="Game board"]'), 'the board is still there, behind the result screen').toBeVisible();
-
-    // Rematch: both players land back on the SAME room's deck selection,
-    // un-readied (R's shape 5 — the room releases the finished match).
-    await resultButton(alice.page, 'rematch').click();
-    await resultButton(bob.page, 'rematch').click();
-    for (const f of [alice, bob] as const) {
-      await expect(f.page, `${f.name} is back on the room, not the old match`).toHaveURL(new RegExp(roomUrl.split('/').pop()!));
-      await expect(f.page.getByTestId('constructed'), `${f.name} sees deck selection again`).toBeVisible({ timeout: 15_000 });
-      await expect(f.page.getByTestId('ready-toggle'), `${f.name} is un-readied`).toHaveAttribute('aria-pressed', 'false');
-    }
-  } finally {
-    await stack.stop();
-  }
-});
-
-test(titled('R16 — when the leader presses Main menu and the other player presses Rematch, the other player becomes room leader'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(4 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const alice = await openFriend(browser, 'alice'); // the room's leader (she created it)
-    const bob = await openFriend(browser, 'bob');
-    // Precondition (alice is the leader, bob is not): already asserted
-    // INSIDE `enterMatch` itself, while both are still on the room (it
-    // selects alice's live `format` picker and checks bob's read-only
-    // `format-fixed` mirrors it) — enterMatch would have thrown here if that
-    // did not hold. A first draft re-checked `getByTestId('format')` again
-    // AFTER this call, which is the MATCH page: neither `format` nor
-    // `format-fixed` exists there at all (both are the room's own
-    // `ConstructedScreen` controls), so that re-check could never pass.
-    await enterMatch(alice, bob, stack.origin);
-
-    await bob.page.getByTestId('live-concede').click();
-    await bob.page.getByTestId('live-concede-yes').click();
-    // 45s, not 30: same margin as the other R16 test's own result-screen wait, above.
-    await expect(alice.page.getByTestId('game-result'), 'the result screen is up for both').toBeVisible({ timeout: 45_000 });
-    await expect(bob.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
-
-    await resultButton(alice.page, 'menu').click();
-    await resultButton(bob.page, 'rematch').click();
-
-    // Alice left the room entirely (Main menu) and is on the lobby list.
-    await expect(alice.page.getByTestId('room-create-open'), 'alice is back on the lobby list after Main menu').toBeVisible({ timeout: 15_000 });
-    // Bob stayed, landed on deck selection, and is now the leader — the only
-    // member left, so leadership passed to him (operator ruling, R16) — proved
-    // by the SAME signal the precondition used, now flipped.
-    await expect(bob.page.getByTestId('constructed'), 'bob is on the room\'s deck selection (Rematch)').toBeVisible({ timeout: 15_000 });
-    await expect(bob.page.getByTestId('format'), 'bob is now the leader: he has the live format picker alice had before').toBeVisible({ timeout: 15_000 });
   } finally {
     await stack.stop();
   }

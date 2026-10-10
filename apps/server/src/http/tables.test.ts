@@ -333,9 +333,7 @@ function fakeLobby(): FakeLobby {
 			if (room === undefined) return false;
 			room.matchId = null;
 			// Every member's table state (the deck hold and its own `ready`) is
-			// opaque to this fake, same as the real lobby: dropped whole, like
-			// `setFormat` drops it when the pool moves.
-			room.state.clear();
+			// opaque to this fake, same as the real lobby: kept whole.
 			return true;
 		},
 	};
@@ -1400,6 +1398,32 @@ describe('a room table', () => {
 	});
 
 	/**
+	 * The operator's game, 2026-10-10: a deploy mid-match restored the room
+	 * without its match (rooms restore `matchId: null`; the match itself carried
+	 * on) but WITH both players still ready, so the first table read after the
+	 * game — one press of Rematch — started a new match with nobody else asking.
+	 * A start spends both Readys, so a room that loses its match id finds
+	 * nobody ready.
+	 */
+	it('a start spends both Readys: a room that loses its match id mid-game starts nothing on its own', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const started = await startRoom(h, 'alice');
+		expect(started.status).toBe(201);
+		const during = await view(h, 'bob');
+		expect(players(during.body).map((p) => p.ready)).toEqual([false, false]);
+
+		// What a restart's restore does to the room while the match plays on.
+		h.lobby.setMatch(ROOM, null);
+		const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		expect(refused.status).toBe(409);
+		expect(refused.body.error).toMatch(/is not ready yet/);
+	});
+
+	/**
 	 * R16. `over` sits for `overGraceMs` (ten minutes) before a host actually
 	 * stops, and before this fix only `stopped`/`failed` released a room's
 	 * match — so reading the room during that whole window (exactly what
@@ -1424,13 +1448,12 @@ describe('a room table', () => {
 
 		const seen = await view(h, 'alice');
 		expect((seen.body.room as { matchId: string | null }).matchId).toBeNull();
-		// Un-matched AND un-readied: `releaseMatch` drops the whole table hold
-		// (deck, verdict, ready), the same wholesale reset `setFormat` makes when
-		// the pool moves — a verdict taken for the game that just ended is not a
-		// verdict for its rematch. A player with no hold is not in `players` at
-		// all (`playersOf` filters on having one), which is what "lands on deck
-		// selection" looks like from this route: nobody's chosen anything yet.
-		expect(players(seen.body)).toEqual([]);
+		// Un-matched, both decks still held for a Rematch, and nobody ready: the
+		// start spent both Readys.
+		expect(players(seen.body).map((p) => [p.deckName !== '', p.ready])).toEqual([
+			[true, false],
+			[true, false],
+		]);
 		expect(h.lobby.room(ROOM)?.matchId).toBeNull();
 
 		// Reverted (comment out the `=== 'over'` arm of `finished` in
@@ -1438,9 +1461,7 @@ describe('a room table', () => {
 		// back as the finished match's id instead of null. 1 failed.
 		// Restored: passes. 1 passed.
 
-		// The room is free to start a new match from scratch.
-		await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
-		await putDeck(h, 'bob', deckBody(SECOND_DECK));
+		// A Rematch: both ready again with the decks they hold, and a new match starts.
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
 		// NOT `startRoom`/`start()`: both assume `h.hosts` starts empty, which is

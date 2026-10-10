@@ -197,7 +197,7 @@ test(titled("alice presses Rematch, then Main menu: her checkmark and bob's high
     await expect(check(bob, 'other'), "alice's checkmark reaches bob").toBeVisible({ timeout: 10_000 });
     await expect(rematch(bob)).toHaveAttribute('data-highlight', 'true');
     await press(alice.page, 'game-result-menu');
-    await expect(alice.page.getByTestId('room-create'), 'alice is on the lobby list').toBeVisible({ timeout: 15_000 });
+    await expect(alice.page.getByTestId('room-create-open'), 'alice is on the lobby list').toBeVisible({ timeout: 15_000 });
 
     await expect(check(bob, 'other'), "alice's checkmark is gone from bob's screen").toHaveCount(0, { timeout: 10_000 });
     await expect(rematch(bob), "bob's highlight is gone").not.toHaveAttribute('data-highlight', 'true');
