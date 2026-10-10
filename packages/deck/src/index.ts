@@ -76,6 +76,14 @@ export {
 } from './format.ts';
 
 export {
+  DECK_COLORS,
+  deckColorsByName,
+  foldDeckColors,
+  manaTokensOf,
+  type DeckColor,
+} from './colors.ts';
+
+export {
   PREBUILT_DATE_KEY,
   PREBUILT_FORMAT_KEY,
   PrebuiltDeckError,

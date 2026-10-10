@@ -37,7 +37,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 
 import { DRAFT_CHANNEL, stateMessage, type DraftCard, type DraftView } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { BASIC_LAND_NAMES, deckFromDeckFile, mainDeckSize } from '@hadoku/deck';
+import { BASIC_LAND_NAMES, deckColorsByName, deckFromDeckFile, mainDeckSize } from '@hadoku/deck';
 import {
   LIBRARY,
   LIBRARY_CARD_COSTS,
@@ -56,7 +56,6 @@ import {
   manaValueOf,
   poolIsOnTab,
 } from './ConstructedScreen.tsx';
-import { deckColorsByName } from '../components/DeckView.tsx';
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import ART_IDS from '../draft/art-ids.json';
 import { cardImageUrl } from '../draft/cardImage.ts';

@@ -145,18 +145,21 @@ import {
   type ArtIdIndex,
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
-import { basicLand, mainDeckSize, moveToMain, setBasicLand, type Deck } from '@hadoku/deck';
+import {
+  basicLand,
+  deckColorsByName,
+  mainDeckSize,
+  manaTokensOf,
+  moveToMain,
+  setBasicLand,
+  type Deck,
+  type DeckColor,
+} from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { navigate } from './route.ts';
 import { PodScreen } from './PodScreen.tsx';
-import {
-  DeckColors,
-  deckColorsByName,
-  mainDeckColors,
-  manaTokensOf,
-  type DeckColor,
-} from '../components/DeckView.tsx';
+import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary } from '../deck/build.ts';

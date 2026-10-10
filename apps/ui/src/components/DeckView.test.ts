@@ -49,14 +49,8 @@ import { LIBRARY, deckPath, poolFixturePath, type FormatFamily, type LibraryColl
 import type { DraftCard } from '../draft/types.ts';
 import { DeckBuilder } from '../deck/DeckBuilder.tsx';
 import type { SeatChoice, TableDeck, TableFormat, TablesClient, Verdict } from '../screens/tables.ts';
-import {
-  DeckColors,
-  DeckView,
-  deckColorsByName,
-  foldDeckColors,
-  manaTokensOf,
-  type DeckColor,
-} from './DeckView.tsx';
+import { deckColorsByName, foldDeckColors, manaTokensOf, type DeckColor } from '@hadoku/deck';
+import { DeckColors, DeckView } from './DeckView.tsx';
 
 afterEach(cleanup);
 
