@@ -1,0 +1,17 @@
+# The operator, 2026-10-10: "for things like 'Use triggered ability of Soul's Attendant? Triggered by:
+# Soul Warden' can we add a checkmark that allows me to always yes?". Alice holds her own main phase
+# with Soul's Attendant (an optional "may gain 1 life" whenever another creature enters) and three
+# free creatures, so each cast is one more ask of the same trigger with no mana in the way.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite;Memnite;Memnite
+humanbattlefield=Soul's Attendant
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
