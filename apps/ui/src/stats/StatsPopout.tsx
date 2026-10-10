@@ -78,9 +78,25 @@ export interface StatsSource {
 
 let shared: StatsSource | undefined;
 
+/**
+ * The prefs mount, when the page names one: `@wolffm/themes` reads the same
+ * global, and the e2e harness sets it to the test server (`e2e/prefsLocal.ts`)
+ * so no read leaves the machine. Production leaves it unset, and the SDK's own
+ * `https://hadoku.me/prefs` stands. Read when the client is first built, after
+ * any init script has run.
+ */
+export function prefsBaseUrl(): string | undefined {
+  const base = (globalThis as { __HADOKU_PREFS_API_BASE__?: unknown }).__HADOKU_PREFS_API_BASE__;
+  return typeof base === 'string' && base !== '' ? base : undefined;
+}
+
 /** The page's one stats client and the cache its reads are kept in. */
 function sharedSource(): StatsSource {
-  shared ??= { client: createGameStatsClient({ gameId: 'cardtable' }), cache: createStatsCache() };
+  const baseUrl = prefsBaseUrl();
+  shared ??= {
+    client: createGameStatsClient({ gameId: 'cardtable', ...(baseUrl === undefined ? {} : { baseUrl }) }),
+    cache: createStatsCache(),
+  };
   return shared;
 }
 

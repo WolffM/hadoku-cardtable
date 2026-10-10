@@ -15,7 +15,7 @@ import { createStatsCache } from '@wolffm/game-stats-ui';
 import { createGameStatsClient, type BreakdownRow, type LeaderboardRow, type MatchView, type ProfileView } from '@wolffm/prefs-client/games';
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
-import type { StatsSource } from './StatsPopout.tsx';
+import { prefsBaseUrl, type StatsSource } from './StatsPopout.tsx';
 
 afterEach(() => {
   cleanup();
@@ -178,5 +178,18 @@ describe('the way in', () => {
     const button = screen.getByTestId('lobby-stats');
     expect(button.getAttribute('href')).toBe('#/stats');
     expect(button.getAttribute('aria-label')).toBe('Stats');
+  });
+});
+
+describe('where the reads go', () => {
+  it("follows the page's prefs mount when one is set, and otherwise leaves the SDK's default", () => {
+    const g = globalThis as { __HADOKU_PREFS_API_BASE__?: unknown };
+    expect(prefsBaseUrl()).toBeUndefined();
+    g.__HADOKU_PREFS_API_BASE__ = 'http://127.0.0.1:19001/prefs';
+    try {
+      expect(prefsBaseUrl()).toBe('http://127.0.0.1:19001/prefs');
+    } finally {
+      delete g.__HADOKU_PREFS_API_BASE__;
+    }
   });
 });
