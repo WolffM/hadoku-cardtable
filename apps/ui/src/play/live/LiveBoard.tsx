@@ -1636,7 +1636,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (soundView === null) return;
     const prev = lastSoundView.current;
     lastSoundView.current = soundView;
-    if (!spectator) playSoundEvents(deriveSoundEvents(prev, soundView));
+    if (spectator) return;
+    try {
+      playSoundEvents(deriveSoundEvents(prev, soundView));
+    } catch (err) {
+      // Sound must never take the board down; say so in the console instead.
+      console.error('[cardtable] sound events for this view failed', err);
+    }
   }, [soundView, spectator]);
   /*
    * One answer is no question (§B, items 4 and 9). `rules.ts`'s `autoAnswer`
