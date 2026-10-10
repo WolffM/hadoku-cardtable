@@ -30,7 +30,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 
-import { CAST_LIFT_ATTR, FLOAT_BACK_MS } from '../live/gestures/cast.ts';
+import { CAST_LIFT_ATTR } from '../live/gestures/cast.ts';
+import { GLIDE_MS } from '../motion.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 import { askFor } from './fixtures.ts';
 import { expectWireReply, mountPrompt } from './testing.ts';
@@ -146,7 +147,7 @@ describe('manipulateCardList', () => {
     // Released back on itself: nowhere this gesture answers, so it floats home —
     // awaited so the real timer never outlives this test (as `../live/gestures/gestures.test.ts` does).
     fireEvent.pointerUp(card, { clientX: 0, clientY: PAST_SLOP });
-    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: GLIDE_MS + 1000 });
   });
 
   it('highlights a drop zone the lift is currently over, before the release', () => {
@@ -165,7 +166,7 @@ describe('manipulateCardList', () => {
     dragTo(54, list());
     expect(order()).toEqual([54, 47, 17, 46, 60]);
     // The house glide: `floatCastLiftHome`'s own real timer, same as `../live/gestures/gestures.test.ts` awaits it.
-    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: GLIDE_MS + 1000 });
   });
 
   it('reorders by the up/down buttons — the keyboard and click fallback — and still answers correctly', () => {

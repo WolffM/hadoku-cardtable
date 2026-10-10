@@ -408,6 +408,7 @@ import { installPlaced } from './live/placed.ts';
 import { PileView } from './PileView.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
+import { PLACEMENT_WAIT_MS } from './motion.ts';
 import './board.css';
 import './card.css';
 
@@ -1335,8 +1336,6 @@ const PENDING_PLACEMENTS = new Map<number, PendingPlacement>();
 let LIVE_VIEWER_ID: number | null = null;
 /** This render's own `matchKey(view)`, beside `LIVE_VIEWER_ID` for the same reason: `commitHandMove`'s seam into `ARRANGED` has no render of its own to read it from. */
 let LIVE_MATCH_KEY: string | null = null;
-/** How long a pending placement waits for its card. A cast that never resolves (countered, cancelled) just ages out — nothing else cleans it up. */
-const PENDING_PLACEMENT_TTL_MS = 15_000;
 
 /** Forget every pending placement. For a test that wants a clean slate, the same reason `forgetArrangements` exists. */
 export function forgetPendingPlacements(): void {
@@ -1421,7 +1420,7 @@ function liveViewerGeometry(): SlotGeometry[] {
 export function notePlayedTo(cardId: number, point: { x: number; y: number }): void {
   const at = placementAt(point);
   if (at === null || LIVE_VIEWER_ID === null) return;
-  PENDING_PLACEMENTS.set(LIVE_VIEWER_ID, { cardId, slot: at.slot, target: at.target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  PENDING_PLACEMENTS.set(LIVE_VIEWER_ID, { cardId, slot: at.slot, target: at.target, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
   for (const wake of MOUNTED_BOARDS) wake();
 }
 
@@ -1442,7 +1441,7 @@ export function placementAt(point: { x: number; y: number }): { slot: BoardRow; 
  */
 export function expectPlacement(playerId: number, slot: string, target: DropTarget, cardId: number | null = null): void {
   if (!([...BOARD_ROWS, ...SINGLE_ROWS] as readonly string[]).includes(slot)) return;
-  PENDING_PLACEMENTS.set(playerId, { cardId, slot: slot as BoardRow, target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  PENDING_PLACEMENTS.set(playerId, { cardId, slot: slot as BoardRow, target, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
   for (const wake of MOUNTED_BOARDS) wake();
 }
 

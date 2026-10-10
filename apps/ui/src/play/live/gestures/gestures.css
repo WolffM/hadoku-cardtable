@@ -182,7 +182,7 @@
  * Floating back to the hand — a no-target card released off the viewer's own
  * battlefield, any card released over the hand, or a cancel. `./cast.ts`'s
  * `floatCastLiftHome` is what moves `left`/`top` to the home point this
- * transitions toward; `FLOAT_BACK_MS` there is this number, so the clean-up
+ * transitions toward; `GLIDE_MS` (`motion.ts`) is this number, so the clean-up
  * that lets the card go waits for the same animation it is timing.
  */
 [data-cast-lift='returning'] {

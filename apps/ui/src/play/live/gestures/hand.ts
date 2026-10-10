@@ -60,10 +60,10 @@ import type { DropTarget } from '../../Board.tsx';
 import { commitHandMove } from '../../Board.tsx';
 import { queueHandMove } from '../presence.ts';
 import { clearCastLift } from './cast.ts';
+import { GLIDE_MS } from '../../motion.ts';
 import './hand.css';
 
-/** How long the FLIP's own transition runs, and the house curve — the same number and curve `./gestures.css`'s `[data-cast-lift='parked'|'returning']` already use. */
-export const HAND_FLIP_MS = 300;
+/** The house curve — the same one `./gestures.css`'s `[data-cast-lift='parked'|'returning']` already use. */
 const HOUSE_CURVE = 'cubic-bezier(0.3, 0.7, 0.3, 1)';
 
 /** Set on a hand card while it FLIPs into its new slot; `./hand.css` reads it to keep the card out of the player's way mid-flight. */
@@ -225,7 +225,7 @@ export function flipHand(canvas: ParentNode, before: ReadonlyMap<number, Point>)
   void list.getBoundingClientRect();
   requestAnimationFrame(() => {
     for (const li of moving) {
-      li.style.transition = `transform ${HAND_FLIP_MS}ms ${HOUSE_CURVE}`;
+      li.style.transition = `transform ${GLIDE_MS}ms ${HOUSE_CURVE}`;
       li.style.transform = '';
     }
     setTimeout(() => {
@@ -233,7 +233,7 @@ export function flipHand(canvas: ParentNode, before: ReadonlyMap<number, Point>)
         li.style.transition = '';
         li.removeAttribute(HAND_FLIP_ATTR);
       }
-    }, HAND_FLIP_MS);
+    }, GLIDE_MS);
   });
 }
 

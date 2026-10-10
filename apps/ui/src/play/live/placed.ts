@@ -86,6 +86,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { CardTile } from '../../components/CardTile.tsx';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
+import { PLACEMENT_WAIT_MS } from '../motion.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
@@ -104,8 +105,6 @@ export const COUNTERED_MS = 400;
 /** One turn of the sheen round a card whose ability resolved with nobody stopping it (`card.css`). */
 export const SHIMMER_MS = 1100;
 
-/** A placement nobody ever promoted (a land, a cancelled cast) is forgotten after this long. */
-const PENDING_TTL_MS = 12_000;
 /**
  * AE26 (2026-10-09, the Mana Leak screenshot): a spell of THEIRS that reaches the
  * stack before this screen hears where they let it go (`forge:placement` names
@@ -126,7 +125,7 @@ interface Placement {
   at: Point;
   readonly side: 'you' | 'them';
   committed: boolean;
-  /** `Date.now()` when this was registered, so an unmatched one can expire — see `PENDING_TTL_MS`. */
+  /** `Date.now()` when this was registered, so an unmatched one can expire — see `PLACEMENT_WAIT_MS`. */
   readonly registeredAt: number;
 }
 
@@ -407,7 +406,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const now = Date.now();
     for (const [id, p] of placements) {
       if (itemIds.has(id) || sourceIds.has(id)) continue;
-      if (now - p.registeredAt > PENDING_TTL_MS) placements.delete(id);
+      if (now - p.registeredAt > PLACEMENT_WAIT_MS) placements.delete(id);
     }
   }
 

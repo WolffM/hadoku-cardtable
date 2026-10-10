@@ -18,7 +18,8 @@ import { askFor } from './fixtures.ts';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
-import { CAST_LIFT_ATTR, FLOAT_BACK_MS } from '../live/gestures/cast.ts';
+import { CAST_LIFT_ATTR } from '../live/gestures/cast.ts';
+import { GLIDE_MS } from '../motion.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
 afterEach(cleanup);
@@ -124,7 +125,7 @@ describe('order', () => {
     expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBe('lifted');
     // Released back on itself: nowhere this gesture answers, so it floats home.
     fireEvent.pointerUp(urchin, { clientX: 0, clientY: PAST_SLOP });
-    await waitFor(() => expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(keysIn(dest())).toEqual(['sa-9101']);
   });
 

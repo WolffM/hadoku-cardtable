@@ -83,13 +83,12 @@ import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
+import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */
 export const PRESENCE_STALE_MS = 6000;
-/** How long a back waits in its reserved gap for the card; a cast that never resolves just ages out (`Board`'s own TTL). */
-export const WAITING_MS = 15_000;
 /** A point wait's remaining life once the sender says its card is no longer parked and Forge has not yet said where it went. Started once, never pushed back by later messages. */
 export const CLEARED_GRACE_MS = 1500;
 /**
@@ -101,8 +100,6 @@ export const CLEARED_GRACE_MS = 1500;
 export const UNHANDED_MS = 5000;
 /** How many frames a placement's stand-in looks for the gap the board reserves for it before giving up. */
 const GAP_FRAMES = 30;
-/** How long a hand-move's glide runs — the same number `./gestures/hand.ts`'s own FLIP uses, so the two screens move in step. */
-export const HAND_MOVE_MS = 300;
 
 /**
  * `live/gestures/hand.ts`'s own seam into this module: a hand reorder
@@ -792,7 +789,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       ghost.style.left = `${to.left + to.width / 2 - box.left}px`;
       ghost.style.top = `${to.top + to.height / 2 - box.top}px`;
     });
-    setTimeout(() => ghost.remove(), HAND_MOVE_MS);
+    setTimeout(() => ghost.remove(), GLIDE_MS);
   }
 
   function draw(echo: PresenceEcho): void {
@@ -836,7 +833,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
-        waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false };
+        waiting = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
         // the one object, in place — never a back beside a face until a timer ends it.
@@ -962,7 +959,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** `stackBound`: fly `card` from `from` the moment the board draws it in their battlefield. */
   function flyWhenDrawn(card: number, from: Point): void {
     stackBound?.disconnect();
-    const until = Date.now() + WAITING_MS;
+    const until = Date.now() + PLACEMENT_WAIT_MS;
     const watch = new MutationObserver(() => {
       if (Date.now() < until && !onTheirBattlefield(card)) return;
       watch.disconnect();
@@ -1108,7 +1105,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     standBack(root, root.getBoundingClientRect(), from);
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
-    waiting = { timer: setTimeout(stopWaiting, WAITING_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
+    waiting = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
     // The board draws the reserved gap on its next commit — usually before the next frame, not
     // always under load (a busy claw left the back at the release point, w67-shaman): looked for
     // again each frame until it is there.

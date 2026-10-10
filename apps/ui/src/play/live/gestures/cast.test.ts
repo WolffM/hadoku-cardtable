@@ -5,7 +5,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CAST_LANDING_ATTR, CAST_LIFT_ATTR, FLOAT_BACK_MS, landCastGhost } from './cast.ts';
+import { CAST_LANDING_ATTR, CAST_LIFT_ATTR, landCastGhost } from './cast.ts';
+import { GLIDE_MS } from '../../motion.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -41,7 +42,7 @@ describe('landCastGhost', () => {
     expect(ghost.getAttribute(CAST_LIFT_ATTR)).toBe('returning');
     expect([ghost.style.left, ghost.style.top]).toEqual(['400px', '60px']);
     expect(arrived.hasAttribute(CAST_LANDING_ATTR)).toBe(true);
-    vi.advanceTimersByTime(FLOAT_BACK_MS);
+    vi.advanceTimersByTime(GLIDE_MS);
     expect(ghost.isConnected).toBe(false);
     expect(arrived.hasAttribute(CAST_LANDING_ATTR)).toBe(false);
   });

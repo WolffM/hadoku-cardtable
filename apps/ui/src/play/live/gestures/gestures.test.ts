@@ -60,7 +60,8 @@ import {
 } from '../match.ts';
 import { onSpellMoved } from '../placed.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
-import { FLOAT_BACK_MS, needsTarget } from './cast.ts';
+import { needsTarget } from './cast.ts';
+import { GLIDE_MS } from '../../motion.ts';
 import { TAPPED_PENDING_ATTR } from './commit.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
@@ -2752,7 +2753,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(ghost, 'the stand-in is what moves').not.toBeNull();
     expect(ghost.getAttribute('data-cast-lift')).toBe('returning');
     expect(arrived.hasAttribute('data-cast-lift'), 'the card in the row is never lifted out of it').toBe(false);
-    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(arrived.hasAttribute('data-cast-landing')).toBe(false);
   });
 
@@ -2904,7 +2905,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
-    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(canvas.querySelector('[data-cast-ghost]'), 'and the stand-in goes with it').toBeNull();
     expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
@@ -2925,7 +2926,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(selectables([card, ...rest], 1, 1));
     await waitFor(() => expect(m.selectables).not.toBeNull());
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
-    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
@@ -2946,7 +2947,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: [card, ...rest], Battlefield: battlefield }));
     await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(true));
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
-    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
   }, 20_000);
 
   it('a play Forge IS asking about keeps waiting past PARK_UNANSWERED_MS', async () => {

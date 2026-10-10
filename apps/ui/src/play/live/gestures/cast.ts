@@ -19,6 +19,7 @@
 import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
 import type { LiveMatch } from '../match.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../../card-size.ts';
+import { GLIDE_MS } from '../../motion.ts';
 import { cardBox } from './targets.ts';
 import type { Point } from './types.ts';
 
@@ -91,9 +92,6 @@ export function clearDropCues(canvas: ParentNode): void {
 /** The one attribute this module writes for the lift itself. Nothing else in this repo writes it. */
 export const CAST_LIFT_ATTR = 'data-cast-lift';
 
-/** How long the float-back CSS transition runs — named here for the JS side that schedules the clean-up after it. */
-export const FLOAT_BACK_MS = 300;
-
 /** A pending `floatCastLiftHome` clean-up per card id, so a new lift/park on the same id cannot be clobbered by a stale one. */
 const returnTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
@@ -163,7 +161,7 @@ export function clearCastLift(root: ParentNode, id: number): void {
  *
  * `prefers-reduced-motion` is read here too, not only in CSS: skipping the
  * timer outright, rather than letting a now-instant transition still hold
- * the attribute for `FLOAT_BACK_MS`, keeps the clean-up synchronous for a
+ * the attribute for `GLIDE_MS`, keeps the clean-up synchronous for a
  * caller that needs it to be.
  *
  * `id` null: a stand-in for a card this screen cannot name — the other seat's
@@ -193,7 +191,7 @@ export function floatCastLiftHome(
   };
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) return done();
-  const timer = setTimeout(done, FLOAT_BACK_MS);
+  const timer = setTimeout(done, GLIDE_MS);
   if (id !== null) returnTimers.set(id, timer);
 }
 

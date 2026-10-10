@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
-import { FLOAT_BACK_MS } from './gestures/cast.ts';
+import { GLIDE_MS } from '../motion.ts';
 
 /*
  * `placed.ts` (lane S) is the seam this module calls into for the stack
@@ -35,7 +35,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, HAND_MOVE_MS, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS } from './presence.ts';
+import { forgetPendingPlaced, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -1111,7 +1111,7 @@ describe('receiving', () => {
     expect(ghost!.getAttribute('data-cast-lift')).toBe('returning');
     expect([ghost!.style.left, ghost!.style.top], 'to the centre of their hand’s last back').toEqual(['200px', '62px']);
     expect(home!.hasAttribute('data-cast-landing'), 'that back waits hidden until it lands').toBe(true);
-    await new Promise((r) => setTimeout(r, FLOAT_BACK_MS + 20));
+    await new Promise((r) => setTimeout(r, GLIDE_MS + 20));
     expect(canvas.querySelector('.presence__handoff'), 'landed').toBeNull();
     expect(home!.hasAttribute('data-cast-landing')).toBe(false);
     handle.dispose();
@@ -1169,7 +1169,7 @@ describe('receiving', () => {
     expect(ghost.style.left, 'starts at position 0’s centre').toBe('130px'); // 100 + 0*70 + 30 (half of 60) − overlay left 0
     vi.advanceTimersByTime(16); // the glide's own requestAnimationFrame
     expect(ghost.style.left, 'ends at position 2’s centre').toBe('270px'); // 100 + 2*70 + 30
-    vi.advanceTimersByTime(HAND_MOVE_MS);
+    vi.advanceTimersByTime(GLIDE_MS);
     expect(canvas.querySelector('.presence__back[data-gliding]'), 'removed once the glide finishes').toBeNull();
     handle.dispose();
   });
