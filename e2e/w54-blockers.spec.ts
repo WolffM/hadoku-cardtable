@@ -12,12 +12,8 @@
  * candidate set). `match.ts`'s `declaredBlockers` offers it back, off the
  * wire's own planned map (`adapter.ts`'s `CombatBand.plannedBlockers`,
  * `AttackersWithPlannedBlockers`), and `gestures/install.ts`'s `blockArrows`
- * draws the lasting blocker→attacker arrow from that same map while
- * declaring and from the confirmed one (`CombatBand.blockers`,
- * `AttackersWithBlockers`) once Forge has moved past it — see each
- * function's own doc comment for the Forge source the planned/confirmed
- * split rests on (`GameView.java:215-229`, `Combat.java:677-679`,
- * `AttackingBand.java:14,71-72`).
+ * draws the lasting blocker→attacker arrow from that same map, which is
+ * Forge's live list while declaring and after (`GameView.java:216-235`).
  *
  * Driver: `e2e/play/combat.ts`. Scenario: `w54-b-two-blockers` — bob (ai,
  * seat 1) already attacks alice (human, seat 0) with TWO creatures; alice
@@ -238,11 +234,9 @@ test(
       await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'the blocker survived combat damage').toHaveCount(1);
       await expect(alice.page.locator(`[data-board-card="${attackerA}"]`), 'the attacker survived combat damage too').toHaveCount(1);
 
-      // Same key, same arrow — now off the CONFIRMED map (`CombatBand.blockers`),
-      // not the planned one, because declare-blockers is over
-      // (`declaringBlockers` is false here). It did not flash off and back on;
-      // `install.ts`'s own reconciler key is unchanged across the switch.
-      await expect(blockArrow(alice.page, blockerX, attackerA), 'the same arrow is still drawn, now off the CONFIRMED map').toHaveCount(1, {
+      // Same key, same arrow, once declare-blockers is over (`declaringBlockers`
+      // is false here): the block Forge confirmed.
+      await expect(blockArrow(alice.page, blockerX, attackerA), 'the same arrow is still drawn once the block is confirmed').toHaveCount(1, {
         timeout: 10_000,
       });
       await logStep(alice.page, 'confirmed (combat map)', blockerX, attackerA);

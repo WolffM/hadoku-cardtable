@@ -1503,12 +1503,10 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     );
   });
 
-  it('once Forge moves past InputBlock the arrow draws from the CONFIRMED map instead', async () => {
+  it('the arrow stays once Forge moves past InputBlock', async () => {
     const { s, m, canvas, blocker, attacker } = await alreadyBlocking();
-    // `GameView.updateCombat` only starts sending `blk` once `AttackingBand`'s
-    // own `blocked` flag stops being null, which is AFTER declare-blockers has
-    // resolved (`Combat.java:677-679`) — so this is the step ending, not a
-    // guess at a later frame shape.
+    // `GameView.updateCombat` starts sending `blk` too once declare-blockers
+    // has resolved (`Combat.java:677-679`) — the step ending, as Forge sends it.
     s.send(phaseDelta('COMBAT_FIRST_STRIKE_DAMAGE', theirsOf(m).id));
     s.send(
       stateDelta({
@@ -1525,6 +1523,34 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
         overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`),
       ).not.toBeNull(),
     );
+  });
+});
+
+/* ── the attacker watches the blocks being made ───────────────────────── */
+
+describe('on the attacking screen, the defender’s blocks draw as they are assigned', () => {
+  it('a block Forge has not confirmed yet draws its arrow, and drops it when undone', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const attacker = mineOf(m).battlefield[0]!.id;
+    const blocker = theirsOf(m).battlefield[0]!.id;
+    const combat = (pblk: number[]): ServerFrame =>
+      stateDelta({
+        [GAME_KEY]: {
+          _type: 3,
+          _id: 1,
+          CombatView: { t: 'combat', atk: [[attacker]], def: [[1, theirsOf(m).id]], blk: [[]], pblk: [pblk] },
+        },
+      });
+    s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', mineOf(m).id));
+    s.send(attackingDelta([attacker]));
+    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    expect(declaringBlockers(m)).toBe(false);
+    const arrow = () => overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`);
+
+    s.send(combat([blocker]));
+    await waitFor(() => expect(arrow()).not.toBeNull());
+    s.send(combat([]));
+    await waitFor(() => expect(arrow()).toBeNull());
   });
 });
 

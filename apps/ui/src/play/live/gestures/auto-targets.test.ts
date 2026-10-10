@@ -106,7 +106,7 @@ describe('combatArrows', () => {
   it('draws attacker → defender for a card defender (a planeswalker or a battle)', () => {
     el({ 'data-board-card': '10' });
     const pw = el({ 'data-board-card': '55' });
-    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'card', id: 55 }, blockers: [] }]);
+    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'card', id: 55 } }]);
     const arrows = combatArrows(document.body, match);
     expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: pw, kind: 'card' }]);
     expect(arrows[0]!.to).toBe(pw);
@@ -115,7 +115,7 @@ describe('combatArrows', () => {
   it('draws attacker → defender for a player defender, off the face box', () => {
     el({ 'data-board-card': '10' });
     const face = el({ 'data-player-face': '', 'data-player-id': '1' });
-    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 }, blockers: [] }]);
+    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 } }]);
     const arrows = combatArrows(document.body, match);
     expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: face, kind: 'player' }]);
   });
@@ -124,7 +124,7 @@ describe('combatArrows', () => {
     el({ 'data-board-card': '10' });
     el({ 'data-board-card': '11' });
     const face = el({ 'data-player-face': '', 'data-player-id': '1' });
-    const match = matchWithCombat([{ attackers: [10, 11], defender: { kind: 'player', id: 1 }, blockers: [] }]);
+    const match = matchWithCombat([{ attackers: [10, 11], defender: { kind: 'player', id: 1 } }]);
     const arrows = combatArrows(document.body, match);
     expect(arrows.map((a) => a.key).sort()).toEqual(['combat:10', 'combat:11']);
     for (const a of arrows) expect(a.to).toBe(face);
@@ -132,7 +132,7 @@ describe('combatArrows', () => {
 
   it('skips a band whose attacker or defender is not on screen', () => {
     // Neither card 10 nor player 1 is mounted.
-    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 }, blockers: [] }]);
+    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 } }]);
     expect(combatArrows(document.body, match)).toEqual([]);
   });
 

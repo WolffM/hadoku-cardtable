@@ -1863,7 +1863,7 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
  * | damage | the P/T badge's own ink (`PowerToughness`) | the number that matters is what is LEFT, and the badge already holds it |
  * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
  * | summoning sick | the card DESATURATES | a saturation channel, so it cannot be confused with any outline and says the same thing to a colour-blind viewer |
- * | blocking | a corner mark, a drawn shield | a mark, not an outline |
+ * | blocking | a corner mark, a drawn shield, and an outline in the theme's success (`card.css`), as the attacker's is in its danger | the operator asked for its own colour (2026-10-10) |
  * | token | a corner mark and a hatched edge (`card.css`) | ditto, and see item 14 below |
  *
  * **The three outlines already on a card are not ours to add a fourth to.** The

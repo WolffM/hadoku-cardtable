@@ -1775,8 +1775,7 @@ function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | 
  * So this offers every creature the viewer's own that the wire already says
  * is blocking SOMETHING, read off `view.combat`'s planned map
  * (`adapter.ts`'s `CombatBand.plannedBlockers`, which rides
- * `AttackersWithPlannedBlockers` the whole time `InputBlock` runs — see that
- * field's own doc for why the CONFIRMED map would read empty here instead). A
+ * `AttackersWithPlannedBlockers` the whole time `InputBlock` runs). A
  * click Forge actually refuses (it is blocking a different attacker than the
  * current one) costs nothing: `selectCard` only ever offers the click, Forge
  * still decides what it means.

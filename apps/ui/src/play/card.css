@@ -676,6 +676,16 @@
   outline-offset: 2px;
 }
 
+/*
+ * The operator, 2026-10-10: *"when things are assigned as blockers can we give them a different
+ * color? lets make sure we use a color from the theme system."* Forge's own `Blocking`, on both
+ * screens, from the first assignment: the theme's success, which no other card outline uses.
+ */
+.board-card[data-blocking] > .board-card__face {
+  outline: 2px solid var(--success);
+  outline-offset: 2px;
+}
+
 /* ── turned: a quarter turn, inside a landscape box of the same width ─── */
 
 /*

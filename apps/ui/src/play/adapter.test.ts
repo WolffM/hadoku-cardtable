@@ -890,7 +890,7 @@ describe('view.combat — Forge’s CombatView, read off the state channel (X1)'
     expect(adapt(baseState()).combat).toEqual([]);
   });
 
-  it('reads one band per attacking group: attackers, the defender (0=card, 1=player), and its blockers', () => {
+  it('reads one band per attacking group: attackers, the defender (0=card, 1=player), and its live blockers', () => {
     const view = adapt(
       withCombat({
         t: 'combat',
@@ -899,46 +899,41 @@ describe('view.combat — Forge’s CombatView, read off the state channel (X1)'
           [1, 99], // a player
           [0, 55], // a card: a planeswalker or a battle
         ],
-        blk: [[], [30]],
-        pblk: [[], []],
+        blk: [[], []],
+        pblk: [[], [30]],
       }),
     );
     expect(view.combat).toEqual([
-      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [], plannedBlockers: [] },
-      { attackers: [20, 21], defender: { kind: 'card', id: 55 }, blockers: [30], plannedBlockers: [] },
+      { attackers: [10], defender: { kind: 'player', id: 99 }, plannedBlockers: [] },
+      { attackers: [20, 21], defender: { kind: 'card', id: 55 }, plannedBlockers: [30] },
     ]);
   });
 
   it('a band with no entry in `blk` reads as blocked by nobody, not a crash', () => {
     const view = adapt(withCombat({ t: 'combat', atk: [[10]], def: [[1, 99]], blk: [], pblk: [] }));
     expect(view.combat).toEqual([
-      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [], plannedBlockers: [] },
+      { attackers: [10], defender: { kind: 'player', id: 99 }, plannedBlockers: [] },
     ]);
   });
 
   /**
-   * `blk` and `pblk` are two different Forge facts, not one value read
-   * twice (`adapter.ts`'s `CombatBand` doc comment). Forge sends `blk` only
-   * once `AttackingBand.isBlocked()` stops being null — which it does not,
-   * for the whole of `InputBlock` — while `pblk` carries the live assignment
-   * the entire time. So a band mid-declaration is exactly what this fixture
-   * is: a planned blocker with no confirmed one yet.
+   * Forge sends `blk` only once `AttackingBand.isBlocked()` is set, after
+   * declare-blockers has resolved, and then it is the list `pblk` already
+   * carries — so `pblk` is the one read, mid-declaration and after.
    */
-  it('reads the planned map independently of the confirmed one — a block still being declared', () => {
+  it('reads the live map, mid-declaration and once confirmed, and never `blk`', () => {
     const view = adapt(
       withCombat({
         t: 'combat',
         atk: [[10], [20]],
         def: [[1, 99], [1, 98]],
-        // Band 0 is still being declared: Forge has not committed `blk` yet.
-        // Band 1 is already confirmed, and `pblk` still carries the same list.
         blk: [[], [41]],
         pblk: [[30], [41]],
       }),
     );
     expect(view.combat).toEqual([
-      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [], plannedBlockers: [30] },
-      { attackers: [20], defender: { kind: 'player', id: 98 }, blockers: [41], plannedBlockers: [41] },
+      { attackers: [10], defender: { kind: 'player', id: 99 }, plannedBlockers: [30] },
+      { attackers: [20], defender: { kind: 'player', id: 98 }, plannedBlockers: [41] },
     ]);
   });
 

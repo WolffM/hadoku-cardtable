@@ -198,7 +198,6 @@ import {
   boardInteraction,
   choosingMulligan,
   declaringAttackers,
-  declaringBlockers,
   declaringCombat,
   landsToTap,
   payingMana,
@@ -314,23 +313,21 @@ function onBattlefield(match: LiveMatch, id: number): boolean {
 
 /**
  * Lasting block arrows: blocker → attacker for every assignment in
- * `view.combat`. While `declaringBlockers` reads the PLANNED
- * map (`CombatBand.plannedBlockers`) — the only one Forge populates during
- * `InputBlock`, see that field's own doc comment in `adapter.ts` for why —
- * and once Forge has moved past it reads the CONFIRMED one
- * (`CombatBand.blockers`), so the arrow does not vanish the instant the step
- * ends and then only reappears once damage keeps the bands alive. One
- * mechanism with `combatArrows` (`auto-targets.ts`): feeds the same
- * `drawAutoTargetArrows` reconciler this module already calls once per paint,
- * not a second drawer. A band with several attackers (banding) draws every
- * blocker to the band's first attacker — Forge gives the whole band one
- * shared assignment, so there is no second one to point at.
+ * `view.combat`, on both screens — the defender's while it assigns, and the
+ * attacker's watching it. Read off `CombatBand.plannedBlockers`, Forge's live
+ * `combat.getBlockers(band)` in every frame (`GameView.java:216-235`), so an
+ * assignment appears and goes as `InputBlock` makes and undoes it and stays
+ * once the blocks are declared. One mechanism with `combatArrows`
+ * (`auto-targets.ts`): feeds the same `drawAutoTargetArrows` reconciler this
+ * module already calls once per paint, not a second drawer. A band with
+ * several attackers (banding) draws every blocker to the band's first
+ * attacker — Forge gives the whole band one shared assignment, so there is no
+ * second one to point at.
  */
 function blockArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
-  const declaring = declaringBlockers(match);
   const out: AutoTargetArrow[] = [];
   for (const band of match.view?.combat ?? []) {
-    const blockerIds = declaring ? (band.plannedBlockers ?? []) : band.blockers;
+    const blockerIds = band.plannedBlockers ?? [];
     if (blockerIds.length === 0) continue;
     const attackerId = band.attackers[0];
     if (attackerId === undefined) continue;
