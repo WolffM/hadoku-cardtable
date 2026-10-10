@@ -14,10 +14,15 @@
  * `edge-auth.ts` is written about, and the spec checks it bites.
  */
 
+import { readFileSync } from 'node:fs';
 import { createServer, request, type IncomingHttpHeaders, type Server } from 'node:http';
 import { connect } from 'node:net';
 
 import { FRIENDS, PREFIX, SESSION_COOKIE } from './identities.ts';
+
+/** Where `embed-host.html` is served: a watchparty-shaped path, outside `/cardtable/`. */
+export const EMBED_HOST_PATH = '/watchparty/embed-host.html';
+const EMBED_HOST_PAGE = new URL('./embed-host.html', import.meta.url);
 
 export interface EdgeOptions {
   port: number;
@@ -71,6 +76,12 @@ export function stripPrefix(url: string): string | null {
 
 export function startEdge(opts: EdgeOptions): Promise<Server> {
   const server = createServer((req, res) => {
+    // The one page that is not cardtable's: a stand-in for a watchparty room,
+    // on the same origin and outside the prefix, that mounts the embed (D21).
+    if (new URL(req.url ?? '/', 'http://edge').pathname === EMBED_HOST_PATH) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(readFileSync(EMBED_HOST_PAGE));
+      return;
+    }
     const path = stripPrefix(req.url ?? '/');
     if (path === null) {
       res.writeHead(404, { 'content-type': 'text/plain' }).end('not an edge route');

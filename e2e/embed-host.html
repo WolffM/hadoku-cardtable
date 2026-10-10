@@ -1,0 +1,85 @@
+<!doctype html>
+<!--
+  A stand-in for a watchparty room page (D21): a game slot beside a chat
+  column, on the same origin as cardtable but NOT under /cardtable/. It loads
+  the built game bundle exactly the way watchparty does — `import()` the entry
+  URL, then `mount(slot, ctx)` — and nothing else.
+
+  `edge.ts` serves it at /watchparty/embed-host.html. Query parameters build
+  the context: `roomKey` (required), `theme` (default `dark`), `leader=1`.
+  `mount=manual` stops it mounting on load, so a spec can take its baselines
+  first and call `embedHost.mount()` itself. `embedHost` is the handle:
+  `mount()`, `update(patch)`, `unmount()`, and `closed` once the bundle has
+  asked to close.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>embed host</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: rgb(250, 240, 230);
+        font-family: serif;
+      }
+      #slot {
+        position: fixed;
+        inset: 0 18rem 0 0;
+      }
+      #side {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 18rem;
+        padding: 8px;
+        box-sizing: border-box;
+        border-left: 1px solid #999;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="slot" data-testid="game-slot"></div>
+    <aside id="side">
+      <input data-testid="host-chat" aria-label="Chat" />
+    </aside>
+    <script type="module">
+      const query = new URLSearchParams(location.search);
+      const roomKey = query.get('roomKey');
+      if (roomKey === null) throw new Error('embed-host: ?roomKey= is required');
+
+      const host = {
+        closed: false,
+        mounted: null,
+        ctx: {
+          roomKey,
+          identity: { userId: 'embed-host', userType: 'friend', name: null },
+          theme: query.get('theme') ?? 'dark',
+          isLeader: query.get('leader') === '1',
+          close() {
+            host.closed = true;
+          },
+        },
+        async mount() {
+          const bundle = await import('/cardtable/embed/cardtable-embed.js');
+          host.mounted = await bundle.mount(document.getElementById('slot'), host.ctx);
+          document.body.dataset.mounted = 'true';
+        },
+        update(patch) {
+          host.ctx = { ...host.ctx, ...patch };
+          host.mounted.update(host.ctx);
+        },
+        unmount() {
+          host.mounted.unmount();
+          host.mounted = null;
+          document.body.dataset.mounted = 'false';
+        },
+      };
+      window.embedHost = host;
+      if (query.get('mount') !== 'manual') await host.mount();
+    </script>
+  </body>
+</html>
