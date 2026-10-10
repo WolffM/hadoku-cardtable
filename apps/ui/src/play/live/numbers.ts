@@ -41,20 +41,21 @@
  * ## The theme, not a colour of our own
  *
  * `--danger`/`--danger-ink` for a loss (life down, a hit) and for the pill,
- * `--success`/`--success-ink` for a life gain, `--ink-faint` for the
- * struck-through old life value, `--bg` for every number's and the pill's
- * own outline. No other colour exists here. A cleanup wipe (damage
+ * `--success`/`--success-ink` for a life gain, `--bg` for every number's
+ * and the pill's own outline. No other colour exists here. A cleanup wipe (damage
  * decreasing) is not drawn at all — it only ever removes the pill.
  *
  * ## Life's counter
  *
  * `Board.tsx` renders `player.life` directly — this module does not own that
  * markup and does not change it structurally. What it does is reach into the
- * ALREADY-RENDERED `[data-testid="life"]` span for the 1.5s window the design
- * asks for: an old-value sibling, struck through, and the live span stepped
- * through `tickSteps` at `TICK_STEP_MS` apart (at once in Fast Mode) before
- * settling back to whatever the next React render put there (which is
- * already the same number, so nothing visibly snaps).
+ * ALREADY-RENDERED `[data-testid="life"]` span: it takes the loss or gain
+ * colour for `LIFE_COLOUR_MS` and is stepped through `tickSteps` at
+ * `TICK_STEP_MS` apart (at once in Fast Mode) before settling back to whatever
+ * the next React render put there (which is already the same number, so
+ * nothing visibly snaps). Nothing is drawn beside it: the operator, 2026-10-10,
+ * of a struck-through old value that sat above the counter, *"let's just remove
+ * teh weird crossed out number so the UI doesn't shift"*.
  *
  * ## Dying
  *
@@ -90,7 +91,7 @@ export const POP_THRESHOLD = 5;
 export const STACK_OFFSET_PX = 12;
 export const STACK_STAGGER_MS = 80;
 export const TICK_STEP_MS = 150;
-export const OLD_VALUE_MS = 1500;
+export const LIFE_COLOUR_MS = 1500;
 /** Half of `RISE_MS` — the number's own halfway point, where a dying creature's number turns toward the graveyard. */
 export const DEATH_FADE_START_MS = RISE_MS / 2;
 export const DEATH_FADE_MS = 420;
@@ -368,23 +369,16 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
   }
 
-  /** The seat bar's own life span: an old-value sibling, struck through, and the live number stepped through on its way to what React already rendered there. */
+  /** The seat bar's own life span: coloured, and stepped through on its way to what React already rendered there. */
   function animateLifeCounter(playerId: number, from: number, to: number): void {
     const face = faceEl(playerId);
     const lifeSpan = face?.querySelector<HTMLElement>('[data-testid="life"]') ?? null;
     if (lifeSpan === null) return;
     const colour = lifeColour(to - from);
     lifeSpan.dataset.numberLifeColour = colour;
-
-    const old = document.createElement('span');
-    old.className = 'board-number__life-old';
-    old.setAttribute('aria-hidden', 'true');
-    old.textContent = String(from);
-    lifeSpan.insertAdjacentElement('beforebegin', old);
     schedule(() => {
-      old.remove();
       delete lifeSpan.dataset.numberLifeColour;
-    }, OLD_VALUE_MS);
+    }, LIFE_COLOUR_MS);
 
     const steps = tickSteps(from, to);
     if (fast() || steps.length === 0) {
@@ -492,10 +486,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         .forEach((el) => el.remove());
       for (const pill of pills.values()) pill.remove();
       pills.clear();
-      // The old-value sibling and the colour it set sit beside the seat bar's
-      // own life span, outside the overlay — the one piece of this module
-      // that reaches into markup it does not own.
-      canvas.querySelectorAll<HTMLElement>('.board-number__life-old').forEach((el) => el.remove());
+      // The colour sits on the seat bar's own life span, outside the overlay —
+      // the one piece of this module that reaches into markup it does not own.
       canvas.querySelectorAll<HTMLElement>('[data-testid="life"][data-number-life-colour]').forEach((el) => {
         delete el.dataset.numberLifeColour;
       });

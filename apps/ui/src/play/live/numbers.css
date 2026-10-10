@@ -109,10 +109,7 @@
 
 /*
  * The life counter's own 1.5s window (`numbers.ts`'s `animateLifeCounter`):
- * the live `[data-testid="life"]` span takes the colour while it ticks, and
- * the old value sits beside it, struck through, in the faint ink — never a
- * colour of its own, the same rule a struck-through price or a superseded
- * value anywhere else in the theme would follow.
+ * the live `[data-testid="life"]` span takes the colour while it ticks.
  */
 [data-testid='life'][data-number-life-colour='danger'] {
   color: var(--danger-ink);
@@ -120,13 +117,6 @@
 
 [data-testid='life'][data-number-life-colour='success'] {
   color: var(--success-ink);
-}
-
-.board-number__life-old {
-  margin-right: 2px;
-  color: var(--ink-faint);
-  text-decoration: line-through;
-  font-variant-numeric: tabular-nums;
 }
 
 /*

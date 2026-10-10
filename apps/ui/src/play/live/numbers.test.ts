@@ -13,7 +13,7 @@ import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import {
   DEATH_FADE_MS,
   DEATH_FADE_START_MS,
-  OLD_VALUE_MS,
+  LIFE_COLOUR_MS,
   POP_MS,
   POP_THRESHOLD,
   RISE_MS,
@@ -258,7 +258,7 @@ describe('installNumbers: life', () => {
     handle.dispose();
   });
 
-  it('the seat bar’s own life span ticks in 150ms steps, with the old value struck through for 1.5s', () => {
+  it('the seat bar’s own life span ticks in 150ms steps, coloured for 1.5s, with nothing drawn beside it', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
@@ -269,8 +269,7 @@ describe('installNumbers: life', () => {
     handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
 
     expect(lifeSpan.textContent, 'not yet stepped').toBe('20');
-    const old = face1.querySelector('.board-number__life-old')!;
-    expect(old.textContent, 'the old value, struck through').toBe('20');
+    expect(face1.textContent, 'no old value beside the counter').toBe(lifeSpan.textContent);
     expect(lifeSpan.dataset.numberLifeColour).toBe('danger');
 
     vi.advanceTimersByTime(TICK_STEP_MS);
@@ -280,15 +279,14 @@ describe('installNumbers: life', () => {
     vi.advanceTimersByTime(TICK_STEP_MS);
     expect(lifeSpan.textContent).toBe('17');
 
-    vi.advanceTimersByTime(OLD_VALUE_MS - 3 * TICK_STEP_MS - 1);
-    expect(face1.querySelector('.board-number__life-old'), 'still struck through, 1.5s not up yet').not.toBeNull();
+    vi.advanceTimersByTime(LIFE_COLOUR_MS - 3 * TICK_STEP_MS - 1);
+    expect(lifeSpan.dataset.numberLifeColour, 'still coloured, 1.5s not up yet').toBe('danger');
     vi.advanceTimersByTime(1);
-    expect(face1.querySelector('.board-number__life-old')).toBeNull();
     expect(lifeSpan.dataset.numberLifeColour).toBeUndefined();
     handle.dispose();
   });
 
-  it('Fast Mode: the counter jumps straight to the new value; the old value still sits struck through for 1.5s', () => {
+  it('Fast Mode: the counter jumps straight to the new value, with nothing drawn beside it', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true });
@@ -299,7 +297,7 @@ describe('installNumbers: life', () => {
     handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
 
     expect(lifeSpan.textContent, 'Fast Mode: no stepping').toBe('17');
-    expect(face1.querySelector('.board-number__life-old')!.textContent).toBe('20');
+    expect(face1.textContent, 'no old value beside the counter').toBe('17');
     handle.dispose();
   });
 
@@ -493,7 +491,6 @@ describe('installNumbers: dispose', () => {
 
     handle.dispose();
     expect(overlay.querySelectorAll('.board-number')).toHaveLength(0);
-    expect(face1.querySelector('.board-number__life-old')).toBeNull();
     expect(face1.querySelector('[data-testid="life"]')!.hasAttribute('data-number-life-colour')).toBe(false);
 
     // A notify after dispose does nothing — the handle is dead.
