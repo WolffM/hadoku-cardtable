@@ -20,6 +20,8 @@ export interface Beat {
   seat?: Seat;
   /** Layer the seat's colour identity in this column on top of the role. */
   layer?: ParadigmId;
+  /** An exact colour cell instead, as a real card names one (`./captured.ts`). Wins over `layer`. */
+  colourCell?: string | null;
 }
 
 export interface Scenario {
@@ -35,7 +37,8 @@ export interface Identities {
 
 export function beatEvent(beat: Beat, identities: Identities): SoundEvent {
   const seat = beat.seat ?? 'me';
-  const colourCell = beat.layer === undefined ? null : `${identities[seat]}|${beat.layer}`;
+  const colourCell =
+    beat.colourCell !== undefined ? beat.colourCell : beat.layer === undefined ? null : `${identities[seat]}|${beat.layer}`;
   return { role: beat.role, colourCell, seat };
 }
 

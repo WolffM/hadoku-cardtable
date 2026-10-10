@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isCellId, SOUND_ROLES } from '@hadoku/shared';
 
 import { createMixPlanner, DEFAULT_MIX, type MixSettings } from './mix.ts';
+import { capturedGameScenario } from './captured.ts';
 import { beatEvent, SCENARIOS } from './scenarios.ts';
 
 const MIX: MixSettings = { bus: { ui: 0.5, game: 1, colour: 0.8, music: 0.35 }, opponent: 0.6, collapseMs: 80 };
@@ -68,13 +69,20 @@ describe('plan', () => {
 
 describe('SCENARIOS', () => {
   it('every beat names a real role, and its colour layer is a real cell', () => {
-    for (const s of SCENARIOS) {
+    for (const s of [...SCENARIOS, capturedGameScenario()]) {
       for (const b of s.beats) {
         expect(SOUND_ROLES.has(b.role), `${s.id}: ${b.role}`).toBe(true);
         const cell = beatEvent(b, { me: 'RG', opp: 'UB' }).colourCell;
         if (cell != null) expect(isCellId(cell), `${s.id}: ${cell}`).toBe(true);
       }
     }
+  });
+
+  it('the captured game plays a real stream: a creature resolving into its voice, a land with its type', () => {
+    const beats = capturedGameScenario().beats;
+    expect(beats.length).toBeGreaterThan(50);
+    expect(beats).toContainEqual(expect.objectContaining({ role: 'g.creature', colourCell: 'R|creature' }));
+    expect(beats).toContainEqual(expect.objectContaining({ role: 'g.land', colourCell: 'R|land' }));
   });
 
   it('beats are in time order and ids are unique', () => {

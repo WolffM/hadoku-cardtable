@@ -24,7 +24,7 @@ import { soundsClient, type SoundsClient } from '../sound/builderClient.ts';
 import { GainSlider } from '../sound/GainSlider.tsx';
 import { DEFAULT_MIX, type MixSettings, type PlanResult } from '../sound/mix.ts';
 import { createMixer, type Mixer } from '../sound/mixer.ts';
-import { beatEvent, SCENARIOS, type Beat, type Identities } from '../sound/scenarios.ts';
+import { beatEvent, SCENARIOS, type Beat, type Identities, type Scenario } from '../sound/scenarios.ts';
 import './SoundBuilder.css';
 
 export interface SoundSandboxProps {
@@ -83,6 +83,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
   const [mix, setMix] = useState<MixSettings>(loadMix);
   const [playing, setPlaying] = useState(false);
   const [fired, setFired] = useState<ReadonlyMap<number, Fired>>(new Map());
+  const [captured, setCaptured] = useState<Scenario | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Read when the run ends, not when it started, so ticking Loop mid-run counts.
   const loopRef = useRef(loop);
@@ -117,7 +118,8 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
   };
   useEffect(() => stop, []);
 
-  const scenario = SCENARIOS.find((s) => s.id === scenarioId) ?? SCENARIOS[0]!;
+  const scenarios = captured === null ? SCENARIOS : [...SCENARIOS, captured];
+  const scenario = scenarios.find((s) => s.id === scenarioId) ?? SCENARIOS[0]!;
   const labelOf = useMemo(() => new Map(takes.map((t) => [t.file, t.label])), [takes]);
 
   const fire = (beat: Beat, index: number): void => {
@@ -215,7 +217,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
 
       <div className="sound-builder__panes">
         <aside className="sound-builder__bin" aria-label="Scenarios">
-          {SCENARIOS.map((s) => (
+          {scenarios.map((s) => (
             <button
               key={s.id}
               type="button"
@@ -230,6 +232,23 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
               {s.name}
             </button>
           ))}
+          {captured === null && (
+            <button
+              type="button"
+              className="sound-sandbox__scenario"
+              aria-pressed={false}
+              onClick={() => {
+                stop();
+                void import('../sound/captured.ts').then(({ capturedGameScenario }) => {
+                  setCaptured(capturedGameScenario());
+                  setFired(new Map());
+                  setScenarioId('captured');
+                });
+              }}
+            >
+              Captured game
+            </button>
+          )}
         </aside>
 
         <main className="sound-builder__main">
