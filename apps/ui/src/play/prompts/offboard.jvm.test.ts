@@ -54,6 +54,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_STOP_POLICY } from '../../../../server/src/play/auto.ts';
 import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
 
 const title = available.ok
@@ -78,7 +79,9 @@ const PAY_X_LABEL = /you may pay \{X\}/;
  * a click on `GetAbilityToPlayPrompt`'s own "None" button, or on the
  * ability, would send. Auto-pays any live mana window (Kozilek's Return's
  * `{2}{R}`, then `TrigReturn`'s `{B}` — the scenario's Swamp is there for
- * exactly this).
+ * exactly this). A trigger's one-ability offer reaches a seat only with the
+ * one-answer shortcut off (in the product: full control), so the match runs
+ * with it off.
  */
 async function castAndDecideX(seed: number, decideX: 'play' | 'decline'): Promise<Scenario> {
   if (!available.ok) throw new Error(available.reason);
@@ -86,6 +89,7 @@ async function castAndDecideX(seed: number, decideX: 'play' | 'decline'): Promis
     seed,
     decks: DECKS,
     scenario: scenarioText('w42-relentless-dead'),
+    policy: { ...DEFAULT_STOP_POLICY, answerOneAnswerAsks: false },
     reply: (f: { method: string; abilities?: { label?: string }[] }) => {
       if (f.method !== 'getAbilityToPlay') return undefined;
       const only = f.abilities?.[0];

@@ -447,6 +447,14 @@ export interface SeatState {
 	 */
 	chosenAbility: { hostCard: number; abilityId: number } | null;
 	/**
+	 * The card this seat last clicked (`selectCard`), until the next
+	 * `getAbilityToPlay` it receives. A one-ability offer for exactly this card
+	 * is the click's own and goes to the browser, which says what was played; any
+	 * other (a trigger, an effect casting a card) is answered here
+	 * ({@link Match.openAsk}).
+	 */
+	clicked: number | null;
+	/**
 	 * Wave 35 §S, R4 — a REVEAL ({@link asReveal}) held back to
 	 * see whether the very next ask to this seat is the real discard choice it
 	 * belongs to (Thoughtseize's "look at hand" step). See
@@ -897,6 +905,7 @@ export class Match {
 			says: [],
 			lastAbilityToPlay: null,
 			chosenAbility: null,
+			clicked: null,
 			pendingReveal: null,
 			mergedChoice: new Map(),
 			pendingPrompt: null,
@@ -1353,6 +1362,7 @@ export class Match {
 				// paid and `trackPayment` must not report one (item 7). The same note
 				// covers the player's own press and `maybeCancelUnpayable`'s.
 				if (frame.method === 'selectButtonCancel' && s.payment !== null) s.paymentCancelled = true;
+				if (frame.method === 'selectCard') s.clicked = frame.card.id;
 				this.disableStaleButtons(s);
 				this.command({ t: 'act', seat, frame });
 				return { ok: true };
@@ -2598,23 +2608,9 @@ export class Match {
 	 * it here is complete, not a partial duplicate.
 	 */
 	private openAsk(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask' }>): void {
-		const repeat = frame.method === 'getAbilityToPlay' ? repeatedAbilityToPlay(frame, s.lastAbilityToPlay) : null;
-		if (repeat !== null && frame.method === 'getAbilityToPlay') {
-			s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (repeat.result as { id: number }).id };
-			s.chosenAbility = s.lastAbilityToPlay;
-			s.autoAnswered += 1;
-			this.deps.log({
-				evt: 'ask-auto-answered',
-				matchId: this.id,
-				seat: s.seat,
-				callId: repeat.callId,
-				method: repeat.method,
-				why: repeat.why,
-			});
-			this.command({ t: 'reply', seat: s.seat, callId: repeat.callId, result: repeat.result });
-			return;
-		}
-		const auto = s.fullControl ? null : onlyAnswer(frame, s.policy);
+		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
+		if (frame.method === 'getAbilityToPlay') s.clicked = null;
+		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : onlyAnswer(frame, s.policy));
 		if (auto !== null) {
 			s.autoAnswered += 1;
 			this.deps.log({
@@ -2625,6 +2621,10 @@ export class Match {
 				method: auto.method,
 				why: auto.why,
 			});
+			if (frame.method === 'getAbilityToPlay') {
+				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
+				s.chosenAbility = s.lastAbilityToPlay;
+			}
 			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
 			if (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);

@@ -594,11 +594,13 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
  * `triggerEvent: null` (`../live/match.ts`'s `selectCard`). Our bridge opens an
  * ask regardless (`PlayBridge.java:1010-1013`), which is why a one-ability offer
  * reached the browser at all; answering it here restores Forge's behaviour
- * rather than inventing one. And a one-ability offer is always the direct consequence of
- * THIS seat's own click — `InputPassPriority` for a card in hand, or
- * `InputPayMana.onCardSelected` for a land, which plays a lone mana ability
- * itself and only asks for two or more (`InputPayMana.java:101-106`) — so the
- * player has already said what they want.
+ * rather than inventing one. And a one-ability offer that reaches this side is always the
+ * direct consequence of THIS seat's own click — `InputPassPriority` for a card in hand,
+ * or `InputPayMana.onCardSelected` for a land, which plays a lone mana ability itself
+ * and only asks for two or more (`InputPayMana.java:101-106`) — so the player has
+ * already said what they want. Every other one-ability offer (a trigger, an effect
+ * casting a card) is answered by the server and never reaches the wire
+ * (`apps/server/src/play/match.ts`'s `openAsk`).
  *
  * ## Why a REVEAL is not answered here (wave 24 §D.5)
  *

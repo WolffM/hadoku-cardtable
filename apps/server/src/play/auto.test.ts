@@ -149,18 +149,6 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		return parseServerFrame({ ...(fixture(file) as unknown as Record<string, unknown>), ...patch });
 	}
 
-	it('getAbilityToPlay is never auto-answered HERE, one ability or many', () => {
-		// Wave 20 reversed the exclusion for the single-option case — but on the
-		// BROWSER side, in `apps/ui/src/play/prompts/rules.ts`'s `autoAnswer`, the
-		// only place that can name the ability it played (labels are resolved
-		// there, over the offer's own `label`). Two statements of one policy is
-		// what this assertion keeps out of this file. See `auto.ts`'s header.
-		const ask = fixture('getAbilityToPlay.json') as Extract<ServerFrame, { method: 'getAbilityToPlay' }>;
-		const one = narrowed('getAbilityToPlay.json', { abilities: [ask.abilities[0]] });
-		expect(onlyAnswer(one)).toBeNull();
-		expect(onlyAnswer(ask)).toBeNull();
-	});
-
 	it('getChoices with one option and a floor of one answers it', () => {
 		const ask = fixture('getChoices.json') as Extract<ServerFrame, { method: 'getChoices' }>;
 		const one = narrowed('getChoices.json', { choices: [ask.choices[0]], min: 1, max: 1 });
@@ -194,6 +182,15 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		>;
 		const all = narrowed('chooseEntitiesForEffect.json', { min: ask.optionList.length, max: ask.optionList.length });
 		expect(onlyAnswer(all)).toMatchObject({ result: ask.optionList });
+	});
+
+	it('getAbilityToPlay with one ability plays it; with two it is a question', () => {
+		const ask = fixture('getAbilityToPlay.json') as Extract<ServerFrame, { method: 'getAbilityToPlay' }>;
+		expect(ask.abilities.length).toBeGreaterThan(1);
+		expect(onlyAnswer(ask)).toBeNull();
+		const one = narrowed('getAbilityToPlay.json', { abilities: [ask.abilities[0]] });
+		expect(onlyAnswer(one)).toMatchObject({ result: ask.abilities[0], why: 'one ability' });
+		expect(onlyAnswer(one, FULL_CONTROL_POLICY)).toBeNull();
 	});
 
 	it('showOptionDialog with one button presses it', () => {
@@ -307,8 +304,6 @@ describe('the captured turn flow — every rule against frames Forge really sent
 			if (ask.method !== 'getAbilityToPlay') continue;
 			expect(ask.abilities, JSON.stringify(ask.abilities)).toHaveLength(1);
 			expect(typeof ask.abilities[0]?.label).toBe('string');
-			// And the server leaves every one of them alone — `rules.ts` answers them.
-			expect(onlyAnswer(ask)).toBeNull();
 		}
 	});
 
@@ -972,10 +967,11 @@ describe('Q17: a seat does not hold priority on its own spell', () => {
 });
 
 describe('a Match with the shortcuts on (the default)', () => {
-	it('gives a one-ability ask to the player, and answers a bounds question for them', () => {
+	it('gives the one-ability ask its own click opened to the player, and answers a bounds question for them', () => {
 		const h = harness();
-		// Payment open or not, the ability ask is the player’s (see `auto.ts`).
+		// Payment open or not, the ability ask the seat's click opened is the player’s (see `auto.ts`).
 		push(h, 0, prompt('Preordain.\n\nPay Mana Cost: {U}', playerOf(h, 0)));
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 67 }, otherCardViewsToSelect: [], triggerEvent: null }));
 		push(h, 0, oneAbilityAsk('a-1'));
 		expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'a-1')).toHaveLength(1);
 		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([]);

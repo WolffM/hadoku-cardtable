@@ -618,15 +618,17 @@ export function namedStopPolicy(name: string | undefined | null): StopPolicy | n
  * and `sideboard` are never auto-answered: each is a real question. There is no
  * prose in here and there never was — the rules are bounds arithmetic.
  *
- * `getAbilityToPlay` is not here. A one-ability offer of it IS answered, but on
- * the BROWSER side, by `autoAnswer` in `apps/ui/src/play/prompts/rules.ts`,
- * because the shortcut must be able to SAY what it played and the offer's label
- * is resolved on that side. Keeping the case in ONE place means keeping it
- * there. Payment never produces a one-ability offer anyway:
- * `InputPayMana.activateCard` plays a single mana ability without asking
- * (`InputPayMana.java:101-106`) and only calls `getAbilityToPlay` for two or
- * more — which is #6, and which {@link decidePay} removes by pressing Auto
- * before the land is ever clicked.
+ * A one-ability `getAbilityToPlay` is answered with that ability. Forge asks it
+ * for every trigger it puts on the stack (`PlaySpellAbility.
+ * chooseOptionalAdditionalCosts`, reached from `orderAndPlaySimultaneousSa`),
+ * with the trigger as the only option, and a trigger nobody clicked is not the
+ * player's question. The one offer `match.ts` keeps from this rule is the one
+ * the seat's own click opened: the browser answers that one (`autoAnswer` in
+ * `apps/ui/src/play/prompts/rules.ts`) so it can SAY what was played. Payment
+ * never produces a one-ability offer: `InputPayMana.activateCard` plays a
+ * single mana ability without asking (`InputPayMana.java:101-106`) and only
+ * calls `getAbilityToPlay` for two or more — which is #6, and which
+ * {@link decidePay} removes by pressing Auto before the land is ever clicked.
  *
  * An ask in which nothing may be chosen (`max <= 0`) never reaches this: it is
  * a reveal, answered and shown by `match.ts` before any ask is opened.
@@ -658,6 +660,9 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 
 		case 'showOptionDialog':
 			return frame.options.length === 1 ? ok(callId, frame.method, 0, 'one button') : null;
+
+		case 'getAbilityToPlay':
+			return frame.abilities.length === 1 ? ok(callId, frame.method, frame.abilities[0], 'one ability') : null;
 
 		case 'order': {
 			// One item that must be placed has exactly one arrangement. With any
@@ -695,10 +700,9 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
  * Wave 34 §S4 — Forge's own answer to a `getAbilityToPlay` it is re-asking
  * itself, not the player.
  *
- * `onlyAnswer` never answers `getAbilityToPlay` (its own comment says why: a
- * one-ability offer of it is answered on the BROWSER side, by `autoAnswer` in
- * `apps/ui/src/play/prompts/rules.ts`, when full control is off). That still
- * leaves full control staring at a genuine Forge quirk, confirmed against a
+ * The offer a seat's own click opened is answered by the browser, not by
+ * {@link onlyAnswer} (its own comment says why), and only when full control is
+ * off. That still leaves full control staring at a genuine Forge quirk, confirmed against a
  * real jar: casting ANY single ability — a spell, an activated ability, even
  * tapping a land for mana — sends `getAbilityToPlay` TWICE, with the SAME
  * host card and the SAME one ability both times, from TWO different places:
