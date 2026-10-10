@@ -1,0 +1,19 @@
+# A Signet tapped inside a spell's payment. Seat 0's own turn-1 Main Phase 1:
+# two Islands and Izzet Signet; Divination ({2}{U}) in hand. The Islands make
+# two; an Island through the Signet makes {U}{R}, so three — Divination is
+# payable only with the Signet, and the Signet's own {1} is a payment inside the
+# payment. On fork 7ddd4daa that inner payment waited for an act queued behind
+# the very thread it held, and the seat froze (`e2e/w68-pay.spec.ts`).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Divination
+humanbattlefield=Island;Island;Izzet Signet
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
