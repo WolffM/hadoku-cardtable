@@ -104,7 +104,7 @@ table under them is the only part that should change.
 | B | Cardtable reports matches + Stats screen | **Landed** `5c5eea6`; recording waits on the prod service key | `apps/server/src/stats/`, `apps/ui/src/stats/`, `#/stats` |
 | C | Bomberman in its own repo, cardtable-shaped | **Repo live**, port in progress | `WolffM/hadoku-bomberman` (private); `docs/PORT_BRIEF.md` there is its task list |
 | D | Both games clickable from the games host | Cardtable **live**; Bomberman card inert until its page serves | hadoku_site `c78c22cf`, `src/pages/games/index.astro` |
-| E | Cardtable loadable inside watchparty | **Not started** — design below | |
+| E | Cardtable loadable inside watchparty | **Built** on branch `embed`, not landed; watchparty's slot built in parallel | D21; `apps/ui/src/embed/`, `/cardtable/embed/cardtable-embed.js`, `POST /api/rooms/watchparty`, `e2e/embed.spec.ts` |
 | F | Watchparty's player as "just another game bundle" | **Not started** | |
 | G | Shared stats UI package | Not started — cardtable's `StatsTables.tsx` is written to lift | |
 | H | Bomberman history import + watchparty-stats deletion | Not started | bomberman brief §5, §7 |

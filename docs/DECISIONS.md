@@ -504,6 +504,9 @@ first.
 
 ## D17 — Cardtable is its own app and imports room UI · settled · 2026-09-16 · operator
 
+> **Amended 2026-10-10 by D21:** still its own app, and it also ships a game
+> bundle a watchparty room mounts. Read D21 before planning off this entry.
+
 **Supersedes D6's mechanism; keeps its layout intent.**
 
 D6 said the Forge UI renders *inside* a watchparty room's central canvas slot,
@@ -747,3 +750,57 @@ and arm 5 (no copied Scryfall `image_uris` blob), and neither is about origin.
 
 **Rules out:** treating O10 as a live question; and restoring a host allowlist
 without a new operator decision, which D18 already said.
+
+---
+
+## D21 — Cardtable also ships a game bundle watchparty mounts · settled · 2026-10-10 · operator
+
+**Amends D17; does not reverse it.** Cardtable stays its own app — its own
+route, its own server, its standalone page unchanged, still importing
+watchparty's room chrome there. It *also* ships
+`/cardtable/embed/cardtable-embed.js`, an ES module a watchparty room imports
+and mounts in the slot its media player occupies. Two deployments of one UI.
+
+The operator, setting the goal (`docs/planning/games-platform-vision.md`): the
+games should each be a *"standalone page"*, a *"loadable submodule inside
+watchparty"*, and *"clickable inside games-host"*. On how, answering whether an
+iframe or a package: *"iframe sounds slow. are we not able to deliver a static
+package? i guess the issue is the server component. so maybe (b) is better. we
+need to make sure the watchparty component loading our package is as thin as
+possible so they dont need to make any changes."*
+
+**A module, not an iframe.** The bundle is static; the server stays our PM2
+process, reached same-origin, so the edge cookie authenticates every request
+and socket exactly as on the standalone page. An iframe would load a second
+document and a second copy of React and the fleet's CSS, and need a
+`postMessage` bridge D17 already dropped once.
+
+**The contract** is watchparty's, generic to every game (they publish it from
+`@wolffm/rooms-protocol`, module `game-bundle`; `apps/ui/src/embed/contract.ts`
+holds it until then): `mount(el, { roomKey, identity, theme, isLeader, close })`
+→ `{ update, unmount }`. `roomKey` is watchparty's room id, opaque to us.
+
+**The shape, settled:**
+
+- **The table is bound to the watchparty room.** `POST /api/rooms/watchparty`
+  makes or joins `wp-<20 hex of sha256(roomKey)>`, so everyone in that room
+  lands at one table without an id being passed around.
+- **Chromeless.** No `AppHeader`, no `RoomShell`/`RoomChrome` — watchparty is
+  the chrome. The match settings get a gear of their own in place of the
+  header's.
+- **A shadow root, not the page.** Styles adopted by the shadow root (one
+  build-time sheet, `:root`/`html`/`body` → `:host`), fonts and `@property`
+  lent to the document while mounted, routes in memory, document-wide lookups,
+  hit tests and window-level event targets read through the shadow boundary
+  (`apps/ui/src/dom.ts`). `unmount()` leaves nothing; `e2e/embed.spec.ts`
+  counts it.
+- **Not used from the context:** `identity` (the server's identity is the
+  edge's, and a second identity path is how this app shipped `anon` once),
+  `isLeader` (the cardtable room has its own leader, enforced by the server; a
+  client gate on watchparty's would be a second authority), and `close()`
+  (leaving a match returns to the table; closing the slot is watchparty's).
+
+**Rules out:** an iframe payload; a cardtable-specific mount in watchparty; the
+embed growing its own header, roster or chat; and a second concurrent mount on
+one page (refused — the route, the scope and a few play modules are page
+singletons, as on the standalone page).
