@@ -39,8 +39,9 @@
  * watchparty's room frame — its chat aside with it — is never stretched by a
  * long deck list (the operator, 2026-10-10: *"the watchparty interface should
  * not be affected by page length"*). A screen opts in by its shell's class.
+ * The sound picker too, so its bin and its grid scroll independently (same day).
  */
-.cardtable-chrome:has(.shell--fit, .shell--match) {
+.cardtable-chrome:has(.shell--fit, .shell--match, .sound-builder) {
   height: 100dvh;
   min-height: 0;
 }

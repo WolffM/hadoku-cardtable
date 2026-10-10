@@ -474,3 +474,30 @@ a.sound-builder__btn {
   font: inherit;
   cursor: pointer;
 }
+
+/*
+ * The Roles view in columns (the operator, 2026-10-10: "it's all just single
+ * horizontal rows, can we make some columns so the page doesn't get so long"):
+ * each role group is a card, as many side by side as the grid's width holds.
+ */
+.sound-builder__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.sound-builder__groups .sound-builder__matrix {
+  min-width: 0;
+}
+
+.sound-builder__groups .sound-builder__matrix tbody th {
+  width: 40%;
+}
+
+/* In a card the role's name sits above its line, not squeezed beside it. */
+.sound-builder__groups .sound-builder__rowname {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}

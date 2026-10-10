@@ -430,60 +430,63 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
           </section>
           )}
 
-          {tab === 'roles' &&
-            SOUND_ROLE_GROUPS.map((group) => (
-              <section key={group.id} className="sound-builder__section">
-                <h2>{group.name}</h2>
-                <div className="sound-builder__table-wrap">
-                  <table className="sound-builder__matrix">
-                    <tbody>
-                      {group.roles.map((role) => {
-                        const cellId = `${role.id}|play`;
-                        const files = cells[cellId] ?? [];
-                        return (
-                          <tr key={role.id}>
-                            <th scope="row">
-                              <div className="sound-builder__rowname">
-                                <button
-                                  type="button"
-                                  className="sound-builder__rolefind"
-                                  aria-label={`Show takes for ${role.name}`}
-                                  onClick={() => setQuery(role.name)}
-                                >
-                                  {role.name}
-                                </button>
-                                <span className="sound-builder__rowsub">{role.sub}</span>
-                              </div>
-                            </th>
-                            <td>
-                              <Cell
-                                cellId={cellId}
-                                files={files}
-                                byFile={byFile}
-                                holding={holding}
-                                unsaved={unsaved.has(cellId)}
-                                onAddTo={addTo}
-                                onRemoveFrom={removeFrom}
-                                onDrop={onDropOnCell}
-                                onPlayRandom={playRandom}
-                                onPlayPill={(f) => player.playFile(f, gainOf(cellId))}
-                              />
-                              {files.length > 0 && (
-                                <GainSlider
-                                  label={role.name}
-                                  value={gainOf(cellId)}
-                                  onCommit={(v) => commitGain(cellId, v)}
+          {tab === 'roles' && (
+            <div className="sound-builder__groups">
+              {SOUND_ROLE_GROUPS.map((group) => (
+                <section key={group.id} className="sound-builder__section">
+                  <h2>{group.name}</h2>
+                  <div className="sound-builder__table-wrap">
+                    <table className="sound-builder__matrix">
+                      <tbody>
+                        {group.roles.map((role) => {
+                          const cellId = `${role.id}|play`;
+                          const files = cells[cellId] ?? [];
+                          return (
+                            <tr key={role.id}>
+                              <th scope="row">
+                                <div className="sound-builder__rowname">
+                                  <button
+                                    type="button"
+                                    className="sound-builder__rolefind"
+                                    aria-label={`Show takes for ${role.name}`}
+                                    onClick={() => setQuery(role.name)}
+                                  >
+                                    {role.name}
+                                  </button>
+                                  <span className="sound-builder__rowsub">{role.sub}</span>
+                                </div>
+                              </th>
+                              <td>
+                                <Cell
+                                  cellId={cellId}
+                                  files={files}
+                                  byFile={byFile}
+                                  holding={holding}
+                                  unsaved={unsaved.has(cellId)}
+                                  onAddTo={addTo}
+                                  onRemoveFrom={removeFrom}
+                                  onDrop={onDropOnCell}
+                                  onPlayRandom={playRandom}
+                                  onPlayPill={(f) => player.playFile(f, gainOf(cellId))}
                                 />
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            ))}
+                                {files.length > 0 && (
+                                  <GainSlider
+                                    label={role.name}
+                                    value={gainOf(cellId)}
+                                    onCommit={(v) => commitGain(cellId, v)}
+                                  />
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </main>
       </div>
     </div>
