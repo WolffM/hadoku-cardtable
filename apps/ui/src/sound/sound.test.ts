@@ -21,7 +21,15 @@ import type { DraftCard } from '../draft/types.ts';
 import type { SoundEvent } from './mix.ts';
 import { MuteButton } from './MuteButton.tsx';
 import { MUTE_KEY, isMuted, resetMutedForTests, setMuted } from './mute.ts';
-import { playRole, playSoundEvents, resetRolePlayerForTests, roleHandler, setRolePlayer } from './index.ts';
+import {
+  playRole,
+  playSoundEvents,
+  resetRolePlayerForTests,
+  roleHandler,
+  setMatchMusic,
+  setRolePlayer,
+  setScreenMusic,
+} from './index.ts';
 
 /** A player that records instead of sounding. The whole testing strategy. */
 function recorder() {
@@ -97,6 +105,38 @@ describe('playSoundEvents', () => {
     expect(events).toEqual([{ role: 'g.creature', colourCell: 'G|creature', seat: 'opp' }]);
     vi.advanceTimersByTime(400);
     expect(rolesOf(events)).toEqual(['g.creature', 'g.enter']);
+  });
+});
+
+describe('music', () => {
+  function looper() {
+    const loops: (string | null)[] = [];
+    setRolePlayer({ play: () => undefined, loop: (role) => void loops.push(role) });
+    return loops;
+  }
+
+  it("loops the screen's music, the match's while a match is on it, and nothing on a silent screen", () => {
+    const loops = looper();
+    setScreenMusic('music.lobby');
+    setMatchMusic(true);
+    setMatchMusic(false);
+    setScreenMusic(null);
+    expect(loops).toEqual(['music.lobby', 'music.match', 'music.lobby', null]);
+  });
+
+  it('a match mounted before the screen sets its music still plays the match music', () => {
+    const loops = looper();
+    setMatchMusic(true);
+    setScreenMusic('music.lobby');
+    expect(loops.at(-1)).toBe('music.match');
+  });
+
+  it('muting fades it out and unmuting brings it back', () => {
+    const loops = looper();
+    setScreenMusic('music.lobby');
+    setMuted(true);
+    setMuted(false);
+    expect(loops).toEqual(['music.lobby', null, 'music.lobby']);
   });
 });
 

@@ -274,7 +274,7 @@ import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { deriveSoundEvents } from './sound-events.ts';
-import { playRole, playSoundEvents } from '../../sound/index.ts';
+import { playRole, playSoundEvents, setMatchMusic } from '../../sound/index.ts';
 import {
   abortAsk,
   answerAsk,
@@ -1626,6 +1626,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * before it (`./sound-events.ts`), so a sound starts with the change on screen.
    * A watching window stays silent: the seat's own window is already playing it.
    */
+  useEffect(() => {
+    setMatchMusic(true);
+    return () => setMatchMusic(false);
+  }, []);
   const soundView = match.view;
   const lastSoundView = useRef<BoardView | null>(null);
   useEffect(() => {

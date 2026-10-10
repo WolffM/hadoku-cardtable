@@ -8,6 +8,7 @@
  *     playRole('ui.select');                              // make a noise, now
  *     <div onMouseEnter={roleHandler('ui.hover-card')} /> // a stable listener
  *     playSoundEvents(deriveSoundEvents(prev, next));     // a board moment
+ *     setScreenMusic('music.lobby'); setMatchMusic(true); // what loops underneath
  *
  * A role is a name from `@hadoku/shared`'s `SOUND_ROLES`. Which take it plays,
  * how loud, and whether a colour layer sits on top is the operator's
@@ -31,10 +32,11 @@
 import { soundsClient } from './builderClient.ts';
 import type { SoundEvent } from './mix.ts';
 import { createMixer, type Mixer } from './mixer.ts';
-import { isMuted } from './mute.ts';
+import { isMuted, subscribeMuted } from './mute.ts';
 
 export interface RolePlayer {
   play(event: SoundEvent): unknown;
+  loop?(role: string | null): void;
 }
 
 /** A sound event that starts a little after the moment it belongs to. */
@@ -44,6 +46,10 @@ export interface DelayedSoundEvent extends SoundEvent {
 
 let injected: RolePlayer | null = null;
 let production: Mixer | null = null;
+/** The screen's music (`null`: a silent screen), and whether a match is on it. */
+let screenMusic: string | null = null;
+let inMatch = false;
+let unsubscribeMute: (() => void) | null = null;
 
 /** Replace the player. `null` restores the real mixer. For tests. */
 export function setRolePlayer(player: RolePlayer | null): void {
@@ -54,17 +60,31 @@ export function setRolePlayer(player: RolePlayer | null): void {
 export function resetRolePlayerForTests(): void {
   injected = null;
   production = null;
+  screenMusic = null;
+  inMatch = false;
+  unsubscribeMute?.();
+  unsubscribeMute = null;
+}
+
+/** Where there is no WebAudio (jsdom, an old browser) nothing is built and nothing is fetched. */
+const SILENT: RolePlayer = { play: () => undefined };
+
+function hasWebAudio(): boolean {
+  const g = globalThis as { AudioContext?: unknown; webkitAudioContext?: unknown };
+  return g.AudioContext !== undefined || g.webkitAudioContext !== undefined;
 }
 
 function player(): RolePlayer {
   if (injected !== null) return injected;
   if (production === null) {
+    if (!hasWebAudio()) return SILENT;
     const client = soundsClient();
     const mixer = createMixer((f) => client.takeUrl(f));
     production = mixer;
     void client.assignments().then((a) => {
       mixer.planner.setAssignments(a.cells, a.gains);
       mixer.preload(Object.values(a.cells).flat());
+      applyMusic();
     });
   }
   return production;
@@ -91,6 +111,37 @@ export function playSoundEvents(events: readonly DelayedSoundEvent[]): void {
     if (delayMs === undefined || delayMs <= 0) playEvent(event);
     else setTimeout(() => playEvent(event), delayMs);
   }
+}
+
+function applyMusic(): void {
+  try {
+    const wanted = screenMusic === null ? null : inMatch ? 'music.match' : screenMusic;
+    player().loop?.(isMuted() ? null : wanted);
+  } catch {
+    // Music is decoration too.
+  }
+}
+
+/**
+ * What loops under the current screen: a `music.*` role, or `null` for a
+ * silent screen. The app root sets it per route. Muting fades it out and
+ * unmuting brings it back.
+ */
+export function setScreenMusic(role: string | null): void {
+  screenMusic = role;
+  unsubscribeMute ??= subscribeMuted(applyMusic);
+  applyMusic();
+}
+
+/**
+ * A match is on screen: `music.match` replaces the screen's music while it
+ * is. Separate from the route because a room hosts its match in place, and
+ * because React runs a child's effect before its parent's: two inputs make the
+ * order not matter.
+ */
+export function setMatchMusic(on: boolean): void {
+  inMatch = on;
+  applyMusic();
 }
 
 const handlers = new Map<string, () => void>();

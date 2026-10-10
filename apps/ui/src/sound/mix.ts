@@ -45,7 +45,7 @@ export interface MixSettings {
  * volume"*).
  */
 export const DEFAULT_MIX: MixSettings = {
-  bus: { ui: 0.5, game: 1, colour: 0.9 },
+  bus: { ui: 0.5, game: 1, colour: 0.9, music: 0.35 },
   opponent: 0.6,
   collapseMs: 80,
 };

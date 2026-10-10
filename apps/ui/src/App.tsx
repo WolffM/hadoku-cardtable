@@ -37,9 +37,12 @@
  * connection — is what ships.
  */
 
+import { useEffect } from 'react';
+
 import { AppHeader } from '@wolffm/task-ui-components';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from './screens/route.ts';
+import { setScreenMusic } from './sound/index.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell, useWhoami } from './room/RoomShell.tsx';
 
@@ -71,6 +74,11 @@ function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
 
 export function App({ transport }: AppProps) {
   const route = useRoute();
+
+  // The lobby's music everywhere a player is, silence on the tools. A match
+  // swaps in its own (`LiveBoard` → `setMatchMusic`).
+  const silent = route.kind === 'debug' || route.kind === 'sounds' || route.kind === 'sounds-sandbox';
+  useEffect(() => setScreenMusic(silent ? null : 'music.lobby'), [silent]);
 
   // The fleet's identity, read once here and threaded down. `RoomShell` reads
   // the same hook for its own use; `whoami()` shares one in-flight promise per

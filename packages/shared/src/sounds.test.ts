@@ -157,10 +157,10 @@ describe('SOUND_MATRIX', () => {
 	it('SOUND_ROLES indexes every grouped role once, ui roles on the ui bus', () => {
 		const all = SOUND_ROLE_GROUPS.flatMap((g) => g.roles);
 		expect(SOUND_ROLES.size).toBe(all.length);
-		for (const r of all) expect(r.bus).toBe(r.id.startsWith('ui.') ? 'ui' : 'game');
+		for (const r of all) expect(r.bus).toBe(r.id.startsWith('ui.') ? 'ui' : r.id.startsWith('music.') ? 'music' : 'game');
 	});
 
-	it('SOUND_SECTIONS has exactly the four sections every SoundTake.section must be one of', () => {
-		expect(SOUND_SECTIONS).toEqual(['Library', 'Land types', 'Moments', 'Colour sounds']);
+	it('SOUND_SECTIONS has exactly the five sections every SoundTake.section must be one of', () => {
+		expect(SOUND_SECTIONS).toEqual(['Library', 'Land types', 'Moments', 'Colour sounds', 'Music']);
 	});
 });

@@ -61,6 +61,8 @@ interface Fired {
   plan: PlanResult;
 }
 
+const BUS_LABEL: Record<SoundBus, string> = { ui: 'UI', game: 'Game', colour: 'Colour', music: 'Music' };
+
 const SKIP_TEXT = { empty: '—', collapsed: 'collapsed', 'opponent-ui': 'not heard', 'unknown-role': '?' } as const;
 
 export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSandboxProps) {
@@ -77,6 +79,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
   const [speed, setSpeed] = useState(1);
   const [fast, setFast] = useState(false);
   const [loop, setLoop] = useState(false);
+  const [music, setMusic] = useState(false);
   const [mix, setMix] = useState<MixSettings>(loadMix);
   const [playing, setPlaying] = useState(false);
   const [fired, setFired] = useState<ReadonlyMap<number, Fired>>(new Map());
@@ -109,6 +112,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
   const stop = (): void => {
     for (const t of timers.current) clearTimeout(t);
     timers.current = [];
+    mixer.loop(null);
     setPlaying(false);
   };
   useEffect(() => stop, []);
@@ -126,6 +130,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
     mixer.preload(Object.values(cells).flat());
     setFired(new Map());
     setPlaying(true);
+    if (music) mixer.loop('music.match');
     const scale = (fast ? FAST_SCALE : 1) / speed;
     scenario.beats.forEach((beat, i) => {
       timers.current.push(setTimeout(() => fire(beat, i), beat.at * scale));
@@ -134,7 +139,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
     timers.current.push(
       setTimeout(() => {
         if (loopRef.current) play();
-        else setPlaying(false);
+        else stop();
       }, end),
     );
   };
@@ -172,6 +177,9 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
             <input type="checkbox" checked={fast} onChange={(e) => setFast(e.target.checked)} /> Fast Mode
           </label>
           <label>
+            <input type="checkbox" checked={music} onChange={(e) => setMusic(e.target.checked)} /> Music
+          </label>
+          <label>
             Speed
             <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
               {SPEEDS.map((s) => (
@@ -198,8 +206,8 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
           ))}
         </div>
         <div className="sound-sandbox__controls" role="group" aria-label="Mixer">
-          {(['ui', 'game', 'colour'] as const).map((bus) => (
-            <Level key={bus} label={bus === 'ui' ? 'UI' : bus === 'game' ? 'Game' : 'Colour'} value={mix.bus[bus]} onChange={(v) => setBus(bus, v)} />
+          {(['ui', 'game', 'colour', 'music'] as const).map((bus) => (
+            <Level key={bus} label={BUS_LABEL[bus]} value={mix.bus[bus]} onChange={(v) => setBus(bus, v)} />
           ))}
           <Level label="Opponent" value={mix.opponent} onChange={(v) => setMix((m) => ({ ...m, opponent: v }))} />
         </div>

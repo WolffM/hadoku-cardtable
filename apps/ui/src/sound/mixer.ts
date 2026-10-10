@@ -31,6 +31,8 @@ import { createMixPlanner, DEFAULT_MIX, type MixPlanner, type MixSettings, type 
 const VOICE_CAP = 12;
 /** A sound that could not start within this long of being asked for is dropped, not played late. */
 const STALE_MS = 1500;
+/** Music fades in and out over this long. */
+const MUSIC_FADE_S = 1.5;
 /** The level everything else drops to under a ducking voice. */
 const DUCK_LEVEL = 0.35;
 
@@ -43,6 +45,13 @@ export interface Mixer {
   playFile(file: string, gain?: number): void;
   /** Fetch and decode ahead of time, so a scenario's first beats are not late. */
   preload(files: Iterable<string>): void;
+  /**
+   * Loop a music role on the music bus, crossfading from whatever loops now;
+   * `null` fades the music out. Unlike a cue, music waits for the first
+   * gesture rather than being dropped: it is meant to be playing whenever the
+   * page can play.
+   */
+  loop(role: string | null): void;
 }
 
 interface AudioContextGlobals {
@@ -72,6 +81,8 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   let master: GainNode | null = null;
   let duckNode: GainNode | null = null;
   let live = 0;
+  let loopRole: string | null = null;
+  let loopVoice: { src: AudioBufferSourceNode; env: GainNode } | null = null;
   const buffers = new Map<string, Promise<AudioBuffer | null>>();
 
   const context = (): AudioContext | null => {
@@ -146,6 +157,21 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     });
   };
 
+  const fadeOutLoop = (ac: AudioContext): void => {
+    if (loopVoice === null) return;
+    const { src, env } = loopVoice;
+    loopVoice = null;
+    const now = ac.currentTime;
+    env.gain.cancelScheduledValues(now);
+    env.gain.setValueAtTime(env.gain.value, now);
+    env.gain.linearRampToValueAtTime(0, now + MUSIC_FADE_S);
+    src.stop(now + MUSIC_FADE_S);
+    src.onended = () => {
+      src.disconnect();
+      env.disconnect();
+    };
+  };
+
   const mixer: Mixer = {
     planner,
     settings: DEFAULT_MIX,
@@ -159,6 +185,34 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     },
     preload(files) {
       for (const f of files) void load(f);
+    },
+    loop(role) {
+      if (role === loopRole) return;
+      loopRole = role;
+      const ac = context();
+      if (ac === null) return;
+      fadeOutLoop(ac);
+      if (role === null) return;
+      const voice = planner.plan({ role }, performance.now(), mixer.settings).voices[0];
+      if (voice === undefined) {
+        // Nothing assigned (or not loaded yet): asking again later must try again.
+        loopRole = null;
+        return;
+      }
+      const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
+      void Promise.all([load(voice.file), ready]).then(([buf]) => {
+        if (buf === null || duckNode === null || loopRole !== role || loopVoice !== null) return;
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        const env = ac.createGain();
+        env.gain.setValueAtTime(0, ac.currentTime);
+        env.gain.linearRampToValueAtTime(voice.gain, ac.currentTime + MUSIC_FADE_S);
+        src.connect(env);
+        env.connect(duckNode);
+        src.start();
+        loopVoice = { src, env };
+      });
     },
   };
   return mixer;

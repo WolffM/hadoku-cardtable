@@ -62,7 +62,7 @@ EVENT_NAMES = {
 MONO_LAND_FOLDER = {'W': 'land-plains', 'U': 'land-island', 'B': 'land-swamp', 'R': 'land-mountain', 'G': 'land-forest'}
 LAND_NAMES = {'land-plains': 'Plains', 'land-island': 'Island', 'land-swamp': 'Swamp', 'land-mountain': 'Mountain', 'land-forest': 'Forest'}
 
-SECTION_ORDER = {'Library': 0, 'Land types': 1, 'Moments': 2, 'Colour sounds': 3}
+SECTION_ORDER = {'Library': 0, 'Land types': 1, 'Moments': 2, 'Colour sounds': 3, 'Music': 4}
 
 
 def label_for(filename: str, name: str) -> str:

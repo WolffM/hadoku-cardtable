@@ -72,6 +72,16 @@ python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r4 --
 Without `--merge`, `import.py` rebuilds `catalogue.json` from `--from` alone. Without `--only`, `finish.py`
 re-finishes every folder under `generated/`, rejected rounds included.
 
+## Music
+
+Found tracks, not generated ones: each needs a licence that allows this use (CC0, CC-BY or similar) and
+its credit in `NOTICE.md`. `add-track.py` transcodes one into the server's sounds dir and adds it to the
+catalogue's Music section; then place it on `music.lobby` or `music.match` in `#/sounds`.
+
+```sh
+python3 scripts/sfx/add-track.py tavern.mp3 --name "Tavern loop" --credit "Tavern loop by …, CC-BY 4.0, https://…" --to apps/server/data/sounds
+```
+
 Audio bytes never enter this repo or the UI bundle at any point in this pipeline — `import.py` only
 ever reads from a local `finished/` directory and writes to the server's data directory, both outside
 git.

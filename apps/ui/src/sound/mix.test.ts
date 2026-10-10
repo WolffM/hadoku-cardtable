@@ -5,7 +5,7 @@ import { isCellId, SOUND_ROLES } from '@hadoku/shared';
 import { createMixPlanner, DEFAULT_MIX, type MixSettings } from './mix.ts';
 import { beatEvent, SCENARIOS } from './scenarios.ts';
 
-const MIX: MixSettings = { bus: { ui: 0.5, game: 1, colour: 0.8 }, opponent: 0.6, collapseMs: 80 };
+const MIX: MixSettings = { bus: { ui: 0.5, game: 1, colour: 0.8, music: 0.35 }, opponent: 0.6, collapseMs: 80 };
 
 function planner(cells: Record<string, string[]>, gains: Record<string, number> = {}) {
   const p = createMixPlanner(() => 0);
@@ -51,6 +51,13 @@ describe('plan', () => {
     const p = planner({ 'g.draw|play': ['a/take-1.ogg', 'a/take-2.ogg'] });
     const files = [0, 100, 200, 300].map((t) => p.plan({ role: 'g.draw' }, t, DEFAULT_MIX).voices[0]?.file);
     for (let i = 1; i < files.length; i++) expect(files[i]).not.toBe(files[i - 1]);
+  });
+
+  it('plays a music role on the music bus', () => {
+    const p = planner({ 'music.match|play': ['music-x/take-1.ogg'] });
+    expect(p.plan({ role: 'music.match' }, 0, { ...MIX, bus: { ...MIX.bus, music: 0.3 } }).voices).toEqual([
+      { cell: 'music.match|play', file: 'music-x/take-1.ogg', bus: 'music', gain: 0.3, duck: false },
+    ]);
   });
 
   it('marks ducking roles', () => {

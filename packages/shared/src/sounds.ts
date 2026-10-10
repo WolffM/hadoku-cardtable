@@ -66,7 +66,7 @@ export interface ColourRow {
 }
 
 /** The mixer bus a sound plays on. Colour cells always play on `colour`. */
-export type SoundBus = 'ui' | 'game' | 'colour';
+export type SoundBus = 'ui' | 'game' | 'colour' | 'music';
 
 export interface SoundRole {
 	readonly id: string;
@@ -125,6 +125,7 @@ export const COLOUR_IDS = [
 export type ColourId = (typeof COLOUR_IDS)[number];
 
 const ui = (id: string, name: string, sub: string): SoundRole => ({ id, name, sub, bus: 'ui' });
+const music = (id: string, name: string, sub: string): SoundRole => ({ id, name, sub, bus: 'music' });
 const game = (id: string, name: string, sub: string, duck?: boolean): SoundRole =>
 	duck === true ? { id, name, sub, bus: 'game', duck } : { id, name, sub, bus: 'game' };
 
@@ -218,6 +219,14 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.phase', 'Phase change', 'The game moves to the next step.'),
 			game('g.win', 'Victory', 'You win the game.', true),
 			game('g.lose', 'Defeat', 'You lose the game.', true),
+		],
+	},
+	{
+		id: 'music',
+		name: 'Music',
+		roles: [
+			music('music.lobby', 'Lobby and draft', 'Loops on the room list, in a draft and while building a deck.'),
+			music('music.match', 'In a match', 'Loops for the length of a game.'),
 		],
 	},
 ];
@@ -319,8 +328,8 @@ export function isCellId(raw: string): raw is CellId {
  */
 export const TAKE_FILE_RE = /^[a-z0-9][a-z0-9.-]*\/take-[a-z0-9-]+\.ogg$/;
 
-/** The four bins the builder's pill tray groups takes into. */
-export const SOUND_SECTIONS = ['Library', 'Land types', 'Moments', 'Colour sounds'] as const;
+/** The five bins the builder's pill tray groups takes into. */
+export const SOUND_SECTIONS = ['Library', 'Land types', 'Moments', 'Colour sounds', 'Music'] as const;
 export type SoundSection = (typeof SOUND_SECTIONS)[number];
 
 /** The most takes a single cell may hold. The builder's bin has no such cap. */
