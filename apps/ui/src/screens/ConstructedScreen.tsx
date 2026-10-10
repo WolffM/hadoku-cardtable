@@ -179,6 +179,7 @@ import {
 import {
   FREE_PICK,
   RANDOM_DECK,
+  draftPoolPod,
   isEra,
   legalDecksIn,
   newestFormat,
@@ -195,6 +196,7 @@ import {
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { takeWarmRoom } from '../rooms/warm.ts';
 
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
@@ -385,9 +387,6 @@ export function poolIsOnTab(
 
 /* ── a room on a DRAFTED pool (wave 26 §F) ────────────────────────────── */
 
-/** What makes a room's pool a pod rather than a frozen era. The server's own spelling. */
-const DRAFT_POOL_PREFIX = 'draft:';
-
 /** The option value for "the cards I drafted". Not a library id, like `RANDOM_DECK`. */
 export const DRAFTED_DECK = '__drafted__';
 
@@ -401,23 +400,6 @@ const BASIC_FOR: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
   R: 'Mountain',
   G: 'Forest',
 };
-
-/**
- * The pod behind a room's drafted pool id, or null for a frozen era.
- *
- * A MIRROR of the server's `draftIdOfPool` (`apps/server/src/room/lobby.ts`),
- * including the room-id shape, and it is a mirror rather than a shared function
- * because the string lives in a server package this browser app does not import.
- * It is used only to decide what to draw and which pod to open a socket on — the
- * server re-derives it for every decision that matters, so a browser that read
- * this wrong would draw the wrong picker and could still not check a deck against
- * the wrong pool.
- */
-export function draftPoolPod(poolId: string): string | null {
-  if (!poolId.startsWith(DRAFT_POOL_PREFIX)) return null;
-  const draftId = poolId.slice(DRAFT_POOL_PREFIX.length);
-  return /^[a-z0-9-]{1,40}$/.test(draftId) ? draftId : null;
-}
 
 /**
  * A playable deck out of a drafted pool, with no choices asked.
@@ -877,17 +859,20 @@ function RoomTableScreen({
   makeTransport?: () => DraftTransport;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  // What the room list read before navigating here (`rooms/warm.ts`): the first
+  // render is then the finished page. Every read below still runs as before.
+  const [warm] = useState(() => takeWarmRoom(roomId));
+  const [loaded, setLoaded] = useState<Loaded | null>(warm?.catalogue ?? null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [table, setTable] = useState<RoomTable | null>(null);
+  const [table, setTable] = useState<RoomTable | null>(warm?.table ?? null);
   const [tableError, setTableError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deckId, setDeckId] = useState('');
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
   /** The pool's answer to "which decks are legal here", and one per pool kept. */
-  const [legal, setLegal] = useState<LegalSweep | null>(null);
-  const sweeps = useRef(new Map<string, LegalSweep>());
+  const [legal, setLegal] = useState<LegalSweep | null>(warm?.sweep ?? null);
+  const sweeps = useRef(new Map<string, LegalSweep>(warm?.sweep === undefined ? [] : [[warm.sweep.formatId, warm.sweep]]));
   /**
    * The room's pool as this screen last saw it, so a CHANGE can be told from a
    * first sighting. Null until the room has answered once: arriving in a room
@@ -922,12 +907,12 @@ function RoomTableScreen({
    * the way in. It is one extra concurrent request alongside the table read,
    * not a second round trip after it.
    */
-  const [view, setView] = useState<RoomView | null>(null);
+  const [view, setView] = useState<RoomView | null>(warm?.view ?? null);
   /** Bumped when a write of this screen's own resolves; a poll that overlapped one is dropped. */
   const writes = useRef(0);
-  const [resolved, setResolved] = useState(false);
+  const [resolved, setResolved] = useState(warm !== undefined);
   /** Latched on the first read. A room does not change mode under its players. */
-  const modeRef = useRef<ClientMode | null>(null);
+  const modeRef = useRef<ClientMode | null>(warm?.view.clientMode ?? null);
   /** A refusal from `ready` or `start`, in the server's own words. */
   const [draftError, setDraftError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);

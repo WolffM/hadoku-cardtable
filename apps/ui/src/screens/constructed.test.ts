@@ -65,6 +65,7 @@ import { dckTextOf } from '../draft/deckFromPool.ts';
 import { loadFixtures } from '../draft/fixtures.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
+import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
 import {
   RANDOM_DECK,
   apiBase,
@@ -624,6 +625,42 @@ describe('the constructed screen without a room', () => {
     expect(screen.queryByTestId('format')).toBeNull();
     fireEvent.click(screen.getByTestId('to-rooms'));
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+  });
+});
+
+describe('a room the list read before navigating (rooms/warm.ts)', () => {
+  it('draws the finished page on its first render: the name, the seats and a live deck picker', async () => {
+    const server = stubServer({ players: [opponent()], matchId: null });
+    const view = await server.rooms.get(ROOM);
+    await warmRoom(view!, server.client);
+    const asked = sweeps(server);
+    expect(asked, 'the pool was swept while the list was still showing').toEqual([FORMATS[0].id]);
+
+    render(createElement(ConstructedScreen, { client: server.client, rooms: server.rooms, roomId: ROOM, pollMs: 10_000 }));
+    // No await between the render and these: the first paint is the whole page.
+    expect(screen.getByTestId('room-name').textContent).toBe('Friday night');
+    expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
+    expect(screen.getByTestId('deck-mine').getAttribute('aria-disabled')).toBeNull();
+    expect(offered().length).toBeGreaterThan(0);
+    await act(async () => {});
+    expect(sweeps(server), 'a sweep the warm made is not asked again').toEqual(asked);
+  });
+
+  it('is taken once, and only by its own room', async () => {
+    const server = stubServer({ players: [opponent()], matchId: null });
+    const view = await server.rooms.get(ROOM);
+    await warmRoom(view!, server.client);
+    expect(takeWarmRoom('r-elsewhere')).toBeUndefined();
+    expect(takeWarmRoom(ROOM)?.view.id).toBe(ROOM);
+    expect(takeWarmRoom(ROOM)).toBeUndefined();
+  });
+
+  it('gives up after its timeout, and the room then loads as it always has', async () => {
+    const server = stubServer({ players: [opponent()], matchId: null });
+    const view = await server.rooms.get(ROOM);
+    const never = { ...server.client, table: () => new Promise<never>(() => {}) };
+    await warmRoom(view!, never, 5);
+    expect(takeWarmRoom(ROOM)).toBeUndefined();
   });
 });
 

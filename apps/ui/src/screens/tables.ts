@@ -386,3 +386,23 @@ export async function legalDecksIn(
     return { formatId, ids: new Set(decks.map((d) => d.id)), error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+/** What makes a room's pool a pod rather than a frozen era. The server's own spelling. */
+const DRAFT_POOL_PREFIX = 'draft:';
+
+/**
+ * The pod behind a room's drafted pool id, or null for a frozen era.
+ *
+ * A MIRROR of the server's `draftIdOfPool` (`apps/server/src/room/lobby.ts`),
+ * including the room-id shape, and it is a mirror rather than a shared function
+ * because the string lives in a server package this browser app does not import.
+ * It is used only to decide what to draw and which pod to open a socket on — the
+ * server re-derives it for every decision that matters, so a browser that read
+ * this wrong would draw the wrong picker and could still not check a deck against
+ * the wrong pool.
+ */
+export function draftPoolPod(poolId: string): string | null {
+  if (!poolId.startsWith(DRAFT_POOL_PREFIX)) return null;
+  const draftId = poolId.slice(DRAFT_POOL_PREFIX.length);
+  return /^[a-z0-9-]{1,40}$/.test(draftId) ? draftId : null;
+}

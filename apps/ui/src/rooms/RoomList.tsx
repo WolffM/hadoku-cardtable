@@ -49,6 +49,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Icon } from '@wolffm/themes';
 
 import { navigate } from '../screens/route.ts';
+import { warmRoom } from './warm.ts';
 import { playRole } from '../sound/index.ts';
 import {
   clientModeLabel,
@@ -190,11 +191,14 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
     setBusy(true);
     setError(null);
     const outcome = await client.join(room.id, withPassword);
-    setBusy(false);
     if (outcome.ok) {
+      // Still busy: the room is read before it is shown, so it opens drawn.
+      await warmRoom(outcome.room);
+      setBusy(false);
       navigate({ kind: 'room', roomId: outcome.room.id });
       return;
     }
+    setBusy(false);
     // Every arm below is a refusal, and `deny` is the cue for exactly that —
     // the one sound in the vocabulary that means "no". Raised once, here, rather
     // than in each arm, so a new failure reason cannot arrive without it.
@@ -391,12 +395,16 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
     setBusy(true);
     setError(null);
     const outcome = await client.create({ name: trimmed, gameType, clientMode: 'builtin', password });
-    setBusy(false);
     if (!outcome.ok) {
+      setBusy(false);
       playRole('ui.deny');
       setError(outcome.message);
       return;
     }
+    // Still busy: the new room is read before it is shown, so it opens drawn
+    // rather than filling in piece by piece (`warm.ts`).
+    await warmRoom(outcome.room);
+    setBusy(false);
     navigate({ kind: 'room', roomId: outcome.room.id });
   };
 
