@@ -11,7 +11,8 @@
  * Forge stops at HIS priority with alice's Memnite on the stack. Bob's page is
  * watched from BEFORE alice's release by a MutationObserver that records every
  * change to the presence back and to the placed spell (which of the two is
- * drawn, where, and whether the placed one is the back or the face). The
+ * drawn, where, and whether the placed one is the back or the face), and on
+ * every animation frame besides, since a gliding back moves without one. The
  * record is printed; the claims read it: once the face exists, no presence
  * back exists past one frame; the face's first box is where the back stood.
  */
@@ -49,7 +50,13 @@ async function watch(page: Page): Promise<void> {
       seen.push({ t: Math.round(performance.now() - t0), back, placed });
     };
     new MutationObserver(look).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'data-waiting', 'data-placed-pending', 'class'] });
-    look();
+    // And every frame: a back on its CSS glide moves with no mutation at all, so the observer alone
+    // records where the glide started, not where the back stood when the face replaced it.
+    const frame = (): void => {
+      look();
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
   });
 }
 
