@@ -11,17 +11,11 @@
  * out of bounds for length 214`, 3378 times) — the Goblin never reached the stack.
  * A browser can do the same with two quick clicks.
  *
- * OPEN BUG — no fix in the fork yet, so this test is `it.fails`. Two attempts were
- * measured and withdrawn:
- *   - 7ddd4daa ran a connection's acts in order on one thread; a payment inside a
- *     payment (a Signet's own {1}) then waited for an OK queued behind the thread it
- *     held, and the seat froze (`e2e/w68-pay`).
- *   - 373191af turned away a click that arrived while another was still being
- *     taken; that also dropped a real click — a select sent the moment the previous
- *     click's ability question was answered (`combat-drag.jvm`: seat 0's Memnite,
- *     sent right after its land play, never cast). Correctness first.
- * The fix this needs takes every click and never runs two at once on one game; when
- * it lands, `it.fails` comes off.
+ * Fork a77e5ea8 takes a game's acts one at a time, in the order they arrived
+ * (`ActGate`): every click is taken, none beside another. An act that waits on an
+ * input of its own hands the game to the clicks that answer it — holding it froze
+ * a seat paying with a Signet (7ddd4daa, `e2e/w68-pay`); turning a click away
+ * instead dropped a real one (373191af, `combat-drag.jvm`).
  *
  * `scenarios/w52-s-signet.state`: seat 0 holds Raging Goblin and three Mountains.
  * Once Forge offers the Goblin, eight selects for it go out in one burst, and the
@@ -83,7 +77,7 @@ function stderrOf(s: Scenario): string {
 const HOLD_MS = 2_000;
 
 describe.skipIf(!available.ok)(title, () => {
-	it.fails(`${BURST} selects for one card in one burst: the cast reaches the stack, nothing fails to encode`, async () => {
+	it(`${BURST} selects for one card in one burst: the cast reaches the stack, nothing fails to encode`, async () => {
 		if (!available.ok) return;
 		const s = await startScenario(available.config, { seed: 68, decks: DECKS, scenario: scenarioText('w52-s-signet') });
 		try {
