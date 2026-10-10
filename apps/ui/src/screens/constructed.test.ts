@@ -178,8 +178,6 @@ function opponent(over: Partial<RoomPlayer> = {}): RoomPlayer {
     legal: true,
     issueCount: 0,
     ready: false,
-    // Never sent for someone else — a draft verdict would name their pool.
-    verdict: null,
     choice: null,
     ...over,
   };
@@ -458,7 +456,6 @@ function stubServer(table: Table) {
         legal: verdict.legal,
         issueCount: verdict.issues.length,
         ready: false,
-        verdict,
         choice: body as SeatChoice,
       };
       const at = table.players.findIndex((p) => p.you);
@@ -470,7 +467,7 @@ function stubServer(table: Table) {
       const mine = table.players.find((p) => p.you);
       if (mine === undefined) return json(409, { error: 'load a deck before you ready up' });
       const want = (body as { ready: boolean }).ready;
-      if (want && !mine.legal) return json(422, { error: REFUSAL, verdict: mine.verdict });
+      if (want && !mine.legal) return json(422, { error: REFUSAL });
       mine.ready = want;
       return json(200, view());
     }
@@ -547,6 +544,15 @@ const rowName = (row: HTMLElement): string =>
 
 /** Which deck the chooser says is chosen, or `''`. The same fact `aria-checked` carries. */
 const chosen = (): string => screen.getByTestId('deck-mine').dataset['chosen'] ?? '';
+
+/** YOUR row at the table: the pool your deck was checked in, and whether it is legal there. */
+const myRow = (): HTMLElement => {
+  const row = Array.from(screen.getByTestId('room-players').querySelectorAll('li')).find((li) => li.textContent?.includes('(you)'));
+  if (row === undefined) throw new Error('no row of yours at the table');
+  return row;
+};
+const myRules = (): string => myRow().querySelector('[data-testid$="-rules"]')?.textContent ?? '';
+const myLegal = (): string => (myRow().querySelector('[data-testid$="-legal"]') as HTMLElement | null)?.dataset['state'] ?? '';
 
 /**
  * Choosing a deck. There is no Load button: this is the load.
@@ -705,24 +711,24 @@ describe('a room’s table', () => {
       // body that named one would be a 400 (see the stub).
       body: { deck: { library: SECOND_DECK } },
     });
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
+    expect(myRules()).toBe('Standard (M11)');
+    expect(myLegal()).toBe('yes');
     expect(screen.getByTestId('room-seat-1').textContent).toContain('(you)');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
   });
 
   /*
    * The POOL moving under a chosen deck is now the only way to hold an illegal
-   * one: the dropdown offers nothing else. Both halves are asserted — the
-   * verdict names the banned card, and the deck drops off the list — because
-   * the second is what stops Ready coming back to life over it.
+   * one: the dropdown offers nothing else. Both halves are asserted — your row
+   * says illegal, and the deck drops off the list — because the second is what
+   * stops Ready coming back to life over it.
    */
-  it('an illegal deck blocks YOUR ready and names the card, and nobody else’s', async () => {
+  it('an illegal deck blocks YOUR ready, and nobody else’s', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
     await pick(UG_POLYMORPH);
     await pickPool('2011-07-15');
 
-    const verdict = screen.getByTestId('verdict-mine').textContent ?? '';
-    expect(verdict).toContain('Jace, the Mind Sculptor');
+    await waitFor(() => expect(myLegal()).toBe('no'));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     // The pool that bans it no longer offers it, and nothing is chosen.
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
@@ -1061,8 +1067,8 @@ describe('the deck picker', () => {
 
     // The re-send is refused, in the server's own words.
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the room is restarting'));
-    // Nothing was checked against the new pool, so there is no verdict to show.
-    await waitFor(() => expect(screen.queryByTestId('verdict-mine')).toBeNull());
+    // Nothing was checked against the new pool, so the hold is not legal in it.
+    await waitFor(() => expect(myLegal()).toBe('no'));
     // The deck is off the list, nothing is chosen, and Ready stays dead.
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect(chosen()).toBe('');
@@ -1088,7 +1094,7 @@ describe('the deck picker', () => {
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     await pressRandom();
     expect(chosen()).toBe(SECOND_DECK);
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in');
+    expect(myLegal()).toBe('yes');
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
   });
 
@@ -1107,9 +1113,10 @@ describe('the deck picker', () => {
     expect(card.textContent).not.toContain('sideboard');
     expect(card.textContent).not.toContain('Nothing banned');
     expect(screen.queryByTestId('format-detail')).toBeNull();
-    // The one surviving sentence is the server's verdict, which is a finding
-    // about YOUR deck and not an explanation of the screen.
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
+    // Not even a verdict: the operator, 2026-10-10, "i dislike that verdict it's
+    // useless, just get rid of it". Your row's pill says legal or not.
+    expect(screen.queryByTestId('verdict-mine')).toBeNull();
+    expect(card.textContent).not.toContain('Legal in');
 
     // No source link. Operator, 2026-09-30: *"the 'source' link is unecessary"*.
     // The attribution it carried is not lost: every `.dck` keeps its `Source URL`
@@ -1128,7 +1135,7 @@ describe('the deck picker', () => {
     // is what the server checks it against, and the room's pool has moved.
     await waitFor(() => expect(server.calls.filter((c) => c.url.endsWith('/deck')).length).toBe(loadsBefore + 1));
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M12)');
+    await waitFor(() => expect(myRules()).toBe('Standard (M12)'));
   });
 
   /*
@@ -1149,7 +1156,6 @@ describe('the deck picker', () => {
       legal: true,
       issueCount: 0,
       ready: true,
-      verdict: LEGAL('Jund (Emanuele Giusti)', 'Standard (M11)'),
       choice: { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } },
     };
     // The other player is NOT ready, so nothing starts while this is watched.
@@ -1234,7 +1240,7 @@ describe('the table’s pool', () => {
 
     // Their one input still works, and the pool is never written by them.
     await pick(SECOND_DECK);
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
+    expect(myRules()).toBe('Standard (M11)');
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
   });
 
@@ -1281,8 +1287,8 @@ describe('the table’s pool', () => {
     server.table.format = '2011-07-15';
 
     // The held deck is re-sent — this seat's verdict was cleared by the change
-    // too — and the pool that bans it names the cards and takes it off the list.
-    await waitFor(() => expect(screen.getByTestId('verdict-mine').textContent).toContain('Jace, the Mind Sculptor'));
+    // too — and the pool that bans it marks it illegal and takes it off the list.
+    await waitFor(() => expect(myLegal()).toBe('no'));
     expect(screen.getByTestId('format-fixed').textContent).toBe('2011-07-15 — Standard (M12)');
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
@@ -2334,16 +2340,15 @@ describe('Ready and Random come before the deck list, and the era note is not pr
     expect(list.contains(random)).toBe(false);
   });
 
-  it('does not print which era a deck was built for', async () => {
-    // BANNED carries the server's era note (`libraryPoolMismatch`): "deck X is
-    // built for Standard (M11) as of …, but the pool supplied is …". It is not a
-    // fault in the deck, and the operator called it useless. The findings stay.
+  it('draws no verdict for an illegal deck: no card list, no era note, only the pill', async () => {
+    // The operator, 2026-10-10: "i dislike that verdict it's useless, just get rid of it".
     await mountRoom({ players: [], matchId: null });
     await pick(UG_POLYMORPH);
     await pickPool('2011-07-15');
-    const verdict = await screen.findByTestId('verdict-mine');
-    expect(verdict.textContent).toContain('Jace, the Mind Sculptor');
-    expect(verdict.textContent).not.toContain('built for');
+    await waitFor(() => expect(myLegal()).toBe('no'));
+    expect(screen.queryByTestId('verdict-mine')).toBeNull();
+    expect(document.body.textContent).not.toContain('Jace, the Mind Sculptor');
+    expect(document.body.textContent).not.toContain('built for');
   });
 });
 
@@ -2487,8 +2492,8 @@ describe('the deck chooser', () => {
     expect(chosen()).toBe(UW_DELVER.id);
 
     // The keyboard is not a second, quieter path: choosing by key loaded the deck
-    // through the same call a click makes, and the server answered a verdict.
-    await waitFor(() => expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in'));
+    // through the same call a click makes, and the server answered it legal.
+    await waitFor(() => expect(myLegal()).toBe('yes'));
   });
 
   it('keeps the tab stop on the deck the server is already holding', async () => {
@@ -2530,7 +2535,7 @@ describe('the deck chooser', () => {
     // this is what makes a short name's box and a long name's box come out the
     // same height; `boxes.md` (real Playwright, a built page) has the proof that
     // a browser actually lays it out this way.
-    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*grid-auto-rows: minmax\(0, 190px\);/);
+    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*grid-auto-rows: 190px;/);
     expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*align-items: stretch;/);
     expect(SCREENS_CSS).toMatch(/\.deckpick__option \{[^}]*height: 100%;/);
 

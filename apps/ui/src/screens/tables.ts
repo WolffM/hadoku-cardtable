@@ -123,9 +123,9 @@ export type StartOutcome =
 /**
  * One player at a room's table, as everyone in the room sees them.
  *
- * `verdict` and `choice` are YOURS only — the server sends null for the other
- * player, because a draft verdict names cards from a pool that is hidden
- * information until the draft is over. What everyone sees of everyone is the
+ * `choice` is YOURS only — the server sends null for the other player, because
+ * a drafted deck is cards from a pool that is hidden information until the draft
+ * is over. What everyone sees of everyone is the
  * deck's name, whether it is legal, how many faults it has, and whether they
  * are ready: enough to know who is being waited on.
  */
@@ -138,7 +138,6 @@ export interface RoomPlayer {
   legal: boolean;
   issueCount: number;
   ready: boolean;
-  verdict: Verdict | null;
   choice: SeatChoice | null;
 }
 
@@ -163,7 +162,7 @@ export interface RoomTable {
 /** Every table call answers the whole table, or says why it would not. */
 export type TableOutcome =
   | { ok: true; table: RoomTable }
-  | { ok: false; error: string; status: number; verdict: Verdict | null };
+  | { ok: false; error: string; status: number };
 
 /** `/cardtable/` → `/cardtable/api/`. Same arithmetic as `socketPath`. */
 export function apiBase(base: string): string {
@@ -247,8 +246,7 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
   /** A table call's answer: the whole table, or the server's sentence. */
   const table = ({ status, body }: { status: number; body: Record<string, unknown> }): TableOutcome => {
     if (status === 200) return { ok: true, table: body as unknown as RoomTable };
-    const verdict = typeof body.verdict === 'object' && body.verdict !== null ? (body.verdict as Verdict) : null;
-    return { ok: false, error: errorOf(body, status), status, verdict };
+    return { ok: false, error: errorOf(body, status), status };
   };
 
   return {

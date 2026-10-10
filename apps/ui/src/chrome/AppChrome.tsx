@@ -145,9 +145,9 @@
  * fixed: each fix lives in a file the lane did not own. They are listed
  * because a wrapper swap meets them, not because they are acceptable.
  *
- * 1. **`play/live/live.css` selects `.cardtable-chrome`** — twice, at :32
- *    and :38: `:has(.shell--match)` to take `100dvh`, and
+ * 1. **`play/live/live.css` selects `.cardtable-chrome`** —
  *    `> .app-header` to kill the header's bottom margin on the match route.
+ *    (Its `100dvh` pin moved into `chrome.css`, keyed on the shell's class.)
  *    This is the one place something BELOW the chrome reaches up into its
  *    private DOM, and it is the gap most likely to break silently: rename
  *    the container and the match screen quietly loses its height. Track R

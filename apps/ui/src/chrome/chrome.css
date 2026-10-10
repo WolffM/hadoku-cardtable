@@ -33,6 +33,18 @@
     color 0.3s ease;
 }
 
+/*
+ * The page never grows with its content on the front page, a room or a match:
+ * the chrome is the window's height, so the document cannot scroll and
+ * watchparty's room frame — its chat aside with it — is never stretched by a
+ * long deck list (the operator, 2026-10-10: *"the watchparty interface should
+ * not be affected by page length"*). A screen opts in by its shell's class.
+ */
+.cardtable-chrome:has(.shell--fit, .shell--match) {
+  height: 100dvh;
+  min-height: 0;
+}
+
 /* The header is a fixed row; whatever the route renders takes the rest. The
    direct-child rule is what lets both possible children grow — `.shell` on a
    roomless route, and watchparty's `.wp-room-chrome-frame` on a room one, which

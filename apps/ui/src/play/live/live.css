@@ -91,11 +91,6 @@
  *    reservation on the ROWS underneath is `board.css`'s (lane A, §A.5).
  */
 
-.cardtable-chrome:has(.shell--match) {
-  height: 100dvh;
-  min-height: 0;
-}
-
 /* The fleet header's bottom margin is a gap the table cannot spare. */
 .cardtable-chrome:has(.shell--match) > .app-header {
   margin-bottom: 0;

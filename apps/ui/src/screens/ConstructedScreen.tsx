@@ -190,7 +190,6 @@ import {
   type TableDeck,
   type TableFormat,
   type TablesClient,
-  type Verdict,
 } from './tables.ts';
 
 export interface ConstructedScreenProps {
@@ -1972,7 +1971,6 @@ function RoomTableScreen({
                       {actionError}
                     </p>
                   )}
-                  {mine?.verdict != null && <VerdictView verdict={mine.verdict} testId="verdict-mine" />}
 
                   {/* Only the decks the room's pool offers, and the pool's
                       answer is the gate's. Disabled until it has answered: an
@@ -2391,25 +2389,3 @@ function NoRoom() {
   );
 }
 
-function VerdictView({ verdict, testId }: { verdict: Verdict; testId: string }) {
-  return (
-    <div className={verdict.legal ? 'tables__legal' : 'tables__illegal'} data-testid={testId}>
-      <p>
-        {verdict.legal
-          ? `Legal in ${verdict.rulesName}.`
-          : `Not legal in ${verdict.rulesName} — ${verdict.issues.length} ${verdict.issues.length === 1 ? 'problem' : 'problems'}:`}
-      </p>
-      {verdict.issues.length > 0 && (
-        <ul className="tables__issues">
-          {verdict.issues.map((issue, i) => (
-            <li key={i}>
-              {issue.cardName !== null && <strong className="tables__card">{issue.cardName}</strong>}
-              {issue.cardName !== null && ' — '}
-              {issue.message}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}

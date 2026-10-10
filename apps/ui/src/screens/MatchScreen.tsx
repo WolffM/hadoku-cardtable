@@ -16,7 +16,7 @@
  * `navigate({ kind: 'lobby' })`, which is why this screen wires nothing.
  *
  * It is exactly one viewport tall: `.shell--match` is the hook
- * `play/live/live.css` uses to pin the page to the window, because *"this
+ * `chrome/chrome.css` uses to pin the page to the window, because *"this
  * module can NEVER require a scroll bar"*. `e2e/table-fit.spec.ts` measures
  * that on a live match.
  *

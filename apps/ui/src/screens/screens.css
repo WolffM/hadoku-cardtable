@@ -94,19 +94,8 @@
 
 /* ── a screen that fits the window: the front page and a room ─────── */
 
-/*
- * The operator, 2026-10-10: *"lobby screen should not have scrolling. definetly
- * not the chat rooms"*. The chrome grew to its content on these routes, so the
- * document scrolled and watchparty's room frame — its chat aside with it — was
- * stretched to the height of the deck list. Pinned to the window instead, as a
- * match already is, and what is inside shares that height rather than adding to
- * it.
- */
-.cardtable-chrome:has(.shell--fit) {
-  height: 100dvh;
-  min-height: 0;
-}
-
+/* The chrome pins these routes to the window (`chrome/chrome.css`); what is
+   inside shares that height, and only the deck grid and the room list scroll. */
 .shell.shell--fit {
   box-sizing: border-box;
   width: 100%;
@@ -185,27 +174,11 @@
   grid-area: head;
 }
 
-/* Rows of two lines — the name beside its labels, the people under them — and
-   as many columns as the width holds. */
+/* The rows keep their size; a long list scrolls inside its own column. */
 .shell--fit .rooms__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  align-content: start;
-}
-
-.shell--fit .rooms__row {
-  padding: 8px 12px;
-}
-
-.shell--fit .rooms__info {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-}
-
-.shell--fit .rooms__members {
-  flex-basis: 100%;
+  align-self: stretch;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .shell--fit .rooms > .rooms__list,
@@ -1087,10 +1060,13 @@
  * cannot use a standard dropdown for this."* Operator again, later: *"deck
  * selection: every deck box the same size, whatever text is in it."*
  *
- * A grid of card-like rows, one per legal deck, filling what the room card
- * leaves it: the room never scrolls (2026-10-10), so the rows share that
- * height, each at most the full 190px tile, and `auto-fill` takes as many
- * 100px-or-wider columns as the width holds rather than scrolling sideways.
+ * A grid of card-like rows, one per legal deck. `auto-fill` with a `190px`
+ * minimum is the same width the table's own card tiles use (`--card-w`), so a
+ * deck row and a card read as the same kind of object, and a narrow room screen
+ * collapses to one column instead of scrolling sideways. The grid takes what the
+ * room card leaves it and scrolls inside itself — Free pick offers the whole
+ * library — while the page never does (the operator, 2026-10-10: *"scrolling is
+ * fine just not for the whole page"*).
  *
  * `grid-auto-rows` gives every row — including a second row once decks wrap —
  * the same track height, and `align-items: stretch` (the grid default, named
@@ -1108,11 +1084,15 @@
 .deckpick {
   flex: 1 1 0;
   min-height: 0;
+  overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  grid-auto-rows: minmax(0, 190px);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-auto-rows: 190px;
+  align-content: start;
   gap: 10px;
   align-items: stretch;
+  /* Room for the focus ring, which an overflow box would otherwise clip. */
+  padding: 4px;
 }
 
 /*

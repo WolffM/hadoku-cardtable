@@ -625,12 +625,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * What both players may see: who has chosen what, whether it is legal,
 	 * whether they are ready.
 	 *
-	 * Your own verdict comes back in full, and someone else's as a count. A
-	 * draft verdict names cards the other player did or did not draft, and a
-	 * drafted pool is hidden information until the draft is over — the same
-	 * reason `gate.ts` resolves a pool by the caller's identity and never by a
-	 * seat number. `rulesName` follows the same split: your own is your verdict's
-	 * own words, and somebody else's is the ROOM's pool in the third person.
+	 * A deck's faults are a count, for everybody; no issue list goes out. Your
+	 * own faults are named once, by the refusal when you try to ready. A draft
+	 * verdict names cards the other player did or did not draft, and a drafted
+	 * pool is hidden information until the draft is over — the same reason
+	 * `gate.ts` resolves a pool by the caller's identity and never by a seat
+	 * number. `rulesName` is your own verdict's words for you, and the ROOM's
+	 * pool in the third person for somebody else.
 	 */
 	function tableView(room: RoomViewLike, me: string): Record<string, unknown> {
 		// `liveMatchId` FIRST: when it releases a finished match it also un-readies
@@ -681,7 +682,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				legal: p.state.verdict.legal,
 				issueCount: p.state.verdict.issues.length,
 				ready: p.state.ready,
-				verdict: p.member.id === me ? p.state.verdict : null,
 				choice: p.member.id === me ? p.state.choice : null,
 			})),
 		};
@@ -828,7 +828,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (body.ready && !mine.state.verdict.legal) {
 			const line = refusalLine(seat, { ...mine.state.verdict, text: mine.state.text });
 			log({ evt: 'room-ready-refused', room: room.id, issues: mine.state.verdict.issues.length });
-			res.status(422).json({ error: line, verdict: mine.state.verdict });
+			res.status(422).json({ error: line });
 			return;
 		}
 		if (!rooms.setPlayerState(room.id, me, { ...mine.state, ready: body.ready })) {

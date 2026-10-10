@@ -920,7 +920,6 @@ describe('a room table', () => {
 		legal: boolean;
 		ready: boolean;
 		issueCount: number;
-		verdict: { issues: { cardName: string | null }[] } | null;
 		/** Present only for a player who has one — see the avatar test below. */
 		avatarId?: string;
 	}
@@ -1153,7 +1152,7 @@ describe('a room table', () => {
 
 		// The other player's copy of the table says the same thing. A face is not
 		// hidden information — both seats already read each other's names — so
-		// unlike `verdict` and `choice` this field is not caller-scoped.
+		// unlike `choice` this field is not caller-scoped.
 		const theirs = players((await view(h, 'bob')).body);
 		expect(theirs[0]?.avatarId).toBe('wanderer');
 		expect(theirs[1]).not.toHaveProperty('avatarId');
@@ -1308,11 +1307,8 @@ describe('a room table', () => {
 		const loaded = await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
 		expect(loaded.status).toBe(200);
 		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 3 });
-		expect(players(loaded.body)[0]?.verdict?.issues.map((i) => i.cardName)).toEqual([
-			'Essence Scatter',
-			'Polymorph',
-			'Jace, the Mind Sculptor',
-		]);
+		// A count, not a list: the card is named once, by the refusal below.
+		expect(players(loaded.body)[0]).not.toHaveProperty('verdict');
 
 		const refused = await setReady(h, 'alice');
 		expect(refused.status).toBe(422);
@@ -1374,11 +1370,10 @@ describe('a room table', () => {
 		const seen = await view(h, 'bob');
 		const [mine, theirs] = [players(seen.body)[1], players(seen.body)[0]];
 		expect(mine).toMatchObject({ you: true, legal: true });
-		expect(mine?.verdict).not.toBeNull();
 		// Alice's faults reach Bob as a count and a name, never as a card list:
 		// a draft verdict would say what she drafted.
 		expect(theirs).toMatchObject({ you: false, legal: false, issueCount: 3, deckName: 'UG Polymorph (Antoine Ruel)' });
-		expect(theirs?.verdict).toBeNull();
+		for (const row of [mine, theirs]) expect(row).not.toHaveProperty('verdict');
 		expect(JSON.stringify(seen.body)).not.toContain('[metadata]');
 	});
 
@@ -1708,7 +1703,6 @@ describe('a room on a drafted pool', () => {
 		legal: boolean;
 		rulesName: string;
 		issueCount: number;
-		verdict: { issues: { kind: string; cardName: string | null }[] } | null;
 	}
 	const players = (body: Record<string, unknown>): Row[] => body.players as Row[];
 
@@ -1841,15 +1835,14 @@ describe('a room on a drafted pool', () => {
 		const stolen = await putDeck(h, 'bob', built(pools.alice));
 		expect(stolen.status).toBe(200);
 		const bobsRow = players(stolen.body)[1];
-		expect(bobsRow).toMatchObject({ you: true, legal: false });
 		// Every card of it, because the two pools share none.
-		expect(bobsRow?.verdict?.issues.length).toBeGreaterThan(0);
-		expect([...new Set(bobsRow?.verdict?.issues.map((i) => i.kind))]).toEqual(['more-copies-than-drafted']);
-		// Named, to HIM: it is his deck, and the cards in it are the ones he sent.
-		expect(bobsRow?.verdict?.issues[0]?.cardName).toBe(pools.alice[0]?.name);
-		// An illegal deck cannot be readied, so it can never reach a start.
+		expect(bobsRow).toMatchObject({ you: true, legal: false, issueCount: 45 });
+		// An illegal deck cannot be readied, so it can never reach a start — and
+		// the refusal names the card, to HIM: it is his deck, and the cards in it
+		// are the ones he sent.
 		const refused = await setReady(h, 'bob');
 		expect(refused.status).toBe(422);
+		expect(refused.body.error).toContain(pools.alice[0]?.name);
 		expect((await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'))).status).toBe(409);
 		expect(h.specs).toEqual([]);
 
@@ -1860,7 +1853,7 @@ describe('a room on a drafted pool', () => {
 		const seen = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
 		const hisRow = players(seen.body)[1];
 		expect(hisRow).toMatchObject({ you: false, legal: false, issueCount: 45, rulesName: `their own pool from ${POD}` });
-		expect(hisRow?.verdict).toBeNull();
+		expect(hisRow).not.toHaveProperty('verdict');
 	});
 
 	/**
