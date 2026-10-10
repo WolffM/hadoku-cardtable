@@ -1057,6 +1057,7 @@ test(TITLE, async ({ browser }) => {
       const land = freshSeats.you.back[0];
       if (land === undefined) continue;
       const card = f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${land.id}"]`);
+      console.log(`[table-fit-arm] ${f.name} drags land ${land.id} to the front row`);
       const trace = await pointerDrag(f.page, card, await endOfSlot(viewerSlot(f.page, 'front')));
       // This drag's own history, kept short now that it is resolved (two
       // real, separate bugs, both fixed, each confirmed with real data, not

@@ -125,14 +125,24 @@ export async function pointerDrag(
 ): Promise<DragTrace> {
   const from = centre(await boxOf(card));
   await page.mouse.move(from.x, from.y);
+  const before = await armState(page, from);
+  await page.evaluate(watchPress);
   await page.mouse.down();
   // A first move past any dead-zone, then the long way round.
   await page.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
   // Armed here, before the midway sample, so "never armed" and "armed but
   // sampled too early" fail with different messages.
-  await expect
-    .poll(() => page.locator(hooks.pickedUp).count(), { timeout: 3_000, message: 'the drag never armed: pickedUp stayed 0 after mouse.down' })
-    .toBeGreaterThan(0);
+  try {
+    await expect
+      .poll(() => page.locator(hooks.pickedUp).count(), { timeout: 3_000, message: 'the drag never armed: pickedUp stayed 0 after mouse.down' })
+      .toBeGreaterThan(0);
+  } catch (error) {
+    console.log(`[table-fit-arm] before the press: ${JSON.stringify(before)}`);
+    console.log(`[table-fit-arm] the press: ${JSON.stringify(await page.evaluate(() => (window as unknown as { __armWatch?: unknown }).__armWatch ?? null))}`);
+    console.log(`[table-fit-arm] after the poll: ${JSON.stringify(await armState(page, from))}`);
+    await page.mouse.up();
+    throw error;
+  }
   const steps = 12;
   let midway: DragTrace['midway'] = { ghost: 0, indicator: 0, pickedUp: 0 };
   for (let i = 1; i <= steps; i++) {
@@ -147,6 +157,60 @@ export async function pointerDrag(
   }
   await page.mouse.up();
   return { midway };
+}
+
+/**
+ * Records what one press met, for a drag that never armed: which element took the
+ * pointerdown, whether the gestures layer (on the canvas, so before `document`)
+ * claimed it, the moves that followed, and every time the board's
+ * `data-arrange-active` changed.
+ */
+function watchPress(): void {
+  const rec: { log: string[]; moves: number } = { log: [], moves: 0 };
+  (window as unknown as { __armWatch?: unknown }).__armWatch = rec;
+  const t0 = performance.now();
+  const at = (what: string) => rec.log.push(`${Math.round(performance.now() - t0)}ms ${what}`);
+  const name = (el: EventTarget | null) =>
+    el instanceof Element ? `${el.tagName.toLowerCase()}.${Array.from(el.classList).join('.')}[${el.getAttribute('data-testid') ?? ''}]` : String(el);
+  window.addEventListener('pointerdown', (e) => at(`down capture on ${name(e.target)} button=${e.button} primary=${e.isPrimary} prevented=${e.defaultPrevented}`), { capture: true, once: true });
+  document.addEventListener('pointerdown', (e) => at(`down at document prevented=${e.defaultPrevented}`), { once: true });
+  window.addEventListener('pointerdown', (e) => at(`down at window (after the board) prevented=${e.defaultPrevented}`), { once: true });
+  window.addEventListener('pointermove', (e) => {
+    rec.moves += 1;
+    if (rec.moves <= 4) at(`move ${e.clientX},${e.clientY} buttons=${e.buttons}`);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture', 'keydown'] as const) window.addEventListener(type, () => at(type), { capture: true, once: true });
+  new MutationObserver((ms) => {
+    for (const m of ms) at(`${m.attributeName} ${(m.target as Element).hasAttribute(m.attributeName ?? '') ? 'set' : 'removed'} on ${name(m.target)}`);
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-arrange-active', 'data-arrange-dragging'] });
+}
+
+/** The table at one point: phase, prompt, bar, overlays, and what is under `p`. */
+function armState(page: Page, p: { x: number; y: number }): Promise<unknown> {
+  return page.evaluate((pt) => {
+    const name = (el: Element | null) => (el === null ? null : `${el.tagName.toLowerCase()}.${Array.from(el.classList).join('.')}[${el.getAttribute('data-testid') ?? ''}]`);
+    const hit = document.elementFromPoint(pt.x, pt.y);
+    const chain: (string | null)[] = [];
+    for (let el = hit; el !== null && chain.length < 6; el = el.parentElement) chain.push(name(el));
+    const li = hit?.closest<HTMLElement>('li.board-card') ?? null;
+    const marks = (el: Element) => Object.fromEntries(Array.from(el.attributes).filter((a) => a.name.startsWith('data-')).map((a) => [a.name, a.value]));
+    const shown = (sel: string) => Array.from(document.querySelectorAll(sel)).filter((el) => el.getClientRects().length > 0).map(name);
+    return {
+      phase: document.querySelector('[data-testid="live-phases"]')?.getAttribute('data-phase') ?? null,
+      says: document.querySelector('[data-testid="live-says"]')?.textContent?.slice(0, 160) ?? null,
+      prompt: document.querySelector('[data-testid="live-prompt"]')?.textContent?.slice(0, 160) ?? null,
+      buttons: Array.from(
+        document.querySelectorAll('[data-testid^="live-button"], [data-testid^="live-decision"], [data-testid^="live-payment"], [data-testid^="selection-"], [data-testid^="prompt-confirm"]'),
+      ).map((b) => `${b.getAttribute('data-testid')}:${(b.textContent ?? '').trim().slice(0, 20)}${(b as HTMLButtonElement).disabled ? '(disabled)' : ''}`),
+      stack: document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? null,
+      overlays: shown(
+        '[role="dialog"], dialog[open], [data-testid="settings"], [data-testid="staging"], [data-placed-spell], [data-cast-lift], [data-arrange-ghost], [data-testid*="notice"], [data-testid*="reveal"], [data-testid*="inspector"], [data-testid*="logbook"]',
+      ),
+      active: document.querySelector('[data-arrange-active]') !== null,
+      hit: chain,
+      hitCard: li === null ? null : marks(li),
+    };
+  }, p);
 }
 
 /**
