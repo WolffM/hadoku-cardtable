@@ -258,12 +258,10 @@ describe('the room’s readiness', () => {
     expect(within(rowFor('r-open')).queryByTestId('room-drafting')).toBeNull();
   });
 
-  it('offers draft as a game type a person can actually pick', () => {
-    // It used to be `Draft (coming soon)` and disabled, which is what made the
-    // deleted "Start a pod" button the only way to draft.
-    const draft = GAME_TYPES.find((t) => t.value === 'draft');
-    expect(draft).toEqual({ value: 'draft', label: 'Draft', ready: true });
-    expect(GAME_TYPES.every((t) => t.ready)).toBe(true);
+  it('offers draft as a game type that is Coming Soon, and constructed as the one to pick', () => {
+    // The operator, 2026-10-10: "make 'Draft' unselectable in the create room screen and add a "(Coming Soon)" behind it".
+    expect(GAME_TYPES.find((t) => t.value === 'draft')).toEqual({ value: 'draft', label: 'Draft', ready: false });
+    expect(GAME_TYPES.find((t) => t.value === 'constructed-1v1')?.ready).toBe(true);
   });
 });
 
@@ -511,17 +509,16 @@ describe('creating a room', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('omits an empty password, and offers draft as a type that can be chosen', async () => {
+  it('omits an empty password, and shows draft as Coming Soon, not pickable', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
     openCreate();
 
-    // This option used to be disabled and labelled "coming soon", so the only
-    // way to draft was the pod button w23 deletes. It is a room now.
-    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: 'Draft' }) as HTMLOptionElement;
-    expect(draft.disabled).toBe(false);
+    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: 'Draft (Coming Soon)' }) as HTMLOptionElement;
+    expect(draft.disabled).toBe(true);
     expect(draft.value).toBe('draft');
+    expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('constructed-1v1');
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Open table' } });
     await act(async () => {
@@ -534,25 +531,11 @@ describe('creating a room', () => {
     });
   });
 
-  it('makes a DRAFT room from the same form, and lands in it — the only door there is', async () => {
+  it('a draft room made through the API still lands as a room, not a pod route', async () => {
     const { client, calls } = server([]);
-    mount(client);
-    await screen.findByTestId('rooms-empty');
-    openCreate();
-
-    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Cube night' } });
-    fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'draft' } });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('room-create-submit'));
-    });
-
-    expect(calls.find((c) => c.method === 'POST')).toEqual({
-      url: '/cardtable/api/rooms',
-      method: 'POST',
-      body: { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' },
-    });
-    // `#/room/<id>`, not `#/draft/<id>`: the room is the pod.
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
+    const made = await client.create({ name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+    expect(made.ok && made.room.gameType).toBe('draft');
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
   });
 
   it('is a dialog behind Create room at the foot of the list, and asks no client question', async () => {

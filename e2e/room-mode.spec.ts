@@ -121,13 +121,10 @@ async function createRoomChecked(f: Friend, name: string, mode: 'builtin' | 'str
   await expect(f.page.getByTestId('room-create-mode'), 'the form asks no client question').toHaveCount(0);
   await expect(f.page.getByTestId('room-create')).not.toContainText('Forge’s full client');
 
-  // Both game types are pickable now (w23): a draft is a room like any other,
-  // so the draft option is no longer disabled and no longer says "coming soon".
-  // `e2e/draft.spec.ts` is what drafts through it; this is the form's own proof
-  // that the door is open.
+  // Draft is offered but Coming Soon (2026-10-10): shown, not pickable.
   const draftOption = f.page.locator('[data-testid="room-create-type"] option[value="draft"]');
-  await expect(draftOption).not.toBeDisabled();
-  await expect(draftOption).toHaveText('Draft');
+  await expect(draftOption).toBeDisabled();
+  await expect(draftOption).toHaveText('Draft (Coming Soon)');
   if (mode === 'streamed') await f.page.keyboard.press('Escape');
 
   const id = await createRoom(f, name, { mode });

@@ -128,10 +128,15 @@ export interface RoomView {
   createdAt: string;
 }
 
-/** The types the create form offers, and whether this build can play them. */
+/**
+ * The types the create form offers, and whether it lets you pick them. Draft
+ * is offered but not pickable for now (the operator, 2026-10-10: *"make 'Draft'
+ * unselectable … and add a "(Coming Soon)" behind it"*); a draft room still
+ * works on the server, and `e2e/draft.spec.ts` makes one through the API.
+ */
 export const GAME_TYPES: readonly { value: GameType; label: string; ready: boolean }[] = [
   { value: 'constructed-1v1', label: 'Constructed 1v1', ready: true },
-  { value: 'draft', label: 'Draft', ready: true },
+  { value: 'draft', label: 'Draft', ready: false },
 ];
 
 export function gameTypeLabel(gameType: string): string {

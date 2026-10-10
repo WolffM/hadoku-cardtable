@@ -62,7 +62,7 @@ import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './ide
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { createRoomByApi, openCreateRoom } from './play/rooms.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -253,11 +253,10 @@ async function roomState(p: Player, roomId: string): Promise<RoomWire> {
 
 
 /**
- * Make a draft room the way a person does: the front page's create form.
- *
- * `selectOption('draft')` is itself the assertion that the draft game type is
- * selectable — Playwright refuses a disabled option — which is the one line of
- * `GAME_TYPES` that used to read "coming soon".
+ * Make a draft room. The create form shows Draft as "(Coming Soon)" and will
+ * not pick it (2026-10-10), so this checks that, then makes the room through
+ * the same `POST /api/rooms` the form sends: the draft itself still works and
+ * this spec still proves it.
  */
 async function createDraftRoom(p: Player, name: string): Promise<string> {
   await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
@@ -270,9 +269,11 @@ async function createDraftRoom(p: Player, name: string): Promise<string> {
   await expect(p.page.getByTestId('join-id')).toHaveCount(0);
 
   await openCreateRoom(p.page);
-  await p.page.getByTestId('room-create-name').fill(name);
-  await p.page.getByTestId('room-create-type').selectOption('draft');
-  await p.page.getByTestId('room-create-submit').click();
+  const draftOption = p.page.locator('[data-testid="room-create-type"] option[value="draft"]');
+  await expect(draftOption).toBeDisabled();
+  await expect(draftOption).toHaveText('Draft (Coming Soon)');
+  await p.page.keyboard.press('Escape');
+  await createRoomByApi(p.page, { name, gameType: 'draft', clientMode: 'builtin' });
 
   const id = await roomIdFromHash(p.page);
   expect(id, 'the room id is server-minted').toMatch(ROOM_ID);

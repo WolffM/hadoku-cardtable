@@ -453,7 +453,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
         >
           {GAME_TYPES.map((t) => (
             <option key={t.value} value={t.value} disabled={!t.ready}>
-              {t.label}
+              {t.ready ? t.label : `${t.label} (Coming Soon)`}
             </option>
           ))}
         </select>

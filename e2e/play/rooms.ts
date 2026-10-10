@@ -17,17 +17,29 @@ export async function openCreateRoom(page: Page): Promise<void> {
   await expect(form, 'the create-room dialog opened').toBeVisible();
 }
 
-/** Make a streamed room from the front page's own origin, and go to it as the form would. */
-export async function createStreamedRoomByApi(page: Page, name: string): Promise<void> {
-  await page.evaluate(async (roomName) => {
+/**
+ * Make a room the form will not make — a streamed one, or a draft (Coming
+ * Soon since 2026-10-10) — from the front page's own origin, and go to it as
+ * the form would.
+ */
+export async function createRoomByApi(
+  page: Page,
+  room: { name: string; gameType: 'constructed-1v1' | 'draft'; clientMode: 'builtin' | 'streamed' },
+): Promise<void> {
+  await page.evaluate(async (body) => {
     const res = await fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: roomName, gameType: 'constructed-1v1', clientMode: 'streamed' }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`POST /api/rooms answered ${String(res.status)}`);
-    const room = (await res.json()) as { id: string };
-    window.location.hash = `#/room/${room.id}`;
-  }, name);
+    const made = (await res.json()) as { id: string };
+    window.location.hash = `#/room/${made.id}`;
+  }, room);
+}
+
+/** A streamed room: the form offers no client any more. */
+export async function createStreamedRoomByApi(page: Page, name: string): Promise<void> {
+  await createRoomByApi(page, { name, gameType: 'constructed-1v1', clientMode: 'streamed' });
 }
