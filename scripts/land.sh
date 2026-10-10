@@ -82,7 +82,10 @@ else
 fi
 echo "land: pnpm run check $(date -u +%T)"
 # No jar env: with it, check runs every jvm suite (memory: check-with-jar-env-runs-all-jvm).
-if ! env -u CARDTABLE_FORGE_JAR -u CARDTABLE_FORGE_RES PATH="$NODE_BIN:$PATH" pnpm run check > "$TMP.check.log" 2>&1; then
+# CI=1: the same check CI gates a deploy on — its timeouts and its 4-worker cap. This host
+# runs production and every lane at once; the local 5 s/1 s budgets measured its load instead.
+# NO_COLOR: CI=1 turns vitest's colour on, and the Tests-line grep below must read plain text.
+if ! env -u CARDTABLE_FORGE_JAR -u CARDTABLE_FORGE_RES CI=1 NO_COLOR=1 PATH="$NODE_BIN:$PATH" pnpm run check > "$TMP.check.log" 2>&1; then
   tail -40 "$TMP.check.log"; echo "land: check FAILED — nothing pushed (log $TMP.check.log)" >&2; exit 5
 fi
 grep -E 'Tests +[0-9]' "$TMP.check.log" | tail -1
