@@ -357,6 +357,19 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       expect(early.map((s) => `${rel(s.at, t0)}ms`), `bob's card shown before its flight at ${rel(firstFlight.at, t0)}ms`).toEqual([]);
     }
 
+    // One object at the landing: no frame draws the stack card and the battlefield card both (the
+    // manager's frame sheet of a red run: a copy laid over the field card for a frame or two).
+    for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
+      let stackShown = false;
+      const doubled: string[] = [];
+      for (const s of rec) {
+        if (s.at < t0) continue;
+        if (/^stack\d*$/.test(s.what)) stackShown = s.attrs !== 'gone' && !s.attrs.includes('hidden');
+        if (s.what === 'field' && s.attrs.includes('vis=visible') && stackShown) doubled.push(`${rel(s.at, t0)}ms @${s.x},${s.y}`);
+      }
+      expect(doubled, `${who}: the stack card is gone the frame the card is shown on the battlefield`).toEqual([]);
+    }
+
     // No flight to nowhere: a stand-in already standing where the card is drawn is a swap in place,
     // never a 300 ms "trip" from the gap to the gap with the real card hidden under it.
     for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
