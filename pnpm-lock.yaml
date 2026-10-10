@@ -59,6 +59,9 @@ importers:
       '@hadoku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@wolffm/prefs-client':
+        specifier: 1.0.15
+        version: 1.0.15(react@19.2.8)(zod@4.6.5)
       '@wolffm/rooms-protocol':
         specifier: 0.40.19
         version: 0.40.19
