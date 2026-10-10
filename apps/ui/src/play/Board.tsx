@@ -3424,10 +3424,13 @@ export function Board({
    * unmount. `notify` runs on every `view` this component receives and on
    * every `interaction` change — Q18's own case, a spell on the stack that is
    * ALSO one of Forge's `setSelectables` by its own card id — mirroring
-   * `installNumbers` exactly, one layer down.
+   * `installNumbers` exactly, one layer down. Layout effects, so the layer
+   * repaints with the board in one frame: a spell that resolved onto the
+   * battlefield was drawn on the stack AND in its row for a painted frame in
+   * between (w67-shaman, the other screen's frame sheet).
    */
   const placed = useRef<ReturnType<typeof installPlaced> | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
     const handle = installPlaced(el);
@@ -3437,7 +3440,7 @@ export function Board({
       handle.dispose();
     };
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     placed.current?.notify(
       view,
       interaction === undefined ? undefined : { isSelectable: (cardId) => interaction.selectable.has(cardId), onSelect: interaction.onSelectCard },
