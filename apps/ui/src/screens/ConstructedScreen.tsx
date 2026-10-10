@@ -991,22 +991,15 @@ function RoomTableScreen({
    * at the top for picking the format as well obviously"*).
    *
    * Opens on the table's own era's family and FOLLOWS it there — the effect
-   * below re-syncs whenever `poolId` actually changes, which is every write
-   * that moved the room's pool, mine or another browser's. Switching tabs by
-   * hand only BROWSES which eras the `<select>` below offers; nothing is sent
+   * below re-syncs whenever `poolId` moves (every write that moved the room's
+   * pool, mine or another browser's) and whenever `tabOfPool` does, which
+   * without a pool move is only the catalogue arriving after the room and
+   * naming the era's family at last. Switching tabs by hand changes neither,
+   * so it only BROWSES which eras the `<select>` below offers; nothing is sent
    * until an option in it is chosen, same as the control always worked.
    */
   const [formatTab, setFormatTab] = useState<FormatFamily | 'draft'>(tabOfPool);
-  const syncedPoolId = useRef(poolId);
-  useEffect(() => {
-    if (syncedPoolId.current === poolId) return;
-    syncedPoolId.current = poolId;
-    setFormatTab(tabOfPool);
-    // Deliberately keyed on `poolId` alone: `tabOfPool` is read fresh each run
-    // (it is a plain `const` derived every render, not a ref), and re-running
-    // this effect on every render it changed WITHOUT `poolId` moving would
-    // fight a hand click on a tab button before any era is chosen.
-  }, [poolId]);
+  useEffect(() => setFormatTab(tabOfPool), [poolId, tabOfPool]);
   /**
    * Whether the room's actual pool is one of THIS tab's own options.
    *

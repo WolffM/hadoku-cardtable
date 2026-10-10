@@ -239,6 +239,8 @@ interface Table {
    * play sixty Islands.
    */
   decks?: TableDeck[];
+  /** `GET /tables/decks` answers only once a room read has, as on a reload where the room is quicker. */
+  catalogueAfterRoom?: boolean;
 }
 
 /**
@@ -313,6 +315,10 @@ function stubServer(table: Table) {
     });
     return () => releaseHeld?.();
   };
+  let roomRead: () => void = () => undefined;
+  const roomAnswered = new Promise<void>((r) => {
+    roomRead = r;
+  });
   const fetchImpl: Fetch = async (url, init) => {
     const body: unknown = init?.body === undefined ? undefined : JSON.parse(String(init.body));
     calls.push({ url, method: init?.method ?? 'GET', body });
@@ -341,6 +347,7 @@ function stubServer(table: Table) {
         await gate;
         return json(200, stale);
       }
+      roomRead();
       return table.roomUnreadable === true ? json(503, { error: 'rooms are restarting' }) : json(200, roomRecord());
     }
     /*
@@ -386,7 +393,10 @@ function stubServer(table: Table) {
       }));
       return json(200, { formats: [...pods, FREE, ...FORMATS, MODERN] });
     }
-    if (url.endsWith('/tables/decks')) return json(200, { decks: decks() });
+    if (url.endsWith('/tables/decks')) {
+      if (table.catalogueAfterRoom === true) await roomAnswered.then(() => new Promise((r) => setTimeout(r, 20)));
+      return json(200, { decks: decks() });
+    }
     // One per era, each time the room's pool moves: how the picker learns
     // which decks that pool offers. The answer is this stub's own per-deck
     // verdict, so the fake cannot disagree with `/tables/check` below.
@@ -1705,6 +1715,16 @@ describe('a room read that overlapped the leader’s own write', () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(select.value, 'the stale read did not revert the pick').toBe('2011-07-15');
     expect(server.table.format).toBe('2011-07-15');
+  });
+});
+
+describe('the room answering before the catalogue', () => {
+  it('still opens on the room’s own tab with its era chosen', async () => {
+    // CI (w48's spec, 1 run in ~40): a reload where the room record arrived first settled the tab
+    // while the era could not yet be named, and the Modern room read as the Standard tab, nothing chosen.
+    await mountRoom({ players: [], matchId: null, format: MODERN.id, catalogueAfterRoom: true });
+    await waitFor(() => expect(screen.getByTestId('format-tab-modern').getAttribute('aria-selected')).toBe('true'));
+    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(MODERN.id);
   });
 });
 
