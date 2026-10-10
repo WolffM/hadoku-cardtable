@@ -2,6 +2,40 @@
 
 Alpha phase 4 (`roadmap-alpha.md`). Opened 2026-10-09.
 
+## The operator's brief (verbatim, 2026-10-09) — the goal
+
+Kept word for word so the work never drifts from it. Measure every wave
+against these four numbered items.
+
+> two more workstreams beyond the ongoing alpha work:
+>
+> 1. i need to figure out how we're gonna get audio into the game. when it even makes sense to play sounds. i dont want to completely overdo it but the game does need a lot of audio. touching cards, hovering cards, spells resolving, creatures being played, cards being destroyed, drawing cards, turn start, etc. so pretty much all game actions need some audio. I already started bootcamping sounds with a local AI model here but those sounds were mostly for color-specific cards. however, lots of those sounds can theoretically also be used for generic things. this will need a lot of testing.
+>
+> 2. i need a sound testing sandbox. one a where i can play sounds, assign them to certain roles, and then have different testing scenarios where i can hear them all in sequence.
+>
+> so really theres a bit more:
+> 1. figure out what the entire corpus of sounds are that are needed.
+> 2. figure out how to actually get them to play at the right times
+> 3. build the ui for assigning sounds and testing individual sounds manually.
+> 4. build the testing sandbox for complex scenarios i can hear and tweak.
+
+Later directions, verbatim, in order:
+
+- *"spells will have their own sound. so it'll be a stack of: spell cast -> creature sound -> creature lands on table sound. quite the stack. i guess i want to keep the spell sounds somewhat low, maybe just one for each spell type and not worry about the colors."*
+- Music: *"it's in scope, shouldn't be too hard to get that right. just a couple of tracks will be easy to find."*
+- Shuffle: *"shuffle will have a sound"*.
+- *"i haven't actually assigned any sounds yet, so you dont have any idea where the gaps are. we can generate gap filers once i've gone through and done the first assignment"*
+- *"the 140 assigned takes you found was part of a builder session i did but i wasn't certain yet where sounds should actually go so i need the ui to land that"*
+- *"help me get to the sandbox and picker UI as quick as possible so i can iterate on the sounds"* (2026-10-10: shipped as wave A)
+- *"keep going on the audio work, i'll review the sounds in the morning."*
+
+| Brief item | Where it stands |
+| --- | --- |
+| 1. the corpus | the role list below; `SOUND_ROLE_GROUPS` in `packages/shared/src/sounds.ts` |
+| 2. playing at the right times | wave B |
+| 3. assigning + testing single sounds | `#/sounds` (wave A) |
+| 4. the scenario sandbox | `#/sounds/sandbox` (wave A); replays in wave C |
+
 ## Operator decisions (2026-10-09)
 
 | Question | Decision |
