@@ -299,10 +299,15 @@ describe.skipIf(!available.ok)(title, () => {
       const picked = new Map<string, number[]>();
       const IDLE_MS = 3000;
 
-      /** A card of mine the board is offering right now, by Forge's own set. */
+      /**
+       * A creature of mine the board is offering right now, by Forge's own set. Creatures only: the
+       * set read the moment the combat prompt arrives can still be the priority window's, which offers
+       * untapped lands for their mana — in run 38032502578 seat 1 "blocked" with a Volcanic Island,
+       * a drag that sends nothing, and the wire count came up one short.
+       */
       function offeredOnMyBattlefield(s: SeatClient, me: BoardPlayer, skip: (c: BoardCard) => boolean): BoardCard | null {
         const offered = boardInteraction(s.live).selectable;
-        return me.battlefield.find((c) => offered.has(c.id) && !skip(c)) ?? null;
+        return me.battlefield.find((c) => offered.has(c.id) && c.card.typeLine.includes('Creature') && !skip(c)) ?? null;
       }
 
       function step(): void {
