@@ -865,6 +865,61 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
+  it('telemetry: their creature’s hand-over to the stack card and its landing are each reported once, as the receiver, from the back’s drawn box', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const report = vi.fn();
+    let theirs: number[] = [];
+    let onStack: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => onStack, theirPlayerId: () => 1, motion: () => true, report },
+    });
+    const frame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    const gap = document.createElement('li');
+    gap.className = 'zone__gap';
+    gap.setAttribute('data-expected', '');
+    gap.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(gap);
+    await frame();
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    back.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    theirs = [121];
+    onStack = [121];
+    wake!();
+    await frame();
+    await frame();
+    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    await frame();
+    const handover = report.mock.calls.filter(([kind]) => kind === 'handover');
+    expect(handover, 'one hand-over').toHaveLength(1);
+    expect(handover[0]![1]).toMatchObject({ screen: 'receiver', how: 'stack', card: 121, fromX: 430, fromY: 242, motion: true });
+    expect(handover[0]![1]).toHaveProperty('msSinceRelease');
+    expect(handover[0]![1]).toHaveProperty('glideMs');
+    // It resolves into its column, drawn where the stack card stood: a swap in place.
+    gap.remove();
+    const li = document.createElement('li');
+    li.setAttribute('data-board-card', '121');
+    li.innerHTML = '<button class="board-card__face"><article class="card"><span class="card__name">Viridian Shaman</span></article></button>';
+    li.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(li);
+    onStack = [];
+    forgetPendingPlacements();
+    wake!();
+    await frame();
+    await frame();
+    const landing = report.mock.calls.filter(([kind]) => kind === 'landing');
+    expect(landing, 'one landing').toHaveLength(1);
+    expect(landing[0]![1]).toMatchObject({ screen: 'receiver', how: 'swap', card: 121, fromX: 430, fromY: 242, toX: 430, toY: 242, dist: 0 });
+    expect(landing[0]![1]).toHaveProperty('msSinceStackFrame');
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `commitSpell`', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;

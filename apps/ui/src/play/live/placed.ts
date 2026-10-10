@@ -467,6 +467,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       el.className = 'placed';
       el.setAttribute('data-placed-spell', String(item.id));
       el.setAttribute('data-stack-id', String(item.id));
+      // The card it is, for a reader counting the card's copies on screen (`handover-report.ts`).
+      if (!item.isAbility && item.sourceCardId !== null) el.setAttribute('data-placed-card', String(item.sourceCardId));
       // Q18: a SPELL (never an ability) may itself be one of Forge's `setSelectables` while it sits
       // on the stack — `sourceCardId` captured once, at creation, same as every other id here.
       const sourceCardId = item.sourceCardId;

@@ -80,7 +80,8 @@ import { PLACED_EVENT, PlacedEchoSchema,
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
-import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
+import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
+import { drawnCentreOf, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
@@ -143,6 +144,8 @@ export interface PresenceHost {
    * until the host wires this in.
    */
   readonly aiming?: () => boolean;
+  /** Telemetry: their card's stand-in giving way to its stack card and its row (`./handover-report.ts`). Absent: nothing is sent. */
+  readonly report?: Report;
 }
 
 export interface PresenceHandle {
@@ -635,6 +638,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    */
   let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean } | null = null;
   let backAt: Point | null = null;
+  /** Telemetry for the play in hand (`./handover-report.ts`): when its release reached this screen, its glide began, its spell was seen on the stack. */
+  let play: { releasedAt: number; glideStartedAt: number | null; stackFrameAt: number | null } = { releasedAt: 0, glideStartedAt: null, stackFrameAt: null };
+  function receiverFacts(card: number, how: string, from: Point | null, to: Point | null): HandoverFacts {
+    return { screen: 'receiver', card, how, from, to, glideStartedAt: play.glideStartedAt, releasedAt: play.releasedAt === 0 ? null : play.releasedAt, stackFrameAt: play.stackFrameAt, motion: host.motion?.() === true };
+  }
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
   /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
@@ -858,6 +866,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
+        play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
         waiting = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
@@ -935,7 +944,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * glide's END appeared up to ~30 px from the back it replaced.
    */
   function handToSpell(id: number): void {
-    const at = (back === null ? null : drawnCentre(back)) ?? backAt;
+    const drawn = back === null ? null : drawnCentre(back);
+    const at = drawn ?? backAt;
+    play.stackFrameAt = Date.now();
+    reportHandover(host.report, 'handover', canvas, receiverFacts(id, 'stack', drawn, at));
     if (at !== null) {
       placeSpell(id, at, 'them');
       // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
@@ -1089,6 +1101,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function flyTile(card: number, from: Point): void {
     const settled = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     const tile = settled?.querySelector('.card');
+    const to = drawnCentreOf(settled);
+    const inPlace = to !== null && Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX;
+    const how = !(settled instanceof HTMLElement) || !tile ? 'no-tile' : host.motion?.() !== true ? 'motion-off' : inPlace ? 'swap' : 'flight';
+    reportHandover(host.report, 'landing', canvas, receiverFacts(card, how, from, to));
     if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) return;
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
@@ -1113,6 +1129,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (theirs === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
     expectPlacement(theirs, slot, target, card);
+    play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
     const already = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     if (already !== null) {
       // The frame came first: the reservation moves the card on the next commit; its tile flies
@@ -1148,6 +1165,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       standIn.style.left = `${backAt.x - box2.left}px`;
       standIn.style.top = `${backAt.y - box2.top}px`;
       standIn.style.width = `${gap.width}px`;
+      play.glideStartedAt = Date.now();
     };
     requestAnimationFrame(() => glide(GAP_FRAMES));
   }

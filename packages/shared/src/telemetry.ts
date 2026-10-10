@@ -21,13 +21,15 @@ export const ClientEventSchema = z
   .object({
     matchId: z.string().min(1),
     /**
-     * `info`: the seat's settings, on join and on each change. `landing`: how a
-     * played card arrived. `sound`: what the table raised to play and why —
-     * a view's derived events, a decision's chime, a button's press — so "it
-     * played three times" is read from the log (the operator, 2026-10-10: *"as
-     * we investigate these things, please make sure we have ample telemetry"*).
+     * `info`: the seat's settings, on join and on each change. `handover`: a
+     * played card's stand-in giving way to its stack card; `landing`: to the
+     * card in its row — on either screen. `sound`: what the table raised to
+     * play and why — a view's derived events, a decision's chime, a button's
+     * press — so "it played three times" is read from the log (the operator,
+     * 2026-10-10: *"as we investigate these things, please make sure we have
+     * ample telemetry"*).
      */
-    kind: z.enum(['info', 'landing', 'sound']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound']),
     data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
   })
   .strict();

@@ -4,6 +4,7 @@
  * public.
  */
 import type { LiveMatch } from '../match.ts';
+import type { Report } from '../handover-report.ts';
 
 export interface GestureOptions {
   /** The match's root element — the canvas. All pointer handling is delegated here. */
@@ -18,11 +19,12 @@ export interface GestureOptions {
    */
   motion?: () => boolean;
   /**
-   * Telemetry: how a played card arrived (`landing`), written to the match's
-   * log by the server so the report "it just appeared" is read, not guessed.
-   * Absent: nothing is recorded.
+   * Telemetry: a played card's stand-in giving way to its stack card
+   * (`handover`) and to the card in its row (`landing`) — `../handover-report.ts`
+   * — written to the match's log by the server so a report is read, not
+   * guessed. Absent: nothing is recorded.
    */
-  report?: (kind: 'landing', data: Record<string, string | number | boolean>) => void;
+  report?: Report;
 }
 
 export interface GestureHandle {

@@ -2344,6 +2344,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!);
         },
         motion: motionWanted,
+        // A watcher sends none (`reportClient`'s own rule).
+        report: spectator ? undefined : (kind, data) => reportClient(match.transport, match.matchId, kind, data),
       },
     });
     return () => handle.dispose();

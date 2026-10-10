@@ -215,9 +215,10 @@ import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '.
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
 import { isPlaced, moveSpell, onSpellDrawn, placeSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
+import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
-import { CAST_LANDING_ATTR, expectedGapBox,
+import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX,
   CAST_LIFT_ATTR,
   clearAllCastLifts,
   clearCastLift,
@@ -293,6 +294,10 @@ interface Parked {
   onStack: boolean;
   /** §S: `live/placed.ts` has drawn the real stack item in the ghost's place — see `syncParkedGhost`'s own note. Never returns to false. */
   ghostHandedOff: boolean;
+  /** Telemetry (`../handover-report.ts`): `Date.now()` of the release, of the stand-in's glide into its gap, of the stack card's draw. */
+  readonly releasedAt: number;
+  glideStartedAt: number | null;
+  stackFrameAt: number | null;
 }
 
 /** Where Forge's state holds the card now: the viewer's hand, another zone the board draws, or nowhere it draws (mid-cast). */
@@ -739,7 +744,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
-    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false, ghostHandedOff: false };
+    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
     syncParkedGhost();
     // A played card's stand-in glides from the release point into the gap the row reserved for
     // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
@@ -761,6 +766,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         ghost.style.top = `${me.at.y}px`;
         ghost.style.width = `${gap.width}px`;
         ghost.style.height = `${gap.height}px`;
+        me.glideStartedAt = Date.now();
       });
     }
     unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
@@ -768,6 +774,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // the moment Forge asks for the target, before the pointer next moves.
     hover = { at: point, node };
     paint();
+  }
+
+  function casterFacts(p: Parked, how: string, from: Point | null, to: Point | null): HandoverFacts {
+    return { screen: 'caster', card: p.source, how, from, to, glideStartedAt: p.glideStartedAt, releasedAt: p.releasedAt, stackFrameAt: p.stackFrameAt, motion: options.motion?.() === true };
   }
 
   /** `parked` is over, however it ended: its clock stops and the stack draws everything again. */
@@ -960,7 +970,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (!(arrived instanceof HTMLElement) || arrived.closest('[data-zone="battlefield"]') === null) return;
       const p = endPark()!;
       if (p.ghost === null || options.motion?.() !== true) {
-        options.report?.('landing', { card: p.source, how: p.ghost === null ? 'no-ghost' : 'motion-off' });
+        reportHandover(options.report, 'landing', canvas, casterFacts(p, p.ghost === null ? 'no-ghost' : 'motion-off', drawnCentreOf(p.ghost), drawnCentreOf(arrived)));
         releaseParked(p, false);
         return;
       }
@@ -990,17 +1000,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const settled = cardBox(canvas, p.source);
         if (settled !== arrived) arrived.removeAttribute(CAST_LANDING_ATTR);
         if (settled instanceof HTMLElement && settled.closest('[data-zone="battlefield"]') !== null) {
-          const box = settled.getBoundingClientRect();
-          options.report?.('landing', {
-            card: p.source,
-            how: 'flight',
-            rekeyed: settled !== arrived,
-            dx: Math.round(box.left + box.width / 2 - p.at.x),
-            dy: Math.round(box.top + box.height / 2 - p.at.y),
-          });
+          // Measured from where the stand-in is DRAWN, not from the release point it was let go at.
+          const from = drawnCentreOf(ghost);
+          const to = drawnCentreOf(settled);
+          const inPlace = to !== null && Math.hypot(to.x - p.at.x, to.y - p.at.y) < IN_PLACE_PX;
+          reportHandover(options.report, 'landing', canvas, casterFacts(p, inPlace ? 'swap' : 'flight', from, to));
           landCastGhost(canvas, p.source, ghost, p.at, settled);
         } else {
-          options.report?.('landing', { card: p.source, how: 'gone-before-frame' });
+          reportHandover(options.report, 'landing', canvas, casterFacts(p, 'gone-before-frame', drawnCentreOf(ghost), null));
           releaseParked(p, false);
         }
       });
@@ -1498,7 +1505,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Never an ABILITY entry sharing this id — see `clickOrigin`'s own note (W17).
     if (item === undefined || item.isAbility || item.sourceCardId !== parked.source) return;
     parked.ghostHandedOff = true;
+    parked.stackFrameAt = Date.now();
+    const from = drawnCentreOf(parked.ghost);
     parked.ghost.remove();
+    reportHandover(options.report, 'handover', canvas, casterFacts(parked, 'stack', from, drawnCentreOf(canvas.querySelector(`[data-placed-spell="${id}"]`))));
   });
   const observer = new MutationObserver((records) => {
     if (!live) return;
