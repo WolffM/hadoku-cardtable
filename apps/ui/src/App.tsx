@@ -20,6 +20,7 @@
  *   `#/debug`            `DebugHarness` — the old front door
  *   `#/sounds`           `SoundBuilder` — admin-gated (wave 50 §U), renders nothing for anyone else
  *   `#/sounds/sandbox`   `SoundSandbox` — admin-gated the same way
+ *   `#/stats[/<name>]`   `StatsScreen` — a player's record and history, and the boards
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.
  *
@@ -44,6 +45,7 @@ import { LobbyScreen } from './screens/LobbyScreen.tsx';
 import { MatchScreen } from './screens/MatchScreen.tsx';
 import { SoundBuilder } from './screens/SoundBuilder.tsx';
 import { SoundSandbox } from './screens/SoundSandbox.tsx';
+import { StatsScreen } from './stats/StatsScreen.tsx';
 import { navigate, useRoute } from './screens/route.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell, useWhoami } from './room/RoomShell.tsx';
@@ -121,6 +123,8 @@ function Screen({ transport }: AppProps) {
       return <ConstructedScreen roomId={route.roomId} makeTransport={transport} />;
     case 'lobby':
       return <LobbyScreen />;
+    case 'stats':
+      return <StatsScreen key={route.player ?? ''} player={route.player} />;
   }
 }
 

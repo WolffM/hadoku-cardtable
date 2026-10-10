@@ -27,6 +27,8 @@ describe('parseRoute', () => {
     expect(parseRoute('#/debug')).toEqual({ kind: 'debug' });
     expect(parseRoute('#/sounds')).toEqual({ kind: 'sounds' });
     expect(parseRoute('#/sounds/sandbox')).toEqual({ kind: 'sounds-sandbox' });
+    expect(parseRoute('#/stats')).toEqual({ kind: 'stats' });
+    expect(parseRoute('#/stats/Bella')).toEqual({ kind: 'stats', player: 'Bella' });
     expect(parseRoute('#/room/r-1a2b3c4d5e6f')).toEqual({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' });
     expect(parseRoute('#/deck/friday-cube')).toEqual({ kind: 'deck', draftId: 'friday-cube' });
   });
@@ -69,6 +71,8 @@ describe('parseRoute', () => {
       { kind: 'room', roomId: 'r-friday-k7q4' },
       // The id that needs encoding on the way out and decoding on the way back.
       { kind: 'room', roomId: 'friday room/2' },
+      { kind: 'stats' },
+      { kind: 'stats', player: 'Bella Two' },
     ];
     for (const route of routes) {
       expect(parseRoute(routeHash(route)), routeHash(route)).toEqual(route);

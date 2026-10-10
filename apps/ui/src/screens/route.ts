@@ -21,6 +21,8 @@
  *   `#/debug`            the developer harness that used to be the front door
  *   `#/sounds`           the sound builder (wave 50) — admin-gated, no link points at it
  *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, admin-gated
+ *   `#/stats`            match stats: your record, history, decks, and the boards
+ *   `#/stats/<name>`     the same for another player, by registry name
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
  * lands on the room list, which offers a way in, rather than on an error page
@@ -64,7 +66,9 @@ export type Route =
   | { kind: 'debug' }
   /** Admin-gated (wave 50 §U). `SoundBuilder` itself renders nothing for anyone else. */
   | { kind: 'sounds' }
-  | { kind: 'sounds-sandbox' };
+  | { kind: 'sounds-sandbox' }
+  /** `player` is a registry name; absent is the viewer. */
+  | { kind: 'stats'; player?: string };
 
 /**
  * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
@@ -81,6 +85,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'play') return { kind: 'play' };
   if (path === 'sounds') return { kind: 'sounds' };
   if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
+  if (path === 'stats') return { kind: 'stats' };
 
   const parts = path.split('/');
   if (parts.length !== 2) return { kind: 'lobby' };
@@ -96,6 +101,8 @@ export function parseRoute(hash: string): Route {
       return { kind: 'match', matchId: id };
     case 'room':
       return { kind: 'room', roomId: id };
+    case 'stats':
+      return { kind: 'stats', player: id };
     default:
       return { kind: 'lobby' };
   }
@@ -135,6 +142,8 @@ export function routeHash(route: Route): string {
       return `#/match/${encodeURIComponent(route.matchId)}`;
     case 'room':
       return `#/room/${encodeURIComponent(route.roomId)}`;
+    case 'stats':
+      return route.player === undefined ? '#/stats' : `#/stats/${encodeURIComponent(route.player)}`;
   }
 }
 

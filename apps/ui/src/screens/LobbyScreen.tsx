@@ -30,7 +30,7 @@
 
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
-import { navigate } from './route.ts';
+import { navigate, routeHash } from './route.ts';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -45,6 +45,11 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
           one in the page said it twice — operator, 2026-09-27. The other
           screens' `shell__head` earns its place by naming the ROOM or the
           deck; the lobby has nothing to add that the header has not said. */}
+      <nav className="shell__head">
+        <a className="shell__link" href={routeHash({ kind: 'stats' })} data-testid="lobby-stats">
+          Stats
+        </a>
+      </nav>
       <main className="front">
         <RoomList client={rooms} />
       </main>
