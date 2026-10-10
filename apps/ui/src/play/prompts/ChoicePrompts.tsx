@@ -50,11 +50,10 @@ function cardOfOption(ref: EntityRef | null): CardRef | null {
 
 /**
  * The bound, as a LABEL. Not a sentence: the board states things, it does not
- * explain them (operator, 2026-09-24). `max === 0` is Forge revealing a list
- * rather than asking about it, and says so in one word.
+ * explain them (operator, 2026-09-24). An ask with nothing to choose never gets
+ * here: the server answers it and sends it as a reveal (`RevealNotice.tsx`).
  */
 function boundsText(min: number, max: number): string {
-  if (max === 0) return 'Revealed';
   if (min === max) return `Choose ${min}`;
   if (min === 0) return `Up to ${max}`;
   return `${min}–${max}`;
@@ -210,22 +209,16 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
           const name = translateTargetWords(c.label);
           return (
             <li key={c.key} data-card-id={cardRef !== null ? cardRef.id : undefined}>
-              {bounds.max === 0 ? (
-                <span className="prompt__tile" data-testid="prompt-choice">
-                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : <RulesText text={c.label} />}
-                </span>
-              ) : (
-                <label>
-                  <input
-                    type="checkbox"
-                    data-testid="prompt-choice"
-                    data-key={c.key}
-                    checked={chosen.includes(c.key)}
-                    onChange={() => setChosen((prev) => toggle(prev, c.key, bounds.max === 1))}
-                  />
-                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : <RulesText text={c.label} />}
-                </label>
-              )}
+              <label>
+                <input
+                  type="checkbox"
+                  data-testid="prompt-choice"
+                  data-key={c.key}
+                  checked={chosen.includes(c.key)}
+                  onChange={() => setChosen((prev) => toggle(prev, c.key, bounds.max === 1))}
+                />
+                {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : <RulesText text={c.label} />}
+              </label>
             </li>
           );
         })}

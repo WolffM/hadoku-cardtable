@@ -141,15 +141,6 @@ describe('onlyAnswer, over every committed prompt fixture', () => {
 			expect(h.host.commands).toContainEqual({ t: 'reply', seat: 1, callId: 'o-2', result: { ordered: KEYS, rememberDecision: false } });
 		});
 	});
-
-	it('leaves a REVEAL alone even though it has exactly one legal answer', () => {
-		// getChoices-reveal is min -1 / max -1: `choiceBounds` makes that 0..0, so
-		// `[]` is the only answer the component could send. Answering it would
-		// take the reveal off the screen before the player read it.
-		const reveal = fixture('getChoices-reveal.json');
-		expect(reveal.method).toBe('getChoices');
-		expect(onlyAnswer(reveal)).toBeNull();
-	});
 });
 
 /** The same fixtures, narrowed to the shape Forge sends when it has left one possibility. */
@@ -203,8 +194,6 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		>;
 		const all = narrowed('chooseEntitiesForEffect.json', { min: ask.optionList.length, max: ask.optionList.length });
 		expect(onlyAnswer(all)).toMatchObject({ result: ask.optionList });
-		// A reveal (max 0) is not answered, however few options it has.
-		expect(onlyAnswer(narrowed('chooseEntitiesForEffect.json', { min: 0, max: 0 }))).toBeNull();
 	});
 
 	it('showOptionDialog with one button presses it', () => {

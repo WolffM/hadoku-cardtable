@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent } from '@testing-library/react';
 
-import { askFor, asksFor } from './fixtures.ts';
+import { askFor } from './fixtures.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import { nameFromForgeLabel } from './PromptShell.tsx';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
@@ -155,21 +155,6 @@ describe('getChoices', () => {
         expect(submit().disabled, `X=${n}`).toBe(false);
       }
     });
-  });
-
-  it('shows a display-only GRID of the revealed cards, with nothing to tick, and answers empty', () => {
-    const reveal = asksFor('getChoices').find((a) => a.max < 0)!;
-    const { container, answers, submit, getByTestId } = mountPrompt('getChoices', reveal);
-    const grid = getByTestId('prompt-cards');
-    expect([...grid.querySelectorAll<HTMLElement>(':scope > li')].map((li) => li.dataset.cardId)).toEqual(['76', '77']);
-    expect(grid.textContent).toContain('Oxidda Golem');
-    expect(grid.textContent).toContain('Gemini Engine');
-    // Each revealed card is a tile, not a line of text.
-    expect(grid.querySelectorAll('.card')).toHaveLength(2);
-    expect(container.querySelectorAll('input')).toHaveLength(0);
-    fireEvent.click(submit());
-    expect(answers).toEqual([[]]);
-    expectWireReply('getChoices', answers[0]);
   });
 });
 

@@ -627,6 +627,9 @@ export function namedStopPolicy(name: string | undefined | null): StopPolicy | n
  * (`InputPayMana.java:101-106`) and only calls `getAbilityToPlay` for two or
  * more — which is #6, and which {@link decidePay} removes by pressing Auto
  * before the land is ever clicked.
+ *
+ * An ask in which nothing may be chosen (`max <= 0`) never reaches this: it is
+ * a reveal, answered and shown by `match.ts` before any ask is opened.
  */
 export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP_POLICY): AutoAnswer | null {
 	if (!policy.answerOneAnswerAsks) return null;
@@ -636,11 +639,6 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 
 		case 'getChoices': {
 			const keys = frame.choices.map((c) => c.key);
-			// `max <= 0` is Forge REVEALING a list, not asking about it
-			// (`rules.ts` `choiceBounds`, `GuiChoose.reveal`). Its one legal answer
-			// is `[]`, and answering it would take the reveal away from the player.
-			// A shortcut may remove a question; it may never remove information.
-			if (frame.max <= 0) return null;
 			if (frame.min === keys.length && frame.max >= keys.length) {
 				return ok(callId, frame.method, keys, 'every option had to be chosen');
 			}
@@ -654,8 +652,7 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 				: null;
 
 		case 'chooseEntitiesForEffect':
-			// As above: a non-positive `max` is a reveal, and stays on screen.
-			return frame.max > 0 && frame.min === frame.optionList.length && frame.max >= frame.optionList.length
+			return frame.min === frame.optionList.length && frame.max >= frame.optionList.length
 				? ok(callId, frame.method, frame.optionList, 'every option had to be chosen')
 				: null;
 

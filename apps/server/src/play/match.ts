@@ -447,14 +447,14 @@ export interface SeatState {
 	 */
 	chosenAbility: { hostCard: number; abilityId: number } | null;
 	/**
-	 * Wave 35 §S, R4 — a `getChoices` REVEAL (`min === max === -1`) held back to
+	 * Wave 35 §S, R4 — a REVEAL ({@link asReveal}) held back to
 	 * see whether the very next ask to this seat is the real discard choice it
 	 * belongs to (Thoughtseize's "look at hand" step). See
 	 * {@link Match.onFrame}'s own header on the fold. Shown as a notice
 	 * ({@link Match.showReveal}) if nothing claims it within
 	 * {@link PENDING_REVEAL_FOLD_MS}.
 	 */
-	pendingReveal: { frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>; timer: NodeJS.Timeout } | null;
+	pendingReveal: { frame: RevealFrame; timer: NodeJS.Timeout } | null;
 	/**
 	 * Synthetic asks this seat currently holds, keyed by the SYNTHETIC callId
 	 * (`chooseSingleEntityForEffect`'s own) — each maps back to the TWO real
@@ -730,6 +730,35 @@ function isCardSubset(small: readonly number[], big: readonly number[]): boolean
 
 function sameCardSet(a: readonly number[], b: ReadonlySet<number>): boolean {
 	return a.length === b.size && a.every((id) => b.has(id));
+}
+
+type RevealFrame = Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>;
+
+/**
+ * An ask in which nothing may be chosen (`max <= 0`) is Forge showing cards,
+ * not asking about them — `reveal(message, items)` IS `getChoices(message, -1,
+ * -1, items)` (`AbstractGuiGame.java:785-788`), and the one legal reply to
+ * any such ask is the empty list. A `chooseEntitiesForEffect` of that shape is
+ * read as the `getChoices` reveal of every card it names (its options, then
+ * its `delayedReveal`), each labelled by `nameOf`, so a reveal reaches the
+ * seat in one shape whatever Forge called. Null for an ask with something to
+ * choose.
+ */
+function asReveal(frame: Extract<ServerFrame, { kind: 'ask' }>, nameOf: (ref: NonNullable<ChoiceOption['ref']>) => string): RevealFrame | null {
+	if (frame.method === 'getChoices') return frame.max <= 0 ? frame : null;
+	if (frame.method !== 'chooseEntitiesForEffect' || frame.max > 0) return null;
+	const refs = new Map<string, NonNullable<ChoiceOption['ref']>>();
+	for (const ref of [...frame.optionList, ...(frame.delayedReveal?.cards ?? [])]) refs.set(`${ref.kind}:${ref.id}`, ref);
+	return {
+		kind: 'ask',
+		callId: frame.callId,
+		method: 'getChoices',
+		message: frame.title,
+		min: -1,
+		max: -1,
+		choices: [...refs.values()].map((ref, i) => ({ key: `c${i}`, label: nameOf(ref), ref })),
+		selected: [],
+	};
 }
 
 export class Match {
@@ -1631,18 +1660,18 @@ export class Match {
 
 		if (frame.kind === 'ask' && isBlocking(frame.method)) {
 			// Wave 35 §S, R4 — "Thoughtseize is one step". Full header above
-			// `newMatchId`. A `getChoices` REVEAL (`min === max === -1`) is either
-			// the discarder's redundant echo of a choice just answered (dropped,
-			// unconditionally), or — same as every OTHER such reveal, per
-			// `onlyAnswer`'s own existing rule — gets Forge's one legal answer,
+			// `newMatchId`. A REVEAL ({@link asReveal}) is either the discarder's
+			// redundant echo of a choice just answered (dropped, unconditionally),
+			// or — same as every OTHER reveal — gets Forge's one legal answer,
 			// `[]`, AT ONCE: `DiscardEffect`'s own `reveal()` call PARKS Forge's
 			// single game thread right here, and it will not even construct
 			// whatever comes next until this is answered, so "hold it and see
 			// what follows" is not an option the way it is for an ordinary ask.
 			// Its `choices` are kept a moment longer, in case the very next ask
 			// is the real discard choice they belong to.
-			if (frame.method === 'getChoices' && frame.min === -1 && frame.max === -1) {
-				const ids = choiceCardIds(frame.choices);
+			const reveal = asReveal(frame, (ref) => (ref.kind === 'card' ? cardName(this.foldedStateOf(s), ref.id) : null) ?? `${ref.kind} #${ref.id}`);
+			if (reveal !== null) {
+				const ids = choiceCardIds(reveal.choices);
 				if (ids.length > 0 && this.justDiscarded !== null && sameCardSet(ids, this.justDiscarded.ids)) {
 					clearTimeout(this.justDiscarded.timer);
 					this.justDiscarded = null;
@@ -1667,14 +1696,13 @@ export class Match {
 					s.pendingReveal = null;
 					this.showReveal(s, orphaned.frame);
 				}
-				const revealFrame = frame;
 				const timer = setTimeout(() => {
-					if (s.pendingReveal?.frame !== revealFrame) return;
+					if (s.pendingReveal?.frame !== reveal) return;
 					s.pendingReveal = null;
-					this.showReveal(s, revealFrame);
+					this.showReveal(s, reveal);
 				}, PENDING_REVEAL_FOLD_MS);
 				timer.unref();
-				s.pendingReveal = { frame: revealFrame, timer };
+				s.pendingReveal = { frame: reveal, timer };
 				s.autoAnswered += 1;
 				this.deps.log({
 					evt: 'ask-auto-answered',
@@ -2657,18 +2685,18 @@ export class Match {
 
 	/**
 	 * Show a reveal Forge has ALREADY been answered for (its `[]`, sent the
-	 * instant it arrived — see `onFrame`'s header). Every `getChoices` reveal
+	 * instant it arrived — see `onFrame`'s header). Every reveal
 	 * the R4 fold does NOT claim as the front half of a discard choice (Dark
 	 * Confidant's top card, an opponent's hand shown by a tutor, Secluded
 	 * Glen's reveal to the other seat, …) still reaches the seat, because
-	 * answering it must not take the information away (`auto.ts`'s
-	 * `onlyAnswer`). It reaches it as what it is: the frame unchanged, marked
+	 * answering it must not take the information away. It reaches it as what
+	 * it is: a `getChoices` reveal ({@link asReveal}), marked
 	 * `displayOnly` on the envelope, never registered as an ask — nothing waits
 	 * on it, nothing replies to it, and the browser draws it as a notice that
 	 * goes away on its own. The operator, 2026-10-09: *"why is it necessary
 	 * for this to require an 'ok' press at all?"*
 	 */
-	private showReveal(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>): void {
+	private showReveal(s: SeatState, frame: RevealFrame): void {
 		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices) });
 		this.send(s, frame, true);
 	}
