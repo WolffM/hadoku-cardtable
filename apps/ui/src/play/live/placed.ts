@@ -131,6 +131,13 @@ interface Placement {
 
 /** One record per spell, module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
 const placements = new Map<number, Placement>();
+/**
+ * Their spells (by CARD id) whose point is on its way: `presence.ts`'s back is still gliding into
+ * its gap and hands over where it comes to rest. Such a spell stays hidden past `PLACED_PENDING_MS`
+ * — drawn at the default spot meanwhile, it stood beside the back until the hand-over (w67-shaman).
+ * Ended by `placeSpell` or `releaseSpell`; never past `PLACEMENT_WAIT_MS`.
+ */
+const holds = new Map<number, number>();
 const moveListeners = new Set<(id: number, at: Point) => void>();
 /**
  * Fired SYNCHRONOUSLY, inside `render()`, the instant a NEW element is
@@ -175,9 +182,29 @@ export function setChainHalted(halted: boolean | null): void {
  * `commitSpell` turns it over once the opponent's spell is public.
  */
 export function placeSpell(id: number, at: Point, side: 'you' | 'them'): void {
+  holds.delete(id);
   const existing = placements.get(id);
   placements.set(id, { at, side, committed: existing?.committed ?? side === 'you', registeredAt: existing?.registeredAt ?? Date.now() });
   requestRepaint();
+}
+
+/** Keep their spell `cardId` hidden until its point arrives — see `holds`. */
+export function holdSpell(cardId: number): void {
+  holds.set(cardId, Date.now() + PLACEMENT_WAIT_MS);
+}
+
+/** The point is not coming after all (the wait ended without a hand-over): draw it as any other. */
+export function releaseSpell(cardId: number): void {
+  if (holds.delete(cardId)) requestRepaint();
+}
+
+function heldUntil(cardId: number | null): number | null {
+  if (cardId === null) return null;
+  const until = holds.get(cardId);
+  if (until === undefined) return null;
+  if (Date.now() < until) return until;
+  holds.delete(cardId);
+  return null;
 }
 
 /** Whether `id` has a registered point (a placed spell, or an ability the viewer has moved). */
@@ -217,6 +244,7 @@ export function onSpellDrawn(listener: (id: number) => void): () => void {
 /** Test-only: drop every placement and the halt fact, so one test's state never leaks into the next. */
 export function forgetPlacements(): void {
   placements.clear();
+  holds.clear();
   chainHalted = null;
 }
 
@@ -302,6 +330,8 @@ interface Drawn {
   leaving: boolean;
   /** AE26: hidden until a registration arrives or the window closes — see `PLACED_PENDING_MS`. */
   pendingUntil: number | null;
+  /** When a held spell (`holdSpell`) is next looked at, so one hold schedules one look. */
+  holdCheckAt: number | null;
 }
 
 /** Overlay-relative centre of a box. */
@@ -489,6 +519,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         targetStackItemId: null,
         leaving: false,
         pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null,
+        holdCheckAt: null,
       };
       if (pending) schedule(render, PLACED_PENDING_MS + 1);
       d.root = mount(el, item, wantBack);
@@ -678,7 +709,13 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const d = ensureElement(item, record);
       sizeAsBattlefieldCard(d.el, cardWidth);
       d.targetStackItemId = item.targetStackItemId ?? null;
-      if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) {
+      const held = record === undefined && d.pendingUntil !== null ? heldUntil(item.sourceCardId) : null;
+      // Held past its window: looked at again when the hold runs out (`placeSpell`/`releaseSpell` repaint sooner).
+      if (held !== null && Date.now() >= d.pendingUntil! && d.holdCheckAt !== held) {
+        d.holdCheckAt = held;
+        schedule(render, held - Date.now() + 1);
+      }
+      if (d.pendingUntil !== null && (record !== undefined || (held === null && Date.now() >= d.pendingUntil))) {
         d.pendingUntil = null;
         d.el.removeAttribute('data-placed-pending');
       }

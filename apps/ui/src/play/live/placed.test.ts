@@ -14,11 +14,13 @@ import {
   commitSpell,
   defaultSpot,
   forgetPlacements,
+  holdSpell,
   installPlaced,
   LEAVE_FADE_MS,
   moveSpell,
   onSpellMoved,
   placeSpell,
+  releaseSpell,
   type Rect,
   COUNTERED_MS,
   PLACED_PENDING_MS,
@@ -219,6 +221,25 @@ describe('installPlaced: drawing', () => {
     expect(el.hasAttribute('data-placed-pending')).toBe(true);
     await new Promise((r) => setTimeout(r, PLACED_PENDING_MS + 40));
     expect(el.hasAttribute('data-placed-pending'), 'shown at the default spot').toBe(false);
+    handle.dispose();
+  });
+
+  it('a held spell (their back still gliding to its point) stays hidden past the window until the point arrives, or the hold is let go (w67-shaman)', async () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    holdSpell(50);
+    handle.notify(view([stackItem(7, { sourceCardId: 50 }), stackItem(8, { sourceCardId: 51 })]));
+    holdSpell(51);
+    await new Promise((r) => setTimeout(r, PLACED_PENDING_MS + 40));
+    const held = canvas.querySelector<HTMLElement>('[data-placed-spell="7"]')!;
+    const letGo = canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!;
+    expect(held.hasAttribute('data-placed-pending'), 'never at the default spot while its point is coming').toBe(true);
+    expect(letGo.hasAttribute('data-placed-pending')).toBe(true);
+    placeSpell(50, { x: 400, y: 320 }, 'them');
+    expect(held.hasAttribute('data-placed-pending'), 'shown at its point').toBe(false);
+    expect(held.style.left).toBe('400px');
+    releaseSpell(51);
+    expect(letGo.hasAttribute('data-placed-pending'), 'let go: drawn like any other').toBe(false);
     handle.dispose();
   });
 

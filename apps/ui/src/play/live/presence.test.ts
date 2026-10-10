@@ -24,6 +24,8 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
     placeSpell: vi.fn(),
     moveSpell: vi.fn(),
     commitSpell: vi.fn(),
+    holdSpell: vi.fn(),
+    releaseSpell: vi.fn(),
     onSpellMoved: vi.fn((listener: (id: number, at: { x: number; y: number }) => void) => {
       spellMovedBox.current = listener;
       return () => {
@@ -135,6 +137,8 @@ afterEach(() => {
   placedMod.placeSpell.mockClear();
   placedMod.moveSpell.mockClear();
   placedMod.commitSpell.mockClear();
+  placedMod.holdSpell.mockClear();
+  placedMod.releaseSpell.mockClear();
   placedMod.onSpellMoved.mockClear();
   spellMovedBox.current = null;
   forgetPendingPlaced();
@@ -847,6 +851,7 @@ describe('receiving', () => {
     wake!();
     await frame();
     expect(placedMod.placeSpell, 'not mid-glide').not.toHaveBeenCalled();
+    expect(placedMod.holdSpell, 'its stack card held hidden meanwhile, never at the default spot').toHaveBeenCalledWith(121);
     expect(back.isConnected, 'the back finishes its glide').toBe(true);
     await new Promise((r) => setTimeout(r, GLIDE_MS));
     expect(placedMod.placeSpell, 'handed over where the glide ends: the gap the card lands in').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');

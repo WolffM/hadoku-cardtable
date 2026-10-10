@@ -82,7 +82,7 @@ import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
-import { commitSpell, onSpellMoved, placeSpell } from './placed.ts';
+import { commitSpell, holdSpell, onSpellMoved, placeSpell, releaseSpell } from './placed.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
@@ -652,6 +652,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** A hand-over to the stack layer held until that glide ends — see the stack case in `handoff`. */
   let handTimer: ReturnType<typeof setTimeout> | null = null;
   let afterSeek: (() => void) | null = null;
+  /** The spell (card id) that hand-over is for, kept hidden on the stack layer meanwhile (`holdSpell`). */
+  let heldSpell: number | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
   let known = new Set<number>(host.theirCards?.() ?? []);
   /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
@@ -715,6 +717,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     handTimer = null;
     afterSeek = null;
     glide = null;
+    if (heldSpell !== null) releaseSpell(heldSpell);
+    heldSpell = null;
     if (waiting === null) return;
     clearTimeout(waiting.timer);
     waiting = null;
@@ -1057,9 +1061,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             // Forge answers a cast in about the glide's own time, so the back may still be on its
             // way into the gap: handing over then drew the face short of it, and the card hopped the
             // rest of the way when it landed (w67-shaman, 16 px). The glide finishes first, the stack
-            // card hidden meanwhile in its pending window (`placed.ts`'s `PLACED_PENDING_MS`, which
-            // starts after the glide does: the placement rides ahead of Forge's frames). A spell
-            // that resolves meanwhile is in its column, and the branch below flies it there.
+            // card held hidden meanwhile (`holdSpell`: its pending window alone ran out first when
+            // the glide started late, and it showed at the default spot). A spell that resolves
+            // meanwhile is in its column, and the branch below flies it there.
             const onStack = fresh.find((id) => onTheirStack(id));
             if (onStack === undefined) return;
             play.stackFrameAt ??= Date.now();
@@ -1068,13 +1072,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
               handTimer = null;
               afterSeek = null;
               if (waiting !== wait || back !== standIn || !onTheirStack(onStack)) return;
-              if (glide === 'seeking') {
-                afterSeek = settle;
-                return;
-              }
-              const left = (glide ?? 0) - Date.now();
-              if (left > 0) {
-                handTimer = setTimeout(settle, left);
+              const left = glide === 'seeking' ? null : (glide ?? 0) - Date.now();
+              if (left === null || left > 0) {
+                holdSpell(onStack);
+                heldSpell = onStack;
+                if (left === null) afterSeek = settle;
+                else handTimer = setTimeout(settle, left);
                 return;
               }
               const at = handToSpell(onStack);
