@@ -213,7 +213,10 @@ function asksIn(f: Friend): Map<string, Frame> {
   const out = new Map<string, Frame>();
   for (const m of inbound(f)) {
     if (m.kind !== 's2c') continue;
-    const frame = (m.msg as ServerEnvelope).frame;
+    const envelope = m.msg as ServerEnvelope;
+    // A display-only envelope (a reveal the server already answered) is a notice, never an ask.
+    if (envelope.displayOnly === true) continue;
+    const frame = envelope.frame;
     if (frame.kind === 'ask' && typeof frame.callId === 'string') out.set(frame.callId, frame);
   }
   return out;

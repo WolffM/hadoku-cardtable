@@ -90,4 +90,6 @@ export interface ServerEnvelope {
   matchId: string;
   cursor: Cursor;
   frame: Frame;
+  /** A notice the server already answered (a reveal): nothing replies to it (`packages/shared` `match-wire.ts`). */
+  displayOnly?: true;
 }
