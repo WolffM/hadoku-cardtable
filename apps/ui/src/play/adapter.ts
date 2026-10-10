@@ -171,6 +171,11 @@ export interface BoardCard {
   id: number;
   /** What `CardTile` draws. */
   card: DraftCard;
+  /**
+   * This seat's wire carries no name for the card — it may not see it — so the
+   * board draws its back, and `card.name` is `HIDDEN_CARD_NAME`.
+   */
+  hidden?: boolean;
   tapped: boolean;
   /** It arrived this turn AND cannot act: Forge's `Sickness` and no `Haste`. */
   summoningSick: boolean;
@@ -271,14 +276,13 @@ export interface BoardCard {
  * A relation Forge's own wire says this card has to another — haunt, encode,
  * imprint, a chosen-cards effect, a must-block list, and whatever the wire
  * adds next. `ids` is the other side's forge id(s), in Forge's own order;
- * `names` is each one resolved to a name, `null` for an id this seat's state
- * has nothing under (`nameOfCard`'s own note) — never a placeholder, so a
- * reader can tell "unknown" apart from "named 'card 7'".
+ * `names` is each one resolved to a name (`nameOfCard`), `HIDDEN_CARD_NAME`
+ * for one this seat may not see.
  */
 export interface BoardCardRelation {
   kind: RelationKind;
   ids: number[];
-  names: (string | null)[];
+  names: string[];
 }
 
 /** Every relation kind the board draws a pill for. See `RELATION_PROPS`. */
@@ -956,25 +960,46 @@ const RELATION_PROPS: readonly { key: string; kind: RelationKind; single?: true 
   { key: 'MustBlockCards', kind: 'mustBlock' },
 ];
 
+/** What every text that names a card this seat may not see says: never its id, never a blank. */
+export const HIDDEN_CARD_NAME = 'Hidden card';
+
 /**
- * A card's own current name, off the same two wire objects `toBoardCard`
- * reads ITS name from (the face first, the view second) — but never through
- * `toBoardCard` itself. Haunt is symmetric (a creature's `HauntedBy` names
- * the sorcery that haunts it, and that sorcery's own `Haunting` names the
- * creature right back), so resolving one card's relation name by building the
- * OTHER card's full `BoardCard` — which computes its own relations in turn —
- * would recurse forever. This reads only a name, nothing else.
- *
- * `null` for an id this seat's state has nothing under: an opponent's hidden
- * hand (the one real case — every relation kind here only ever names a
- * card in a zone both seats see), or simply an id that names nothing. Never a
- * placeholder string, so a caller can tell "unknown" apart from a real name.
+ * A card's own current name, off its face first and its view second — or
+ * `null` when this seat's wire carries none (or a blank one): the server's
+ * visibility layer (`apps/server/src/play/visibility.ts`) withholds every
+ * name of a card this seat may not see — a face-down exile, an opponent's
+ * hand — and an id it was never sent anything for is the same case.
  */
-function nameOfCard(state: WireState, id: number): string | null {
+function wireName(view: WireObject | undefined, face: WireObject | undefined): string | null {
+  const name = readStr(face, 'Name') ?? readStr(view, 'Name');
+  return name === null || name.trim() === '' ? null : name;
+}
+
+/**
+ * A card's name for a text that refers to it — a relation pill, a stack
+ * target — read off the same two wire objects `toBoardCard` reads, but never
+ * through `toBoardCard` itself: haunt is symmetric (a creature's `HauntedBy`
+ * names the sorcery that haunts it, and that sorcery's own `Haunting` names
+ * the creature right back), so building the OTHER card's full `BoardCard` —
+ * which computes its own relations in turn — would recurse forever.
+ */
+function nameOfCard(state: WireState, id: number): string {
   const view = state.get(deltaKey(WireType.Card, id));
-  if (view === undefined) return null;
-  const face = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
-  return readStr(face, 'Name') ?? readStr(view, 'Name');
+  return wireName(view, view === undefined ? undefined : shownFace(state, id, view, false)) ?? HIDDEN_CARD_NAME;
+}
+
+/**
+ * The face a card is read off: its current one — except a face-down card off
+ * the battlefield that this seat may look at (Hideaway's exile, to the player
+ * who exiled it). Forge's face-down face carries no name; the card itself is
+ * its Original face (`CardStateName.Original`, ordinal 0), which the server
+ * sends only to a seat Forge lets look (`PlayerMayLook`). On the battlefield
+ * the face-down face is what is in play (a morph's 2/2), so it stays.
+ */
+function shownFace(state: WireState, id: number, view: WireObject, onBattlefield: boolean): WireObject | undefined {
+  const current = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
+  if (onBattlefield || !readBool(view, 'Facedown') || wireName(view, current) !== null) return current;
+  return state.get(cardStateKey(id, 0)) ?? current;
 }
 
 /**
@@ -1026,9 +1051,11 @@ function toBoardCard(
 ): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return null;
-  const face = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
+  const face = shownFace(state, id, view, onBattlefield);
 
-  const name = readStr(face, 'Name') ?? readStr(view, 'Name') ?? `card ${id}`;
+  const known = wireName(view, face);
+  const hidden = known === null;
+  const name = known ?? HIDDEN_CARD_NAME;
   const cost = prop(face, 'ManaCost');
   const { tokens, manaValue } =
     cost !== undefined && cost.t === 'manacost' && typeof cost.v === 'string'
@@ -1052,7 +1079,7 @@ function toBoardCard(
     collectorNumber: '',
     rarity: RARITY[readEnum(face, 'Rarity') ?? ''] ?? 'special',
   };
-  const scryfallId = scryfallIdFor(artIds, name, card.setCode);
+  const scryfallId = hidden ? undefined : scryfallIdFor(artIds, name, card.setCode);
   if (scryfallId !== undefined) card.scryfallId = scryfallId;
   if (core.includes('Creature')) {
     card.power = String(readInt(face, 'Power'));
@@ -1082,6 +1109,7 @@ function toBoardCard(
   return {
     id,
     card,
+    hidden,
     tapped: readBool(view, 'Tapped'),
     // #17: a hasty creature CAN act, so it is not summoning sick — whatever
     // Forge's `Sickness` says about when it arrived.
@@ -1203,9 +1231,7 @@ export function toBoardView(
     // T8: resolved NAMES, never ids — a card by the same resolver every other
     // card on the board goes through, a player by the board's own name.
     const targetNames = [
-      ...targetCardIds.map(
-        (tid) => toBoardCard(state, tid, artIds, printedPT, false, printedType)?.card.name ?? `card ${tid}`,
-      ),
+      ...targetCardIds.map((tid) => nameOfCard(state, tid)),
       ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
     ];
     return {

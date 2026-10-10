@@ -47,13 +47,9 @@ describe('relationLabel — the pill’s own text', () => {
     expect(relationLabel({ kind: 'imprinted', ids: [1, 2], names: ['Lightning Bolt', 'Shock'] })).toBe('Imprinted: Lightning Bolt, Shock');
   });
 
-  it('draws the kind alone when every id is unresolved — the hidden-id case', () => {
-    expect(relationLabel({ kind: 'hauntedBy', ids: [404], names: [null] })).toBe('Haunted');
-    expect(relationLabel({ kind: 'mustBlock', ids: [1, 2], names: [null, null] })).toBe('Must block');
-  });
-
-  it('drops an unresolved id but keeps a resolved one in the same relation', () => {
-    expect(relationLabel({ kind: 'chosen', ids: [1, 2], names: [null, 'Memnite'] })).toBe('Chosen: Memnite');
+  it('names a card this seat may not see as the adapter resolved it — "Hidden card"', () => {
+    expect(relationLabel({ kind: 'hauntedBy', ids: [404], names: ['Hidden card'] })).toBe('Haunted by Hidden card');
+    expect(relationLabel({ kind: 'chosen', ids: [1, 2], names: ['Hidden card', 'Memnite'] })).toBe('Chosen: Hidden card, Memnite');
   });
 });
 
@@ -73,11 +69,11 @@ describe('Relations — the board card’s pill row', () => {
   it('one pill per relation kind, reusing the board’s own counter pill class', () => {
     const entry = entryWith([
       { kind: 'hauntedBy', ids: [7], names: ['Cry of Contrition'] },
-      { kind: 'mustBlock', ids: [9], names: [null] },
+      { kind: 'mustBlock', ids: [9], names: ['Hidden card'] },
     ]);
     const container = draw(entry);
     const pills = [...container.querySelectorAll('.board-card__relations > .board-card__counter')];
     expect(pills.map((p) => p.getAttribute('data-relation'))).toEqual(['hauntedBy', 'mustBlock']);
-    expect(pills.map((p) => p.textContent)).toEqual(['Haunted by Cry of Contrition', 'Must block']);
+    expect(pills.map((p) => p.textContent)).toEqual(['Haunted by Cry of Contrition', 'Must block Hidden card']);
   });
 });

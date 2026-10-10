@@ -2278,7 +2278,15 @@ function CardOnBoard({
          * clones this exact tile, so this is also the inspector's own text
          * source — nothing else to change there.
          */}
-        <CardTile card={entry.card} liveText={entry.abilityText} />
+        {entry.hidden === true ? (
+          /*
+           * A card this seat may not see: its back, at the card's own size. It is a `.card` so the
+           * inspector enlarges it like any face, and carries the tile's own id the same way.
+           */
+          <span className="card card-back" data-card-id={entry.card.cardId} data-card-back="" role="img" aria-label={entry.card.name} />
+        ) : (
+          <CardTile card={entry.card} liveText={entry.abilityText} />
+        )}
       </button>
       {picked && (
         <span className="board-card__picked" aria-hidden="true">

@@ -29,6 +29,7 @@ import poolData from '../draft/pool.json';
 import {
   boardPT,
   CUBE_ART_IDS,
+  HIDDEN_CARD_NAME,
   KNOWN_ART_IDS,
   POOL_PRINTED_PT,
   printedPTIndex,
@@ -437,11 +438,11 @@ describe('relations, generically', () => {
     expect(by.get(25)!.relations).toEqual([{ kind: 'mustBlock', ids: [2], names: ["Ral's Staticaster"] }]);
   });
 
-  it('an id this seat was never sent a CardView for resolves to a null name — the hidden-id case', () => {
+  it('an id this seat was never sent a CardView for is named "Hidden card" — the hidden-id case', () => {
     const state = baseState();
     setCard(state, 21, 'HauntedBy', { t: 'list', v: [{ t: 'int', v: 404 }] });
     const card = cardsById(adapt(state)).get(21)!;
-    expect(card.relations).toEqual([{ kind: 'hauntedBy', ids: [404], names: [null] }]);
+    expect(card.relations).toEqual([{ kind: 'hauntedBy', ids: [404], names: [HIDDEN_CARD_NAME] }]);
   });
 
   it('drops Forge’s -1 off Haunting, same as every other single entity reference', () => {
@@ -608,6 +609,18 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
   });
 });
 
+/**
+ * What the server's visibility layer leaves of a card this seat may not see
+ * (`apps/server/src/play/visibility.ts`, `HIDDEN_KEEP`): the view keeps who
+ * owns it and where it is, and no face reaches the seat at all.
+ */
+function redact(state: Map<string, WireObject>, cardId: number): void {
+  const key = deltaKey(WireType.Card, cardId);
+  const card = state.get(key)!;
+  state.set(key, { _type: card._type, _id: card._id, Owner: card['Owner'], Controller: card['Controller'], Zone: card['Zone'] } as WireObject);
+  for (let ordinal = 0; ordinal < 16; ordinal++) state.delete(cardStateKey(cardId, ordinal));
+}
+
 describe('hidden information is untouched by any of this', () => {
   it('gives an opponent’s hand no cards to carry an id on', () => {
     const view = adapt(baseState());
@@ -616,6 +629,85 @@ describe('hidden information is untouched by any of this', () => {
       expect(player.hand).toBeNull();
       expect(player.handCount).toBeGreaterThan(0);
     }
+  });
+
+  it('marks a card whose name this seat was not sent as hidden, named "Hidden card", with no art — never "card <id>"', () => {
+    const state = baseState();
+    const id = cardIdNamed(state, 'Mountain');
+    redact(state, id);
+    const card = cardsById(adapt(state)).get(id)!;
+    expect(card.hidden).toBe(true);
+    expect(card.card.name).toBe(HIDDEN_CARD_NAME);
+    expect(card.card.scryfallId).toBeUndefined();
+    expect(JSON.stringify(card)).not.toMatch(/card \d+/i);
+  });
+
+  it('treats a blank name as no name', () => {
+    const state = baseState();
+    const id = cardIdNamed(state, 'Mountain');
+    renameCard(state, id, ' ', 'MRD');
+    const card = cardsById(adapt(state)).get(id)!;
+    expect(card.hidden).toBe(true);
+    expect(card.card.name).toBe(HIDDEN_CARD_NAME);
+  });
+
+  it('leaves every card the seat was sent a name for unhidden', () => {
+    const cards = allCards(adapt(baseState()));
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(card.hidden, card.card.name).toBe(false);
+      expect(card.card.name).not.toBe(HIDDEN_CARD_NAME);
+    }
+  });
+
+  /** Turn a card face down the way Forge does: `CurrentState` FaceDown (ordinal 1), and neither it nor the view named. */
+  function faceDown(state: Map<string, WireObject>, cardId: number): void {
+    const key = deltaKey(WireType.Card, cardId);
+    const { Name: _name, ...view } = state.get(key)!;
+    state.set(key, view as WireObject);
+    setCard(state, cardId, 'Facedown', { t: 'bool', v: true });
+    setCard(state, cardId, 'CurrentState', { t: 'int', v: 1 });
+    state.set(cardStateKey(cardId, 1), { _type: WireType.CardState, _id: cardId * 16 + 1 } as WireObject);
+  }
+
+  it('reads a face-down card this seat may look at off its Original face — Hideaway, to the player who exiled it', () => {
+    const state = baseState();
+    const id = adapt(state).players.flatMap((p) => p.graveyard)[0]!.id;
+    renameCard(state, id, 'Serra Angel', '');
+    faceDown(state, id);
+    const card = cardsById(adapt(state)).get(id)!;
+    expect(card.hidden).toBe(false);
+    expect(card.card.name).toBe('Serra Angel');
+    expect(artUrlOf(card), 'it draws with its art').not.toBeNull();
+  });
+
+  it('is hidden when the seat was sent no Original face — Hideaway, to the opponent', () => {
+    const state = baseState();
+    const id = adapt(state).players.flatMap((p) => p.graveyard)[0]!.id;
+    faceDown(state, id);
+    state.delete(cardStateKey(id, 0));
+    const card = cardsById(adapt(state)).get(id)!;
+    expect(card.hidden).toBe(true);
+    expect(card.card.name).toBe(HIDDEN_CARD_NAME);
+  });
+
+  it('keeps a nameless face-down permanent face down on the battlefield, whatever its Original face says', () => {
+    const state = baseState();
+    const id = cardIdNamed(state, 'Mountain');
+    faceDown(state, id);
+    const card = cardsById(adapt(state)).get(id)!;
+    expect(card.hidden).toBe(true);
+  });
+
+  it('names a stack target this seat may not see "Hidden card"', () => {
+    const state = baseState();
+    const target = cardIdNamed(state, 'Mountain');
+    redact(state, target);
+    const sid = adapt(state).stack[0]!.id;
+    const key = deltaKey(WireType.StackItem, sid);
+    state.set(key, { ...state.get(key)!, TargetCards: { t: 'list', v: [{ t: 'int', v: target }, { t: 'int', v: 404 }] }, TargetPlayers: { t: 'list', v: [] } } as WireObject);
+    const entry = adapt(state).stack.find((e) => e.id === sid)!;
+    expect(entry.targetLabel).toBe(`${HIDDEN_CARD_NAME}, ${HIDDEN_CARD_NAME}`);
   });
 });
 

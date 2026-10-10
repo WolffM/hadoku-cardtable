@@ -3621,6 +3621,29 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(zone(0, 'exile').querySelectorAll('.board-card__counters').length, 'exile counters').toBeGreaterThan(0);
   });
 
+  it('a card this seat may not see is its back, named "Hidden card" — in exile and on the battlefield, never a text tile', () => {
+    const view = boardFromFixture(fixture);
+    const hide = (c: BoardCard): BoardCard => ({ ...c, hidden: true, card: { ...c.card, name: 'Hidden card', scryfallId: undefined } });
+    const theirs = view.players.find((p) => !p.isViewer)!;
+    const exiled = hide(theirs.graveyard[0]!);
+    const faceDown = hide(theirs.battlefield[0]!);
+    const { zone } = renderBoard({
+      ...view,
+      players: view.players.map((p) =>
+        p !== theirs ? p : { ...p, exile: [exiled], battlefield: p.battlefield.map((c) => (c.id === faceDown.id ? faceDown : c)) },
+      ),
+    });
+    for (const [where, id] of [['exile', exiled.id], ['battlefield', faceDown.id]] as const) {
+      const li = zone(theirs.id, where).querySelector<HTMLElement>(`li[data-card-id="${id}"]`)!;
+      const back = li.querySelector('.board-card__face > [data-card-back]');
+      expect(back, `${where}: a back`).not.toBeNull();
+      expect(back!.getAttribute('aria-label'), where).toBe('Hidden card');
+      // The inspector enlarges a `.card` carrying the tile's own id: the back is that element.
+      expect(back!.matches(`.card[data-card-id="w${id}"]`), where).toBe(true);
+      expect(li.querySelector('.card__name, img'), `${where}: no text tile, no art`).toBeNull();
+    }
+  });
+
   it('a suspended card’s Time counter leads in an exile pile — Forge’s own order everywhere else', () => {
     // 'charge' before 'Time' in the INPUT, deliberately: a suspended card is
     // never only suspended (Ancestral Vision's own case has nothing else),

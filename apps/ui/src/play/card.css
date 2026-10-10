@@ -1114,3 +1114,8 @@ button.face__hit:focus-visible {
 .card-back + .card-back {
   margin-left: calc(var(--card-back-w) * -0.6);
 }
+
+/* A card this seat may not see (`BoardCard.hidden`): the same back, filling the card's own box. */
+.card.card-back {
+  --card-back-w: 100%;
+}

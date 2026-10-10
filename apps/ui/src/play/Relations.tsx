@@ -22,27 +22,16 @@
  * own comment on `.board-card__relations` explains where the wrapper sits so
  * it never covers the four corners the state layer already claimed.
  *
- * ## Names, or the kind alone
+ * ## Names
  *
  * `BoardCardRelation.names` is already resolved (`adapter.ts`'s
- * `nameOfCard`) — never looked up again here. An id the viewer cannot see
- * resolves to `null`; when EVERY id of a relation is `null`, the pill draws
- * the kind's bare word ("Haunted") rather than a blank or a guessed name.
+ * `nameOfCard`) — never looked up again here. A card the viewer may not see
+ * is already named "Hidden card" there.
  */
 
 import type { BoardCard, BoardCardRelation, RelationKind } from './adapter.ts';
 
-/** Said when no id of this relation resolved to a name — one this seat cannot see. */
-const ALONE: Readonly<Record<RelationKind, string>> = {
-  hauntedBy: 'Haunted',
-  haunting: 'Haunting',
-  encoded: 'Encoded',
-  imprinted: 'Imprinted',
-  chosen: 'Chosen',
-  mustBlock: 'Must block',
-};
-
-/** Said with the joined known names in place of the parameter. */
+/** Said with the joined names in place of the parameter. */
 const WITH_NAMES: Readonly<Record<RelationKind, (names: string) => string>> = {
   hauntedBy: (names) => `Haunted by ${names}`,
   haunting: (names) => `Haunting ${names}`,
@@ -54,8 +43,7 @@ const WITH_NAMES: Readonly<Record<RelationKind, (names: string) => string>> = {
 
 /** The pill's own text for one relation entry. Exported for the test only. */
 export function relationLabel(relation: BoardCardRelation): string {
-  const known = relation.names.filter((n): n is string => n !== null && n.trim() !== '');
-  return known.length > 0 ? WITH_NAMES[relation.kind](known.join(', ')) : ALONE[relation.kind];
+  return WITH_NAMES[relation.kind](relation.names.join(', '));
 }
 
 /**
