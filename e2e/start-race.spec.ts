@@ -66,7 +66,7 @@ async function seat(alice: Friend, bob: Friend, stack: PlayStack): Promise<void>
   ] as const) {
     await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
     await f.page.getByTestId('deck-mine').locator(`[data-deck-id="${deck}"]`).click();
-    await expect(f.page.getByTestId('verdict-mine')).toContainText('Legal in');
+    await expect(f.page.getByTestId('ready-toggle')).toBeEnabled();
   }
 }
 

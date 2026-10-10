@@ -1,18 +1,26 @@
 /*
- * The lobby never scrolls — the operator, 2026-10-10: "lobby screen should not
- * have scrolling. definetly not the chat rooms".
+ * The page never grows with the lobby's content — the operator, 2026-10-10:
+ * "lobby screen should not have scrolling. definetly not the chat rooms", and
+ * then, of a long deck list and a long room list: "scrolling is fine just not
+ * for the whole page, the watchparty interface should not be affected by page
+ * length". And of the deck verdict: "i dislike that verdict it's useless, just
+ * get rid of it".
  *
- * Two real browsers in a constructed room on the real built server: alice makes
- * the room, bob opens it, both choose a deck, alice readies. That is the room at
- * its fullest — both seat rows, both verdicts, the era's whole deck list, the
- * chat aside beside it. At 1280×800, 1366×768 and 1024×700 nothing on either
- * screen may scroll: not the document, not the room frame, not a panel, not the
- * chat. Every deck and the Ready button lie inside the window, so a fit that
- * merely clipped them would fail too. The front page's room list is measured
- * the same way.
+ * Two real browsers in a constructed room on the real built server, on Free
+ * pick — the whole library on offer — with both decks chosen and alice ready;
+ * and the front page with more rooms open than one column holds. At 1280×800,
+ * 1366×768 and 1024×700, on both screens:
  *
- * `[lobby-fit]` lines are the evidence: every overflowing box with its
- * scrollHeight against its clientHeight.
+ *  - the document does not scroll;
+ *  - the chrome is exactly the window's height, and watchparty's room frame —
+ *    the chat aside with it — ends at the window's bottom edge;
+ *  - the only boxes that may scroll are the deck grid and the room list;
+ *  - every deck tile keeps its full 190px size, however many decks there are;
+ *  - Ready, both seat rows, the room list and Create lie inside the window;
+ *  - no verdict is drawn.
+ *
+ * `[lobby-fit]` lines are the evidence: every scrolling box with its
+ * scrollHeight against its clientHeight, and the boxes that frame the page.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -23,7 +31,12 @@ import { forgeAvailability, startPlayStack } from './play/harness.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const PREFIX = '/cardtable';
-const ROOMS_OPEN = 6;
+/** More than one column of rows holds at 1024×700. */
+const ROOMS_OPEN = 16;
+/** A deck tile's own size (`screens.css` `.deckpick`). */
+const TILE_PX = 190;
+/** The only boxes that may scroll: they are long lists, and they scroll inside themselves. */
+const MAY_SCROLL = ['deck-mine', 'room-list'];
 const SIZES = [
   { width: 1280, height: 800 },
   { width: 1366, height: 768 },
@@ -32,9 +45,8 @@ const SIZES = [
 
 interface Fit {
   size: string;
-  scrollers: string[];
-  outside: string[];
-  boxes: string[];
+  failures: string[];
+  evidence: string[];
 }
 
 /** The chat aside renders for a signed-in viewer: answer whoami the way the edge does for a friend. */
@@ -44,62 +56,83 @@ async function signIn(f: Friend): Promise<void> {
   );
 }
 
-/** Every box that scrolls, and every one of `mustShow` that lies outside the window. */
-async function measure(page: Page, mustShow: string): Promise<Fit> {
-  return page.evaluate((sel) => {
-    const SCROLLS = new Set(['auto', 'scroll']);
-    const name = (e: Element): string => {
-      const id = e.getAttribute('data-testid');
-      const cls = typeof e.className === 'string' ? e.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
-      return `${e.tagName.toLowerCase()}${id ? `[${id}]` : ''}${cls ? `.${cls}` : ''}`;
-    };
-    const scrollers: string[] = [];
-    const doc = document.scrollingElement as HTMLElement;
-    if (doc.scrollHeight > innerHeight + 1 || doc.scrollWidth > innerWidth + 1) {
-      scrollers.push(`document: scroll ${doc.scrollWidth}x${doc.scrollHeight} > window ${innerWidth}x${innerHeight}`);
-    }
-    for (const el of Array.from(document.body.querySelectorAll('*'))) {
-      const e = el as HTMLElement;
-      const cs = getComputedStyle(e);
-      const tall = e.clientHeight > 0 && e.scrollHeight > e.clientHeight + 1 && SCROLLS.has(cs.overflowY);
-      const wide = e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1 && SCROLLS.has(cs.overflowX);
-      if (tall || wide) scrollers.push(`${name(e)}: scroll ${e.scrollWidth}x${e.scrollHeight} > client ${e.clientWidth}x${e.clientHeight}`);
-    }
-    const outside: string[] = [];
-    for (const el of Array.from(document.querySelectorAll(sel))) {
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0 || r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) {
-        outside.push(`${name(el)}${el.getAttribute('data-deck-id') ? `(${el.getAttribute('data-deck-id')})` : ''} at ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+async function measure(page: Page, mustShow: string, mayScroll: string[], tilePx: number): Promise<Fit> {
+  return page.evaluate(
+    ({ sel, allowed, tile }) => {
+      const SCROLLS = new Set(['auto', 'scroll']);
+      const name = (e: Element): string => {
+        const id = e.getAttribute('data-testid');
+        const cls = typeof e.className === 'string' ? e.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+        return `${e.tagName.toLowerCase()}${id ? `[${id}]` : ''}${cls ? `.${cls}` : ''}`;
+      };
+      const failures: string[] = [];
+      const evidence: string[] = [];
+      const doc = document.scrollingElement as HTMLElement;
+      if (doc.scrollHeight > innerHeight + 1 || doc.scrollWidth > innerWidth + 1) {
+        failures.push(`the document scrolls: ${doc.scrollWidth}x${doc.scrollHeight} > window ${innerWidth}x${innerHeight}`);
       }
-    }
-    const boxes: string[] = [];
-    for (const s of ['.app-header', '.wp-room-chrome-frame__content', '.wp-room-chrome', '.shell', '.shell__head', '.lobby__card', '.lobby__card > *', '.deckpick', '.deckpick__option', '.rooms', '.rooms__row', '.rooms__create']) {
-      for (const el of Array.from(document.querySelectorAll(s))) {
+      const chrome = document.querySelector('.cardtable-chrome');
+      const chromeH = chrome === null ? -1 : Math.round(chrome.getBoundingClientRect().height);
+      evidence.push(`chrome ${chromeH}h`);
+      if (Math.abs(chromeH - innerHeight) > 1) failures.push(`the chrome is ${chromeH}px tall, the window ${innerHeight}px`);
+      for (const s of ['.wp-room-chrome-frame', '.wp-room-chrome']) {
+        const el = document.querySelector(s);
+        if (el === null) continue;
         const r = el.getBoundingClientRect();
-        boxes.push(`${s} ${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.top)}`);
+        evidence.push(`${s} ${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.top)} bottom ${Math.round(r.bottom)}`);
+        if (Math.abs(r.bottom - innerHeight) > 1) failures.push(`${s} ends at ${Math.round(r.bottom)}, not the window's bottom ${innerHeight}`);
       }
-    }
-    return { size: `${innerWidth}x${innerHeight}`, scrollers, outside, boxes };
-  }, mustShow);
+      for (const el of Array.from(document.body.querySelectorAll('*'))) {
+        const e = el as HTMLElement;
+        const cs = getComputedStyle(e);
+        const tall = e.clientHeight > 0 && e.scrollHeight > e.clientHeight + 1 && SCROLLS.has(cs.overflowY);
+        const wide = e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1 && SCROLLS.has(cs.overflowX);
+        if (!tall && !wide) continue;
+        const line = `${name(e)}: scroll ${e.scrollWidth}x${e.scrollHeight} > client ${e.clientWidth}x${e.clientHeight}`;
+        if (allowed.includes(e.getAttribute('data-testid') ?? '') && !wide) evidence.push(`scrolls inside itself ${line}`);
+        else failures.push(`scrolls: ${line}`);
+      }
+      const tiles = Array.from(document.querySelectorAll('[data-testid="deck-mine"] [data-deck-id]'));
+      const small = tiles.filter((t) => {
+        const r = t.getBoundingClientRect();
+        return Math.abs(r.height - tile) > 1 || r.width < tile - 1;
+      });
+      if (tiles.length > 0) {
+        const r = tiles[0]!.getBoundingClientRect();
+        evidence.push(`${tiles.length} deck tiles, the first ${Math.round(r.width)}x${Math.round(r.height)}`);
+      }
+      if (small.length > 0) {
+        const r = small[0]!.getBoundingClientRect();
+        failures.push(`${small.length} of ${tiles.length} deck tiles are not full size (${Math.round(r.width)}x${Math.round(r.height)}, want ${tile}px)`);
+      }
+      for (const el of Array.from(document.querySelectorAll(sel))) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0 || r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) {
+          failures.push(`outside the window: ${name(el)} at ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+        }
+      }
+      if (document.querySelector('[data-testid="verdict-mine"]') !== null) failures.push('a deck verdict is drawn');
+      return { size: `${innerWidth}x${innerHeight}`, failures, evidence };
+    },
+    { sel: mustShow, allowed: mayScroll, tile: tilePx },
+  );
 }
 
 async function fitsAt(page: Page, who: string, where: string, mustShow: string, failures: string[]): Promise<void> {
   for (const size of SIZES) {
     await page.setViewportSize(size);
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const fit = await measure(page, mustShow);
-    console.log(`[lobby-fit] ${where} ${who} ${fit.size} boxes: ${fit.boxes.join(' | ')}`);
-    for (const s of fit.scrollers) console.log(`[lobby-fit] ${where} ${who} ${fit.size} SCROLLS ${s}`);
-    for (const o of fit.outside) console.log(`[lobby-fit] ${where} ${who} ${fit.size} OUTSIDE ${o}`);
-    failures.push(...fit.scrollers.map((s) => `${where} ${who} ${fit.size}: ${s}`));
-    failures.push(...fit.outside.map((o) => `${where} ${who} ${fit.size}: outside the window: ${o}`));
+    const fit = await measure(page, mustShow, MAY_SCROLL, TILE_PX);
+    console.log(`[lobby-fit] ${where} ${who} ${fit.size}: ${fit.evidence.join(' | ')}`);
+    for (const f of fit.failures) console.log(`[lobby-fit] ${where} ${who} ${fit.size} FAIL ${f}`);
+    failures.push(...fit.failures.map((f) => `${where} ${who} ${fit.size}: ${f}`));
   }
 }
 
-test(titled('the lobby and a full room fit the window at 1280×800, 1366×768 and 1024×700: nothing scrolls, the chat included'), async ({ browser }) => {
+test(titled('the page and the chat stay the window’s height on the front page and in a Free pick room; only the deck grid and the room list scroll, at full size'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(3 * 60_000);
+  test.setTimeout(4 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     const alice = await openFriend(browser, 'alice');
@@ -108,7 +141,6 @@ test(titled('the lobby and a full room fit the window at 1280×800, 1366×768 an
     await signIn(bob);
     const failures: string[] = [];
 
-    // A friend group's evening: a handful of rooms already open (production held three on 2026-10-10).
     for (let i = 1; i <= ROOMS_OPEN; i++) {
       const made = await bob.context.request.post(`${stack.origin}${PREFIX}/api/rooms`, {
         data: { name: `open table ${i}`, gameType: i % 2 === 0 ? 'draft' : 'constructed-1v1' },
@@ -118,7 +150,7 @@ test(titled('the lobby and a full room fit the window at 1280×800, 1366×768 an
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await expect(alice.page.getByTestId('room-create')).toBeVisible();
     await expect(alice.page.getByTestId('room-row')).toHaveCount(ROOMS_OPEN);
-    await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-create-submit"], [data-testid="room-row"]', failures);
+    await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-create-submit"], [data-testid="room-list"]', failures);
 
     await alice.page.getByTestId('room-create-name').fill(`lobby fit ${Date.now()}`);
     await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
@@ -126,28 +158,35 @@ test(titled('the lobby and a full room fit the window at 1280×800, 1366×768 an
     await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     await bob.page.goto(alice.page.url());
     await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
-    // The room's own era — a fresh room's is the newest Standard one, a full twelve decks — and
-    // each player takes one of the decks it offers.
+    // Each takes a deck of the room's own era, then the leader moves the room to
+    // Free pick: the whole library on offer, the longest list a room can draw.
     for (const [f, n] of [
       [alice, 0],
       [bob, 1],
     ] as const) {
       await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
       await f.page.getByTestId('deck-mine').locator('[data-deck-id]').nth(n).click();
-      await expect(f.page.getByTestId('verdict-mine')).toContainText('Legal in');
+      await expect(f.page.getByTestId('ready-toggle')).toBeEnabled();
     }
-    const era = await bob.page.getByTestId('format-fixed').getAttribute('data-format');
+    await alice.page.getByTestId('free-pick').click();
+    await expect(alice.page.getByTestId('free-pick')).toHaveAttribute('aria-pressed', 'true');
+    await expect(bob.page.getByTestId('format-fixed')).toHaveText('Free pick');
+    for (const f of [alice, bob]) {
+      await expect.poll(() => f.page.getByTestId('deck-mine').locator('[data-deck-id]').count(), { timeout: 30_000 }).toBeGreaterThan(100);
+      // The held deck is re-sent under the new pool and is legal on Free pick.
+      await expect(f.page.getByTestId('ready-toggle')).toBeEnabled({ timeout: 30_000 });
+    }
     await alice.page.getByTestId('ready-toggle').click();
     await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
     await expect(bob.page.getByTestId('room-seat-1-empty')).toHaveCount(0);
     const decks = await alice.page.getByTestId('deck-mine').locator('[data-deck-id]').count();
-    console.log(`[lobby-fit] room on ${era}: ${decks} decks on offer; chat aside drawn: ${await alice.page.locator('.wp-room-chrome').count()}`);
+    console.log(`[lobby-fit] room on Free pick: ${decks} decks on offer; chat aside drawn: ${await alice.page.locator('.wp-room-chrome').count()}`);
 
-    const mustShow = '[data-testid="ready-toggle"], [data-testid="deck-mine"] [data-deck-id], [data-testid="room-players"]';
+    const mustShow = '[data-testid="ready-toggle"], [data-testid="deck-mine"], [data-testid="room-players"]';
     await fitsAt(alice.page, 'alice', 'room', mustShow, failures);
     await fitsAt(bob.page, 'bob', 'room', mustShow, failures);
 
-    expect(failures, 'nothing in the lobby scrolls and nothing it offers is outside the window').toEqual([]);
+    expect(failures, 'the page is the window’s height, only the two lists scroll, every tile is full size, and no verdict').toEqual([]);
   } finally {
     await stack.stop();
   }

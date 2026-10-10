@@ -669,7 +669,7 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
     // shape was promised, and this is it taken up. Neither spec is any lane's, so
     // the manager took them once §C had landed.
     await f.page.getByTestId('deck-mine').locator(`[data-deck-id="${deck}"]`).click();
-    await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
+    await expect(f.page.getByTestId('ready-toggle'), `${f.name}: their own deck is legal`).toBeEnabled();
   }
   await alice.page.getByTestId('ready-toggle').click();
   await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');

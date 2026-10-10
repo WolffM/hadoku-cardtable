@@ -633,7 +633,7 @@ async function loadOwnDeck(f: Friend, deckId: string): Promise<void> {
   // `docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md` is where that
   // shape was promised, and this is it taken up.
   await f.page.getByTestId('deck-mine').locator(`[data-deck-id="${deckId}"]`).click();
-  await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
+  await expect(f.page.getByTestId('ready-toggle'), `${f.name}: their own deck is legal`).toBeEnabled();
 }
 
 /* ── the checker, biting — no Forge needed ───────────────────────────── */
