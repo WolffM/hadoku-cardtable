@@ -1210,6 +1210,8 @@ function RoomTableScreen({
   const full = players.length >= (table?.room.seats ?? 2);
   const spectating = table !== null && !table.you.player && full;
   const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
+  /** A start asked for or a match running: the table is no longer anyone's to change. */
+  const underway = starting || matchId !== null;
   const streamed = modeRef.current === 'streamed';
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
   const picking =
@@ -1637,7 +1639,7 @@ function RoomTableScreen({
   }
 
   return (
-    <div className="shell" data-testid="constructed">
+    <div className="shell shell--fit" data-testid="constructed">
       <header className="shell__head">
         <h1 className="shell__title" data-testid="room-name">
           {streamed ? (view?.name ?? roomId) : (table?.room.name ?? roomId)}
@@ -1653,6 +1655,16 @@ function RoomTableScreen({
               ? 'Draft'
               : 'Constructed 1v1'}
         </p>
+        <a
+          className="shell__link"
+          href="#/"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate({ kind: 'lobby' });
+          }}
+        >
+          Back to the rooms
+        </a>
       </header>
 
       <main className="lobby">
@@ -1729,7 +1741,8 @@ function RoomTableScreen({
         )}
 
         {!draftRoom && table !== null && (
-          <>
+          <div className="lobby__table">
+            <div className="lobby__side">
             <section className="lobby__card">
               <h2>At the table</h2>
               <ul className="tables__players" data-testid="room-players">
@@ -1772,8 +1785,7 @@ function RoomTableScreen({
               </section>
             ) : (
               loaded !== null && (
-                <section className="lobby__card">
-                  <h2>Your deck</h2>
+                <section className="lobby__card" data-testid="room-pool">
                   {/* The table's pool: "Format" — one pool, both seats, checked
                       against the same list, across Standard, Modern and Legacy
                       alike (wave 48 §U). The LEADER gets a control; everybody else reads
@@ -1802,7 +1814,7 @@ function RoomTableScreen({
                             role="tab"
                             aria-selected={!freePick && formatTab === tab.id}
                             data-testid={`format-tab-${tab.id}`}
-                            disabled={busy || matchId !== null}
+                            disabled={busy || underway}
                             onClick={() => {
                               setFormatTab(tab.id);
                               // A tab whose eras do not include the room's pool chooses its first era
@@ -1824,7 +1836,7 @@ function RoomTableScreen({
                             role="tab"
                             aria-selected={!freePick && formatTab === 'draft'}
                             data-testid="format-tab-draft"
-                            disabled={busy || matchId !== null}
+                            disabled={busy || underway}
                             onClick={() => setFormatTab('draft')}
                           >
                             Drafted pool
@@ -1837,7 +1849,7 @@ function RoomTableScreen({
                           className="lobby__free-pick"
                           aria-pressed={freePick}
                           data-testid="free-pick"
-                          disabled={busy || matchId !== null}
+                          disabled={busy || underway}
                           onClick={() => {
                             if (!freePick) {
                               choosePool(FREE_PICK);
@@ -1867,7 +1879,7 @@ function RoomTableScreen({
                           id="format"
                           data-testid="format"
                           value={poolOnTab ? poolId : ''}
-                          disabled={busy || matchId !== null}
+                          disabled={busy || underway}
                           onChange={(e) => choosePool(e.target.value)}
                         >
                           {!poolOnTab && <option value="" disabled hidden />}
@@ -1901,7 +1913,14 @@ function RoomTableScreen({
                       eternal format's forty-odd sets drew a strip the operator called
                       ridiculous (2026-10-07), so those draw none either. */}
                   {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
+                </section>
+              )
+            )}
+            </div>
 
+            {!spectating && loaded !== null && (
+                <section className="lobby__card lobby__decks">
+                  <h2>Your deck</h2>
                   {/* The two actions sit ABOVE the list, not after it. Operator,
                       2026-09-30: *"the random button should be at the top, the
                       ready button should also be at the top"* — the list is a grid
@@ -1916,7 +1935,7 @@ function RoomTableScreen({
                       className="lobby__go"
                       data-testid="ready-toggle"
                       aria-pressed={mine?.ready === true}
-                      disabled={busy || deckId === '' || mine === null || !mine.legal || matchId !== null}
+                      disabled={busy || deckId === '' || mine === null || !mine.legal || underway}
                       onClick={() => setReady(!(mine?.ready === true))}
                     >
                       {mine?.ready === true ? 'Stand down' : 'Ready'}
@@ -1926,7 +1945,7 @@ function RoomTableScreen({
                       className="deckpick__random"
                       data-testid="deck-random"
                       data-deck-id={RANDOM_DECK}
-                      disabled={deckOptions === null || matchId !== null}
+                      disabled={deckOptions === null || underway}
                       onClick={() => chooseDeck(RANDOM_DECK)}
                     >
                       Random
@@ -1941,7 +1960,7 @@ function RoomTableScreen({
                         type="button"
                         className="deckpick__random"
                         data-testid="play-vs-bot"
-                        disabled={busy || starting || mine === null || !mine.legal || matchId !== null}
+                        disabled={busy || mine === null || !mine.legal || underway}
                         onClick={startVsBot}
                       >
                         Play vs Forge AI
@@ -1965,7 +1984,7 @@ function RoomTableScreen({
                   <DeckChooser
                     options={deckOptions ?? []}
                     value={deckId}
-                    disabled={deckOptions === null || matchId !== null}
+                    disabled={deckOptions === null || underway}
                     onChoose={chooseDeck}
                   />
                   {/* Why the dropdown has nothing in it, when it has nothing in it.
@@ -1984,30 +2003,13 @@ function RoomTableScreen({
                       Asking pod <strong>{pod}</strong> for the cards you drafted.
                     </p>
                   )}
-
                 </section>
-              )
             )}
-          </>
+          </div>
         )}
           </>
         )}
       </main>
-
-      <footer className="shell__foot">
-        <p>
-          <a
-            className="shell__link"
-            href="#/"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'lobby' });
-            }}
-          >
-            Back to the rooms
-          </a>
-        </p>
-      </footer>
     </div>
   );
 }

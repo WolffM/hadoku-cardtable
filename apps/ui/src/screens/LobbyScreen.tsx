@@ -39,7 +39,7 @@ export interface LobbyScreenProps {
 
 export function LobbyScreen({ rooms }: LobbyScreenProps) {
   return (
-    <div className="shell" data-testid="lobby">
+    <div className="shell shell--fit" data-testid="lobby">
       {/* No title here. The fleet's AppHeader already says "Card Table" at the
           top of every route, from the catalogue (`app-name.ts`), and a second
           one in the page said it twice — operator, 2026-09-27. The other
@@ -49,8 +49,8 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
         <RoomList client={rooms} />
       </main>
 
-      <footer className="shell__foot">
-        {import.meta.env?.DEV === true && (
+      {import.meta.env?.DEV === true && (
+        <footer className="shell__foot">
           <p>
             <a
               className="shell__link"
@@ -63,8 +63,8 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
               Developer harness
             </a>
           </p>
-        )}
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

@@ -222,6 +222,8 @@ interface Table {
   deckFails?: boolean;
   /** A start the server refuses — e.g. the other player un-readied between polls. */
   refuseStart?: { status: number; error: string };
+  /** A start that answers only once this settles — Forge coming up. */
+  holdStart?: Promise<void>;
   /**
    * The pods `GET /tables/formats` offers THIS caller, as pools (wave 26 §F).
    *
@@ -476,6 +478,7 @@ function stubServer(table: Table) {
       const asked = body as { room?: string };
       if (typeof asked.room !== 'string') return json(422, { error: 'a match against a person starts from a room' });
       if (table.refuseStart !== undefined) return json(table.refuseStart.status, { error: table.refuseStart.error });
+      await table.holdStart;
       table.matchId = MATCH;
       return json(201, { matchId: MATCH });
     }
@@ -963,6 +966,25 @@ describe('a room’s table', () => {
       fireEvent.click(screen.getByTestId('start-retry'));
     });
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+  });
+});
+
+describe('a start in flight', () => {
+  it('takes the table out of everyone’s hands until the match is up: no Stand down, no new deck', async () => {
+    let up = (): void => {};
+    await mountRoom({ players: [opponent({ ready: true })], matchId: null, holdStart: new Promise<void>((r) => (up = r)) });
+    await pick(UG_POLYMORPH);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('ready-toggle'));
+    });
+    await waitFor(() => expect(screen.getByTestId('start-state').textContent).toBe('Starting Forge…'));
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('deck-random') as HTMLButtonElement).disabled).toBe(true);
+    for (const option of screen.getByTestId('deck-mine').querySelectorAll('button')) expect(option.disabled).toBe(true);
+
+    await act(async () => up());
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    expect(screen.queryByTestId('start-refused')).toBeNull();
   });
 });
 
@@ -2508,7 +2530,7 @@ describe('the deck chooser', () => {
     // this is what makes a short name's box and a long name's box come out the
     // same height; `boxes.md` (real Playwright, a built page) has the proof that
     // a browser actually lays it out this way.
-    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*grid-auto-rows: 190px;/);
+    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*grid-auto-rows: minmax\(0, 190px\);/);
     expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*align-items: stretch;/);
     expect(SCREENS_CSS).toMatch(/\.deckpick__option \{[^}]*height: 100%;/);
 
