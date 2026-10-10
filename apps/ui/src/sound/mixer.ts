@@ -189,16 +189,17 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     loop(role) {
       if (role === loopRole) return;
       loopRole = role;
-      const ac = context();
-      if (ac === null) return;
-      fadeOutLoop(ac);
+      if (ctx !== null) fadeOutLoop(ctx);
       if (role === null) return;
       const voice = planner.plan({ role }, performance.now(), mixer.settings).voices[0];
       if (voice === undefined) {
-        // Nothing assigned (or not loaded yet): asking again later must try again.
+        // Nothing assigned (or not loaded yet): asking again later must try again,
+        // and nothing is built for a role with no music.
         loopRole = null;
         return;
       }
+      const ac = context();
+      if (ac === null) return;
       const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
       void Promise.all([load(voice.file), ready]).then(([buf]) => {
         if (buf === null || duckNode === null || loopRole !== role || loopVoice !== null) return;
