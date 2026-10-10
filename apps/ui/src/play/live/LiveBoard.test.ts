@@ -16,7 +16,6 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
-import { HeaderSettingsHost, HeaderSettingsProvider } from '../../chrome/HeaderSettings.tsx';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
@@ -137,9 +136,8 @@ afterEach(async () => {
 });
 
 /**
- * `menu`: render the header gear's popout host beside the board, as `AppChrome`
- * does while the popout is open — the match's settings are drawn INTO it
- * (wave 32 Q15), so a test that wants them needs it.
+ * `menu`: open cardtable's settings once the board is up, the way a player
+ * does — a click on their own face.
  */
 async function liveBoard(playerId = 0, menu = false) {
   const s = (server = await startReplayServer({ playerId }));
@@ -147,11 +145,7 @@ async function liveBoard(playerId = 0, menu = false) {
     matchId: s.matchId,
     transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
   }));
-  const utils = render(
-    menu
-      ? createElement(HeaderSettingsProvider, null, createElement(HeaderSettingsHost), createElement(LiveBoard, { match: m }))
-      : createElement(LiveBoard, { match: m }),
-  );
+  const utils = render(createElement(LiveBoard, { match: m }));
   await waitFor(() => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
@@ -170,6 +164,7 @@ async function liveBoard(playerId = 0, menu = false) {
   // The turn number is the RAIL's: §A deleted `.board__bar`, which carried
   // `turn`, and `live-turn-n` is Forge's own counter on its own (wave 26 §B.2).
   await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
+  if (menu) fireEvent.click(utils.getByTestId('seat-settings'));
   return { s, m, ...utils };
 }
 
@@ -1257,7 +1252,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     for (const id of ['live-button-next-phase', 'live-button-end-turn', 'live-full-control', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
-    // Wave 32 Q15 took Settings out: it is in the header's gear.
+    // Wave 32 Q15 took Settings out: it opens from your own face now.
     expect(cluster.querySelector('[data-testid="live-settings"]')).toBeNull();
     // Item 5 deleted `Leave`: the cluster no longer holds it at all.
     expect(cluster.querySelector('[data-testid="live-leave"]')).toBeNull();
@@ -1469,7 +1464,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      * HEIGHT is what gave instead, 84 → 136, when the five buttons became one
      * column so that `Full control` and `Concede` stopped being clipped. Item
      * 5 (wave 30) deleted `Leave` and item 7 put `Settings` in its slot; wave 32
-     * Q15 took `Settings` out again (it is in the header's gear), so the
+     * Q15 took `Settings` out again (it opens from your own face now), so the
      * cluster is four rows and the number is 110.
      */
     const live = declarations(liveCss(), '.live');
@@ -2376,24 +2371,38 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
  * should allow the board config to show differently."* — and, wave 32:
  * *"the settings live in the top settings menu, and the extra button goes."*
  *
- * `liveBoard(0, true)` renders the header popout's host beside the board, which
- * is what `AppChrome` does while the gear is open.
+ * 2026-10-10, the operator: *"i dont want watchparty's settings menu to get
+ * clogged up by our game settings … we can expose it by making the avatar
+ * clickable in-game"*. `liveBoard(0, true)` opens them from the viewer's face.
  */
-describe('the match settings live in the header menu (items 4-7, Q15)', () => {
-  it('there is no Settings button and no floating panel in the match any more', async () => {
-    const { container, queryByTestId } = await liveBoard(0, true);
+describe('the match settings open from your own face (items 4-7, 2026-10-10)', () => {
+  it('there is no Settings button in the cluster; your face opens the popover, with sound and the match', async () => {
+    const { container, queryByTestId, getByTestId } = await liveBoard();
     expect(queryByTestId('live-settings')).toBeNull();
-    expect(container.textContent).not.toContain('Settings');
-    // The controls are in the header's popout host, not inside `.live`.
-    const host = queryByTestId('header-app-settings')!;
-    expect(host.contains(queryByTestId('live-settings-panel'))).toBe(true);
-    expect(container.querySelector('.live')!.contains(queryByTestId('live-settings-panel'))).toBe(false);
+    expect(queryByTestId('live-settings-panel')).toBeNull();
+    const face = getByTestId('seat-settings');
+    expect(face.closest('[data-viewer]'), 'the viewer’s own face, not the opponent’s').not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="seat-settings"]')).toHaveLength(1);
+
+    fireEvent.click(face);
+    const dialog = getByTestId('settings');
+    expect(dialog.contains(getByTestId('settings-sound'))).toBe(true);
+    expect(dialog.contains(getByTestId('live-settings-panel'))).toBe(true);
     expect(container.querySelector('.live__ask')).toBeNull();
   });
 
-  it('draws nothing when the popout is not open (no host)', async () => {
-    const { queryByTestId } = await liveBoard();
-    expect(queryByTestId('live-settings-panel')).toBeNull();
+  it('Escape, the close button and a press outside each close it', async () => {
+    const { queryByTestId, getByTestId } = await liveBoard(0, true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(queryByTestId('settings')).toBeNull();
+
+    fireEvent.click(getByTestId('seat-settings'));
+    fireEvent.click(getByTestId('settings-close'));
+    expect(queryByTestId('settings')).toBeNull();
+
+    fireEvent.click(getByTestId('seat-settings'));
+    fireEvent.pointerDown(getByTestId('live-turn-n'));
+    expect(queryByTestId('settings')).toBeNull();
   });
 
   it('board layout: single is the default `Board` prop, and the radio flips it to type-separated and back', async () => {
@@ -2441,7 +2450,7 @@ describe('the match settings live in the header menu (items 4-7, Q15)', () => {
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
     expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
-    // No popout host was rendered in this test at all.
+    // The settings were never opened in this test.
   });
 
   it('the seat’s settings go to the match log as client telemetry once read, and again on every change', async () => {

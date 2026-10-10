@@ -2663,7 +2663,15 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
  * without reaching into this component's own markup. No test asserted the
  * ring before this; this is what lets one.
  */
-function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
+function PlayerFace({
+  player,
+  interaction,
+  onOpenSettings,
+}: {
+  player: BoardPlayer;
+  interaction: BoardInteraction | undefined;
+  onOpenSettings: ((from: Element) => void) | undefined;
+}) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   /*
    * The watchparty character, when the seat has one — wave 28 item 4, the render
@@ -2723,6 +2731,18 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
           className="face__hit"
           aria-label={`Select ${player.name}`}
           onClick={() => interaction.onSelectPlayer(player.id)}
+        >
+          {mark}
+        </button>
+      ) : player.isViewer && onOpenSettings !== undefined ? (
+        /* Your own face opens cardtable's settings (`../settings/Settings.tsx`) whenever Forge is not asking for a player. */
+        <button
+          type="button"
+          className="face__hit face__hit--settings"
+          aria-label="Settings"
+          aria-haspopup="dialog"
+          data-testid="seat-settings"
+          onClick={(event) => onOpenSettings(event.currentTarget)}
         >
           {mark}
         </button>
@@ -2863,6 +2883,7 @@ function PlayerArea({
   arranged,
   layout,
   onOpenPile,
+  onOpenSettings,
 }: {
   player: BoardPlayer;
   interaction: BoardInteraction | undefined;
@@ -2870,6 +2891,7 @@ function PlayerArea({
   arranged: Arrangement;
   layout: BoardLayout;
   onOpenPile: (zone: PileZone) => void;
+  onOpenSettings?: (from: Element) => void;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const side: ZoneOwner = player.isViewer ? 'you' : 'them';
@@ -2910,7 +2932,7 @@ function PlayerArea({
       <div className="seat__side">
         <div className="seat__who" data-player-bar="">
           <div className="seat__ident">
-            <PlayerFace player={player} interaction={interaction} />
+            <PlayerFace player={player} interaction={interaction} onOpenSettings={onOpenSettings} />
             <h3 className="seat__name">
               {selectable ? (
                 <button
@@ -3299,9 +3321,12 @@ export function Board({
   view,
   interaction,
   boardLayout = 'single',
+  onOpenSettings,
 }: {
   view: BoardView;
   interaction?: BoardInteraction;
+  /** The viewer's own face opens the game's settings: `LiveBoard` owns them. */
+  onOpenSettings?: (from: Element) => void;
   /**
    * Item 11. `single` — one undivided battlefield — is the default; the
    * settings panel is the only place that reads a stored preference and
@@ -3568,6 +3593,7 @@ export function Board({
           arranged={arranged}
           layout={boardLayout}
           onOpenPile={openPileOf(viewer.id)}
+          onOpenSettings={onOpenSettings}
         />
       )}
 

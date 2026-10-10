@@ -1,41 +1,35 @@
 /**
- * Wave 32's shared hands for the specs: the header settings menu (Q15), and a
- * pointer drag of a permanent (Q4), which replaced the browser's HTML5 drag.
+ * Wave 32's shared hands for the specs: cardtable's own settings (moved out of
+ * the header on 2026-10-10), and a pointer drag of a permanent (Q4), which
+ * replaced the browser's HTML5 drag.
  */
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import type { Friend } from './browser.ts';
 
-/* ── the header settings menu (Q15) ──────────────────────────────────── */
+/* ── cardtable's settings, opened from your own face ─────────────────── */
 
-/** The fleet's own gear, in `AppHeader` (`@wolffm/task-ui-components` `ConnectedSettings`). */
-export const headerGear = (page: Page): Locator => page.getByRole('button', { name: 'User settings' });
-/** The popout panel the gear opens. */
-export const headerPanel = (page: Page): Locator => page.getByRole('dialog', { name: 'User settings' });
-/** Where the match portals its own controls into (`chrome/HeaderSettings.tsx`). */
-export const appSettings = (page: Page): Locator => page.getByTestId('header-app-settings');
+/** The popover (`apps/ui/src/settings/Settings.tsx`). */
+export const settingsPopover = (page: Page): Locator => page.getByTestId('settings');
 
-/** Open the header menu the way a person does, and wait for the match's controls in it. */
-export async function openHeaderSettings(page: Page): Promise<Locator> {
-  if ((await headerPanel(page).count()) === 0) await headerGear(page).click();
-  await expect(headerPanel(page), 'the header settings popout opened').toBeVisible();
-  await expect(appSettings(page), 'the match put its settings into the header menu').toBeVisible();
-  return appSettings(page);
+/** Open the settings the way a player does in a match — their own face — and wait for the match's section. */
+export async function openSettings(page: Page): Promise<Locator> {
+  if ((await settingsPopover(page).count()) === 0) await page.getByTestId('seat-settings').click();
+  await expect(page.getByTestId('live-settings-panel'), 'the match settings opened from the face').toBeVisible();
+  return settingsPopover(page);
 }
 
-export async function closeHeaderSettings(page: Page): Promise<void> {
-  // The popout's own full-page overlay sits over the gear while it is open; a click on it is
-  // the fleet component's outside-click close.
-  if ((await headerPanel(page).count()) > 0) await page.locator('.settings-popout__overlay').click({ position: { x: 2, y: 2 } });
-  await expect(headerPanel(page)).toHaveCount(0);
+export async function closeSettings(page: Page): Promise<void> {
+  if ((await settingsPopover(page).count()) > 0) await page.keyboard.press('Escape');
+  await expect(settingsPopover(page)).toHaveCount(0);
 }
 
-/** Put `f`'s OWN board in the four-lane layout, through the header menu (Q15). */
+/** Put `f`'s OWN board in the four-lane layout, through the settings. */
 export async function chooseLanes(f: Friend): Promise<void> {
-  const menu = await openHeaderSettings(f.page);
+  const menu = await openSettings(f.page);
   await menu.locator('input[name="board-layout"][value="type-separated"]').check();
-  await closeHeaderSettings(f.page);
+  await closeSettings(f.page);
   await expect(
     f.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-row]'),
     `${f.name}: the four lanes`,

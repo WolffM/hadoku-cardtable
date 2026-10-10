@@ -20,7 +20,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
-import { MUTE_KEY, resetMutedForTests } from '../sound/mute.ts';
+import { MUTE_KEY, resetMutedForTests, setMuted } from '../sound/mute.ts';
 import type { SoundEvent } from '../sound/mix.ts';
 import {
   clientModeLabel,
@@ -696,16 +696,6 @@ describe('the front page’s cues', () => {
     return requests;
   };
 
-  it('offers a mute the player can find, on the front page, showing its state', async () => {
-    const { client } = server([OPEN]);
-    mount(client);
-    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
-
-    const button = screen.getByTestId('sound-mute');
-    expect(button.getAttribute('data-muted')).toBe('false');
-    expect(button.getAttribute('aria-label')).toBe('Mute sounds');
-  });
-
   it('cues select on Enter, once, for the press itself', async () => {
     const { client } = server([OPEN]);
     mount(client);
@@ -756,8 +746,7 @@ describe('the front page’s cues', () => {
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
 
     const requests = recorder();
-    fireEvent.click(screen.getByTestId('sound-mute'));
-    expect(screen.getByTestId('sound-mute').getAttribute('data-muted')).toBe('true');
+    setMuted(true);
 
     await act(async () => {
       fireEvent.click(within(rowFor('r-open')).getByTestId('room-enter'));

@@ -25,7 +25,7 @@ import { makeTitled, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { closeHeaderSettings, openHeaderSettings } from './play/w32.ts';
+import { closeSettings, openSettings } from './play/w32.ts';
 
 const forge = forgeAvailability();
 /** The pacer's own tick for a phase frame (`pace.ts`, the `phase` class) — this spec's bound for how late the opponent's flag may light (AE16). Copied, not imported: the UI's transport chain does not type-check under the e2e tsconfig. */
@@ -221,10 +221,10 @@ test(titled('untap/upkeep/draw does not flash the drawn priority holder, same as
     // under test cannot be observed at all under it. Alice is turned back to
     // the real default here, exactly through the settings checkbox a person
     // clicks (`e2e/w47-pace.spec.ts`'s own technique).
-    const fastModeToggle = (await openHeaderSettings(alice.page)).locator('[data-testid="live-settings-fast-mode"]');
+    const fastModeToggle = (await openSettings(alice.page)).locator('[data-testid="live-settings-fast-mode"]');
     await expect(fastModeToggle, 'the harness default is Fast Mode on').toBeChecked();
     await fastModeToggle.uncheck();
-    await closeHeaderSettings(alice.page);
+    await closeSettings(alice.page);
 
     await watchFlash(alice.page);
     await watchBobOpen(bob.page);

@@ -58,6 +58,7 @@ function stubMixer() {
     },
     playFile: vi.fn(),
     preload: vi.fn(),
+    setLevels: vi.fn(),
     loop: vi.fn(),
   };
   return { mixer, events };

@@ -5,7 +5,9 @@
  * ducks goes straight to the master; every other voice goes through the duck
  * node, which a ducking voice pulls down for its own length and lets back up.
  * Levels are baked into each voice when it starts, so a slider moved mid-sound
- * changes the next sound, which is all a cue of a second or two needs.
+ * changes the next sound, which is all a cue of a second or two needs. The
+ * player's own two levels are the exception: the master and the music node
+ * under it take them at once, because music plays for minutes.
  *
  * The only `AudioContext` in the app: the builder, the sandbox and the game
  * (`./index.ts`) all play through one of these.
@@ -52,6 +54,8 @@ export interface Mixer {
    * page can play.
    */
   loop(role: string | null): void;
+  /** The player's levels (`./mute.ts`), 0..1, applied at once — music too, mid-loop. */
+  setLevels(levels: { volume: number; music: number }): void;
 }
 
 interface AudioContextGlobals {
@@ -80,6 +84,8 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   let ctx: AudioContext | null = null;
   let master: GainNode | null = null;
   let duckNode: GainNode | null = null;
+  let musicNode: GainNode | null = null;
+  let levels = { volume: 1, music: 1 };
   let live = 0;
   let loopRole: string | null = null;
   let loopVoice: { src: AudioBufferSourceNode; env: GainNode } | null = null;
@@ -94,9 +100,13 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
       return null;
     }
     master = ctx.createGain();
+    master.gain.value = levels.volume;
     master.connect(ctx.destination);
     duckNode = ctx.createGain();
     duckNode.connect(master);
+    musicNode = ctx.createGain();
+    musicNode.gain.value = levels.music;
+    musicNode.connect(duckNode);
     unlockOnGesture(ctx);
     return ctx;
   };
@@ -202,7 +212,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
       if (ac === null) return;
       const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
       void Promise.all([load(voice.file), ready]).then(([buf]) => {
-        if (buf === null || duckNode === null || loopRole !== role || loopVoice !== null) return;
+        if (buf === null || musicNode === null || loopRole !== role || loopVoice !== null) return;
         const src = ac.createBufferSource();
         src.buffer = buf;
         src.loop = true;
@@ -210,10 +220,15 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
         env.gain.setValueAtTime(0, ac.currentTime);
         env.gain.linearRampToValueAtTime(voice.gain, ac.currentTime + MUSIC_FADE_S);
         src.connect(env);
-        env.connect(duckNode);
+        env.connect(musicNode);
         src.start();
         loopVoice = { src, env };
       });
+    },
+    setLevels(next) {
+      levels = next;
+      if (master !== null) master.gain.value = next.volume;
+      if (musicNode !== null) musicNode.gain.value = next.music;
     },
   };
   return mixer;

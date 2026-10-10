@@ -96,6 +96,18 @@ describe('the mixer', () => {
     expect(contexts).toHaveLength(0);
   });
 
+  it('the player’s levels set the master and the music node, before the context exists and live after', () => {
+    const m = mixer();
+    m.setLevels({ volume: 0.5, music: 0.2 });
+    m.play({ role: 'ui.select' });
+    const ctx = contexts[0]!;
+    // Built in order: the master, the duck node, the music node under it.
+    const [master, duck, music] = ctx.gains;
+    expect([master!.gain.value, duck!.gain.value, music!.gain.value]).toEqual([0.5, 1, 0.2]);
+    m.setLevels({ volume: 0.9, music: 0 });
+    expect([master!.gain.value, music!.gain.value]).toEqual([0.9, 0]);
+  });
+
   it('a gesture unlocks it, and an unlocked sound starts at its planned gain', async () => {
     const m = mixer();
     m.play({ role: 'ui.select' });

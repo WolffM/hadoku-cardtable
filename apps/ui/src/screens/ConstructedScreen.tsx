@@ -194,6 +194,7 @@ import {
   type TableFormat,
   type TablesClient,
 } from './tables.ts';
+import { SettingsGear } from '../settings/Settings.tsx';
 
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
@@ -1667,6 +1668,7 @@ function RoomTableScreen({
         >
           Back to the rooms
         </a>
+        <SettingsGear />
       </header>
 
       <main className="lobby">
@@ -2374,6 +2376,7 @@ function NoRoom() {
     <div className="shell" data-testid="constructed">
       <header className="shell__head">
         <h1 className="shell__title">Constructed</h1>
+        <SettingsGear />
       </header>
       <main className="lobby">
         <section className="lobby__card">

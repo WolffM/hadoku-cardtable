@@ -8,7 +8,7 @@
  * never on audio. What the mixer does with an event is `mix.test.ts`'s job.
  *
  * `.test.ts` + `createElement`, and the jsdom pragma on line 1, for the reasons
- * `screens/lobby.test.ts` gives. The CardTile and MuteButton cases live here
+ * `screens/lobby.test.ts` gives. The CardTile and sound-settings cases live here
  * because a wiring test belongs with the thing being wired.
  */
 
@@ -19,8 +19,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { CardTile } from '../components/CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
 import type { SoundEvent } from './mix.ts';
-import { MuteButton } from './MuteButton.tsx';
-import { MUTE_KEY, isMuted, resetMutedForTests, setMuted } from './mute.ts';
+import { SoundSettings } from '../settings/SoundSettings.tsx';
+import { LEVEL_KEYS, MUTE_KEY, getLevel, isMuted, resetMutedForTests, setMuted } from './mute.ts';
 import {
   playRole,
   playSoundEvents,
@@ -235,38 +235,53 @@ describe('a card tile plays roles', () => {
   });
 });
 
-/* ── the wiring: the mute button ─────────────────────────────────────── */
+/* ── the wiring: the sound settings ──────────────────────────────────── */
 
-describe('the mute button', () => {
-  it('shows the state, flips it, and persists it', () => {
-    render(createElement(MuteButton, {}));
-    const button = screen.getByTestId('sound-mute');
+describe('the sound settings', () => {
+  it('turns sound off and on, persists it, and is silent going off and audible coming back', () => {
+    const events = recorder();
+    render(createElement(SoundSettings));
+    const on = screen.getByTestId('settings-sound-on') as HTMLInputElement;
+    expect(on.checked).toBe(true);
 
-    expect(button.getAttribute('data-muted')).toBe('false');
-    expect(button.getAttribute('aria-pressed')).toBe('false');
-    expect(button.getAttribute('aria-label')).toBe('Mute sounds');
-    // An icon, not words (wave 31 P20): no visible text, and the name is the label.
-    expect(button.textContent).toBe('');
-    expect(button.querySelector('svg')).not.toBeNull();
-
-    fireEvent.click(button);
-
-    expect(button.getAttribute('data-muted')).toBe('true');
-    expect(button.getAttribute('aria-pressed')).toBe('true');
-    expect(button.getAttribute('aria-label')).toBe('Unmute sounds');
+    fireEvent.click(on);
     expect(isMuted()).toBe(true);
     expect(globalThis.localStorage.getItem(MUTE_KEY)).toBe('true');
-  });
-
-  it('is silent when muting and audible when unmuting', () => {
-    const events = recorder();
-    render(createElement(MuteButton, {}));
-    const button = screen.getByTestId('sound-mute');
-
-    fireEvent.click(button); // → muted
+    expect(on.checked).toBe(false);
     expect(events).toEqual([]);
 
-    fireEvent.click(button); // → unmuted, and it says so
+    fireEvent.click(on);
+    expect(isMuted()).toBe(false);
     expect(rolesOf(events)).toEqual(['ui.select']);
+  });
+
+  it('sets the two levels, persists them, and samples the new level once the slider is let go', () => {
+    const events = recorder();
+    render(createElement(SoundSettings));
+    const volume = screen.getByTestId('settings-volume') as HTMLInputElement;
+    const music = screen.getByTestId('settings-music') as HTMLInputElement;
+    expect([volume.value, music.value]).toEqual(['100', '100']);
+
+    fireEvent.change(volume, { target: { value: '40' } });
+    fireEvent.change(music, { target: { value: '15' } });
+    expect(getLevel('volume')).toBe(0.4);
+    expect(getLevel('music')).toBe(0.15);
+    expect(globalThis.localStorage.getItem(LEVEL_KEYS.volume)).toBe('0.4');
+    expect(globalThis.localStorage.getItem(LEVEL_KEYS.music)).toBe('0.15');
+    expect(events).toEqual([]);
+
+    fireEvent.pointerUp(volume);
+    expect(rolesOf(events)).toEqual(['ui.select']);
+  });
+
+  it('reads the stored levels back, and the sliders rest while sound is off', () => {
+    globalThis.localStorage.setItem(LEVEL_KEYS.volume, '0.25');
+    globalThis.localStorage.setItem(LEVEL_KEYS.music, 'not a number');
+    setMuted(true);
+    render(createElement(SoundSettings));
+    const volume = screen.getByTestId('settings-volume') as HTMLInputElement;
+    expect(volume.value).toBe('25');
+    expect((screen.getByTestId('settings-music') as HTMLInputElement).value).toBe('100');
+    expect(volume.disabled).toBe(true);
   });
 });

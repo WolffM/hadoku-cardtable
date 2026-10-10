@@ -58,7 +58,7 @@ import { clickHandCard, makeTitled } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { closeHeaderSettings, openHeaderSettings } from './play/w32.ts';
+import { closeSettings, openSettings } from './play/w32.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -145,10 +145,10 @@ test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it 
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w47-pace');
 
-    const fastModeToggle = (await openHeaderSettings(alice.page)).locator('[data-testid="live-settings-fast-mode"]');
+    const fastModeToggle = (await openSettings(alice.page)).locator('[data-testid="live-settings-fast-mode"]');
     await expect(fastModeToggle, 'the harness default is Fast Mode on').toBeChecked();
     await fastModeToggle.uncheck();
-    await closeHeaderSettings(alice.page);
+    await closeSettings(alice.page);
 
     /* ── Paced: bob's first cast must take noticeably longer to show on alice's board ── */
     const first = await castAndMeasure(bob.page, alice.page);
@@ -158,9 +158,9 @@ test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it 
     ).toBeGreaterThanOrEqual(PACED_LOWER_BOUND_MS);
 
     /* ── Fast: bob's second cast must show on alice's board with no artificial hold ── */
-    const fastModeToggleAgain = (await openHeaderSettings(alice.page)).locator('[data-testid="live-settings-fast-mode"]');
+    const fastModeToggleAgain = (await openSettings(alice.page)).locator('[data-testid="live-settings-fast-mode"]');
     await fastModeToggleAgain.check();
-    await closeHeaderSettings(alice.page);
+    await closeSettings(alice.page);
 
     const second = await castAndMeasure(bob.page, alice.page);
     expect(

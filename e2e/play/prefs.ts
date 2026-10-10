@@ -7,7 +7,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { serverLog } from './board.ts';
-import { closeHeaderSettings, openHeaderSettings } from './w32.ts';
+import { closeSettings, openSettings } from './w32.ts';
 
 /**
  * Fast Mode is ON by default inside the e2e harness (`prefs.ts`'s override); a spec that needs
@@ -17,11 +17,11 @@ import { closeHeaderSettings, openHeaderSettings } from './w32.ts';
  * only needs the checkbox unchecked, with no server round trip to wait on, still does that itself.
  */
 export async function turnFastModeOff(page: Page, stack: { serverLogFile: string }, seat: number): Promise<void> {
-  const toggle = (await openHeaderSettings(page)).locator('[data-testid="live-settings-fast-mode"]');
+  const toggle = (await openSettings(page)).locator('[data-testid="live-settings-fast-mode"]');
   await expect(toggle, `seat ${seat}: the Fast Mode box reads ON before the click (the harness default)`).toBeChecked();
   await toggle.click();
   await expect(toggle, `seat ${seat}: the click took`).not.toBeChecked();
-  await closeHeaderSettings(page);
+  await closeSettings(page);
   await expect
     .poll(() => serverLog(stack).some((r) => r.evt === 'client' && r.kind === 'info' && r.seat === seat && r.fastMode === false), {
       timeout: 10_000,

@@ -31,6 +31,7 @@
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
 import { navigate, routeHash } from './route.ts';
+import { SettingsGear } from '../settings/Settings.tsx';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -49,6 +50,7 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
         <a className="shell__link" href={routeHash({ kind: 'stats' })} data-testid="lobby-stats">
           Stats
         </a>
+        <SettingsGear />
       </nav>
       <main className="front">
         <RoomList client={rooms} />

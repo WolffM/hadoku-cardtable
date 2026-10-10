@@ -1,10 +1,10 @@
 /*
- * The match's settings, drawn inside the HEADER's gear popout (wave 32 Q15).
- * Operator: *"the settings live in the top settings menu, and the extra button
- * goes."* Wave 30 had put them behind a `Settings` button in the control cluster
- * and a centred dialog; both are gone. `LiveBoard` renders this inside
- * `HeaderSettingsPortal` (`../../chrome/HeaderSettings.tsx`), which draws it in
- * the popout while the popout is open and nowhere else.
+ * The match's section of cardtable's own settings (`../../settings/Settings.tsx`),
+ * under the sound one. Opened from the viewer's own avatar: the operator,
+ * 2026-10-10, *"i dont want watchparty's settings menu to get clogged up by our
+ * game settings … we can expose it by making the avatar clickable in-game"*.
+ * Before that it was portalled into the standalone header's gear (wave 32 Q15),
+ * which a host's chrome does not have room for.
  *
  *   - **Board layout** — single (default) or type-separated. Client-only, and
  *     MINE only: it is `Board`'s `boardLayout` prop for the viewer's own side
@@ -19,15 +19,13 @@
  *     nothing else. No explanatory text (operator, twice) — one plain toggle,
  *     same as the other two.
  *
- * **Fully controlled — no `usePrefs` call of its own.** The popout is closed
+ * **Fully controlled — no `usePrefs` call of its own.** The popover is closed
  * most of the time and this component is not mounted then, but a preference set
- * last match must still reach a seat that never opens the menu, so `LiveBoard`
- * owns the one `usePrefs(playPrefsClient)` call and the "apply on join/rejoin"
+ * last match must still reach a seat that never opens it, so `LiveBoard` owns
+ * the one `usePrefs(playPrefsClient)` call and the "apply on join/rejoin"
  * effect; this only draws the current values and calls back on a change.
  * `./prefs.ts` has the persistence integration.
  */
-
-import { useId } from 'react';
 
 import type { BoardLayout } from '../Board.tsx';
 import { sendStopPreference, type LiveMatch } from './match.ts';
@@ -63,14 +61,12 @@ export function SettingsPanel({
   onFastModeChange,
   onSave,
 }: SettingsPanelProps) {
-  const layoutLegendId = useId();
-
   return (
-    <div className="live__settings" data-testid="live-settings-panel">
-      <fieldset className="live__settings-field" aria-labelledby={layoutLegendId}>
-        <legend id={layoutLegendId}>Board layout</legend>
+    <fieldset className="ct-settings__section" data-testid="live-settings-panel">
+      <legend>Match</legend>
+      <div className="ct-settings__choices" role="radiogroup" aria-label="Board layout">
         {BOARD_LAYOUT_OPTIONS.map((opt) => (
-          <label key={opt.value} className="live__settings-option">
+          <label key={opt.value} className="ct-settings__option">
             <input
               type="radio"
               name="board-layout"
@@ -84,8 +80,8 @@ export function SettingsPanel({
             {opt.label}
           </label>
         ))}
-      </fieldset>
-      <label className="live__settings-option">
+      </div>
+      <label className="ct-settings__option">
         <input
           type="checkbox"
           data-testid="live-settings-stop-end-step"
@@ -99,7 +95,7 @@ export function SettingsPanel({
         />
         Always stop at end step
       </label>
-      <label className="live__settings-option">
+      <label className="ct-settings__option">
         <input
           type="checkbox"
           data-testid="live-settings-fast-mode"
@@ -112,6 +108,6 @@ export function SettingsPanel({
         />
         Fast Mode
       </label>
-    </div>
+    </fieldset>
   );
 }

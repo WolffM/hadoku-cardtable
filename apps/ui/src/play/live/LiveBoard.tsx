@@ -309,7 +309,7 @@ import {
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
-import { HeaderSettingsPortal } from '../../chrome/HeaderSettings.tsx';
+import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
 import './live.css';
 import { CoinToss } from './CoinToss.tsx';
@@ -2001,6 +2001,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const yieldMode = whoseTurnNow === 'theirs';
   const autoYieldOn = isAutoYieldOn(match);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
+  const settings = useSettingsPopover();
   /*
    * Item 6's persistence, and item 2/6's wire message.
    *
@@ -2326,7 +2327,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           {alert}
         </p>
       )}
-      {visualView !== null && <Board view={visualView} interaction={interaction} boardLayout={boardLayout} />}
+      {visualView !== null && <Board view={visualView} interaction={interaction} boardLayout={boardLayout} onOpenSettings={settings.toggle} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
       {/*
@@ -2638,22 +2639,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       )}
       {/* R16: Victory/Defeat/Draw, in place of the toast (`Board`'s old `game over` banner). Over the board, which stays visible behind it. */}
       {match.view !== null && (match.view.gameOver || match.finished) && <GameResultScreen match={match} roomId={roomId} />}
-      {/*
-       * The match's settings live in the HEADER's gear popout (wave 32 Q15), not
-       * here: this draws them into it while it is open, and nothing at all
-       * otherwise. The preferences and the live match stay where they are.
-       */}
-      <HeaderSettingsPortal>
-        <SettingsPanel
-          match={match}
-          inert={spectator}
-          boardLayout={boardLayout}
-          onBoardLayoutChange={setBoardLayout}
-          fastMode={fastMode}
-          onFastModeChange={handleFastModeChange}
-          onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
-        />
-      </HeaderSettingsPortal>
+      {/* Cardtable's own settings, opened from the viewer's own face (`../../settings/Settings.tsx`). */}
+      {settings.trigger !== null && (
+        <SettingsPopover trigger={settings.trigger} onClose={settings.close}>
+          <SettingsPanel
+            match={match}
+            inert={spectator}
+            boardLayout={boardLayout}
+            onBoardLayoutChange={setBoardLayout}
+            fastMode={fastMode}
+            onFastModeChange={handleFastModeChange}
+            onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
+          />
+        </SettingsPopover>
+      )}
     </div>
   );
 }

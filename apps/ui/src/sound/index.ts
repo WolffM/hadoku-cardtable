@@ -17,7 +17,7 @@
  * whether the player wants sound: that is the discipline that kept card art
  * to one resolver, for the same reason (`packages/carddata/src/art/index.ts`).
  *
- *   playRole ─┬─ isMuted()?         → ./mute.ts   (the player's say)
+ *   playRole ─┬─ isMuted()?         → ./mute.ts   (the player's say: mute and two levels)
  *             └─ mixer.play(event)  → ./mixer.ts  (plan: ./mix.ts; audio: WebAudio)
  *
  * A role nobody has assigned plays nothing. That is the normal state of a
@@ -32,7 +32,7 @@
 import { soundsClient } from './builderClient.ts';
 import type { SoundEvent } from './mix.ts';
 import { createMixer, type Mixer } from './mixer.ts';
-import { isMuted, subscribeMuted } from './mute.ts';
+import { getLevel, isMuted, subscribeSound } from './mute.ts';
 
 export interface RolePlayer {
   play(event: SoundEvent): unknown;
@@ -49,7 +49,7 @@ let production: Mixer | null = null;
 /** The screen's music (`null`: a silent screen), and whether a match is on it. */
 let screenMusic: string | null = null;
 let inMatch = false;
-let unsubscribeMute: (() => void) | null = null;
+let unsubscribeSound: (() => void) | null = null;
 
 /** Replace the player. `null` restores the real mixer. For tests. */
 export function setRolePlayer(player: RolePlayer | null): void {
@@ -62,8 +62,8 @@ export function resetRolePlayerForTests(): void {
   production = null;
   screenMusic = null;
   inMatch = false;
-  unsubscribeMute?.();
-  unsubscribeMute = null;
+  unsubscribeSound?.();
+  unsubscribeSound = null;
 }
 
 /** Where there is no WebAudio (jsdom, an old browser) nothing is built and nothing is fetched. */
@@ -81,6 +81,8 @@ function player(): RolePlayer {
     const client = soundsClient();
     const mixer = createMixer((f) => client.takeUrl(f));
     production = mixer;
+    applyLevels();
+    unsubscribeSound ??= subscribeSound(applyPrefs);
     void client.assignments().then((a) => {
       mixer.planner.setAssignments(a.cells, a.gains);
       mixer.preload(Object.values(a.cells).flat());
@@ -113,6 +115,15 @@ export function playSoundEvents(events: readonly DelayedSoundEvent[]): void {
   }
 }
 
+function applyLevels(): void {
+  production?.setLevels({ volume: getLevel('volume'), music: getLevel('music') });
+}
+
+function applyPrefs(): void {
+  applyLevels();
+  applyMusic();
+}
+
 function applyMusic(): void {
   try {
     const wanted = screenMusic === null ? null : inMatch ? 'music.match' : screenMusic;
@@ -129,7 +140,7 @@ function applyMusic(): void {
  */
 export function setScreenMusic(role: string | null): void {
   screenMusic = role;
-  unsubscribeMute ??= subscribeMuted(applyMusic);
+  unsubscribeSound ??= subscribeSound(applyPrefs);
   applyMusic();
 }
 
@@ -158,10 +169,5 @@ export function roleHandler(role: string): () => void {
   return fn;
 }
 
-export { MUTE_KEY, isMuted, resetMutedForTests, setMuted, subscribeMuted, toggleMuted } from './mute.ts';
+export { MUTE_KEY, getLevel, isMuted, resetMutedForTests, setLevel, setMuted, subscribeSound, type LevelName } from './mute.ts';
 
-/*
- * `MuteButton` is deliberately NOT re-exported here. This module is logic: a
- * component importing `playRole` should not also pull React's JSX runtime and
- * `sound.css` into its dependency graph.
- */

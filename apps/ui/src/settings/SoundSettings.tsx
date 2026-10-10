@@ -1,0 +1,59 @@
+/*
+ * The sound section of cardtable's settings (`./Settings.tsx`): mute, overall
+ * volume, and the music's level under everything else. The values live in
+ * `../sound/mute.ts`; `../sound/index.ts` applies a change to the mixer at
+ * once, music included, so a slider is heard as it moves.
+ */
+
+import { useSyncExternalStore } from 'react';
+import { Icon } from '@wolffm/themes';
+
+import { getLevel, isMuted, playRole, setLevel, setMuted, subscribeSound, type LevelName } from '../sound/index.ts';
+
+function LevelSlider({ name, label, disabled }: { name: LevelName; label: string; disabled: boolean }) {
+  const value = useSyncExternalStore(subscribeSound, () => getLevel(name), () => 1);
+  return (
+    <label className="ct-settings__level">
+      <span>{label}</span>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={Math.round(value * 100)}
+        disabled={disabled}
+        data-testid={`settings-${name}`}
+        onChange={(event) => setLevel(name, Number(event.currentTarget.value) / 100)}
+        // A sample at the new level once the slider is let go, not on every step of the drag.
+        onPointerUp={() => playRole('ui.select')}
+        onKeyUp={() => playRole('ui.select')}
+      />
+    </label>
+  );
+}
+
+export function SoundSettings() {
+  const muted = useSyncExternalStore(subscribeSound, isMuted, () => false);
+  return (
+    <fieldset className="ct-settings__section" data-testid="settings-sound">
+      <legend>Sound</legend>
+      <label className="ct-settings__option">
+        <input
+          type="checkbox"
+          data-testid="settings-sound-on"
+          checked={!muted}
+          onChange={(event) => {
+            const on = event.currentTarget.checked;
+            setMuted(!on);
+            // Unmuting makes a noise, so the state you hear is the state you are in.
+            if (on) playRole('ui.select');
+          }}
+        />
+        <Icon name={muted ? 'volume-mute' : 'volume-high'} size="1rem" />
+        Sound on
+      </label>
+      <LevelSlider name="volume" label="Volume" disabled={muted} />
+      <LevelSlider name="music" label="Music" disabled={muted} />
+    </fieldset>
+  );
+}

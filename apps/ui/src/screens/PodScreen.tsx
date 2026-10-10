@@ -55,6 +55,7 @@ import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
 import { appLocation, navigate, routeUrl } from './route.ts';
+import { SettingsGear } from '../settings/Settings.tsx';
 
 export interface PodScreenProps {
   /** The ROOM's id. The draft runs against it, and the invite link points at it. */
@@ -158,6 +159,7 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
         />
 
         <Invite url={link} />
+        <SettingsGear />
       </header>
 
       {draft !== null && draft.lastError !== null && (

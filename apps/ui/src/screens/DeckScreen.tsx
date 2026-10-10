@@ -31,6 +31,7 @@ import { poolReadiness } from '../deck/build.ts';
 import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
 import { navigate } from './route.ts';
 import { tablesClient, type TablesClient } from './tables.ts';
+import { SettingsGear } from '../settings/Settings.tsx';
 
 export interface DeckScreenProps {
   draftId: string;
@@ -65,6 +66,7 @@ export function DeckScreen({ draftId, makeTransport, client: given, checkDelayMs
         <p className="shell__sub">
           Pod <strong>{draftId}</strong>
         </p>
+        <SettingsGear />
       </header>
 
       {draft !== null && draft.lastError !== null && (

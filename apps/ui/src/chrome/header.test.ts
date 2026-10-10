@@ -37,9 +37,6 @@ vi.mock('@wolffm/prefs-client', () => ({
 }));
 
 import { App } from '../App.tsx';
-import { AppHeader } from '@wolffm/task-ui-components';
-import { AppChrome } from './AppChrome.tsx';
-import { HeaderSettingsPortal } from './HeaderSettings.tsx';
 
 afterEach(() => {
   cleanup();
@@ -79,34 +76,20 @@ describe('the standard child-app header', () => {
 });
 
 /*
- * Wave 32 Q15 — the gear's popout has a slot a screen can draw its own settings
- * into, and `App.tsx` did not have to author it.
+ * 2026-10-10: the operator moved the game's settings out of the header — a
+ * host's settings menu is not ours to fill. The fleet's gear holds the fleet's
+ * settings; cardtable's are behind its own gear.
  */
-describe('the header gear carries a screen’s own settings', () => {
-  it('slots a host into the popout, which exists only while the gear is open', () => {
+describe('the game’s settings are its own, not the header’s', () => {
+  it('leaves the fleet’s popout alone and opens its own from the corner gear', () => {
     render(createElement(App));
-    expect(screen.queryByTestId('header-app-settings')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'User settings' }));
-    const host = screen.getByTestId('header-app-settings');
-    expect(host.closest('.settings-popout__panel'), 'inside the fleet’s own popout').not.toBeNull();
-  });
+    const popout = document.querySelector('.settings-popout__panel');
+    expect(popout, 'the fleet’s popout opened').not.toBeNull();
+    expect(popout!.querySelector('[data-testid="settings-sound"]')).toBeNull();
 
-  it('draws a screen’s portal into the popout while open, and nothing while closed', () => {
-    // The portal is rendered from a child of the chrome, exactly as `LiveBoard`
-    // does it, under a header authored outside the chrome as `App` does.
-    render(
-      createElement(
-        AppChrome,
-        {
-          header: createElement(AppHeader, { title: 'T', settingsProps: { userType: 'friend', name: 'Test' } }),
-          children: createElement(HeaderSettingsPortal, null, createElement('p', { 'data-testid': 'probe' }, 'mine')),
-        },
-      ),
-    );
-    expect(screen.queryByTestId('probe')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'User settings' }));
-    expect(screen.getByTestId('header-app-settings').contains(screen.getByTestId('probe'))).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'User settings' }));
-    expect(screen.queryByTestId('probe')).toBeNull();
+    fireEvent.click(screen.getByTestId('settings-gear'));
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
   });
 });

@@ -22,45 +22,6 @@
   position: relative;
 }
 
-/* The match settings' gear: the header's role, in one slim row. */
-.cardtable-embed__bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 2px 2rem 0;
-  position: relative;
-}
-
-.cardtable-embed__gear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-secondary, var(--color-text));
-}
-
-.cardtable-embed__gear:hover,
-.cardtable-embed__gear[aria-expanded='true'] {
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
-
-.cardtable-embed__popout {
-  position: absolute;
-  top: 100%;
-  right: 2rem;
-  z-index: 50;
-  min-width: 16rem;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-bg-card);
-  color: var(--color-text);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
-}
-
 .cardtable-embed__error {
   margin: 2rem;
   color: var(--color-text);

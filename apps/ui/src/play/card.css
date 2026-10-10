@@ -1013,13 +1013,14 @@ button.face__hit {
   cursor: pointer;
 }
 
-button.face__hit .face__plate {
+/* The accent says "Forge is asking for a player". Your own face as the way into the settings is not that. */
+button.face__hit:not(.face__hit--settings) .face__plate {
   stroke: var(--accent);
   stroke-width: 2.5;
 }
 
-button.face__hit .face__brow,
-button.face__hit .face__bust {
+button.face__hit:not(.face__hit--settings) .face__brow,
+button.face__hit:not(.face__hit--settings) .face__bust {
   fill: var(--accent);
 }
 

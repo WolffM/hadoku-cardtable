@@ -122,11 +122,12 @@
  *   looking like a link, plus the header's edge buffer. A wrapper that slots
  *   a different header in has to bring both.
  *
- * ## App settings in the header's gear (wave 32)
+ * ## The game's settings are NOT in the header's gear
  *
- * `HeaderSettings.tsx` is the one context this directory exports to a screen:
- * a portal target inside the gear's popout. `AppChrome` slots the host into the
- * header; a screen renders `HeaderSettingsPortal` around its own controls.
+ * They were (wave 32, a portal into the popout) until 2026-10-10, when the
+ * operator moved them out: a host's settings menu is not ours to fill, and
+ * embedded there is no header at all. `../settings/Settings.tsx` is where they
+ * are now. Nothing below the chrome reaches into the header.
  *
  * ## Theming is NOT ours, and must not become ours
  *
@@ -184,10 +185,9 @@
  * a frame.
  */
 
-import { cloneElement, isValidElement, useRef, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useRef, type ReactNode, type RefObject } from 'react';
 import { HadokuThemeRoot, useHadokuTheme } from '@wolffm/themes';
 import { ensureMatchMedia } from './matchMedia.ts';
-import { HeaderSettingsHost, HeaderSettingsProvider } from './HeaderSettings.tsx';
 import './chrome.css';
 
 // Before anything from @wolffm/themes runs an effect: one of them calls
@@ -208,24 +208,11 @@ export function AppChrome({ header, children }: AppChromeProps) {
   const containerRef = useRef<HTMLElement>(null);
   return (
     <HadokuThemeRoot containerRef={containerRef}>
-      <HeaderSettingsProvider>
-        <ChromeInner containerRef={containerRef} header={withSettingsHost(header)}>
-          {children}
-        </ChromeInner>
-      </HeaderSettingsProvider>
+      <ChromeInner containerRef={containerRef} header={header}>
+        {children}
+      </ChromeInner>
     </HadokuThemeRoot>
   );
-}
-
-/**
- * Slots the settings host into the header's `children`, after whatever the
- * author put there. `App.tsx` authors the header and does not know a match
- * exists; see `HeaderSettings.tsx` for what the host is and why.
- */
-function withSettingsHost(header: ReactNode): ReactNode {
-  if (!isValidElement(header)) return header;
-  const el = header as ReactElement<{ children?: ReactNode }>;
-  return cloneElement(el, undefined, el.props.children, <HeaderSettingsHost key="app-settings" />);
 }
 
 function ChromeInner({

@@ -27,20 +27,16 @@
  * This does not mount a `RoomChrome`: `App` mounts exactly one, and a second
  * would share and then tear down the first's socket.
  *
- * ## Sound lives here, for now
+ * ## Sound
  *
- * Buttons on this screen play `ui.select`, a refusal plays `ui.deny`, and the module's
- * mute sits in the header beside the title — the front page is the one screen
- * every player passes through, so it is where a control they need to be able to
- * find goes while `chrome/AppChrome.tsx` belongs to no wave. Every cue is a
- * `playRole` call; this file constructs nothing. See `../sound/index.ts`, and
- * `../sound/MuteButton.tsx` for where the button should end up.
+ * Buttons on this screen play `ui.select` and a refusal plays `ui.deny`. Every
+ * cue is a `playRole` call; this file constructs nothing (`../sound/index.ts`).
+ * Mute and volume are in cardtable's own settings (`../settings/Settings.tsx`).
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { navigate } from '../screens/route.ts';
-import { MuteButton } from '../sound/MuteButton.tsx';
 import { playRole } from '../sound/index.ts';
 import {
   CLIENT_MODES,
@@ -114,10 +110,6 @@ export function RoomList({ client: given }: RoomListProps) {
         <h2 id="rooms-title" className="rooms__title">
           Rooms
         </h2>
-        {/* The mute. Here because the front page is the screen everybody passes
-            through and the app header is nobody's file this wave — the reasoning
-            and the eventual home are in ../sound/MuteButton.tsx. */}
-        <MuteButton />
       </div>
 
       {state.kind === 'loading' && (

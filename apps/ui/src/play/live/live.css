@@ -1146,27 +1146,6 @@
 }
 
 /*
- * The match's settings, inside the HEADER's gear popout (wave 32 Q15). They are
- * portalled out of `.live`, so these rules do not lean on anything `.live` sets.
- */
-.live__settings-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.live__settings-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-/*
  * The phase rail (§C.2): which phase, which step, whose turn, down the side.
  *
  * Wave 25 §C.4 moved it to the RIGHT edge — the operator put it there. **Wave 26

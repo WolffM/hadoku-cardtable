@@ -95,7 +95,7 @@ has not been checked against a real dump.
 | Role | Trigger | Colour layer |
 | --- | --- | --- |
 | `g.draw` | id joins `hand`, `libraryCount` falls | — |
-| `g.shuffle` | Forge's `GameEventShuffle`, forwarded by `PlayBridge` (the board itself shows nothing) | — |
+| `g.shuffle` | a library reordered in place: Forge re-sends the `Library` id list on every shuffle (`Zone.shuffle` → `onChanged` → `updateZoneForView`), so no bridge change was needed; `mulligan.jvm.test.ts` proves both seats see it | — |
 | `g.land` | land id joins `battlefield` from `hand` | land (basic name) |
 | `g.cast.<type>` | spell joins `stack` (`!isAbility`). One role per spell type: creature, instant, sorcery, artifact, enchantment, planeswalker, battle. Low in the mix. | **none** (operator: no colours on cast) |
 | `g.ability` | ability joins `stack` (`isAbility`) | — |
@@ -164,7 +164,9 @@ colour layer.
 ## Mixing rules
 
 - Four buses: **ui**, **game**, **colour** and **music**, each with its own volume. Music plays a couple of tracks (lobby/draft and match), loops them, and ducks under `g.win`/`g.lose`/`g.turn-*`. Tracks must carry a licence that allows this use (CC0/CC-BY or similar, with attribution in `NOTICE.md`). Their bytes live in `CARDTABLE_SOUNDS_DIR` like takes, never in the repo. The
-  player's settings expose master and per-bus volume. Mute stays.
+  player's settings expose mute, overall volume and music volume (per browser,
+  `sound/mute.ts`), in cardtable's own settings popover — the avatar in a
+  match, the gear in a screen's head row elsewhere (`apps/ui/src/settings/`).
 - **Opponent multiplier** on game and colour (start around 0.6). The
   opponent's `ui.*` is never sent or played.
 - **Burst collapse**: the same role within ~80 ms plays once (a board wipe is
@@ -229,8 +231,9 @@ anything records them today)*.
 | --- | --- | --- |
 | **A** ✔ 2026-10-10 | role registry, builder rework, per-cell gain, mixer (buses, collapse, duck), scripted sandbox (9 scenarios in `apps/ui/src/sound/scenarios.ts`) | no |
 | — | **operator's first assignment pass** | |
-| **B** ✔ 2026-10-10 | `play/live/sound-events.ts` derives role events from consecutive board views (proved against the committed Tier C capture); `LiveBoard` plays them per paced view, plus `ui.prompt` on a new decision and `ui.pass` on a bar press; gestures play `ui.lift`/`ui.place`/`ui.deny`/`ui.target`; long-press plays `ui.inspect`. The synthesised cues (`cues.ts`, `manifest.ts`, `cue-manifest.json`, `webaudio.ts`, `sink.ts`) are deleted: every sound is a role. Round-4 candidates generated for the 44 roles with no take. **Left over:** a player volume setting (mute only today); `g.shuffle` outside a mulligan needs `PlayBridge` to forward `GameEventShuffle` | yes |
+| **B** ✔ 2026-10-10 | `play/live/sound-events.ts` derives role events from consecutive board views (proved against the committed Tier C capture); `LiveBoard` plays them per paced view, plus `ui.prompt` on a new decision and `ui.pass` on a bar press; gestures play `ui.lift`/`ui.place`/`ui.deny`/`ui.target`; long-press plays `ui.inspect`. The synthesised cues (`cues.ts`, `manifest.ts`, `cue-manifest.json`, `webaudio.ts`, `sink.ts`) are deleted: every sound is a role. Round-4 candidates generated for the 44 roles with no take. Its two leftovers, the volume setting and `g.shuffle` outside a mulligan, are wave D | yes |
 | **C** (part) 2026-10-10 | music bus: `music.lobby` / `music.match` loop roles, ducked under the big moments, picked per screen (`setScreenMusic`) and per match (`setMatchMusic`); `scripts/sfx/add-track.py` brings a found track in (credit → `NOTICE.md`). The sandbox plays music under a scenario and replays the committed captured game through the live deriver. **Left:** recording live matches to replay; tracks themselves (the operator finds them) | no |
+| **D** ✔ 2026-10-10 | `g.shuffle` from the library's own reorder, and a London mulligan heard at all (it is one delta with both counts unchanged, which the old rule never matched); player volume and music volume; the game's settings moved out of the host's header into cardtable's own popover | yes |
 | — | gap generation from the operator's empty roles | |
 
 ## Open questions

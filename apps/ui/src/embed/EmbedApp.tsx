@@ -38,9 +38,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { HadokuThemeProvider, Icon, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
+import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
 
-import { HeaderSettingsHost, HeaderSettingsProvider } from '../chrome/HeaderSettings.tsx';
 import { roomsClient, type RoomBindClient } from '../rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute } from '../screens/route.ts';
@@ -94,34 +93,6 @@ function ToRoom({ roomId }: { roomId: string }) {
   return null;
 }
 
-/**
- * The match settings' place. Standalone they are drawn into the header's gear
- * popout (`chrome/HeaderSettings.tsx`); there is no header here, so this is
- * the same host behind the same gear, on the one route that fills it.
- */
-function MatchSettings() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="cardtable-embed__bar">
-      <button
-        type="button"
-        className="cardtable-embed__gear"
-        aria-label="Settings"
-        aria-expanded={open}
-        data-testid="embed-settings"
-        onClick={() => setOpen((was) => !was)}
-      >
-        <Icon name="gear" size="1.1rem" />
-      </button>
-      {open && (
-        <div className="cardtable-embed__popout">
-          <HeaderSettingsHost />
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const binding = useBoundRoom(ctx.roomKey, rooms);
@@ -141,18 +112,15 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
 
   return (
     <HadokuThemeProvider value={theme}>
-      <HeaderSettingsProvider>
-        <main
-          className="cardtable-chrome cardtable-chrome--embed"
-          data-theme={ctx.theme}
-          data-dark-theme={theme.isDarkTheme ? 'true' : 'false'}
-          data-testid="cardtable-embed"
-          data-bound-room={binding.state === 'bound' ? binding.roomId : undefined}
-        >
-          {route.kind === 'match' && <MatchSettings />}
-          <div className="cardtable-chrome__content">{body}</div>
-        </main>
-      </HeaderSettingsProvider>
+      <main
+        className="cardtable-chrome cardtable-chrome--embed"
+        data-theme={ctx.theme}
+        data-dark-theme={theme.isDarkTheme ? 'true' : 'false'}
+        data-testid="cardtable-embed"
+        data-bound-room={binding.state === 'bound' ? binding.roomId : undefined}
+      >
+        <div className="cardtable-chrome__content">{body}</div>
+      </main>
     </HadokuThemeProvider>
   );
 }

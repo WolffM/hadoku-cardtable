@@ -16,6 +16,7 @@ import { createGameStatsClient, type GameStatsClient } from '@wolffm/prefs-clien
 
 import { ManaPip } from '../components/ManaPip.tsx';
 import { routeHash } from '../screens/route.ts';
+import { SettingsGear } from '../settings/Settings.tsx';
 
 /** The rating pool every room match is reported in. */
 export const STATS_MODE = 'constructed';
@@ -58,6 +59,7 @@ export function StatsScreen({ player, client: given }: StatsScreenProps) {
     <div className="shell stats" data-testid="stats">
       <header className="shell__head">
         <h1 className="shell__title">{player ?? 'Stats'}</h1>
+        <SettingsGear />
       </header>
       <main>
         <GameStats
