@@ -8,6 +8,11 @@ Behind `hadoku.me/cardtable/` at friend tier.
 `docs/WASM_AND_PORTING.md` before touching anything.** They're short, and they're the result of reading the actual Forge
 source rather than its reputation.
 
+**The post-alpha goal lives in `docs/planning/games-platform-vision.md`** — the
+operator's own words on making cardtable and bomberman parallel games
+(standalone, inside watchparty, on the games host) with shared stats. Read it
+before planning cross-game work.
+
 ## Critical rules
 
 - **No money, ever.** No sales, subs, ads, donations, sponsorship, "buy me a
