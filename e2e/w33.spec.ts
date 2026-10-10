@@ -18,7 +18,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount } from './play/board.ts';
+import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount } from './play/board.ts';
 import { passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -304,6 +304,14 @@ test(titled('Q14 — clicking a declared attacker undeclares it; a box over it p
 
 /* ── 6. Q17 — casting your own spell does not hold your priority ────────── */
 
+/** One committed state of alice's screen: the stack's `data-count`, an enabled button one, a `live-prompt`. */
+interface OwnSpellState {
+  t: number;
+  count: number;
+  ok: boolean;
+  prompt: boolean;
+}
+
 test(titled('Q17 — casting your own spell does not stop you at priority while it sits on the stack'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -317,23 +325,42 @@ test(titled('Q17 — casting your own spell does not stop you at priority while 
 
     await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
+
+    // Every state alice's screen commits, recorded from before the cast by an
+    // observer that reads the stack count and the stop in ONE look. Polling the
+    // two with separate round trips races Forge: the spell resolves and the
+    // next, empty-stack priority (OK live) lands ~70 ms later, between a read
+    // that still saw the stack and the read of the button.
+    await alice.page.evaluate((buttonOne) => {
+      const seen: OwnSpellState[] = [];
+      (window as unknown as { __ownSpell: OwnSpellState[] }).__ownSpell = seen;
+      let last = '';
+      const look = (): void => {
+        const state = {
+          count: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? '0'),
+          ok: document.querySelector(buttonOne) !== null,
+          prompt: document.querySelector('[data-testid="live-prompt"]') !== null,
+        };
+        const key = JSON.stringify(state);
+        if (key === last) return;
+        last = key;
+        seen.push({ t: Math.round(performance.now()), ...state });
+      };
+      new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true });
+      look();
+    }, BUTTON_ONE);
+    const ownSpellStates = (): Promise<OwnSpellState[]> => alice.page.evaluate(() => (window as unknown as { __ownSpell: OwnSpellState[] }).__ownSpell);
     await clickHandCard(alice.page, card);
 
+    const stopOnStack = (states: OwnSpellState[]): OwnSpellState | undefined => states.find((s) => s.count > 0 && (s.ok || s.prompt));
+    const settled = (states: OwnSpellState[]): boolean =>
+      stopOnStack(states) !== undefined || (states.some((s) => s.count > 0) && states[states.length - 1]!.count === 0);
+    await expect.poll(async () => settled(await ownSpellStates()), { timeout: 25_000, message: 'alice\'s creature went on the stack, then resolved or stopped her' }).toBe(true);
+    const states = await ownSpellStates();
+    console.log(`[q17] alice's screen from the cast: ${JSON.stringify(states)}`);
     // While it is on the stack — however briefly — no ask or stop is ever
     // directed back at alice for her OWN cast.
-    let sawOwnStop = false;
-    const deadline = Date.now() + 15_000;
-    while (Date.now() < deadline) {
-      const count = await stackCount(alice.page);
-      if (count === 0) break;
-      if ((await alice.page.getByTestId('live-prompt').count()) > 0 || (await enabledOk(alice.page).count()) > 0) {
-        sawOwnStop = true;
-        break;
-      }
-      await alice.page.waitForTimeout(25);
-    }
-    expect(sawOwnStop, 'no stop (ask or enabled OK) was ever directed at alice while her own spell sat on the stack').toBe(false);
-    await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'the spell resolved on its own, unattended' }).toBe(0);
+    expect(stopOnStack(states), 'a stop (ask or enabled OK) was directed at alice while her own spell sat on the stack').toBeUndefined();
   } finally {
     await stack.stop();
   }
