@@ -106,7 +106,7 @@ table under them is the only part that should change.
 | D | Both games clickable from the games host | Cardtable **live**; Bomberman card inert until its page serves | hadoku_site `c78c22cf`, `src/pages/games/index.astro` |
 | E | Cardtable loadable inside watchparty | **Built** on branch `embed`, not landed; watchparty's slot built in parallel | D21; `apps/ui/src/embed/`, `/cardtable/embed/cardtable-embed.js`, `POST /api/rooms/watchparty`, `e2e/embed.spec.ts` |
 | F | Watchparty's player as "just another game bundle" | **Not started** | |
-| G | Shared stats UI package | Not started — cardtable's `StatsTables.tsx` is written to lift | |
+| G | Shared stats UI package | **Built**: `@wolffm/game-stats-ui` 0.1.0 (hadoku_site `847fc9ac`); cardtable's `#/stats` draws through it, its own tables deleted | `apps/ui/src/stats/StatsScreen.tsx` |
 | H | Bomberman history import + watchparty-stats deletion | Not started | bomberman brief §5, §7 |
 | I | Rewards (unlockable art, loot) | Future — an inventory table beside game stats | |
 | J | Draft stats | Future — `mode: 'draft'` already has a rating pool | |
