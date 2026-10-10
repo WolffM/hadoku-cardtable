@@ -7,13 +7,13 @@
  *
  * `w67-reveal.state`: bob holds his main phase; alice has Dark Confidant and Genju of the Spires on top
  * of her library. Bob presses End Turn. At alice's upkeep the Confidant's trigger goes on the stack and
- * resolves (she loses 1 life for the revealed Genju) with nothing asked of alice. Then she drags the
- * Genju she drew onto her battlefield: her own click is still hers, and the log still says what she
- * played.
+ * resolves (she loses 1 life for the revealed Genju) with nothing asked of alice. Then she drags a
+ * Genju (an Aura) onto her battlefield and clicks her Mountain as its target: her own click is still
+ * hers, and the log still says what she played.
  */
 import { expect, test } from '@playwright/test';
 
-import { castByDrag, handCardNamed, makeTitled, serverLog } from './play/board.ts';
+import { dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -60,13 +60,26 @@ test(titled("Dark Confidant's trigger is played by the server: no getAbilityToPl
     expect(genju, 'alice drew the Genju').toBeDefined();
     const field = await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
     expect(field).not.toBeNull();
+    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered the Genju' }).toContain(genju!);
     const fromCast = serverLog(stack).length;
-    await castByDrag(alice.page, stack, genju!, { x: field!.x + field!.width / 2, y: field!.y + field!.height / 2 });
+    expect(await dragHandCard(alice.page, genju!, { x: field!.x + field!.width / 2, y: field!.y + field!.height / 2 }), 'the drag lifted the Genju').toBe(true);
+    const mountain = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]').filter({ hasText: 'Mountain' }).first();
+    const onField = alice.page.locator(`.seat[data-viewer] [data-zone="battlefield"] [data-board-card="${genju!}"]`);
+    await expect
+      .poll(
+        async () => {
+          if (/Select target Mountain/.test(await says(alice.page))) await mountain.click();
+          await pressPaymentAuto(alice.page);
+          return onField.count();
+        },
+        { timeout: 30_000, message: "the Genju resolved onto alice's Mountain" },
+      )
+      .toBe(1);
     const cast = serverLog(stack).slice(fromCast);
     const castWired = cast.filter((r) => r.evt === 'wire-frame' && isOffer(r));
     console.log(`[w67-trigger-ask] cast: ${castWired.length} getAbilityToPlay on alice's wire`);
     expect(castWired.length, "alice's own click on the Genju is still answered by her browser").toBeGreaterThan(0);
-    await expect(alice.page.getByTestId('live-says'), 'the log says what alice played').toContainText('played Genju of the Spires', { timeout: 10_000 });
+    await expect(alice.page.getByTestId('live-log'), 'the log says what alice played').toContainText('played Genju of the Spires', { timeout: 10_000 });
   } finally {
     await stack.stop();
   }
