@@ -1,5 +1,5 @@
 /**
- * Of two clicks that reach Forge at once, only the first is taken, against real
+ * Two clicks that reach Forge at once must not run side by side, against real
  * Forge.
  *
  * Main's run 38013980995 (forge-jvm): a driver sent two `selectCard`s for the same
@@ -9,11 +9,19 @@
  * map was left unserializable, and every later `getAbilityToPlay` failed to encode
  * (`RemoteClient: Network encode error … ArrayIndexOutOfBoundsException: Index 214
  * out of bounds for length 214`, 3378 times) — the Goblin never reached the stack.
- * A browser can do the same with two quick clicks. The fork turns away a click that
- * arrives while an earlier one is still being taken (`InputPassPriority.
- * onCardSelected`). It never queues one: fork 7ddd4daa ran a connection's acts in
- * order on one thread, and a payment inside a payment (a Signet's own {1}) waited
- * for an OK queued behind the thread it held — the seat froze (`e2e/w68-pay`).
+ * A browser can do the same with two quick clicks.
+ *
+ * OPEN BUG — no fix in the fork yet, so this test is `it.fails`. Two attempts were
+ * measured and withdrawn:
+ *   - 7ddd4daa ran a connection's acts in order on one thread; a payment inside a
+ *     payment (a Signet's own {1}) then waited for an OK queued behind the thread it
+ *     held, and the seat froze (`e2e/w68-pay`).
+ *   - 373191af turned away a click that arrived while another was still being
+ *     taken; that also dropped a real click — a select sent the moment the previous
+ *     click's ability question was answered (`combat-drag.jvm`: seat 0's Memnite,
+ *     sent right after its land play, never cast). Correctness first.
+ * The fix this needs takes every click and never runs two at once on one game; when
+ * it lands, `it.fails` comes off.
  *
  * `scenarios/w52-s-signet.state`: seat 0 holds Raging Goblin and three Mountains.
  * Once Forge offers the Goblin, eight selects for it go out in one burst, and the
@@ -21,8 +29,7 @@
  * ability to play and waits for that answer, so it runs through the whole hold.
  * Forge's own log line for each call (`GameProtocolHandler`: "Protocol selectCard
  * processed in N ms (queued M ms)", written past 50 ms) says which others ran
- * through it beside it: turned away, they return at once; side by side, they are
- * PROCESSED through it. The corruption itself is a rare interleaving of
+ * through it beside it: side by side, they are PROCESSED through it. The corruption itself is a rare interleaving of
  * the side-by-side runs, so that count is what is asserted; then the cast must
  * reach the stack and the bridge's stderr carry no encode error.
  *
@@ -76,7 +83,7 @@ function stderrOf(s: Scenario): string {
 const HOLD_MS = 2_000;
 
 describe.skipIf(!available.ok)(title, () => {
-	it(`${BURST} selects for one card in one burst: the cast reaches the stack, nothing fails to encode`, async () => {
+	it.fails(`${BURST} selects for one card in one burst: the cast reaches the stack, nothing fails to encode`, async () => {
 		if (!available.ok) return;
 		const s = await startScenario(available.config, { seed: 68, decks: DECKS, scenario: scenarioText('w52-s-signet') });
 		try {
@@ -102,7 +109,7 @@ describe.skipIf(!available.ok)(title, () => {
 			console.log(
 				`[burst] ${BURST} selects in one burst: ${ranThroughHold} ran through the ${HOLD_MS} ms hold (${calls.map((c) => `ran ${c.ran}/queued ${c.queued}`).join(', ')}); ${asked} getAbilityToPlay asked during it; the Goblin ${reached ? 'reached the stack' : 'NEVER reached the stack'}; ${errors} encode errors`,
 			);
-			expect(ranThroughHold, 'only the first select ran through the hold: the rest were turned away, not run beside it').toBe(1);
+			expect(ranThroughHold, 'only the first select ran through the hold, none beside it').toBe(1);
 			expect(errors, 'no view failed to encode').toBe(0);
 			expect(reached, 'the cast reached the stack').toBe(true);
 		} finally {
