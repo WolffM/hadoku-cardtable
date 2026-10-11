@@ -1,0 +1,19 @@
+# The operator, 2026-10-11 (Scapeshift into Valakut, the Molten Pinnacle): every simultaneous trigger
+# drawn as a chip before the first target question, one target for all of them, no "Do you want to
+# deal 3 damage" after the target was chosen, the chips scattered round their source.
+# Alice holds her main phase with Splendid Reclamation and four Forests; six Mountains wait in her
+# graveyard. The Reclamation returns all six at once: each sees five others, so Valakut triggers six
+# times, all at once, each asking for a target. Bob has nothing to do; 6 × 3 leaves him at 2.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Splendid Reclamation
+humanbattlefield=Valakut, the Molten Pinnacle;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=
+aibattlefield=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
