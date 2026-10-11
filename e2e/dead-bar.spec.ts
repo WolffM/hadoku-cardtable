@@ -224,3 +224,54 @@ test(titled('holding priority over a spell, a seat keeps a live bar while it thi
     await stack.stop();
   }
 });
+
+/** A deploy mid-match: the server restarts, resumes the match by replay, and both pages rejoin on their own. */
+async function deployMidMatch(stack: PlayStack, pages: Page[], label: string): Promise<void> {
+  await stack.restart();
+  for (const page of pages) {
+    await expect(page.getByTestId('live-status'), `${label}: the page is back in the match after the deploy`).toHaveCount(0, { timeout: 60_000 });
+  }
+  const resumed = serverLog(stack).filter((r) => r.evt === 'match-resumed' || r.evt === 'match-adopted' || r.evt === 'joined');
+  console.log(`[dead-bar] ${label}: deployed; ${resumed.map((r) => `${String(r.evt)}${r.seat === undefined ? '' : ` s${String(r.seat)}`}`).join(', ')}`);
+}
+
+test(titled('after a deploy mid-match, the seat holding priority in its own main phase has a pressable bar and a press reaches the server'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'dead-bar-picker');
+    await expect.poll(() => pressable(alice.page), { timeout: 30_000, message: 'alice holds a live bar in her main phase' }).toBe(true);
+    await deployMidMatch(stack, [alice.page, bob.page], 'resume-main');
+    await mustPressNextPhase(alice.page, stack, 'resume-main');
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('after a deploy mid-match, a seat holding priority over a spell can still let it resolve'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'dead-bar-picker');
+    await bob.page.getByTestId('live-full-control').click();
+    await expect(bob.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => offeredNamed(alice.page, 'Storm Crow'), { timeout: 30_000, message: 'alice is offered Storm Crow' }).not.toBeUndefined();
+    const crow = (await offeredNamed(alice.page, 'Storm Crow'))!;
+    const field = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    await castByDrag(alice.page, stack, crow, { x: field.x + field.width * 0.5, y: field.y + field.height * 0.5 });
+    await expect.poll(() => pressable(bob.page, BUTTON_ONE), { timeout: 15_000, message: 'bob holds priority over Storm Crow' }).toBe(true);
+
+    await deployMidMatch(stack, [alice.page, bob.page], 'resume-over-spell');
+    await mustPressNextPhase(bob.page, stack, 'resume-over-spell', 1, BUTTON_ONE);
+    await expect(
+      bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name', { hasText: 'Storm Crow' }),
+      'Storm Crow resolved onto alice’s battlefield',
+    ).toHaveCount(1, { timeout: 10_000 });
+  } finally {
+    await stack.stop();
+  }
+});
