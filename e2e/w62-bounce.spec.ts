@@ -14,7 +14,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, says } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -58,6 +58,8 @@ test(titled('a bounceland played as the only land returns at once; the other sea
     await bob.page.waitForTimeout(1500);
     const seen = await bob.page.evaluate(() => (window as unknown as { __waitingSeen: string[] }).__waitingSeen);
     console.log(`[w62-bounce] bob's pop-out said: ${JSON.stringify(seen)}; alice says: ${JSON.stringify(await says(alice.page))}`);
+    const asks = serverLog(stack).filter((r) => r.seat === 0 && r.method === 'getAbilityToPlay' && (r.evt === 'ask-answered' || r.evt === 'ask-auto-answered'));
+    console.log(`[w62-bounce] alice's getAbilityToPlay: ${asks.map((r) => (r.evt === 'ask-answered' ? `browser ${String(r.ms)} ms` : `server (${String(r.why)})`)).join(', ')}`);
     expect(seen.filter((t) => /to decide/.test(t)), `bob was told alice had a decision: ${JSON.stringify(seen)}`).toEqual([]);
     expect(seen.filter((t) => /to choose/.test(t)), `bob was told alice had a choice: ${JSON.stringify(seen)}`).toEqual([]);
   } finally {
