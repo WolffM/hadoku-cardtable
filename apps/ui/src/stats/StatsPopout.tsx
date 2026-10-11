@@ -40,6 +40,7 @@ import '@wolffm/game-stats-ui/style.css';
 import { createGameStatsClient, type GameStatsClient } from '@wolffm/prefs-client/games';
 
 import { ManaPip } from '../components/ManaPip.tsx';
+import type { DeckRecords } from './deckOrder.ts';
 import { navigate, routeHash } from '../screens/route.ts';
 import './stats.css';
 
@@ -98,6 +99,12 @@ function sharedSource(): StatsSource {
     cache: createStatsCache(),
   };
   return shared;
+}
+
+/** Everyone's record per library deck, keyed by the deck id a room match reports — `deckOrder.ts` sorts the picker by it. */
+export async function fetchDeckRecords(source: StatsSource = sharedSource()): Promise<DeckRecords> {
+  const { rows } = await source.client.breakdown('deckId', { player: '*', mode: STATS_MODE });
+  return new Map(rows.map(({ value, ...totals }) => [value, totals]));
 }
 
 /** Starts every read the popout opens with, for the viewer, so it draws at once. */

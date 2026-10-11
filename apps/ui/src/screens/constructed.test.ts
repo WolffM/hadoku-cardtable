@@ -249,6 +249,7 @@ interface Table {
  */
 function stubServer(table: Table) {
   const calls: Call[] = [];
+  const records = new Map<string, { games: number; wins: number; losses: number; draws: number }>();
   /** The last `.dck` a drafted hold was sent as, so a test can parse it back. */
   let draftedText: string | null = null;
   const json = (status: number, body: unknown) =>
@@ -488,6 +489,9 @@ function stubServer(table: Table) {
     draftedText: () => draftedText,
     client: tablesClient(fetchImpl, '/cardtable/api/'),
     rooms: roomsClient(fetchImpl, '/cardtable/api/'),
+    /** Everyone's record per deck; empty unless a test sets one. Never the real stats service. */
+    records,
+    deckRecords: () => Promise.resolve(records),
   };
 }
 
@@ -495,7 +499,7 @@ async function mountRoom(table: Table, rand?: () => number, pollMs = 10) {
   const server = stubServer(table);
   render(
     createElement(ConstructedScreen, {
-      client: server.client,
+      client: server.client, deckRecords: server.deckRecords,
       rooms: server.rooms,
       roomId: ROOM,
       pollMs,
@@ -618,7 +622,7 @@ describe('apiBase', () => {
 describe('the constructed screen without a room', () => {
   it('points back at the room list instead of picking two decks', async () => {
     const server = stubServer({ players: [], matchId: null });
-    render(createElement(ConstructedScreen, { client: server.client, rooms: server.rooms }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms }));
     expect((await screen.findByTestId('constructed-pointer')).textContent).toContain('played in a room');
     // The shape the operator rejected is not on the screen at all.
     expect(screen.queryByTestId('deck-mine')).toBeNull();
@@ -636,7 +640,7 @@ describe('a room the list read before navigating (rooms/warm.ts)', () => {
     const asked = sweeps(server);
     expect(asked, 'the pool was swept while the list was still showing').toEqual([FORMATS[0].id]);
 
-    render(createElement(ConstructedScreen, { client: server.client, rooms: server.rooms, roomId: ROOM, pollMs: 10_000 }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, pollMs: 10_000 }));
     // No await between the render and these: the first paint is the whole page.
     expect(screen.getByTestId('room-name').textContent).toBe('Friday night');
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
@@ -904,7 +908,7 @@ describe('a room’s table', () => {
   it('joins the room it was opened on, so an invite link works without the room list', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('ok');
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
     await waitFor(() => expect(rooms.joins).toEqual([ROOM]));
     // The read that followed the join is the one that matters: the screen
     // recovers rather than sitting on the refusal it started with.
@@ -918,7 +922,7 @@ describe('a room’s table', () => {
     // list". The link IS the way in; the screen has to ask.
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
     expect((await screen.findByTestId('room-locked')).textContent).toContain('needs a password');
     expect(screen.queryByTestId('room-missing')).toBeNull();
   });
@@ -926,7 +930,7 @@ describe('a room’s table', () => {
   it('retries with the password typed in, and gets in', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     // The room becomes readable BECAUSE the join succeeded — setting it
@@ -944,7 +948,7 @@ describe('a room’s table', () => {
   it('says the password was wrong rather than repeating "needs a password"', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     fireEvent.change(screen.getByTestId('room-password'), { target: { value: 'wrong' } });
@@ -956,7 +960,7 @@ describe('a room’s table', () => {
   it('stops after ONE refused join instead of re-asking on the timer', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     const readsWhenRefused = server.calls.length;
@@ -970,7 +974,7 @@ describe('a room’s table', () => {
   it('says to wait rather than retrying when the join is rate-limited', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('rate-limited');
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
     expect((await screen.findByTestId('room-locked')).textContent).toContain('Too many attempts');
     expect(rooms.joins).toEqual([ROOM]);
   });
@@ -1044,6 +1048,26 @@ describe('the deck picker', () => {
 
     await pick(SECOND_DECK);
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it('lists the decks by everyone’s win rate, best first', async () => {
+    // The operator, 2026-10-10: "can you make sure the decks are sorted by
+    // winrate?" Jund comes second in the library's own order, and has won more.
+    const server = stubServer({ players: [opponent()], matchId: null });
+    server.records.set(UG_POLYMORPH, { games: 4, wins: 1, losses: 3, draws: 0 });
+    server.records.set(SECOND_DECK, { games: 4, wins: 3, losses: 1, draws: 0 });
+    render(
+      createElement(ConstructedScreen, {
+        client: server.client,
+        deckRecords: server.deckRecords,
+        rooms: server.rooms,
+        roomId: ROOM,
+        pollMs: 10,
+      }),
+    );
+    await screen.findByTestId('room-players');
+    await deckPicker();
+    await waitFor(() => expect(offered()).toEqual([SECOND_DECK, UG_POLYMORPH]));
   });
 
   it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate once per pool', async () => {
@@ -1407,7 +1431,7 @@ describe('a draft room', () => {
     const server = stubServer({ players: [], matchId: null, gameType: 'draft', members: members(false), ...table });
     render(
       createElement(ConstructedScreen, {
-        client: server.client,
+        client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
         pollMs: 10,
@@ -1610,7 +1634,7 @@ describe('a streamed room', () => {
     const server = stubServer({ clientMode: 'streamed', ...table });
     render(
       createElement(ConstructedScreen, {
-        client: server.client,
+        client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
         pollMs: 10,
@@ -2031,7 +2055,7 @@ describe('a room on a drafted pool', () => {
     const socket = makeSocket();
     render(
       createElement(ConstructedScreen, {
-        client: server.client,
+        client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
         pollMs: 10,

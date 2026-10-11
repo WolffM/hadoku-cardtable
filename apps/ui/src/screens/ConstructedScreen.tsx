@@ -196,6 +196,8 @@ import {
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
+import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
 
 export interface ConstructedScreenProps {
@@ -216,6 +218,8 @@ export interface ConstructedScreenProps {
    * started. Tests pass a stub; production passes nothing and gets socket.io.
    */
   makeTransport?: () => DraftTransport;
+  /** Everyone's record per deck, for the picker's order. Tests pass a stub; production passes nothing and asks the stats service. */
+  deckRecords?: () => Promise<DeckRecords>;
 }
 
 /** How often a seat that has no stream yet asks again. */
@@ -824,6 +828,7 @@ export function ConstructedScreen({
   streamFetch,
   rand = secureRandom,
   makeTransport,
+  deckRecords = fetchDeckRecords,
 }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
   return roomId === undefined ? (
@@ -837,6 +842,7 @@ export function ConstructedScreen({
       streamFetch={streamFetch}
       rand={rand}
       makeTransport={makeTransport}
+      deckRecords={deckRecords}
     />
   );
 }
@@ -849,6 +855,7 @@ function RoomTableScreen({
   streamFetch,
   rand,
   makeTransport,
+  deckRecords: readDeckRecords,
 }: {
   client: TablesClient;
   roomId: string;
@@ -857,6 +864,7 @@ function RoomTableScreen({
   streamFetch?: Fetch;
   rand: () => number;
   makeTransport?: () => DraftTransport;
+  deckRecords: () => Promise<DeckRecords>;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   // What the room list read before navigating here (`rooms/warm.ts`): the first
@@ -1234,6 +1242,26 @@ function RoomTableScreen({
     };
   }, [picking, loaded, poolId, pod, client]);
 
+  /**
+   * Everyone's record per library deck, so the picker lists the winners first
+   * (`stats/deckOrder.ts`). Empty until it answers, and empty if it cannot: the
+   * library's own order is a fine picker, so a failed read is logged, not shown.
+   */
+  const [deckRecords, setDeckRecords] = useState<DeckRecords>(() => new Map());
+  useEffect(() => {
+    let live = true;
+    readDeckRecords()
+      .then((records) => {
+        if (live) setDeckRecords(records);
+      })
+      .catch((err: unknown) => {
+        console.warn('[cardtable] deck win rates are unavailable; the picker keeps the library order', err);
+      });
+    return () => {
+      live = false;
+    };
+  }, [readDeckRecords]);
+
   /** The decks on offer, or null while the pool's answer is still in flight. */
   const offered = useMemo(
     () =>
@@ -1305,7 +1333,7 @@ function RoomTableScreen({
     }
     return offered === null
       ? null
-      : offered.map((d) => ({
+      : byWinRate(offered.map((d) => ({
           value: d.id,
           label: d.name,
           colors: deckColorsByName(
@@ -1329,8 +1357,8 @@ function RoomTableScreen({
               ];
             }),
           ),
-        }));
-  }, [pod, podAnswered, draftedDeck, myPool, offered]);
+        })), deckRecords);
+  }, [pod, podAnswered, draftedDeck, myPool, offered, deckRecords]);
 
   /**
    * Every art URL this room has already asked the browser to warm, and the
