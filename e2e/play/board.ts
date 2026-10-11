@@ -380,16 +380,23 @@ export async function castByDrag(
  * the one cast-wait loop w51/w56-numbers/w33 wrote by hand; w63-yield's own
  * copy skipped the payment fallback and reddened twice for it (bob's Bolt
  * costs `{R}`, runs 37859797421, 37870730678).
+ *
+ * `landed` is the caller's own durable proof the cast happened, for a spell
+ * nobody holds priority on: the caster's own spell is passed (`passOwnSpell`)
+ * and a yielding opponent's window is passed too, so it can reach the stack
+ * and resolve between two polls of `stackCount`.
  */
 export async function castUntilOnStack(
   page: Page,
   stack: { serverLogFile: string },
   clickTargetIfReady: () => Promise<boolean>,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; landed?: () => Promise<boolean> } = {},
 ): Promise<void> {
   const before = await stackCount(page);
+  const landed = opts.landed ?? (async () => false);
+  const arrived = async (): Promise<boolean> => (await stackCount(page)) !== before || (await landed());
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
-  while ((await stackCount(page)) === before && Date.now() < deadline) {
+  while (!(await arrived()) && Date.now() < deadline) {
     await answerPrompt(page);
     if (!(await clickTargetIfReady())) await pressPaymentAuto(page);
     await page.waitForTimeout(40);
@@ -402,11 +409,11 @@ export async function castUntilOnStack(
     .getByTestId('live-prompt')
     .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-method') ?? ''}#${e.getAttribute('data-call-id') ?? ''}`));
   await expect
-    .poll(() => stackCount(page), {
+    .poll(arrived, {
       timeout: 10_000,
       message: `the spell reached the stack — says: "${await says(page)}"; open prompts: [${open.join(', ')}]; server's last asks: [${asks.join(' | ')}]`,
     })
-    .not.toBe(before);
+    .toBe(true);
 }
 
 /** Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK; w33's own `passWhatever` (OK-or-Cancel) is its own. */

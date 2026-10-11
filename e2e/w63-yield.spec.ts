@@ -19,7 +19,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, makeTitled, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, makeTitled, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -72,31 +72,48 @@ test(
       await expect(endTurnSlot(page), 'Cancel Yield').toHaveText('Cancel Yield');
       await expect(endTurnSlot(page)).toHaveAttribute('data-yield', 'on');
 
-      // Bob casts his Lightning Bolt at alice. T6: `board.ts`'s own `castUntilOnStack` — this
-      // loop used to skip the payment fallback entirely, and reddened twice on main for exactly
-      // that (runs 37859797421, 37870730678: Bolt costs {R}, and nothing here ever paid for it).
+      // Bob casts his Lightning Bolt at alice. Nobody holds priority on it — bob's own spell is
+      // passed (`passOwnSpell`) and alice yields — so it can reach the stack and resolve between
+      // two polls of the stack count: alice's life is the durable proof that it was cast.
       const bolt = await offeredNamed(bob.page, 'Lightning Bolt');
       await clickHandCard(bob.page, bolt);
-      await castUntilOnStack(bob.page, stack, async () => {
-        const ready = (await opponentFace(bob.page).getAttribute('data-selectable')) === 'true';
-        if (ready) await opponentFace(bob.page).click();
-        return ready;
-      });
-      expect(await stackCount(bob.page), "bob's Bolt is on the stack, targeting alice").toBe(1);
+      const hit = async (): Promise<boolean> => (await ownLife(page).textContent()) === '17';
+      await castUntilOnStack(
+        bob.page,
+        stack,
+        async () => {
+          const ready = (await opponentFace(bob.page).getAttribute('data-selectable')) === 'true';
+          if (ready) await opponentFace(bob.page).click();
+          return ready;
+        },
+        { landed: hit },
+      );
 
       // The claim: alice's own bar never enables for it, the whole time it
       // resolves — polled, by STATE (enabled), never by watching for text.
       const resolvedBy = Date.now() + 30_000;
       let aliceBarLive = false;
-      while ((await stackCount(bob.page)) > 0 && Date.now() < resolvedBy) {
+      while (!(await hit()) && Date.now() < resolvedBy) {
         if (await endTurnSlot(page).isEnabled() && (await endTurnSlot(page).getAttribute('data-yield')) === null) aliceBarLive = true;
         const decisionOk = page.getByTestId('live-decision-ok');
         if ((await decisionOk.count()) > 0 && (await decisionOk.isEnabled())) aliceBarLive = true;
         await page.waitForTimeout(40);
       }
       expect(aliceBarLive, "alice's own bar never enabled for bob's spell").toBe(false);
-      await expect.poll(() => stackCount(page), { timeout: 15_000, message: "bob's Bolt resolved" }).toBe(0);
       await expect(ownLife(page), 'and it hit alice').toHaveText('17', { timeout: 15_000 });
+      await expect.poll(() => stackCount(page), { timeout: 15_000, message: "bob's Bolt resolved" }).toBe(0);
+
+      // And the server's own record: from alice's press to the Bolt's resolution, every priority
+      // window Forge gave her was passed for the yield, and none was forwarded to her screen.
+      const log = serverLog(stack);
+      const armed = log.findIndex((r) => r.evt === 'auto-yield' && r.seat === 0 && r.on === true);
+      expect(armed, "the server saw alice's Auto Yield").toBeGreaterThanOrEqual(0);
+      const after = log.slice(armed).filter((r) => r.seat === 0);
+      const yielded = after.filter((r) => r.evt === 'auto-passed' && r.why === 'auto-yield').length;
+      const forwarded = after.filter((r) => r.evt === 'prompt-forwarded').map((r) => String(r.kind));
+      console.log(`[w63-yield] alice yielded ${String(yielded)} window(s); forwarded to her after the press: [${forwarded.join(', ')}]`);
+      expect(yielded, "alice's priority on bob's Bolt was passed for her yield").toBeGreaterThan(0);
+      expect(forwarded, 'no window reached alice while she yields').toEqual([]);
       // Auto Yield still reads on: it has not been cancelled, only expired —
       // and it is still bob's own turn, the one it was armed for.
       await expect(endTurnSlot(page)).toHaveText('Cancel Yield');
