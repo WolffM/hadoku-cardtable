@@ -1690,6 +1690,13 @@ describe('the seat’s vertical bar (#9)', () => {
     const next = { ...top, id: 8002 };
     expect(group(owner.battlefield, owner.id, moved, 'single', next).back[0]![0]!.id, 'the next top takes the same place').toBe(8002);
     expect(group(owner.battlefield, owner.id, moved, 'single').back.flat().some((c) => c.id === 8002 || c.id === 8001), 'and with no top revealed it leaves the row').toBe(false);
+    // Dropped onto a land, it goes before it: the top card stacks with no permanent.
+    const stacked = withMove(group(owner.battlefield, owner.id, {}, 'single', top), owner.id, {}, 8001, 'back', { kind: 'stack', id: first, onTop: true }, 'single', 8001);
+    const piles = group(owner.battlefield, owner.id, stacked, 'single', top).back;
+    expect(piles[0]!.map((c) => c.id), 'a column of its own').toEqual([8001]);
+    expect(piles[1]![0]!.id).toBe(first);
+    const forced = group(owner.battlefield, owner.id, { [slotKey(owner.id, 'back')]: [[first, LIBRARY_TOP_SLOT]] }, 'single', top).back;
+    expect(forced.find((p) => p.some((c) => c.id === 8001))!.length, 'even when the store pairs them').toBe(1);
   });
 
   it('tells ours from theirs: no visible (you); the seat says data-viewer and its accessible name says (you)', () => {

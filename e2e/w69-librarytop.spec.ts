@@ -184,7 +184,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     const firstBox = (await alice.page.locator(`${field} [data-tier="back"] > li[data-board-card]`).first().boundingBox())!;
     await alice.page.mouse.move(angelBox.x + angelBox.width / 2, angelBox.y + angelBox.height / 2);
     await alice.page.mouse.down();
-    await alice.page.mouse.move(firstBox.x + firstBox.width * 0.2, firstBox.y + firstBox.height / 2, { steps: 12 });
+    await alice.page.mouse.move(firstBox.x + 3, firstBox.y + firstBox.height / 2, { steps: 12 });
     await alice.page.mouse.up();
     await expect.poll(() => backTier(alice.page, 'you').then((t) => t[0]), { timeout: 5_000, message: 'the revealed card moved to the front of her back tier' }).toBe('*Serra Angel');
     const moved = await backTier(alice.page, 'you');
@@ -372,8 +372,9 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     expect(glow.bob, "never on bob's screen").toBeNull();
 
     await watchFrames(alice.page);
-    const top = (await pile.locator('li[data-card-id]').last().boundingBox())!;
-    await alice.page.mouse.click(top.x + top.width / 2, top.y + top.height - 6);
+    // The strip of the pile's bottom card (an Island, not offered): a sixty-card pile is squeezed, its top clipped.
+    const bottom = (await pile.locator('li[data-card-id]').first().boundingBox())!;
+    await alice.page.mouse.click(bottom.x + bottom.width / 2, bottom.y + 3);
     const view = alice.page.getByTestId('pile-view');
     await expect(view, 'clicking her graveyard opens its pile view').toHaveCount(1, { timeout: 5_000 });
     const opened = await framesSoFar(alice.page);

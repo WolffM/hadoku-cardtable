@@ -901,7 +901,9 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
         const card = byId.get(id);
         if (card === undefined || placed.has(id)) continue;
         placed.add(id);
-        members.push(card);
+        // The library's top card is never part of a permanent's pile: it keeps a column of its own.
+        if (id === LIBRARY_TOP_SLOT) rows[row].push([card]);
+        else members.push(card);
       }
       if (members.length > 0) rows[row].push(members);
     }
@@ -1624,6 +1626,8 @@ export function withMove(
   libraryTopId?: number,
 ): Arrangement {
   const active = rowsForLayout(layout);
+  // The library's top card stacks with nothing, and nothing stacks on it: such a drop goes before.
+  if (target.kind === 'stack' && (cardId === libraryTopId || target.id === libraryTopId)) target = { kind: 'before', id: target.id };
   const piles: Record<BoardRow, number[][]> = emptyRows();
   for (const r of active) {
     // A gap the player left stays a gap. A pile the move empties closes up —
