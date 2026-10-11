@@ -1,0 +1,19 @@
+# A cost another player's spell puts on yours. Bob (`ai…` keys, seat 1)
+# casts Divination in his own Main Phase 1 off three of his five Islands;
+# alice (`human…` keys, seat 0) answers with Izzet Charm's first mode,
+# "counter target noncreature spell unless its controller pays {2}". Bob
+# keeps exactly the two Islands that pay it, so paying or declining is a
+# real choice, and it is his.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Izzet Charm
+humanbattlefield=Island;Mountain
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Divination
+aibattlefield=Island;Island;Island;Island;Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
