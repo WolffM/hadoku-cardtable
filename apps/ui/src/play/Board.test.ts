@@ -3003,6 +3003,90 @@ describe('a planeswalker’s loyalty on the board (W15)', () => {
   });
 });
 
+describe('a planeswalker that is a creature too (Gideon on his own turn)', () => {
+  /** The fixture's Fire Urchin (21) as a planeswalker creature: a 4/4 at loyalty 4. */
+  function gideon(): BoardView {
+    const base = boardFromFixture(fixture);
+    return {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              battlefield: p.battlefield.map((c) =>
+                c.id !== 21
+                  ? c
+                  : {
+                      ...c,
+                      printed: null,
+                      card: { ...c.card, power: '4', toughness: '4', loyalty: '4', typeLine: 'Legendary Planeswalker Creature — Gideon Human Soldier' },
+                    },
+              ),
+            },
+      ),
+    } as BoardView;
+  }
+
+  it('draws its loyalty AND its power and toughness', () => {
+    const { container } = renderBoard(gideon());
+    const badges = [...container.querySelectorAll<HTMLElement>('[data-card-id="21"] > .board-card__pt')];
+    expect(badges.map((b) => [b.dataset.pt, b.textContent])).toEqual([
+      ['loyalty', '4'],
+      ['', '4/4'],
+    ]);
+  });
+
+  it('stacks the loyalty above the P/T badge rather than on it', () => {
+    expect(CARD_CSS).toMatch(/\.board-card__pt\[data-pt='loyalty'\]:has\(\+ \.board-card__pt\[data-pt=''\]\) \{\s*bottom:/);
+  });
+});
+
+describe('keyword tags and the flyer’s float', () => {
+  /** The fixture's card 99 (the opponent's) with these keywords, as Forge's current face would carry them. */
+  function withKeywords(keywords: string[]): BoardView {
+    const base = boardFromFixture(fixture);
+    return {
+      ...base,
+      players: base.players.map((p) => ({ ...p, battlefield: p.battlefield.map((c) => (c.id !== 99 ? c : { ...c, keywords })) })),
+    } as BoardView;
+  }
+  const tagsOf = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__keywords > .board-card__keyword')].map((t) => t.textContent);
+
+  it('tags each evergreen keyword in Forge’s own word, in a fixed order, and floats a flyer', () => {
+    const { container } = renderBoard(withKeywords(['Lifelink', 'Flying', 'Affinity:Mountain', 'Hexproof:Card.Black:black']));
+    expect(tagsOf(container)).toEqual(['Flying', 'Lifelink']);
+    expect(container.querySelector('[data-card-id="99"]')!.hasAttribute('data-flying')).toBe(true);
+  });
+
+  it('draws no tag and no float when the keyword goes', () => {
+    const { container } = renderBoard(withKeywords([]));
+    expect(tagsOf(container)).toEqual([]);
+    expect(container.querySelector('[data-card-id="99"]')!.hasAttribute('data-flying')).toBe(false);
+  });
+
+  it('the float only lifts the art upward, and stands still for reduced motion', () => {
+    expect(declarationInCss(CARD_CSS, '.board-card[data-flying] > .board-card__face > .card', 'translate')).toBe('0 -3px');
+    expect(CARD_CSS).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.board-card\[data-flying\] > \.board-card__face > \.card \{\s*animation: none;/);
+  });
+});
+
+describe('combat-ready: the creatures that can attack or block right now', () => {
+  it('marks exactly the battlefield cards in `combatReady`', () => {
+    const view = boardFromFixture(fixture);
+    const me = view.players.find((p) => p.isViewer)!;
+    const ready = me.battlefield[0]!.id;
+    const { interaction } = spyInteraction([]);
+    const { container } = renderBoard(view, { ...interaction, combatReady: new Set([ready, me.hand![0]!.id]) });
+    expect([...container.querySelectorAll<HTMLElement>('[data-combat-ready]')].map((el) => Number(el.dataset.cardId))).toEqual([ready]);
+  });
+
+  it('grows from the bottom edge, so the extra size never runs down out of the battlefield', () => {
+    expect(declarationInCss(CARD_CSS, '.board-card[data-combat-ready] > .board-card__face', 'transform-origin')).toBe('50% 100%');
+  });
+});
+
 /* ── haste is not summoning sickness ──────────────────────────────────── */
 
 describe('a hasty creature does not claim to be summoning sick (#17)', () => {

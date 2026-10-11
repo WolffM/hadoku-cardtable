@@ -955,16 +955,62 @@ function readKeywords(obj: WireObject | undefined): readonly string[] {
 }
 
 /**
- * Whether a keyword list grants haste.
+ * A keyword's name: the text before any parameter.
  *
  * A keyword crosses as its own text, with any parameter after a colon
  * (`Affinity:Mountain` in the committed capture), so the token before the colon
- * is the keyword's name. `Haste` takes no parameter
- * (`Keyword.java:100 HASTE("Haste", SimpleKeyword.class, …)`). This is a
- * membership test on structured data, not a match against prose.
+ * is the keyword's name. This is a membership test on structured data, not a
+ * match against prose.
  */
-function hasHaste(keywords: readonly string[]): boolean {
-  return keywords.some((k) => (k.split(':')[0] ?? '').trim().toLowerCase() === 'haste');
+function keywordName(keyword: string): string {
+  return (keyword.split(':')[0] ?? '').trim().toLowerCase();
+}
+
+/** Whether a keyword list carries this keyword (by name, lower case). */
+export function hasKeyword(keywords: readonly string[] | undefined, name: string): boolean {
+  return keywords?.some((k) => keywordName(k) === name) ?? false;
+}
+
+/**
+ * The evergreen keywords the board draws as a tag, in this order. A card's art
+ * covers its rules text, so a flyer — printed or granted by an aura — reads as
+ * a flyer only through this. Haste is not here: what it changes is summoning
+ * sickness, which the board already draws.
+ */
+const TAGGED_KEYWORDS: readonly string[] = [
+  'flying',
+  'reach',
+  'first strike',
+  'double strike',
+  'deathtouch',
+  'lifelink',
+  'trample',
+  'menace',
+  'vigilance',
+  'defender',
+  'hexproof',
+  'indestructible',
+];
+
+/**
+ * The keyword tags a card wears, off Forge's CURRENT `Keywords` — the cached
+ * keywords of the face after every continuous effect (`CardView.updateKeywords`
+ * runs on each change), so an aura's flying is here the moment it attaches and
+ * gone when it leaves. Each tag is Forge's own word for the keyword. A
+ * parameterised hexproof (`Hexproof:Card.Black:black`, hexproof from) is not
+ * hexproof and gets no tag.
+ */
+export function keywordTags(keywords: readonly string[] | undefined): string[] {
+  const byName = new Map<string, string>();
+  for (const k of keywords ?? []) {
+    const name = keywordName(k);
+    if (name === 'hexproof' && k.includes(':')) continue;
+    if (!byName.has(name)) byName.set(name, (k.split(':')[0] ?? '').trim());
+  }
+  return TAGGED_KEYWORDS.flatMap((name) => {
+    const word = byName.get(name);
+    return word === undefined ? [] : [word];
+  });
 }
 
 function countersOf(obj: WireObject | undefined): { name: string; count: number }[] {
@@ -1189,7 +1235,7 @@ function toBoardCard(
     tapped: readBool(view, 'Tapped'),
     // #17: a hasty creature CAN act, so it is not summoning sick — whatever
     // Forge's `Sickness` says about when it arrived.
-    summoningSick: arrivedThisTurn && !hasHaste(keywords),
+    summoningSick: arrivedThisTurn && !hasKeyword(keywords, 'haste'),
     arrivedThisTurn,
     keywords,
     damage: readInt(view, 'Damage'),

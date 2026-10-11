@@ -28,6 +28,7 @@ import {
   currentAsk,
   declaringAttackers,
   blockFocusOf,
+  combatCandidates,
   declaringBlockers,
   pickedOf,
   declaringCombat,
@@ -2125,6 +2126,17 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
       },
     });
   }
+
+  it('combatCandidates: Forge’s attack candidates while InputAttack is live, and nothing at the same step’s priority', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    expect(combatCandidates(m).size).toBe(0);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), attackBar(), actionable([attacker])]);
+    expect([...combatCandidates(m)]).toEqual([attacker]);
+    // Attacks confirmed: the step's own priority pushes an ordinary actionable set, which is not this.
+    await sendAndApply(s, m, [yieldSuggestionBar(), actionable([attacker])]);
+    expect(combatCandidates(m).size).toBe(0);
+  });
 
   it('a planeswalker is offered as a card target while declaring attackers, and attackAssignment says ASSIGN', async () => {
     const { s, m } = await fullGame();

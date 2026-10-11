@@ -388,6 +388,8 @@ import { ManaPip } from '../components/ManaPip.tsx';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
+  hasKeyword,
+  keywordTags,
   type BoardCard,
   type BoardPlayer,
   type BoardView,
@@ -542,6 +544,13 @@ export interface BoardInteraction {
    * `blockFocusOf`) — drawn as the block focus, never as picked. Absent outside the block step.
    */
   blockFocus?: number;
+  /**
+   * While this seat declares attackers or blockers: its creatures Forge says
+   * can attack or block right now (`pushAttackerCandidates` /
+   * `pushBlockerCandidates`), drawn larger and lifted so the step's own cards
+   * stand apart from the everyday can-act glow. Absent outside those windows.
+   */
+  combatReady?: ReadonlySet<number>;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -1813,12 +1822,21 @@ function Loyalty({ entry }: { entry: BoardCard }) {
  * A card whose printed base our data does not know draws PLAIN — no ink, no
  * marker — and never claims a buff it cannot know about.
  *
- * A planeswalker has no power/toughness at all (`adapter.ts` only ever sets
- * `card.loyalty`, never `card.power`, for one) — see {@link Loyalty} instead,
- * dispatched to first.
+ * A planeswalker draws its {@link Loyalty} instead — and both, when it is a
+ * creature too (Gideon on his own turn): `adapter.ts` sets `card.power` off
+ * Forge's current type line, so the badges follow the effect that made it one.
  */
 function PowerToughness({ entry }: { entry: BoardCard }) {
-  if (entry.card.loyalty !== undefined) return <Loyalty entry={entry} />;
+  if (entry.card.loyalty === undefined) return <CreaturePT entry={entry} />;
+  return (
+    <>
+      <Loyalty entry={entry} />
+      {entry.card.power !== undefined && <CreaturePT entry={entry} />}
+    </>
+  );
+}
+
+function CreaturePT({ entry }: { entry: BoardCard }) {
   const pt = boardPT(entry);
   /*
    * No P/T and damage marked anyway — a planeswalker, a damaged non-creature,
@@ -2055,6 +2073,26 @@ function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
 }
 
 /**
+ * The operator: *"should be able to see that creature is flying … a tag on the
+ * creature when they gain flying."* Each evergreen keyword Forge says the card
+ * has NOW (`keywordTags`), as a capsule down the top-right corner, under the
+ * chosen-type label when there is one.
+ */
+function KeywordTags({ entry }: { entry: BoardCard }) {
+  const tags = keywordTags(entry.keywords);
+  if (tags.length === 0) return null;
+  return (
+    <ul className="board-card__keywords" aria-label={`${entry.card.name} keywords: ${tags.join(', ')}`}>
+      {tags.map((tag) => (
+        <li key={tag} className="board-card__keyword" data-keyword={tag.toLowerCase()}>
+          {tag}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
  * R15 (wave 53 T), the operator, Playtest 9: *"cards like 'Magus of the moon'
  * and 'Urborg tomb of yawgmoth' change the types of cards. i need this to be
  * visually indicated by a tag of some kind … put one of our overlay pills
@@ -2240,7 +2278,9 @@ function CardOnBoard({
       data-tapped={entry.tapped || undefined}
       data-attacking={entry.attacking || undefined}
       /* Attacking does not tap it, so `card.css` does not turn it for attacking. */
-      data-vigilant={(entry.keywords?.some((k) => /^vigilance\b/i.test(k)) ?? false) || undefined}
+      data-vigilant={hasKeyword(entry.keywords, 'vigilance') || undefined}
+      /* Floats (`card.css`): a flyer, by Forge's current keywords. */
+      data-flying={(onBattlefield && hasKeyword(entry.keywords, 'flying')) || undefined}
       data-sick={entry.summoningSick || undefined}
       data-blocking={entry.blocking || undefined}
       data-token={entry.token || undefined}
@@ -2250,6 +2290,7 @@ function CardOnBoard({
       /* A picked card keeps `data-selectable` too — see `BoardInteraction.highlighted`'s own note. */
       data-picked={picked || undefined}
       data-block-focus={(interaction?.blockFocus === entry.id) || undefined}
+      data-combat-ready={(onBattlefield && (interaction?.combatReady?.has(entry.id) ?? false)) || undefined}
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
       data-library-top={libraryTop || undefined}
@@ -2331,6 +2372,7 @@ function CardOnBoard({
       {onBattlefield && <StateMarks entry={entry} />}
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
       {onBattlefield && <ChosenTypeLabel entry={entry} />}
+      {onBattlefield && <KeywordTags entry={entry} />}
       {onBattlefield && <TypePill entry={entry} />}
       {/*
        * NOT gated on `onBattlefield`: the haunting card's own pill reads on

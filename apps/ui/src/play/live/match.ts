@@ -1501,6 +1501,19 @@ export function blockFocusOf(match: LiveMatch): number | null {
   return first ?? null;
 }
 
+/**
+ * The viewer's creatures Forge says can attack or block right now — `InputAttack`'s
+ * `pushAttackerCandidates` and `InputBlock`'s `pushBlockerCandidates`
+ * (`PlayerControllerHuman.java:1605-1647`), which arrive as the actionable set — only while
+ * that input is live: the attack window's own button 2 (`attackWindowLive`), the block
+ * window's current attacker (`blockFocusOf`). The same step's later priority stop pushes an
+ * ordinary actionable set (abilities), which is not this. Empty otherwise.
+ */
+export function combatCandidates(match: LiveMatch): ReadonlySet<number> {
+  const live = (declaringAttackers(match) && attackWindowLive(match)) || blockFocusOf(match) !== null;
+  return live && match.weaklySelectable !== null ? match.weaklySelectable : NO_PICKS;
+}
+
 /** Forge's highlighted cards drawn as PICKED: every one, except the block step's current attacker (`blockFocusOf`). */
 export function pickedOf(match: LiveMatch): ReadonlySet<number> {
   return declaringBlockers(match) ? NO_PICKS : (match.highlighted ?? NO_PICKS);

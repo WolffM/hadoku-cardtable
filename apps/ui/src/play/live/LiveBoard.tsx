@@ -285,6 +285,7 @@ import {
   answerConfirm,
   blockFocusOf,
   boardInteraction,
+  combatCandidates,
   concede,
   currentAsk,
   declaringAttackers,
@@ -2148,6 +2149,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      */
     highlighted: pickedOf(match),
     blockFocus: blockFocusOf(match) ?? undefined,
+    combatReady: spectator ? undefined : combatCandidates(match),
     /*
      * Item 17.2's staging area: the hand card this seat clicked to cast,
      * while Forge is asking for its target and nothing else is on top of the

@@ -553,8 +553,13 @@ import { fixtureFrames, startReplayServer, until, type ReplayServer } from './re
 // Re-recorded again: `draggable="true"` is gone from the five arrangeable
 // battlefield cards (`data-arrange-card` is the seam now) — 5 × 17 = -85
 // characters, 39367 (d1008669…) -> 39282, and nothing else moved.
-const BASELINE_SHA256 = '1fa565aeec186307f7f405656e67c8fbbd3730da18b61d81f3c6c1b85673e67b';
-const BASELINE_LENGTH = 39282;
+//
+// Re-recorded again: keyword tags. The capture's Fire Urchin has Trample, so it
+// wears one tag — `<ul class="board-card__keywords" aria-label="Fire Urchin
+// keywords: Trample">…Trample</li></ul>`, +148 characters, 39282 (1fa565ae…) ->
+// 39430, and nothing else moved.
+const BASELINE_SHA256 = '43a2bde56cb3443a0c86f618091992fc32b0217c51e3695fd69f30d34e553a4b';
+const BASELINE_LENGTH = 39430;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

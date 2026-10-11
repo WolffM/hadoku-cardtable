@@ -224,6 +224,11 @@
   right: calc(2px + 2% + var(--pile-fan));
 }
 
+/* A planeswalker that is a creature too wears both: its loyalty sits on top of its P/T. */
+.board-card__pt[data-pt='loyalty']:has(+ .board-card__pt[data-pt='']) {
+  bottom: calc(20px + var(--pile-fan));
+}
+
 .board-card__pt-n {
   display: inline-flex;
   align-items: baseline;
@@ -468,6 +473,81 @@
 }
 
 /*
+ * Keyword tags: *"a tag on the creature when they gain flying."* Down the
+ * top-right corner, under the chosen-type label when a card has one, in the
+ * same capsule as the rest of the state layer.
+ */
+.board-card__keywords {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 2px;
+  right: calc(2px + var(--pile-fan));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: calc(100% - 4px - var(--pile-fan));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__chosen-type ~ .board-card__keywords {
+  top: 20px;
+}
+
+.board-card__keyword {
+  max-width: 100%;
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * A flyer floats: the art lifts off the table and a shadow lies under it. The
+ * lift is a `translate` on the art (never `transform`, which the turn rule
+ * owns) and only ever upward, so it adds no scrollable overflow; the shadow
+ * sits in the strip of face the lift uncovers.
+ */
+.board-card[data-flying] > .board-card__face > .card {
+  translate: 0 -3px;
+  animation: card-float 2.6s ease-in-out infinite alternate;
+}
+
+.board-card[data-flying] > .board-card__face::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  right: 14%;
+  bottom: 0;
+  left: 14%;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--shadow), transparent);
+  pointer-events: none;
+}
+
+@keyframes card-float {
+  from { translate: 0 -2px; }
+  to { translate: 0 -5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-flying] > .board-card__face > .card {
+    animation: none;
+  }
+}
+
+/*
  * R15 (wave 53 T), the operator, Playtest 9: *"put one of our overlay pills
  * over the type bar."* Over the type bar means a new BAND, not a corner — the
  * four existing corners (marks top-left, chosen-type top-right, counters
@@ -590,6 +670,33 @@
   outline: 3px solid var(--accent);
   outline-offset: 3px;
   box-shadow: 0 0 12px var(--accent);
+}
+
+/* ── combat-ready: this creature can attack, or block, right now ─────────── */
+
+/*
+ * The operator: *"maybe we need to have creatures animate or become larger …
+ * the highlight isn't good enough because that highlight also happens
+ * [elsewhere]"*. While this seat declares attackers or blockers, the creatures
+ * Forge says can do it grow and rise off the table. Grown from the bottom edge
+ * and lifted, so the extra size goes up and to the sides, never down out of
+ * the battlefield.
+ */
+.board-card[data-combat-ready] > .board-card__face {
+  scale: 1.06;
+  translate: 0 -4px;
+  transform-origin: 50% 100%;
+  border-radius: var(--radius);
+  box-shadow: 0 10px 14px -8px var(--shadow);
+  transition:
+    scale 160ms ease-out,
+    translate 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-combat-ready] > .board-card__face {
+    transition: none;
+  }
 }
 
 /* ── refused: Forge turned this card's play away ────────────────────────── */
