@@ -67,8 +67,10 @@ interface Frame {
   ghost: Box | null;
   ghostLift: string | null;
   gap: Box | null;
-  /** Wave 59 §S: `live/placed.ts`'s own card, once a matching stack item exists — the ghost's handoff target. */
+  /** Wave 59 §S: `live/placed.ts`'s own card, once a matching stack item exists and is shown — the ghost's handoff target. */
   placed: Box | null;
+  /** That card exists but is held hidden (`data-placed-pending`): its stand-in is still gliding into the gap. */
+  placedHeld: boolean;
   stack: number;
   /** Stack items Forge has that the stack is leaving to the played card (`data-carried`) — bookkeeping only now, see `Board.tsx`'s `StackView`. */
   carried: number;
@@ -117,7 +119,8 @@ async function record(page: Page, cardId: number): Promise<void> {
         ghostLift: ghost?.getAttribute('data-cast-lift') ?? null,
         // The gap the row reserved for the card at its release (`Board`'s `notePlayedTo`): where its stand-in waits.
         gap: box(document.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]')),
-        placed: box(placed),
+        placed: placed !== null && getComputedStyle(placed).visibility !== 'hidden' ? box(placed) : null,
+        placedHeld: placed !== null && getComputedStyle(placed).visibility === 'hidden',
         // The zone itself draws nothing at all now (§S) — every item is `live/placed.ts`'s, in the
         // overlay, never a child of this zone; `stack` keeps the same meaning it always had ("how
         // many things does the row show"), now trivially 0, always, by construction.
@@ -158,7 +161,7 @@ function timeline(frames: Frame[]): string {
     lines.push(
       `${String(t - t0).padStart(6)}ms  ${where}${f.lift === null ? '' : ` lift=${f.lift}`}${f.landing ? ' landing' : ''}${f.hidden ? ' hidden' : ''}${f.tapped ? ' tapped' : ''}` +
         `${f.ghost === null ? '' : `  ghost @${f.ghost.x},${f.ghost.y} ${f.ghost.w}x${f.ghost.h} ${f.ghostLift ?? ''}`}` +
-        `${f.placed === null ? '' : `  placed @${f.placed.x},${f.placed.y} ${f.placed.w}x${f.placed.h}`}  stack=${f.stack}${f.carried > 0 ? ` carried=${f.carried}` : ''}${f.confirm ? ' confirm' : ''}${f.scrolls ? ' SCROLLS' : ''}`,
+        `${f.placed === null ? '' : `  placed @${f.placed.x},${f.placed.y} ${f.placed.w}x${f.placed.h}`}${f.placedHeld ? '  placed held' : ''}  stack=${f.stack}${f.carried > 0 ? ` carried=${f.carried}` : ''}${f.confirm ? ' confirm' : ''}${f.scrolls ? ' SCROLLS' : ''}`,
     );
   }
   const end = frames[frames.length - 1];
@@ -226,6 +229,8 @@ function afterRelease(frames: Frame[]): Frame[] {
 function expectWaitedThere(frames: Frame[], released: { x: number; y: number }): Frame[] {
   const flight = afterRelease(frames);
   const story = timeline(flight);
+  const held = flight.filter((f) => f.placedHeld);
+  console.log(`[played-card] stack card held hidden under its gliding stand-in in ${held.length} frame(s)${held.length === 0 ? '' : `, ghost drawn in ${held.filter((f) => f.ghost !== null).length} of them`}`);
   // The reserved gap is consumed the frame the card arrives, while the stand-in still sits where it
   // was: the last gap seen is where it waited.
   let lastGap: Box | null = null;
