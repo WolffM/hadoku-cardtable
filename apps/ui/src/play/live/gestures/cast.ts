@@ -1,20 +1,22 @@
 /*
- * Casting a card from the hand: geometry, type-line rules, and every DOM
- * write the gesture layer makes while a hand card is in motion.
+ * Casting a card out of one of the viewer's zones — the hand, or a graveyard
+ * or exile Forge offers it from (flashback, unearth, escape, foretell…):
+ * geometry, type-line rules, and every DOM write the gesture layer makes
+ * while such a card is in motion.
  *
- * This module answers two geometry questions `install.ts` needs —
+ * This module answers the geometry questions `install.ts` needs —
  *
- *  - is the card a press started on sitting in the VIEWER's own hand right
- *    now (`isHandCard`) — the only cards this gesture applies to;
- *  - is a point over the viewer's own battlefield (`overOwnBattlefield`) or
- *    back over their own hand (`overOwnHand`);
+ *  - which of the VIEWER's own zones the card a press started on is sitting
+ *    in right now (`castZoneOf`) — the only cards this gesture applies to;
+ *  - is a point over the viewer's own battlefield (`overOwnBattlefield`), or
+ *    back over the zone the card came from (`overHome`);
  *
  * — plus the type-line rule that decides whether a card needs a target
- * (`needsTarget`), and every DOM write this gesture makes while a hand card
- * is in motion: the card following the pointer (`drawCastLift`), the card
+ * (`needsTarget`), and every DOM write this gesture makes while the card is
+ * in motion: the card following the pointer (`drawCastLift`), the card
  * parked at its release point while a cast is being aimed, the float-back
- * animation when it returns to the hand (`floatCastLiftHome`), and the cues
- * drawn on the viewer's own hand and battlefield while a card is lifted.
+ * animation when it returns home (`floatCastLiftHome`), and the cues drawn
+ * on its own zone and the viewer's battlefield while a card is lifted.
  */
 import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
 import type { LiveMatch } from '../match.ts';
@@ -23,16 +25,34 @@ import { GLIDE_MS } from '../../motion.ts';
 import { cardBox } from './targets.ts';
 import type { Point } from './types.ts';
 
-/** True only for a card Forge offered that is in the VIEWER's own hand right now. */
-export function isHandCard(match: LiveMatch, id: number): boolean {
+/**
+ * The viewer's own zones a card is lifted out of to be cast. Forge offers a
+ * card outside the hand from its `ZoneType.Flashback` scan — the graveyard,
+ * exile, library and command zone (`Player.getCardsActivatableInExternalZones`,
+ * read by `AvailableActions.collectActionable`) — and the board draws two of them.
+ */
+export type CastZone = 'hand' | 'graveyard' | 'exile';
+
+/** The viewer's own zone the card is in right now, when it is one a cast lifts it out of. */
+export function castZoneOf(match: LiveMatch, id: number): CastZone | null {
   const mine = match.view?.players.find((p) => p.isViewer);
-  return mine?.hand?.some((c) => c.id === id) ?? false;
+  if (mine === undefined) return null;
+  if (mine.hand?.some((c) => c.id === id) === true) return 'hand';
+  if (mine.graveyard.some((c) => c.id === id)) return 'graveyard';
+  if (mine.exile.some((c) => c.id === id)) return 'exile';
+  return null;
 }
 
-/** The viewer's own hand card's current type line, or null — it may have left the hand already. */
-export function handCardTypeLine(match: LiveMatch, id: number): string | null {
+/** True only for a card in the VIEWER's own hand right now. */
+export function isHandCard(match: LiveMatch, id: number): boolean {
+  return castZoneOf(match, id) === 'hand';
+}
+
+/** The current type line of a card in one of the viewer's cast zones, or null — it may have left already. */
+export function castCardTypeLine(match: LiveMatch, id: number): string | null {
   const mine = match.view?.players.find((p) => p.isViewer);
-  return mine?.hand?.find((c) => c.id === id)?.card.typeLine ?? null;
+  const card = [...(mine?.hand ?? []), ...(mine?.graveyard ?? []), ...(mine?.exile ?? [])].find((c) => c.id === id);
+  return card?.card.typeLine ?? null;
 }
 
 /**
@@ -55,38 +75,31 @@ export function overOwnBattlefield(node: EventTarget | null): boolean {
   return node instanceof Element && node.closest('[data-zone="battlefield"][data-owner="you"]') !== null;
 }
 
-/** The pointer is over the viewer's own hand. */
-export function overOwnHand(node: EventTarget | null): boolean {
-  return node instanceof Element && node.closest('[data-zone="hand"][data-owner="you"]') !== null;
-}
-
-/** The viewer's own hand zone element, for the cancel cue. */
-function ownHandZone(root: ParentNode): HTMLElement | null {
-  return root.querySelector('[data-zone="hand"][data-owner="you"]');
+/** The pointer is back over the viewer's own zone the card came from: a release there is a cancel (or, in the hand, a reorder). */
+export function overHome(node: EventTarget | null, zone: CastZone): boolean {
+  return node instanceof Element && node.closest(`[data-zone="${zone}"][data-owner="you"]`) !== null;
 }
 
 /**
- * The two cues drawn while a hand card is lifted. Out of the hand, a card
- * that needs no target could land on the viewer's battlefield, so its rows
- * show their columns — `Board.tsx`'s placement scaffold, the same one a
- * rearrange draws (a card that needs a target never lands in a row, so it
- * gets none). Over the hand, the cancel cue (`data-cancel-hint`, drawn by
+ * The two cues drawn while a card is lifted. Out of its zone, a card that
+ * needs no target could land on the viewer's battlefield, so its rows show
+ * their columns — `Board.tsx`'s placement scaffold, the same one a rearrange
+ * draws (a card that needs a target never lands in a row, so it gets none).
+ * Over its own zone, the cancel cue (`data-cancel-hint`, drawn by
  * `./gestures.css`): releasing there always returns the card, whatever it is.
  */
-export function updateDropCues(canvas: ParentNode, spell: boolean, overHand: boolean): void {
-  if (spell || overHand) clearPlacementColumns(canvas);
+export function updateDropCues(canvas: ParentNode, spell: boolean, zone: CastZone, overZone: boolean): void {
+  if (spell || overZone) clearPlacementColumns(canvas);
   else showPlacementColumns(canvas);
-  const hand = ownHandZone(canvas);
-  if (hand !== null) {
-    if (overHand) hand.setAttribute('data-cancel-hint', '');
-    else hand.removeAttribute('data-cancel-hint');
-  }
+  const home = canvas.querySelector(`[data-zone="${zone}"][data-owner="you"]`);
+  if (overZone) home?.setAttribute('data-cancel-hint', '');
+  else home?.removeAttribute('data-cancel-hint');
 }
 
 /** Every drop cue off, whichever it was — a release, a cancel, or a dispose mid-flight. */
 export function clearDropCues(canvas: ParentNode): void {
   clearPlacementColumns(canvas);
-  ownHandZone(canvas)?.removeAttribute('data-cancel-hint');
+  for (const el of canvas.querySelectorAll('[data-cancel-hint]')) el.removeAttribute('data-cancel-hint');
 }
 
 /** The one attribute this module writes for the lift itself. Nothing else in this repo writes it. */

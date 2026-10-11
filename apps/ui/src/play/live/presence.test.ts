@@ -481,17 +481,36 @@ describe('sending', () => {
   });
 
   it('letting go back over the viewer’s own hand sends no `placing` — a cancelled drag, never a cast', () => {
-    // `resolveLift`'s own `overOwnHand` check is what sends a card home instead of to Forge: this
+    // `resolveLift`'s own `overHome` check is what sends a card home instead of to Forge: this
     // seat's own hand zone is at (100,650)-(900,750); a release there is always that cancel.
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const lifted = document.createElement('li');
     lifted.setAttribute('data-cast-lift', 'lifted');
-    canvas.querySelector('.board')!.append(lifted);
+    canvas.querySelector('[data-zone="hand"][data-owner="you"]')!.append(lifted);
     canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 500, clientY: 700, bubbles: true }));
     expect(t.sent).toHaveLength(1);
     expect((t.sent[0]!.payload as { placing: unknown }).placing, 'nothing is coming — the back must not wait').toBeNull();
+    handle.dispose();
+  });
+
+  it('a card lifted out of the graveyard: let go over its graveyard is a cancel, over the table a cast', () => {
+    const { canvas } = board();
+    const yard = document.createElement('div');
+    yard.setAttribute('data-zone', 'graveyard');
+    yard.setAttribute('data-owner', 'you');
+    yard.getBoundingClientRect = () => rect({ left: 10, top: 400, width: 80, height: 300 });
+    canvas.querySelector('.board')!.append(yard);
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const lifted = document.createElement('li');
+    lifted.setAttribute('data-cast-lift', 'lifted');
+    yard.append(lifted);
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 50, clientY: 500, bubbles: true }));
+    expect((t.sent.at(-1)!.payload as { placing: unknown }).placing, 'over its own graveyard: nothing is coming').toBeNull();
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 500, clientY: 500, bubbles: true }));
+    expect((t.sent.at(-1)!.payload as { placing: unknown }).placing, 'over the table: the cast waits there').toEqual({ at: { zone: 'battlefield', x: 0.5, y: 0.625 } });
     handle.dispose();
   });
 

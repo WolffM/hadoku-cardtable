@@ -6,7 +6,8 @@
  * Alice's graveyard is 31 cards with Think Twice buried in the middle, and Forge offers its flashback.
  * In the pile on the board its name strip is squeezed to nothing, so it cannot be hovered or clicked.
  * Clicking the pile opens a view of every card in it: hovering Think Twice there opens the one
- * inspector, clicking it starts the flashback cast and closes the view. Esc and a click outside close
+ * inspector, clicking it picks it up (the view gives way to it) and a click on the table casts its
+ * flashback. Esc and a click outside close
  * it; bob's pile opens the same way on alice's screen; nothing of it reaches bob's screen.
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -122,8 +123,12 @@ test(titled('a huge graveyard opens as a pile view: a buried flashback card can 
     console.log(`[piles] inspector ${rect(shown)}, pile view ${rect(panel)}, overlap ${Math.round(overlapW)}×${Math.round(overlapH)}px`);
     expect(overlapW * overlapH, 'the inspector covers the pile view').toBe(0);
 
+    // A click picks the offered card up, as a hand card's does, and the view gives way to it; the next
+    // press, on the table, is the release that casts it.
     await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(view(alice.page), 'a selection closes the view').toHaveCount(0, { timeout: 3_000 });
+    await expect(view(alice.page), 'picking the card up closes the view').toHaveCount(0, { timeout: 3_000 });
+    await expect(alice.page.locator(`.seat [data-zone="graveyard"] li[data-card-id="${id}"]`), 'Think Twice is in her hand').toHaveAttribute('data-cast-lift', 'lifted');
+    await alice.page.mouse.click(field.x + field.width / 2, field.y + field.height / 2);
     await expect
       .poll(
         async () => {

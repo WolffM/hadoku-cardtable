@@ -5,6 +5,7 @@
  */
 import type { LiveMatch } from '../match.ts';
 import type { Report } from '../handover-report.ts';
+import type { CastZone } from './cast.ts';
 
 export interface GestureOptions {
   /** The match's root element — the canvas. All pointer handling is delegated here. */
@@ -107,18 +108,20 @@ export interface DragState {
   /** The pointer has travelled past `DRAG_SLOP_PX`. */
   moved: boolean;
   /**
-   * True only when `source` is a card Forge offered that is sitting in the
-   * VIEWER'S OWN HAND right now — never a battlefield permanent (a land
-   * offered for its mana ability, say), and never a combat, payment or
-   * source-less drag. False for every one of those.
+   * The zone `source` was lifted out of, when it is a card Forge offered at
+   * priority that is sitting in one of the VIEWER'S OWN cast zones right now
+   * — the hand, or a graveyard or exile it is offered from (flashback and
+   * the like) — and null for everything else: a battlefield permanent (a
+   * land offered for its mana ability, say), a combat, payment or
+   * source-less drag.
    *
-   * While true, the card follows the pointer (`./install.ts`'s
+   * While set, the card follows the pointer (`./install.ts`'s
    * `onPointerMove` draws it via `./cast.ts`'s `drawCastLift`), and nothing
    * reaches Forge until the gesture ends — `./install.ts`'s `resolveLift` is
    * the one place that happens, reading `./cast.ts`'s `needsTarget` and
-   * `overOwnHand`/`overOwnBattlefield` against the release point.
+   * `overHome`/`overOwnBattlefield` against the release point.
    */
-  lifted: boolean;
+  lifted: CastZone | null;
   /**
    * Always `true` for every kind of drag that is not a lifted hand card,
    * which still ends at its own `pointerup` exactly as before. For a lifted

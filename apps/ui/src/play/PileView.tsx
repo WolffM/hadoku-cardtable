@@ -76,6 +76,16 @@ export function placePile(pile: Box, bounds: Box, size: { width: number; height:
 
 type Layout = PileFit & { left: number; top: number };
 
+const closers = new Set<() => void>();
+
+/**
+ * Close the open view: a card Forge offers from the pile (flashback) was picked up out of it, and is
+ * in the player's hand now, on its way to the table (`live/gestures/install.ts`).
+ */
+export function closePileView(): void {
+  for (const close of closers) close();
+}
+
 export function PileView({
   ownerSide,
   zone,
@@ -141,9 +151,11 @@ export function PileView({
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPress, true);
+    closers.add(onClose);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPress, true);
+      closers.delete(onClose);
     };
   }, [onClose, pileSelector]);
 

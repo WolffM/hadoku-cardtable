@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 
 import { Board, type BoardInteraction } from './Board.tsx';
 import { boardFromFixture, PLAY_FIXTURES } from './fixtures.ts';
-import { fitPile, placePile, PILE_GAP, PILE_MIN_CARD_W } from './PileView.tsx';
+import { closePileView, fitPile, placePile, PILE_GAP, PILE_MIN_CARD_W } from './PileView.tsx';
 
 afterEach(cleanup);
 
@@ -104,5 +104,16 @@ describe('a pile opens as a PileView', () => {
     fireEvent.click(inView.querySelector('.board-card__face')!);
     expect(onSelectCard).toHaveBeenCalledTimes(2);
     expect(pileView()).toBeNull();
+  });
+
+  it('gives way when a card is picked up out of it, and nothing is selected by that', () => {
+    const { pile, pileView, onSelectCard } = setup();
+    fireEvent.click(pile(me.id));
+    expect(pileView()).not.toBeNull();
+    act(() => closePileView());
+    expect(pileView()).toBeNull();
+    expect(onSelectCard).not.toHaveBeenCalled();
+    act(() => closePileView());
+    expect(pileView(), 'with no view open it does nothing').toBeNull();
   });
 });

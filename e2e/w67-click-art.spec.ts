@@ -1,11 +1,11 @@
 /**
  * The operator, 2026-10-09: *"i really dont want a no-art card to show ever"*.
  *
- * A spell the other seat casts with a CLICK — here Think Twice's flashback, clicked in alice's pile
- * view — carries no release point, so bob's screen has no placement record for it. Bob's page holds
- * Think Twice's art back (a CDN on a cold fetch) while every other card's art arrives at once; from
- * alice's click until the stack has emptied, bob's page must never draw a stack card face without its
- * art. Then the art arrives and nothing is left on the board.
+ * A spell the other seat casts with CLICKS — here Think Twice's flashback, picked up by a click in
+ * alice's pile view and let go by a click on her battlefield. Bob's page holds Think Twice's art back
+ * (a CDN on a cold fetch) while every other card's art arrives at once; from alice's first click until
+ * the stack has emptied, bob's page must never draw a stack card face without its art. Then the art
+ * arrives and nothing is left on the board.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -86,7 +86,7 @@ test(titled('a spell the other seat casts by a click is never drawn on the stack
     await bob.page.waitForTimeout(1500);
     await recordBob(bob.page);
 
-    // Alice opens her pile and clicks Think Twice: a cast with no release point.
+    // Alice opens her pile, clicks Think Twice (picked up, the view gives way) and clicks her battlefield (cast).
     const mine = alice.page.locator('.seat [data-zone="graveyard"][data-owner="you"] li[data-card-id]').first();
     const first = (await mine.boundingBox())!;
     await alice.page.mouse.click(first.x + first.width / 2, first.y + 3);
@@ -95,6 +95,9 @@ test(titled('a spell the other seat casts by a click is never drawn on the stack
     const box = (await inView.boundingBox())!;
     const clickedAt = Date.now();
     await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(alice.page.getByTestId('pile-view'), 'the view gives way to the picked-up card').toHaveCount(0, { timeout: 3_000 });
+    const field = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    await alice.page.mouse.click(field.x + field.width / 2, field.y + field.height / 2);
 
     await expect
       .poll(async () => (await bob.page.locator('.seat [data-zone="exile"][data-owner="them"] .card__name', { hasText: 'Think Twice' }).count()) > 0, {

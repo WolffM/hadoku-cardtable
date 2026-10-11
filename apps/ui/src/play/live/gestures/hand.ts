@@ -38,7 +38,7 @@
  * ## Committing
  *
  * A release back inside the hand (`install.ts`'s `resolveLift`, its own
- * `overOwnHand` branch — the ONE line that changed there) calls
+ * `overHome(node, 'hand')` branch) calls
  * `commitHandReorder`: `Board.tsx`'s `withHandMove`/`commitHandMove` write the
  * new order into the arrangement store (never Forge — nothing is sent),
  * `presence.ts`'s `queueHandMove` tells the other seat which two INDICES

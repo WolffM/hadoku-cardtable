@@ -82,6 +82,19 @@
  * cancel cue under the pointer. No text is drawn. No arrow yet: nothing
  * has been aimed at anything, because nothing has been sent.
  *
+ * ### A card Forge offers from the graveyard or exile is lifted the same way
+ *
+ * The operator, 2026-10-11, on Cabal Therapy: *"it should be possible to
+ * pick up cards from the graveyard if they have flashback. so i should be
+ * able to drag them and play them like a spell, not have a target arrow
+ * drawn. the target arrow should come after the spell is played."* A card
+ * Forge offers at priority from the viewer's own graveyard or exile
+ * (`./cast.ts`'s `castZoneOf`: flashback, unearth, escape, foretell…) is
+ * lifted from the press exactly as a hand card is, on the board's pile or in
+ * its opened `PileView` (which gives way to it), and everything below holds
+ * for it with its own zone in the hand's place: a release back over that
+ * zone sends nothing and the card goes home.
+ *
  * ### Everything a lift decides happens at the release
  *
  * The card's CURRENT type line decides what a release means (`./cast.ts`'s
@@ -221,20 +234,23 @@ import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX,
   CAST_LIFT_ATTR,
+  castCardTypeLine,
+  castZoneOf,
   clearAllCastLifts,
   clearCastLift,
   clearDropCues,
   drawCastLift,
   floatCastLiftHome,
-  handCardTypeLine,
   isHandCard,
   landCastGhost,
   needsTarget,
+  overHome,
   overOwnBattlefield,
-  overOwnHand,
   parkedGhost,
   updateDropCues,
+  type CastZone,
 } from './cast.ts';
+import { closePileView } from '../../PileView.tsx';
 import { clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
@@ -287,8 +303,10 @@ interface Parked {
   readonly home: Point;
   /** The card's stand-in at `at`, shown only while the board renders no element for the card itself. */
   readonly ghost: HTMLElement | null;
-  /** Forge's state has shown the card out of the hand since the cast went out. */
-  leftHand: boolean;
+  /** The viewer's zone the card was lifted out of: the hand, or a graveyard or exile Forge cast it from. */
+  readonly zone: CastZone;
+  /** Forge's state has shown the card out of `zone` since the cast went out. */
+  leftZone: boolean;
   /** A permanent played to the viewer's own battlefield rather than a cast being aimed. */
   readonly played: boolean;
   /** The stack has taken this card's spell back (`syncStackStandIn`). Never returns to false. */
@@ -309,9 +327,9 @@ interface Parked {
   drawnMidGlide: number | null;
 }
 
-/** Where Forge's state holds the card now: the viewer's hand, another zone the board draws, or nowhere it draws (mid-cast). */
-function whereIs(match: LiveMatch, id: number): 'hand' | 'drawn' | 'limbo' {
-  if (isHandCard(match, id)) return 'hand';
+/** Where Forge's state holds the card now: still in the zone it was lifted out of, another zone the board draws, or nowhere it draws (mid-cast). */
+function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn' | 'limbo' {
+  if (castZoneOf(match, id) === home) return 'home';
   for (const p of match.view?.players ?? []) {
     for (const zone of [p.battlefield, p.graveyard, p.exile]) {
       if (zone.some((c) => c.id === id)) return 'drawn';
@@ -679,7 +697,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
-   * What a lifted hand card's RELEASE means — the one and only place a hand
+   * What a lifted card's RELEASE means — the one and only place a lifted
    * card's gesture reaches Forge. Called from `onPointerUp` (a held drag's
    * own release) and from `onPointerDown`'s resolving press (a click-armed
    * one) alike, always with that press's OWN point — never the point the
@@ -687,9 +705,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function resolveLift(state: DragState, point: Point, node: EventTarget | null): void {
     clearDropCues(canvas);
-    if (state.source === null) return;
+    if (state.source === null || state.lifted === null) return;
     const source = state.source;
-    if (overOwnHand(node)) {
+    const zone = state.lifted;
+    if (zone !== 'hand' && overHome(node, zone)) {
+      // Back over the graveyard or exile it came from: nothing was sent, so nothing is.
+      previewAt(null);
+      floatCastLiftHome(canvas, source, state.from, () => {});
+      return;
+    }
+    if (zone === 'hand' && overHome(node, zone)) {
       // Released back inside the hand — a reorder, never Forge. The ONE
       // line that changed here: this used to float the card back home
       // unconditionally; now a release inside the hand always means "commit
@@ -703,10 +728,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
       playRole('ui.place');
       return;
     }
-    // Left the hand before release: `onPointerMove`'s own transition already cleared the
-    // indicator and `--card-w` override the moment the pointer crossed out of it.
+    // Left its zone before release: `onPointerMove`'s own transition already cleared the
+    // hand's indicator the moment the pointer crossed out of it.
     handPressIndex = null;
-    const spell = needsTarget(handCardTypeLine(match, source));
+    const spell = needsTarget(castCardTypeLine(match, source));
     previewAt(null);
     if (!spell && !overOwnBattlefield(node)) {
       floatCastLiftHome(canvas, source, state.from, () => {});
@@ -755,7 +780,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
-    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null };
+    parked = { source, at: point, home: state.from, ghost, zone, leftZone: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null };
     syncParkedGhost();
     // A played card's stand-in glides from the release point into the gap the row reserved for
     // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
@@ -840,14 +865,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function onParkUnanswered(): void {
     unansweredTimer = null;
     if (!live || parked === null) return;
-    // Still a question about the card, or the card is not in the hand right
-    // now (in flight, or on the table with its element not yet drawn): look
-    // again once that has had its time. A card that left the hand and came
-    // BACK (Forge took the play and gave it up) is in the hand, and is let go
-    // like any other it never took — the clock keeps running until the park
-    // ends one way or another (table-fit 2026-10-07: such a land stayed
-    // hidden in the hand through the whole cleanup discard).
-    if (whereIs(match, parked.source) !== 'hand' || askedAbout(parked.source)) {
+    // Still a question about the card, or the card is not in its own zone
+    // right now (in flight, or on the table with its element not yet drawn):
+    // look again once that has had its time. A card that left and came BACK
+    // (Forge took the play and gave it up) is home, and is let go like any
+    // other it never took — the clock keeps running until the park ends one
+    // way or another (table-fit 2026-10-07: such a land stayed hidden in the
+    // hand through the whole cleanup discard).
+    if (whereIs(match, parked.source, parked.zone) !== 'home' || askedAbout(parked.source)) {
       unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
       return;
     }
@@ -989,8 +1014,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function settleParkedIfResolved(): void {
     if (parked === null) return;
-    const where = whereIs(match, parked.source);
-    if (where !== 'hand') parked.leftHand = true;
+    const where = whereIs(match, parked.source, parked.zone);
+    if (where !== 'home') parked.leftZone = true;
     if (parked.played && where === 'drawn') {
       // It is a permanent now (or, countered, a card in a graveyard), and the
       // play is over whatever Forge asks next — an enters trigger's target is
@@ -1049,17 +1074,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     // Forge offers the parked card ITSELF in a selection — a cleanup discard,
-    // a discard cost — while it is a hand card: the play is over and the card
-    // has a new question about it, so it goes home now, not when the clock
-    // gives up (table-fit 2026-10-07: the discard's first offered card was the
-    // land the seat had just put down, hidden at its park point).
-    if (where === 'hand' && match.selectables?.cards.has(parked.source) === true) {
+    // a discard cost — while it is still in its own zone: the play is over and
+    // the card has a new question about it, so it goes home now, not when the
+    // clock gives up (table-fit 2026-10-07: the discard's first offered card
+    // was the land the seat had just put down, hidden at its park point).
+    if (where === 'home' && match.selectables?.cards.has(parked.source) === true) {
       releaseParked(endPark()!, true);
       return;
     }
     if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
     if (match.view?.stack.some((item) => item.sourceCardId === parked!.source)) return;
-    if (where === 'limbo' || (where === 'hand' && !parked.leftHand)) return;
+    if (where === 'limbo' || (where === 'home' && !parked.leftZone)) return;
     const p = endPark()!;
     releaseParked(p, false);
   }
@@ -1208,7 +1233,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const box = cardBox(canvas, press.id);
         const from = box === null ? pressAt : centreOf(box);
         handPressIndex = handOrderIds(canvas).indexOf(press.id);
-        drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: true, held: true };
+        drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: 'hand', held: true };
         // Board-sized from this call itself (`drawCastLift`'s own `'lifted'` rule) — nothing
         // of this module's reads or writes that property.
         drawCastLift(canvas, press.id, pressAt, 'lifted');
@@ -1269,7 +1294,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         at,
         target: targetAt(eventTarget(event)),
         moved: false,
-        lifted: false,
+        lifted: null,
         held: true,
       };
       hover = null;
@@ -1290,29 +1315,31 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const box = cardBox(canvas, under.id);
       claim(event);
       /*
-       * Only a card in the viewer's own hand is ever lifted; a battlefield
-       * land offered for its mana ability is not in anyone's hand and this is
-       * false for it, so it drags exactly as it always has.
+       * Only a card in one of the viewer's own cast zones is ever lifted: the
+       * hand, or a graveyard or exile Forge offers it from — a flashback
+       * spell is picked up and carried exactly as a hand card is, with no
+       * arrow, and its target is asked for only once it is cast (the
+       * operator, 2026-10-11, on Cabal Therapy: "the target arrow should
+       * come after the spell is played"). A battlefield land offered for its
+       * mana ability is in none of them, so it drags exactly as it always has.
        *
        * **Priority's own offer ONLY — never a selection's, and never an
-       * ask's.** A selection can itself name a hand card (Secluded Glen's
-       * "reveal a Faerie?" is one real example), so `isHandCard` alone is not
-       * enough: a card Forge is actively asking the seat to CHOOSE is not one
-       * it is offering to be CAST, and the two can share the same id.
+       * ask's.** A selection can itself name a hand or graveyard card
+       * (Secluded Glen's "reveal a Faerie?", Relentless Dead's "a Zombie card
+       * in your graveyard"), so the zone alone is not enough: a card Forge is
+       * actively asking the seat to CHOOSE is not one it is offering to be
+       * CAST, and the two can share the same id.
        * `match.asks.length > 0` already empties `offered` entirely
        * (`boardInteraction`'s own guard), so that half holds without a
        * separate check here; `match.selectables === null` is the other half;
        * `weaklySelectable.has(id)` on top of both is the precise positive
        * case — Forge's own priority-time "you could cast this", never
        * `highlighted`/`mulliganHand`/combat's unions, none of which a press
-       * on a hand card should ever read as "lift and cast".
+       * on a card should ever read as "lift and cast".
        */
-      const castFromHand =
-        isHandCard(match, under.id) &&
-        match.selectables === null &&
-        match.asks.length === 0 &&
-        (match.weaklySelectable?.has(under.id) ?? false);
-      if (castFromHand) clicks.arm();
+      const castZone =
+        match.selectables === null && match.asks.length === 0 && (match.weaklySelectable?.has(under.id) ?? false) ? castZoneOf(match, under.id) : null;
+      if (castZone !== null) clicks.arm();
       const from = box === null ? at : centreOf(box);
       drag = {
         source: under.id,
@@ -1321,15 +1348,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
         at,
         target: under,
         moved: false,
-        lifted: castFromHand,
+        lifted: castZone,
         held: true,
       };
       hover = null;
-      if (castFromHand) {
-        const spell = needsTarget(handCardTypeLine(match, under.id));
-        const overHand = overOwnHand(eventTarget(event));
+      if (castZone !== null) {
+        const spell = needsTarget(castCardTypeLine(match, under.id));
         drawCastLift(canvas, under.id, at, 'lifted');
-        updateDropCues(canvas, spell, overHand);
+        updateDropCues(canvas, spell, castZone, overHome(eventTarget(event), castZone));
+        // Picked up out of an opened pile: the card is in hand now, and the view gives way to it.
+        if (castZone !== 'hand') closePileView();
       }
       paint();
       return;
@@ -1351,7 +1379,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (match.selectables === null) return;
     const origin = clickOrigin();
     claim(event);
-    drag = { source: null, press: at, from: origin === null ? at : origin.at, at, target: under, moved: false, lifted: false, held: true };
+    drag = { source: null, press: at, from: origin === null ? at : origin.at, at, target: under, moved: false, lifted: null, held: true };
     hover = null;
     paint();
   }
@@ -1364,22 +1392,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (drag.lifted && moved && !drag.moved) playRole('ui.lift');
       const next: DragState = { ...drag, at, moved, target: targetAt(eventTarget(event)) };
       drag = next;
-      if (next.lifted && next.source !== null) {
-        const overHand = overOwnHand(eventTarget(event));
+      if (next.lifted !== null && next.source !== null) {
+        const overZone = overHome(eventTarget(event), next.lifted);
         // Board-sized on every call, not only the first — `drawCastLift`'s own `'lifted'`
         // rule re-reads the battlefield's current `--card-w` each time; this module never
         // overrides or clears that property, inside the hand or out of it.
         drawCastLift(canvas, next.source, at, 'lifted');
-        if (overHand) {
+        if (overZone && next.lifted === 'hand') {
           // Still inside the hand — the reorder preview, not the cast's drop cues.
           clearDropCues(canvas);
           previewAt(null);
           scheduleHandIndicator({ cardId: next.source, point: at });
         } else {
-          // The press has left the hand: the mode change to the cast gesture, same press.
+          // The press has left the hand (the mode change to the cast gesture, same press), or
+          // a card from a pile is over the table — or back over its pile, the cancel cue.
           scheduleHandIndicator(null);
-          const spell = needsTarget(handCardTypeLine(match, next.source));
-          updateDropCues(canvas, spell, overHand);
+          const spell = needsTarget(castCardTypeLine(match, next.source));
+          updateDropCues(canvas, spell, next.lifted, overZone);
           // Only a no-target card ever lands in a row.
           previewAt(!spell && overOwnBattlefield(eventTarget(event)) ? at : null);
         }

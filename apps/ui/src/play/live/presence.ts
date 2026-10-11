@@ -15,7 +15,9 @@
  * carrying `data-cast-lift` (lifted, parked or carried — not `returning`) is
  * held; the click-targeting arrow (`[data-testid="targeter"]`) has a tail,
  * and that tail is `from`. The gesture layer is not told about this module
- * and need not be.
+ * and need not be. A card lifted out of the graveyard to be cast (flashback)
+ * is public, yet it is held the same way and drawn as the same back: `held`
+ * is a boolean by construction, and the wire names no card while it is held.
  *
  * A card let go (`pointerup`/`pointercancel` while held) sends at once,
  * outside the throttle: `held: false` and the release point itself as `from`
@@ -457,8 +459,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /**
    * `placing.at` for a parked card: its centre, as a spot, on EVERY message
    * while it is parked — the other screen stands its back there and nothing
-   * the pointer does moves it. Never over this seat's own hand: a release
-   * there is a cancel (`resolveLift`'s `overOwnHand`), nothing is coming.
+   * the pointer does moves it. Never over this seat's own hand: a hand card
+   * released there is a cancel (`resolveLift`'s `overHome`), nothing is coming.
    */
   function placingOf(parked: Point | null): { at: PresenceSpot } | null {
     if (parked === null) return null;
@@ -557,14 +559,18 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * placement message (`placement.ts`) supersedes it; every message after
    * this one, while the card is parked, carries the same (`placingOf`). `from`
    * is null here — it is the arrow's tail, never a stand. Never sent for a
-   * release back onto the hand: that is always a cancel (`resolveLift`'s own
-   * `overOwnHand` check is what sends it home, never to Forge), so nothing
-   * is ever coming — the back must still vanish at once, not wait.
+   * release back over the zone the card was lifted from — the hand, or the
+   * graveyard a flashback card came out of: that is always a cancel
+   * (`resolveLift`'s own `overHome` check is what sends it home, never to
+   * Forge), so nothing is ever coming — the back must still vanish at once,
+   * not wait.
    */
   function sendRelease(point: Point): void {
     if (!live || host.seat === null) return;
     const spot = spotOf(canvas, point);
     const anchor = anchorOf(canvas, point);
+    const home = canvas.querySelector('[data-cast-lift="lifted"]')?.closest('[data-zone]') ?? null;
+    const cancelled = home !== null && inside(home.getBoundingClientRect(), point);
     if (sendTimer !== null) {
       clearTimeout(sendTimer);
       sendTimer = null;
@@ -578,7 +584,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       from: null,
       handRows: handRowsOf(canvas),
       arranging: null,
-      placing: spot === null || spot.zone === 'hand' ? null : { at: spot },
+      placing: spot === null || cancelled ? null : { at: spot },
       handMove: null,
     };
     lastMessage = JSON.stringify(message);

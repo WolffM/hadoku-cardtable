@@ -208,8 +208,8 @@
   visibility: hidden;
 }
 
-/* The hand's own cancel cue: ANY lifted card over the hand returns, whatever it is. */
-[data-zone='hand'][data-owner='you'][data-cancel-hint] {
+/* The cancel cue on the zone a card was lifted from: ANY lifted card let go over it returns, whatever it is. */
+[data-zone][data-owner='you'][data-cancel-hint] {
   outline: 2px solid var(--warn);
   outline-offset: -2px;
   background: color-mix(in srgb, var(--warn) 8%, transparent);

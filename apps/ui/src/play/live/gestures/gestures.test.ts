@@ -2563,6 +2563,63 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 });
 
 /*
+ * The operator, 2026-10-11, on Cabal Therapy: "it should be possible to pick up cards from the
+ * graveyard if they have flashback. so i should be able to drag them and play them like a spell,
+ * not have a target arrow drawn. the target arrow should come after the spell is played."
+ */
+describe('a card Forge offers from the graveyard is picked up like a hand card', () => {
+  /** A card of the viewer's hand moved to their graveyard, and offered there at priority. */
+  async function inGraveyard() {
+    const board = await gestureBoard();
+    const { s, m, canvas } = board;
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const card = hand[0]!;
+    s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Graveyard: { t: 'list', v: [{ t: 'int', v: card }] } } }));
+    s.send(handDelta(hand.slice(1)));
+    for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
+    await waitFor(() => expect(canvas.querySelector(`[data-zone="graveyard"][data-owner="you"] [data-board-card="${card}"]`)).not.toBeNull());
+    await waitFor(() => expect(m.weaklySelectable?.has(card)).toBe(true));
+    const pile = canvas.querySelector<HTMLElement>('[data-zone="graveyard"][data-owner="you"]')!;
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    return { ...board, card, pile, myBattlefield };
+  }
+
+  it('the press lifts it, no arrow is drawn while it is carried, and the release over the table casts it', async () => {
+    const { s, canvas, card, myBattlefield } = await inGraveyard();
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(cardEl(canvas, card).style.left, 'it follows the pointer').toBe('400px');
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'no arrow while it is carried').toBeNull();
+    expect(s.clientFrames(), 'nothing sent while it is carried').toHaveLength(0);
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await waitFor(() => expect(sent(s)).toEqual([['selectCard', card]]));
+  });
+
+  it('let go back over its graveyard, it goes home and nothing is sent', async () => {
+    const { s, canvas, card, pile, myBattlefield } = await inGraveyard();
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(pile.hasAttribute('data-cancel-hint'), 'no cancel cue over the table').toBe(false);
+    fireEvent.pointerMove(pile, { clientX: 20, clientY: 20 });
+    expect(pile.hasAttribute('data-cancel-hint'), 'the cancel cue is on its own pile').toBe(true);
+    fireEvent.pointerUp(pile, { clientX: 20, clientY: 20 });
+    expect(pile.hasAttribute('data-cancel-hint')).toBe(false);
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
+  it('a selection that names the graveyard card is answered as before, never lifted', async () => {
+    const { s, canvas, card } = await inGraveyard();
+    s.send(selectables([card], 1, 1));
+    await waitFor(() => expect(canvas.querySelector(`[data-board-card="${card}"][data-selectable]`)).not.toBeNull());
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBeNull();
+    fireEvent.pointerUp(cardEl(canvas, card), { clientX: 10, clientY: 10 });
+  });
+});
+
+/*
  * Forge can open a SELECTION that itself NAMES a hand card —
  * `InputSelectEntitiesFromList`'s "reveal a Faerie?", a discard-from-hand
  * choice, any `InputSelectEntitiesFromList`/`InputSelectTargets` over the
