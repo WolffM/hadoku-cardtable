@@ -1,0 +1,17 @@
+# Cryptic Command at a spell on the stack (the operator, 2026-10-11). Seat 1
+# (ai keys) has an uncontested Main Phase 1 and a free creature to cast; seat
+# 0 (human keys) holds Cryptic Command and exactly the mana for it, so once
+# Memnite is on the stack seat 0 counters it and draws ("choose two").
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Cryptic Command
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
