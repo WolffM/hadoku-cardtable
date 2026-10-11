@@ -288,6 +288,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  declaringBlockers,
   declaringCombat,
   dismissReveal,
   genuinelyAsked,
@@ -1396,6 +1397,16 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
 }
 
 /* ── A payment is a question (wave 25 §C.2) ──────────────────────────── */
+
+/**
+ * The pop-up's OK while the seat declares attackers or blockers says what pressing it does —
+ * Forge's own label there is a bare "OK", which read as unclear in play.
+ */
+function combatDoneLabel(match: LiveMatch): string | null {
+  if (declaringAttackers(match)) return 'Done Attacking';
+  if (declaringBlockers(match)) return 'Done Blocking';
+  return null;
+}
 
 /**
  * The payment window: Forge's own message, and Forge's own two labels.
@@ -2849,7 +2860,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <ConfirmPrompt
             testId="live-decision"
             message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null)}
-            button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
+            button1={decisionOk ? { label: combatDoneLabel(match) ?? bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
           />
         </div>

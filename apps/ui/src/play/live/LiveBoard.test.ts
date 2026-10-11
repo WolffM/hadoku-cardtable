@@ -2329,7 +2329,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     expect(m.buttons!.label2, 'Forge still sent it — we simply do not offer it').toBe('Alpha Strike');
     expect(getByTestId('live-buttons').textContent).not.toContain('Alpha Strike');
     expect(getByTestId('live-decision').textContent).not.toContain('Alpha Strike');
-    expect(getByTestId('live-decision-ok').textContent, 'done declaring is the pop-up’s OK').toBe('OK');
+    expect(getByTestId('live-decision-ok').textContent, 'done declaring says what it does').toBe('Done Attacking');
 
     // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now
     //    and it sends `Call Back` — item 16 refuses this one too, on the operator's

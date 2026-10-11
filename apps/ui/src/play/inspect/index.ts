@@ -117,8 +117,8 @@ import './inspect.css';
 /** A card's height over its width — the 488 × 680 proportion `card.css` draws. */
 export const CARD_TALL = 680 / 488;
 
-/** How wide the enlarged card wants to be, in px (≈ the draft tile's 190px, larger). */
-export const PREF_W = 264;
+/** How wide the enlarged card wants to be, in px. */
+export const PREF_W = 330;
 
 /** Breathing room between the enlarged card and everything it must not touch. */
 export const GAP = 8;

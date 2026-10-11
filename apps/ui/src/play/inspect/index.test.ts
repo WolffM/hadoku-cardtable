@@ -243,7 +243,7 @@ describe('opening', () => {
       // panel is pushed to the pop-up's RIGHT instead of its (blocked) left.
       expect(shown!.style.left).toBe('908px');
       expect(shown!.style.top).toBe('250px');
-      expect(shown!.style.width).toBe('264px');
+      expect(parseFloat(shown!.style.width)).toBeCloseTo(1200 - 8 - 908, 6);
     } finally {
       live.remove();
     }
@@ -271,8 +271,9 @@ describe('opening', () => {
     expect(shown!.querySelector('.card__name')!.textContent).toBe('Think Twice');
     // The view's left has no room (125 px), so the view's RIGHT: 729 + GAP.
     expect(shown!.style.left).toBe('737px');
-    expect(shown!.style.top).toBe('400px');
-    expect(shown!.style.width).toBe('264px');
+    // A taller panel than the card's own top allows: it rises to stay inside the overlay.
+    expect(parseFloat(shown!.style.top)).toBeCloseTo(800 - 8 - 330 * (680 / 488), 6);
+    expect(shown!.style.width).toBe('330px');
   });
 
   it('opens for a prompt-grid tile outside the board root', () => {

@@ -28,7 +28,7 @@ describe('placeInspector', () => {
   it('opens to the right of the hovered card, a GAP clear of it, when there is room', () => {
     const hover: Rect = { left: 600, top: 240, right: 650, bottom: 310 };
     const spot = placeInspector(hover, BOARD, null);
-    expect(spot).toEqual({ left: 658, top: 240, width: 264 });
+    expect(spot).toEqual({ left: 658, top: 240, width: PREF_W });
     expect(spot.left).toBe(hover.right + GAP);
     expect(spot.top, 'top edges line up').toBe(hover.top);
   });
@@ -39,7 +39,7 @@ describe('placeInspector', () => {
     // only shifted left as little as needed.
     const hover: Rect = { left: 1000, top: 100, right: 1050, bottom: 150 };
     const spot = placeInspector(hover, BOARD, null);
-    expect(spot).toEqual({ left: 728, top: 100, width: 264 });
+    expect(spot).toEqual({ left: hover.left - GAP - PREF_W, top: 100, width: PREF_W });
     expect(spot.left + spot.width, 'a GAP clear of the card').toBe(hover.left - GAP);
   });
 
@@ -47,7 +47,7 @@ describe('placeInspector', () => {
     const narrow: Rect = { left: 0, top: 0, right: 300, bottom: 800 };
     const hover: Rect = { left: 250, top: 100, right: 290, bottom: 150 };
     const spot = placeInspector(hover, narrow, null);
-    expect(spot.left).toBe(28);
+    expect(spot.left).toBe(narrow.right - GAP - spot.width);
     expect(spot.left).toBeGreaterThanOrEqual(narrow.left + GAP);
     expect(spot.left + spot.width).toBeLessThanOrEqual(narrow.right - GAP);
   });
@@ -135,7 +135,7 @@ describe('placeInspector', () => {
     });
 
     it('is unchanged for every ordinary case — the fix only applies when the hovered card is past the hand’s own top', () => {
-      const farHand: Rect = { left: 0, top: 500, right: 1200, bottom: 800 };
+      const farHand: Rect = { left: 0, top: 600, right: 1200, bottom: 800 };
       const hover: Rect = { left: 100, top: 100, right: 150, bottom: 150 };
       expect(hover.top).toBeLessThan(farHand.top);
       const spot = placeInspector(hover, BOARD, farHand);
@@ -222,7 +222,9 @@ describe('placeBesideModal avoids the hovered card too', () => {
     const modal: Rect = { left: 600, top: 200, right: 900, bottom: 500 };
     const hover: Rect = { left: 340, top: 250, right: 580, bottom: 380 };
     const spot = placeBesideModal(hover, modal, AREA);
-    expect(spot).toEqual({ left: 908, top: 250, width: PREF_W });
+    // The right slot is narrower than the preferred width: the panel takes what is there.
+    expect({ left: spot.left, top: spot.top }).toEqual({ left: 908, top: 250 });
+    expect(spot.width).toBeCloseTo(Math.min(PREF_W, AREA.right - GAP - 908), 6);
     expect(spot.left).toBe(modal.right + GAP);
     expect(overlaps(spot, modal)).toBe(false);
     expect(overlaps(spot, hover)).toBe(false);

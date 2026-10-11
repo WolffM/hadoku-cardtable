@@ -31,7 +31,7 @@
   /* Above every other layer, the control bar and prompts included (`--z-zoom` in `styles.css`). */
   z-index: var(--z-zoom, 60);
   /* The floor; `index.ts` sets the real width inline from the placement math. */
-  width: 16.5rem;
+  width: 20.625rem;
   /* Never the element under the pointer — see the header. */
   pointer-events: none;
 }
