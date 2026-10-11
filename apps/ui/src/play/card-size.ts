@@ -10,10 +10,24 @@
  * single source of truth for card sizes" — a squeezed window drew a released
  * card a size step larger: the stack layer's own hardcoded `6.5rem`).
  *
- * The measure is a probe column laid out by the row's own grid, the same
- * `li.board-card` the row draws, removed in the same call.
+ * The measure is a card the row already draws: its used width
+ * (`getComputedStyle`, which a lift's `scale` or a tap's rotation never
+ * changes). Only a row with no card in it yet is measured with a probe column,
+ * a `li.board-card` laid out by the row's own grid and removed in the same
+ * call — never while a card is there to read: appending and removing the probe
+ * costs two layouts of the whole board, and the layers that draw a dragged
+ * card measure on every move (the operator, 2026-10-10: "the game has become a
+ * bit more laggy … i notice it mostly when draging cards around").
  */
+function drawnWidth(card: HTMLElement | null): number | null {
+  if (card === null) return null;
+  const width = Number.parseFloat(getComputedStyle(card).width);
+  return width > 0 ? width : null;
+}
+
 export function cardWidthIn(list: HTMLElement): number | null {
+  const drawn = drawnWidth(list.querySelector<HTMLElement>(':scope > li.board-card'));
+  if (drawn !== null) return drawn;
   const probe = document.createElement('li');
   probe.className = 'board-card';
   probe.style.visibility = 'hidden';
@@ -25,9 +39,12 @@ export function cardWidthIn(list: HTMLElement): number | null {
   return width > 0 ? width : null;
 }
 
-/** The card width on one seat's battlefield — null before the board has drawn one. */
+/** The card width on one seat's battlefield — any card it draws, else its first row's — null before the board has drawn one. */
 export function battlefieldCardWidth(root: ParentNode, owner: 'you' | 'them'): number | null {
-  const list = root.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="${owner}"] .zone__cards`);
+  const zone = `[data-zone="battlefield"][data-owner="${owner}"]`;
+  const drawn = drawnWidth(root.querySelector<HTMLElement>(`${zone} .zone__cards > li.board-card`));
+  if (drawn !== null) return drawn;
+  const list = root.querySelector<HTMLElement>(`${zone} .zone__cards`);
   return list === null ? null : cardWidthIn(list);
 }
 

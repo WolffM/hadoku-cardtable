@@ -29,6 +29,19 @@ describe('one source of truth for a card’s size (the operator, 2026-10-09)', (
     expect(battlefieldCardWidth(canvas, 'them')).toBe(64);
   });
 
+  it('reads a card the battlefield already draws, in any of its rows, and adds nothing to any row to do it', () => {
+    const canvas = board();
+    const rows = canvas.querySelectorAll<HTMLElement>('.zone__cards');
+    rows[1]!.innerHTML = '<li class="board-card" style="width: 71px"></li>';
+    const added: Node[] = [];
+    const watch = new MutationObserver((records) => added.push(...records.flatMap((r) => [...r.addedNodes])));
+    watch.observe(canvas, { childList: true, subtree: true });
+    expect(battlefieldCardWidth(canvas, 'them')).toBe(71);
+    watch.takeRecords().forEach((r) => added.push(...r.addedNodes));
+    watch.disconnect();
+    expect(added, 'no probe column was appended').toEqual([]);
+  });
+
   it('null before the board has drawn a battlefield', () => {
     expect(battlefieldCardWidth(document.createElement('div'), 'you')).toBeNull();
   });
