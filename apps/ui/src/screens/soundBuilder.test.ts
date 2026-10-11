@@ -22,6 +22,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 
 import { SoundBuilder } from './SoundBuilder.tsx';
 import { promptGist } from './SoundQueue.tsx';
+import type { SoundTake } from '@hadoku/shared';
 import type { Assignments, SoundsClient } from '../sound/builderClient.ts';
 
 afterEach(() => cleanup());
@@ -51,7 +52,7 @@ type Saved = { cell: string; files: string[]; gain?: number };
 
 function stubClient(
   assignments: Omit<Assignments, 'gains'> & { gains?: Record<string, number> },
-  takes = [TAKE_A, TAKE_B],
+  takes: SoundTake[] = [TAKE_A, TAKE_B],
 ): SoundsClient & { saves: Saved[]; retires: { file: string; reason: string }[]; marked: { file: string; mark: string | null }[] } {
   const saves: Saved[] = [];
   const retires: { file: string; reason: string }[] = [];
@@ -391,6 +392,25 @@ describe('SoundBuilder', () => {
       fireEvent.click(screen.getByTestId('sound-queue-skip'));
       expect(current()).not.toBe(third);
       expect(client.saves).toEqual([]);
+    });
+
+    it('a filled cell with a new take comes up with its current takes to hear, and Place adds beside them', async () => {
+      const fresh = { ...TAKE_A, file: 'g.tap/take-v1-7100.ogg', label: 'Tap · 1a', section: 'Moments' as const };
+      const kept = { ...TAKE_B, file: 'g.tap/take-1.ogg', label: 'Tap · 1', section: 'Moments' as const };
+      const cellsWithEveryOtherFilled = { 'g.tap|play': [kept.file] };
+      const client = stubClient({ cells: cellsWithEveryOtherFilled, canEdit: true }, [fresh, kept]);
+      await openQueue(client);
+      // Skip to it: the order is random.
+      for (let i = 0; i < 200 && current() !== 'g.tap|play'; i++) fireEvent.keyDown(document, { key: 's' });
+      expect(current()).toBe('g.tap|play');
+      expect(screen.getByTestId('sound-queue-current').textContent).toContain('Tap · 1');
+      expect(files()).toEqual([fresh.file]);
+      fireEvent.keyDown(document, { key: '1' });
+      fireEvent.keyDown(document, { key: ' ' });
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'Enter' });
+      });
+      expect(client.saves).toEqual([{ cell: 'g.tap|play', files: [kept.file, fresh.file] }]);
     });
 
     it('Delete throws out the take last heard, logged as bad (Shift: broken), and it leaves the choice', async () => {

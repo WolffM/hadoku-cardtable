@@ -37,6 +37,8 @@ const MIN_CHOICES = 3;
 
 export interface QueueItem {
   cell: string;
+  /** The cell already has takes: what is offered is new candidates to add beside them. */
+  filled?: boolean;
   /** "Draw", "Boros spell", "Island". */
   title: string;
   /** The role's line, or the colour row's. */
@@ -51,35 +53,55 @@ function colourTitle(rowName: string, paradigm: string, row: string): string {
   return `${rowName} ${p.toLowerCase()}`;
 }
 
-/** Every cell with nothing in it, in the order the queue serves them. */
-export function emptyCells(cells: Readonly<Record<string, readonly string[]>>): QueueItem[] {
-  const empty = (cell: string): boolean => (cells[cell] ?? []).length === 0;
+/** Every cell the queue can serve — the roles but music, then the colour matrix — in the registry's order. */
+function everyCell(): QueueItem[] {
   const out: QueueItem[] = [];
   for (const group of SOUND_ROLE_GROUPS) {
     for (const role of group.roles) {
-      if (role.bus === 'music') continue;
-      const cell = `${role.id}|play`;
-      if (empty(cell)) out.push({ cell, title: role.name, sub: role.sub });
+      if (role.bus !== 'music') out.push({ cell: `${role.id}|play`, title: role.name, sub: role.sub });
     }
   }
   for (const family of FAMILY_ORDER) {
     for (const row of SOUND_MATRIX.colour.filter((r) => r.family === family)) {
       for (const p of SOUND_MATRIX.paradigms) {
-        if (!rowHasParadigm(row.id, p.id)) continue;
-        const cell = `${row.id}|${p.id}`;
-        if (empty(cell)) out.push({ cell, title: colourTitle(row.name, p.id, row.id), sub: row.sub });
+        if (rowHasParadigm(row.id, p.id)) out.push({ cell: `${row.id}|${p.id}`, title: colourTitle(row.name, p.id, row.id), sub: row.sub });
       }
     }
   }
   return out;
 }
 
+/** Every cell with nothing in it, in the registry's order. */
+export function emptyCells(cells: Readonly<Record<string, readonly string[]>>): QueueItem[] {
+  return everyCell().filter((i) => (cells[i.cell] ?? []).length === 0);
+}
+
+/**
+ * What the queue serves: every empty cell, and every filled cell that has new
+ * candidates — takes made for it and placed nowhere (2026-10-11: the takes
+ * nobody placed were retired, so an unplaced take of a cell's own is a new
+ * round's). A filled one is marked, and its picks are added, not swapped in.
+ */
+export function queueCells(cells: Readonly<Record<string, readonly string[]>>, takes: readonly SoundTake[]): QueueItem[] {
+  const placed = new Set(Object.values(cells).flat());
+  return everyCell().flatMap((i) => {
+    if ((cells[i.cell] ?? []).length === 0) return [i];
+    return freshFor(i.cell, takes, placed).length > 0 ? [{ ...i, filled: true }] : [];
+  });
+}
+
 /**
  * The queue as it is served: the empty cells, with the ones skipped this
  * session moved to the back in the order they were skipped.
  */
-export function queueOrder(cells: Readonly<Record<string, readonly string[]>>, skipped: readonly string[], seed?: number): QueueItem[] {
-  const all = seed === undefined ? emptyCells(cells) : shuffled(emptyCells(cells), seed);
+export function queueOrder(
+  cells: Readonly<Record<string, readonly string[]>>,
+  skipped: readonly string[],
+  seed?: number,
+  takes?: readonly SoundTake[],
+): QueueItem[] {
+  const items = takes === undefined ? emptyCells(cells) : queueCells(cells, takes);
+  const all = seed === undefined ? items : shuffled(items, seed);
   const later = new Set(skipped);
   const back = skipped.map((c) => all.find((i) => i.cell === c)).filter((i): i is QueueItem => i !== undefined);
   return [...all.filter((i) => !later.has(i.cell)), ...back];
@@ -140,8 +162,13 @@ function rankFor(cell: string, folder: string): number | null {
  * nowhere first, then library takes to make a real choice where little was
  * made for it.
  */
-export function candidatesFor(cell: string, takes: readonly SoundTake[], placed: ReadonlySet<string>): SoundTake[] {
-  const ranked = takes
+/** A cell's own takes (not the library fill) that are placed nowhere: what a filled cell is offered. */
+export function freshFor(cell: string, takes: readonly SoundTake[], placed: ReadonlySet<string>): SoundTake[] {
+  return ranked(cell, takes, placed).filter((t) => !placed.has(t.file)).slice(0, QUEUE_CHOICES);
+}
+
+function ranked(cell: string, takes: readonly SoundTake[], placed: ReadonlySet<string>): SoundTake[] {
+  return takes
     .map((t) => ({ t, rank: rankFor(cell, folderOf(t)) }))
     .filter((x): x is { t: SoundTake; rank: number } => x.rank !== null)
     .sort(
@@ -152,7 +179,10 @@ export function candidatesFor(cell: string, takes: readonly SoundTake[], placed:
         a.t.file.localeCompare(b.t.file),
     )
     .map((x) => x.t);
-  const out = ranked.slice(0, QUEUE_CHOICES);
+}
+
+export function candidatesFor(cell: string, takes: readonly SoundTake[], placed: ReadonlySet<string>): SoundTake[] {
+  const out = ranked(cell, takes, placed).slice(0, QUEUE_CHOICES);
   if (out.length < MIN_CHOICES) {
     const library = takes.filter((t) => t.section === 'Library' && !placed.has(t.file) && !out.includes(t));
     // A stable spread over the library, so each cell gets its own few rather than the first ones every time.

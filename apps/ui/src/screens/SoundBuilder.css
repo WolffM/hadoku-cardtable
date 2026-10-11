@@ -695,3 +695,11 @@ a.sound-builder__btn {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* A filled cell's current takes in the queue, to hear beside the new candidates. */
+.sound-queue__current {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}

@@ -1,0 +1,117 @@
+{
+ "note": "Round 5b (2026-10-11): soft ethereal whooshes and swells. The operator: \"we don't have enough 'soundscape etheral wooshing' type stuff, that would be good to get for many things like hovering cards/buttons and moving things around also\", and not happy with the turn start sound.",
+ "suffix": "Fantasy card game sound effect, soft, airy and ethereal, one smooth gesture that swells and fades, clean. High-quality, stereo, 44.1kHz.",
+ "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, song, beat, drums, speech, voice, vocals, harsh, loud, repeated hits",
+ "seconds": 3.0,
+ "sounds": {
+  "g.turn-mine": {
+   "group": "Turn and game",
+   "name": "Your turn",
+   "prompts": [
+    "A soft ethereal swell rising like a breath of wind, an airy shimmer opening up",
+    "A gentle magical whoosh that blooms into a soft glittering haze",
+    "A slow airy rise of wind and faint chimes, dreamy and calm"
+   ]
+  },
+  "g.turn-theirs": {
+   "group": "Turn and game",
+   "name": "Their turn",
+   "prompts": [
+    "A soft ethereal swell falling away, an airy breath drifting into the distance",
+    "A low gentle whoosh of wind passing by, hushed and far",
+    "A dim airy shimmer that sinks and fades, calm"
+   ]
+  },
+  "ui.hover-card": {
+   "group": "Interface",
+   "name": "Hover a card",
+   "seconds": 2.0,
+   "prompts": [
+    "The faintest airy whoosh, a soft breath of wind past a card",
+    "A tiny ethereal shimmer, a whisper of sparkle",
+    "A soft short swish of air, very gentle"
+   ]
+  },
+  "ui.hover-control": {
+   "group": "Interface",
+   "name": "Hover a button",
+   "seconds": 2.0,
+   "prompts": [
+    "A tiny soft airy puff, barely there",
+    "A faint short glassy shimmer, a whisper",
+    "A very soft breathy swish"
+   ]
+  },
+  "ui.lift": {
+   "group": "Interface",
+   "name": "Pick up a card",
+   "seconds": 2.0,
+   "prompts": [
+    "A soft rising whoosh, a card lifted into the air on a breath of wind",
+    "A light airy upward swish with a faint shimmer",
+    "A gentle ethereal lift, a short rising breath"
+   ]
+  },
+  "ui.place": {
+   "group": "Interface",
+   "name": "Put a card down",
+   "seconds": 2.0,
+   "prompts": [
+    "A soft falling whoosh settling into a gentle pat",
+    "A light airy downward swish landing softly",
+    "A gentle ethereal settle, a breath of air easing down"
+   ]
+  },
+  "ui.target": {
+   "group": "Interface",
+   "name": "Target locks",
+   "seconds": 2.0,
+   "prompts": [
+    "A quick airy whoosh that resolves into a soft glassy ping",
+    "A short ethereal sweep closing in on a point, a faint shimmer"
+   ]
+  },
+  "ui.inspect": {
+   "group": "Interface",
+   "name": "Inspect",
+   "seconds": 2.0,
+   "prompts": [
+    "A soft airy swell, something drawn closer, a faint shimmer",
+    "A gentle magical whoosh opening up, dreamy"
+   ]
+  },
+  "g.draw": {
+   "group": "Cards moving",
+   "name": "Draw",
+   "seconds": 2.0,
+   "prompts": [
+    "A soft airy swish, a card pulled through the air",
+    "A light ethereal whoosh with a whisper of paper"
+   ]
+  },
+  "g.bounce": {
+   "group": "Cards moving",
+   "name": "Returned to hand",
+   "prompts": [
+    "A reversed airy whoosh, something drawn back on the wind",
+    "A soft swirling gust pulling away, ethereal"
+   ]
+  },
+  "g.exile": {
+   "group": "Cards moving",
+   "name": "Exile",
+   "prompts": [
+    "An ethereal whoosh dissolving into shimmering nothing",
+    "A soft airy vacuum swell, something fading into the void"
+   ]
+  },
+  "g.transform": {
+   "group": "On the battlefield",
+   "name": "Transform",
+   "prompts": [
+    "A swirling ethereal whoosh, a shimmer turning inside out",
+    "A soft magical swell spinning into a glittering burst"
+   ]
+  }
+ }
+}

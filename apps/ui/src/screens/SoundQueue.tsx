@@ -21,7 +21,7 @@ import { Icon } from '@wolffm/themes';
 
 import type { RetireReason, SoundMark, SoundTake } from '@hadoku/shared';
 
-import { candidatesFor, queueOrder } from '../sound/queue.ts';
+import { candidatesFor, freshFor, queueOrder } from '../sound/queue.ts';
 
 /** A prompt without the generator's stock tail ("High-quality, stereo, 44.1kHz, sound effect."); the full one is the tooltip. */
 export function promptGist(prompt: string): string {
@@ -45,7 +45,8 @@ export function SoundQueue({ takes, cells, placed, play, marks, markHandlers, pl
   const [skipped, setSkipped] = useState<string[]>([]);
   // Drawn once per visit to the tab: random, but still for the session (see `queue.ts`).
   const [seed] = useState(() => Math.floor(Math.random() * 2 ** 32));
-  const queue = useMemo(() => queueOrder(cells, skipped, seed), [cells, skipped, seed]);
+  const offered = useMemo(() => takes.filter((t) => marks[t.file] !== 'trash'), [takes, marks]);
+  const queue = useMemo(() => queueOrder(cells, skipped, seed, offered), [cells, skipped, seed, offered]);
   const item = queue[0];
   return item === undefined ? (
     <p className="sound-queue__done" data-testid="sound-queue-done">
@@ -58,14 +59,12 @@ export function SoundQueue({ takes, cells, placed, play, marks, markHandlers, pl
       title={item.title}
       sub={item.sub}
       left={queue.length}
-      choices={candidatesFor(
-        item.cell,
-        takes.filter((t) => marks[t.file] !== 'trash'),
-        placed,
-      )}
+      choices={item.filled === true ? freshFor(item.cell, offered, placed) : candidatesFor(item.cell, offered, placed)}
+      current={(cells[item.cell] ?? []).flatMap((f) => takes.filter((t) => t.file === f))}
       markHandlers={markHandlers}
       play={play}
-      onPlace={(files) => place(item.cell, files)}
+      // A filled cell keeps what it has: the picks are added beside it.
+      onPlace={(files) => place(item.cell, [...(cells[item.cell] ?? []), ...files.filter((f) => !(cells[item.cell] ?? []).includes(f))])}
       onSkip={() => setSkipped((s) => [...s.filter((c) => c !== item.cell), item.cell])}
       retire={retire}
     />
@@ -74,6 +73,8 @@ export function SoundQueue({ takes, cells, placed, play, marks, markHandlers, pl
 
 interface QueueItemViewProps {
   cell: string;
+  /** The takes the cell already has, to hear beside the new ones; empty for an empty cell. */
+  current: SoundTake[];
   title: string;
   sub: string;
   left: number;
@@ -86,7 +87,7 @@ interface QueueItemViewProps {
 }
 
 /** One cell's turn. Keyed by the cell, so picks and the last-heard take start fresh for each. */
-function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip, retire, markHandlers }: QueueItemViewProps) {
+function QueueItemView({ cell, current, title, sub, left, choices, play, onPlace, onSkip, retire, markHandlers }: QueueItemViewProps) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [heard, setHeard] = useState<string | null>(null);
 
@@ -148,6 +149,15 @@ function QueueItemView({ cell, title, sub, left, choices, play, onPlace, onSkip,
         {title}
       </h2>
       <p className="sound-queue__sub">{sub}</p>
+      {current.length > 0 && (
+        <div className="sound-queue__current" data-testid="sound-queue-current">
+          {current.map((t) => (
+            <button key={t.file} type="button" className="sound-builder__pill" title={t.prompt} onClick={() => play(t.file)}>
+              ▶ {t.label}
+            </button>
+          ))}
+        </div>
+      )}
       <ol className="sound-queue__choices">
         {choices.map((t, i) => (
           <li key={t.file} className="sound-queue__card" data-picked={picked.has(t.file) ? '' : undefined}>

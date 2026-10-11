@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SoundTake } from '@hadoku/shared';
 
-import { candidatesFor, emptyCells, queueOrder, QUEUE_CHOICES } from './queue.ts';
+import { candidatesFor, emptyCells, freshFor, queueCells, queueOrder, QUEUE_CHOICES } from './queue.ts';
 
 function take(file: string, section: SoundTake['section'] = 'Moments'): SoundTake {
   return { file, sound: file, name: file, group: 'g', section, label: file, seconds: 1, prompt: 'p' };
@@ -36,6 +36,24 @@ describe('the queue’s order', () => {
     const q = queueOrder({}, ['ui.select|play', 'ui.hover-card|play']);
     expect(q.slice(-2).map((i) => i.cell)).toEqual(['ui.select|play', 'ui.hover-card|play']);
     expect(q[0]!.cell).toBe('ui.hover-control|play');
+  });
+});
+
+describe('a filled cell with new candidates (2026-10-11)', () => {
+  const cells = { 'g.tap|play': ['g.tap/take-1.ogg'], 'g.draw|play': ['m-draw/take-1.ogg'] };
+  const takes = [take('g.tap/take-1.ogg'), take('g.tap/take-v1-7100.ogg'), take('m-draw/take-1.ogg'), take('lib-owl/take-1.ogg', 'Library')];
+
+  it('is served beside the empty cells, marked filled; a filled cell with nothing new is not', () => {
+    const q = queueCells(cells, takes);
+    expect(q.find((i) => i.cell === 'g.tap|play')).toMatchObject({ filled: true, title: 'Tap' });
+    expect(q.some((i) => i.cell === 'g.draw|play')).toBe(false);
+    expect(q.find((i) => i.cell === 'ui.select|play')?.filled).toBeUndefined();
+    expect(queueOrder(cells, [], 1, takes).some((i) => i.cell === 'g.tap|play')).toBe(true);
+  });
+
+  it('is offered only its own takes placed nowhere — never the library fill, never what it already has', () => {
+    const placed = new Set(Object.values(cells).flat());
+    expect(freshFor('g.tap|play', takes, placed).map((t) => t.file)).toEqual(['g.tap/take-v1-7100.ogg']);
   });
 });
 
