@@ -1738,7 +1738,9 @@ const ARRANGING: Arranging = { enabled: true };
  * Settled at dispatch: *colour may never be the only signal*. So each state
  * carries a marker glyph and a weight of its own as well as an ink, and the
  * badge says the whole thing in words in its accessible name. The glyphs are
- * geometry, not typography that might not render: `▲` and `▼`.
+ * geometry, not typography that might not render: `▲` and `▼`. Damaged
+ * toughness takes no glyph: its other signal is the whole badge's own danger
+ * rule and tint (`data-damage`, `card.css`).
  */
 const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = {
   buffed: '▲',
@@ -1775,6 +1777,9 @@ function Loyalty({ entry }: { entry: BoardCard }) {
 /**
  * A creature's power and toughness, as the operator asked for them (#12, #18):
  * *"3 (blue) / 1 (red)"* — the current power, and what is LEFT of the toughness.
+ * Damage is drawn here and nowhere else: a 4/5 Tarmogoyf dealt 3 reads `4/2`,
+ * the 2 in the danger ink with no marker (the operator, 2026-10-11, *"just show
+ * 4/2(red)"*), and its accessible name says the toughness and the damage.
  *
  * `adapter.ts`'s `boardPT` decides what the numbers mean; this draws them. It
  * is the board's own badge rather than the tile's `.card__stat`, because the art
@@ -1820,11 +1825,13 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
     state === 'buffed'
       ? `${what} ${value}, up from ${what === 'power' ? pt.printed?.power : pt.printed?.toughness}`
       : state === 'hurt'
-        ? `${what} ${value}, ${pt.damage > 0 && what === 'toughness' ? `${pt.damage} damage marked` : 'down'}`
-        : `${what} ${value}`;
+        ? `${what} ${value}, down`
+        : state === 'damaged'
+          ? `${what} ${value + pt.damage}, ${pt.damage} damage marked`
+          : `${what} ${value}`;
   const number = (value: number, state: PTState, which: string) => (
     <span className="board-card__pt-n" data-pt-state={state === 'plain' ? undefined : state} data-pt-of={which}>
-      {state === 'plain' ? null : <span aria-hidden="true">{PT_MARK[state]}</span>}
+      {state === 'buffed' || state === 'hurt' ? <span aria-hidden="true">{PT_MARK[state]}</span> : null}
       {value}
     </span>
   );

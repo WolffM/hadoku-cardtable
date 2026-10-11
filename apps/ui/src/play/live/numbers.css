@@ -3,8 +3,8 @@
  * a hit, in the overlay root (`[data-board-overlay]`, `pointer-events: none`
  * — nothing here can ever be the element under a pointer). Theme tokens only:
  * `--danger`/`--danger-ink` for a loss (life down, a hit — damage only ever
- * draws a loss; a cleanup wipe is not drawn, see `.board-number__pill`
- * below), `--success`/`--success-ink` for a life gain, `--ink-faint` for the
+ * draws a loss; a cleanup wipe is not drawn — damage that stays is the P/T
+ * badge's, `card.css`), `--success`/`--success-ink` for a life gain, `--ink-faint` for the
  * struck-through old life value, `--bg` for every number's own outline.
  *
  * `numbers.ts` places each `.board-number` at its anchor's centre (`left`/
@@ -117,31 +117,4 @@
 
 [data-testid='life'][data-number-life-colour='success'] {
   color: var(--success-ink);
-}
-
-/*
- * The pill: damage that stays on a creature, beside its P/T corner, until
- * cleanup (`numbers.ts`'s `syncPills`). A standing fact, not an event — no
- * rise, no fade-in, no animation at all; it simply exists while `left`/`top`
- * (set fresh every call) say it should, and is removed outright otherwise.
- * `--danger`/`--danger-ink`/`--bg` only, the same three the rest of this
- * file draws with. No text but the number.
- */
-.board-number__pill {
-  position: absolute;
-  z-index: 3;
-  transform: translate(-50%, -50%);
-  min-width: 10px;
-  padding: 1px 4px;
-  border: 1px solid var(--danger);
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--danger-ink);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.3;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: none;
 }

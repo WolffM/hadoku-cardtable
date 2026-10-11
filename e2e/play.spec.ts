@@ -1720,7 +1720,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         // whenever each item first appeared. The text itself (a card's own name/rules) would match either way —
         // only the row's ORDER could not — so this excludes them for the same "not restored exactly" reason.
         const presence = Array.from(
-          board.querySelectorAll<HTMLElement>('.presence, .board-number, .board-number__pill, .placed, .placed__arrow'),
+          board.querySelectorAll<HTMLElement>('.presence, .board-number, .placed, .placed__arrow'),
         );
         const shown = presence.map((el) => el.style.display);
         for (const el of presence) el.style.display = 'none';

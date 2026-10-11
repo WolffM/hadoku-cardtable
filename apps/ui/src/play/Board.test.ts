@@ -2770,11 +2770,11 @@ describe('power and toughness on the board (#12, #18)', () => {
   it('draws the operator’s case: a 1/2 with +2/+2 that has taken 3 reads 3 / 1', () => {
     const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
     expect(badge(container, 21)).toEqual({
-      text: '▲3/▼1',
-      label: 'power 3, up from 1, toughness 1, 3 damage marked',
+      text: '▲3/1',
+      label: 'power 3, up from 1, toughness 4, 3 damage marked',
       of: ['power', 'toughness'],
-      states: ['buffed', 'hurt'],
-      marks: ['▲', '▼'],
+      states: ['buffed', 'damaged'],
+      marks: ['▲', null],
     });
   });
 
@@ -2806,19 +2806,37 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(badge(container, 99)!.states).toEqual([undefined, undefined]);
   });
 
-  it('marks a shrunk creature hurt, and a damaged one hurt without a base at all', () => {
+  it('marks a shrunk creature hurt, and a damaged one damaged without a base at all', () => {
     const shrunk = renderBoard(urchin(0, 1, 0, { power: 1, toughness: 2 }));
     expect(badge(shrunk.container, 21)!.states).toEqual(['hurt', 'hurt']);
     expect(badge(shrunk.container, 21)!.text).toBe('▼0/▼1');
+    expect(badge(shrunk.container, 21)!.label).toBe('power 0, down, toughness 1, down');
     cleanup();
     const hurt = renderBoard(urchin(1, 3, 2, null));
     expect(badge(hurt.container, 21), 'damage alone is enough: it needs no printed base').toEqual({
-      text: '1/▼1',
-      label: 'power 1, toughness 1, 2 damage marked',
+      text: '1/1',
+      label: 'power 1, toughness 3, 2 damage marked',
       of: ['power', 'toughness'],
-      states: [undefined, 'hurt'],
-      marks: [null, '▼'],
+      states: [undefined, 'damaged'],
+      marks: [null, null],
     });
+  });
+
+  it('draws the operator’s Tarmogoyf: a 4/5 dealt 3 reads 4/2, the 2 red and unmarked (printed */1+* is no base)', () => {
+    const { container } = renderBoard(urchin(4, 5, 3, null));
+    expect(badge(container, 21)).toEqual({
+      text: '4/2',
+      label: 'power 4, toughness 5, 3 damage marked',
+      of: ['power', 'toughness'],
+      states: [undefined, 'damaged'],
+      marks: [null, null],
+    });
+  });
+
+  it('never double-marks damage on a creature also shrunk below its printed base: damaged wins, unmarked', () => {
+    // A printed 1/3 at -0/-1 (1/2) with 1 damage: what is left is 1, drawn once, as damage.
+    const { container } = renderBoard(urchin(1, 2, 1, { power: 1, toughness: 3 }));
+    expect(badge(container, 21)).toMatchObject({ text: '1/1', states: [undefined, 'damaged'], marks: [null, null] });
   });
 
   it('says the damage in the badge instead of a second time in a chip', () => {
@@ -2840,16 +2858,20 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(container.querySelectorAll('.board-card__pt')).toHaveLength(3);
   });
 
-  it('never carries meaning in colour alone: every state has a marker and words', () => {
+  it('never carries meaning in colour alone: every state has a marker or the damage badge, and words', () => {
     const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
     for (const n of container.querySelectorAll<HTMLElement>('[data-card-id="21"] > .board-card__pt .board-card__pt-n')) {
       const state = n.dataset.ptState;
       if (state === undefined) continue;
+      if (state === 'damaged') {
+        expect(n.closest<HTMLElement>('.board-card__pt')!.dataset.damage, 'damaged: the whole badge wears the damage rule').toBe('3');
+        continue;
+      }
       expect(n.querySelector('[aria-hidden="true"]')!.textContent, `${state} has a marker glyph`).toMatch(/[▲▼]/);
     }
-    // The stylesheet pairs the ink with a weight, so the two states differ
+    // The stylesheet pairs the ink with a weight, so the states differ
     // without a colour too.
-    for (const state of ['buffed', 'hurt']) {
+    for (const state of ['buffed', 'hurt', 'damaged']) {
       const rule = new RegExp(`\\.board-card__pt-n\\[data-pt-state='${state}'\\] \\{([^}]*)\\}`).exec(withoutComments(CARD_CSS));
       expect(rule, `${state} has a rule`).not.toBeNull();
       expect(rule![1], `${state} sets a colour`).toMatch(/color:/);
@@ -3569,7 +3591,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     const hit = renderBoard(withState({ damage: 2 }));
     const badge = card(hit.container).querySelector<HTMLElement>('.board-card__pt')!;
     expect(badge.dataset.damage, 'the badge says it was hit').toBe('2');
-    expect(badge.querySelector('[data-pt-of="toughness"]')!.getAttribute('data-pt-state')).toBe('hurt');
+    expect(badge.querySelector('[data-pt-of="toughness"]')!.getAttribute('data-pt-state')).toBe('damaged');
     cleanup();
     // A land: no power, no toughness, and damage marked on it anyway.
     const land = renderBoard(withState({ damage: 3 }, 25));

@@ -555,7 +555,7 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
     expect(pt.power, 'the current power').toBe(3);
     expect(pt.toughness, 'what is LEFT of the toughness').toBe(1);
     expect(pt.powerState, 'blue: above its printed 1').toBe('buffed');
-    expect(pt.toughnessState, 'red: damage is marked').toBe('hurt');
+    expect(pt.toughnessState, 'red: damage is marked').toBe('damaged');
     expect(pt.printed).toEqual({ power: 1, toughness: 2 });
     expect(pt.damage).toBe(3);
   });

@@ -17,7 +17,6 @@ import {
   POP_MS,
   POP_THRESHOLD,
   RISE_MS,
-  PILL_OFFSET_PX,
   STACK_OFFSET_PX,
   STACK_STAGGER_MS,
   TICK_STEP_MS,
@@ -409,72 +408,19 @@ describe('installNumbers: damage', () => {
   });
 });
 
-describe('installNumbers: the damage pill', () => {
-  it('a damaged battlefield creature gets a pill beside its P/T corner, holding just the number', () => {
+describe('installNumbers: damage that stays is the badge’s, not this layer’s', () => {
+  it('once a hit’s own number has risen, nothing of it is left in the overlay', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 2)] }), player(1, 20)]));
-
-    const pill = overlay.querySelector<HTMLElement>('.board-number__pill')!;
-    expect(pill, 'a standing pill, distinct from the rising number').not.toBeNull();
-    expect(pill.textContent, 'no text but the number').toBe('2');
-    // Beside the P/T corner's centre (312, 408 — see the damage test above): half its own 24px
-    // width plus `PILL_OFFSET_PX` to the left, same vertical centre.
-    expect(pill.style.left).toBe(`${312 - 12 - PILL_OFFSET_PX}px`);
-    expect(pill.style.top).toBe('408px');
-    handle.dispose();
-  });
-
-  it('the pill outlives the floating number’s own rise, updates in place as damage keeps changing, and never duplicates', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 2)] }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)]));
+    expect(overlay.querySelectorAll('.board-number'), 'the hit rises').toHaveLength(1);
     vi.advanceTimersByTime(RISE_MS);
-    expect(overlay.querySelectorAll('.board-number'), 'the floating number is gone').toHaveLength(0);
-    expect(overlay.querySelector('.board-number__pill')!.textContent, 'the pill is a standing fact, not an animation').toBe('2');
-
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 5)] }), player(1, 20)]));
-    const pills = overlay.querySelectorAll<HTMLElement>('.board-number__pill');
-    expect(pills, 'still exactly one pill for this card — updated, not duplicated').toHaveLength(1);
-    expect(pills[0]!.textContent).toBe('5');
-    handle.dispose();
-  });
-
-  it('a cleanup wipe removes the pill, and leaving the battlefield removes it too', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)]));
-    expect(overlay.querySelector('.board-number__pill'), 'damaged: the pill is up').not.toBeNull();
-
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    expect(overlay.querySelector('.board-number__pill'), 'cleared at cleanup: the pill is gone').toBeNull();
-
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 4)] }), player(1, 20)]));
-    expect(overlay.querySelector('.board-number__pill'), 'damaged again: the pill is back').not.toBeNull();
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [], graveyard: [card(7, 4)] }), player(1, 20)]));
-    expect(overlay.querySelector('.board-number__pill'), 'left the battlefield: gone, even though it is still damaged in the graveyard').toBeNull();
+    expect(overlay.children, 'still damaged, and no standing element beside the P/T badge').toHaveLength(0);
     handle.dispose();
-  });
-
-  it('dispose tears down every standing pill', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)]));
-    expect(overlay.querySelector('.board-number__pill')).not.toBeNull();
-    handle.dispose();
-    expect(overlay.querySelector('.board-number__pill')).toBeNull();
   });
 });
 

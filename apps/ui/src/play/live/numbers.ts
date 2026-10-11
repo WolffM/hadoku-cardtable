@@ -22,28 +22,17 @@
  * (`Board.tsx`'s own face markup; `data-viewer` on that element is also how
  * this module tells a graveyard's owner apart — `you` or `them`). A damage
  * number lands on that card's `.board-card__pt` — the same badge
- * `PowerToughness` already draws and already colours hurt (`card.css`); this
+ * `PowerToughness` already draws, which is where damage that STAYS is drawn
+ * (what is left of the toughness, in the danger ink, until cleanup); this
  * module draws only the TRANSIENT number, never the badge itself, which is
  * React's and stays exactly as it is.
  *
- * ## The pill: damage that stays
- *
- * A hit's floating number rises and fades like any other, but damage marked
- * is a FACT that outlives it — `syncPills`, called on every `notify`, keeps
- * one small pill beside `.board-card__pt` for every battlefield creature
- * `view.players[].battlefield[].damage` currently reports above zero,
- * holding just the number. It is re-anchored off the P/T corner's own box
- * every call (so it moves with the card, a resize or a rearrange needs no
- * separate handling), and removed the moment damage reads zero (a cleanup
- * wipe) or the card is no longer on a battlefield at all — never animated,
- * because it is not an event, it is a standing fact.
- *
  * ## The theme, not a colour of our own
  *
- * `--danger`/`--danger-ink` for a loss (life down, a hit) and for the pill,
- * `--success`/`--success-ink` for a life gain, `--bg` for every number's
- * and the pill's own outline. No other colour exists here. A cleanup wipe (damage
- * decreasing) is not drawn at all — it only ever removes the pill.
+ * `--danger`/`--danger-ink` for a loss (life down, a hit),
+ * `--success`/`--success-ink` for a life gain, `--bg` for every number's own
+ * outline. No other colour exists here. A cleanup wipe (damage decreasing) is
+ * not drawn at all.
  *
  * ## Life's counter
  *
@@ -95,8 +84,6 @@ export const LIFE_COLOUR_MS = 1500;
 /** Half of `RISE_MS` — the number's own halfway point, where a dying creature's number turns toward the graveyard. */
 export const DEATH_FADE_START_MS = RISE_MS / 2;
 export const DEATH_FADE_MS = 420;
-/** How far left of the P/T corner's own centre the damage pill sits, beyond half the corner's own width — the gap plus the pill's own, roughly constant, half-width. */
-export const PILL_OFFSET_PX = 10;
 
 /* ── pure: diffing two views ──────────────────────────────────────────── */
 
@@ -263,8 +250,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * `DamageChange` is applied; read, once, by the death it may precede.
    */
   const lastSeenBox = new Map<number, DOMRect>();
-  /** The one standing pill per damaged battlefield creature — `syncPills`'s own. */
-  const pills = new Map<number, HTMLElement>();
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
   const fast = (): boolean => host.fastMode?.() ?? false;
@@ -403,8 +388,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (at === null) continue;
       lastSeenBox.set(change.cardId, at.getBoundingClientRect());
       const delta = change.to - change.from;
-      // A decrease is a cleanup wipe, never a hit: it is not an event of its own, only the pill
-      // (`syncPills`) catching up to the fact that there is less — or no — damage marked now.
+      // A decrease is a cleanup wipe, never a hit: not an event of its own — the badge already
+      // reads less (or no) damage marked now.
       if (delta <= 0) continue;
       spawn({ anchorKey: `card:${change.cardId}`, at, kind: 'damage', delta });
     }
@@ -426,56 +411,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
   }
 
-  /**
-   * The standing pill layer: one per battlefield creature currently carrying
-   * damage, re-anchored off `.board-card__pt`'s own box every call — a card
-   * that moved (a rearrange, a resize) is caught the same way a card that
-   * is simply still there is, because this reads current boxes, never a
-   * remembered one. Present while `damage > 0`; removed the instant that
-   * stops being true, whether because it cleared (a cleanup wipe) or the
-   * card left the battlefield (including dying — `ptEl` resolves nothing
-   * once the real badge is unmounted, so the pill for an id this sweep did
-   * not see this time is dropped below).
-   */
-  function syncPills(view: BoardView): void {
-    const root = overlay();
-    if (root === null) return;
-    const box = root.getBoundingClientRect();
-    const current = battlefieldDamage(view);
-    for (const [cardId, pill] of pills) {
-      const info = current.get(cardId);
-      if (info === undefined || info.damage <= 0) {
-        pill.remove();
-        pills.delete(cardId);
-      }
-    }
-    for (const [cardId, info] of current) {
-      if (info.damage <= 0) continue;
-      const at = ptEl(cardId);
-      if (at === null) continue; // the card's own P/T badge is not rendered (yet, or this frame)
-      let pill = pills.get(cardId);
-      if (pill === undefined) {
-        pill = document.createElement('div');
-        pill.className = 'board-number__pill';
-        pill.setAttribute('aria-hidden', 'true');
-        root.append(pill);
-        pills.set(cardId, pill);
-      }
-      pill.textContent = String(info.damage);
-      const ptRect = at.getBoundingClientRect();
-      const pos = centreIn(at, box, -(ptRect.width / 2 + PILL_OFFSET_PX));
-      pill.style.left = `${pos.x}px`;
-      pill.style.top = `${pos.y}px`;
-    }
-  }
-
   return {
     notify(view: BoardView) {
       if (!live) return;
       const diff = diffViews(prevView, view);
       prevView = view;
       apply(diff);
-      syncPills(view);
     },
     dispose() {
       live = false;
@@ -484,8 +425,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       overlay()
         ?.querySelectorAll('.board-number')
         .forEach((el) => el.remove());
-      for (const pill of pills.values()) pill.remove();
-      pills.clear();
       // The colour sits on the seat bar's own life span, outside the overlay —
       // the one piece of this module that reaches into markup it does not own.
       canvas.querySelectorAll<HTMLElement>('[data-testid="life"][data-number-life-colour]').forEach((el) => {

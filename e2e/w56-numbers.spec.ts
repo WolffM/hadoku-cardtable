@@ -7,7 +7,8 @@
  * so from a REAL match, on both screens at once, from the two scenarios this
  * directory already has that fit: `bolt-player` (a player losing life to a
  * direct hit) and `w54-b-two-blockers` (a blocked attacker's damage, which
- * survives — the P/T-corner case, and the persistent damage pill beside it).
+ * survives — the P/T-corner case; the damage that stays is the badge's own,
+ * proven in `w70-damage-pt.spec.ts`).
  *
  * A life-GAIN proof (a "Healing Salve spawns +3" case) has no scenario to
  * drive it from: every `.state` file in `scenarios/` was grepped for a hand
@@ -42,14 +43,12 @@ async function currentNumber(page: Page): Promise<{ text: string; colour: string
   });
 }
 
-/** The one standing damage pill currently drawn, if any — its text and its own box, read in one pass. */
-async function currentPill(page: Page): Promise<{ text: string; box: { x: number; y: number } } | null> {
-  return page.evaluate(() => {
-    const el = document.querySelector('.board-number__pill');
-    if (el === null) return null;
-    const r = el.getBoundingClientRect();
-    return { text: el.textContent ?? '', box: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
-  });
+/** A card's P/T badge text and damage mark, read in one pass. */
+async function badgeOf(page: Page, cardId: number): Promise<{ text: string; damage: string | null } | null> {
+  return page.evaluate((id) => {
+    const el = document.querySelector(`[data-card-id="${id}"] > .board-card__pt`);
+    return el === null ? null : { text: el.textContent ?? '', damage: el.getAttribute('data-damage') };
+  }, cardId);
 }
 
 /** The hand card of this name that Forge offers, by id — the pattern every scenario-driven spec in this directory uses. */
@@ -220,33 +219,28 @@ test(
       console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'blocked-damage', number })}`);
       expect(number!.text, 'Wall of Stone took 1 from the 1/1 attacker').toBe('-1');
       expect(number!.colour).toBe('danger');
-      await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'the blocker survived — the pill case, not the dying one').toHaveCount(1);
+      await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'the blocker survived — the damage-stays case, not the dying one').toHaveCount(1);
       const blockerBox = (await alice.page.locator(`[data-board-card="${blockerX}"] .board-card__pt`).boundingBox())!;
       expect(
         Math.hypot(number!.box.x - (blockerBox.x + blockerBox.width / 2), number!.box.y - (blockerBox.y + blockerBox.height / 2)),
         'at the P/T corner, not somewhere else on the card',
       ).toBeLessThan(150);
 
-      // The damage stays on the creature: a pill beside its P/T corner, holding just the number.
-      const pill = await currentPill(alice.page);
-      console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'pill-present', pill })}`);
-      expect(pill, 'the pill is up beside the Wall’s P/T, surviving past the floating number’s own rise').not.toBeNull();
-      expect(pill!.text, 'holding the current damage, 1').toBe('1');
-      expect(
-        Math.hypot(pill!.box.x - (blockerBox.x + blockerBox.width / 2), pill!.box.y - (blockerBox.y + blockerBox.height / 2)),
-        'beside the P/T corner, not drifting off the card',
-      ).toBeLessThan(80);
+      // The damage stays on the creature, on its own badge: Wall of Stone's 0/8 reads 0/7.
+      const damaged = await badgeOf(alice.page, blockerX);
+      console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'badge-damaged', damaged })}`);
+      expect(damaged, 'the badge holds the damage: what is left of the toughness').toEqual({ text: '0/7', damage: '1' });
 
       // Keep passing alice's own held priority (full control holds every stop) forward through
       // end of combat, main 2 and the end step, until the turn's cleanup wipes the damage off —
       // a turn-based action, never a priority stop of its own, so what this waits for is the
-      // pill's own removal, not a named phase. T6: `board.ts`'s own `grindPriority`.
-      await grindPriority([alice.page, bob.page], async () => (await alice.page.locator('.board-number__pill').count()) === 0, {
+      // badge's own damage mark going away, not a named phase. T6: `board.ts`'s own `grindPriority`.
+      await grindPriority([alice.page, bob.page], async () => (await badgeOf(alice.page, blockerX))?.damage === null, {
         intervalMs: 60,
       });
-      const pillAfterCleanup = await currentPill(alice.page);
-      console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'pill-after-cleanup', pillAfterCleanup })}`);
-      expect(pillAfterCleanup, 'cleanup wiped the damage off: the pill is gone').toBeNull();
+      const afterCleanup = await badgeOf(alice.page, blockerX);
+      console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'badge-after-cleanup', afterCleanup })}`);
+      expect(afterCleanup, 'cleanup wiped the damage off: a plain 0/8').toEqual({ text: '0/8', damage: null });
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();

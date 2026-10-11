@@ -183,7 +183,9 @@
  * **Colour is never the only signal.** Each state carries three: an ink, a
  * heavier weight, and a marker glyph (`▲` / `▼`, drawn by `Board.tsx` and hidden
  * from the accessible name because the name says it in words). Read with no
- * colour at all, `▲3 / ▼1` still says buffed and hurt.
+ * colour at all, `▲3 / ▼1` still says buffed and hurt. Damaged toughness is
+ * the one without a glyph (the operator: *"just show 4/2(red)"*): the whole
+ * badge's danger rule and tint below are its other signal.
  *
  * Out of flow, clipped to the card, and `pointer-events: none`: it may not
  * change a card's box and it may not eat a click Forge offered.
@@ -240,6 +242,11 @@
   font-weight: 700;
 }
 
+.board-card__pt-n[data-pt-state='damaged'] {
+  color: var(--danger-ink);
+  font-weight: 700;
+}
+
 /* The marker, a shade smaller than the number it qualifies. */
 .board-card__pt-n[data-pt-state] > span {
   font-size: 8px;
@@ -247,7 +254,7 @@
 
 /*
  * Damage, finished (wave 28 §A.15). The badge already drew the toughness that is
- * LEFT, in the hurt ink with its marker; what it did not do was say at a glance
+ * LEFT, in the danger ink; what it did not do was say at a glance
  * that the card had been hit — that was the `3 damage` chip's job, and the chip
  * is gone. So the badge itself reads hurt when damage is marked: the hurt ink on
  * its rule and a tint behind it, over whatever art is underneath.

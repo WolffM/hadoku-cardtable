@@ -288,8 +288,12 @@ export interface BoardCardRelation {
 /** Every relation kind the board draws a pill for. See `RELATION_PROPS`. */
 export type RelationKind = 'hauntedBy' | 'haunting' | 'encoded' | 'imprinted' | 'chosen' | 'mustBlock';
 
-/** How one of a card's two numbers stands against its printed base. */
-export type PTState = 'buffed' | 'hurt' | 'plain';
+/**
+ * How one of a card's two numbers stands: against its printed base (`buffed`,
+ * `hurt`, `plain`), or — toughness only — `damaged`, which wins over the
+ * printed comparison because the number drawn is already what is left.
+ */
+export type PTState = 'buffed' | 'hurt' | 'damaged' | 'plain';
 
 /** What the board draws for a creature's power and toughness. */
 export interface BoardPT {
@@ -309,10 +313,12 @@ export interface BoardPT {
  * 3 (blue) / 1 (red)*.
  *
  * Power is Forge's current power; toughness is what is LEFT of it, current less
- * damage marked. A number is `buffed` when it is above the printed base,
- * `hurt` when damage is marked or it is below the base, and `plain` when
- * nothing is known — which is what a card our data has never heard of always
- * gets, because an unknown base may not be drawn as a buff.
+ * damage marked. Toughness with damage marked is `damaged` and nothing else —
+ * the operator, 2026-10-11, of a 4/5 Tarmogoyf dealt 3: *"just show 4/2(red)"*.
+ * Otherwise a number is `buffed` when it is above the printed base, `hurt` when
+ * below it, and `plain` when nothing is known — which is what a card our data
+ * has never heard of always gets, because an unknown base may not be drawn as a
+ * buff.
  *
  * `null` for anything without both numbers: not a creature, or a creature whose
  * face carried no P/T.
@@ -331,7 +337,7 @@ export function boardPT(entry: BoardCard): BoardPT | null {
     power,
     toughness,
     powerState: against(power, printed?.power),
-    toughnessState: damage > 0 ? 'hurt' : against(toughness, printed?.toughness),
+    toughnessState: damage > 0 ? 'damaged' : against(toughness, printed?.toughness),
     printed,
     damage,
   };
