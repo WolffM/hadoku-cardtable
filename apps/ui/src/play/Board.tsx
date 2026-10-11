@@ -399,6 +399,7 @@ import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
+import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
@@ -2286,11 +2287,7 @@ function CardOnBoard({
          * source — nothing else to change there.
          */}
         {entry.hidden === true ? (
-          /*
-           * A card this seat may not see: its back, at the card's own size. It is a `.card` so the
-           * inspector enlarges it like any face, and carries the tile's own id the same way.
-           */
-          <span className="card card-back" data-card-id={entry.card.cardId} data-card-back="" role="img" aria-label={entry.card.name} />
+          <HiddenCard card={entry.card} />
         ) : (
           <CardTile card={entry.card} liveText={entry.abilityText} />
         )}

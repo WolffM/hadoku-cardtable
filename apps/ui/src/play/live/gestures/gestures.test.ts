@@ -45,6 +45,7 @@ import { Board } from '../../Board.tsx';
 // `PENDING_PLACEMENTS` or its hit-testing — this file's job is "did G call
 // the seam right", never "did B's geometry answer right".
 import * as BoardModule from '../../Board.tsx';
+import * as CastModule from './cast.ts';
 import {
   answerAsk,
   attackAssignment,
@@ -2746,6 +2747,35 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(arrived.hasAttribute('data-cast-lift'), 'the card in the row is never lifted out of it').toBe(false);
     await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(arrived.hasAttribute('data-cast-landing')).toBe(false);
+  });
+
+  it('with motion on, a creature put on the stack while its stand-in glides into the gap is handed over where the stand-in comes to rest', async () => {
+    // Lane U's caster telemetry (w67-shaman): handed over mid-glide, the stack card was drawn 2–4 px
+    // from where the stand-in stood.
+    // The row's reserved gap, which this board draws no layout for.
+    const spy = vi
+      .spyOn(CastModule, 'expectedGapBox')
+      .mockReturnValue({ left: 500, top: 280, width: 60, height: 84, right: 560, bottom: 364, x: 500, y: 280, toJSON: () => ({}) } as DOMRect);
+    try {
+      const { s, m, canvas, card, rest, battlefield } = await play(() => true);
+      const ghost = await waitFor(() => {
+        const g = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+        expect(g.style.left, 'gliding into the gap').toBe('530px');
+        return g;
+      });
+      s.send(zones({ Hand: rest, Battlefield: battlefield }));
+      s.send(stackItem(9101, card));
+      s.send(stackIs([9101]));
+      await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+      const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
+      expect(placed.style.left, 'drawn where the stand-in comes to rest').toBe('530px');
+      expect(placed.hasAttribute('data-placed-pending'), 'but hidden while the stand-in is still on its way').toBe(true);
+      expect(ghost.isConnected, 'the stand-in is what is drawn meanwhile').toBe(true);
+      await waitFor(() => expect(ghost.isConnected).toBe(false), { timeout: GLIDE_MS + 1000 });
+      expect(placed.hasAttribute('data-placed-pending'), 'shown the moment the stand-in goes').toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('§S: once the spell is really on the stack, live/placed.ts draws it at the park point and the ghost hands off to it', async () => {

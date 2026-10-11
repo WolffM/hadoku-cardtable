@@ -92,6 +92,7 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { PLACEMENT_WAIT_MS } from '../motion.ts';
+import { HiddenCard } from '../HiddenCard.tsx';
 import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
@@ -139,10 +140,11 @@ interface Placement {
 /** One record per stack item, by its stack id — module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
 const placements = new Map<number, Placement>();
 /**
- * Their spells (by CARD id) whose point is on its way: `presence.ts`'s back is still gliding into
- * its gap and hands over where it comes to rest. Such a spell stays hidden past `PLACED_PENDING_MS`
- * — drawn at the default spot meanwhile, it stood beside the back until the hand-over (w67-shaman).
- * Ended by `placeSpell` or `releaseSpell`; never past `PLACEMENT_WAIT_MS`.
+ * Spells (by CARD id) whose stand-in is still gliding into its gap: the stack card stays hidden until
+ * the stand-in comes to rest and hands over there — on their screen `presence.ts`'s back (drawn at the
+ * default spot meanwhile, it stood beside the back, w67-shaman), on the caster's own
+ * `gestures/install.ts`'s parked ghost (drawn at once, it took over 2–4 px short of the gap). Ended
+ * by `placeSpell` or `releaseSpell`; never past `PLACEMENT_WAIT_MS`.
  */
 const holds = new Map<number, number>();
 /** Releases not yet on the stack, by CARD id — promoted into `placements` once their stack item appears. */
@@ -218,12 +220,12 @@ export function placeStackItem(id: number, at: Point, side: 'you' | 'them', glid
   register(placements, id, at, side, glide);
 }
 
-/** Keep their spell `cardId` hidden until its point arrives — see `holds`. */
+/** Keep the spell `cardId` hidden until its stand-in hands it over — see `holds`. */
 export function holdSpell(cardId: number): void {
   holds.set(cardId, Date.now() + PLACEMENT_WAIT_MS);
 }
 
-/** The point is not coming after all (the wait ended without a hand-over): draw it as any other. */
+/** The hand-over is now, or not coming after all: draw it as any other. */
 export function releaseSpell(cardId: number): void {
   if (holds.delete(cardId)) requestRepaint();
 }
@@ -415,7 +417,9 @@ function deferUnmount(root: Root | null): void {
 
 function faceNode(item: StackEntry): ReactElement | null {
   if (item.isAbility) return abilityChip(item);
-  return item.sourceCard === null ? null : createElement(CardTile, { card: item.sourceCard });
+  if (item.sourceCard === null) return null;
+  // A face-down spell of theirs: the same back a hidden card is in every zone (and the inspector's).
+  return item.sourceHidden === true ? createElement(HiddenCard, { card: item.sourceCard }) : createElement(CardTile, { card: item.sourceCard });
 }
 
 /**
@@ -427,8 +431,8 @@ function faceNode(item: StackEntry): ReactElement | null {
 function abilityChip(item: StackEntry): ReactElement {
   const art = item.sourceCard === null ? null : cardImageUrl(item.sourceCard.scryfallId);
   const name = item.sourceName ?? item.sourceCard?.name ?? '';
-  // Forge's description leads with the source's own name ("Eternal Witness - When …"): the band says that already.
-  const text = name !== '' && item.description.startsWith(`${name} - `) ? item.description.slice(name.length + 3) : item.description;
+  // The ability's own words (`abilityTextOf`): its targets are its arrows and its accessible name.
+  const text = item.abilityText ?? item.description;
   return createElement(
     'div',
     { className: 'placed__chip', 'data-ability-chip': '' },
@@ -812,16 +816,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       sizeAsBattlefieldCard(d.el, cardWidth);
       if (d.isAbility) squareChip(d, cardWidth, overlayBox);
       d.targetStackItemId = item.targetStackItemId ?? null;
-      const held = record === undefined && d.pendingUntil !== null ? heldUntil(item.sourceCardId) : null;
-      // Held past its window: looked at again when the hold runs out (`placeSpell`/`releaseSpell` repaint sooner).
-      if (held !== null && Date.now() >= d.pendingUntil! && d.holdCheckAt !== held) {
+      const held = item.isAbility ? null : heldUntil(item.sourceCardId);
+      // Held: looked at again when the hold runs out (`placeSpell`/`releaseSpell` repaint sooner).
+      if (held !== null && d.holdCheckAt !== held) {
         d.holdCheckAt = held;
         schedule(render, held - Date.now() + 1);
       }
-      if (d.pendingUntil !== null && (record !== undefined || (held === null && Date.now() >= d.pendingUntil))) {
-        d.pendingUntil = null;
-        d.el.removeAttribute('data-placed-pending');
-      }
+      if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) d.pendingUntil = null;
+      d.el.toggleAttribute('data-placed-pending', held !== null || d.pendingUntil !== null);
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
       const resolved = positionOf(item, d.el, taken, overlayBox);
       if (resolved === null) return;

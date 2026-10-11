@@ -60,6 +60,8 @@ function stackItem(id: number, opts: Partial<StackEntry> = {}): StackEntry {
     targetCardIds: opts.targetCardIds ?? [],
     targetPlayerIds: opts.targetPlayerIds ?? [],
     targetStackItemId: opts.targetStackItemId ?? null,
+    ...(opts.abilityText === undefined ? {} : { abilityText: opts.abilityText }),
+    ...(opts.sourceHidden === undefined ? {} : { sourceHidden: opts.sourceHidden }),
   };
 }
 
@@ -262,6 +264,39 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  it('my own spell, registered at its release, stays hidden while its stand-in glides on, and shows the moment the hold is let go', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    placeSpell(52, { x: 410, y: 330 }, 'you');
+    holdSpell(52);
+    handle.notify(view([stackItem(9, { sourceCardId: 52 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.hasAttribute('data-placed-pending'), 'its stand-in is still what is drawn').toBe(true);
+    expect(el.style.left, 'already where the stand-in comes to rest').toBe('410px');
+    releaseSpell(52);
+    expect(el.hasAttribute('data-placed-pending'), 'shown in the same task the stand-in goes').toBe(false);
+    handle.dispose();
+  });
+
+  it('their face-down spell is the hidden card’s own back — a card the inspector enlarges, never a face or a text tile', async () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    const hidden = { ...draftCard('Hidden card'), cardId: 'w61' };
+    placeSpell(61, { x: 400, y: 320 }, 'them');
+    commitSpell(61);
+    handle.notify(view([stackItem(4, { sourceCardId: 61, sourceCard: hidden, sourceName: 'Hidden card', sourceHidden: true, controllerName: 'Bob' })]));
+    await new Promise((r) => setTimeout(r, 0));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="4"]')!;
+    const back = el.querySelector<HTMLElement>('[data-card-back]');
+    expect(back, 'a back').not.toBeNull();
+    expect(back!.classList.contains('card'), 'the hidden card’s own, which the inspector enlarges').toBe(true);
+    expect(back!.getAttribute('data-card-id')).toBe('w61');
+    expect(back!.getAttribute('aria-label')).toBe('Hidden card');
+    expect(el.querySelector('.card__name'), 'no face').toBeNull();
+    expect(el.querySelector('.placed__text'), 'no text tile').toBeNull();
+    handle.dispose();
+  });
+
   it('their click-cast (no registration) stays a back until its art is decoded, then turns over; my own is a face at once', async () => {
     // The operator, 2026-10-09: "i really dont want a no-art card to show ever".
     const decodes: { src: string; settle: () => void }[] = [];
@@ -314,14 +349,24 @@ describe('installPlaced: drawing', () => {
     const { canvas } = board();
     setChainHalted(true);
     const handle = installPlaced(canvas);
-    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201, sourceName: 'Eternal Witness', description: 'Eternal Witness - When it enters, return target card.' })]));
+    handle.notify(
+      view([
+        stackItem(9, {
+          isAbility: true,
+          sourceCardId: 201,
+          sourceName: 'Eternal Witness',
+          description: 'When it enters, return target card. (Targeting: [[Lightning Bolt (12)]]) [Zone Changer: Eternal Witness (201)]',
+          abilityText: 'When it enters, return target card.',
+        }),
+      ]),
+    );
     // A fresh React root commits on its own clock — one macrotask (see the flip test above).
     await new Promise((r) => setTimeout(r, 0));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el.querySelector('[data-ability-chip]'), 'the chip').not.toBeNull();
     expect(el.querySelector('.card'), 'no card face').toBeNull();
     expect(el.querySelector('.placed__chip-name')!.textContent).toBe('Eternal Witness');
-    expect(el.querySelector('.placed__chip-text')!.textContent, 'the name is not repeated in the text').toBe('When it enters, return target card.');
+    expect(el.querySelector('.placed__chip-text')!.textContent, 'the ability\'s own text, never the stack instance\'s notes').toBe('When it enters, return target card.');
     handle.dispose();
   });
 

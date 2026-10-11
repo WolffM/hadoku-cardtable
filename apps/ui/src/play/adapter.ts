@@ -445,6 +445,14 @@ export interface StackEntry {
   sourceName: string | null;
   /** The source card's full face, so the stack can draw its art. Null when the item names no card. */
   sourceCard: DraftCard | null;
+  /** This seat's wire names no source card (`BoardCard.hidden`) — a face-down spell of theirs: drawn as its back. */
+  sourceHidden?: boolean;
+  /**
+   * An ability's own words, for its chip: `abilityTextOf` — never `description`'s stack-instance
+   * notes (its targets, the object that triggered it). Absent on an entry typed out by hand: the
+   * chip reads `description` then.
+   */
+  abilityText?: string;
   controllerName: string | null;
   isAbility: boolean;
   /**
@@ -957,6 +965,52 @@ const RELATION_PROPS: readonly { key: string; kind: RelationKind; single?: true 
   { key: 'MustBlockCards', kind: 'mustBlock' },
 ];
 
+/** The index of the `close` that balances the `open` at `from`, or -1. */
+function balancedEnd(text: string, from: number, open: string, close: string): number {
+  let depth = 0;
+  for (let i = from; i < text.length; i += 1) {
+    if (text[i] === open) depth += 1;
+    else if (text[i] === close && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** `description` without Forge's stack-instance notes: its " (Targeting: …)" and a closing " […]". */
+function withoutStackNotes(description: string): string {
+  let out = description.trim();
+  const targeting = out.indexOf(' (Targeting: ');
+  const targetsEnd = targeting < 0 ? -1 : balancedEnd(out, targeting + 1, '(', ')');
+  if (targetsEnd > 0) out = `${out.slice(0, targeting)}${out.slice(targetsEnd + 1)}`.trim();
+  for (let at = out.indexOf(' ['); at >= 0; at = out.indexOf(' [', at + 1)) {
+    if (balancedEnd(out, at + 1, '[', ']') === out.length - 1) return out.slice(0, at).trim();
+  }
+  return out;
+}
+
+/**
+ * An ability's own words, for its chip on the stack. Forge's `StackItemView` carries two texts:
+ *
+ *   - `Description` (`TrackableProperty.Description`, `StackItemView.updateText` ←
+ *     `SpellAbilityStackInstance.getStackDescription()`): the stack instance's, which for a trigger
+ *     ends in Forge's own notes — `WrappedAbility.getStackDescription` appends
+ *     " (Targeting: [[Lightning Bolt (12)]])" and `Trigger.getImportantStackObjects`'s
+ *     " [Zone Changer: Eternal Witness (40)]" or " [Phase: Bella]";
+ *   - `Key` (`TrackableProperty.Key`, `StackItemView.updateKey` ← `SpellAbility.yieldKey()`, the
+ *     auto-yield key): "<card> (<id>): <text>", whose text is the trigger's own `TriggerDescription`
+ *     (`WrappedAbility.yieldKey`) or the ability's own description, cost included — the card's words.
+ *
+ * So: `Key` past its card prefix. `Description` with its notes taken off (and its leading
+ * "<card> - ", which the chip's band already names) when there is no `Key`, or when its text was
+ * never filled in — a modal trigger's "ABILITY", which also leaves "CARDNAME" in place
+ * (`Trigger.toString`).
+ */
+export function abilityTextOf(key: string | null, description: string, sourceName: string | null): string {
+  const own = (key ?? '').replace(/^.*?\(H?\d+\): /, '').trim();
+  if (own !== '' && !/\b(?:ABILITY|CARDNAME)\b/.test(own)) return own;
+  const named = sourceName !== null && description.startsWith(`${sourceName} - `) ? description.slice(sourceName.length + 3) : description;
+  return withoutStackNotes(named);
+}
+
 /** What every text that names a card this seat may not see says: never its id, never a blank. */
 export const HIDDEN_CARD_NAME = 'Hidden card';
 
@@ -1231,12 +1285,15 @@ export function toBoardView(
       ...targetCardIds.map((tid) => nameOfCard(state, tid)),
       ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
     ];
+    const description = readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`;
     return {
       id: sid,
-      description: readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`,
+      description,
       sourceCardId,
       sourceName: source?.card.name ?? null,
       sourceCard: source?.card ?? null,
+      sourceHidden: source?.hidden === true,
+      abilityText: abilityTextOf(readStr(item, 'Key'), description, source?.card.name ?? null),
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility: readBool(item, 'Ability'),
       targetCardIds,

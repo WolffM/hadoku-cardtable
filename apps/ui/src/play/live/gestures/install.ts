@@ -213,8 +213,9 @@ import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '.
 // (`placeSpell`); a drag of the viewer's own placed spell moves it
 // (`moveSpell`), which is also what tells lane W to relay it; `onSpellDrawn`
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
-import { isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem } from '../placed.ts';
+import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
+import { GLIDE_MS } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
@@ -298,6 +299,14 @@ interface Parked {
   readonly releasedAt: number;
   glideStartedAt: number | null;
   stackFrameAt: number | null;
+  /**
+   * The stand-in is still gliding into its gap: its stack card is held hidden (`holdSpell`) and the
+   * hand-over waits for the glide to end (`endGlide`) — taken mid-glide, the stack card stood 2–4 px
+   * from where the stand-in was drawn (w67-shaman's caster telemetry).
+   */
+  gliding: boolean;
+  /** The stack item drawn (hidden) while it glided, handed over when the glide ends. */
+  drawnMidGlide: number | null;
 }
 
 /** Where Forge's state holds the card now: the viewer's hand, another zone the board draws, or nowhere it draws (mid-cast). */
@@ -360,6 +369,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let parked: Parked | null = null;
   /** Running from a park until Forge shows any sign of it — `PARK_UNANSWERED_MS`. */
   let unansweredTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The parked stand-in's glide into its gap, ending at `GLIDE_MS` — see `Parked.gliding`. */
+  let glideTimer: ReturnType<typeof setTimeout> | null = null;
   /*
    * The placement preview, once per frame. `previewPlayedTo` measures every
    * slot and pile of the viewer's battlefield and then moves the indicator,
@@ -744,7 +755,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
-    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
+    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null };
     syncParkedGhost();
     // A played card's stand-in glides from the release point into the gap the row reserved for
     // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
@@ -767,6 +778,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
         ghost.style.width = `${gap.width}px`;
         ghost.style.height = `${gap.height}px`;
         me.glideStartedAt = Date.now();
+        // Its stack card, if Forge puts it there meanwhile, waits for the glide to end (`endGlide`).
+        if (options.motion?.() === true && !me.ghostHandedOff) {
+          me.gliding = true;
+          holdSpell(source);
+          glideTimer = setTimeout(() => endGlide(me), GLIDE_MS);
+        }
       });
     }
     unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
@@ -780,10 +797,28 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return { screen: 'caster', card: p.source, how, from, to, glideStartedAt: p.glideStartedAt, releasedAt: p.releasedAt, stackFrameAt: p.stackFrameAt, motion: options.motion?.() === true };
   }
 
+  /**
+   * The parked stand-in has come to rest in its gap: its stack card is shown, and when Forge has
+   * already put it there, the stand-in hands over to it in the same task — where the stand-in stands.
+   */
+  function endGlide(p: Parked): void {
+    glideTimer = null;
+    if (!p.gliding) return;
+    p.gliding = false;
+    releaseSpell(p.source);
+    if (p.drawnMidGlide !== null && parked === p) handOverToStack(p, p.drawnMidGlide);
+  }
+
   /** `parked` is over, however it ended: its clock stops and the stack draws everything again. */
   function endPark(): Parked | null {
     const p = parked;
     parked = null;
+    if (glideTimer !== null) clearTimeout(glideTimer);
+    glideTimer = null;
+    if (p !== null && p.gliding) {
+      p.gliding = false;
+      releaseSpell(p.source);
+    }
     if (unansweredTimer !== null) clearTimeout(unansweredTimer);
     unansweredTimer = null;
     carryCastOffStack(null);
@@ -1504,12 +1539,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const item = (match.view?.stack ?? []).find((i) => i.id === id);
     // Never an ABILITY entry sharing this id — see `clickOrigin`'s own note (W17).
     if (item === undefined || item.isAbility || item.sourceCardId !== parked.source) return;
-    parked.ghostHandedOff = true;
     parked.stackFrameAt = Date.now();
-    const from = drawnCentreOf(parked.ghost);
-    parked.ghost.remove();
-    reportHandover(options.report, 'handover', canvas, casterFacts(parked, 'stack', from, canvas.querySelector(`[data-placed-spell="${id}"]`)));
+    if (parked.gliding) parked.drawnMidGlide = id;
+    else handOverToStack(parked, id);
   });
+  /** The stand-in gives way to the stack card `id`, drawn where it stands. */
+  function handOverToStack(p: Parked, id: number): void {
+    if (p.ghost === null || p.ghostHandedOff) return;
+    p.ghostHandedOff = true;
+    const from = drawnCentreOf(p.ghost);
+    p.ghost.remove();
+    reportHandover(options.report, 'handover', canvas, casterFacts(p, 'stack', from, canvas.querySelector(`[data-placed-spell="${id}"]`)));
+  }
   const observer = new MutationObserver((records) => {
     if (!live) return;
     // Our own arrow and marquee live in the overlay; reacting to those would be
