@@ -1,0 +1,23 @@
+# e2e/ww-creature-state.spec.ts — three of the operator's playtest items on one board.
+# Seat 0 (human) in an uncontested Main Phase 1 of its own turn:
+#   - Grizzly Bears, untapped and non-sick: Arcane Flight ({U} Aura, "Enchanted creature gets
+#     +1/+1 and has flying") goes on it from the hand, so its flying is GRANTED, not printed.
+#   - Hill Giant, summoning sick: a creature Forge never offers to attack.
+#   - Gideon Blackblade at loyalty 4: "During your turn, Gideon Blackblade is a 4/4 Human
+#     Soldier creature with indestructible that's still a planeswalker" — a planeswalker that
+#     is a creature, from a static effect, with no activation to drive.
+#   - one Island for the Aura.
+# Seat 1 (ai) has nothing, so nothing blocks and nothing answers.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Arcane Flight
+humanbattlefield=Island;Grizzly Bears;Hill Giant|SummonSick;Gideon Blackblade|Counters:LOYALTY=4
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
