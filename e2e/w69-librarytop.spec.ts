@@ -12,11 +12,17 @@
  *      top, Plains;
  *   3. she clicks Plains and clicks her battlefield: it lands too, and both screens draw Serra Angel, which
  *      Forge does not offer (a creature cannot be cast from the top).
+ *
+ * And the same mark on any card Forge offers outside the hand — the operator, 2026-10-11: *"i played
+ * snapcaster mage and it auto-targeted serum visions. i guess thats fine but theres no indicator that that
+ * card now has flashback"*: Serum Visions is drawn as playable in her graveyard (on the board and in the
+ * opened pile view) once Snapcaster's trigger gives it flashback, never before, never on bob's screen, and
+ * casting it from there works.
  */
 import { expect, test, type Page } from '@playwright/test';
 
 import type { Friend } from './play/browser.ts';
-import { enabledOk, grindPriority, makeTitled, offeredNamed, stackCount } from './play/board.ts';
+import { castByDrag, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -133,6 +139,110 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     const offeredAngel = await offeredNamed(alice.page, 'Serra Angel');
     console.log(`[pp-top] Plains landed: battlefield Plains ${await landsOn(alice.page, 'Plains')}, life ${await life(alice.page)}; top now Serra Angel #${angel} on both screens, offered=${offeredAngel}; "Serra Angel" sent to bob ${received(bob, 'Serra Angel')}`);
     expect(offeredAngel, 'Serra Angel on top is shown, never offered').toBeUndefined();
+  } finally {
+    await stack.stop();
+  }
+});
+
+const YARD = '.seat [data-zone="graveyard"][data-owner="you"]';
+
+/** How `page` draws card `id` in `scope`: whether it is marked playable, and the ring it is drawn with. */
+const markOf = (page: Page, scope: string, id: number) =>
+  page.evaluate(
+    ({ scope, id }) => {
+      const li = document.querySelector(`${scope} [data-board-card="${id}"]`);
+      if (li === null) return null;
+      const card = li.querySelector('.card');
+      return {
+        selectable: li.hasAttribute('data-selectable'),
+        canAct: li.hasAttribute('data-can-act'),
+        ring: card === null ? 'none' : getComputedStyle(card).boxShadow,
+      };
+    },
+    { scope, id },
+  );
+
+/** The id of the card named `name` in a graveyard as `page` draws it. */
+const yardCard = (page: Page, owner: 'you' | 'them', name: string): Promise<number | null> =>
+  page
+    .locator(`.seat [data-zone="graveyard"][data-owner="${owner}"] [data-board-card]`)
+    .evaluateAll(
+      (els, n) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === n).map((e) => Number(e.getAttribute('data-board-card'))),
+      name,
+    )
+    .then((ids) => ids[0] ?? null);
+
+test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the graveyard while Forge offers it, and is cast from there'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-snapcaster');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    let snapcaster: number | undefined;
+    await expect
+      .poll(async () => (snapcaster = await handCardNamed(alice.page, 'Snapcaster Mage')), { timeout: 60_000, message: 'Snapcaster Mage is in her hand' })
+      .not.toBeUndefined();
+    await expect.poll(() => offeredNamed(alice.page, 'Snapcaster Mage'), { timeout: 60_000, message: 'alice has priority at her main phase' }).toBe(snapcaster);
+    const visions = (await yardCard(alice.page, 'you', 'Serum Visions'))!;
+    const before = await markOf(alice.page, YARD, visions);
+    console.log(`[pp-snap] before Snapcaster: Serum Visions #${visions} in alice's graveyard ${JSON.stringify(before)}`);
+    expect(before?.selectable, 'Serum Visions is not playable before Snapcaster').toBe(false);
+
+    const to = centre((await alice.page.locator(field).boundingBox())!);
+    await castByDrag(alice.page, stack, snapcaster!, to);
+    await grindPriority([alice.page, bob.page], async () => (await landsOn(alice.page, 'Snapcaster Mage')) === 1 && (await stackCount(alice.page)) === 0, {
+      timeoutMs: 60_000,
+      press: async (page) => {
+        await pressPaymentAuto(page);
+        if (/target/i.test(await says(page))) {
+          const target = page.locator(`${YARD} [data-board-card="${visions}"][data-selectable] > .board-card__face`);
+          if ((await target.count()) > 0) await target.click({ position: { x: 8, y: 6 }, timeout: 1_000 }).catch(() => undefined);
+        }
+        await passOverStack(page);
+      },
+    });
+    await expect
+      .poll(() => offeredNamed(alice.page, 'Serum Visions'), { timeout: 15_000, message: 'Forge offers Serum Visions from her graveyard once Snapcaster gave it flashback' })
+      .toBe(visions);
+    const board = await markOf(alice.page, YARD, visions);
+    const onBob = await markOf(bob.page, '.seat [data-zone="graveyard"][data-owner="them"]', visions);
+    console.log(
+      `[pp-snap] after Snapcaster: says "${(await says(alice.page)).replace(/\s+/g, ' ').trim()}"; Serum Visions on alice's board ${JSON.stringify(board)}, on bob's ${JSON.stringify(onBob)}`,
+    );
+    expect(board?.selectable, 'drawn as playable on her board').toBe(true);
+    expect(board?.ring, 'with the ring a playable hand card has').not.toBe('none');
+    expect(onBob?.selectable, "never on bob's screen").toBe(false);
+
+    const island = (await alice.page.locator(`${YARD} li[data-card-id]`).last().boundingBox())!;
+    await alice.page.mouse.click(island.x + island.width / 2, island.y + island.height - 6);
+    await expect(alice.page.getByTestId('pile-view'), 'clicking her graveyard opens its pile view').toHaveCount(1, { timeout: 5_000 });
+    const inView = await markOf(alice.page, '[data-testid="pile-view"]', visions);
+    console.log(`[pp-snap] in the opened pile view: ${JSON.stringify(inView)}`);
+    expect(inView?.selectable, 'drawn as playable in the pile view').toBe(true);
+    await alice.page.keyboard.press('Escape');
+    await expect(alice.page.getByTestId('pile-view')).toHaveCount(0, { timeout: 5_000 });
+
+    // Cast from the graveyard: picked up like a hand card and let go over the table.
+    const strip = (await alice.page.locator(`${YARD} [data-board-card="${visions}"]`).boundingBox())!;
+    await alice.page.mouse.move(strip.x + strip.width / 2, strip.y + 6);
+    await alice.page.mouse.down();
+    await alice.page.mouse.move(to.x, to.y, { steps: 10 });
+    const lifted = await alice.page.locator(`[data-board-card="${visions}"]`).getAttribute('data-cast-lift').catch(() => null);
+    await alice.page.mouse.up();
+    const exiled = () => alice.page.locator('.seat[data-viewer] [data-zone="exile"] .card__name').allTextContents();
+    await grindPriority([alice.page, bob.page], async () => (await exiled()).includes('Serum Visions') && (await stackCount(alice.page)) === 0, {
+      timeoutMs: 60_000,
+      press: async (page) => {
+        await pressPaymentAuto(page);
+        await passOverStack(page);
+      },
+    });
+    const after = await offeredNamed(alice.page, 'Serum Visions');
+    console.log(`[pp-snap] cast from the graveyard (data-cast-lift=${lifted}): alice's exile [${(await exiled()).join(', ')}], still offered=${after}`);
+    expect(lifted, 'picked up like a hand card').toBe('lifted');
+    expect(after, 'once cast it is offered no more').toBeUndefined();
   } finally {
     await stack.stop();
   }

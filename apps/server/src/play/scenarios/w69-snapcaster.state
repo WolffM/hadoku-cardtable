@@ -1,0 +1,18 @@
+# w69-snapcaster (the operator, 2026-10-11): "i played snapcaster mage and it auto-targeted serum visions.
+# i guess thats fine but theres no indicator that that card now has flashback". Alice casts Snapcaster
+# Mage at her own main phase; its trigger's one legal target is the Serum Visions under the Island in her
+# graveyard, which gains flashback. Four Islands pay Snapcaster ({1}{U}) and then the flashback ({1}{U}).
+# The Island in hand keeps the main phase a real stop.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Snapcaster Mage;Island
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=Serum Visions;Island
+aihand=
+aibattlefield=Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
