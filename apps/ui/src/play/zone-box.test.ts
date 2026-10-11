@@ -79,7 +79,7 @@ describe('a zone’s box, measured instead of queried (the operator, 2026-10-10:
   });
 
   it('measures every box board.css reads a zone size from', () => {
-    for (const selector of ['.seat > .zone--battlefield', '.seat > .zone--hand', '.zone__row', '.seat .zone--graveyard', '.seat .zone--exile', '.seat .zone--library']) {
+    for (const selector of ['.seat > .zone--battlefield', '.seat > .zone--hand', '.zone__row', '.seat .zone--graveyard', '.seat .zone--exile']) {
       expect(ZONE_BOXES.split(', ')).toContain(selector);
     }
   });

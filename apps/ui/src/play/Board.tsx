@@ -675,6 +675,14 @@ export type Arrangement = Readonly<Record<string, readonly (readonly number[])[]
 const NO_ARRANGEMENT: Arrangement = {};
 export const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${slot}`;
 
+/**
+ * The library's top card, while the seat may see it (Courser of Kruphix), is a piece of its owner's
+ * battlefield arrangement — the operator, 2026-10-11: "let's just make sure that the revealed card is
+ * movable". The store names it by this slot id rather than by its card id, so whichever card is on
+ * top takes the place the player gave the last one. No Forge id reaches it (ids are small and dense).
+ */
+export const LIBRARY_TOP_SLOT = 0x0fffffff;
+
 /** How many cards a row holds, across all its piles. */
 const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
 
@@ -876,8 +884,9 @@ function arrangementFor(key: string, viewerId: number): Arrangement {
  * duplicate a card or lose one. `data-card-id` is unique across the board and
  * three other lanes depend on that.
  */
-function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout): Grouped {
+export function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout, libraryTop?: BoardCard): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
+  if (libraryTop !== undefined) byId.set(LIBRARY_TOP_SLOT, libraryTop);
   const rows: Record<BoardRow, BoardCard[][]> = emptyRows();
   const placed = new Set<number>();
   for (const row of rowsForLayout(layout)) {
@@ -900,6 +909,7 @@ function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangem
   for (const card of cards) {
     if (!placed.has(card.id)) rows[visualRow(card, layout)].push([card]);
   }
+  if (libraryTop !== undefined && !placed.has(LIBRARY_TOP_SLOT)) rows[layout === 'single' ? 'back' : visualRow(libraryTop, layout)].push([libraryTop]);
   return withAttachments(rows, cards, layout);
 }
 
@@ -1611,6 +1621,7 @@ export function withMove(
   row: BoardRow,
   target: DropTarget,
   layout: BoardLayout,
+  libraryTopId?: number,
 ): Arrangement {
   const active = rowsForLayout(layout);
   const piles: Record<BoardRow, number[][]> = emptyRows();
@@ -1647,7 +1658,8 @@ export function withMove(
   // Trailing gaps hold no column anyone can see; only the ones between cards stay.
   for (const r of active) while (piles[r].length > 0 && piles[r][piles[r].length - 1]!.length === 0) piles[r].pop();
   const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
-  for (const r of active) next[slotKey(playerId, r)] = piles[r];
+  const stored = (id: number): number => (id === libraryTopId ? LIBRARY_TOP_SLOT : id);
+  for (const r of active) next[slotKey(playerId, r)] = piles[r].map((p) => p.map(stored));
   return next;
 }
 
@@ -2116,6 +2128,7 @@ function CardOnBoard({
   pileSize,
   depth = 0,
   inExile = false,
+  libraryTop = false,
 }: {
   entry: BoardCard;
   interaction: BoardInteraction | undefined;
@@ -2142,6 +2155,8 @@ function CardOnBoard({
    * the inspector.
    */
   inExile?: boolean;
+  /** The library's top card, drawn in its owner's back tier while the seat may see it — not a permanent. */
+  libraryTop?: boolean;
 }) {
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /** This card is one Forge already marked picked, not merely offered — see `BoardInteraction.highlighted`. */
@@ -2233,6 +2248,7 @@ function CardOnBoard({
       data-block-focus={(interaction?.blockFocus === entry.id) || undefined}
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
+      data-library-top={libraryTop || undefined}
       data-refused={interaction?.refused?.card === entry.id ? (interaction.refused.seq % 2 === 0 ? 'even' : 'odd') : undefined}
       /* Forge says this card is attached to something: not the player's doing. */
       data-attached={(entry.attachedToId ?? null) !== null || undefined}
@@ -2502,7 +2518,7 @@ function Battlefield({
   arranged: Arrangement;
   layout: BoardLayout;
 }) {
-  const grouped = group(player.battlefield, player.id, arranged, layout);
+  const grouped = group(player.battlefield, player.id, arranged, layout, player.libraryTop);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
     expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
@@ -2510,6 +2526,12 @@ function Battlefield({
       : withExpectedGap(grouped, expected.slot, expected.target);
   const rows = reserved?.rows ?? grouped;
   const isExpectedGap = (row: BoardRow, i: number): boolean => reserved !== null && expected !== undefined && expected.slot === row && reserved.index === i;
+  /**
+   * The library's top card while Forge names it is played (or chosen) by a press, as a hand card is
+   * (`live/gestures/cast.ts`), so it is not arranged then; otherwise it moves like any card here.
+   */
+  const arrangingOf = (card: BoardCard): Arranging | undefined =>
+    card.id === player.libraryTop?.id && interaction?.selectable.has(card.id) === true ? undefined : arranging;
 
   if (layout === 'single') {
     /*
@@ -2551,7 +2573,8 @@ function Battlefield({
                     key={pile[0]!.id}
                     entry={pile[0]!}
                     interaction={interaction}
-                    arranging={arranging}
+                    arranging={arrangingOf(pile[0]!)}
+                    libraryTop={pile[0]!.id === player.libraryTop?.id}
                     slot={tier}
                     pile={pile}
                     pileSize={pile.length}
@@ -2611,7 +2634,8 @@ function Battlefield({
                   key={pile[0]!.id}
                   entry={pile[0]!}
                   interaction={interaction}
-                  arranging={arranging}
+                  arranging={arrangingOf(pile[0]!)}
+                  libraryTop={pile[0]!.id === player.libraryTop?.id}
                   slot={row}
                   pile={pile}
                   pileSize={pile.length}
@@ -3018,14 +3042,9 @@ function PlayerArea({
          * the counts, with everything they leave (wave 32 Q9). The opponent's column
          * is the vertical mirror (`board.css`, `column-reverse`): exile strip,
          * graveyard, counts, avatar nearest the centre. Graveyard first: it is the
-         * one that fills up, and the one that gets the space. Above it, against the
-         * counts, the library's top card while this seat may see it (Courser of
-         * Kruphix, Future Sight): one face, drawn and offered like any card.
+         * one that fills up, and the one that gets the space.
          */}
         <div className="seat__piles">
-          {player.libraryTop !== undefined && (
-            <Zone owner={player.name} ownerSide={side} zone="library" label="Library" cards={[player.libraryTop]} interaction={interaction} />
-          )}
           <Zone
             owner={player.name}
             ownerSide={side}
@@ -3528,18 +3547,19 @@ export function Board({
     // Never reached — `slot` narrows `withMove`'s own `BoardRow` for the type checker, the
     // runtime fact being that `useArrangeDrag` never starts a drag from a hand card at all.
     if (slot === 'hand') return;
-    if (!viewer.battlefield.some((c) => c.id === cardId)) return;
+    if (!viewer.battlefield.some((c) => c.id === cardId) && viewer.libraryTop?.id !== cardId) return;
     setArranged(
       key,
       viewer.id,
       withMove(
-        group(viewer.battlefield, viewer.id, arranged, boardLayout),
+        group(viewer.battlefield, viewer.id, arranged, boardLayout, viewer.libraryTop),
         viewer.id,
         arranged,
         cardId,
         slot,
         target,
         boardLayout,
+        viewer.libraryTop?.id,
       ),
     );
     redraw();
@@ -3589,7 +3609,16 @@ export function Board({
             : player.battlefield.find((c) => !before.has(c.id));
       if (card === undefined) continue;
       PENDING_PLACEMENTS.delete(player.id);
-      next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);
+      next = withMove(
+        group(player.battlefield, player.id, next, boardLayout, player.libraryTop),
+        player.id,
+        next,
+        card.id,
+        pending.slot,
+        pending.target,
+        boardLayout,
+        player.libraryTop?.id,
+      );
       changed = true;
       if (player.id === viewer?.id) ownChanged = true;
     }

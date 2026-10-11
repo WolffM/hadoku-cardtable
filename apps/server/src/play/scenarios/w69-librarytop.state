@@ -3,15 +3,15 @@
 # like at the moment there is nothing at all?" Alice has Courser of Kruphix and Exploration (two land drops)
 # at her own main phase. Her library's top three are Mountain, Plains, Serra Angel: Forge lets every player
 # look at the top one (Courser's MayLookAt$ Player) and offers her the two lands from it, one after the
-# other. Bob has no Courser: his library stays hidden from both screens. The Island in hand keeps the main
-# phase a real stop.
+# other. Bob has no Courser: his library stays hidden from both screens. Divination in hand ({2}{U}, draws
+# two) keeps the main phase a real stop and later reveals the card two under Serra Angel.
 turn=1
 activeplayer=human
 activephase=MAIN1
 humanlife=20
 ailife=20
-humanhand=Island
-humanbattlefield=Forest;Forest;Forest;Courser of Kruphix;Exploration
+humanhand=Divination
+humanbattlefield=Forest;Forest;Forest;Island;Courser of Kruphix;Exploration
 humanlibrary=Mountain;Plains;Serra Angel;Swamp;Swamp;Swamp
 humangraveyard=
 aihand=

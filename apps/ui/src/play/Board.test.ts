@@ -34,7 +34,9 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   commitHandMove,
   forgetArrangements,
   forgetPendingPlacements,
+  group,
   handOrder,
+  LIBRARY_TOP_SLOT,
   notePlayedTo,
   previewPlayedTo,
   showPlacementColumns,
@@ -1659,7 +1661,7 @@ describe('the seat’s vertical bar (#9)', () => {
     const pile = zone(viewer.id, 'graveyard');
     expect(pile.hasAttribute('data-can-act')).toBe(true);
     expect(zone(viewer.id, 'exile').hasAttribute('data-can-act')).toBe(false);
-    expect(declarationIn('.board .seat :is(.zone--graveyard, .zone--exile, .zone--library)[data-can-act]', 'outline')).toBe('2px solid var(--accent)');
+    expect(declarationIn('.board .seat :is(.zone--graveyard, .zone--exile)[data-can-act]', 'outline')).toBe('2px solid var(--accent)');
     fireEvent.click(pile.querySelector(`[data-board-card="${7059}"]`)!);
     const opened = [...container.querySelectorAll('[data-testid="pile-view"] [data-board-card]')].map((el) => Number(el.getAttribute('data-board-card')));
     expect(opened.length).toBe(60);
@@ -1667,17 +1669,27 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(opened[1], 'then newest first').toBe(7059);
   });
 
-  it("draws a library's top card in its own pile only while the seat may see it, and no pile otherwise", () => {
-    expect(declarationIn('.seat__piles:has(> .zone--library)', 'grid-template-rows')).toBe('auto minmax(0, 1fr) auto');
-    expect(declarationIn('.seat:not([data-viewer]) .seat__piles > .zone--library', 'grid-row'), 'against the counts in the mirror').toBe('3');
-    const hidden = renderBoard(view);
-    expect(hidden.container.querySelector('[data-zone="library"]')).toBeNull();
+  it("draws a library's top card in its owner's back tier only while the seat may see it, and keeps its place for the next one", () => {
+    const hidden = renderBoard(view, undefined, 'single');
+    expect(hidden.container.querySelector('[data-library-top]')).toBeNull();
     hidden.unmount();
-    const top = view.players[1]!.battlefield[0]!;
-    const shown = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: top } : p)) });
-    const pile = shown.zone(1, 'library');
-    expect(pile.dataset.count).toBe('1');
-    expect(pile.querySelector(`[data-board-card="${top.id}"] .card__name`)?.textContent).toBe(top.card.name);
+    const owner = view.players[1]!;
+    const top = { ...owner.battlefield[0]!, id: 8001 };
+    const withTop = (card: typeof top) => ({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: card } : p)) });
+    const shown = renderBoard(withTop(top), undefined, 'single');
+    const back = shown.zone(owner.id, 'battlefield').querySelector('[data-tier="back"]')!;
+    const ids = () => [...back.querySelectorAll(':scope > li[data-board-card]')].map((li) => Number(li.getAttribute('data-board-card')));
+    expect(ids().at(-1), 'it joins the back tier, at its end').toBe(8001);
+    expect(back.querySelector('[data-board-card="8001"]')!.hasAttribute('data-library-top')).toBe(true);
+    expect(shown.zone(owner.id, 'battlefield').dataset.count, 'not counted as a permanent').toBe(String(owner.battlefield.length));
+    shown.unmount();
+    // Moved to the front of the back tier, by the slot the store keeps for whatever is on top.
+    const first = group(owner.battlefield, owner.id, {}, 'single', top).back[0]![0]!.id;
+    const moved = withMove(group(owner.battlefield, owner.id, {}, 'single', top), owner.id, {}, 8001, 'back', { kind: 'before', id: first }, 'single', 8001);
+    expect(moved[slotKey(owner.id, 'back')]![0], 'the store names the slot, not the card').toEqual([LIBRARY_TOP_SLOT]);
+    const next = { ...top, id: 8002 };
+    expect(group(owner.battlefield, owner.id, moved, 'single', next).back[0]![0]!.id, 'the next top takes the same place').toBe(8002);
+    expect(group(owner.battlefield, owner.id, moved, 'single').back.flat().some((c) => c.id === 8002 || c.id === 8001), 'and with no top revealed it leaves the row').toBe(false);
   });
 
   it('tells ours from theirs: no visible (you); the seat says data-viewer and its accessible name says (you)', () => {
@@ -3771,20 +3783,19 @@ describe('§A.9 — a pile’s cards expand to fit their box', () => {
     // *"the graveyard is unecessarily small, i think the cards can expand to fit
     // the width of that box"*.
     /*
-     * All three piles (graveyard, exile, a library's visible top card) share one
-     * rule, so it is addressed by its LAST selector line — which is how
-     * `declarationIn` reads a multi-selector rule, and the lines are asserted to
-     * be together so "the graveyard's rule" cannot drift from the others'
-     * without this failing.
+     * Both piles share one rule, so it is addressed by its LAST selector line —
+     * which is how `declarationIn` reads a multi-selector rule, and the two lines
+     * are asserted to be together so "the graveyard's rule" cannot drift from
+     * "exile's rule" without this failing.
      */
-    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile,\n.board .seat .zone--library {');
-    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards,\n.board .seat .zone--library .zone__cards {');
-    expect(declarationIn('.board .seat .zone--library', 'contain'), 'the pile is a measured box its card never resizes').toBe(
+    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile {');
+    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards {');
+    expect(declarationIn('.board .seat .zone--exile', 'contain'), 'the pile is a measured box its card never resizes').toBe(
       'inline-size style',
     );
-    expect(declarationIn('.board .seat .zone--library .zone__cards', '--pile-card-w')).toBe('var(--zone-w)');
-    expect(declarationIn('.board .seat .zone--library .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
-    expect(declarationIn('.board .seat .zone--library .zone__cards', 'justify-content'), 'and it fills it').toBe(
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--pile-card-w')).toBe('var(--zone-w)');
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', 'justify-content'), 'and it fills it').toBe(
       'stretch',
     );
     // The fixed width it replaced is gone outright, not merely unused.

@@ -30,16 +30,25 @@ import { startScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-const library = (owner: 'you' | 'them') => `.seat [data-zone="library"][data-owner="${owner}"]`;
+/** The library's top card, drawn in its owner's back tier while the screen may see it. */
+const library = (owner: 'you' | 'them') => `.seat [data-zone="battlefield"][data-owner="${owner}"] [data-library-top]`;
 const field = '.seat[data-viewer] [data-zone="battlefield"]';
 
-/** The names `page` draws on a library, top card only. */
+/** The name `page` draws for a library's top card. */
 const topOf = (page: Page, owner: 'you' | 'them'): Promise<string[]> => page.locator(`${library(owner)} .card__name`).allTextContents().then((t) => t.map((s) => s.trim()));
+/** How many permanents named `name` her battlefield draws — the library's top card is not one. */
 const landsOn = (page: Page, name: string): Promise<number> =>
-  page.locator(`${field} .card__name`).allTextContents().then((t) => t.filter((s) => s.trim() === name).length);
+  page
+    .locator(`${field} .card__name`)
+    .evaluateAll((els, n) => els.filter((e) => e.closest('[data-library-top]') === null && e.textContent?.trim() === n).length, name);
+/** The names along a back tier on `page`, left to right, the library's top card marked with a `*`. */
+const backTier = (page: Page, owner: 'you' | 'them'): Promise<string[]> =>
+  page
+    .locator(`.seat [data-zone="battlefield"][data-owner="${owner}"] [data-tier="back"] > li[data-board-card]`)
+    .evaluateAll((els) => els.map((e) => `${e.hasAttribute('data-library-top') ? '*' : ''}${e.querySelector('.card__name')?.textContent?.trim() ?? '?'}`));
 const life = (page: Page) => page.locator('[data-player-face][data-viewer] [data-testid="life"]').textContent().then((t) => Number(t?.trim()));
 const topId = (page: Page): Promise<number | null> =>
-  page.locator(`${library('you')} [data-board-card]`).first().getAttribute('data-board-card', { timeout: 2_000 }).then(Number).catch(() => null);
+  page.locator(library('you')).first().getAttribute('data-board-card', { timeout: 2_000 }).then(Number).catch(() => null);
 
 /**
  * Whether `name` (as a JSON string value) was ever in the game STATE the server sent this browser —
@@ -94,7 +103,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     await expect.poll(() => landsOn(alice.page, 'Courser of Kruphix'), { timeout: 60_000, message: 'Courser of Kruphix is on her battlefield' }).toBe(1);
 
     // ── 1. Mountain is drawn on her library on both screens; bob's library stays hidden on both.
-    await expect.poll(() => offeredNamed(alice.page, 'Island'), { timeout: 60_000, message: 'alice has priority at her main phase' }).not.toBeUndefined();
+    await expect.poll(() => offeredNamed(alice.page, 'Divination'), { timeout: 60_000, message: 'alice has priority at her main phase' }).not.toBeUndefined();
     console.log(
       `[pp-top] start: alice's library top drawn [${(await topOf(alice.page, 'you')).join(', ')}], on bob's screen [${(await topOf(bob.page, 'them')).join(', ')}]; ` +
         `server sent "Mountain" to alice ${received(alice, 'Mountain')}, to bob ${received(bob, 'Mountain')}; offered to alice: Mountain=${await offeredNamed(alice.page, 'Mountain')}`,
@@ -125,7 +134,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     const mountain = await topId(alice.page);
     expect(mountain, 'Mountain is a card on her library').not.toBeNull();
     await expect.poll(() => offeredNamed(alice.page, 'Mountain'), { timeout: 10_000, message: 'Forge offers Mountain from the top of her library' }).toBe(mountain!);
-    const from = centre((await alice.page.locator(`${library('you')} [data-board-card="${mountain}"]`).boundingBox())!);
+    const from = centre((await alice.page.locator(library('you')).boundingBox())!);
     const to = centre((await alice.page.locator(field).boundingBox())!);
     const lifeBefore = await life(alice.page);
     await alice.page.mouse.move(from.x, from.y);
@@ -145,7 +154,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     // ── 3. Clicked, then her battlefield clicked: Plains lands; Serra Angel is the next top, shown, not offered.
     const plains = await topId(alice.page);
     await expect.poll(() => offeredNamed(alice.page, 'Plains'), { timeout: 10_000, message: 'Forge offers Plains from the top of her library (Exploration)' }).toBe(plains!);
-    const at = centre((await alice.page.locator(`${library('you')} [data-board-card="${plains}"]`).boundingBox())!);
+    const at = centre((await alice.page.locator(library('you')).boundingBox())!);
     await alice.page.mouse.move(at.x, at.y, { steps: 4 });
     await expect
       .poll(() => alice.page.locator('[data-inspect] .card__name').first().textContent({ timeout: 1_000 }).then((t) => t?.trim()).catch(() => null), {
@@ -167,6 +176,35 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     const offeredAngel = await offeredNamed(alice.page, 'Serra Angel');
     console.log(`[pp-top] Plains landed: battlefield Plains ${await landsOn(alice.page, 'Plains')}, life ${await life(alice.page)}; top now Serra Angel #${angel} on both screens, offered=${offeredAngel}; "Serra Angel" sent to bob ${received(bob, 'Serra Angel')}`);
     expect(offeredAngel, 'Serra Angel on top is shown, never offered').toBeUndefined();
+
+    // ── 4. Not offered, it is moved like any card of her table: to the front of her back tier, the
+    // same on bob's screen; and the next card revealed (Divination draws two) takes its place.
+    const tierBefore = await backTier(alice.page, 'you');
+    const angelBox = (await alice.page.locator(library('you')).boundingBox())!;
+    const firstBox = (await alice.page.locator(`${field} [data-tier="back"] > li[data-board-card]`).first().boundingBox())!;
+    await alice.page.mouse.move(angelBox.x + angelBox.width / 2, angelBox.y + angelBox.height / 2);
+    await alice.page.mouse.down();
+    await alice.page.mouse.move(firstBox.x + firstBox.width * 0.2, firstBox.y + firstBox.height / 2, { steps: 12 });
+    await alice.page.mouse.up();
+    await expect.poll(() => backTier(alice.page, 'you').then((t) => t[0]), { timeout: 5_000, message: 'the revealed card moved to the front of her back tier' }).toBe('*Serra Angel');
+    const moved = await backTier(alice.page, 'you');
+    await expect.poll(() => backTier(bob.page, 'them'), { timeout: 10_000, message: "bob's screen draws her back tier the same" }).toEqual(moved);
+    console.log(`[pp-top] moved the revealed Serra Angel: back tier [${tierBefore.join(', ')}] -> [${moved.join(', ')}]; on bob's screen [${(await backTier(bob.page, 'them')).join(', ')}]`);
+
+    const divination = (await handCardNamed(alice.page, 'Divination'))!;
+    expect(await dragHandCard(alice.page, divination, to), 'Divination is cast').toBe(true);
+    await grindPriority([alice.page, bob.page], async () => (await topOf(alice.page, 'you'))[0] === 'Swamp' && (await stackCount(alice.page)) === 0, {
+      timeoutMs: 60_000,
+      press: async (page) => {
+        await pressPaymentAuto(page);
+        await passOverStack(page);
+      },
+    });
+    await bothShowTop(alice.page, bob.page, 'Swamp', 'Divination drew Serra Angel and the Swamp under it');
+    const after = { alice: await backTier(alice.page, 'you'), bob: await backTier(bob.page, 'them') };
+    console.log(`[pp-top] after Divination: back tier on alice's screen [${after.alice.join(', ')}], on bob's [${after.bob.join(', ')}]`);
+    expect(after.alice[0], 'the next top takes the place she gave the last one').toBe('*Swamp');
+    expect(after.bob, 'and bob sees the same').toEqual(after.alice);
   } finally {
     await stack.stop();
   }

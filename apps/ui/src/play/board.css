@@ -783,17 +783,6 @@
   display: none;
 }
 
-/*
- * The library's top card, while the seat may see it: one whole card against the counts, above
- * the graveyard for the viewer and below it in the mirror. Drawn only then, so its row is too.
- */
-.seat__piles:has(> .zone--library) {
-  grid-template-rows: auto minmax(0, 1fr) auto;
-}
-
-.seat:not([data-viewer]) .seat__piles > .zone--library {
-  grid-row: 3;
-}
 
 /* ── zones ────────────────────────────────────────────────────────── */
 
@@ -1287,8 +1276,7 @@
  * the same thing in both places this file has put them.
  */
 .board .seat .zone--graveyard,
-.board .seat .zone--exile,
-.board .seat .zone--library {
+.board .seat .zone--exile {
   /*
    * A measured box (`--zone-w`), so the card inside can be sized from the BOX rather than
    * from a fixed 2rem — item 9, and the whole of it: *"the graveyard is
@@ -1306,8 +1294,7 @@
 }
 
 .board .seat .zone--graveyard .zone__cards,
-.board .seat .zone--exile .zone__cards,
-.board .seat .zone--library .zone__cards {
+.board .seat .zone--exile .zone__cards {
   /*
    * The card IS the column. `--zone-w` is the pile's own content width, so a card
    * expands to fit its box and follows it if the box ever changes — and every
@@ -1344,8 +1331,7 @@
 }
 
 .board .seat .zone--graveyard .board-card,
-.board .seat .zone--exile .board-card,
-.board .seat .zone--library .board-card {
+.board .seat .zone--exile .board-card {
   min-height: 0;
 }
 
@@ -1354,7 +1340,7 @@
  * offered card's own marks on its box: the accent ring and the warm can-act glow (`card.css`), drawn
  * inset because the seat column clips anything outside it.
  */
-.board .seat :is(.zone--graveyard, .zone--exile, .zone--library)[data-can-act] {
+.board .seat :is(.zone--graveyard, .zone--exile)[data-can-act] {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   box-shadow: inset 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
@@ -1648,3 +1634,11 @@
   }
 }
 
+/*
+ * The library's top card, drawn in its owner's back tier while the seat may see it (Courser of
+ * Kruphix): a card of the table that is not a permanent, so it is edged as one apart.
+ */
+.board-card[data-library-top] > .board-card__face .card {
+  outline: 2px dashed var(--ink-dim);
+  outline-offset: 2px;
+}

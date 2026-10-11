@@ -2633,11 +2633,10 @@ describe('the top card of the library, offered while the board draws it, is pick
     s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Library: { t: 'list', v: [{ t: 'int', v: card }] } } }));
     s.send(handDelta(hand.slice(1)));
     for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
-    await waitFor(() => expect(canvas.querySelector(`[data-zone="library"][data-owner="you"] [data-board-card="${card}"]`)).not.toBeNull());
+    await waitFor(() => expect(canvas.querySelector(`[data-zone="battlefield"][data-owner="you"] [data-library-top][data-board-card="${card}"]`)).not.toBeNull());
     await waitFor(() => expect(m.weaklySelectable?.has(card)).toBe(true));
-    const pile = canvas.querySelector<HTMLElement>('[data-zone="library"][data-owner="you"]')!;
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-    return { ...board, card, pile, myBattlefield };
+    return { ...board, card, myBattlefield };
   }
 
   it('a click lifts it and a click on the table plays it', async () => {
@@ -2652,15 +2651,11 @@ describe('the top card of the library, offered while the board draws it, is pick
     await waitFor(() => expect(sent(s)).toEqual([['selectCard', card]]));
   });
 
-  it('let go back over its library, it goes home and nothing is sent', async () => {
-    const { s, canvas, card, pile, myBattlefield } = await onLibrary();
-    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
-    fireEvent.pointerMove(pile, { clientX: 20, clientY: 20 });
-    expect(pile.hasAttribute('data-cancel-hint'), 'the cancel cue is on its own library').toBe(true);
-    fireEvent.pointerUp(pile, { clientX: 20, clientY: 20 });
-    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
-    expect(s.clientFrames()).toHaveLength(0);
+  it('is never arrangeable while it is offered — the drag is the play — and arrangeable once it is not', async () => {
+    const { s: server, canvas, card } = await onLibrary();
+    await waitFor(() => expect(cardEl(canvas, card).hasAttribute('data-arrange-card')).toBe(false));
+    for (const f of notify([prompt('Priority'), actionable([])])) server.send(f);
+    await waitFor(() => expect(cardEl(canvas, card).getAttribute('data-arrange-card')).toBe('back'));
   });
 });
 
