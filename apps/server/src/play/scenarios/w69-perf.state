@@ -1,0 +1,19 @@
+# w69-perf (the operator, 2026-10-10: "the game has become a bit more laggy … i notice it mostly
+# when draging cards around … i expect to get at least ~250fps at all times"). A mid-game board, so
+# the per-frame cost of a drag is measured against a realistic number of cards: alice holds six
+# cards and has nine permanents, bob holds four and has eight. Alice casts Eternal Witness off her
+# Forests at the end; its trigger (Lightning Bolt in her graveyard to return) stays on the stack
+# while bob (Full Control) holds priority, so its ability chip can be dragged.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=17
+ailife=14
+humanhand=Eternal Witness;Grizzly Bears;Lightning Bolt;Counterspell;Island;Mountain
+humanbattlefield=Forest;Forest;Forest;Forest;Island;Mountain;Llanowar Elves;Grizzly Bears;Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Lightning Bolt
+aihand=Counterspell;Island;Shock;Grizzly Bears
+aibattlefield=Island;Island;Island;Mountain;Mountain;Memnite;Grizzly Bears;Llanowar Elves
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Shock
