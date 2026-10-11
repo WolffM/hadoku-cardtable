@@ -5,20 +5,22 @@
  * reminder text is very long. lets also allow hovering them just like cards to see an expanded
  * view."
  *
- * Measured first (run 38093217851, both screens at 1280×720): Eternal Witness's trigger — Forge's
- * description is ~150 characters with its "(Targeting: …) [Zone Changer: …]" tail — drew as a chip
- * about 60 px wide and 280 px tall on BOTH screens. One rule drew both: `placed.ts` sized every
- * stack item, a chip included, as a battlefield card (`sizeAsBattlefieldCard`), so the chip was as
- * narrow as that screen's cards and as tall as its text then needed. A smaller window, or a fuller
- * battlefield, has narrower cards, so the same trigger stood taller there.
+ * And 2026-10-11, of the wider rule that answered it — Delver of Secrets' upkeep trigger drawn as a
+ * ~360×95 bar on a wide screen and ~110×165 on a narrower one: "the rendering here is too extreme.
+ * the second one is clearly a better view and my guess is the first one happens that way because
+ * the screen is wider. the goal should be to get as close to square as possible".
  *
- * Both screens, at two window sizes: the chip is wider than it is tall, it stays on the board, both
- * screens draw it the same shape, and hovering it opens the one expanded view with its text.
+ * A long trigger (Eternal Witness's, ~150 characters with Forge's "(Targeting: …)" tail) and a short
+ * one (Elvish Visionary's "draw a card"), at four window sizes, on both screens: the chip is as near
+ * square as its bounds allow — aspect w/h within [0.75, 1.33], or, outside it, pinned at the bound
+ * that stopped it (never narrower than a card; never wider than three cards or a third of the
+ * board). Both screens draw it the same shape, it stays on the board, and hovering it opens the one
+ * expanded view with its text.
  */
 import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
-import { witnessTriggerOnStack } from './play/chip.ts';
+import { triggerOnStack } from './play/chip.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -28,15 +30,28 @@ const titled = makeTitled(forge);
 const SIZES = [
   { width: 1280, height: 720 },
   { width: 1600, height: 900 },
+  { width: 1920, height: 1080 },
+  { width: 2560, height: 1440 },
 ];
+
+const SQUARE_MIN = 0.75;
+const SQUARE_MAX = 1.33;
+
+const CASES = [
+  { name: 'long', scenario: 'w67-trigger', creature: 'Eternal Witness', reads: 'return target card from your graveyard' },
+  { name: 'short', scenario: 'visionary-trigger', creature: 'Elvish Visionary', reads: 'draw a card' },
+] as const;
 
 interface Shape {
   w: number;
   h: number;
   card: number;
+  /** The widest the chip may be: three cards, or a third of the board. */
+  max: number;
   /** The card width the chip itself was sized from (its own `--card-w`). */
   sizedFrom: number;
   inside: boolean;
+  text: number;
 }
 
 /** The chip's drawn box, the screen's own battlefield card width, and whether the chip is on the board. */
@@ -48,7 +63,16 @@ async function shapeOf(page: Page): Promise<Shape> {
     const overlay = document.querySelector('[data-board-overlay]')!.getBoundingClientRect();
     const card = document.querySelector('[data-zone="battlefield"] li.board-card')?.getBoundingClientRect().width ?? 0;
     const inside = chip.left >= overlay.left - 0.5 && chip.right <= overlay.right + 0.5 && chip.top >= overlay.top - 0.5 && chip.bottom <= overlay.bottom + 0.5;
-    return { w: Math.round(chip.width), h: Math.round(chip.height), card: Math.round(card), sizedFrom: Math.round(sizedFrom), inside };
+    const text = el.querySelector('.placed__chip-text')?.textContent?.length ?? 0;
+    return {
+      w: Math.round(chip.width),
+      h: Math.round(chip.height),
+      card: Math.round(card),
+      max: Math.round(Math.min(card * 3, overlay.width / 3)),
+      sizedFrom: Math.round(sizedFrom),
+      inside,
+      text,
+    };
   });
 }
 
@@ -64,52 +88,55 @@ async function settledShape(page: Page): Promise<Shape> {
   return last;
 }
 
-test(titled('a long trigger’s ability chip grows wider before taller, the same on both screens, and hovering it reads it'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(4 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'w67-trigger');
-    await witnessTriggerOnStack(alice.page, bob.page);
+for (const c of CASES) {
+  test(titled(`a ${c.name} trigger’s ability chip is as near square as its bounds allow, at every window, the same on both screens`), async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(4 * 60_000);
+    const stack = await startPlayStack(forge);
+    try {
+      const { alice, bob } = await startScenarioMatch(browser, stack, c.scenario);
+      await triggerOnStack(alice.page, bob.page, c.creature);
 
-    let smaller: Shape | null = null;
-    for (const size of SIZES) {
-      for (const p of [alice.page, bob.page]) await p.setViewportSize(size);
-      const a = await settledShape(alice.page);
-      const b = await settledShape(bob.page);
-      console.log(
-        `[w69-chip-shape] ${size.width}x${size.height} alice chip=${a.w}x${a.h} card=${a.card} sizedFrom=${a.sizedFrom} inside=${a.inside} · bob chip=${b.w}x${b.h} card=${b.card} sizedFrom=${b.sizedFrom} inside=${b.inside}`,
-      );
-      for (const [who, s] of [['alice', a], ['bob', b]] as const) {
-        expect(s.w, `${who} at ${size.width}: the chip is wider than it is tall (${s.w}×${s.h})`).toBeGreaterThanOrEqual(s.h);
-        expect(s.w, `${who} at ${size.width}: never narrower than a card (${s.card})`).toBeGreaterThanOrEqual(s.card - 1);
-        expect(s.inside, `${who} at ${size.width}: the chip stays on the board`).toBe(true);
-        expect(Math.abs(s.sizedFrom - s.card), `${who} at ${size.width}: sized from this window's own card (${s.card}), not the last one's (${s.sizedFrom})`).toBeLessThanOrEqual(1);
+      for (const size of SIZES) {
+        for (const p of [alice.page, bob.page]) await p.setViewportSize(size);
+        const a = await settledShape(alice.page);
+        const b = await settledShape(bob.page);
+        for (const [who, s] of [['alice', a], ['bob', b]] as const) {
+          const aspect = s.w / s.h;
+          const bound = aspect > SQUARE_MAX ? 'min' : aspect < SQUARE_MIN ? 'max' : 'none';
+          console.log(
+            `[cc-chip] ${c.name} ${size.width}x${size.height} ${who} chip=${s.w}x${s.h} aspect=${aspect.toFixed(2)} card=${s.card} max=${s.max} text=${s.text} bound=${bound} inside=${s.inside}`,
+          );
+          const at = `${c.name}, ${who} at ${size.width}x${size.height}: ${s.w}×${s.h} (card ${s.card}, max ${s.max})`;
+          if (bound === 'min') expect.soft(s.w, `${at} — wider than square, so it must already be at its narrowest, one card`).toBeLessThanOrEqual(s.card + 1);
+          if (bound === 'max') expect.soft(s.w, `${at} — taller than square, so it must already be at its widest`).toBeGreaterThanOrEqual(s.max - 1);
+          expect.soft(s.w, `${at}: never narrower than a card`).toBeGreaterThanOrEqual(s.card - 1);
+          expect.soft(s.inside, `${at}: the chip stays on the board`).toBe(true);
+          expect.soft(Math.abs(s.sizedFrom - s.card), `${at}: sized from this window's own card (${s.card}), not the last one's (${s.sizedFrom})`).toBeLessThanOrEqual(1);
+        }
+        expect.soft(Math.abs(a.w - b.w), `${c.name} at ${size.width}: both screens draw it the same width (${a.w} / ${b.w})`).toBeLessThanOrEqual(2);
+        expect.soft(Math.abs(a.h - b.h), `${c.name} at ${size.width}: and the same height (${a.h} / ${b.h})`).toBeLessThanOrEqual(2);
       }
-      expect(Math.abs(a.w - b.w), `at ${size.width}: both screens draw it the same width`).toBeLessThanOrEqual(2);
-      expect(Math.abs(a.h - b.h), `at ${size.width}: and the same height`).toBeLessThanOrEqual(2);
-      if (smaller !== null) expect(a.w, `a bigger window's bigger cards make the chip wider, not taller (${smaller.w}×${smaller.h} before)`).toBeGreaterThan(smaller.w);
-      smaller = a;
-    }
 
-    // Hover: the one expanded view, with the ability's whole text — on both screens.
-    for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
-      const text = page.locator('[data-placed-spell]:has([data-ability-chip]) .placed__chip-text');
-      await text.hover();
-      const panel = page.locator('[data-inspect] [data-ability-chip]');
-      await expect(panel, `${who}: hovering the chip opens the expanded view`).toHaveCount(1);
-      await expect(panel.locator('.placed__chip-text'), `${who}: with the ability's text`).toContainText('return target card from your graveyard');
-      const fontOf = (sel: string) => page.locator(sel).first().evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
-      const readSize = await fontOf('[data-inspect] .placed__chip-text');
-      const chipSize = await fontOf('[data-placed-spell] .placed__chip-text');
-      const enlarged = (await panel.boundingBox())!;
-      console.log(`[w69-chip-shape] ${who} hover panel=${Math.round(enlarged.width)}x${Math.round(enlarged.height)} text=${readSize}px (chip ${chipSize}px)`);
-      expect(readSize, `${who}: the expanded view's text is larger than the chip's`).toBeGreaterThan(chipSize);
-      await page.mouse.move(2, 2);
-      await expect(panel, `${who}: and it closes when the pointer leaves`).toHaveCount(0);
+      // Hover: the one expanded view, with the ability's whole text — on both screens.
+      for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
+        const text = page.locator('[data-placed-spell]:has([data-ability-chip]) .placed__chip-text');
+        await text.hover();
+        const panel = page.locator('[data-inspect] [data-ability-chip]');
+        await expect(panel, `${who}: hovering the chip opens the expanded view`).toHaveCount(1);
+        await expect(panel.locator('.placed__chip-text'), `${who}: with the ability's text`).toContainText(c.reads);
+        const fontOf = (sel: string) => page.locator(sel).first().evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
+        const readSize = await fontOf('[data-inspect] .placed__chip-text');
+        const chipSize = await fontOf('[data-placed-spell] .placed__chip-text');
+        const enlarged = (await panel.boundingBox())!;
+        console.log(`[cc-chip] ${c.name} ${who} hover panel=${Math.round(enlarged.width)}x${Math.round(enlarged.height)} text=${readSize}px (chip ${chipSize}px)`);
+        expect(readSize, `${who}: the expanded view's text is larger than the chip's`).toBeGreaterThan(chipSize);
+        await page.mouse.move(2, 2);
+        await expect(panel, `${who}: and it closes when the pointer leaves`).toHaveCount(0);
+      }
+    } finally {
+      await stack.stop();
     }
-  } finally {
-    await stack.stop();
-  }
-});
+  });
+}

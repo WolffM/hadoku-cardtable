@@ -1,0 +1,15 @@
+# A SHORT trigger on the stack: alice casts Elvish Visionary; its "enters, draw a card" trigger goes on
+# the stack while bob (Full Control) holds priority, so it stays there to be drawn as the ability chip.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Elvish Visionary
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

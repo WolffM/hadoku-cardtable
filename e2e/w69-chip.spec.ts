@@ -14,7 +14,7 @@
 import { expect, test } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
-import { chipOf, witnessTriggerOnStack } from './play/chip.ts';
+import { chipOf, triggerOnStack } from './play/chip.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { dragPath, recordTrace, stopTrace, traceLine } from './play/trace.ts';
@@ -29,7 +29,7 @@ test(titled('the other screen follows a dragged ability chip as smoothly as a dr
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w67-trigger');
-    await witnessTriggerOnStack(alice.page, bob.page);
+    await triggerOnStack(alice.page, bob.page);
     const chipId = await chipOf(bob.page).getAttribute('data-placed-spell');
 
     // The chip: from its centre, the operator's gesture.
