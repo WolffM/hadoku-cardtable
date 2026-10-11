@@ -405,6 +405,14 @@ function reportClient(transport: Pick<MatchTransport, 'emit'>, matchId: string, 
   transport.emit(CLIENT_EVENT, { matchId, kind, data } satisfies ClientEvent);
 }
 
+/** How old a coin toss may be and still sound: a fresh one, not one a reload or rejoin finds already decided. */
+const TOSS_SOUND_FRESH_MS = 15_000;
+
+/** Whether a coin toss sounds now: there is one, the game is still in its pregame, and the toss is fresh. */
+export function tossSounds(tossAt: number | null, turn: number, now: number): boolean {
+  return tossAt !== null && turn <= 0 && now - tossAt <= TOSS_SOUND_FRESH_MS;
+}
+
 /** A list for a telemetry field: the schema's scalars stop at 80 characters, so a long one ends in how many it dropped. */
 function listField(items: readonly string[]): string {
   const all = items.join(',');
@@ -423,11 +431,12 @@ function listField(items: readonly string[]): string {
 /**
  * What the table raised to play, and why, into the match's log: `view` for a
  * board change (the roles, their colour cells, the view's turn and seq),
- * `decision` for a decision window's chime, `press` for a bar button. Raised,
+ * `decision` for a decision window's chime, `press` for a bar button, `toss`
+ * for the coin toss. Raised,
  * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
  * `muted` says the last.
  */
-function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
+function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press' | 'toss', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
   if (events.length === 0) return;
   reportClient(match.transport, match.matchId, 'sound', {
     why,
@@ -1890,6 +1899,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     const loserAvatarId = loser === undefined ? undefined : (match.avatarByPlayerId?.get(loser.id) ?? loser.avatarId);
     return { winner: toss.winner, name, avatarId, loserAvatarId, at: toss.at };
   })();
+  /*
+   * The coin toss sounds `g.game-start` on both screens as the coin appears (the
+   * operator, 2026-10-10: "did we lose the coin flip sound?" — nothing had ever
+   * raised it; the chime they heard was the decision's). Only in the pregame and
+   * only for a fresh toss, so a reload or a rejoin mid-game does not replay it.
+   */
+  const tossAt = coinToss?.at ?? null;
+  const tossTurn = match.view?.turn ?? 0;
+  useEffect(() => {
+    if (spectator || !tossSounds(tossAt, tossTurn, Date.now())) return;
+    playRole('g.game-start');
+    reportSound(match, 'toss', [{ role: 'g.game-start' }]);
+    // Once per toss: the turn moving on later must not sound it again.
+  }, [tossAt]);
   /*
    * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a
    * priority pass — the shockland's "pay 2 life?", the mulligan's

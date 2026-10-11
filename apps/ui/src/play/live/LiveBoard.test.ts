@@ -8,13 +8,15 @@
  * outside React's `act` — `waitFor` is what makes that legitimate.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
+import { setRolePlayer } from '../../sound/index.ts';
+import type { SoundEvent } from '../../sound/mix.ts';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
@@ -40,6 +42,7 @@ import {
   useCrawlGuard,
   withGatedPriority,
   type LiveStatus,
+  tossSounds,
 } from './LiveBoard.tsx';
 import {
   choosingMulligan,
@@ -176,7 +179,15 @@ vi.mock('@wolffm/prefs-client/react', () => ({
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
 
+/** Every sound event the table raised, recorded instead of played (jsdom has no WebAudio). */
+const soundCalls: SoundEvent[] = [];
+beforeEach(() => {
+  soundCalls.length = 0;
+  setRolePlayer({ play: (e) => void soundCalls.push(e) });
+});
+
 afterEach(async () => {
+  setRolePlayer(null);
   cleanup();
   if (match !== null) closeMatch(match);
   match = null;
@@ -3545,6 +3556,8 @@ describe('T2 — a calm "waiting for the other player"', () => {
       { seat: 1, claimed: true, playerId: them.id, name: them.name, avatarId: 'herald', coinToss: { winner: 1, at: Date.now() } },
     ]);
     await waitFor(() => expect(m.coinToss?.winner).toBe(1));
+    // This fixture is mid-game (turn 14): a toss arriving now is a rejoin's, and stays silent.
+    expect(soundCalls.map((e) => e.role)).not.toContain('g.game-start');
     const coin = await waitFor(() => getByTestId('coin-toss'));
     expect(coin.getAttribute('data-winner')).toBe('1');
     expect(coin.querySelector('.coin-toss__name')?.textContent).toBe(them.name);
@@ -3559,6 +3572,15 @@ describe('T2 — a calm "waiting for the other player"', () => {
     ]);
     await waitFor(() => expect(m.coinToss).toBeNull());
     expect(queryByTestId('coin-toss')).toBeNull();
+  });
+
+  it('the coin toss sounds Game start only in the pregame and only while it is fresh', () => {
+    const now = 1_000_000;
+    expect(tossSounds(now - 500, 0, now)).toBe(true);
+    expect(tossSounds(now - 500, -1, now), 'no turn yet is the pregame too').toBe(true);
+    expect(tossSounds(null, 0, now)).toBe(false);
+    expect(tossSounds(now - 500, 1, now), 'the game has started').toBe(false);
+    expect(tossSounds(now - 60_000, 0, now), 'a rejoin finds an old toss').toBe(false);
   });
 
   it('the coin toss: the WINNER draws the coin beside their own Play/Draw question', async () => {
@@ -3855,6 +3877,29 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
         },
       },
     });
+
+  it('a fresh coin toss in the pregame sounds Game start once, and says so in the match log', async () => {
+    const { s, m } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(setTurn(m, 0));
+    await waitFor(() => expect(m.view!.turn).toBe(0));
+    const at = Date.now();
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 1, at } },
+      { seat: 1, claimed: true, playerId: them.id, name: them.name, coinToss: { winner: 1, at } },
+    ]);
+    await waitFor(() => expect(soundCalls.filter((e) => e.role === 'g.game-start')).toHaveLength(1));
+    await waitFor(() =>
+      expect(s.received.some((r) => r.event === 'forge:client' && (r.payload as { data: Record<string, unknown> }).data.why === 'toss')).toBe(true),
+    );
+    // The same toss again (a re-sent seats frame) does not sound it twice.
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 1, at } },
+      { seat: 1, claimed: true, playerId: them.id, name: them.name, coinToss: { winner: 1, at } },
+    ]);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(soundCalls.filter((e) => e.role === 'g.game-start')).toHaveLength(1);
+  });
 
   it(
     'shows the decision-area pop-up, named, while turn is still 0 and it is not the viewer’s move — the same ' +

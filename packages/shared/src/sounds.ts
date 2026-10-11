@@ -216,7 +216,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		id: 'turn',
 		name: 'Turn and game',
 		roles: [
-			game('g.game-start', 'Game start', 'The coin toss settles who goes first.'),
+			game('g.game-start', 'Coin toss', 'The coin flips to settle who goes first, on both screens.'),
 			game('g.mulligan', 'Mulligan', 'A hand goes back.'),
 			game('g.turn-mine', 'Your turn', 'Your turn begins.', true),
 			game('g.turn-theirs', 'Their turn', 'The opponent’s turn begins.', true),
