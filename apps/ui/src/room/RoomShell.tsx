@@ -238,7 +238,18 @@ const AVATAR_RETRY_MS = [1500, 3000, 6000, 12000] as const;
 /** One client per mount; the assert effect must not re-fire on every render. */
 const rooms = roomsClient();
 
-export function RoomShell({ roomId, children }: { roomId: string | null; children: ReactNode }) {
+export function RoomShell({
+  roomId,
+  collapsible = true,
+  children,
+}: {
+  roomId: string | null;
+  /** `false` keeps the chat open with no Hide chat button — the room's lobby,
+   *  where the chat is the point. A viewer's saved collapse is ignored there,
+   *  not cleared, so the match still opens the way they left it. */
+  collapsible?: boolean;
+  children: ReactNode;
+}) {
   const who = useWhoami();
   // Always inside `AppChrome`'s `HadokuThemeRoot` — see chrome/AppChrome.tsx,
   // which mounts this component. `useHadokuTheme()` throws with no provider
@@ -259,6 +270,7 @@ export function RoomShell({ roomId, children }: { roomId: string | null; childre
       userType={who.tier}
       userId={who.userId}
       theme={watchpartyTheme(theme)}
+      collapsible={collapsible}
     >
       {children}
     </RoomChrome>

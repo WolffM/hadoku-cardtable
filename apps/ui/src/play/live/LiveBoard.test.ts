@@ -2738,7 +2738,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     // The content block holds the table and, in a room, watchparty's chat aside
     // (a flex item of a frame 100% of this block): insetting it by the bar's own
     // number moves both.
-    expect(declarations(css, '.cardtable-chrome__content:has(.shell--match)')).toContain(`padding-inline: ${inset}`);
+    expect(declarations(chrome, '.cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame)')).toContain(`padding-inline: ${inset}`);
     // And the table starts where the content does: no side padding of its own.
     expect(declarations(css, '.shell.shell--match')).toContain('padding: 4px 0 2px');
   });

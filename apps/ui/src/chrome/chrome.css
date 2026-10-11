@@ -96,13 +96,12 @@
  * `margin` and not `padding`, because the fleet's geometry insets the
  * border-bottom too — inside a padded wrapper the rule stops short of the
  * viewport edge rather than running to it. Only the top and the inline axis are
- * set; `margin-bottom` stays `app-header.css`'s 1.5rem.
+ * set; `margin-bottom` stays `app-header.css`'s 1.5rem, except beside the chat.
  *
- * And no wrapper DIV, because `play/live/live.css:38` selects
- * `.cardtable-chrome:has(.shell--match) > .app-header` to kill that bottom
- * margin on the match route. An element between them would break that selector
- * silently, and `play/**` is not this lane's to repair — this is known gap 1 in
- * `AppChrome.tsx`. A rule on the fleet's own class leaves the coupling working.
+ * And no wrapper DIV, because the page-boundary rule below selects
+ * `.cardtable-chrome:has(…) > .app-header` to kill that bottom margin wherever
+ * the room's chat is drawn. An element between them would break that selector
+ * silently.
  *
  * What is NOT done here: re-insetting the content to match. `screens.css`'s
  * `.shell` is `max-width: 1400px; padding: 24px`, so on a wide viewport the
@@ -117,6 +116,51 @@
 }
 
 /*
+ * ONE page boundary, wherever the room's chat is drawn (wave 31 P6, widened
+ * 2026-10-10).
+ *
+ * The operator, wave 31: *"card table left boundary is slightly escaping the
+ * boundary set by the bar at the top… same thing goes for watchparty chat on
+ * the right."* And 2026-10-10: the chat's vertical separator *"should go all
+ * the way to the top and bottom, so touch the horizontal top bar seperator and
+ * the bottom of the page"*, and in a room the chat *"should respect the right
+ * side page boundary"*.
+ *
+ * The separator is `.wp-room-chrome`'s own `border-left`, on a column that is
+ * the full height of `.wp-room-chrome-frame`. Two things kept it off the bar
+ * and the page's edge, and both were ours:
+ *
+ *   1. `app-header.css`'s `margin-bottom: 1.5rem` sat between the bar's rule
+ *      and the frame's top — measured on `#/room/…` at 1600x900: the rule at
+ *      y=81, the aside from y=105. Zeroed here, the column starts on the rule.
+ *   2. The frame is 100% of `__content`, which had no inset off the match
+ *      route, so the aside ran to x=1600 while the bar stopped at 1568.
+ *      Insetting `__content` by the bar's own `2rem` moves the frame — the
+ *      chat with it — onto the bar's edges, with no rule on watchparty's class.
+ *
+ * Keyed on the frame, not on a route's shell, so the room, the draft and the
+ * deck builder get it as the match always did; `.shell--match` stays in the
+ * list because a match whose chrome did not mount (no identity) still wants
+ * the bar's edges and the whole height. The header itself does not move —
+ * see the next rule — only the gap BELOW it closes.
+ */
+.cardtable-chrome:has(.shell--match, .wp-room-chrome-frame) > .app-header {
+  margin-bottom: 0;
+}
+
+.cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
+  padding-inline: 2rem;
+}
+
+/* A fitted screen beside the chat starts on the bar's left edge, not 24px in
+   from it: `__content`'s inset above is the page's edge now, and `.shell`'s own
+   padding would put a second one inside it. The right side keeps its padding
+   as the gutter against the chat's separator. */
+.wp-room-chrome-frame__content > .shell.shell--fit {
+  padding-left: 0;
+}
+
+/*
  * The header does NOT move between routes.
  *
  * This used to zero `margin-top` on the match route, to give the board back
@@ -126,9 +170,9 @@
  * understand it hurts the vertical space a bit, thats okay."* A header that
  * jumps when you enter a match is worse than a slightly shorter table.
  *
- * `margin-bottom` stays zeroed by `live.css` on this route: that tightens the
- * gap BELOW the bar without moving the bar itself, so it costs nothing the
- * operator asked for and keeps the board what space remains.
+ * `margin-bottom` stays zeroed on this route (the boundary rule above): that
+ * tightens the gap BELOW the bar without moving the bar itself, so it costs
+ * nothing the operator asked for and keeps the board what space remains.
  */
 
 /*

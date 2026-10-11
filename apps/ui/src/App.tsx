@@ -136,7 +136,10 @@ export function App({ transport }: AppProps) {
   // app renders. It mounts no room of its own.
   return (
     <AppChrome header={header}>
-      <RoomShell roomId={roomIdFor(route)}>
+      {/* The operator, 2026-10-10: *"theres really no reason to close the chat
+          in the lobby screen"*. A room's lobby keeps it open; the draft, deck
+          and match screens still let a viewer hide it. */}
+      <RoomShell roomId={roomIdFor(route)} collapsible={route.kind !== 'room'}>
         <Screen transport={transport} />
       </RoomShell>
     </AppChrome>

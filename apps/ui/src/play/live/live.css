@@ -91,29 +91,9 @@
  *    reservation on the ROWS underneath is `board.css`'s (lane A, §A.5).
  */
 
-/* The fleet header's bottom margin is a gap the table cannot spare. */
-.cardtable-chrome:has(.shell--match) > .app-header {
-  margin-bottom: 0;
-}
-
-/*
- * ONE page boundary (wave 31 P6). The operator: *"card table left boundary is
- * slightly escaping the boundary set by the bar at the top… same thing goes for
- * watchparty chat on the right."*
- *
- * The header is inset `2rem` each side (`chrome.css`, `.cardtable-chrome >
- * .app-header`). The content under it — the table, and on a room route
- * watchparty's chat aside, `.wp-room-chrome`, a `flex: 0 0 20rem` column at the
- * end of `.wp-room-chrome-frame` — had no inset at all, so the table began 24px
- * outside the bar (8px against 32px) and the chat ran to the viewport's right
- * edge, 32px beyond it. The aside's own stylesheet fixes its width and gives it
- * no margin, but it is a flex item of a frame whose width is 100% of THIS
- * element, so insetting this element moves both the table and the chat onto the
- * header's edges without a rule on watchparty's class.
- */
-.cardtable-chrome__content:has(.shell--match) {
-  padding-inline: 2rem;
-}
+/* The bar's bottom margin and the page's side inset on this route are
+   `chrome/chrome.css`'s "One page boundary" rules, shared with every route
+   that draws the room's chat. */
 
 /* `.shell.` because `screens.css`'s `.shell` padding is otherwise the later
    rule of the same weight. */

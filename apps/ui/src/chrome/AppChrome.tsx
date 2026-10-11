@@ -61,19 +61,19 @@
  *    light/dark from either. `screens/screens.css` paints entirely from
  *    these. This is the designed channel between chrome and screens and the
  *    only one — there is no theme value on any prop today.
- * 2. **`color-scheme` matches the theme**, via `data-dark-theme` on the
+ * 1. **`color-scheme` matches the theme**, via `data-dark-theme` on the
  *    container, so native controls and scrollbars are not the wrong half.
- * 3. **One content region, and it grows.** `.cardtable-chrome__content` is a
+ * 2. **One content region, and it grows.** `.cardtable-chrome__content` is a
  *    column flex item with `min-height: 0`, and its DIRECT CHILD is given
  *    `flex: 1 1 auto; min-height: 0`. A screen may assume it has the
  *    viewport minus the header and may scroll inside it; `screens.css`
  *    dropped its own `min-height: 100vh` on the strength of this.
- * 4. **`window.matchMedia` exists** before any child effect runs
+ * 3. **`window.matchMedia` exists** before any child effect runs
  *    (`ensureMatchMedia()`, at module load — `matchMedia.ts` has the
  *    upstream bug it absorbs). A wrapper that drops it takes the throw in
  *    every jsdom test that renders `App`, and in any embedder without the
  *    API.
- * 5. **Exactly one chrome per page.** Watchparty's store and socket are
+ * 4. **Exactly one chrome per page.** Watchparty's store and socket are
  *    module singletons; a second `RoomChrome` shares and then tears down the
  *    first one's connection. This wraps `RoomShell`, outside it, once.
  *
@@ -146,14 +146,6 @@
  * fixed: each fix lives in a file the lane did not own. They are listed
  * because a wrapper swap meets them, not because they are acceptable.
  *
- * 1. **`play/live/live.css` selects `.cardtable-chrome`** —
- *    `> .app-header` to kill the header's bottom margin on the match route.
- *    (Its `100dvh` pin moved into `chrome.css`, keyed on the shell's class.)
- *    This is the one place something BELOW the chrome reaches up into its
- *    private DOM, and it is the gap most likely to break silently: rename
- *    the container and the match screen quietly loses its height. Track R
- *    owns `play/**`. The clean shape is a chrome-owned modifier the route
- *    asks for, not a descendant selector aimed at chrome's class.
  * 2. **`screens/route.ts` is a global-reading module singleton** — the hash
  *    router reads `globalThis.location.hash` (:290, :304), subscribes to
  *    `hashchange` on the global (:282, :285) and mints ids from
@@ -173,7 +165,7 @@
  *    `import.meta.env`** — `BASE_URL` for the api base, `DEV` for a
  *    dev-only affordance. Build-time, not runtime, and both optional-chain.
  *    Named so a wrapper that changes the base path knows where it is read.
- * 6. **`chrome.css` reaches DOWN**, at its last three blocks, naming
+ * 5. **`chrome.css` reaches DOWN**, at its last three blocks, naming
  *    `.app`, `.draft`, `.board`, `.deck`, `.deckrow`, `.rooms`, `.spectate`,
  *    `.conn`, `.prompt`, `.confirm` and `.pods__title`. That is this lane's
  *    own file and it is the island seam above — deliberate, but it is a
