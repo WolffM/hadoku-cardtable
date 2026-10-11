@@ -3,7 +3,7 @@
  * see the coinflip". Forge tosses and asks only the winner; the server tells
  * both seats (`forge:seats`' `coinToss`), and both screens draw the coin
  * landing on the winner's face — the loser instead of "Waiting for {name}…",
- * the winner beside their own Play/Draw question. Two real browsers, a real
+ * the winner beside their own Play/Draw question, asked only once the coin lands. Two real browsers, a real
  * Forge match, the same second.
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -50,9 +50,24 @@ test(titled('the coin toss lands on the winner’s face on BOTH screens, the sam
     console.log(`[cointoss] alice t=${seen['alice']} bob t=${seen['bob']} winner=${winnerA} gap=${gap}ms`);
     expect(gap, 'the same second on both screens').toBeLessThan(1000);
 
+    // The coin flips first (the operator, 2026-10-11: "can we make it so the cointoss finishes before
+    // showing the prompt of who goes first?"): no Play/Draw question on either screen while it is in the air.
+    for (const f of [alice, bob]) {
+      if ((await coin(f.page).getAttribute('data-flipping')) !== null) {
+        expect(await playOrDraw(f.page).count(), `${f.name}: no Play/Draw question while the coin is in the air`).toBe(0);
+      }
+    }
+    // Landed: exactly one screen — the winner's — is asked.
+    await expect
+      .poll(async () => (await playOrDraw(alice.page).count()) + (await playOrDraw(bob.page).count()), {
+        timeout: 10_000,
+        message: 'the winner is asked once the coin lands',
+      })
+      .toBe(1);
     const winner = (await playOrDraw(alice.page).count()) > 0 ? alice : bob;
     const loser = winner === alice ? bob : alice;
-    await expect(playOrDraw(winner.page), `${winner.name}: the Play/Draw question, beside the coin`).toBeVisible();
+    await expect(coin(winner.page), `${winner.name}: the coin has landed before the question`).not.toHaveAttribute('data-flipping', '');
+    await expect(playOrDraw(winner.page), `${winner.name}: the Play/Draw question, beside the landed coin`).toBeVisible();
     // The loser sees the coin, never the sentence, while it is up.
     await expect(waitingPop(loser.page), `${loser.name}: no "Waiting for…" while the coin is up`).toHaveCount(0);
     const name = await coin(loser.page).locator('.coin-toss__name').textContent();
