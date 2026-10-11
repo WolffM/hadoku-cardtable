@@ -1,0 +1,18 @@
+# The operator, 2026-10-11: "insectile aberation has no art". Alice's Delver of Secrets transforms at her
+# upkeep: the top of her library is a sorcery she may reveal. Bob already controls a transformed Thing in
+# the Ice, so both screens draw a back face (Awoken Horror) from the first frame. Bob holds
+# his own main phase with a creature to cast until he presses End Turn; alice's Mountain makes her main
+# phase a real priority stop.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Delver of Secrets;Mountain
+humanlibrary=Lava Spike;Lava Spike;Lava Spike;Lava Spike;Lava Spike;Lava Spike
+humangraveyard=
+aihand=Grizzly Bears
+aibattlefield=Forest;Forest;Thing in the Ice|Transformed
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
