@@ -52,7 +52,9 @@
 
 import { useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 
+import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { clearCastLift, drawCastLift, floatCastLiftHome } from '../live/gestures/cast.ts';
+import { cardBox } from '../live/gestures/targets.ts';
 import { clickLatch, pastSlop, type Point } from '../live/gestures/types.ts';
 import { documentScope, eventTarget } from '../../dom.ts';
 
@@ -97,7 +99,12 @@ export interface PressDragLiftOptions {
 /** The board's press-drag lift, as a hook any prompt list can wire a row to. See the module header. */
 export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
   const [liftedId, setLiftedId] = useState<number | null>(null);
-  const liftRef = useRef<{ id: number; press: Point; home: Point; moved: boolean } | null>(null);
+  /**
+   * `scope` is the prompt the row sits in: a card the prompt shows can ALSO be drawn on the board at
+   * the same id (a library's top card under Courser of Kruphix, looked at by a scry), and the lift
+   * must take the prompt's row, never the board's copy a document-wide lookup finds first.
+   */
+  const liftRef = useRef<{ id: number; press: Point; home: Point; moved: boolean; scope: ParentNode } | null>(null);
   const [clicks] = useState(clickLatch);
 
   const removeLiftListeners = (): void => {
@@ -115,7 +122,10 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
       clicks.arm();
       setLiftedId(state.id);
     }
-    drawCastLift(documentScope(), state.id, at, 'lifted');
+    drawCastLift(state.scope, state.id, at, 'lifted');
+    // Board-sized from the board itself, which the prompt's own scope does not hold.
+    const row = cardBox(state.scope, state.id);
+    if (row instanceof HTMLElement) sizeAsBattlefieldCard(row, battlefieldCardWidth(documentScope(), 'you'));
     opts.onMove?.(state.id, eventTarget(event));
   }
 
@@ -127,12 +137,12 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
     if (!state.moved) return; // a plain press: whatever click it leaves behind answers as it always has
     const handled = opts.onDrop(state.id, eventTarget(event)) ?? false;
     if (handled) {
-      clearCastLift(documentScope(), state.id);
+      clearCastLift(state.scope, state.id);
       setLiftedId(null);
       return;
     }
     // Released nowhere this gesture answers: the house glide back to where it was picked up.
-    floatCastLiftHome(documentScope(), state.id, state.home, () => setLiftedId(null));
+    floatCastLiftHome(state.scope, state.id, state.home, () => setLiftedId(null));
   }
 
   const onRowPointerDown = (id: number) => (event: ReactPointerEvent<HTMLElement>) => {
@@ -147,6 +157,7 @@ export function usePressDragLift(opts: PressDragLiftOptions): PressDragLift {
       press: { x: event.clientX, y: event.clientY },
       home: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
       moved: false,
+      scope: event.currentTarget.closest('[data-testid="live-prompt"]') ?? documentScope(),
     };
     window.addEventListener('pointermove', onLiftMove);
     window.addEventListener('pointerup', onLiftUp);

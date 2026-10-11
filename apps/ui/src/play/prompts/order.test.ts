@@ -284,6 +284,24 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     expect(submit().disabled).toBe(false);
   });
 
+  it('lifts its own row when the board also draws that card — a library top under Courser of Kruphix, looked at by the scry', () => {
+    const { top, rowsOf, container } = scry();
+    container.setAttribute('data-testid', 'live-prompt');
+    const board = document.createElement('li');
+    board.setAttribute('data-board-card', String(POOL_ID_BASE));
+    document.body.prepend(board);
+    try {
+      const row = rowsOf(top())[0]!;
+      fireEvent.pointerDown(row, { button: 0, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(row, { clientX: 0, clientY: PAST_SLOP });
+      expect(row.getAttribute(CAST_LIFT_ATTR), 'the prompt row is lifted').toBe('lifted');
+      expect(board.hasAttribute(CAST_LIFT_ATTR), 'never the board copy').toBe(false);
+      fireEvent.pointerUp(row, { clientX: 0, clientY: PAST_SLOP });
+    } finally {
+      board.remove();
+    }
+  });
+
   it('reorders the top by drag and by its arrows, sends one to the bottom, and answers both in one reply', () => {
     const { top, bottom, rowsOf, dragTo, submit, answers } = scry();
     fireEvent.click(rowsOf(top())[0]!.querySelector<HTMLElement>('button[aria-label$=" down"]')!);
