@@ -21,7 +21,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import type { Friend } from './play/browser.ts';
+import { messages, type Friend } from './play/browser.ts';
 import { castByDrag, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -40,8 +40,20 @@ const life = (page: Page) => page.locator('[data-player-face][data-viewer] [data
 const topId = (page: Page): Promise<number | null> =>
   page.locator(`${library('you')} [data-board-card]`).first().getAttribute('data-board-card', { timeout: 2_000 }).then(Number).catch(() => null);
 
-/** Whether `name` (as a JSON string value) was ever in what the server sent this browser. */
-const received = (f: Friend, name: string): boolean => f.captures.some((c) => c.dir === 'in' && c.text.includes(JSON.stringify(name)));
+/**
+ * Whether `name` (as a JSON string value) was ever in the game STATE the server sent this browser —
+ * Forge's `setGameView`/`applyDelta` frames, in a snapshot or an envelope. Not every message: the art
+ * preload names both decklists on purpose (the operator accepts that for art), so a library card's name
+ * reaching a browser there says nothing about the projection.
+ */
+const received = (f: Friend, name: string): boolean =>
+  messages(f)
+    .filter((m) => m.dir === 'in')
+    .flatMap((m) => {
+      const msg = m.msg as { frame?: { method?: string }; frames?: { method?: string }[] } | null;
+      return [...(msg?.frames ?? []), ...(msg?.frame === undefined ? [] : [msg.frame])];
+    })
+    .some((frame) => (frame.method === 'setGameView' || frame.method === 'applyDelta') && JSON.stringify(frame).includes(JSON.stringify(name)));
 
 const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
@@ -76,6 +88,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     );
     await bothShowTop(alice.page, bob.page, 'Mountain', 'Courser: play with the top card of your library revealed');
     const leaks = {
+      mountainSentToBob: received(bob, 'Mountain'),
       bobTopOnAlice: await topOf(alice.page, 'them'),
       bobTopOnBob: await topOf(bob.page, 'you'),
       elvesSentToAlice: received(alice, 'Llanowar Elves'),
@@ -84,7 +97,8 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
       plainsSentToBob: received(bob, 'Plains'),
     };
     console.log(`[pp-top] hidden: ${JSON.stringify(leaks)}`);
-    expect(leaks, "bob's library is drawn on neither screen, and no card under a top is sent to anyone").toEqual({
+    expect(leaks, "bob's library is drawn on neither screen, and no card under a top is sent to anyone (the top itself is)").toEqual({
+      mountainSentToBob: true,
       bobTopOnAlice: [],
       bobTopOnBob: [],
       elvesSentToAlice: false,
