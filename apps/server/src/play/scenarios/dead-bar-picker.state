@@ -1,0 +1,20 @@
+# A dead bar after an ability picker answered with nothing to follow (prod
+# matches m-3bc0ad1f5ac1 and m-d87aabc2c3e2, 2026-10-11). Both seats hold
+# Ghost Quarter, whose click offers two abilities ({T}: Add {C}; {T},
+# Sacrifice: destroy target land), so a click opens the picker. Its "None"
+# leaves Forge in the same priority input, and Forge sends nothing at all.
+# Seat 0 (human) can also cast Storm Crow ({1}{U}) off two Islands, putting a
+# spell on the stack for seat 1 to hold priority over.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Storm Crow
+humanbattlefield=Island;Island;Ghost Quarter
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Ghost Quarter;Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

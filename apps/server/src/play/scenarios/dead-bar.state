@@ -1,0 +1,19 @@
+# A dead control bar (prod match m-3bc0ad1f5ac1, 2026-10-11): seat 0 (human)
+# suspends Ancestral Vision ({U} via Suspend, no mana cost of its own, so
+# Suspend is its one way out of the hand — it goes to EXILE, never the stack
+# or the battlefield), then plays Ghost Quarter. The priority window Forge
+# shows after each act is byte-identical to the one before it. One Island to
+# pay {U}; a turn-3 Main Phase 1 with a land drop still available.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Ancestral Vision;Ghost Quarter
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
