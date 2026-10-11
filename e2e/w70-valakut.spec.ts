@@ -26,7 +26,9 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const TRIGGERS = 6;
-const TARGET = /target/i;
+/** Forge's target question for a Valakut trigger opens with the card's name (`InputSelectTargets.showMessage`); the log keeps 120 characters of it. */
+const TARGET = /^Valakut, the Molten Pinnacle\b/;
+const asksTarget = (text: string): boolean => /Valakut, the Molten Pinnacle/.test(text) && !DEAL.test(text) && !/^Priority/.test(text);
 const DEAL = /^Do you want to deal 3 damage/;
 
 type Row = Record<string, unknown>;
@@ -78,6 +80,7 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
     let reclamation: number | undefined;
     await expect.poll(async () => (reclamation = await offeredNamed(alice.page, 'Splendid Reclamation')), { timeout: 60_000, message: 'alice is offered Splendid Reclamation' }).not.toBeUndefined();
     const fromCast = serverLog(stack).length;
+    let lastSays = '';
     await clickHandCard(alice.page, reclamation!);
 
     // Pay, pass bob's window, take Forge's order of the six (each names its own Mountain, so Forge
@@ -90,7 +93,9 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
           if (answered !== null) console.log(`[w70-valakut] alice answered ${answered.method}`);
           const ok = bob.page.locator('[data-testid="live-decision-ok"]:enabled');
           if ((await ok.count()) > 0) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-          return wiredTargets(stack, fromCast).length > 0 && TARGET.test(await says(alice.page));
+          const text = await says(alice.page);
+          if (text !== lastSays) console.log(`[w70-valakut] alice says "${(lastSays = text).trim().slice(0, 140)}"`);
+          return wiredTargets(stack, fromCast).length > 0 && asksTarget(text);
         },
         { timeout: 90_000, message: "alice's first Valakut target question is up" },
       )
@@ -135,7 +140,7 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
             deals += 1;
             console.log(`[w70-valakut] confirm drawn: "${text.trim()}"`);
             await yes.click({ timeout: 1_000 }).catch(() => undefined);
-          } else if (TARGET.test(text) && wiredTargets(stack, fromCast).length > picks) {
+          } else if (asksTarget(text) && wiredTargets(stack, fromCast).length > picks) {
             picks += 1;
             await bobFace.click({ timeout: 1_000 }).catch(() => undefined);
           } else {
