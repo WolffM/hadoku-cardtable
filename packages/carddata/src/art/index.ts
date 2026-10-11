@@ -69,6 +69,8 @@
  * hands it in.
  */
 
+import { BACK_FACE } from './ids.ts';
+
 /** Where a card's art is stored. A new source is a new member plus a new `case`. */
 export type ArtSource = 'cdn' | 'scryfall';
 
@@ -180,16 +182,18 @@ export function cdnUrlFor(key: string, cdnBase: string = CDN_BASE): string {
 }
 
 /**
- * Scryfall's sharded image path: `<size>/front/<id[0]>/<id[1]>/<id>.jpg`.
+ * Scryfall's sharded image path: `<size>/<front|back>/<id[0]>/<id[1]>/<id>.jpg`.
  *
  * Deterministic, so nothing has to be looked up and no request is made to find
  * out where an image lives. Returns `null` for an id that is not a uuid — a
  * 404 per card is a slow, silent way to look broken, and the caller's text tile
  * is a complete card on its own.
  */
-function scryfallArtUrl(scryfallId: string, size: ArtImageSize): string | null {
-  if (!UUID_PATTERN.test(scryfallId)) return null;
-  return `${SCRYFALL_IMAGE_BASE}/${size}/front/${scryfallId[0]}/${scryfallId[1]}/${scryfallId}.jpg`;
+function scryfallArtUrl(artId: string, size: ArtImageSize): string | null {
+  const back = artId.endsWith(BACK_FACE);
+  const id = back ? artId.slice(0, -BACK_FACE.length) : artId;
+  if (!UUID_PATTERN.test(id)) return null;
+  return `${SCRYFALL_IMAGE_BASE}/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.jpg`;
 }
 
 /**
@@ -201,6 +205,8 @@ function scryfallArtUrl(scryfallId: string, size: ArtImageSize): string | null {
  * 2. a `scryfall` row, or no row at all → Scryfall's sharded URL;
  * 3. no usable id → `null`, and the caller renders the text tile;
  * 4. a row this resolver does not understand → it falls back, below.
+ *
+ * `scryfallId` is an art id: a Scryfall id, or one carrying {@link BACK_FACE}.
  *
  * ## The unknown-source decision: fall back to Scryfall, never throw
  *
@@ -279,7 +285,9 @@ export function resolveArtUrl(
  */
 export {
   ART_ID_TABLE_VERSION,
+  BACK_FACE,
   artIdIndex,
+  artIdsWithBacks,
   artIdIndexFromTable,
   artIdKey,
   mergeArtIdIndexes,

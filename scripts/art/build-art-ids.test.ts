@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
-import { mostUsedPrinting, scenarioNames, type PrintingVote } from './build-art-ids.ts';
+import { faceRows, mostUsedPrinting, otherFaces, scenarioNames, type PrintingVote } from './build-art-ids.ts';
 
 describe('mostUsedPrinting', () => {
   it('picks the printing with the most votes, not the first one cast', () => {
@@ -92,5 +92,77 @@ describe('the committed table covers every card a test scenario places', () => {
     const names = scenarioNames();
     expect(names).toContain('Grizzly Bears');
     expect(names.filter((name) => !known.has(name))).toEqual([]);
+  });
+});
+
+describe('otherFaces: every face Forge can name, and the art it draws', () => {
+  const card = (layout: string, faces: string[], extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: 'card-id',
+    layout,
+    set_type: 'expansion',
+    card_faces: faces.map((name) => ({ name })),
+    ...extra,
+  });
+
+  it("a transform or modal back face draws the card's back image", () => {
+    expect(otherFaces(card('transform', ['Delver of Secrets', 'Insectile Aberration']))).toEqual([{ name: 'Insectile Aberration', artId: 'card-id#back' }]);
+    expect(otherFaces(card('modal_dfc', ['Witch Enchanter', 'Witch-Blessed Meadow']))).toEqual([{ name: 'Witch-Blessed Meadow', artId: 'card-id#back' }]);
+  });
+
+  it("split halves, an adventure and a flip card's other face draw the card's one image", () => {
+    expect(otherFaces(card('split', ['Life', 'Death']))).toEqual([
+      { name: 'Life', artId: 'card-id' },
+      { name: 'Death', artId: 'card-id' },
+    ]);
+    expect(otherFaces(card('adventure', ['Bonecrusher Giant', 'Stomp']))).toEqual([{ name: 'Stomp', artId: 'card-id' }]);
+    expect(otherFaces(card('flip', ['Jushi Apprentice', 'Tomoya the Revealer']))).toEqual([{ name: 'Tomoya the Revealer', artId: 'card-id' }]);
+  });
+
+  it('a meld half names its melded card, which draws its own image', () => {
+    const half = card('meld', [], {
+      all_parts: [
+        { id: 'urza-lord', component: 'meld_part', name: 'Urza, Lord Protector' },
+        { id: 'urza-pw', component: 'meld_result', name: 'Urza, Planeswalker' },
+      ],
+    });
+    expect(otherFaces(half)).toEqual([{ name: 'Urza, Planeswalker', artId: 'urza-pw' }]);
+  });
+
+  it('a single-faced card and a token printing name nothing more', () => {
+    expect(otherFaces(card('normal', []))).toEqual([]);
+    expect(otherFaces(card('flip', ['Monster', 'Virtuous'], { set_type: 'token' }))).toEqual([]);
+  });
+});
+
+describe('faceRows: each face keyed the way its front is', () => {
+  const delver = { id: 'delver', layout: 'transform', set_type: 'expansion', card_faces: [{ name: 'Delver of Secrets' }, { name: 'Insectile Aberration' }] };
+  const byId = (id: string): Record<string, unknown> | undefined => (id === 'delver' ? delver : undefined);
+
+  it('gives the back face the exact and bare keys its front has, and skips a card with one face', () => {
+    expect(
+      faceRows(
+        [
+          ['Delver of Secrets|ISD', 'delver'],
+          ['Delver of Secrets', 'delver'],
+          ['Lightning Bolt', 'bolt'],
+        ],
+        byId,
+      ),
+    ).toEqual([
+      ['Insectile Aberration|ISD', 'delver#back'],
+      ['Insectile Aberration', 'delver#back'],
+    ]);
+  });
+
+  it('keeps the first source for a key, as the table does', () => {
+    const reprint = { ...delver, id: 'delver-2' };
+    const rows = faceRows(
+      [
+        ['Delver of Secrets', 'delver'],
+        ['Delver of Secrets // Insectile Aberration', 'delver-2'],
+      ],
+      (id) => (id === 'delver' ? delver : id === 'delver-2' ? reprint : undefined),
+    );
+    expect(rows).toEqual([['Insectile Aberration', 'delver#back']]);
   });
 });

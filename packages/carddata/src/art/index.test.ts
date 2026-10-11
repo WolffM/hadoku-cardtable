@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALLOWED_ART_HOSTS,
+  BACK_FACE,
   CDN_BASE,
   SCRYFALL_IMAGE_BASE,
   cdnUrlFor,
@@ -246,6 +247,26 @@ describe('resolveArtUrl — case 5, repointing one card', () => {
     for (const id of [ID_CDN, ID_CDN_OTHER, ID_SCRYFALL, ID_UNKNOWN_SOURCE]) {
       expect(resolveArtUrl(id, added)).toBe(resolveArtUrl(id, MANIFEST));
     }
+  });
+});
+
+describe("resolveArtUrl — a back face's art id", () => {
+  const back = `${ID_ABSENT}${BACK_FACE}`;
+
+  it("builds Scryfall's back image for the same card", () => {
+    expect(resolveArtUrl(back, MANIFEST)).toBe(`${SCRYFALL_IMAGE_BASE}/normal/back/4/d/${ID_ABSENT}.jpg`);
+    expect(resolveArtUrl(back, MANIFEST, { size: 'art_crop' })).toBe(`${SCRYFALL_IMAGE_BASE}/art_crop/back/4/d/${ID_ABSENT}.jpg`);
+  });
+
+  it('is repointed by its own manifest row, leaving the front alone', () => {
+    const repointed: ArtManifest = { ...MANIFEST, [back]: { source: 'cdn', key: KEY_C } };
+    expect(resolveArtUrl(back, repointed)).toBe(`${CDN_BASE}/${KEY_C}`);
+    expect(resolveArtUrl(ID_ABSENT, repointed)).toBe(scryfallUrl(ID_ABSENT));
+  });
+
+  it('builds nothing for a marker on something that is not a uuid', () => {
+    expect(resolveArtUrl(`not-a-uuid${BACK_FACE}`, MANIFEST)).toBeNull();
+    expect(resolveArtUrl(BACK_FACE, MANIFEST)).toBeNull();
   });
 });
 

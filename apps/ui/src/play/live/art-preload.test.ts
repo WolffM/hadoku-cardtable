@@ -87,6 +87,13 @@ describe('preloadMatchArt: both decks’ art, a few at a time, at low priority',
     expect(preloadUrls('m-1', { matchId: 'm-1', cards: [{ name: 'x', set: null, url: 'https://evil' }] }), 'strict: a URL never rides the wire').toEqual([]);
   });
 
+  it("warms a double-faced card's back face beside its front, so a transform draws with its art", () => {
+    const urls = preloadUrls('m-1', { matchId: 'm-1', cards: [{ name: 'Delver of Secrets', set: 'ISD' }] });
+    const back = cardImageUrl(scryfallIdFor(KNOWN_ART_IDS, 'Insectile Aberration', 'ISD'));
+    expect(back).toMatch(/\/normal\/back\//);
+    expect(urls).toEqual([cardImageUrl(scryfallIdFor(KNOWN_ART_IDS, 'Delver of Secrets', 'ISD')), back]);
+  });
+
   it(`runs ${PRELOAD_AT_ONCE} loads at once, low priority, and starts the next as each ends`, async () => {
     expect(preloadMatchArt('m-1', { matchId: 'm-1', cards })).toBe(5);
     expect(loads).toHaveLength(PRELOAD_AT_ONCE);

@@ -22,6 +22,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ALLOWED_ART_HOSTS,
+  SCRYFALL_IMAGE_BASE,
   resolveArtUrl,
   type ArtManifestFile,
 } from './index.ts';
@@ -29,6 +30,8 @@ import { FORGE_TO_SCRYFALL_SET } from '../set-codes.ts';
 import {
   artIdIndex,
   artIdIndexFromTable,
+  artIdsWithBacks,
+  BACK_FACE,
   artIdKey,
   mergeArtIdIndexes,
   scryfallIdFor,
@@ -58,6 +61,8 @@ function artUrlFor(name: string, setCode: string, index: ArtIdIndex = KNOWN): st
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** An art id: a Scryfall id, or a back face's (`BACK_FACE`). */
+const ART_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#back)?$/;
 
 describe('every card a match can contain has art', () => {
   /*
@@ -114,6 +119,42 @@ describe('every card a match can contain has art', () => {
     }
   });
 
+  /*
+   * The operator, 2026-10-11: "insectile aberation has no art". Forge names
+   * the face a card is showing, so a transformed Delver of Secrets crosses the
+   * wire as Insectile Aberration — a name a `.dck` never carries.
+   */
+  it("draws a transformed card's back face as that card's back image", () => {
+    const delver = scryfallIdFor(KNOWN, 'Delver of Secrets', 'ISD')!;
+    expect(delver).toMatch(UUID);
+    for (const set of ['ISD', 'NO-SUCH-SET']) {
+      expect(scryfallIdFor(KNOWN, 'Insectile Aberration', set), set).toBe(`${delver}${BACK_FACE}`);
+      expect(artUrlFor('Insectile Aberration', set), set).toBe(`${SCRYFALL_IMAGE_BASE}/normal/back/${delver[0]}/${delver[1]}/${delver}.jpg`);
+    }
+  });
+
+  it("draws a cube card's back face from the printing its front draws", () => {
+    const fable = scryfallIdFor(KNOWN, 'Fable of the Mirror-Breaker', '')!;
+    expect(scryfallIdFor(KNOWN, 'Reflection of Kiki-Jiki', '')).toBe(`${fable}${BACK_FACE}`);
+  });
+
+  it('draws the faces that share one image — split halves, an adventure, a flip card, a meld result — with art', () => {
+    for (const [face, card] of [
+      ['Death', 'Life // Death'],
+      ['Stomp', 'Bonecrusher Giant'],
+      ['Tomoya the Revealer', 'Jushi Apprentice'],
+    ] as const) {
+      expect(scryfallIdFor(KNOWN, face, ''), face).toBe(scryfallIdFor(KNOWN, card, ''));
+    }
+    expect(scryfallIdFor(KNOWN, 'Urza, Planeswalker', ''), 'the melded Urza is a card of its own').toMatch(UUID);
+  });
+
+  it('preloads a back face beside its front', () => {
+    const delver = scryfallIdFor(KNOWN, 'Delver of Secrets', '')!;
+    const bolt = scryfallIdFor(KNOWN, 'Lightning Bolt', '')!;
+    expect(artIdsWithBacks(KNOWN, [delver, bolt])).toEqual([delver, `${delver}${BACK_FACE}`, bolt]);
+  });
+
   it('still draws nothing for a card nothing knows', () => {
     expect(scryfallIdFor(KNOWN, 'Not A Card Anyone Printed', 'XYZ')).toBeUndefined();
     expect(artUrlFor('Not A Card Anyone Printed', 'XYZ')).toBeNull();
@@ -165,7 +206,15 @@ describe('the committed table', () => {
     // And the file as a whole ships no bytes by the back door.
     expect(raw).not.toMatch(/data:image\//);
 
-    for (const id of Object.values(TABLE.ids)) expect(id).toMatch(UUID);
+    for (const id of Object.values(TABLE.ids)) expect(id).toMatch(ART_ID);
+  });
+
+  it('names a back face only of a card whose front it also names', () => {
+    const fronts = new Set(Object.values(TABLE.ids).filter((id) => !id.endsWith(BACK_FACE)));
+    for (const id of POOL.cards.map((c) => c.scryfallId)) if (id !== undefined) fronts.add(id);
+    const backs = Object.values(TABLE.ids).filter((id) => id.endsWith(BACK_FACE));
+    expect(backs.length).toBeGreaterThan(0);
+    expect(backs.filter((id) => !fronts.has(id.slice(0, -BACK_FACE.length)))).toEqual([]);
   });
 
   it('keys an exact printing as Name|SET, with the set upper-cased', () => {

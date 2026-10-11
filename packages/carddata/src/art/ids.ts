@@ -66,8 +66,20 @@ export interface ArtIdTableFile {
   readonly ids: Readonly<Record<string, string>>;
 }
 
-/** The version `scripts/art/build-art-ids.ts` writes. */
-export const ART_ID_TABLE_VERSION = 1;
+/** The version `scripts/art/build-art-ids.ts` writes. Version 2: a value may carry {@link BACK_FACE}. */
+export const ART_ID_TABLE_VERSION = 2;
+
+/**
+ * The marker that makes an art id name a card's BACK face: `<scryfall id>#back`.
+ *
+ * A transform or modal double-faced card is one Scryfall card with two images,
+ * and Forge names whichever face is showing — Delver of Secrets turns into
+ * Insectile Aberration, a name that is not a card of its own anywhere. So the
+ * back face's art id is its card's id plus this marker: still a lookup, still
+ * keyed in `art-manifest.json` like any other id (a `<id>#back` row repoints
+ * the back alone), and resolved to Scryfall's back image when no row does.
+ */
+export const BACK_FACE = '#back';
 
 /** The key an exact printing answers to. */
 export function artIdKey(name: string, setCode: string): string {
@@ -134,4 +146,25 @@ export function mergeArtIdIndexes(...indexes: readonly ArtIdIndex[]): ArtIdIndex
 /** The exact printing, else any printing of the same name, else `undefined`. */
 export function scryfallIdFor(index: ArtIdIndex, name: string, setCode: string): string | undefined {
   return index.get(artIdKey(name, setCode)) ?? index.get(name);
+}
+
+const backsByIndex = new WeakMap<ArtIdIndex, ReadonlySet<string>>();
+
+/**
+ * These art ids, each followed by its card's back face when the index knows
+ * one — what a match preloads, so a card that transforms is drawn with its
+ * art on the first frame of the other face.
+ */
+export function artIdsWithBacks(index: ArtIdIndex, ids: Iterable<string>): string[] {
+  let backs = backsByIndex.get(index);
+  if (backs === undefined) {
+    backs = new Set([...index.values()].filter((id) => id.endsWith(BACK_FACE)));
+    backsByIndex.set(index, backs);
+  }
+  const out: string[] = [];
+  for (const id of ids) {
+    out.push(id);
+    if (backs.has(`${id}${BACK_FACE}`)) out.push(`${id}${BACK_FACE}`);
+  }
+  return out;
 }

@@ -62,6 +62,10 @@
  *   - **a bare-name row per card a test scenario places**
  *     (`apps/server/src/play/scenarios/*.state`): the e2e suite plays those
  *     matches on camera, and a scenario's Grizzly Bears had no row at all.
+ *   - **every other face of every card above**, under each key its front has.
+ *     Forge names the face it is showing, and a `.dck` only ever names the
+ *     front: a transformed Delver of Secrets crosses the wire as Insectile
+ *     Aberration. See {@link otherFaces} for what each layout gets.
  *
  * NOT in the table: Forge's 505 bundled quest precons (12,722 distinct
  * `Name|SET` references, ~8,900 distinct names — roughly half a megabyte, for
@@ -86,7 +90,7 @@ import { parseDck, type CardRequest } from '../../packages/carddata/src/dck.ts';
 import { buildCardIndex, resolveCard, type CardIndex } from '../../packages/carddata/src/resolve.ts';
 import { FORGE_TO_SCRYFALL_SET } from '../../packages/carddata/src/set-codes.ts';
 import type { GameplayCard } from '../../packages/carddata/src/scryfall/project.ts';
-import { ART_ID_TABLE_VERSION } from '../../packages/carddata/src/art/ids.ts';
+import { ART_ID_TABLE_VERSION, BACK_FACE } from '../../packages/carddata/src/art/ids.ts';
 import { scenarioCardNames } from '../../apps/server/src/play/art.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
@@ -161,6 +165,7 @@ interface Counts {
   decks: number;
   cubeAliases: number;
   bareNames: number;
+  faces: number;
   tokens: number;
   unresolved: string[];
 }
@@ -204,6 +209,74 @@ export function mostUsedPrinting(votes: readonly PrintingVote[]): ReadonlyMap<st
     winners.set(name, ranked[0]![0]);
   }
   return winners;
+}
+
+/** One face Forge can name that is not the name a row was keyed by, and the art id it draws. */
+export interface OtherFace {
+  readonly name: string;
+  readonly artId: string;
+}
+
+/** Layouts that print a second image on the card's back. */
+const TWO_IMAGE_LAYOUTS = new Set(['transform', 'modal_dfc', 'reversible_card']);
+/** Layouts whose faces all share the card's one image. */
+const ONE_IMAGE_LAYOUTS = new Set(['flip', 'split', 'adventure']);
+
+/**
+ * Every face of `card` Forge can put a name on, with the art each one draws:
+ *
+ *   - transform / modal DFC: the back face draws the card's back image
+ *     (`<id>#back`, `BACK_FACE`);
+ *   - flip, split, adventure: one printed image holds every face, so each
+ *     face draws the card's own image (a flipped Kamigawa card shows it as
+ *     printed, not turned over);
+ *   - meld: the melded permanent is a card of its own on Scryfall, named in
+ *     the half's `all_parts` as its `meld_result`, and draws that card.
+ *
+ * A token printing gets nothing here: its wire name is `"<name> Token"`,
+ * which the token section below keys on its own.
+ */
+export function otherFaces(card: GameplayCard): OtherFace[] {
+  const id = str(card, 'id');
+  const layout = str(card, 'layout');
+  if (id === null || layout === null || str(card, 'set_type') === 'token') return [];
+  if (layout === 'meld') {
+    const parts = Array.isArray(card['all_parts']) ? (card['all_parts'] as Record<string, unknown>[]) : [];
+    return parts
+      .filter((p) => p['component'] === 'meld_result' && typeof p['name'] === 'string' && typeof p['id'] === 'string')
+      .map((p) => ({ name: p['name'] as string, artId: p['id'] as string }));
+  }
+  const twoImages = TWO_IMAGE_LAYOUTS.has(layout);
+  if (!twoImages && !ONE_IMAGE_LAYOUTS.has(layout)) return [];
+  const faces = Array.isArray(card['card_faces']) ? (card['card_faces'] as Record<string, unknown>[]) : [];
+  // A split card's halves are both names Forge uses (each half on the stack);
+  // every other layout's first face is the card's own name, already keyed.
+  const named = layout === 'split' ? faces : faces.slice(1);
+  return named.flatMap((face) => (typeof face['name'] === 'string' ? [{ name: face['name'], artId: twoImages ? `${id}${BACK_FACE}` : id }] : []));
+}
+
+/**
+ * The rows `otherFaces` adds for a table: each source row `Name|SET` (or bare
+ * `Name`) naming a card with other faces gives every other face the same key
+ * shape, `Face|SET` (or bare `Face`) — so both faces of one printing draw that
+ * printing. Sources are read in order and a face already keyed is left alone,
+ * the table's own first-write-wins.
+ */
+export function faceRows(sources: Iterable<readonly [string, string]>, cardById: (id: string) => GameplayCard | undefined): [string, string][] {
+  const rows = new Map<string, string>();
+  for (const [key, id] of sources) {
+    const card = cardById(id);
+    if (card === undefined) continue;
+    const pipe = key.indexOf('|');
+    const name = pipe === -1 ? key : key.slice(0, pipe);
+    const set = pipe === -1 ? '' : key.slice(pipe);
+    for (const face of otherFaces(card)) {
+      if (face.name === name) continue;
+      const faceKey = `${face.name}${set}`;
+      if (!rows.has(faceKey)) rows.set(faceKey, face.artId);
+    }
+  }
+  return [...rows];
 }
 
 /*
@@ -575,7 +648,7 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     // this file has never carried a row for) still get one, normally.
     const seeded = existingRows(outFile);
     const ids = new Map<string, string>(seeded);
-    const counts: Counts = { basics: 0, decks: 0, cubeAliases: 0, bareNames: 0, tokens: 0, unresolved: [] };
+    const counts: Counts = { basics: 0, decks: 0, cubeAliases: 0, bareNames: 0, faces: 0, tokens: 0, unresolved: [] };
 
     /**
      * Release date by id, built once off the already-loaded cache, so a vote
@@ -702,6 +775,23 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
       if (id !== null) put(name, id, 'bareNames');
     }
 
+    // ── every other face ─────────────────────────────────────────────────────
+    //
+    // The pool first, as `KNOWN_ART_IDS` merges it: a cube card's back face
+    // draws the printing its front does. Then every row this table holds.
+    const cardById = new Map<string, GameplayCard>();
+    for (const card of cards) {
+      const id = str(card, 'id');
+      if (id !== null) cardById.set(id, card);
+    }
+    const faceSources: [string, string][] = [];
+    for (const card of pool.cards) {
+      if (card.scryfallId === undefined || card.scryfallId === '') continue;
+      faceSources.push([`${card.name}|${card.setCode.toUpperCase()}`, card.scryfallId], [card.name, card.scryfallId]);
+    }
+    for (const key of [...ids.keys()].sort()) faceSources.push([key, ids.get(key)!]);
+    for (const [key, artId] of faceRows(faceSources, (id) => cardById.get(id))) put(key, artId, 'faces');
+
     // ── token art (R14) ───────────────────────────────────────────────────────
     //
     // Deliberately NOT routed through `buildCardIndex`/`resolveCard`: that index
@@ -779,7 +869,8 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
       'packages/carddata/src/art/index.ts can resolve a URL. Ids only — no URL, no host, no image metadata (D15). ' +
       'Scope: every basic land under every Forge set code, every card in the committed decks/ lists, the cube pool’s ' +
       'Forge-code aliases (pool.json already carries the Scryfall-code keys), one bare-name fallback row per name (and per ' +
-      'card a test scenario under apps/server/src/play/scenarios/ places), and ' +
+      'card a test scenario under apps/server/src/play/scenarios/ places), every other face of each of those cards ' +
+      '(a transform or modal back face as "<id>#back", its back image), and ' +
       '(R14) every Scryfall token printing under "<name> Token" — the form Forge actually sends — keyed under every ' +
       'Forge edition whose own token set the printing belongs to, plus a bare "<name> Token" fallback row. ' +
       (sourceUpdatedAt === null ? '' : `Built from Scryfall default_cards updated ${sourceUpdatedAt}.`);
@@ -798,7 +889,7 @@ ${rows.join(',\n')}
     console.log(
       `Wrote ${keys.length} rows (${bytes} bytes) to ${outFile}\n` +
         `  kept ${seeded.size} already-committed row(s) unchanged, added ${newRows} new\n` +
-        `  (of the new rows: basics ${counts.basics}, decks ${counts.decks}, cube aliases ${counts.cubeAliases}, bare names ${counts.bareNames}, token rows ${counts.tokens})`,
+        `  (of the new rows: basics ${counts.basics}, decks ${counts.decks}, cube aliases ${counts.cubeAliases}, bare names ${counts.bareNames}, other faces ${counts.faces}, token rows ${counts.tokens})`,
     );
     if (counts.unresolved.length > 0) {
       console.log(`  ${counts.unresolved.length} deck reference(s) did not resolve:`);
