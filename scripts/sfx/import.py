@@ -86,6 +86,10 @@ def classify(folder: str, lib_names: dict) -> tuple[str, str, str, str]:
 	sound/name/group (the bin pools them as one pill row); only the five basic lands get their
 	own distinct "Land types" pool."""
 	base = folder.split('.')[0]
+	# Round 5 names every folder it made, colour cells included ("Boros land", in its own section).
+	entry = lib_names.get(folder)
+	if entry is not None and 'section' in entry:
+		return folder, entry['name'], entry['group'], entry['section']
 	if folder.startswith('lib-'):
 		entry = lib_names.get(folder)
 		if entry is not None:
@@ -122,6 +126,9 @@ def main() -> None:
 	ap.add_argument('--seed', help='an assignments.json (or exported seed) to pre-populate assignments.json')
 	ap.add_argument('--to', required=True, dest='dest', help='the destination sounds dir (CARDTABLE_SOUNDS_DIR)')
 	ap.add_argument('--force', action='store_true', help='overwrite an existing assignments.json from --seed')
+	ap.add_argument('--add', action='store_true',
+		help="append --from's takes to the existing catalogue and keep every entry already there, renames included "
+		     "(a new round in folders that also hold placed takes; --merge would drop those)")
 	ap.add_argument('--merge', action='store_true',
 		help="add --from's takes to the existing catalogue instead of rebuilding it (folders in --from replace their old entries)")
 	args = ap.parse_args()
@@ -129,7 +136,7 @@ def main() -> None:
 	manifest = json.load(open(os.path.join(args.src, 'manifest.json'), encoding='utf-8'))
 
 	lib_names: dict = {}
-	for spec in ('round3.json', 'round4.json'):
+	for spec in ('round3.json', 'round4.json', 'round5.json'):
 		spec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), spec)
 		if os.path.exists(spec_path):
 			lib_names.update(json.load(open(spec_path, encoding='utf-8'))['sounds'])
@@ -149,7 +156,12 @@ def main() -> None:
 				'seconds': item['seconds'],
 				'prompt': item['prompt'],
 			})
-	if args.merge:
+	if args.add:
+		catalogue_path = os.path.join(args.dest, 'catalogue.json')
+		existing = json.load(open(catalogue_path, encoding='utf-8'))['takes'] if os.path.exists(catalogue_path) else []
+		known = {t['file'] for t in existing}
+		takes = existing + [t for t in takes if t['file'] not in known]
+	elif args.merge:
 		catalogue_path = os.path.join(args.dest, 'catalogue.json')
 		if os.path.exists(catalogue_path):
 			replaced = {folder.lower() for folder in manifest}

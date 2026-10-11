@@ -1,0 +1,607 @@
+{
+ "note": "Round 5 (2026-10-11): the cells left empty after the operator heard every earlier take. See make-round5.py.",
+ "suffix": "Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
+ "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb, echo, delay, long tail, repeated hits, double hit, two sounds",
+ "seconds": 3.0,
+ "sounds": {
+  "ui.hover-card": {
+   "group": "Interface",
+   "name": "Hover a card",
+   "prompts": [
+    "Faint fingertip brush across a playing card, the softest paper whisper",
+    "Barely there tick of a fingernail on smooth cardstock",
+    "Tiny soft paper rustle, a card edge grazed"
+   ],
+   "seconds": 1.5
+  },
+  "ui.hover-control": {
+   "group": "Interface",
+   "name": "Hover a button",
+   "prompts": [
+    "Tiny soft wooden tick, a bead tapped once",
+    "Faint muted click of a small brass button",
+    "Very soft felt tap on a wooden table"
+   ],
+   "seconds": 1.5
+  },
+  "ui.select": {
+   "group": "Interface",
+   "name": "Select",
+   "prompts": [
+    "Crisp small wooden click, a game token set down once",
+    "Short bright tap of a stone counter on wood",
+    "Clean single click of a brass toggle"
+   ],
+   "seconds": 1.5
+  },
+  "ui.prompt": {
+   "group": "Interface",
+   "name": "Decision needed",
+   "prompts": [
+    "One soft low wooden knock, attentive and calm",
+    "A single gentle mallet tap on a small wooden block",
+    "Soft short pluck of one low harp string"
+   ],
+   "seconds": 1.5
+  },
+  "ui.inspect": {
+   "group": "Interface",
+   "name": "Inspect",
+   "prompts": [
+    "Soft quick paper lift, a card raised toward the eye",
+    "Short airy swish of a card turned over in the hand",
+    "Gentle magnifying glass set on a card, a soft glassy tap"
+   ],
+   "seconds": 1.5
+  },
+  "g.cast.sorcery": {
+   "group": "Casting and the stack",
+   "name": "Cast a sorcery",
+   "prompts": [
+    "A card snapped onto the table with a short dry whoosh of magic",
+    "Quick paper flick into a soft low arcane thump",
+    "A spell card slapped down, a brief dark swell that stops"
+   ]
+  },
+  "g.cast.enchantment": {
+   "group": "Casting and the stack",
+   "name": "Cast an enchantment",
+   "prompts": [
+    "A card laid down with a soft glassy shimmer that settles",
+    "Gentle paper slide into a short warm bell-like glow",
+    "A card placed softly, a quiet sparkle of dust"
+   ]
+  },
+  "g.cast.planeswalker": {
+   "group": "Casting and the stack",
+   "name": "Cast a planeswalker",
+   "prompts": [
+    "A card slammed down with a deep resonant boom, short and weighty",
+    "A heavy card drop into a brief rising choir hit, cut short",
+    "Powerful single drum hit with a metallic ring, one strike"
+   ]
+  },
+  "g.land": {
+   "group": "On the battlefield",
+   "name": "Play a land",
+   "prompts": [
+    "A playing card set firmly on a wooden table, one solid tap",
+    "A thick card placed down with a short dull knock",
+    "A card dropped flat on felt, a soft heavy pat"
+   ]
+  },
+  "g.creature": {
+   "group": "On the battlefield",
+   "name": "Creature voice",
+   "prompts": [
+    "A short low creature grunt, a single breath",
+    "A brief beastly huff, one exhale",
+    "A quick low growl that stops at once"
+   ]
+  },
+  "g.enter": {
+   "group": "On the battlefield",
+   "name": "Lands on the table",
+   "prompts": [
+    "A heavy card lands on a wooden table, one deep thud",
+    "Solid single thump of a game piece set down hard",
+    "A short weighty knock on thick wood"
+   ]
+  },
+  "g.token": {
+   "group": "On the battlefield",
+   "name": "Token appears",
+   "prompts": [
+    "A small light wooden token placed on a table, a bright tap",
+    "A tiny glass bead dropped on wood, a single tink",
+    "A cardboard chip flicked onto felt, one soft clack"
+   ]
+  },
+  "g.counter-on": {
+   "group": "On the battlefield",
+   "name": "Counter added",
+   "prompts": [
+    "A small plastic die set on a card, one crisp click",
+    "A single coin placed on wood, a short bright clink",
+    "A tiny wooden bead clicked into place"
+   ]
+  },
+  "g.counter-off": {
+   "group": "On the battlefield",
+   "name": "Counter removed",
+   "prompts": [
+    "A small die lifted off a card, a short soft scrape",
+    "A coin slid off a table into a hand, a brief metallic swish",
+    "A wooden bead pulled away, a soft hollow pop"
+   ]
+  },
+  "g.transform": {
+   "group": "On the battlefield",
+   "name": "Transform",
+   "prompts": [
+    "A card flipped over fast with a short magical swish",
+    "A quick paper flip into a brief shimmering whoosh",
+    "A card turned with a snap and a short rising sweep"
+   ]
+  },
+  "g.mana": {
+   "group": "On the battlefield",
+   "name": "Mana",
+   "prompts": [
+    "A short soft crystal ping, one note",
+    "A single small glass chime, bright and short",
+    "A quick soft energy pulse, a gentle hum that stops"
+   ]
+  },
+  "g.destroy": {
+   "group": "Cards moving",
+   "name": "Destroyed",
+   "prompts": [
+    "A card torn quickly in half, one sharp rip",
+    "A brittle object cracking and crumbling, a short break",
+    "A wooden piece snapped, one dry crack"
+   ]
+  },
+  "g.exile": {
+   "group": "Cards moving",
+   "name": "Exile",
+   "prompts": [
+    "A short airy vanishing whoosh, something pulled into nothing",
+    "A quick reversed shimmer that disappears",
+    "A brief hollow swish of something sucked away"
+   ]
+  },
+  "g.bounce": {
+   "group": "Cards moving",
+   "name": "Returned to hand",
+   "prompts": [
+    "A card swept off the table back into a hand, a quick paper slide",
+    "A short rubbery boing, a light bounce",
+    "A quick reversed paper flick, a card returned"
+   ]
+  },
+  "g.mill": {
+   "group": "Cards moving",
+   "name": "Mill",
+   "prompts": [
+    "A few cards slid off a deck in a quick paper cascade",
+    "A short shuffle of three cards dropped onto a pile",
+    "Quick flutter of cards falling onto a table"
+   ]
+  },
+  "g.lifegain": {
+   "group": "Combat and life",
+   "name": "Life gain",
+   "prompts": [
+    "A short warm rising chime, one gentle shimmer",
+    "A brief soft harp glissando up, cut short",
+    "A single warm bell tone with a soft glow"
+   ]
+  },
+  "g.turn-theirs": {
+   "group": "Turn and game",
+   "name": "Their turn",
+   "prompts": [
+    "One soft distant low bell strike, calm",
+    "A single muted gong tap, low and short",
+    "A soft low wooden chime, one note, further away"
+   ]
+  },
+  "w.spell": {
+   "group": "White",
+   "name": "White spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, radiant and orderly: bright brass, a clear bell, sunlight",
+    "A quick magical burst, radiant and orderly: bright brass, a clear bell, sunlight"
+   ]
+  },
+  "w.creature": {
+   "group": "White",
+   "name": "White creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, radiant and orderly: bright brass, a clear bell, sunlight",
+    "A creature steps in with one call, radiant and orderly: bright brass, a clear bell, sunlight"
+   ]
+  },
+  "w.land": {
+   "group": "Lands",
+   "name": "White land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: open plains, warm wind over grass",
+    "A land settles into place, radiant and orderly: bright brass, a clear bell, sunlight"
+   ]
+  },
+  "land-plains": {
+   "group": "Basic lands",
+   "name": "Plains",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: open plains, warm wind over grass",
+    "Footstep onto open plains, warm wind over grass"
+   ]
+  },
+  "u.spell": {
+   "group": "Blue",
+   "name": "Blue spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, cool and clever: water, wind, glassy tones",
+    "A quick magical burst, cool and clever: water, wind, glassy tones"
+   ]
+  },
+  "u.creature": {
+   "group": "Blue",
+   "name": "Blue creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, cool and clever: water, wind, glassy tones",
+    "A creature steps in with one call, cool and clever: water, wind, glassy tones"
+   ]
+  },
+  "u.land": {
+   "group": "Lands",
+   "name": "Blue land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: an island shore, one lapping wave",
+    "A land settles into place, cool and clever: water, wind, glassy tones"
+   ]
+  },
+  "b.land": {
+   "group": "Lands",
+   "name": "Black land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: a dark swamp, a slow bubbling bog",
+    "A land settles into place, shadowy and hungry: a low drone, bones, a dark breath"
+   ]
+  },
+  "r.creature": {
+   "group": "Red",
+   "name": "Red creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, hot and impulsive: fire, sparks, a crackling burst",
+    "A creature steps in with one call, hot and impulsive: fire, sparks, a crackling burst"
+   ]
+  },
+  "r.land": {
+   "group": "Lands",
+   "name": "Red land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: a mountain, rumbling rock and gravel",
+    "A land settles into place, hot and impulsive: fire, sparks, a crackling burst"
+   ]
+  },
+  "wu.land": {
+   "group": "Lands",
+   "name": "Azorius land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: open plains, warm wind over grass and an island shore, one lapping wave",
+    "A land settles into place, law and order: a gavel knock and a precise crystal chime"
+   ]
+  },
+  "ub.land": {
+   "group": "Lands",
+   "name": "Dimir land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: an island shore, one lapping wave and a dark swamp, a slow bubbling bog",
+    "A land settles into place, secrets and shadow: a hushed whisper of wind and a cold glassy tone"
+   ]
+  },
+  "br.creature": {
+   "group": "Rakdos",
+   "name": "Rakdos creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, a dark carnival: a crackle of fire and a rattling chain",
+    "A creature steps in with one call, a dark carnival: a crackle of fire and a rattling chain"
+   ]
+  },
+  "rg.creature": {
+   "group": "Gruul",
+   "name": "Gruul creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, savage stomping: a heavy footfall, cracking rock and a roar",
+    "A creature steps in with one call, savage stomping: a heavy footfall, cracking rock and a roar"
+   ]
+  },
+  "gw.spell": {
+   "group": "Selesnya",
+   "name": "Selesnya spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, a living choir: rustling leaves and a warm swell of voices",
+    "A quick magical burst, a living choir: rustling leaves and a warm swell of voices"
+   ]
+  },
+  "gw.land": {
+   "group": "Lands",
+   "name": "Selesnya land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: a deep forest, rustling leaves and creaking wood and open plains, warm wind over grass",
+    "A land settles into place, a living choir: rustling leaves and a warm swell of voices"
+   ]
+  },
+  "wb.spell": {
+   "group": "Orzhov",
+   "name": "Orzhov spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, a grand church of coin: a deep bell and clinking gold",
+    "A quick magical burst, a grand church of coin: a deep bell and clinking gold"
+   ]
+  },
+  "wb.land": {
+   "group": "Lands",
+   "name": "Orzhov land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: open plains, warm wind over grass and a dark swamp, a slow bubbling bog",
+    "A land settles into place, a grand church of coin: a deep bell and clinking gold"
+   ]
+  },
+  "ur.creature": {
+   "group": "Izzet",
+   "name": "Izzet creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, mad science: electric arcs and a rising synth zap",
+    "A creature steps in with one call, mad science: electric arcs and a rising synth zap"
+   ]
+  },
+  "bg.spell": {
+   "group": "Golgari",
+   "name": "Golgari spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, rot and regrowth: a wet fungal squelch and creaking roots",
+    "A quick magical burst, rot and regrowth: a wet fungal squelch and creaking roots"
+   ]
+  },
+  "rw.creature": {
+   "group": "Boros",
+   "name": "Boros creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, a war legion: a war horn blast and clashing steel",
+    "A creature steps in with one call, a war legion: a war horn blast and clashing steel"
+   ]
+  },
+  "gu.creature": {
+   "group": "Simic",
+   "name": "Simic creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, mutation: wet organic morphing and bubbling water",
+    "A creature steps in with one call, mutation: wet organic morphing and bubbling water"
+   ]
+  },
+  "gu.land": {
+   "group": "Lands",
+   "name": "Simic land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: a deep forest, rustling leaves and creaking wood and an island shore, one lapping wave",
+    "A land settles into place, mutation: wet organic morphing and bubbling water"
+   ]
+  },
+  "gwu.spell": {
+   "group": "Bant",
+   "name": "Bant spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, shining knights: a bright horn and armour in sunlight",
+    "A quick magical burst, shining knights: a bright horn and armour in sunlight"
+   ]
+  },
+  "gwu.creature": {
+   "group": "Bant",
+   "name": "Bant creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, shining knights: a bright horn and armour in sunlight",
+    "A creature steps in with one call, shining knights: a bright horn and armour in sunlight"
+   ]
+  },
+  "gwu.land": {
+   "group": "Lands",
+   "name": "Bant land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: shining knights: a bright horn and armour in sunlight",
+    "A land settles into place, shining knights: a bright horn and armour in sunlight"
+   ]
+  },
+  "wub.creature": {
+   "group": "Esper",
+   "name": "Esper creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, etherium and glass: a cold metallic chime and a clockwork tick",
+    "A creature steps in with one call, etherium and glass: a cold metallic chime and a clockwork tick"
+   ]
+  },
+  "wub.land": {
+   "group": "Lands",
+   "name": "Esper land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: etherium and glass: a cold metallic chime and a clockwork tick",
+    "A land settles into place, etherium and glass: a cold metallic chime and a clockwork tick"
+   ]
+  },
+  "ubr.creature": {
+   "group": "Grixis",
+   "name": "Grixis creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, an undead wasteland: an eerie drone, a ghostly glide and embers",
+    "A creature steps in with one call, an undead wasteland: an eerie drone, a ghostly glide and embers"
+   ]
+  },
+  "brg.spell": {
+   "group": "Jund",
+   "name": "Jund spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, dragons and volcanoes: a lava rumble and a dragon roar",
+    "A quick magical burst, dragons and volcanoes: a lava rumble and a dragon roar"
+   ]
+  },
+  "brg.land": {
+   "group": "Lands",
+   "name": "Jund land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: dragons and volcanoes: a lava rumble and a dragon roar",
+    "A land settles into place, dragons and volcanoes: a lava rumble and a dragon roar"
+   ]
+  },
+  "rgw.creature": {
+   "group": "Naya",
+   "name": "Naya creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, giant beasts in the jungle: a huge roar and pounding drums",
+    "A creature steps in with one call, giant beasts in the jungle: a huge roar and pounding drums"
+   ]
+  },
+  "rgw.land": {
+   "group": "Lands",
+   "name": "Naya land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: giant beasts in the jungle: a huge roar and pounding drums",
+    "A land settles into place, giant beasts in the jungle: a huge roar and pounding drums"
+   ]
+  },
+  "wbg.creature": {
+   "group": "Abzan",
+   "name": "Abzan creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, the desert endures: wind over sand and a low solemn hum",
+    "A creature steps in with one call, the desert endures: wind over sand and a low solemn hum"
+   ]
+  },
+  "urw.creature": {
+   "group": "Jeskai",
+   "name": "Jeskai creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, monks and wind: a quick whoosh, wind chimes and a gong",
+    "A creature steps in with one call, monks and wind: a quick whoosh, wind chimes and a gong"
+   ]
+  },
+  "urw.land": {
+   "group": "Lands",
+   "name": "Jeskai land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: monks and wind: a quick whoosh, wind chimes and a gong",
+    "A land settles into place, monks and wind: a quick whoosh, wind chimes and a gong"
+   ]
+  },
+  "rwb.land": {
+   "group": "Lands",
+   "name": "Mardu land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: a war horde: galloping horses and clanking armour",
+    "A land settles into place, a war horde: galloping horses and clanking armour"
+   ]
+  },
+  "wubrg.spell": {
+   "group": "Four colours or more",
+   "name": "Four colours or more spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, every colour at once: a prismatic shimmer, five tones in a bright chord",
+    "A quick magical burst, every colour at once: a prismatic shimmer, five tones in a bright chord"
+   ]
+  },
+  "wubrg.creature": {
+   "group": "Four colours or more",
+   "name": "Four colours or more creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, every colour at once: a prismatic shimmer, five tones in a bright chord",
+    "A creature steps in with one call, every colour at once: a prismatic shimmer, five tones in a bright chord"
+   ]
+  },
+  "wubrg.land": {
+   "group": "Lands",
+   "name": "Four colours or more land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: every colour at once: a prismatic shimmer, five tones in a bright chord",
+    "A land settles into place, every colour at once: a prismatic shimmer, five tones in a bright chord"
+   ]
+  },
+  "c.spell": {
+   "group": "Colourless",
+   "name": "Colourless spell",
+   "section": "Colour sounds",
+   "prompts": [
+    "A spell is cast, colourless and ancient: humming stone, metal and a mechanical whirr",
+    "A quick magical burst, colourless and ancient: humming stone, metal and a mechanical whirr"
+   ]
+  },
+  "c.creature": {
+   "group": "Colourless",
+   "name": "Colourless creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A creature arrives, colourless and ancient: humming stone, metal and a mechanical whirr",
+    "A creature steps in with one call, colourless and ancient: humming stone, metal and a mechanical whirr"
+   ]
+  },
+  "c.land": {
+   "group": "Lands",
+   "name": "Colourless land",
+   "section": "Land types",
+   "prompts": [
+    "A land is played: an ancient stone monument, a resonant hum",
+    "A land settles into place, colourless and ancient: humming stone, metal and a mechanical whirr"
+   ]
+  },
+  "c.artifact-creature": {
+   "group": "Colourless",
+   "name": "Colourless artifact creature",
+   "section": "Colour sounds",
+   "prompts": [
+    "A metal construct powers up, joints clanking and a short mechanical whirr",
+    "A clockwork golem steps forward, one heavy metal clank and a gear spin"
+   ]
+  }
+ }
+}

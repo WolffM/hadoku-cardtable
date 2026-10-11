@@ -83,6 +83,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', default='', help='comma-separated folder prefixes, e.g. "ui.,g." for round 4')
     ap.add_argument('--out', default='finished', help='output dir under ~/.local/share/cardtable-sfx')
+    ap.add_argument('--min-seed', type=int, default=None,
+                    help='only takes whose seed (the stem\'s last number) is at least this: one round\'s files in folders older rounds share')
     ap.add_argument('--into', default='', help='re-cut in place: a sounds dir (catalogue.json + takes/); overwrites each '
                     'take that has a raw source and updates only its seconds, so names, groups and placements stay')
     args = ap.parse_args()
@@ -96,6 +98,8 @@ def main():
         if prefixes and not sid.startswith(prefixes):
             continue
         stem = os.path.splitext(os.path.basename(wav))[0]
+        if args.min_seed is not None and int(stem.rsplit('-', 1)[-1]) < args.min_seed:
+            continue
         meta = json.load(open(wav[:-4] + '.json'))
         done = finish(wav, cap_for(sid))
         if done is None:

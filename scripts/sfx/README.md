@@ -111,3 +111,19 @@ python3 scripts/sfx/retired.py apps/server/data/sounds
 Per prompt it shows how many takes were thrown out and why, and what is still kept. Mostly *broken* points at
 generation or finishing; mostly *bad* at the prompt — rewrite it, or drop it from the next `roundN.json`.
 
+## Round 5: a new round in folders older rounds share
+
+Round 5 (2026-10-11) filled the cells left empty after the operator had heard every earlier take; every
+take that was not placed was retired first (`retired.jsonl`, reason `unused`). New takes land in folders
+that also hold placed ones (`g.tap/`), so:
+
+```sh
+python3 scripts/sfx/make-round5.py <empty.json>                       # round5.json from the empty cells
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round5.json --takes 3 --seed 7000
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 7000 --out finished-r5
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r5 --to apps/server/data/sounds --add
+```
+
+`--min-seed` finishes only this round's files; `--add` appends them and keeps every entry already in the
+catalogue (`--merge` replaces whole folders, which would drop placed takes and their renames).
+
