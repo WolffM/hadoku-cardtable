@@ -3182,8 +3182,8 @@ describe('cards find their place (§A.3, §A.4)', () => {
 
 /**
  * §A.1 — the fit. The table is **960px wide at a 1280 viewport**, not 1280:
- * watchparty's roster-and-chat aside is `flex: 0 0 20rem` and pinned above
- * 767px (`apps/ui/src/chrome/chrome.css`), so the board gets 1280 − 320.
+ * watchparty's roster-and-chat aside is 20rem wide and beside the table above
+ * 767px (`@wolffm/watchparty-ui`'s `room-chrome.css`), so the board gets 1280 − 320.
  *
  * jsdom lays nothing out, so this does the arithmetic the stylesheet does, on
  * the tokens read out of the stylesheet and the counts read off the rendered
@@ -3192,7 +3192,7 @@ describe('cards find their place (§A.3, §A.4)', () => {
  * they are measured on a live match.
  */
 describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
-  /** 1280 minus watchparty's pinned 320px aside. `chrome.css` documents both. */
+  /** 1280 minus watchparty's 320px aside. */
   const TABLE_W = 960;
   /** The board's own height there, measured: the page header takes the rest. */
   const TABLE_H = 705;

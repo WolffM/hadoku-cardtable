@@ -96,12 +96,8 @@
  * `margin` and not `padding`, because the fleet's geometry insets the
  * border-bottom too — inside a padded wrapper the rule stops short of the
  * viewport edge rather than running to it. Only the top and the inline axis are
- * set; `margin-bottom` stays `app-header.css`'s 1.5rem, except beside the chat.
- *
- * And no wrapper DIV, because the page-boundary rule below selects
- * `.cardtable-chrome:has(…) > .app-header` to kill that bottom margin wherever
- * the room's chat is drawn. An element between them would break that selector
- * silently.
+ * set; `margin-bottom` stays `app-header.css`'s 1.5rem, except beside the chat
+ * (watchparty's stylesheet closes it there) and on the match.
  *
  * What is NOT done here: re-insetting the content to match. `screens.css`'s
  * `.shell` is `max-width: 1400px; padding: 24px`, so on a wide viewport the
@@ -127,24 +123,21 @@
  * side page boundary"*.
  *
  * The separator is `.wp-room-chrome`'s own `border-left`, on a column that is
- * the full height of `.wp-room-chrome-frame`. Two things kept it off the bar
- * and the page's edge, and both were ours:
- *
- *   1. `app-header.css`'s `margin-bottom: 1.5rem` sat between the bar's rule
- *      and the frame's top — measured on `#/room/…` at 1600x900: the rule at
- *      y=81, the aside from y=105. Zeroed here, the column starts on the rule.
- *   2. The frame is 100% of `__content`, which had no inset off the match
- *      route, so the aside ran to x=1600 while the bar stopped at 1568.
- *      Insetting `__content` by the bar's own `2rem` moves the frame — the
- *      chat with it — onto the bar's edges, with no rule on watchparty's class.
+ * the full height of `.wp-room-chrome-frame`. Touching the bar's rule is
+ * watchparty's now (`@wolffm/watchparty-ui`'s `room-chrome.css`): it zeroes
+ * the header's bottom margin wherever a frame follows it, for every app. What
+ * stays here is the page's EDGE, which is ours: the frame is 100% of
+ * `__content`, and the bar is inset by `margin-inline` (above) rather than by a
+ * padded wrapper, so `__content` takes the bar's own `2rem` too and the chat's
+ * right edge lands on the bar's.
  *
  * Keyed on the frame, not on a route's shell, so the room, the draft and the
- * deck builder get it as the match always did; `.shell--match` stays in the
- * list because a match whose chrome did not mount (no identity) still wants
- * the bar's edges and the whole height. The header itself does not move —
- * see the next rule — only the gap BELOW it closes.
+ * deck builder get it as the match always did; `.shell--match` stays because a
+ * match whose chrome did not mount (no identity) still wants the bar's edges
+ * and the whole height. The header itself does not move — see the next rule —
+ * only the gap BELOW it closes.
  */
-.cardtable-chrome:has(.shell--match, .wp-room-chrome-frame) > .app-header {
+.cardtable-chrome:has(.shell--match) > .app-header {
   margin-bottom: 0;
 }
 
@@ -251,37 +244,4 @@
  */
 .cardtable-chrome .pods__title {
   color: var(--color-text-secondary);
-}
-
-/*
- * The room's chat rail squishes the table on a phone, and it is ours to fix.
- *
- * `.wp-room-chrome` (watchparty's roster+chat aside) ships pinned to
- * `flex: 0 0 20rem` in its own stylesheet (`room-chrome.css`) with no
- * responsive rule of its own — verified: `.wp-room-chrome-frame` is a plain
- * row flexbox, and nothing in that file's handful of `@media` blocks touches
- * either class. Measured live at 375x800 (a stub-`whoami` build,
- * `#/match/…`): the aside held its full 320px and
- * `.wp-room-chrome-frame__content` — our own screen — was squeezed to a
- * 55px sliver with no border of its own, which reads exactly as "squished,
- * no boundaries". `NARROW_BREAKPOINT` (768, `@wolffm/themes` platform
- * module) is the fleet's one narrow threshold; the literal below is that
- * value minus one, matching `NARROW_QUERY`, spelled out because a CSS media
- * query cannot import a JS constant.
- *
- * These are unlayered rules reaching into a `@layer`-wrapped stylesheet: per
- * the cascade-layers spec an unlayered author rule always beats a layered
- * one regardless of selector specificity, so this needs no `!important`.
- */
-@media (max-width: 767px) {
-  .cardtable-chrome .wp-room-chrome-frame {
-    flex-direction: column;
-  }
-
-  .cardtable-chrome .wp-room-chrome {
-    flex: 0 0 auto;
-    max-height: 45vh;
-    border-top: 1px solid var(--color-border);
-    border-left: none;
-  }
 }
