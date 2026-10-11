@@ -115,6 +115,14 @@ function cardButton(page: Page, cardId: number): Locator {
  */
 async function drainPrompts(page: Page, where: string, rounds = 4): Promise<void> {
   for (let i = 0; i < rounds; i++) {
+    // Each prompt is Forge's own ask, a round trip after the press that opens it: wait for it to
+    // be drawn before reading it, or a fast board reads the page before it arrives.
+    const showing = await page
+      .locator('.confirm__button, [data-testid="live-prompt"]')
+      .first()
+      .waitFor({ timeout: 3_000 })
+      .then(() => true, () => false);
+    if (!showing) return;
     const opened = await answerAndSubmit(page, where);
     if (!opened) return;
     await page.waitForTimeout(150);
