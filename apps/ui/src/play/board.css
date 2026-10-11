@@ -1575,6 +1575,15 @@
     0 0 8px var(--accent);
 }
 
+/*
+ * A bar with nothing to point at is `hidden`, but stays in layout: shown and hidden many times a drag,
+ * a `display` switch lays the whole board out again each time; `visibility` only repaints the bar.
+ */
+.board > [data-arrange-indicator][hidden] {
+  display: block;
+  visibility: hidden;
+}
+
 .board > [data-arrange-indicator][data-arrange-kind='stack-top'],
 .board > [data-arrange-indicator][data-arrange-kind='stack-bottom'] {
   background: color-mix(in srgb, var(--accent) 80%, transparent);

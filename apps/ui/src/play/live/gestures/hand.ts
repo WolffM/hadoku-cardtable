@@ -144,7 +144,11 @@ export function updateHandIndicator(canvas: ParentNode, cardId: number, point: P
   const board = canvas.querySelector<HTMLElement>('.board');
   const list = ownHandList(canvas);
   if (board === null || list === null) return;
-  clearHandIndicator();
+  for (const el of marked) el.removeAttribute('data-arrange-target');
+  marked = [];
+  // The one bar is moved, never taken out and put back: a child added to or removed from `.board`
+  // lays the whole board out again, and this runs every frame of the drag.
+  indicator?.setAttribute('hidden', '');
   const { target } = nearestHandSlot(canvas, cardId, point);
   const boardBox = board.getBoundingClientRect();
   let at: DOMRect;
@@ -169,17 +173,20 @@ export function updateHandIndicator(canvas: ParentNode, cardId: number, point: P
     }
   }
   if (at.width === 0 && at.height === 0 && target.kind === 'end') return;
-  const bar = document.createElement('div');
-  bar.setAttribute('data-arrange-indicator', '');
-  bar.setAttribute('data-arrange-kind', target.kind === 'before' ? 'before' : 'end');
-  bar.setAttribute('data-arrange-slot', 'hand');
-  bar.style.width = '3px';
-  bar.style.height = `${at.height}px`;
+  if (indicator === null || indicator.parentElement !== board) {
+    indicator?.remove();
+    indicator = document.createElement('div');
+    indicator.setAttribute('data-arrange-indicator', '');
+    indicator.setAttribute('data-arrange-slot', 'hand');
+    indicator.style.width = '3px';
+    board.append(indicator);
+  }
+  indicator.removeAttribute('hidden');
+  indicator.setAttribute('data-arrange-kind', target.kind === 'before' ? 'before' : 'end');
+  indicator.style.height = `${at.height}px`;
   const x = target.kind === 'before' ? at.left : at.right;
-  bar.style.left = `${x - boardBox.left}px`;
-  bar.style.top = `${at.top - boardBox.top}px`;
-  board.append(bar);
-  indicator = bar;
+  indicator.style.left = `${x - boardBox.left}px`;
+  indicator.style.top = `${at.top - boardBox.top}px`;
 }
 
 function centreOf(r: DOMRect): Point {

@@ -102,9 +102,11 @@ describe('updateHandIndicator / clearHandIndicator — the row’s own data-arra
   it('a second call replaces the mark rather than leaving both', () => {
     const { canvas, cards } = board(3);
     updateHandIndicator(canvas, 102, { x: 5, y: 540 });
+    const bar = canvas.querySelector('[data-arrange-indicator]');
     updateHandIndicator(canvas, 102, { x: 500, y: 540 });
     expect(cards[0]!.hasAttribute('data-arrange-target'), 'the old mark is gone').toBe(false);
     expect(canvas.querySelectorAll('[data-arrange-indicator]')).toHaveLength(1);
+    expect(canvas.querySelector('[data-arrange-indicator]'), 'the same bar, moved: never taken out of the board and put back').toBe(bar);
   });
 });
 
