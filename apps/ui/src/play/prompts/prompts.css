@@ -44,48 +44,29 @@
 }
 
 /*
- * The scrolling part of the sheet (first list item 3). *"i have to scroll all
- * the way to the bottom to click 'ok'."*
+ * Every sheet is a three-part column: the words on top, the body, the buttons
+ * at the foot. *"i have to scroll all the way to the bottom to click 'ok'"*,
+ * and later, over Scapeshift's ten lands: *"why isn't the OK button on the
+ * bottom of this panel and not impacted by the scrolling land box?"*
  *
- * `.live__prompt > .prompt` (`../live/live.css`) is itself `overflow-y: auto`
- * inside a flex column of a bounded height — the mechanism that keeps a tall
- * sheet from pushing the match shell out of its box (wave 20's card grids were
- * the first to do that). Before this, EVERY child of `.prompt` — title,
- * message, the selector, the problems list, OK and Clear — scrolled as that
- * one block, so a long list pushed OK below the fold and answering it meant
- * scrolling the whole sheet to find the button.
- *
- * `.prompt__body` is the one child that may grow past the sheet's box: `flex:
- * 1 1 auto` is what lets it (and only it) shrink below its own content once
- * the sheet runs out of room, and `min-height: 0` is what a flex item needs to
- * shrink that far at all (the same rule `.live__prompt > .prompt` itself
- * relies on, one level up). Title, message, problems and the actions row have
- * no such rule, so a flex item's default `min-height: auto` keeps every one of
- * them at its full size — always on screen, never inside the scroll. Once
- * `.prompt__body` is absorbing the squeeze, `.prompt` itself stops growing
- * past its box, so the outer `overflow-y: auto` in `../live/live.css` has
- * nothing left to do; it is not removed, because a sheet mounted with no
- * bounding ancestor (a screenshot harness, say) still wants it as a fallback.
+ * The sheet is a flex column of a bounded height (`.live__prompt > .prompt`,
+ * `../live/live.css`). The body is its ONE shrinkable child — `min-height: 0`
+ * lets it shrink below its content and `overflow-y: auto` scrolls what no
+ * longer fits — and everything else (title, message, problems, actions) keeps
+ * its full size with `flex-shrink: 0`. So a tall card grid scrolls inside its
+ * own box and can never draw over the buttons under it, and a sheet that fits
+ * shrinks nothing, so no scrollbar appears for a list with nothing to scroll.
  */
+.prompt > :not(.prompt__body) {
+  flex-shrink: 0;
+}
+
 .prompt__body {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 0;
   flex: 1 1 auto;
-  /*
-   * NOT `overflow-y: auto` unconditionally (R4, second half): a flex column
-   * with several shrinkable siblings can round this box a fraction of a
-   * pixel short of its content even when the list fits with room to spare,
-   * and `auto` draws a scrollbar for that fraction. `PromptShell.tsx`'s
-   * `useBodyOverflow` measures `scrollHeight` against `clientHeight` and sets
-   * `data-overflowing` only when there is truly something below the fold;
-   * `overflow-y` here does nothing until that attribute says so.
-   */
-  overflow-y: visible;
-}
-
-.prompt__body[data-overflowing] {
   overflow-y: auto;
 }
 

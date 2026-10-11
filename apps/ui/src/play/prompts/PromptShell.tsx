@@ -1,6 +1,9 @@
 /*
  * The frame every prompt draws in: a title, Forge's message, the body, the
- * reasons the current answer cannot be sent yet, and the buttons.
+ * reasons the current answer cannot be sent yet, and the buttons. The ask
+ * prompts and the selection sheet (`SelectionPrompt.tsx`) both draw in it, so
+ * `prompts.css`'s three-part column — the body the only part that scrolls, the
+ * buttons pinned under it — holds for every sheet.
  *
  * The submit button is disabled while `problems` is non-empty, and `problems`
  * always comes from `rules.ts`. That is the whole enforcement story: the rules
@@ -11,7 +14,7 @@
  * cards"* — a tutor choice is the board's card look, never a text list).
  */
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
@@ -23,9 +26,12 @@ import { RulesText } from './RulesText.tsx';
 import type { PromptMethod } from './types.ts';
 
 export interface PromptShellProps {
-  method: PromptMethod;
+  /** `data-prompt`: the ask's method, or `selection` for Forge's `setSelectables` sheet. */
+  method: PromptMethod | 'selection';
   title: string;
-  message?: string;
+  /** The dialog's accessible name when it is more than the title (a selection's whole prompt line). */
+  label?: string;
+  message?: ReactNode;
   problems?: readonly string[];
   submitLabel?: string;
   /** Omit for a prompt that answers without a button (the zone prompts). */
@@ -53,7 +59,7 @@ export interface PromptShellProps {
  */
 const TITLE_SPLIT = /^(.+?) - (.+)$/s;
 
-export function PromptTitle({ title }: { title: string }) {
+function PromptTitle({ title }: { title: string }) {
   const split = TITLE_SPLIT.exec(title);
   if (split === null)
     return (
@@ -73,57 +79,10 @@ export function PromptTitle({ title }: { title: string }) {
   );
 }
 
-/**
- * "Nothing to scroll" (R4, second half): *"the modal shows a scrollbar with
- * nothing to scroll."*
- *
- * `.prompt__body` has always been `overflow-y: auto` (`prompts.css`'s own
- * header explains why: it is the one child that shrinks to fit the sheet's
- * box, the outer `.live__prompt > .prompt` fallback in `../live/live.css`
- * covers the unbounded case). `overflow: auto` alone should never show
- * anything when content fits — but this sheet is a FLEX COLUMN with several
- * shrinkable siblings (`.prompt__problems`, `.prompt__actions`, neither
- * `flex-shrink: 0`), and the browser's own distribution of the column's
- * available height among them is not required to land on a whole pixel. A
- * short list — Thoughtseize's one-choice hand, say — can end up a FRACTION of
- * a pixel taller than the box flex handed `.prompt__body`, which is enough
- * for `overflow-y: auto` to draw a scrollbar for a list that, to the eye, has
- * nothing left to scroll to.
- *
- * So this does not trust the CSS rule to decide on its own: it MEASURES.
- * `scrollHeight > clientHeight` (with a 1px slack for exactly this kind of
- * sub-pixel rounding) is the one true test of "is there something below the
- * fold", and `data-overflowing` — `prompts.css`'s `overflow-y` rule is keyed
- * on it — only ever applies the scrolling behaviour when that test says yes.
- * A list that already fits draws no scrollbar, ever, regardless of how the
- * flex column's rounding landed.
- *
- * Re-measured on every render that could have changed what is inside
- * (`children` as the effect's dependency — a new choice ticked, a card added
- * to the reveal) and on a window resize; `ResizeObserver` alone is not
- * enough because the body's OWN box does not change size when its content
- * starts or stops overflowing it (that is the whole point of `overflow`).
- */
-function useBodyOverflow(ref: { current: HTMLDivElement | null }, children: ReactNode): boolean {
-  const [overflowing, setOverflowing] = useState(false);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = ref.current;
-      if (el === null) return;
-      setOverflowing(el.scrollHeight > el.clientHeight + 1);
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-    // `children` is the one dependency on purpose: re-measure whenever the
-    // body's own content could have changed, nothing else.
-  }, [children]);
-  return overflowing;
-}
-
 export function PromptShell({
   method,
   title,
+  label,
   message,
   problems = [],
   submitLabel = 'OK',
@@ -131,15 +90,11 @@ export function PromptShell({
   actions,
   children,
 }: PromptShellProps) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const overflowing = useBodyOverflow(bodyRef, children);
   return (
-    <section className="prompt" data-prompt={method} role="dialog" aria-label={plainRulesText(title)}>
+    <section className="prompt" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
       <PromptTitle title={title} />
       {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
-      <div className="prompt__body" ref={bodyRef} data-overflowing={overflowing || undefined}>
-        {children}
-      </div>
+      <div className="prompt__body">{children}</div>
       {problems.length > 0 && (
         <ul className="prompt__problems" data-testid="prompt-problems" aria-live="polite">
           {problems.map((p) => (

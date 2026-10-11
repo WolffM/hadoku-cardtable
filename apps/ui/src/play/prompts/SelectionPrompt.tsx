@@ -62,8 +62,8 @@
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { promptTileFor, PromptTitle } from './PromptShell.tsx';
-import { plainRulesText, promptText, type PromptLookup } from './lookup.ts';
+import { PromptShell, promptTileFor } from './PromptShell.tsx';
+import { promptText, type PromptLookup } from './lookup.ts';
 import { RulesText } from './RulesText.tsx';
 
 /** `LiveSelectables`'s shape, read structurally so this file does not import lane L's `../live/match.ts`. */
@@ -139,58 +139,49 @@ export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, on
   // Forge's own selection prompts (`showPromptMessage`) separate the
   // trigger/source line from the instruction with a blank line — the same
   // two-part shape every other prompt's own `title`/`message` fields
-  // already are, just not pre-split for us. `PromptTitle` is the existing
-  // "<what happened> - <what to do>" line-break rule (`PromptShell.tsx`);
-  // reused here rather than re-implemented so a selection's sheet looks
-  // like every other decision area question.
+  // already are, just not pre-split for us. Drawn in `PromptShell`, so a
+  // selection's sheet is every other decision area question's sheet.
   const [title, ...rest] = message.split('\n\n');
   const instruction = rest.join('\n\n');
   return (
-    <section className="prompt" data-prompt="selection" role="dialog" aria-label={plainRulesText(rawMessage)}>
-      <PromptTitle title={title ?? message} />
-      {instruction !== '' && (
-        <p className="prompt__message">
-          <RulesText text={instruction} />
-        </p>
-      )}
-      <div className="prompt__body">
-        <ul className="prompt__cards" data-testid="prompt-cards">
-          {cards.map((id) => {
-            // `promptTileFor` already falls back to `card #<id>` as the
-            // tile's own name when the lookup knows nothing — a second,
-            // separate "unknown card" tag would say the same fact twice.
-            const tile = promptTileFor(lookup, id);
-            return (
-              <li key={id} data-card-id={id}>
-                <label>
-                  <input
-                    type="checkbox"
-                    data-testid="prompt-choice"
-                    data-card-id={id}
-                    checked={picked.has(id)}
-                    onChange={() => onPick(id)}
-                  />
-                  <CardTile card={tile} />
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      {(done !== undefined || cancel !== undefined) && (
-        <div className="prompt__actions">
-          {cancel !== undefined && (
-            <button type="button" className="prompt__link" data-testid="selection-cancel" disabled={!cancel.enabled} onClick={cancel.onClick}>
-              {cancel.label}
-            </button>
-          )}
-          {done !== undefined && (
-            <button type="button" className="prompt__submit" data-testid="selection-done" disabled={!done.enabled} onClick={done.onClick}>
-              {done.label}
-            </button>
-          )}
-        </div>
-      )}
-    </section>
+    <PromptShell
+      method="selection"
+      title={title ?? message}
+      label={rawMessage}
+      message={instruction === '' ? undefined : <RulesText text={instruction} />}
+      actions={
+        done === undefined && cancel === undefined ? undefined : (
+          <>
+            {cancel !== undefined && (
+              <button type="button" className="prompt__link" data-testid="selection-cancel" disabled={!cancel.enabled} onClick={cancel.onClick}>
+                {cancel.label}
+              </button>
+            )}
+            {done !== undefined && (
+              <button type="button" className="prompt__submit" data-testid="selection-done" disabled={!done.enabled} onClick={done.onClick}>
+                {done.label}
+              </button>
+            )}
+          </>
+        )
+      }
+    >
+      <ul className="prompt__cards" data-testid="prompt-cards">
+        {cards.map((id) => {
+          // `promptTileFor` already falls back to `card #<id>` as the
+          // tile's own name when the lookup knows nothing — a second,
+          // separate "unknown card" tag would say the same fact twice.
+          const tile = promptTileFor(lookup, id);
+          return (
+            <li key={id} data-card-id={id}>
+              <label>
+                <input type="checkbox" data-testid="prompt-choice" data-card-id={id} checked={picked.has(id)} onChange={() => onPick(id)} />
+                <CardTile card={tile} />
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </PromptShell>
   );
 }

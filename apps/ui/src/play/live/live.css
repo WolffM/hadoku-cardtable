@@ -552,7 +552,7 @@
   /* The column IS the width now — 24.1% of the match, about 305px on the
      operator's own canvas and 231px on the 960 the table actually gets
      (wave 27) — so the sheet fills it rather than choosing a width of its own.
-     What does not fit scrolls inside the sheet, as it already did. */
+     What does not fit scrolls inside the sheet's body (`prompts.css`). */
   width: 100%;
   max-width: none;
   min-height: 0;
