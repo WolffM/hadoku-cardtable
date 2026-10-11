@@ -1,0 +1,21 @@
+# The operator, 2026-10-11: "i have a ghost quarter up and it's my opponents
+# turn, but the game won't let me respond with it?" Alice (seat 0) casts Raging
+# Goblin off one of three Mountains; bob (seat 1) holds no cards and has an
+# untapped Ghost Quarter beside a Forest. With the Goblin on the stack, Ghost
+# Quarter's "{T}, Sacrifice: Destroy target land" is bob's to use, so his window
+# is his to answer, not passed for him. `land-only-pass.state` is the control:
+# the same cast with only a basic land on bob's side, where nothing but mana is
+# there to use. `e2e/land-abilities.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Raging Goblin
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Ghost Quarter;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
