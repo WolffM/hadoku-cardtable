@@ -21,6 +21,7 @@ import {
   onSpellMoved,
   placeSpell,
   releaseSpell,
+  placeStackItem,
   type Rect,
   COUNTERED_MS,
   PLACED_PENDING_MS,
@@ -167,8 +168,25 @@ describe('the seam', () => {
     handle.dispose();
   });
 
+  it('a card release never places a stack item that only shares its number: a land just played as card 37 and their spell that is stack item 37', () => {
+    const { canvas } = board();
+    // My land, released over my battlefield: card 37, which never reaches the stack.
+    placeSpell(37, { x: 120, y: 600 }, 'you');
+    const handle = installPlaced(canvas);
+    // Their spell, card 90, is Forge's stack item 37.
+    handle.notify(view([stackItem(37, { sourceCardId: 90 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="37"]')!;
+    expect(el.hasAttribute('data-mine'), 'their spell is not mine to pick up').toBe(false);
+    expect(el.style.top, 'nor drawn over my land').not.toBe('600px');
+    // Their release, when it arrives, is what places it.
+    placeSpell(90, { x: 400, y: 200 }, 'them');
+    expect(el.style.left).toBe('400px');
+    expect(el.style.top).toBe('200px');
+    handle.dispose();
+  });
+
   it('onSpellMoved hears every moveSpell, by whichever id is current', () => {
-    placeSpell(5, { x: 0, y: 0 }, 'you');
+    placeStackItem(5, { x: 0, y: 0 }, 'you');
     const heard: Array<[number, { x: number; y: number }]> = [];
     const unsub = onSpellMoved((id, at) => heard.push([id, at]));
     moveSpell(5, { x: 10, y: 20 });

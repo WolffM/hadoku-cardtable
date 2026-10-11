@@ -82,7 +82,7 @@ import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
-import { commitSpell, holdSpell, onSpellMoved, placeSpell, releaseSpell } from './placed.ts';
+import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
@@ -1228,9 +1228,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   /**
    * AD4 rule 3: the owner of a placed spell dragged it — move the OTHER
-   * seat's copy to match. `placeSpell`, not `moveSpell`: the server replays
+   * seat's copy to match. `placeStackItem`, not `moveSpell`: the server replays
    * this to a JOINER too (a reload), who has no earlier registration for the
-   * id at all — `moveSpell` is a no-op without one. `placeSpell` registers it
+   * id at all — `moveSpell` is a no-op without one. `placeStackItem` registers it
    * fresh when needed and just updates the point otherwise, and
    * `commitSpell` is a no-op once already committed — a stack item named on
    * this wire is public either way.
@@ -1257,7 +1257,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return;
     }
     if (pendingPlaced === payload) pendingPlaced = null;
-    placeSpell(parsed.data.spell, at, 'them');
+    placeStackItem(parsed.data.spell, at, 'them');
     commitSpell(parsed.data.spell);
   }
 

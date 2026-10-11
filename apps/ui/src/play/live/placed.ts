@@ -20,19 +20,24 @@
  *
  * ## The seam with lane W (Settled)
  *
- * Four exports, typed and fixed for the whole wave — W calls them and never
+ * Five exports — W calls them and never
  * draws:
  *
- *   - `placeSpell(id, at, side)` — a release (the park, `gestures/install.ts`)
- *     or an opponent's spell becoming known registers a point. `id` is
- *     whatever id the caller has AT THAT MOMENT: the caster's own release
- *     happens before Forge has pushed a stack item at all, so it is called
- *     with the CARD's id (`StackEntry.sourceCardId`'s own namespace — the
- *     same id a card keeps from hand to stack to battlefield). `notify`
- *     below promotes that registration onto the stack item's own `id` the
- *     moment a matching entry appears in `view.stack`, so every call after
- *     that — a drag's `moveSpell`, lane W's `commitSpell` — addresses the
- *     same record by the stack id.
+ *   - `placeSpell(cardId, at, side)` — a release (the park, `gestures/install.ts`)
+ *     or an opponent's spell becoming known registers a point, by the CARD's
+ *     id (`StackEntry.sourceCardId`'s own namespace — the same id a card
+ *     keeps from hand to stack to battlefield): the caster's own release
+ *     happens before Forge has pushed a stack item at all. `notify` below
+ *     promotes that registration onto the stack item's own `id` the moment
+ *     a matching entry appears in `view.stack`, so every call after that — a
+ *     drag's `moveSpell`, lane W's `commitSpell` — addresses the same record
+ *     by the stack id. The two namespaces are kept apart: Forge numbers cards
+ *     and stack items separately, so a land just played as card 37 and the
+ *     opponent's spell that is stack item 37 are different things, and the
+ *     land's release must never place that spell.
+ *   - `placeStackItem(id, at, side)` — a point for a stack item by its own
+ *     id: a drag of one with no release behind it (an own trigger), or the
+ *     other seat's `forge:placed` echo.
  *   - `moveSpell(id, at)` — the point changes (a drag of the viewer's own, or
  *     lane W's `forge:placed` echo) and every `onSpellMoved` listener hears
  *     it, which is what redraws this id's arrows and what lane W relays over
@@ -129,7 +134,7 @@ interface Placement {
   readonly registeredAt: number;
 }
 
-/** One record per spell, module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
+/** One record per stack item, by its stack id — module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
 const placements = new Map<number, Placement>();
 /**
  * Their spells (by CARD id) whose point is on its way: `presence.ts`'s back is still gliding into
@@ -138,6 +143,8 @@ const placements = new Map<number, Placement>();
  * Ended by `placeSpell` or `releaseSpell`; never past `PLACEMENT_WAIT_MS`.
  */
 const holds = new Map<number, number>();
+/** Releases not yet on the stack, by CARD id — promoted into `placements` once their stack item appears. */
+const releases = new Map<number, Placement>();
 const moveListeners = new Set<(id: number, at: Point) => void>();
 /**
  * Fired SYNCHRONOUSLY, inside `render()`, the instant a NEW element is
@@ -175,17 +182,26 @@ export function setChainHalted(halted: boolean | null): void {
   requestRepaint();
 }
 
+function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them'): void {
+  const existing = records.get(id);
+  records.set(id, { at, side, committed: existing?.committed ?? side === 'you', registeredAt: existing?.registeredAt ?? Date.now() });
+  requestRepaint();
+}
+
 /**
- * Register (or move) a spell's point. See the module header for what `id`
- * means at this call. A fresh `id` starts `committed` on `side === 'you'`
- * (the owner always knows their own card) and face-down otherwise — lane W's
+ * Register (or move) a released card's point, by its CARD id — see the module
+ * header. A fresh one starts `committed` on `side === 'you'` (the owner
+ * always knows their own card) and face-down otherwise — lane W's
  * `commitSpell` turns it over once the opponent's spell is public.
  */
-export function placeSpell(id: number, at: Point, side: 'you' | 'them'): void {
-  holds.delete(id);
-  const existing = placements.get(id);
-  placements.set(id, { at, side, committed: existing?.committed ?? side === 'you', registeredAt: existing?.registeredAt ?? Date.now() });
-  requestRepaint();
+export function placeSpell(cardId: number, at: Point, side: 'you' | 'them'): void {
+  holds.delete(cardId);
+  register(releases, cardId, at, side);
+}
+
+/** Register (or move) a stack item's point by its own stack id — see the module header. */
+export function placeStackItem(id: number, at: Point, side: 'you' | 'them'): void {
+  register(placements, id, at, side);
 }
 
 /** Keep their spell `cardId` hidden until its point arrives — see `holds`. */
@@ -207,9 +223,9 @@ function heldUntil(cardId: number | null): number | null {
   return null;
 }
 
-/** Whether `id` has a registered point (a placed spell, or an ability the viewer has moved). */
-export function isPlaced(id: number): boolean {
-  return placements.has(id);
+/** Whether a released card's point is still waiting for its stack item (not yet promoted). */
+export function isPlaced(cardId: number): boolean {
+  return releases.has(cardId);
 }
 
 /** Move an already-placed spell. No-op for an id nothing ever placed. */
@@ -223,7 +239,7 @@ export function moveSpell(id: number, at: Point): void {
 
 /** Turn a back over to its face. No-op once committed, or for an id nothing ever placed. */
 export function commitSpell(id: number): void {
-  const p = placements.get(id);
+  const p = placements.get(id) ?? releases.get(id);
   if (p === undefined || p.committed) return;
   p.committed = true;
   requestRepaint();
@@ -245,6 +261,7 @@ export function onSpellDrawn(listener: (id: number) => void): () => void {
 export function forgetPlacements(): void {
   placements.clear();
   holds.clear();
+  releases.clear();
   chainHalted = null;
 }
 
@@ -422,22 +439,21 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     for (const item of items) {
       if (placements.has(item.id)) continue;
       if (item.sourceCardId === null) continue;
-      const pending = placements.get(item.sourceCardId);
+      const pending = releases.get(item.sourceCardId);
       if (pending === undefined) continue;
-      placements.delete(item.sourceCardId);
+      releases.delete(item.sourceCardId);
       placements.set(item.id, pending);
     }
   }
 
-  /** Prune a never-promoted placement once it has sat unmatched past its TTL — a land, a cancelled cast. */
+  /** Prune a record that has sat unmatched past its TTL — a land, a cancelled cast, an echo for an item that never came. */
   function pruneStale(items: readonly StackEntry[]): void {
-    const sourceIds = new Set(items.map((i) => i.sourceCardId).filter((id): id is number => id !== null));
-    const itemIds = new Set(items.map((i) => i.id));
     const now = Date.now();
-    for (const [id, p] of placements) {
-      if (itemIds.has(id) || sourceIds.has(id)) continue;
-      if (now - p.registeredAt > PLACEMENT_WAIT_MS) placements.delete(id);
-    }
+    const prune = (records: Map<number, Placement>, live: ReadonlySet<number | null>): void => {
+      for (const [id, p] of records) if (!live.has(id) && now - p.registeredAt > PLACEMENT_WAIT_MS) records.delete(id);
+    };
+    prune(releases, new Set(items.map((i) => i.sourceCardId)));
+    prune(placements, new Set(items.map((i) => i.id)));
   }
 
   function viewerName(): string | null {

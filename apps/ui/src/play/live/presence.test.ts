@@ -13,7 +13,7 @@ import { GLIDE_MS } from '../motion.ts';
 
 /*
  * `placed.ts` (lane S) is the seam this module calls into for the stack
- * layer's own drawing (`placeSpell`/`moveSpell`/`commitSpell`/`onSpellMoved`)
+ * layer's own drawing (`placeSpell`/`placeStackItem`/`moveSpell`/`commitSpell`/`onSpellMoved`)
  * — this module "calls them and never draws" (wave 59's Settled seam). Mocked
  * here so this file's own receive/send logic proves itself without needing
  * that drawing layer at all.
@@ -22,6 +22,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
   const spellMovedBox: { current: ((id: number, at: { x: number; y: number }) => void) | null } = { current: null };
   const placedMod = {
     placeSpell: vi.fn(),
+    placeStackItem: vi.fn(),
     moveSpell: vi.fn(),
     commitSpell: vi.fn(),
     holdSpell: vi.fn(),
@@ -135,6 +136,7 @@ afterEach(() => {
   document.body.innerHTML = '';
   vi.useRealTimers();
   placedMod.placeSpell.mockClear();
+  placedMod.placeStackItem.mockClear();
   placedMod.moveSpell.mockClear();
   placedMod.commitSpell.mockClear();
   placedMod.holdSpell.mockClear();
@@ -1063,17 +1065,17 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
-  it('`forge:placed` moves the other seat’s copy of a placed spell they dragged — `placeSpell`, not `moveSpell`: a JOINER replaying this has no earlier registration for `moveSpell` to find', () => {
+  it('`forge:placed` moves the other seat’s copy of a placed spell they dragged — `placeStackItem`, not `moveSpell`: a JOINER replaying this has no earlier registration for `moveSpell` to find', () => {
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeSpell).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.placeStackItem).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     // This seat's own echo (a resync) and another match's are both ignored.
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 0, spell: 49, at: { zone: 'stack', x: 0.1, y: 0.1 } });
     t.receivePlaced({ matchId: 'm-2', type: 'placed', seat: 1, spell: 50, at: { zone: 'stack', x: 0.1, y: 0.1 } });
-    expect(placedMod.placeSpell).toHaveBeenCalledTimes(1);
+    expect(placedMod.placeStackItem).toHaveBeenCalledTimes(1);
     handle.dispose();
   });
 
@@ -1086,10 +1088,10 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeSpell, 'nothing to place it on yet').not.toHaveBeenCalled();
+    expect(placedMod.placeStackItem, 'nothing to place it on yet').not.toHaveBeenCalled();
     canvas.querySelector('.board')!.append(overlay);
     vi.advanceTimersByTime(60);
-    expect(placedMod.placeSpell, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.placeStackItem, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     handle.dispose();
   });
@@ -1103,13 +1105,13 @@ describe('receiving', () => {
     // one-time replay with no board to place it on, and is torn down before one ever paints.
     const first = installPresence({ canvas, host: host(t, null) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeSpell).not.toHaveBeenCalled();
+    expect(placedMod.placeStackItem).not.toHaveBeenCalled();
     first.dispose();
     // The board paints, THEN the next mount (promoted to seat 0) starts — no second replay ever
     // comes; it has to find this one for itself.
     canvas.querySelector('.board')!.append(overlay);
     const second = installPresence({ canvas, host: host(t, 0) });
-    expect(placedMod.placeSpell, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.placeStackItem, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     second.dispose();
   });
