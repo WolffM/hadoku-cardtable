@@ -172,13 +172,6 @@ export function useWhoami(): Who | null | 'pending' {
 }
 
 /**
- * Wraps `children` in watchparty's room when there is a room to be in.
- *
- * Renders the children alone — never a blank page — when there is no room id,
- * while whoami is in flight, or when whoami failed. A table without chat is a
- * degraded room; a table that will not draw because chat is down is an outage.
- */
-/**
  * Tell our own room which avatar this viewer is wearing, once per room.
  *
  * This is the hop the operator's *"why not?"* was about. The id is watchparty's,
@@ -238,6 +231,20 @@ const AVATAR_RETRY_MS = [1500, 3000, 6000, 12000] as const;
 /** One client per mount; the assert effect must not re-fire on every render. */
 const rooms = roomsClient();
 
+/**
+ * Wraps `children` in watchparty's room when there is a room to be in.
+ *
+ * Renders the children alone when there is no room id or when whoami failed. A
+ * table without chat is a degraded room; a table that will not draw because
+ * chat is down is an outage.
+ *
+ * While whoami is in flight on a room's route it renders NOTHING, so the
+ * children mount once, already inside the chrome. Drawn alone first, they were
+ * unmounted and mounted again when the chrome wrapped them: a match opened from
+ * a link joined on two sockets and hung up the first, and when the hang-up beat
+ * the second join the server saw the seat leave (`e2e/w69-name-card.spec.ts`,
+ * "nobody disconnected").
+ */
 export function RoomShell({
   roomId,
   collapsible = true,
@@ -261,6 +268,7 @@ export function RoomShell({
   // no-ops on its own until whoami has answered.
   useAvatarAssert(key === null ? null : roomId, who === 'pending' || who === null ? null : who.userId, rooms);
 
+  if (key !== null && who === 'pending') return null;
   if (key === null || who === 'pending' || who === null) return <>{children}</>;
 
   return (

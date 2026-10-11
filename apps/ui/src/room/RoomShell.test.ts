@@ -20,7 +20,7 @@
  * renders.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement, type ReactNode } from 'react';
+import { createElement, useEffect, type ReactNode } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 /*
@@ -98,6 +98,24 @@ describe('the room key for a pod or match', () => {
   it('refuses an id past watchparty\'s 40-character bound', () => {
     expect(roomKeyFor('a'.repeat(40))).toBe(`cardtable-${'a'.repeat(40)}`);
     expect(roomKeyFor('a'.repeat(41))).toBeNull();
+  });
+});
+
+describe('the content of a room', () => {
+  it('mounts once, inside the chrome — never alone first and again when whoami answers', async () => {
+    let mounts = 0;
+    function Content() {
+      useEffect(() => {
+        mounts += 1;
+      }, []);
+      return createElement('div', { 'data-testid': 'content' });
+    }
+
+    render(createElement(RoomShell, { roomId: 'm-test', children: createElement(Content) }));
+    const roomChrome = await waitFor(() => screen.getByTestId('room-chrome'));
+
+    expect(roomChrome.contains(screen.getByTestId('content'))).toBe(true);
+    expect(mounts).toBe(1);
   });
 });
 
