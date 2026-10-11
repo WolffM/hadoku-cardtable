@@ -1,0 +1,20 @@
+# w69-librarytop (the operator, 2026-10-11): "Courser of Kruphix should have something where both people
+# can see the top card of the library at all times. and i should be able to click it if its a land. Seems
+# like at the moment there is nothing at all?" Alice has Courser of Kruphix and Exploration (two land drops)
+# at her own main phase. Her library's top three are Mountain, Plains, Serra Angel: Forge lets every player
+# look at the top one (Courser's MayLookAt$ Player) and offers her the two lands from it, one after the
+# other. Bob has no Courser: his library stays hidden from both screens. The Island in hand keeps the main
+# phase a real stop.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Forest;Forest;Forest;Courser of Kruphix;Exploration
+humanlibrary=Mountain;Plains;Serra Angel;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Llanowar Elves;Grizzly Bears;Savannah Lions;Giant Growth;Dark Ritual;Counterspell
+aigraveyard=
