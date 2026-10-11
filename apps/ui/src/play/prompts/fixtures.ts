@@ -124,7 +124,7 @@ export const PROMPT_FIXTURES: readonly PromptFixture[] = [
     origin: 'synthetic',
     source:
       'PlayerControllerHuman.java:340-355 (specifyManaCombo: color keys, max per color, atLeastOne false, label "mana"). ' +
-      'NOTE Forge puts MagicColor.Color enum keys here, not Byte — see the lane report',
+      'Forge keys it by MagicColor.Color; the bridge sends each colour mask',
     raw: assignGenericAmountMana,
   },
   {

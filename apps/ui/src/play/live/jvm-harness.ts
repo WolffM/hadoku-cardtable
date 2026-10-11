@@ -173,7 +173,6 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
         },
       }),
     log: (entry) => serverLog.push(entry),
-    askTimeoutMs: 120_000,
     overGraceMs: 60_000,
     emit: (_m, seat, envelope) => {
       emitted.push({ seat, envelope });

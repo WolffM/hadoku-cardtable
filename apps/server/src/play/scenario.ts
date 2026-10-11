@@ -336,7 +336,6 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 				},
 			}),
 		log: (e) => logs.push(e),
-		askTimeoutMs: 120_000,
 		overGraceMs: 60_000,
 		...(options.actSilenceMs === undefined ? {} : { actSilenceMs: options.actSilenceMs }),
 		...(options.policy === undefined ? {} : { stopPolicy: options.policy }),

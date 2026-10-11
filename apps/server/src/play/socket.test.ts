@@ -627,8 +627,8 @@ describe('two seats over the socket', () => {
 		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
 	});
 
-	it("aborts the open ask as 'disconnected' when the seat's last connection drops — but not on a refresh", async () => {
-		// A short grace, so the abort this test waits for comes quickly.
+	it('keeps the open ask through a refresh and through a departure longer than the grace, and re-asks the returning tab (prod m-dd37bda1c441)', async () => {
+		// A short grace, so the test outlives it quickly.
 		const { h, matchId, alice, bob, host } = await twoSeats({ disconnectGraceMs: 200 });
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
@@ -644,9 +644,16 @@ describe('two seats over the socket', () => {
 		expect(host.commands).toEqual([]);
 
 		aliceAgain.socket.disconnect();
-		await waitUntil(() => host.commands.length > 0, 'the abort');
+		await new Promise((r) => setTimeout(r, 600));
+		expect(host.commands).toEqual([]);
+
 		const callId = (PROBE_ASK.frame as { callId: string }).callId;
-		expect(host.commands).toEqual([{ t: 'abort', seat: 0, callId, reason: 'disconnected' }]);
+		const aliceBack = await connect(h.port, edgeHeaders('alice'));
+		await aliceBack.request('forge:join', { matchId });
+		await waitUntil(() => aliceBack.frames.some((e) => (e as { frame: { callId?: string } }).frame.callId === callId), 'the ask, re-sent to the returning tab');
+		aliceBack.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
+		await waitUntil(() => host.commands.length > 0, 'the answer to reach Forge');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
 	});
 });
 

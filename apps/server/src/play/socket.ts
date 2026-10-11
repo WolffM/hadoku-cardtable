@@ -122,8 +122,8 @@ export interface PlayDeps {
 	/** Where a match's Forge runs. Null when Forge is not configured: starting a match answers 503. */
 	host: MatchHostFactory | null;
 	log?: PlayLog;
-	/** Every ask is aborted after this long. Default 10 minutes. */
-	askTimeoutMs?: number;
+	/** How long a diagnostic probe waits for its answer. Default 10 minutes. */
+	probeTimeoutMs?: number;
 	/** How long a finished match keeps its JVM. Default 10 minutes. */
 	overGraceMs?: number;
 	/** How long `POST /play/matches` waits for Forge to open the game. Default 60 s. */
@@ -515,7 +515,6 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		...(startingStopPolicy === null ? {} : { stopPolicy: startingStopPolicy }),
 		rejoinGraceMs: deps.rejoinGraceMs ?? DEFAULT_REJOIN_GRACE_MS,
 		log,
-		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
@@ -626,7 +625,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			const message = typeof body.message === 'string' && body.message !== '' ? body.message : 'Probe: answer me';
-			res.json(await match.probe(seat, message, deps.askTimeoutMs ?? 10 * 60_000));
+			res.json(await match.probe(seat, message, deps.probeTimeoutMs ?? 10 * 60_000));
 		});
 
 		// The seat's state as the server holds it, to diff against a browser's.

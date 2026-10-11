@@ -83,7 +83,6 @@ async function once(mode: 'cold' | 'warm'): Promise<Sample> {
 	const registry = createMatchRegistry({
 		host: pool,
 		log: (e) => logs.push(e),
-		askTimeoutMs: 60_000,
 		overGraceMs: 60_000,
 		emit: () => {
 			if (firstAt === 0) firstAt = Date.now();

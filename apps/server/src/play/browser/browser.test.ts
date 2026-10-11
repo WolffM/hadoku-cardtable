@@ -102,7 +102,6 @@ async function boot(minTier = 'friend'): Promise<Harness> {
 	const registry = createMatchRegistry({
 		host: factory,
 		log: (e) => logs.push(e),
-		askTimeoutMs: 60_000,
 		overGraceMs: 60_000,
 		// ── THE ONE LINE OF WIRING THAT LIVES OUTSIDE THIS LANE ──────────
 		// In production this body is `play/socket.ts`'s, and it calls

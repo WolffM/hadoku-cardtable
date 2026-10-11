@@ -650,7 +650,6 @@ function harness(stopPolicy?: StopPolicy): Harness {
 	const registry = createMatchRegistry({
 		host: factory,
 		log: (e) => logs.push(e),
-		askTimeoutMs: 60_000,
 		overGraceMs: 60_000,
 		...(stopPolicy === undefined ? {} : { stopPolicy }),
 		emit: (_m, seat, envelope) => sent.push({ seat, envelope }),

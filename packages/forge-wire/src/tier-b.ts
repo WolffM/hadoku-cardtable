@@ -498,10 +498,12 @@ export const AssignCombatDamageReplySchema = z.array(
 /**
  * The `Object` key of `assignGenericAmount`'s map.
  *
- * IGuiGame.java:151 says it plainly: "The Object passed should be
- * GameEntityView for most case. Can be Byte for 'generate mana of any
- * combination' effect". Two cases, so two arms, rather than an `unknown` that
- * would accept the third thing nobody meant to send.
+ * IGuiGame.java:151: "The Object passed should be GameEntityView for most
+ * case. Can be Byte for 'generate mana of any combination' effect". The mana
+ * case is in fact a `MagicColor.Color` (`PlayerControllerHuman.specifyManaCombo`
+ * — Fire-Lit Thicket's {R}{R}/{R}{G}/{G}{G}); the bridge sends its colour mask.
+ * Two cases, so two arms, rather than an `unknown` that would accept the third
+ * thing nobody meant to send.
  */
 export const GenericAmountKeySchema = z.discriminatedUnion('target', [
   z.strictObject({ target: z.literal('entity'), ref: GameEntityRefSchema }),

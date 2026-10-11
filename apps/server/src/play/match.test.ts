@@ -18,7 +18,7 @@ import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame }
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { MATCH_ENDED_TITLE, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
+import { ACT_SILENCE_MS, MATCH_ENDED_TITLE, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -53,14 +53,13 @@ interface Harness {
 	logs: Record<string, unknown>[];
 }
 
-function harness(askTimeoutMs = 60_000, disconnectGraceMs?: number): Harness {
+function harness(disconnectGraceMs?: number): Harness {
 	const { factory, hosts } = replayFactory();
 	const sent: Harness['sent'] = [];
 	const logs: Record<string, unknown>[] = [];
 	const registry = createMatchRegistry({
 		host: factory,
 		log: (e) => logs.push(e),
-		askTimeoutMs,
 		overGraceMs: 60_000,
 		disconnectGraceMs,
 		emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
@@ -184,7 +183,6 @@ describe("item 4: a seat's identity", () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: (e) => logs.push(e),
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
 		});
@@ -244,7 +242,6 @@ describe('Q6: an avatar changed mid-match (wave 32)', () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: () => undefined,
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: () => undefined,
 			seatsChanged: (_match, seats) => told.push(seats),
@@ -296,7 +293,6 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: (e) => logs.push(e),
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
 			seatsChanged: (_match, seats) => told.push(seats),
@@ -372,11 +368,13 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
 	});
 
-	it('clears on disconnect (abort) and on timeout, the same as any other open ask', () => {
+	it('stays while the asked seat is away — its ask is still open — and clears on its answer', () => {
 		const h = waitingHarness();
 		h.host.push(...OPENING, PROBE_ASK);
 		expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
 		h.match.seatDisconnected(0);
+		expect(h.match.seatIdentities()[0]).toHaveProperty('waitingOn');
+		h.match.fromClient(0, reply((PROBE_ASK.frame as { callId: string }).callId, true));
 		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
 	});
 
@@ -853,8 +851,8 @@ describe('the cursor', () => {
 });
 
 describe('asks', () => {
-	function opened(askTimeoutMs = 60_000): Harness & { callId: string } {
-		const h = harness(askTimeoutMs);
+	function opened(): Harness & { callId: string } {
+		const h = harness();
 		h.host.push(...OPENING, PROBE_ASK);
 		const callId = (PROBE_ASK.frame as { callId: string }).callId;
 		return { ...h, callId };
@@ -881,27 +879,51 @@ describe('asks', () => {
 		expect(h.host.commands).toEqual([]);
 	});
 
-	it("aborts it as 'disconnected' when the seat's last connection goes", () => {
+	it("keeps it open however long the seat's last connection stays gone, and nobody answering never closes it (prod m-dd37bda1c441)", () => {
+		vi.useFakeTimers();
 		const h = opened();
 		h.match.seatDisconnected(0);
-		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'disconnected' }]);
-		expect(h.match.fromClient(0, reply(h.callId, true))).toEqual({ ok: false, error: 'stale-reply' });
-	});
-
-	it("aborts it as 'timeout' when nobody answers", () => {
-		vi.useFakeTimers();
-		const h = opened(5000);
-		vi.advanceTimersByTime(4999);
+		vi.advanceTimersByTime(24 * 60 * 60_000);
 		expect(h.host.commands).toEqual([]);
-		vi.advanceTimersByTime(1);
-		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'timeout' }]);
+		h.match.seatConnected(0);
+		const before = h.sent.length;
+		h.match.resendAfterSnapshot(0);
+		expect(h.sent.slice(before).map((x) => x.envelope.frame)).toContainEqual(PROBE_ASK.frame);
+		expect(h.match.fromClient(0, reply(h.callId, true))).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: h.callId, result: true }]);
 	});
 
-	it("passes the browser's own abort through", () => {
+	it("passes the browser's own abort through for an ask whose aborted answer is Forge's own default", () => {
 		const h = opened();
 		const abort = ClientFrameSchema.parse({ kind: 'abort', callId: h.callId, reason: 'unsupported' });
 		expect(h.match.fromClient(0, abort)).toEqual({ ok: true });
 		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'unsupported' }]);
+	});
+
+	it("refuses the browser's abort of an ask an abort would answer with a null, and keeps it open", () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const choose = {
+			kind: 'ask',
+			callId: 's0-90',
+			method: 'getChoices',
+			message: 'Choose a card name',
+			min: 1,
+			max: 1,
+			choices: [
+				{ key: 'a', label: 'Black Lotus', ref: null },
+				{ key: 'b', label: 'Mox Pearl', ref: null },
+			],
+			selected: [],
+		};
+		h.host.push({ t: 'frame', seat: 0, frame: choose });
+		const abort = ClientFrameSchema.parse({ kind: 'abort', callId: 's0-90', reason: 'cancelled' });
+		expect(h.match.fromClient(0, abort)).toMatchObject({ ok: false });
+		expect(h.host.commands).toEqual([]);
+		expect(h.logs.find((l) => l.evt === 'ask-abort-refused')).toMatchObject({ callId: 's0-90', method: 'getChoices' });
+		const answer = ClientFrameSchema.parse({ kind: 'reply', callId: 's0-90', method: 'getChoices', result: ['b'] });
+		expect(h.match.fromClient(0, answer)).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 's0-90', result: ['b'] }]);
 	});
 
 	it('re-sends the open ask after a snapshot, on the next cursor', () => {
@@ -943,6 +965,102 @@ describe('what Forge sends that forge-wire refuses', () => {
 		expect(h.sent.length).toBe(before);
 		expect(h.match.invalidFrames).toBe(1);
 		expect(h.logs.some((l) => l.evt === 'frame-invalid')).toBe(true);
+	});
+
+	it('an ask it refuses is shown as a pick of its whole answers, and the pick reaches Forge as the real method\'s answer (prod m-24f69e2e0b7e)', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const key = { target: 'entity', ref: null };
+		const ask = {
+			kind: 'ask',
+			callId: 's0-77',
+			method: 'assignGenericAmount',
+			effectSource: { kind: 'card', id: 8 },
+			target: [
+				{ key, amount: 2 },
+				{ key, amount: 2 },
+			],
+			amount: 2,
+			atLeastOne: false,
+			amountLabel: 'mana',
+		};
+		h.host.push({ t: 'frame', seat: 0, frame: ask });
+		expect(h.host.commands).toEqual([]);
+		const logged = h.logs.find((l) => l.evt === 'ask-unparsed');
+		expect(logged).toMatchObject({ seat: 0, callId: 's0-77', method: 'assignGenericAmount', fallback: true });
+		expect(JSON.stringify(logged?.errors)).toContain('ref');
+		const shown = h.sent.at(-1)?.envelope.frame as { method: string; callId: string; min: number; max: number; choices: { key: string; label: string }[] };
+		expect(shown).toMatchObject({ method: 'getChoices', callId: 's0-77', min: 1, max: 1 });
+		expect(shown.choices.map((c) => c.label)).toEqual(['2 target 1', '1 target 1, 1 target 2', '2 target 2']);
+		const pick = ClientFrameSchema.parse({ kind: 'reply', callId: 's0-77', method: 'getChoices', result: ['1'] });
+		expect(h.match.fromClient(0, pick)).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([
+			{ t: 'reply', seat: 0, callId: 's0-77', result: [{ key, amount: 1 }, { key, amount: 1 }] },
+		]);
+	});
+
+	it('an ask with no fallback is kept open, never aborted', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const before = h.sent.length;
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 's0-78', method: 'order', title: null } });
+		expect(h.sent.length).toBe(before);
+		expect(h.host.commands).toEqual([]);
+		expect(h.logs.find((l) => l.evt === 'ask-unparsed')).toMatchObject({ callId: 's0-78', fallback: false });
+	});
+
+});
+
+describe('a lost ask: an input act that gets nothing back', () => {
+	const ok = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' });
+	const resends = (h: Harness) => h.host.commands.filter((c) => c.t === 'resend-pending');
+
+	it('asks the bridge to re-send the seat\'s pending asks after ACT_SILENCE_MS of silence', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.fromClient(0, ok);
+		vi.advanceTimersByTime(ACT_SILENCE_MS - 1);
+		expect(resends(h)).toEqual([]);
+		vi.advanceTimersByTime(1);
+		expect(resends(h)).toEqual([{ t: 'resend-pending', seat: 0 }]);
+		expect(h.logs.find((l) => l.evt === 'act-unanswered')).toMatchObject({ seat: 0 });
+	});
+
+	it('stays quiet when any frame comes back for the seat, and is not armed by the other seat\'s frames', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.fromClient(0, ok);
+		h.match.fromClient(1, ok);
+		const seat0 = OPENING.find((l) => l.t === 'frame' && l.seat === 0)!;
+		h.host.push(seat0);
+		vi.advanceTimersByTime(ACT_SILENCE_MS);
+		expect(resends(h)).toEqual([{ t: 'resend-pending', seat: 1 }]);
+	});
+
+	it('is not armed by an act that is not a game input', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'requestResync' }));
+		vi.advanceTimersByTime(ACT_SILENCE_MS * 2);
+		expect(resends(h)).toEqual([]);
+	});
+
+	it('shows a re-sent ask that never arrived, once, and drops the copy of one it already has', () => {
+		const h = harness();
+		h.host.push(...OPENING, PROBE_ASK);
+		const asks = () => h.sent.filter((s) => s.envelope.frame.kind === 'ask');
+		expect(asks()).toHaveLength(1);
+		h.host.push(PROBE_ASK, { t: 'resent', seat: PROBE_ASK.seat, callIds: [(PROBE_ASK.frame as { callId: string }).callId] });
+		expect(asks()).toHaveLength(1);
+		expect(h.logs.some((l) => l.evt === 'ask-duplicate')).toBe(true);
+		expect(h.logs.find((l) => l.evt === 'asks-resent')).toMatchObject({ seat: PROBE_ASK.seat });
+		const lost = { ...(PROBE_ASK.frame as Record<string, unknown>), callId: 's0-lost' };
+		h.host.push({ t: 'frame', seat: PROBE_ASK.seat, frame: lost });
+		expect(asks()).toHaveLength(2);
+		expect(h.match.fromClient(PROBE_ASK.seat, reply('s0-lost', true))).toEqual({ ok: true });
 	});
 });
 
@@ -1051,7 +1169,7 @@ describe('reconnect: a refresh closes the old socket before the new page joins',
 
 	function refreshing(): Harness & { callId: string } {
 		vi.useFakeTimers();
-		const h = harness(10 * 60_000, GRACE);
+		const h = harness(GRACE);
 		h.host.push(...OPENING, PROBE_ASK);
 		return { ...h, callId: (PROBE_ASK.frame as { callId: string }).callId };
 	}
@@ -1070,15 +1188,6 @@ describe('reconnect: a refresh closes the old socket before the new page joins',
 		expect(h.match.anyoneHere(), 'past the grace nobody is here').toBe(false);
 		h.match.seatConnected(0);
 		expect(h.match.anyoneHere(), 'and back').toBe(true);
-	});
-
-	it('does not abort the open ask while the seat is gone for less than the grace', () => {
-		const h = refreshing();
-		h.match.seatDisconnected(0);
-		vi.advanceTimersByTime(GRACE - 1);
-		h.match.seatConnected(0);
-		vi.advanceTimersByTime(10 * GRACE);
-		expect(h.host.commands).toEqual([]);
 	});
 
 	it('returns the same seat to the same board, and re-sends the SAME ask, which it can then answer', () => {
@@ -1105,22 +1214,32 @@ describe('reconnect: a refresh closes the old socket before the new page joins',
 		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: h.callId, result: true }]);
 	});
 
-	it("aborts as 'disconnected' once the seat has stayed gone for the whole grace", () => {
+	it('keeps the open ask past the whole grace too: a seat back after 1.5 min re-sees it and its answer reaches Forge (prod m-dd37bda1c441)', () => {
 		const h = refreshing();
+		h.match.claim(ALICE);
 		h.match.seatDisconnected(0);
-		vi.advanceTimersByTime(GRACE - 1);
+		vi.advanceTimersByTime(90_000);
+		expect(h.match.anyoneHere()).toBe(false);
 		expect(h.host.commands).toEqual([]);
-		vi.advanceTimersByTime(1);
-		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'disconnected' }]);
+		h.match.seatConnected(0);
+		h.match.snapshot(0);
+		const mark = h.sent.length;
+		h.match.resendAfterSnapshot(0);
+		expect(h.sent.slice(mark).find((s) => s.envelope.frame.kind === 'ask')?.envelope.frame).toEqual(PROBE_ASK.frame);
+		expect(h.match.fromClient(0, reply(h.callId, true))).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: h.callId, result: true }]);
 	});
 
 	it('a second disconnect does not restart the clock', () => {
 		const h = refreshing();
+		h.match.seatConnected(0);
 		h.match.seatDisconnected(0);
 		vi.advanceTimersByTime(GRACE - 10);
 		h.match.seatDisconnected(0);
+		expect(h.match.anyoneHere()).toBe(true);
 		vi.advanceTimersByTime(10);
-		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'disconnected' }]);
+		expect(h.match.anyoneHere()).toBe(false);
+		expect(h.host.commands).toEqual([]);
 	});
 });
 
@@ -1207,7 +1326,6 @@ describe('a match nobody is at', () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: (e) => logs.push(e),
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			disconnectGraceMs: 1000,
 			rejoinGraceMs: 5000,
@@ -1296,7 +1414,6 @@ describe('a match that outlives its server', () => {
 			host: factory,
 			attach,
 			log: () => undefined,
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: (_m, seat, envelope) => void sent.push({ seat, envelope }),
 		});
@@ -1315,7 +1432,6 @@ describe('a match that outlives its server', () => {
 					host: factory,
 					attach,
 					log: (e) => void logs.push(e),
-					askTimeoutMs: 60_000,
 					overGraceMs: 60_000,
 					...(rejoinGraceMs === undefined ? {} : { rejoinGraceMs }),
 					emit: (_m, seat, envelope) => void nextSent.push({ seat, envelope }),
@@ -1492,7 +1608,6 @@ describe('a match that outlives its server', () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: () => undefined,
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: () => undefined,
 		});
@@ -1623,7 +1738,6 @@ describe('wave 31 §S: seat names', () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: () => undefined,
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: () => undefined,
 		});
@@ -2484,7 +2598,6 @@ describe('a card-name ask', () => {
 		const registry = createMatchRegistry({
 			host: factory,
 			log: (e) => logs.push(e),
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
 			formatNames: (id) => (id === 'legacy-2005' ? new Set(['Grizzly Bears', 'Llanowar Elves']) : null),

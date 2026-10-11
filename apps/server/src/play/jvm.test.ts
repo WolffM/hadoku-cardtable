@@ -141,7 +141,6 @@ describe.skipIf(!available.ok)(title, () => {
 						},
 					}),
 				log: (e) => logs.push(e),
-				askTimeoutMs: 60_000,
 				overGraceMs: 60_000,
 				emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
 			});
@@ -250,7 +249,6 @@ describe.skipIf(!available.ok)(title, () => {
 		const registry = createMatchRegistry({
 			host: jvm,
 			log: (e) => logs.push(e),
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			disconnectGraceMs: 30_000,
 			emit: (_m, seat, envelope) => sent.push({ seat, envelope }),

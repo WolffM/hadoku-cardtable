@@ -141,19 +141,20 @@ describe('assignGenericAmount', () => {
     expect(answers).toEqual([]);
   });
 
-  it('names mana colours in words and clamps each to its maximum', () => {
+  it('draws a mana combination as its whole answers, and one press sends one', () => {
     const mana = asksFor('assignGenericAmount').find((a) => a.amountLabel === 'mana')!;
-    const { container, submit, answers } = mountPrompt('assignGenericAmount', mana);
-    const [blue, red] = slots(container);
-    expect(blue!.textContent).toContain('blue');
-    expect(red!.textContent).toContain('red');
-    setAmount(blue!, 9);
-    expect((within(blue!).getByRole('spinbutton') as HTMLInputElement).value).toBe('2');
-    fireEvent.click(submit());
+    const { container, queryByTestId, answers, getByRole } = mountPrompt('assignGenericAmount', mana);
+    expect(getByRole('dialog').getAttribute('aria-label')).toBe('Izzet Guildgate - Choose mana');
+    const combos = [...container.querySelectorAll<HTMLButtonElement>('[data-testid="prompt-combo"]')];
+    expect(combos.map((b) => b.getAttribute('aria-label'))).toEqual(['blue blue', 'blue red', 'red red']);
+    expect(combos[1]!.querySelectorAll('.ms-u, .ms-r')).toHaveLength(2);
+    expect(slots(container)).toHaveLength(0);
+    expect(queryByTestId('prompt-submit')).toBeNull();
+    fireEvent.click(combos[1]!);
     expect(answers).toEqual([
       [
-        { key: { target: 'manaColor', color: 2 }, amount: 2 },
-        { key: { target: 'manaColor', color: 8 }, amount: 0 },
+        { key: { target: 'manaColor', color: 2 }, amount: 1 },
+        { key: { target: 'manaColor', color: 8 }, amount: 1 },
       ],
     ]);
     expectWireReply('assignGenericAmount', answers[0]);

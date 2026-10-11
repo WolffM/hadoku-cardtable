@@ -38,7 +38,6 @@ function harness(): Harness {
 	const registry = createMatchRegistry({
 		host: factory,
 		log: () => undefined,
-		askTimeoutMs: 60_000,
 		overGraceMs: 60_000,
 		emit: () => undefined,
 		onGameOver: (m) => over.push(m),

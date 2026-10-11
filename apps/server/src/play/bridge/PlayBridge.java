@@ -28,6 +28,7 @@ import forge.LobbyPlayer;
 import forge.StaticData;
 import forge.GuiDesktop;
 import forge.card.CardTypeView;
+import forge.card.MagicColor;
 import forge.card.mana.ManaCost;
 import forge.deck.CardPool;
 import forge.deck.Deck;
@@ -716,6 +717,8 @@ public final class PlayBridge {
         final String callId;
         final String method;
         final CompletableFuture<JsonElement> answer = new CompletableFuture<>();
+        /** The frame as sent, kept for {@link SeatGui#resendPending}. Null until {@link SeatGui#await} sends it. */
+        volatile JsonObject frame;
         /** The offered objects by key, so a reply's refs resolve to the very objects Forge sent. */
         final Map<String, Object> byKey = new HashMap<>();
 
@@ -825,6 +828,7 @@ public final class PlayBridge {
          * arrives here as an {@code abort}.
          */
         JsonElement await(final PendingAsk ask, final JsonObject frame) {
+            ask.frame = frame;
             frame(frame);
             try {
                 return ask.answer.get();
@@ -836,6 +840,26 @@ public final class PlayBridge {
             } finally {
                 pending.remove(ask.callId);
             }
+        }
+
+        /**
+         * Send every ask this seat is still parked on again, each with its original callId,
+         * then a {@code resent} line naming them. The server asks for this when an act it sent
+         * got nothing at all back: an ask frame lost on the way leaves Forge waiting on a
+         * question nobody was shown. The server drops a callId it already has.
+         */
+        void resendPending() {
+            final JsonArray callIds = new JsonArray();
+            for (final PendingAsk ask : pending.values()) {
+                final JsonObject f = ask.frame;
+                if (f == null) { continue; }
+                frame(f);
+                callIds.add(ask.callId);
+            }
+            final JsonObject o = line("resent");
+            o.addProperty("seat", seat);
+            o.add("callIds", callIds);
+            emit(o);
         }
 
         void resolve(final String callId, final JsonElement result) {
@@ -1633,10 +1657,12 @@ public final class PlayBridge {
                 final JsonObject entry = new JsonObject();
                 final JsonObject key = new JsonObject();
                 final Object k = e.getKey();
-                if (k instanceof Byte b) {
+                // A mana combination (PlayerControllerHuman.specifyManaCombo) keys the map by
+                // MagicColor.Color, not by the Byte IGuiGame's doc still names.
+                if (k instanceof MagicColor.Color c) {
                     key.addProperty("target", "manaColor");
-                    key.addProperty("color", b);
-                    ask.byKey.put("manaColor:" + b, k);
+                    key.addProperty("color", c.getColorMask());
+                    ask.byKey.put("manaColor:" + c.getColorMask(), k);
                 } else {
                     key.addProperty("target", "entity");
                     key.add("ref", refOf(k));
@@ -2501,6 +2527,7 @@ public final class PlayBridge {
             case "reply" -> seat(cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
             case "abort" -> seat(cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
             case "act" -> seat(cmd).act(cmd.getAsJsonObject("frame"));
+            case "resend-pending" -> seat(cmd).resendPending();
             case "probe" -> probe(cmd);
             case "stop" -> STOP.countDown();
             default -> throw new IllegalArgumentException("unknown command " + cmd.get("t"));

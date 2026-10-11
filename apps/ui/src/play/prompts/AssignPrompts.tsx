@@ -5,7 +5,8 @@
  * that stays disabled until the division is legal under `rules.ts` — which
  * transcribes Forge's own two dialogs, `VAssignCombatDamage` and
  * `VAssignGenericAmount`. Amounts are steppers plus a number box, so the
- * widget works by thumb at 360px and by keyboard.
+ * widget works by thumb at 360px and by keyboard. The one exception is a mana
+ * combination, which is a pick among whole answers (`ManaComboPrompt`).
  *
  * ## What combat damage cannot say yet
  *
@@ -19,14 +20,18 @@
 
 import { useState } from 'react';
 
-import { PromptShell } from './PromptShell.tsx';
+import { ManaCost } from '../../components/ManaPip.tsx';
+import { OptionButton, PromptShell } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
 import {
   combatDamageProblems,
   combatDamageReply,
   combatDamageRules,
   genericAmountProblems,
+  MANA_COLOR,
+  manaCombos,
   type CombatAssignment,
+  type ManaCombo,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 
@@ -150,17 +155,52 @@ export function AssignCombatDamagePrompt({ ask, onAnswer, lookup }: PromptProps<
   );
 }
 
-/** `MagicColor` bit flags (MagicColor.java:16-23), in our words. */
-const COLOR_NAME: Readonly<Record<number, string>> = {
-  0: 'colorless',
-  1: 'white',
-  2: 'blue',
-  4: 'black',
-  8: 'red',
-  16: 'green',
-};
+const manaWord = (token: string): string => Object.values(MANA_COLOR).find((c) => c.token === token)?.word ?? token;
 
-export function AssignGenericAmountPrompt({ ask, onAnswer, lookup }: PromptProps<'assignGenericAmount'>) {
+/**
+ * A mana combination is a pick, not a division: Fire-Lit Thicket's
+ * {R}{R}/{R}{G}/{G}{G} is three buttons, each the whole answer, drawn in the
+ * Mana font. One press answers.
+ */
+function ManaComboPrompt({
+  ask,
+  combos,
+  onAnswer,
+  lookup,
+}: PromptProps<'assignGenericAmount'> & { combos: readonly ManaCombo[] }) {
+  const answer = (combo: ManaCombo) =>
+    onAnswer(
+      checkedReply(
+        'assignGenericAmount',
+        ask.target.map((t, i) => ({ key: t.key, amount: combo.amounts[i] ?? 0 })),
+      ),
+    );
+  return (
+    <PromptShell method="assignGenericAmount" title={`${refName(lookup, ask.effectSource)} - Choose ${ask.amountLabel}`}>
+      <ul className="prompt__list">
+        {combos.map((combo) => (
+          <li key={combo.tokens.join('')}>
+            <OptionButton
+              testId="prompt-combo"
+              className="prompt__choice"
+              ariaLabel={combo.tokens.map(manaWord).join(' ')}
+              onClick={() => answer(combo)}
+            >
+              <ManaCost cost={combo.tokens} />
+            </OptionButton>
+          </li>
+        ))}
+      </ul>
+    </PromptShell>
+  );
+}
+
+export function AssignGenericAmountPrompt(props: PromptProps<'assignGenericAmount'>) {
+  const combos = manaCombos(props.ask);
+  return combos === null ? <DividePrompt {...props} /> : <ManaComboPrompt {...props} combos={combos} />;
+}
+
+function DividePrompt({ ask, onAnswer, lookup }: PromptProps<'assignGenericAmount'>) {
   const [amounts, setAmounts] = useState<number[]>(() => ask.target.map(() => (ask.atLeastOne ? 1 : 0)));
   const problems = genericAmountProblems(ask, amounts);
   const assigned = amounts.reduce((s, n) => s + n, 0);
@@ -188,7 +228,7 @@ export function AssignGenericAmountPrompt({ ask, onAnswer, lookup }: PromptProps
           const label =
             t.key.target === 'entity'
               ? refName(lookup, t.key.ref)
-              : (COLOR_NAME[t.key.color] ?? `color ${t.key.color}`);
+              : (MANA_COLOR[t.key.color]?.word ?? `color ${t.key.color}`);
           return (
             <AmountRow
               key={t.key.target === 'entity' ? `${t.key.ref.kind}:${t.key.ref.id}` : `color:${t.key.color}`}

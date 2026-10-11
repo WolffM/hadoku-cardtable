@@ -98,7 +98,6 @@ async function dealtOnce(): Promise<string> {
 					},
 				}),
 			log: () => {},
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: () => {},
 		});

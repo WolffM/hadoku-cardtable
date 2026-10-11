@@ -116,7 +116,6 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 				}),
 			log: (e) => logs.push(e),
-			askTimeoutMs: 120_000,
 			overGraceMs: 60_000,
 			// The one line of wiring that lives outside this lane. See fanout.ts.
 			emit: (match, seat, envelope) => fanout.deliver(match.id, seat, envelope),

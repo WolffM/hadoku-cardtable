@@ -115,7 +115,6 @@ async function server(options: { disconnectGraceMs: number; rejoinGraceMs: numbe
 		log: (e) => logs.push(e),
 		startTimeoutMs: 120_000,
 		joinWaitMs: 60_000,
-		askTimeoutMs: 120_000,
 		maxMatches: 1,
 		...options,
 	});

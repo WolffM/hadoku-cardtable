@@ -372,7 +372,6 @@ async function bootMount(): Promise<Mount> {
 		host: factory,
 		log: (e) => logs.push(e),
 		joinWaitMs: 1000,
-		askTimeoutMs: 60_000,
 		overGraceMs: 60_000,
 	});
 	// The mount under test, with the SAME deps `index.ts` passes — including

@@ -91,6 +91,11 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
       submit();
       return method;
     case 'increment-until-submittable': {
+      const combo = sheet.querySelector(`[data-testid="${ANSWER_TESTID.combo}"]`);
+      if (combo !== null) {
+        click(combo, 'mana combination');
+        return method;
+      }
       // No Auto here: press "+" on the first row that takes more, until the
       // whole amount is placed and the answer is sendable.
       const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);

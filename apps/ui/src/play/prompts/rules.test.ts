@@ -20,6 +20,7 @@ import {
   deckFromSideboardAsk,
   dropBeforeIndex,
   genericAmountProblems,
+  manaCombos,
   getChoicesProblems,
   inputDialogProblems,
   manipulateProblems,
@@ -511,6 +512,24 @@ describe('assignGenericAmount', () => {
   });
   it('lets a mana split leave a colour at zero when atLeastOne is off', () => {
     expect(genericAmountProblems(mana, [2, 0])).toEqual([]);
+  });
+  it('lists a mana combination as its whole answers, first colour heaviest first, and nothing for a division', () => {
+    const thicket = {
+      ...mana,
+      target: [
+        { key: { target: 'manaColor', color: 8 }, amount: 2 },
+        { key: { target: 'manaColor', color: 16 }, amount: 2 },
+      ],
+    } as AskOf<'assignGenericAmount'>;
+    expect(manaCombos(thicket)).toEqual([
+      { tokens: ['R', 'R'], amounts: [2, 0] },
+      { tokens: ['R', 'G'], amounts: [1, 1] },
+      { tokens: ['G', 'G'], amounts: [0, 2] },
+    ]);
+    for (const c of manaCombos(thicket)!) expect(genericAmountProblems(thicket, c.amounts)).toEqual([]);
+    const different = { ...thicket, target: thicket.target.map((t) => ({ ...t, amount: 1 })) };
+    expect(manaCombos(different)?.map((c) => c.tokens.join(''))).toEqual(['RG']);
+    expect(manaCombos(damage)).toBeNull();
   });
 });
 

@@ -135,7 +135,6 @@ describe.skipIf(!available.ok)(title, () => {
 				host: jvm,
 				startTimeoutMs: 120_000,
 				joinWaitMs: 60_000,
-				askTimeoutMs: 120_000,
 				disconnectGraceMs: 60_000,
 			});
 			await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));

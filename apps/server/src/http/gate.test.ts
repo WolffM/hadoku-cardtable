@@ -206,7 +206,6 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 				}),
 			log: () => {},
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: () => {},
 		});

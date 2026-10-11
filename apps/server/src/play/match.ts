@@ -36,23 +36,24 @@
  *
  * An open ask parks a Forge thread (`ReplyPool.get`, untimed). Usually a seat
  * has one — the game thread is single — but a diagnostic probe can open a
- * second, so asks are held by `callId` and each is answered or aborted on its
- * own; aborting one never touches another. Each is answered by the seat's
- * reply, or aborted — by the browser (`abort`), by the seat's last socket
- * going away and staying gone for `disconnectGraceMs` (`disconnected`, the
- * manager's clarification of the contract), or by the timeout armed on every
- * ask (`timeout`). An abort gets Forge's own answer to a null reply (the
- * bridge's `ABORTED` path), exactly what `FServerManager`'s `cancelAll` would
- * produce.
+ * second, so asks are held by `callId` and each is answered on its own.
+ *
+ * **An ask stays open for as long as the match lives.** Nothing here aborts
+ * one for a seat that went away or took too long: an abort hands Forge a null
+ * where most effects expect an answer, and many do not check
+ * (`ChooseCardNameEffect.resolve` threw on one on the game thread, prod
+ * m-dd37bda1c441, and the game loop died with it). A seat that comes back is
+ * re-sent every open ask after its snapshot. The browser's own `abort` reaches
+ * Forge only for the asks whose aborted answer is Forge's own default, never a
+ * null ({@link ABORT_SAFE}); an ask the server cannot parse is shown as a
+ * plain pick of its whole answers instead (`unparsed.ts`). An ask goes away
+ * unanswered only with its match.
  *
  * ## Reconnect: a refresh is not a departure (Wave 10)
  *
- * A browser refresh closes the old socket BEFORE the new page connects. Wave 9
- * aborted the seat's asks on that close, so a refresh during a prompt handed
- * Forge a null answer — Forge acted for the player. Now the close only arms a
- * timer; a join for the same seat within `disconnectGraceMs` (`seatConnected`)
- * disarms it, and the open ask, still parked in Forge, is re-sent after the
- * snapshot with its original `callId`. The rest was already the draft's
+ * A browser refresh closes the old socket BEFORE the new page connects. The
+ * open ask, still parked in Forge, is re-sent after the new page's snapshot
+ * with its original `callId`, however long the seat was gone. The rest was already the draft's
  * machinery: the seat is bound to the participant permanently (the
  * reservation, never released), and the snapshot's cursor is on the same
  * epoch, so the client's `classifySeq` continues from it rather than seeing a
@@ -129,6 +130,7 @@ import {
 	type StopWindow,
 } from './auto.js';
 import { artOf } from './art.js';
+import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
@@ -248,7 +250,6 @@ export interface OpenAsk {
 	method: string;
 	frame: ServerFrame;
 	sentAt: number;
-	timer: NodeJS.Timeout;
 }
 
 export interface SeatState {
@@ -512,6 +513,12 @@ export interface SeatState {
 	 * without a second press.
 	 */
 	answeredWindow: string | null;
+	/** Unparsed asks shown as a pick of their whole answers, by callId (`unparsed.ts`). */
+	unparsed: Map<string, Fallback>;
+	/** Every ask callId Forge has sent this seat, so a re-sent ask ({@link Match.armActWatch}) is handled once. */
+	seenAsks: Set<string>;
+	/** Armed by an input act, disarmed by any frame for this seat; see {@link Match.armActWatch}. */
+	actWatch: NodeJS.Timeout | null;
 }
 
 export interface MatchDeps {
@@ -524,8 +531,6 @@ export interface MatchDeps {
 	/** Deliver one envelope to every connection bound to this seat. */
 	emit(seat: number, envelope: ServerEnvelope): void;
 	log(entry: Record<string, unknown>): void;
-	/** Every ask is aborted after this long unanswered. */
-	askTimeoutMs: number;
 	/** How long a finished match keeps its JVM (and answers resyncs) before stopping. */
 	overGraceMs: number;
 	/**
@@ -536,9 +541,9 @@ export interface MatchDeps {
 	 */
 	rejoinGraceMs?: number;
 	/**
-	 * How long a seat with no connection keeps its open asks before they are
-	 * aborted as `disconnected`. 0 (the default) aborts at once — Wave 9's
-	 * behaviour; `attachPlay` passes 30 s so a refresh survives.
+	 * How long a seat with no connection still counts as at the table
+	 * ({@link Match.anyoneHere}). 0 (the default) is gone at once; `attachPlay`
+	 * passes 30 s so a refresh is not a departure. Its asks stay open either way.
 	 */
 	disconnectGraceMs?: number;
 	/**
@@ -569,8 +574,34 @@ export interface MatchDeps {
 	 * read it live already told whoever was listening.
 	 */
 	onGameOver?(): void;
+	/** {@link Match.armActWatch}'s silence before it asks the bridge to re-send. Absent is {@link ACT_SILENCE_MS}. */
+	actSilenceMs?: number;
 	now?: () => number;
 }
+
+/**
+ * How long an input act may go with nothing at all back for its seat before
+ * the server asks the bridge to re-send that seat's pending asks
+ * ({@link Match.armActWatch}). Forge's act gate holds a click made between two
+ * inputs for 5 s before it lets it go, so a held-then-delivered click answers
+ * well inside this; a click that gets nothing in twice that long is a click
+ * queued behind a game thread parked on a question.
+ */
+export const ACT_SILENCE_MS = 10_000;
+
+/**
+ * The asks an abort may close: for these the bridge answers Forge with the
+ * ask's own default, never a null (`PlayBridge.java`'s `showConfirmDialog`
+ * :1407, `showOptionDialog` :1421, `confirm` :1448). Every other ask returns
+ * null on an abort, and a null is an answer many Forge effects do not check.
+ */
+const ABORT_SAFE: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptionDialog', 'confirm']);
+
+/**
+ * The acts that are a game input — a click Forge's game thread must take and
+ * answer with something. A yield preference, a concede and a resync are not.
+ */
+const INPUT_ACTS: ReadonlySet<string> = new Set(['selectButtonOk', 'selectButtonCancel', 'selectCard', 'selectPlayer', 'selectAbility', 'useMana']);
 
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
 export const MATCH_ENDED_TITLE = 'Match ended';
@@ -952,6 +983,9 @@ export class Match {
 			pendingTimer: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
+			unparsed: new Map(),
+			seenAsks: new Set(),
+			actWatch: null,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -1063,6 +1097,44 @@ export class Match {
 			});
 		}
 		this.host.send(command);
+		if (command.t === 'act' && INPUT_ACTS.has(command.frame.method)) {
+			const s = this.seats[command.seat];
+			if (s !== undefined) this.armActWatch(s);
+		}
+	}
+
+	/**
+	 * The lost-ask safety net. An input act went to a live JVM; if nothing at
+	 * all comes back for its seat within {@link ACT_SILENCE_MS}, the bridge is
+	 * asked to re-send every ask the seat is still parked on, each with its
+	 * original callId (`PlayBridge.SeatGui.resendPending`). An ask frame lost
+	 * between the bridge and this server leaves Forge's game thread waiting on
+	 * a question nobody was shown, and every later click queues behind it on
+	 * the fork's act gate — silent, which is exactly what this watches for.
+	 *
+	 * Any frame for the seat disarms it ({@link Match.onLine}), so a click that
+	 * Forge answered — a priority pass that moves the game on, a payment that
+	 * shows a bar — never fires it, and nothing is armed while the seat is only
+	 * waiting on the other player. A false fire costs one bridge line: a seat
+	 * with nothing pending is re-sent nothing, and a callId already seen is
+	 * dropped in {@link Match.onFrame}.
+	 */
+	private armActWatch(s: SeatState): void {
+		if (s.actWatch !== null) clearTimeout(s.actWatch);
+		s.actWatch = setTimeout(() => {
+			s.actWatch = null;
+			if (this.status !== 'running') return;
+			this.deps.log({ evt: 'act-unanswered', matchId: this.id, seat: s.seat, openAsks: s.asks.size });
+			this.command({ t: 'resend-pending', seat: s.seat });
+		}, this.deps.actSilenceMs ?? ACT_SILENCE_MS);
+		s.actWatch.unref();
+	}
+
+	private disarmActWatch(seat: number): void {
+		const s = this.seats[seat];
+		if (s === undefined || s.actWatch === null) return;
+		clearTimeout(s.actWatch);
+		s.actWatch = null;
 	}
 
 	/* ── Seats ──────────────────────────────────────────────────────── */
@@ -1433,6 +1505,14 @@ export class Match {
 					return { ok: false, error: 'reply names a card that was not offered' };
 				}
 				this.closeAsk(s, ask.callId);
+				const fallback = s.unparsed.get(frame.callId);
+				if (fallback !== undefined) {
+					s.unparsed.delete(frame.callId);
+					const result = fallback.answer(frame.result as string[]);
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: 'getChoices (fallback for an unparsed ask)', ms: this.now() - ask.sentAt });
+					this.command({ t: 'reply', seat, callId: frame.callId, result });
+					return { ok: true };
+				}
 				// Wave 35 §S, R4 — the browser answered a SYNTHETIC ask standing in
 				// for the real discard choice (the reveal half was already answered
 				// `[]` the moment it arrived — Forge's game thread was parked inside
@@ -1482,32 +1562,39 @@ export class Match {
 				return { ok: true };
 			}
 			case 'abort': {
-				if (!s.asks.has(frame.callId)) return { ok: false, error: 'stale-abort' };
-				this.abortAsk(s, frame.callId, frame.reason);
+				const ask = s.asks.get(frame.callId);
+				if (ask === undefined) return { ok: false, error: 'stale-abort' };
+				// Kept open: the seat's next snapshot shows it again.
+				if (!ABORT_SAFE.has(ask.method)) {
+					this.deps.log({ evt: 'ask-abort-refused', matchId: this.id, seat, callId: ask.callId, method: ask.method, reason: frame.reason });
+					return { ok: false, error: `abort-refused (${ask.method} has no answer but the player's)` };
+				}
+				this.closeAsk(s, ask.callId);
+				this.deps.log({ evt: 'ask-aborted', matchId: this.id, seat, callId: ask.callId, method: ask.method, reason: frame.reason });
+				this.command({ t: 'abort', seat, callId: ask.callId, reason: frame.reason });
 				return { ok: true };
 			}
 		}
 	}
 
 	/**
-	 * The seat's last connection is gone. Its asks are aborted as `disconnected`
-	 * once it has stayed gone for `disconnectGraceMs` — at once when that is 0.
+	 * The seat's last connection is gone. It stops counting as at the table once
+	 * it has stayed gone for `disconnectGraceMs` — at once when that is 0. Its
+	 * asks stay open: they are re-sent when it comes back.
 	 */
 	seatDisconnected(seat: number): void {
 		const s = this.seats[seat];
 		if (s === undefined || s.departure !== null) return;
 		const grace = this.deps.disconnectGraceMs ?? 0;
+		this.deps.log({ evt: 'seat-departing', matchId: this.id, seat, graceMs: grace, openAsks: s.asks.size });
 		if (grace <= 0) {
 			s.here = false;
-			this.abortAllAsks(s);
 			this.armRejoinGrace();
 			return;
 		}
-		this.deps.log({ evt: 'seat-departing', matchId: this.id, seat, graceMs: grace, openAsks: s.asks.size });
 		s.departure = setTimeout(() => {
 			s.departure = null;
 			s.here = false;
-			this.abortAllAsks(s);
 			this.armRejoinGrace();
 		}, grace);
 		s.departure.unref();
@@ -1570,10 +1657,6 @@ export class Match {
 	serverStopping(message: string): void {
 		this.deps.log({ evt: 'match-ending-with-server', matchId: this.id, status: this.status });
 		this.endNotice(message);
-	}
-
-	private abortAllAsks(s: SeatState): void {
-		for (const callId of [...s.asks.keys()]) this.abortAsk(s, callId, 'disconnected');
 	}
 
 	/** A real server-side `showConfirmDialog` to one seat — see `PlayBridge.probe`. */
@@ -1657,7 +1740,11 @@ export class Match {
 				return;
 			case 'frame':
 				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
+				this.disarmActWatch(line.seat);
 				this.onFrame(line.seat, line.frame);
+				return;
+			case 'resent':
+				this.deps.log({ evt: 'asks-resent', matchId: this.id, seat: line.seat, callIds: line.callIds });
 				return;
 			case 'probe': {
 				const done = this.probes.get(line.probeId);
@@ -1697,16 +1784,31 @@ export class Match {
 			this.deps.log({ evt: 'frame-for-unknown-seat', matchId: this.id, seat });
 			return;
 		}
+		const head = raw as { kind?: unknown; method?: unknown; callId?: unknown } | null;
+		const askId = head?.kind === 'ask' && typeof head.callId === 'string' ? head.callId : null;
+		if (askId !== null) {
+			if (s.seenAsks.has(askId)) {
+				this.deps.log({ evt: 'ask-duplicate', matchId: this.id, seat, callId: askId, method: head?.method });
+				return;
+			}
+			s.seenAsks.add(askId);
+		}
 		const parsed = safeParseServerFrame(raw);
 		if (!parsed.ok) {
 			this.invalidFrames += 1;
-			this.deps.log({
-				evt: 'frame-invalid',
-				matchId: this.id,
-				seat,
-				method: (raw as { method?: unknown } | null)?.method,
-				errors: parsed.errors.slice(0, 5),
-			});
+			const errors = parsed.errors.slice(0, 5);
+			if (askId === null) {
+				this.deps.log({ evt: 'frame-invalid', matchId: this.id, seat, method: head?.method, errors });
+				return;
+			}
+			// Never dropped, never aborted: shown as a pick of its whole answers, or
+			// left open (`unparsed.ts`).
+			const fallback = fallbackFor(raw, askId, (ref) => (ref.kind === 'card' ? cardName(this.foldedStateOf(s), ref.id) : null) ?? `${ref.kind} #${ref.id}`);
+			this.deps.log({ evt: 'ask-unparsed', matchId: this.id, seat, callId: askId, method: head?.method, errors, fallback: fallback !== null });
+			if (fallback === null) return;
+			this.flushPendingWindow(s);
+			s.unparsed.set(askId, fallback);
+			this.openAskFrame(s, askId, 'getChoices', fallback.frame);
 			return;
 		}
 		const frame = parsed.value;
@@ -2641,8 +2743,6 @@ export class Match {
 	}
 
 	private closeAsk(s: SeatState, callId: string): void {
-		const ask = s.asks.get(callId);
-		if (ask !== undefined) clearTimeout(ask.timer);
 		s.asks.delete(callId);
 		this.checkWaitingOn();
 	}
@@ -2671,7 +2771,7 @@ export class Match {
 	/**
 	 * The five-line tail every ask-opening path ends in (S4, wave 64 — folded
 	 * from three copies that had drifted into "the same lines", not three
-	 * genuinely different endings): register the open ask with its timeout,
+	 * genuinely different endings): register the open ask,
 	 * send the frame, and let `checkWaitingOn` re-read what this seat is
 	 * waiting on. `callId` and `method` travel separately from `frame` because
 	 * {@link Match.openMergedChoice}'s frame is a SYNTHESIZED one — its own
@@ -2682,9 +2782,7 @@ export class Match {
 	 * the ask-opening half of that list, and this comment is it.
 	 */
 	private openAskFrame(s: SeatState, callId: string, method: string, frame: ServerFrame): void {
-		const timer = setTimeout(() => this.abortAsk(s, callId, 'timeout'), this.deps.askTimeoutMs);
-		timer.unref();
-		s.asks.set(callId, { callId, method, frame, sentAt: this.now(), timer });
+		s.asks.set(callId, { callId, method, frame, sentAt: this.now() });
 		this.send(s, frame);
 		this.checkWaitingOn();
 	}
@@ -2813,26 +2911,10 @@ export class Match {
 		}
 		for (const s of this.seats) {
 			for (const callId of [...s.asks.keys()]) this.closeAsk(s, callId);
+			this.disarmActWatch(s.seat);
 			if (s.departure !== null) clearTimeout(s.departure);
 			s.departure = null;
 		}
-	}
-
-	private abortAsk(
-		s: SeatState,
-		callId: string,
-		reason: 'disconnected' | 'timeout' | 'cancelled' | 'unsupported',
-	): void {
-		const ask = s.asks.get(callId);
-		if (ask === undefined) return;
-		this.closeAsk(s, callId);
-		// This callId may be R4's synthetic `chooseSingleEntityForEffect` fold —
-		// the reveal half was already answered the moment it arrived (see
-		// `onFrame`'s own header), so only the real discard choice below it is
-		// still open and needs the abort.
-		s.mergedChoice.delete(callId);
-		this.deps.log({ evt: 'ask-aborted', matchId: this.id, seat: s.seat, callId, method: ask.method, reason });
-		this.command({ t: 'abort', seat: s.seat, callId, reason });
 	}
 
 	private fail(reason: string): void {

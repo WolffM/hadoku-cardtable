@@ -66,6 +66,8 @@ export const SELF_ANSWERING: ReadonlySet<string> = new Set(
 export const ANSWER_TESTID = {
   option: 'prompt-option',
   choice: 'prompt-choice',
+  /** A mana combination's whole answer (`AssignPrompts.tsx`'s `ManaComboPrompt`): one press answers. */
+  combo: 'prompt-combo',
   input: 'prompt-input',
   cancel: 'prompt-cancel',
   submit: 'prompt-submit',

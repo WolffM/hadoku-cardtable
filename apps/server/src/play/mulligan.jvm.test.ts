@@ -71,7 +71,6 @@ describe.skipIf(!available.ok)(title, () => {
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
 				log: (e) => logs.push(e),
-				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
 				emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
 			});
@@ -207,7 +206,6 @@ describe.skipIf(!available.ok)(title, () => {
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, events),
 				log: (e) => logs.push(e),
-				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
 				emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
 			});

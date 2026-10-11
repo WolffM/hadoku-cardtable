@@ -174,7 +174,7 @@ describe.skipIf(!available.ok)(title('the mana combination ask, against real For
 
 	it("a card-name ask outlives its seat's departure: re-shown on return, answered, and Cabal Therapy resolves (prod m-dd37bda1c441)", async () => {
 		if (!available.ok) return;
-		const isNameAsk = (f: Frame): boolean => f.method === 'getChoices' && Array.isArray(f.choices) && (f.choices as unknown[]).length > 1000;
+		const isNameAsk = (f: Frame): boolean => f.method === 'getChoices' && Array.isArray(f.names);
 		const s = await startScenario(available.config, {
 			seed: 17,
 			decks: [deck('therapy-a', ['20 Swamp']), deck('therapy-b', ['20 Mountain'])],
@@ -222,12 +222,11 @@ describe.skipIf(!available.ok)(title('the mana combination ask, against real For
 			const mark = s.sent.length;
 			s.match.resendAfterSnapshot(0);
 			const again = s.sent.slice(mark).map((x) => x.envelope.frame as Frame).find((f) => f.kind === 'ask' && f.callId === callId);
-			console.log(`[ee-asks] therapy: ${callId} re-sent after the return: ${again !== undefined}; ${(ask.choices as unknown[]).length} names`);
+			console.log(`[ee-asks] therapy: ${callId} re-sent after the return: ${again !== undefined}; ${(ask.names as unknown[]).length} names`);
 			expect(again, 'the open card-name ask is re-sent to the returning seat').toBeDefined();
 
-			const mystic = (ask.choices as { key: string; label: string }[]).find((c) => c.label === 'Elvish Mystic');
-			if (mystic === undefined) throw new Error('Elvish Mystic is not among the names');
-			expect(s.match.fromClient(0, { kind: 'reply', callId, method: 'getChoices', result: [mystic.key] } as never)).toEqual({ ok: true });
+			expect(ask.names as string[], 'Elvish Mystic is among the names').toContain('Elvish Mystic');
+			expect(s.match.fromClient(0, { kind: 'reply', callId, method: 'getChoices', result: ['Elvish Mystic'] } as never)).toEqual({ ok: true });
 			await waitUntil(
 				() => {
 					s.answerAsks();

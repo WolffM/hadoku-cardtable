@@ -447,6 +447,50 @@ export function genericAmountProblems(
   return problems;
 }
 
+/** `MagicColor` masks (MagicColor.java:16-23) → the mana token and its word. */
+export const MANA_COLOR: Readonly<Record<number, { token: string; word: string }>> = {
+  0: { token: 'C', word: 'colorless' },
+  1: { token: 'W', word: 'white' },
+  2: { token: 'U', word: 'blue' },
+  4: { token: 'B', word: 'black' },
+  8: { token: 'R', word: 'red' },
+  16: { token: 'G', word: 'green' },
+};
+
+export interface ManaCombo {
+  /** One mana token per mana made, in the ask's colour order: `['R', 'G']`. */
+  tokens: string[];
+  /** One amount per `ask.target` entry — the reply's amounts. */
+  amounts: number[];
+}
+
+/**
+ * A mana combination (`PlayerControllerHuman.specifyManaCombo`: Fire-Lit
+ * Thicket's "Add {R}{R}, {R}{G}, or {G}{G}") as the short list of whole answers
+ * it is, rather than a division to make: every way to split `ask.amount` over
+ * the colours, each colour within its own maximum, first colour heaviest first.
+ * `null` when any key is not a colour — that ask is a division.
+ */
+export function manaCombos(ask: AskOf<'assignGenericAmount'>): ManaCombo[] | null {
+  const colors: number[] = [];
+  for (const t of ask.target) {
+    if (t.key.target !== 'manaColor') return null;
+    colors.push(t.key.color);
+  }
+  const out: ManaCombo[] = [];
+  const walk = (i: number, left: number, amounts: number[]): void => {
+    if (i === colors.length) {
+      if (left === 0 && !(ask.atLeastOne && amounts.some((n) => n < 1))) {
+        out.push({ amounts, tokens: amounts.flatMap((n, j) => Array<string>(n).fill(MANA_COLOR[colors[j]!]?.token ?? '?')) });
+      }
+      return;
+    }
+    for (let n = Math.min(left, ask.target[i]!.amount); n >= 0; n -= 1) walk(i + 1, left - n, [...amounts, n]);
+  };
+  walk(0, ask.amount, []);
+  return out;
+}
+
 /** Move one item of a list to another index — the only edit `order` and `manipulateCardList` make. */
 export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   const next = [...list];

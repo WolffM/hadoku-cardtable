@@ -311,6 +311,8 @@ export type BridgeCommand =
 	| { t: 'reply'; seat: number; callId: string; result: unknown }
 	| { t: 'abort'; seat: number; callId: string; reason: AbortReason }
 	| { t: 'act'; seat: number; frame: ClientAction | SendYieldUpdate }
+	/** Re-send every ask the seat is parked on, original callIds (`match.ts`'s `armActWatch`). */
+	| { t: 'resend-pending'; seat: number }
 	| { t: 'probe'; seat: number; probeId: string; message: string }
 	| { t: 'stop' };
 
@@ -330,6 +332,8 @@ export type BridgeLine =
 	| { t: 'fatal'; message: string }
 	| { t: 'rejected'; message: string; command: string }
 	| { t: 'stale'; seat: number; callId: string }
+	/** The asks a `resend-pending` sent again, after their frames. */
+	| { t: 'resent'; seat: number; callIds: string[] }
 	| { t: 'unsupported'; seat: number; method: string }
 	/**
 	 * Wave 32, Q5 — the bridge switched Forge's phase-pacing sleep for a seat
@@ -438,7 +442,7 @@ export const SPARE_RETRY_MS = 5000;
 /** …and after this many such deaths in a row, not at all. */
 export const SPARE_MAX_FAILURES = 3;
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'fatal', 'rejected', 'stale', 'unsupported', 'pace']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent']);
 
 /** A line from the bridge, or null for one that is not a protocol line. */
 export function parseBridgeLine(text: string): BridgeLine | null {

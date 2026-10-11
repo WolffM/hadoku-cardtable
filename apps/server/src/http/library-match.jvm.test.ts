@@ -63,7 +63,6 @@ async function startsAndRuns(seatA: { name: string; text: string }, seatB: { nam
 		const registry = createMatchRegistry({
 			host: jvm,
 			log: () => {},
-			askTimeoutMs: 60_000,
 			overGraceMs: 60_000,
 			emit: () => {},
 		});

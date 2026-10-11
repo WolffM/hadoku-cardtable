@@ -259,7 +259,6 @@ describe.skipIf(!available.ok)(title, () => {
 					const last = [...stops].reverse().find((x) => x.seat === e.seat);
 					if (last !== undefined) last.passed = true;
 				},
-				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
@@ -597,7 +596,6 @@ describe.skipIf(!available.ok)(title, () => {
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
 				log: (e) => logs.push(e),
-				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
 				// The sacrifice confirm is recorded as the seat would be shown it. Under the
 				// default (`costConfirm: 'accept'`, w52) the server answers it and withholds it,
@@ -970,7 +968,6 @@ describe.skipIf(!available.ok)(title, () => {
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
 				log: (e) => logs.push(e),
-				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
 				// Records the payment window too: left to the seat (Z4 withholds a payment the server pays itself).
 				stopPolicy: { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'ask' },

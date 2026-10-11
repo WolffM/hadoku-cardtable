@@ -101,6 +101,10 @@ export async function answerPrompt(
       await submit.click();
       break;
     case 'increment-until-submittable':
+      if ((await sheet.getByTestId(ANSWER_TESTID.combo).count()) > 0) {
+        await sheet.getByTestId(ANSWER_TESTID.combo).first().click();
+        break;
+      }
       for (let guard = 0; guard < 100 && !(await submittable()); guard++) {
         const more = sheet.locator('button[aria-label^="more to"]:enabled');
         if ((await more.count()) === 0) break;
