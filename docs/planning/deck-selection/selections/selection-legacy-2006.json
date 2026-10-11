@@ -174,6 +174,103 @@
    "label_count": 3
   },
   {
+   "deck": 265150,
+   "event": 11468,
+   "archetype": "Flame Vault",
+   "player": "Paul Mastriano",
+   "event_name": "Grand Prix Philadelphia 2005 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2005-11-12",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 0,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 3,
+    "avg_cmc": 2.49,
+    "pips": {
+     "W": 0,
+     "U": 26.0,
+     "B": 0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Accumulated Knowledge": 4,
+     "Brainstorm": 4,
+     "Burning Wish": 4,
+     "Chrome Mox": 4,
+     "Echoing Truth": 1,
+     "Fire // Ice": 4,
+     "Flame Fusillade": 3,
+     "Force of Will": 4,
+     "Impulse": 1,
+     "Intuition": 4,
+     "Time Vault": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 206960,
+   "event": 537,
+   "archetype": "Blue Skies",
+   "player": "Doug \"DampingEngine\" McKay",
+   "event_name": "Kadilak's Dual Land Draft II - Syracuse (New York, USA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2006-08-05",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 20,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 2.36,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Flying Men": 4,
+     "Cloud of Faeries": 4,
+     "Sea Sprite": 4,
+     "Serendib Efreet": 4,
+     "Sea Drake": 4,
+     "Mask of Memory": 2,
+     "Umezawa's Jitte": 3,
+     "Sword of Fire and Ice": 2,
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "Standstill": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
    "deck": 265149,
    "event": 11468,
    "archetype": "GAT",
@@ -224,6 +321,103 @@
    "label_count": 1
   },
   {
+   "deck": 206735,
+   "event": 108,
+   "archetype": "UGW Threshold",
+   "player": "Helmut Summersberger",
+   "event_name": "Grand Prix Lille 2005",
+   "stars": 1,
+   "rank": "1",
+   "date": "2005-12-18",
+   "summer": false,
+   "s": 0.6923076923076924,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 8,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 3,
+    "avg_cmc": 1.88,
+    "pips": {
+     "W": 4.0,
+     "U": 36.0,
+     "B": 0,
+     "R": 5.0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Meddling Mage": 4,
+     "Nimble Mongoose": 4,
+     "Werebear": 4,
+     "Brainstorm": 4,
+     "Counterspell": 3,
+     "Daze": 4,
+     "Fire // Ice": 2,
+     "Force of Will": 4,
+     "Lightning Bolt": 3,
+     "Mental Note": 4,
+     "Pithing Needle": 2,
+     "Serum Visions": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 206962,
+   "event": 537,
+   "archetype": "5/3",
+   "player": "Rick \"Jander78\" Argiro",
+   "event_name": "Kadilak's Dual Land Draft II - Syracuse (New York, USA)",
+   "stars": 2,
+   "rank": "3",
+   "date": "2006-08-05",
+   "summer": false,
+   "s": 0.5578858913022599,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 3,
+    "avg_cmc": 2.92,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Juggernaut": 4,
+     "Synod Centurion": 4,
+     "Su-Chi": 3,
+     "Masticore": 2,
+     "Myr Enforcer": 2,
+     "Phyrexian War Beast": 3,
+     "Chalice of the Void": 4,
+     "Trinisphere": 3,
+     "Crucible of Worlds": 3,
+     "Tangle Wire": 4,
+     "Sword of Fire and Ice": 3,
+     "Mox Diamond": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 207213,
    "event": 596,
    "archetype": "Rogue Deadguy Ale: A Homebrew",
@@ -270,6 +464,62 @@
    },
    "style": "midrange",
    "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 206967,
+   "event": 537,
+   "archetype": "RG Survival",
+   "player": "John \"Mulletus\" LaCasse",
+   "event_name": "Kadilak's Dual Land Draft II - Syracuse (New York, USA)",
+   "stars": 2,
+   "rank": "8",
+   "date": "2006-08-05",
+   "summer": false,
+   "s": 0.4,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.6,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 11.0,
+     "G": 37.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Indrik Stomphowler": 1,
+     "Rofellos, Llanowar Emissary": 1,
+     "Yavimaya Elder": 1,
+     "Anger": 1,
+     "Goblin Sharpshooter": 1,
+     "Troll Ascetic": 1,
+     "Genesis": 1,
+     "Deranged Hermit": 1,
+     "Squee, Goblin Nabob": 1,
+     "Llanowar Elves": 2,
+     "Ravenous Baloth": 3,
+     "Wall of Blossoms": 3,
+     "Aether Vial": 3,
+     "Eternal Witness": 4,
+     "Flametongue Kavu": 4,
+     "Birds of Paradise": 4,
+     "Burning Wish": 4,
+     "Survival of the Fittest": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
    "label_count": 1
   },
   {
@@ -433,34 +683,84 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 1
-  }
- ],
- "alternates": [
+  },
   {
-   "deck": 265151,
-   "event": 11468,
-   "archetype": "Landstill",
-   "player": "Noah Long",
-   "event_name": "Grand Prix Philadelphia 2005 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2005-11-12",
+   "deck": 207214,
+   "event": 596,
+   "archetype": "ThreshGro",
+   "player": "Ben Goodman",
+   "event_name": "Grand Prix Philadelphia 2005",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2005-11-13",
    "summer": false,
-   "s": 1.0,
+   "s": 0.32036983360582044,
    "f": {
-    "spells": 39,
-    "lands": 23,
-    "creatures": 0,
-    "counters": 11,
-    "sweepers": 3,
-    "draw": 10,
-    "burn": 3,
-    "avg_cmc": 2.46,
+    "spells": 43,
+    "lands": 17,
+    "creatures": 7,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.0,
     "pips": {
-     "W": 6.0,
-     "U": 34.0,
+     "W": 11.0,
+     "U": 36.0,
      "B": 0,
-     "R": 3.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Meddling Mage": 4,
+     "Mystic Enforcer": 3,
+     "Werebear": 4,
+     "Brainstorm": 4,
+     "Counterspell": 2,
+     "Daze": 3,
+     "Disrupting Shoal": 1,
+     "Force of Will": 4,
+     "Pithing Needle": 3,
+     "Predict": 4,
+     "Serum Visions": 4,
+     "Sleight of Hand": 3,
+     "Swords to Plowshares": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 206736,
+   "event": 108,
+   "archetype": "UW Control",
+   "player": "Nicolas Fran\u00e7ois",
+   "event_name": "Grand Prix Lille 2005",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2005-12-18",
+   "summer": false,
+   "s": 0.32036983360582044,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 2,
+    "counters": 8,
+    "sweepers": 3,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 18.0,
+     "U": 30.0,
+     "B": 0,
+     "R": 4.0,
      "G": 0
     },
     "colors": [
@@ -468,141 +768,205 @@
      "U"
     ],
     "names": {
-     "Brainstorm": 8,
-     "Counterspell": 4,
-     "Crucible of Worlds": 3,
-     "Decree of Justice": 2,
-     "Fact or Fiction": 3,
-     "Force of Will": 4,
-     "Lightning Bolt": 3,
-     "Mana Leak": 3,
+     "Fact or Fiction": 2,
+     "Moat": 2,
      "Nevinyrral's Disk": 3,
+     "Decree of Justice": 3,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
      "Standstill": 4,
-     "Swords to Plowshares": 2
+     "Brainstorm": 4,
+     "Counterspell": 4,
+     "Fire // Ice": 4,
+     "Exalted Angel": 2
     }
    },
    "style": "control",
-   "style_why": "cards",
-   "label_count": 1,
-   "swapped_out_reason": "mtgtop8 export for deck 265151 (Landstill, Noah Long) is not a legal 60-card list as recorded: it plays \"8 [IA] Brainstorm\" (Legacy limits any non-basic-land card to 4 copies), pushing the maindeck to 62 cards. This is a defect in mtgtop8's own stored decklist, not a Forge transcription failure or a legality question answerable by fixing the card name/set. No alternate exists for 2006 (pool_size == len(chosen) == 8, zero candidates left over), so the deck is dropped rather than replaced \u2014 2006 is now a 7-deck era (Settled: thin seasons are reported, not padded)."
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 247974,
+   "event": 8349,
+   "archetype": "Boros Aggro",
+   "player": "Pokerface",
+   "event_name": "O-Gaming Legacy Trial",
+   "stars": 0,
+   "rank": "2",
+   "date": "2005-11-13",
+   "summer": false,
+   "s": 0.2564102564102564,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 17,
+    "avg_cmc": 1.58,
+    "pips": {
+     "W": 29.0,
+     "U": 0,
+     "B": 0,
+     "R": 19.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Cursed Scroll": 2,
+     "Chain Lightning": 3,
+     "Umezawa's Jitte": 3,
+     "Magma Jet": 4,
+     "Lightning Helix": 4,
+     "Lightning Bolt": 4,
+     "Isamaru, Hound of Konda": 3,
+     "Soltari Priest": 3,
+     "Silver Knight": 4,
+     "Savannah Lions": 4,
+     "Goblin Legionnaire": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 247975,
+   "event": 8349,
+   "archetype": "Sligh",
+   "player": "Timmy",
+   "event_name": "O-Gaming Legacy Trial",
+   "stars": 0,
+   "rank": "3-4",
+   "date": "2005-11-13",
+   "summer": false,
+   "s": 0.21457149665471528,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 23,
+    "avg_cmc": 1.93,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 52.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Mogg Fanatic": 3,
+     "Ball Lightning": 4,
+     "Grim Lavamancer": 4,
+     "Jackal Pup": 4,
+     "Price of Progress": 2,
+     "Incinerate": 3,
+     "Fireblast": 4,
+     "Lightning Bolt": 4,
+     "Magma Jet": 4,
+     "Chain Lightning": 4,
+     "Lava Spike": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 247976,
+   "event": 8349,
+   "archetype": "Troll-A-Tog",
+   "player": "UniversalSnip",
+   "event_name": "O-Gaming Legacy Trial",
+   "stars": 0,
+   "rank": "5-8",
+   "date": "2005-11-13",
+   "summer": false,
+   "s": 0.17798324089212247,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.25,
+    "pips": {
+     "W": 5.0,
+     "U": 15.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Brawn": 1,
+     "Genesis": 1,
+     "Wonder": 1,
+     "Golgari Grave-Troll": 3,
+     "Psychatog": 4,
+     "Ray of Revelation": 1,
+     "Intuition": 3,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Deep Analysis": 3,
+     "Life from the Loam": 3,
+     "Duress": 4,
+     "Mox Diamond": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
   }
  ],
- "pool_size": 8,
+ "alternates": [],
+ "pool_size": 17,
  "rejected_illegal": [
   {
-   "archetype": "Blue Skies",
-   "deck": 206960,
-   "player": "Doug \"DampingEngine\" McKay",
+   "archetype": "Landstill",
+   "deck": 265151,
+   "player": "Noah Long",
    "why": [
-    "Sea Drake (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Flame Vault",
-   "deck": 265150,
-   "player": "Paul Mastriano",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "UGW Threshold",
-   "deck": 206735,
-   "player": "Helmut Summersberger",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "UGW Threshold",
-   "deck": 206740,
-   "player": "Daniel Krutil",
-   "why": [
-    "Daze (not in legal sets)",
-    "Seal of Cleansing (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "5/3",
-   "deck": 206962,
-   "player": "Rick \"Jander78\" Argiro",
-   "why": [
-    "Tangle Wire (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UGw Gro",
-   "deck": 206963,
-   "player": "Jon \"unregged\" Dufore",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UGw Gro",
-   "deck": 206966,
-   "player": "Jesse \"MadZur\" Hatfield",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "RG Survival",
-   "deck": 206967,
-   "player": "John \"Mulletus\" LaCasse",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gro-Rouge",
-   "deck": 206742,
-   "player": "Nicolas Labarre",
-   "why": [
-    "Daze (not in legal sets)",
-    "Submerge (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Threshold",
-   "deck": 207209,
-   "player": "Pat McGregor",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Threshold",
-   "deck": 207210,
-   "player": "Lam Pham",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "Daze (not in legal sets)",
-    "Seal of Cleansing (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 206736,
-   "player": "Nicolas Fran\u00e7ois",
-   "why": [
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "ThreshGro",
-   "deck": 207214,
-   "player": "Ben Goodman",
-   "why": [
-    "Daze (not in legal sets)"
+    "8x Brainstorm (over the four-copy limit)"
    ]
   }
  ],
  "duplicates_dropped": [
+  {
+   "dropped": "UGw Gro",
+   "player": "Jon \"unregged\" Dufore",
+   "kept": "UGW Threshold",
+   "kept_player": "Helmut Summersberger"
+  },
+  {
+   "dropped": "Gro-Rouge",
+   "player": "Nicolas Labarre",
+   "kept": "UGW Threshold",
+   "kept_player": "Helmut Summersberger"
+  },
+  {
+   "dropped": "Threshold",
+   "player": "Pat McGregor",
+   "kept": "UGW Threshold",
+   "kept_player": "Helmut Summersberger"
+  },
   {
    "dropped": "Grishn\u00e2k go!",
    "player": "Lo\u00efc Le Briand",
@@ -620,19 +984,34 @@
    "player": "Paul Serignese",
    "kept": "Salvager",
    "kept_player": "Maximilian Bracht"
+  },
+  {
+   "dropped": "Bomberman",
+   "player": "Akman",
+   "kept": "Salvager",
+   "kept_player": "Maximilian Bracht"
+  },
+  {
+   "dropped": "Survival (ATS)",
+   "player": "Foxy",
+   "kept": "RG Survival",
+   "kept_player": "John \"Mulletus\" LaCasse"
   }
  ],
- "objective": 3.264365683101257,
+ "objective": 2.212257007464716,
  "pool_colors": {
-  "U": 3,
-  "R": 2,
-  "B": 4,
-  "G": 3,
-  "W": 4
+  "U": 8,
+  "R": 6,
+  "B": 5,
+  "G": 7,
+  "W": 7
  },
  "pool_styles": {
-  "control": 4,
-  "aggro": 2,
-  "midrange": 2
- }
+  "control": 7,
+  "aggro": 5,
+  "midrange": 5
+ },
+ "kept_lost": [
+  265151
+ ]
 }

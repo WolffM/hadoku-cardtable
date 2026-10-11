@@ -1,0 +1,34 @@
+[metadata]
+Name=Big Druid Deck (Yuuma Shiota)
+Deck Type=Constructed
+Format=Standard (M10)
+Effective=2009-07-17
+Source URL=https://www.mtgtop8.com/event?e=440&d=151399&f=ST
+Comment=Japanese Nationals 2009: Yuuma Shiota, 3rd, Big Druid Deck. Transcribed from mtgtop8 deck 151399.
+[Main]
+7 Forest|M10
+4 Elvish Archdruid|M10
+4 Wooded Bastion|SHM
+4 Sunpetal Grove|M10
+4 Primal Command|LRW
+4 Heritage Druid|MOR
+4 Llanowar Elves|M10
+4 Mosswort Bridge|LRW
+4 Ranger of Eos|ALA
+4 Nettle Sentinel|EVE
+4 Elvish Visionary|M10
+3 Gilt-Leaf Archdruid|MOR
+3 Path to Exile|CFX
+3 Regal Force|EVE
+2 Devoted Druid|SHM
+1 Mirror Entity|LRW
+1 Plains|M10
+[Sideboard]
+1 Gilt-Leaf Archdruid|MOR
+1 Path to Exile|CFX
+1 Devoted Druid|SHM
+1 Mirror Entity|LRW
+4 Great Sable Stag|M10
+3 Burrenton Forge-Tender|LRW
+2 Cloudthresher|LRW
+2 Mark of Asylum|CFX

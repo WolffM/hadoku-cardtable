@@ -42,6 +42,68 @@
  },
  "chosen": [
   {
+   "deck": 246438,
+   "event": 8056,
+   "archetype": "Birthing Pod",
+   "player": "Michele Ancona",
+   "event_name": "PTQ Khans of Tarkir (Riccione, Italy)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-08-16",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.73,
+    "pips": {
+     "W": 12.0,
+     "U": 0,
+     "B": 9.0,
+     "R": 1.0,
+     "G": 30.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Orzhov Pontiff": 1,
+     "Reclamation Sage": 1,
+     "Restoration Angel": 1,
+     "Linvala, Keeper of Silence": 1,
+     "Murderous Redcap": 1,
+     "Entomber Exarch": 1,
+     "Phyrexian Metamorph": 1,
+     "Nekrataal": 1,
+     "Archangel of Thune": 1,
+     "Abrupt Decay": 2,
+     "Chord of Calling": 3,
+     "Birthing Pod": 4,
+     "Reveillark": 1,
+     "Eternal Witness": 1,
+     "Spike Feeder": 1,
+     "Kitchen Finks": 2,
+     "Melira, Sylvok Outcast": 1,
+     "Scavenging Ooze": 1,
+     "Spellskite": 1,
+     "Voice of Resurgence": 3,
+     "Viscera Seer": 1,
+     "Noble Hierarch": 3,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 56
+  },
+  {
    "deck": 246661,
    "event": 8097,
    "archetype": "U Tron",
@@ -94,6 +156,58 @@
    "style": "control",
    "style_why": "cards",
    "label_count": 1
+  },
+  {
+   "deck": 243667,
+   "event": 7605,
+   "archetype": "Twin Exarch",
+   "player": "Mathias De Momi",
+   "event_name": "PTQ Khans of Tarkir - Torino",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-06-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 14,
+    "counters": 6,
+    "sweepers": 1,
+    "draw": 14,
+    "burn": 4,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Deceiver Exarch": 4,
+     "Pestermite": 2,
+     "Kiki-Jiki, Mirror Breaker": 1,
+     "Snapcaster Mage": 4,
+     "Vendilion Clique": 2,
+     "Spellskite": 1,
+     "Splinter Twin": 4,
+     "Lightning Bolt": 4,
+     "Twisted Image": 3,
+     "Dispel": 1,
+     "Cryptic Command": 1,
+     "Spreading Seas": 2,
+     "Remand": 4,
+     "Serum Visions": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 99
   },
   {
    "deck": 243482,
@@ -248,6 +362,106 @@
    "label_count": 31
   },
   {
+   "deck": 241720,
+   "event": 7280,
+   "archetype": "UWr Midrange",
+   "player": "Jason Qian",
+   "event_name": "SOMS @ Toronto, Ontario",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-05-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 25,
+    "creatures": 13,
+    "counters": 11,
+    "sweepers": 3,
+    "draw": 7,
+    "burn": 6,
+    "avg_cmc": 2.28,
+    "pips": {
+     "W": 13.0,
+     "U": 31.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Remand": 2,
+     "Electrolyze": 2,
+     "Lightning Helix": 2,
+     "Spell Snare": 2,
+     "Cryptic Command": 3,
+     "Path to Exile": 4,
+     "Lightning Bolt": 4,
+     "Mana Leak": 4,
+     "Vendilion Clique": 2,
+     "Restoration Angel": 3,
+     "Snapcaster Mage": 4,
+     "Geist of Saint Traft": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 20
+  },
+  {
+   "deck": 241635,
+   "event": 7266,
+   "archetype": "Hatebear",
+   "player": "Serafin Wellinger",
+   "event_name": "BoM9 Modern Main Event",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-05-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 32.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 4,
+     "Leonin Arbiter": 4,
+     "Flickerwisp": 4,
+     "Restoration Angel": 4,
+     "Blade Splicer": 4,
+     "Thalia, Guardian of Thraben": 3,
+     "Aven Mindcensor": 3,
+     "Scavenging Ooze": 3,
+     "Linvala, Keeper of Silence": 1,
+     "Path to Exile": 4,
+     "Aether Vial": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 14
+  },
+  {
    "deck": 236551,
    "event": 6348,
    "archetype": "UW Midrange",
@@ -296,6 +510,54 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 1
+  },
+  {
+   "deck": 245496,
+   "event": 7906,
+   "archetype": "Red Deck Wins",
+   "player": "Douglas McKay",
+   "event_name": "GP Boston 2014 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-07-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 14,
+    "avg_cmc": 1.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 2.0,
+     "R": 50.0,
+     "G": 4.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Searing Blaze": 4,
+     "Shard Volley": 2,
+     "Lightning Bolt": 4,
+     "Pillar of Flame": 4,
+     "Eidolon of the Great Revel": 4,
+     "Ash Zealot": 4,
+     "Rakdos Cackler": 4,
+     "Mogg Fanatic": 4,
+     "Grim Lavamancer": 2,
+     "Goblin Guide": 4,
+     "Vexing Shusher": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 6
   },
   {
    "deck": 245844,
@@ -448,6 +710,106 @@
    "label_count": 24
   },
   {
+   "deck": 246597,
+   "event": 8087,
+   "archetype": "UR Storm",
+   "player": "Mark Donaldson",
+   "event_name": "SCG Premier IQ - Washington, DC",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 19,
+    "burn": 2,
+    "avg_cmc": 1.77,
+    "pips": {
+     "W": 0,
+     "U": 16.0,
+     "B": 0,
+     "R": 26.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Serum Visions": 4,
+     "Past in Flames": 3,
+     "Grapeshot": 2,
+     "Gitaxian Probe": 4,
+     "Thought Scour": 4,
+     "Pyretic Ritual": 4,
+     "Manamorphose": 4,
+     "Desperate Ritual": 4,
+     "Desperate Ravings": 3,
+     "Pyromancer Ascension": 4,
+     "Goblin Electromancer": 4,
+     "Sleight of Hand": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 13
+  },
+  {
+   "deck": 246186,
+   "event": 8017,
+   "archetype": "Blue Moon",
+   "player": "Jim Still",
+   "event_name": "2014 Modern State Championships - Mississippi",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-03",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 7,
+    "counters": 11,
+    "sweepers": 4,
+    "draw": 19,
+    "burn": 4,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 0,
+     "U": 39.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Keranos, God of Storms": 1,
+     "Snapcaster Mage": 4,
+     "Vendilion Clique": 2,
+     "Blood Moon": 2,
+     "Cryptic Command": 4,
+     "Electrolyze": 3,
+     "Lightning Bolt": 4,
+     "Remand": 4,
+     "Serum Visions": 4,
+     "Spell Snare": 3,
+     "Spreading Seas": 4,
+     "Vedalken Shackles": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 9
+  },
+  {
    "deck": 245497,
    "event": 7906,
    "archetype": "Ad Nauseam",
@@ -550,6 +912,54 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 3
+  },
+  {
+   "deck": 246747,
+   "event": 8113,
+   "archetype": "Mono vert stompy",
+   "player": "Benjamin Van Koekenbeek",
+   "event_name": "PTQ Khans of Tarkir (Lille, France)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 51.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Aspect of Hydra": 2,
+     "Dismember": 3,
+     "Rancor": 4,
+     "Vines of Vastwood": 4,
+     "Thrun, the Last Troll": 2,
+     "Scavenging Ooze": 3,
+     "Leatherback Baloth": 4,
+     "Strangleroot Geist": 4,
+     "Kalonian Tusker": 4,
+     "Experiment One": 4,
+     "Dryad Militant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
   },
   {
    "deck": 246422,
@@ -656,460 +1066,6 @@
    "style": "combo",
    "style_why": "override",
    "label_count": 19
-  }
- ],
- "alternates": [
-  {
-   "deck": 243667,
-   "event": 7605,
-   "archetype": "Twin Exarch",
-   "player": "Mathias De Momi",
-   "event_name": "PTQ Khans of Tarkir - Torino",
-   "stars": 3,
-   "rank": "1",
-   "date": "2014-06-15",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 14,
-    "counters": 6,
-    "sweepers": 1,
-    "draw": 14,
-    "burn": 4,
-    "avg_cmc": 2.24,
-    "pips": {
-     "W": 0,
-     "U": 31.0,
-     "B": 0,
-     "R": 15.0,
-     "G": 0
-    },
-    "colors": [
-     "U",
-     "R"
-    ],
-    "names": {
-     "Deceiver Exarch": 4,
-     "Pestermite": 2,
-     "Kiki-Jiki, Mirror Breaker": 1,
-     "Snapcaster Mage": 4,
-     "Vendilion Clique": 2,
-     "Spellskite": 1,
-     "Splinter Twin": 4,
-     "Lightning Bolt": 4,
-     "Twisted Image": 3,
-     "Dispel": 1,
-     "Cryptic Command": 1,
-     "Spreading Seas": 2,
-     "Remand": 4,
-     "Serum Visions": 4
-    }
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 99
-  },
-  {
-   "deck": 245495,
-   "event": 7906,
-   "archetype": "UWr Midrange",
-   "player": "David McCoy",
-   "event_name": "GP Boston 2014 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-07-25",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 13,
-    "counters": 9,
-    "sweepers": 3,
-    "draw": 8,
-    "burn": 7,
-    "avg_cmc": 2.31,
-    "pips": {
-     "W": 15.0,
-     "U": 30.0,
-     "B": 0,
-     "R": 8.0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U",
-     "R"
-    ],
-    "names": {
-     "Sphinx's Revelation": 1,
-     "Cryptic Command": 3,
-     "Mana Leak": 2,
-     "Remand": 3,
-     "Spell Snare": 1,
-     "Electrolyze": 1,
-     "Snapcaster Mage": 4,
-     "Geist of Saint Traft": 4,
-     "Vendilion Clique": 2,
-     "Restoration Angel": 3,
-     "Path to Exile": 4,
-     "Lightning Bolt": 4,
-     "Lightning Helix": 3
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 20
-  },
-  {
-   "deck": 245496,
-   "event": 7906,
-   "archetype": "Red Deck Wins",
-   "player": "Douglas McKay",
-   "event_name": "GP Boston 2014 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-07-25",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 40,
-    "lands": 20,
-    "creatures": 26,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 14,
-    "avg_cmc": 1.4,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 2.0,
-     "R": 50.0,
-     "G": 4.0
-    },
-    "colors": [
-     "R"
-    ],
-    "names": {
-     "Searing Blaze": 4,
-     "Shard Volley": 2,
-     "Lightning Bolt": 4,
-     "Pillar of Flame": 4,
-     "Eidolon of the Great Revel": 4,
-     "Ash Zealot": 4,
-     "Rakdos Cackler": 4,
-     "Mogg Fanatic": 4,
-     "Grim Lavamancer": 2,
-     "Goblin Guide": 4,
-     "Vexing Shusher": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 6
-  },
-  {
-   "deck": 246086,
-   "event": 8004,
-   "archetype": "Affinity",
-   "player": "Richard Liu",
-   "event_name": "2014 Modern State Championships - California",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-08-03",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 44,
-    "lands": 16,
-    "creatures": 25,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 2,
-    "burn": 2,
-    "avg_cmc": 1.52,
-    "pips": {
-     "W": 0,
-     "U": 6.0,
-     "B": 0,
-     "R": 2.0,
-     "G": 0
-    },
-    "colors": [
-     "U"
-    ],
-    "names": {
-     "Thoughtcast": 2,
-     "Springleaf Drum": 4,
-     "Mox Opal": 4,
-     "Galvanic Blast": 2,
-     "Ensoul Artifact": 3,
-     "Cranial Plating": 4,
-     "Vault Skirge": 4,
-     "Steel Overseer": 1,
-     "Signal Pest": 4,
-     "Ornithopter": 4,
-     "Memnite": 3,
-     "Master of Etherium": 1,
-     "Etched Champion": 4,
-     "Arcbound Ravager": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 96
-  },
-  {
-   "deck": 246597,
-   "event": 8087,
-   "archetype": "UR Storm",
-   "player": "Mark Donaldson",
-   "event_name": "SCG Premier IQ - Washington, DC",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-08-24",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 44,
-    "lands": 16,
-    "creatures": 4,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 19,
-    "burn": 2,
-    "avg_cmc": 1.77,
-    "pips": {
-     "W": 0,
-     "U": 16.0,
-     "B": 0,
-     "R": 26.0,
-     "G": 2.0
-    },
-    "colors": [
-     "U",
-     "R"
-    ],
-    "names": {
-     "Serum Visions": 4,
-     "Past in Flames": 3,
-     "Grapeshot": 2,
-     "Gitaxian Probe": 4,
-     "Thought Scour": 4,
-     "Pyretic Ritual": 4,
-     "Manamorphose": 4,
-     "Desperate Ritual": 4,
-     "Desperate Ravings": 3,
-     "Pyromancer Ascension": 4,
-     "Goblin Electromancer": 4,
-     "Sleight of Hand": 4
-    }
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 13
-  },
-  {
-   "deck": 246628,
-   "event": 8093,
-   "archetype": "Aura Hexproof",
-   "player": "Johan Grundstr\u00b6m",
-   "event_name": "Stockholm Modern League Season 1-Playoff",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-08-31",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 40,
-    "lands": 20,
-    "creatures": 12,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 2,
-    "burn": 0,
-    "avg_cmc": 1.25,
-    "pips": {
-     "W": 26.0,
-     "U": 2.0,
-     "B": 0,
-     "R": 0,
-     "G": 16.0
-    },
-    "colors": [
-     "W",
-     "G"
-    ],
-    "names": {
-     "Ethereal Armor": 4,
-     "Hyena Umbra": 4,
-     "Keen Sense": 2,
-     "Path to Exile": 4,
-     "Rancor": 4,
-     "Slippery Bogle": 4,
-     "Spider Umbra": 4,
-     "Daybreak Coronet": 4,
-     "Kor Spiritdancer": 4,
-     "Spirit Mantle": 2,
-     "Gladecover Scout": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 13
-  },
-  {
-   "deck": 246186,
-   "event": 8017,
-   "archetype": "Blue Moon",
-   "player": "Jim Still",
-   "event_name": "2014 Modern State Championships - Mississippi",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-08-03",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 7,
-    "counters": 11,
-    "sweepers": 4,
-    "draw": 19,
-    "burn": 4,
-    "avg_cmc": 2.24,
-    "pips": {
-     "W": 0,
-     "U": 39.0,
-     "B": 0,
-     "R": 10.0,
-     "G": 0
-    },
-    "colors": [
-     "U",
-     "R"
-    ],
-    "names": {
-     "Keranos, God of Storms": 1,
-     "Snapcaster Mage": 4,
-     "Vendilion Clique": 2,
-     "Blood Moon": 2,
-     "Cryptic Command": 4,
-     "Electrolyze": 3,
-     "Lightning Bolt": 4,
-     "Remand": 4,
-     "Serum Visions": 4,
-     "Spell Snare": 3,
-     "Spreading Seas": 4,
-     "Vedalken Shackles": 2
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 9
-  },
-  {
-   "deck": 246423,
-   "event": 8054,
-   "archetype": "4/5c Good Stuff",
-   "player": "Lin Le",
-   "event_name": "GP Kobe 2014 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-08-22",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 39,
-    "lands": 21,
-    "creatures": 22,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 11,
-    "avg_cmc": 1.64,
-    "pips": {
-     "W": 14.0,
-     "U": 5.0,
-     "B": 0,
-     "R": 16.0,
-     "G": 10.0
-    },
-    "colors": [
-     "W",
-     "U",
-     "R",
-     "G"
-    ],
-    "names": {
-     "Lightning Helix": 3,
-     "Path to Exile": 4,
-     "Lightning Bolt": 4,
-     "Mutagenic Growth": 2,
-     "Tribal Flames": 4,
-     "Ghor-Clan Rampager": 2,
-     "Geist of Saint Traft": 3,
-     "Snapcaster Mage": 2,
-     "Tarmogoyf": 4,
-     "Kird Ape": 3,
-     "Wild Nacatl": 4,
-     "Loam Lion": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 3
-  },
-  {
-   "deck": 246747,
-   "event": 8113,
-   "archetype": "Mono vert stompy",
-   "player": "Benjamin Van Koekenbeek",
-   "event_name": "PTQ Khans of Tarkir (Lille, France)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2014-08-24",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 25,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 1.82,
-    "pips": {
-     "W": 2.0,
-     "U": 0,
-     "B": 0,
-     "R": 0,
-     "G": 51.0
-    },
-    "colors": [
-     "G"
-    ],
-    "names": {
-     "Aspect of Hydra": 2,
-     "Dismember": 3,
-     "Rancor": 4,
-     "Vines of Vastwood": 4,
-     "Thrun, the Last Troll": 2,
-     "Scavenging Ooze": 3,
-     "Leatherback Baloth": 4,
-     "Strangleroot Geist": 4,
-     "Kalonian Tusker": 4,
-     "Experiment One": 4,
-     "Dryad Militant": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 1
   },
   {
    "deck": 244465,
@@ -1272,319 +1228,668 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 1
+  },
+  {
+   "deck": 244119,
+   "event": 7683,
+   "archetype": "BW Tokens",
+   "player": "Yinan Zhang",
+   "event_name": "PTQ Khans of Tarkir (Attleboro, Massachusetts)",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2014-06-14",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.57,
+    "pips": {
+     "W": 39.0,
+     "U": 0,
+     "B": 9.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Squadron Hawk": 4,
+     "Hero of Bladehold": 3,
+     "Aven Mindcensor": 1,
+     "Spectral Procession": 4,
+     "Lingering Souls": 4,
+     "Thoughtseize": 3,
+     "Inquisition of Kozilek": 2,
+     "Path to Exile": 4,
+     "Zealous Persecution": 4,
+     "Sword of War and Peace": 2,
+     "Honor of the Pure": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
   }
  ],
- "pool_size": 27,
- "rejected_illegal": [
+ "alternates": [
   {
-   "archetype": "Birthing Pod",
-   "deck": 246438,
-   "player": "Michele Ancona",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 245835,
-   "player": "Alfio Russo",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 238838,
-   "player": "Andrea Cibak",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 246707,
-   "player": "Peter Ingram",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange",
-   "deck": 241720,
-   "player": "Jason Qian",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange",
-   "deck": 246995,
-   "player": "Phil Silberman",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange",
-   "deck": 246469,
-   "player": "Tyler Bailey",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 239942,
-   "player": "Simone Giovannetti",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 246699,
-   "player": "Michael Peterson",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 239943,
-   "player": "William Pizzi",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 243670,
-   "player": "William Pizzi",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebear",
-   "deck": 241635,
-   "player": "Serafin Wellinger",
-   "why": [
-    "Mark of Asylum (not in legal sets)",
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebear",
-   "deck": 233314,
-   "player": "Stefano Riccio",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebear",
-   "deck": 245476,
-   "player": "Julian Felix Fluny",
-   "why": [
-    "Mark of Asylum (not in legal sets)",
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebear",
-   "deck": 235508,
-   "player": "Davide Zoli",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Deck Wins",
-   "deck": 234669,
-   "player": "Hugo Lamour",
-   "why": [
-    "Deathrite Shaman (banned)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Affinity",
    "deck": 246412,
+   "event": 8054,
+   "archetype": "Affinity",
    "player": "Tanaka Atsushi",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
+   "event_name": "GP Kobe 2014 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-22",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.2,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 3.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Ensoul Artifact": 4,
+     "Springleaf Drum": 4,
+     "Mox Opal": 4,
+     "Cranial Plating": 4,
+     "Galvanic Blast": 4,
+     "Tarmogoyf": 3,
+     "Steel Overseer": 3,
+     "Arcbound Ravager": 3,
+     "Vault Skirge": 4,
+     "Signal Pest": 4,
+     "Memnite": 4,
+     "Ornithopter": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 96
   },
   {
-   "archetype": "Burn",
-   "deck": 246918,
-   "player": "Max Mcvety",
-   "why": [
-    "Hellspark Elemental (not in legal sets)"
-   ]
+   "deck": 246628,
+   "event": 8093,
+   "archetype": "Aura Hexproof",
+   "player": "Johan Grundstr\u00b6m",
+   "event_name": "Stockholm Modern League Season 1-Playoff",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 1.25,
+    "pips": {
+     "W": 26.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Ethereal Armor": 4,
+     "Hyena Umbra": 4,
+     "Keen Sense": 2,
+     "Path to Exile": 4,
+     "Rancor": 4,
+     "Slippery Bogle": 4,
+     "Spider Umbra": 4,
+     "Daybreak Coronet": 4,
+     "Kor Spiritdancer": 4,
+     "Spirit Mantle": 2,
+     "Gladecover Scout": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 13
   },
   {
-   "archetype": "UWx Midrange",
-   "deck": 246410,
-   "player": "Ito Kouei",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWx Midrange",
-   "deck": 245720,
-   "player": "Nick Seifert",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWx Midrange",
-   "deck": 245475,
-   "player": "Mike Kavalchick",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange Kiki",
-   "deck": 247236,
-   "player": "Queirolo Marco",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange Kiki",
-   "deck": 245468,
-   "player": "Tyler Morey",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange Kiki",
-   "deck": 245488,
-   "player": "Matthew Bunko",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Midrange Kiki",
-   "deck": 245399,
-   "player": "Jack Fogle",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 245482,
-   "player": "Sean Morse",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 244019,
-   "player": "Patxi S\u00a1nchez",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 246046,
-   "player": "Jody Keith",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 245242,
-   "player": "Robert Tissot",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Infect",
    "deck": 247245,
-   "player": "Alessandro Sparacio",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
+   "event": 8205,
    "archetype": "Infect",
-   "deck": 246043,
-   "player": "Andrew Kiffe",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
+   "player": "Alessandro Sparacio",
+   "event_name": "MLL #1 Ovino Trial - Milano",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-09-07",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.31,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Ichorclaw Myr": 4,
+     "Glistener Elf": 4,
+     "Noble Hierarch": 4,
+     "Sylvan Scrying": 3,
+     "Apostle's Blessing": 3,
+     "Might of Old Krosa": 4,
+     "Groundswell": 4,
+     "Mutagenic Growth": 4,
+     "Vines of Vastwood": 4,
+     "Rancor": 4,
+     "Wild Defiance": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 7
   },
   {
-   "archetype": "Zoo",
    "deck": 246417,
+   "event": 8054,
+   "archetype": "Zoo",
    "player": "Ito Takuya",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
+   "event_name": "GP Kobe 2014 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-22",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 25.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Lightning Bolt": 4,
+     "Path to Exile": 4,
+     "Thundermaw Hellkite": 1,
+     "Qasali Pridemage": 4,
+     "Birds of Paradise": 1,
+     "Scavenging Ooze": 3,
+     "Loxodon Smiter": 3,
+     "Aven Mindcensor": 1,
+     "Noble Hierarch": 4,
+     "Wild Nacatl": 4,
+     "Knight of the Reliquary": 2,
+     "Tarmogoyf": 4,
+     "Chandra, Pyromaster": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
   },
   {
-   "archetype": "Zoo",
-   "deck": 246560,
-   "player": "Adrian \"Mr. Throop\" Throop",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
+   "deck": 246423,
+   "event": 8054,
+   "archetype": "4/5c Good Stuff",
+   "player": "Lin Le",
+   "event_name": "GP Kobe 2014 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-22",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 1.64,
+    "pips": {
+     "W": 14.0,
+     "U": 5.0,
+     "B": 0,
+     "R": 16.0,
+     "G": 10.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Lightning Helix": 3,
+     "Path to Exile": 4,
+     "Lightning Bolt": 4,
+     "Mutagenic Growth": 2,
+     "Tribal Flames": 4,
+     "Ghor-Clan Rampager": 2,
+     "Geist of Saint Traft": 3,
+     "Snapcaster Mage": 2,
+     "Tarmogoyf": 4,
+     "Kird Ape": 3,
+     "Wild Nacatl": 4,
+     "Loam Lion": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
   },
   {
-   "archetype": "Zoo",
-   "deck": 246036,
-   "player": "Max Perlmutter",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
+   "deck": 262496,
+   "event": 6437,
+   "archetype": "Selesnya Aggro",
+   "player": "Johannes Wagner",
+   "event_name": "GP Prague 2014 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-01-10",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 33.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Aven Mindcensor": 3,
+     "Kitchen Finks": 2,
+     "Leonin Arbiter": 4,
+     "Loxodon Smiter": 4,
+     "Mirran Crusader": 3,
+     "Noble Hierarch": 4,
+     "Qasali Pridemage": 3,
+     "Scavenging Ooze": 4,
+     "Thalia, Guardian of Thraben": 3,
+     "Voice of Resurgence": 1,
+     "Wilt-Leaf Liege": 2,
+     "Path to Exile": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
   },
   {
-   "archetype": "Zoo",
-   "deck": 245841,
-   "player": "Kiel Siemen",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
+   "deck": 239935,
+   "event": 6956,
+   "archetype": "Delverles Rug",
+   "player": "Marco Santopadre",
+   "event_name": "Italian Magic Tour Arezzo",
+   "stars": 3,
+   "rank": "2",
+   "date": "2014-03-23",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 14,
+    "counters": 9,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 4,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 11.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 4,
+     "Snapcaster Mage": 4,
+     "Tarmogoyf": 4,
+     "Scavenging Ooze": 3,
+     "Vendilion Clique": 3,
+     "Lightning Bolt": 4,
+     "Serum Visions": 4,
+     "Mana Leak": 4,
+     "Spell Snare": 3,
+     "Vapor Snag": 2,
+     "Vedalken Shackles": 2,
+     "Cryptic Command": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
   },
   {
-   "archetype": "Boros Burn",
-   "deck": 246426,
-   "player": "Tsubouchi Tomoya",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
+   "deck": 246370,
+   "event": 8052,
+   "archetype": "UR Aggro",
+   "player": "Caleb Durwand",
+   "event_name": "PTQ Khans of Tarkir (Memphis, Tennessee)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2014-08-09",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 12,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 14,
+    "burn": 6,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Blood Moon": 2,
+     "Batterskull": 2,
+     "Serum Visions": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Snapcaster Mage": 4,
+     "Young Pyromancer": 4,
+     "Forked Bolt": 2,
+     "Gitaxian Probe": 4,
+     "Electrolyze": 3,
+     "Dismember": 1,
+     "Remand": 3,
+     "Vapor Snag": 2,
+     "Gut Shot": 2,
+     "Lightning Bolt": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 10
   },
   {
-   "archetype": "Boros Burn",
-   "deck": 251476,
-   "player": "Michele Galluzzi",
-   "why": [
-    "Volcanic Fallout (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
+   "deck": 246708,
+   "event": 8108,
+   "archetype": "UR Delver",
+   "player": "Seth Deluca",
+   "event_name": "PTQ Khans of Tarkir (Johnson City, NY)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2014-08-23",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 14,
+    "counters": 15,
+    "sweepers": 3,
+    "draw": 8,
+    "burn": 8,
+    "avg_cmc": 1.97,
+    "pips": {
+     "W": 0,
+     "U": 37.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Cryptic Command": 3,
+     "Spell Snare": 2,
+     "Sword of Light and Shadow": 1,
+     "Mana Leak": 3,
+     "Remand": 3,
+     "Vapor Snag": 2,
+     "Electrolyze": 2,
+     "Magma Jet": 4,
+     "Lightning Bolt": 4,
+     "Vendilion Clique": 2,
+     "Spellstutter Sprite": 4,
+     "Snapcaster Mage": 4,
+     "Delver of Secrets // Insectile Aberration": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
   },
   {
-   "archetype": "Kiki-Jiki Control",
-   "deck": 246731,
-   "player": "Juan Fernando Giraldo",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
+   "deck": 246443,
+   "event": 8056,
+   "archetype": "MRC",
+   "player": "Alberto Strade",
+   "event_name": "PTQ Khans of Tarkir (Riccione, Italy)",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2014-08-16",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 3,
+    "burn": 15,
+    "avg_cmc": 2.95,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 0,
+     "R": 44.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Shrine of Burning Rage": 2,
+     "Blasphemous Act": 2,
+     "Pyrite Spellbomb": 3,
+     "Anger of the Gods": 3,
+     "Koth of the Hammer": 4,
+     "Skred": 4,
+     "Lightning Bolt": 4,
+     "Blood Moon": 4,
+     "Simian Spirit Guide": 2,
+     "Magus of the Moon": 2,
+     "Stormbreath Dragon": 3,
+     "Boros Reckoner": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
   },
+  {
+   "deck": 243484,
+   "event": 7580,
+   "archetype": "Instant Reanimator",
+   "player": "Michele Pinton",
+   "event_name": "PTQ Khans of Tarkir - Ferrara",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2014-06-08",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 12,
+    "burn": 4,
+    "avg_cmc": 4.79,
+    "pips": {
+     "W": 0,
+     "U": 12.0,
+     "B": 22.0,
+     "R": 24.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Emrakul, the Aeons Torn": 4,
+     "Griselbrand": 4,
+     "Simian Spirit Guide": 4,
+     "Goryo's Vengeance": 4,
+     "Through the Breach": 4,
+     "Ideas Unbound": 4,
+     "Faithless Looting": 4,
+     "Izzet Charm": 4,
+     "Thoughtseize": 2,
+     "Fury of the Horde": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 233705,
+   "event": 5799,
+   "archetype": "UWR Control",
+   "player": "Andrea Fonseca",
+   "event_name": "HobbitsLand 1st year - GPT Antuerp",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2013-10-05",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 3,
+    "counters": 10,
+    "sweepers": 6,
+    "draw": 10,
+    "burn": 8,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 12.0,
+     "U": 30.0,
+     "B": 0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Gideon Jura": 1,
+     "Wrath of God": 1,
+     "Supreme Verdict": 1,
+     "Think Twice": 1,
+     "Sphinx's Revelation": 2,
+     "Pithing Needle": 2,
+     "Pillar of Flame": 2,
+     "Path to Exile": 2,
+     "Lightning Helix": 2,
+     "Mana Leak": 3,
+     "Spell Snare": 3,
+     "Electrolyze": 3,
+     "Cryptic Command": 4,
+     "Lightning Bolt": 4,
+     "Snapcaster Mage": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  }
+ ],
+ "pool_size": 58,
+ "rejected_illegal": [
   {
    "archetype": "Doran & Junk",
    "deck": 234366,
@@ -1610,59 +1915,11 @@
    ]
   },
   {
-   "archetype": "Selesnya Aggro",
-   "deck": 262496,
-   "player": "Johannes Wagner",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Selesnya Aggro",
-   "deck": 246084,
-   "player": "Michael Beck",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Kikki Pod",
-   "deck": 241504,
-   "player": "Daniel Ballestin",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Kikki Pod",
-   "deck": 238483,
-   "player": "Gabriel Nguyen",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "E7 Kiki Pod (w/ Domri Rade )",
-   "deck": 244949,
-   "player": "Gregory Cassini",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Akroma & Bears",
    "deck": 244933,
    "player": "Ben Typner",
    "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Delverles Rug",
-   "deck": 239935,
-   "player": "Marco Santopadre",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
@@ -1672,14 +1929,80 @@
    "why": [
     "Deathrite Shaman (banned)"
    ]
+  },
+  {
+   "archetype": "Tarmo-Twin",
+   "deck": 246563,
+   "player": "Nathan Koerschner",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Melira pod",
+   "deck": 241966,
+   "player": "Simone Giovannetti",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Melira pod",
+   "deck": 244956,
+   "player": "Andreas Hamann",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Kiki Pod",
+   "deck": 246473,
+   "player": "Logan McAbee",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Abzan",
+   "deck": 251477,
+   "player": "Mattia Rizzi",
+   "why": [
+    "Siege Rhino (not in legal sets)",
+    "Windswept Heath (not in legal sets)",
+    "unknown card: Unknown Card"
+   ]
   }
  ],
  "duplicates_dropped": [
+  {
+   "dropped": "Melira Pod",
+   "player": "Simone Giovannetti",
+   "kept": "Birthing Pod",
+   "kept_player": "Michele Ancona"
+  },
   {
    "dropped": "Junk",
    "player": "Furuya Yohei",
    "kept": "The Rock",
    "kept_player": "Bryon King"
+  },
+  {
+   "dropped": "UWx Midrange",
+   "player": "Ito Kouei",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "UWr Midrange Kiki",
+   "player": "Queirolo Marco",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "UW Control",
+   "player": "Sean Morse",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
   },
   {
    "dropped": "UrzaTron",
@@ -1700,22 +2023,40 @@
    "kept_player": "Byron King"
   },
   {
+   "dropped": "Boros Burn",
+   "player": "Tsubouchi Tomoya",
+   "kept": "Burn",
+   "kept_player": "Byron King"
+  },
+  {
    "dropped": "B/g Midrange",
    "player": "David Daniel",
    "kept": "The Rock",
    "kept_player": "Bryon King"
   },
   {
-   "dropped": "UWx Midrange",
-   "player": "Alexander Semkin",
+   "dropped": "Kiki-Jiki Control",
+   "player": "Juan Fernando Giraldo",
    "kept": "UWr Midrange",
-   "kept_player": "David McCoy"
+   "kept_player": "Jason Qian"
   },
   {
    "dropped": "RUG Twin",
    "player": "Chris Lopez",
    "kept": "Twin Exarch",
    "kept_player": "Mathias De Momi"
+  },
+  {
+   "dropped": "Kikki Pod",
+   "player": "Daniel Ballestin",
+   "kept": "Birthing Pod",
+   "kept_player": "Michele Ancona"
+  },
+  {
+   "dropped": "E7 Kiki Pod (w/ Domri Rade )",
+   "player": "Gregory Cassini",
+   "kept": "Birthing Pod",
+   "kept_player": "Michele Ancona"
   },
   {
    "dropped": "UWR Twin",
@@ -1752,20 +2093,237 @@
    "player": "Justin \"Dr. P\" Parente",
    "kept": "The Rock",
    "kept_player": "Bryon King"
+  },
+  {
+   "dropped": "UWr Kiki",
+   "player": "Giulio Pasqui",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "GW Hatebears",
+   "player": "Filippo Stefanini",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Johannes Wagner"
+  },
+  {
+   "dropped": "Tribal Zoo",
+   "player": "Luca Armani",
+   "kept": "4/5c Good Stuff",
+   "kept_player": "Lin Le"
+  },
+  {
+   "dropped": "UWr Control",
+   "player": "Eddie Andersson",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "Splinter Twin",
+   "player": "Felipe Mira",
+   "kept": "Twin Exarch",
+   "kept_player": "Mathias De Momi"
+  },
+  {
+   "dropped": "Patriot kiki",
+   "player": "Michaele Teppa",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "Gift Tron",
+   "player": "Antoine Vo",
+   "kept": "UW Gift Tron",
+   "kept_player": "Diony Idelfonso"
+  },
+  {
+   "dropped": "G/w/b Midrange",
+   "player": "Easton Douglas",
+   "kept": "The Rock",
+   "kept_player": "Bryon King"
+  },
+  {
+   "dropped": "Merfolks",
+   "player": "Michele Angelico",
+   "kept": "Merfolk",
+   "kept_player": "Seamus Burke"
+  },
+  {
+   "dropped": "Archangel Pod",
+   "player": "Gregory Richards",
+   "kept": "Birthing Pod",
+   "kept_player": "Michele Ancona"
+  },
+  {
+   "dropped": "RUG Twin Exarch",
+   "player": "Valentin Mackl",
+   "kept": "Twin Exarch",
+   "kept_player": "Mathias De Momi"
+  },
+  {
+   "dropped": "Infect Combo",
+   "player": "Andrea Manganelli",
+   "kept": "Infect",
+   "kept_player": "Alessandro Sparacio"
+  },
+  {
+   "dropped": "Big Zoo",
+   "player": "Andrea Cibak",
+   "kept": "Zoo",
+   "kept_player": "Ito Takuya"
+  },
+  {
+   "dropped": "Delver RUG",
+   "player": "Matteo Parisi",
+   "kept": "UR Delver",
+   "kept_player": "Seth Deluca"
+  },
+  {
+   "dropped": "Stompy !",
+   "player": "Hans Christian Ljungquist",
+   "kept": "Mono vert stompy",
+   "kept_player": "Benjamin Van Koekenbeek"
+  },
+  {
+   "dropped": "Blue moon",
+   "player": "Alessandro Cattani",
+   "kept": "Blue Moon",
+   "kept_player": "Jim Still"
+  },
+  {
+   "dropped": "Boremandos",
+   "player": "Chris Boozer",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "RWg Burn",
+   "player": "Francesco Fasanella",
+   "kept": "Burn",
+   "kept_player": "Byron King"
+  },
+  {
+   "dropped": "GW Auras",
+   "player": "Stephen Leaton",
+   "kept": "Aura Hexproof",
+   "kept_player": "Johan Grundstr\u00b6m"
+  },
+  {
+   "dropped": "WB Tokens",
+   "player": "Emanuele Pironti",
+   "kept": "BW Tokens",
+   "kept_player": "Yinan Zhang"
+  },
+  {
+   "dropped": "BG Rock",
+   "player": "Francesco Grosso",
+   "kept": "The Rock",
+   "kept_player": "Bryon King"
+  },
+  {
+   "dropped": "UWr",
+   "player": "Giuliano Benincasa",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "Naya zoo",
+   "player": "Jerome Martineau",
+   "kept": "Zoo",
+   "kept_player": "Ito Takuya"
+  },
+  {
+   "dropped": "Exarch twin",
+   "player": "Loic Le Briand",
+   "kept": "Twin Exarch",
+   "kept_player": "Mathias De Momi"
+  },
+  {
+   "dropped": "Affinit\u00e9",
+   "player": "Frederic Urvoy",
+   "kept": "Affinity",
+   "kept_player": "Tanaka Atsushi"
+  },
+  {
+   "dropped": "Patriot",
+   "player": "Jeremy Secules",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "GB Rock",
+   "player": "Vladimir Mayoral",
+   "kept": "Jund",
+   "kept_player": "Stefano Vinci"
+  },
+  {
+   "dropped": "Mono Green Aggro",
+   "player": "Kyle Miller",
+   "kept": "Mono vert stompy",
+   "kept_player": "Benjamin Van Koekenbeek"
+  },
+  {
+   "dropped": "Boros Control",
+   "player": "Orrin Swift",
+   "kept": "Blood Boros Prison",
+   "kept_player": "Jose Luis Leon"
+  },
+  {
+   "dropped": "Tarmo Affinity",
+   "player": "Yuusei Gotou",
+   "kept": "Affinity",
+   "kept_player": "Tanaka Atsushi"
+  },
+  {
+   "dropped": "Angel Twin",
+   "player": "Mani Devoudi",
+   "kept": "Twin Exarch",
+   "kept_player": "Mathias De Momi"
+  },
+  {
+   "dropped": "Mana base Midrange",
+   "player": "Fabrice Knittel",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "UWx Kiki",
+   "player": "Giuseppe Reale",
+   "kept": "UWr Midrange",
+   "kept_player": "Jason Qian"
+  },
+  {
+   "dropped": "Geist Twin",
+   "player": "John Wasson",
+   "kept": "Twin Exarch",
+   "kept_player": "Mathias De Momi"
+  },
+  {
+   "dropped": "Kiki - Faeries",
+   "player": "Martin Goldman-Kirst",
+   "kept": "Faeries",
+   "kept_player": "Guillaume Matignon"
+  },
+  {
+   "dropped": "Kiki Pod",
+   "player": "Paul Dean",
+   "kept": "Birthing Pod",
+   "kept_player": "Michele Ancona"
   }
  ],
- "objective": 9.103050108932463,
+ "objective": 17.972973980813602,
  "pool_colors": {
-  "U": 15,
-  "R": 14,
-  "B": 6,
-  "G": 10,
-  "W": 9
+  "W": 26,
+  "B": 15,
+  "G": 26,
+  "U": 28,
+  "R": 33
  },
  "pool_styles": {
-  "control": 5,
-  "combo": 5,
-  "midrange": 5,
-  "aggro": 12
- }
+  "combo": 13,
+  "control": 12,
+  "midrange": 13,
+  "aggro": 20
+ },
+ "kept_lost": []
 }

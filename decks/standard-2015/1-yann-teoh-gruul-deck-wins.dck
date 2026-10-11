@@ -1,0 +1,34 @@
+[metadata]
+Name=Gruul Deck Wins (Yann Teoh)
+Deck Type=Constructed
+Format=Standard (ORI)
+Effective=2015-07-17
+Source URL=https://www.mtgtop8.com/event?e=9690&d=255732&f=ST
+Comment=RPTQ Vancouver @ Lyon: Yann Teoh, 1st, Gruul Deck Wins. Transcribed from mtgtop8 deck 255732.
+[Main]
+1 Frenzied Goblin|M15
+2 Goblin Rabblemaster|M15
+4 Foundry Street Denizen|M15
+1 Lightning Berserker|DTK
+4 Monastery Swiftspear|KTK
+3 Zurgo Bellstriker|DTK
+4 Stoke the Flames|M15
+4 Lightning Strike|M15
+1 Become Immense|KTK
+4 Atarka's Command|DTK
+4 Wild Slash|FRF
+4 Hordeling Outburst|KTK
+4 Dragon Fodder|DTK
+1 Forest|DTK
+10 Mountain|DTK
+4 Wooded Foothills|KTK
+1 Temple of Abandon|THS
+4 Mana Confluence|JOU
+[Sideboard]
+2 Goblin Rabblemaster|M15
+1 Goblin Heelcutter|FRF
+4 Eidolon of the Great Revel|JOU
+1 Destructive Revelry|THS
+2 Hall of Triumph|JOU
+1 Scouring Sands|BNG
+4 Roast|DTK

@@ -125,6 +125,114 @@
    "label_count": 43
   },
   {
+   "deck": 214369,
+   "event": 2045,
+   "archetype": "Zenith Maverick",
+   "player": "Christoph Lemke-Pensel",
+   "event_name": "Gro\u00dfes Legacy Turnier @ Spieleland (Hamburg)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-20",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.86,
+    "pips": {
+     "W": 20.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Eternal Witness": 1,
+     "Gaddock Teeg": 1,
+     "Scavenging Ooze": 1,
+     "Scryb Ranger": 1,
+     "Thrun, the Last Troll": 1,
+     "Qasali Pridemage": 3,
+     "Knight of the Reliquary": 4,
+     "Mother of Runes": 4,
+     "Noble Hierarch": 4,
+     "Stoneforge Mystic": 4,
+     "Swords to Plowshares": 4,
+     "Green Sun's Zenith": 4,
+     "Sylvan Library": 2,
+     "Batterskull": 1,
+     "Sword of Feast and Famine": 1,
+     "Umezawa's Jitte": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 23
+  },
+  {
+   "deck": 214425,
+   "event": 2059,
+   "archetype": "Pro Zenith Bant",
+   "player": "Jose Angel Cantero",
+   "event_name": "Melendian's Legacy Open",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.4,
+    "pips": {
+     "W": 10.0,
+     "U": 21.0,
+     "B": 2.0,
+     "R": 2.0,
+     "G": 27.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Trygon Predator": 1,
+     "Qasali Pridemage": 1,
+     "Noble Hierarch": 4,
+     "Knight of the Reliquary": 3,
+     "Eternal Witness": 1,
+     "Tarmogoyf": 1,
+     "Scavenging Ooze": 1,
+     "Vendilion Clique": 3,
+     "Progenitus": 1,
+     "Mental Misstep": 4,
+     "Swords to Plowshares": 4,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Green Sun's Zenith": 4,
+     "Natural Order": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 20
+  },
+  {
    "deck": 214063,
    "event": 1962,
    "archetype": "Caw-Blade",
@@ -175,6 +283,59 @@
    "label_count": 18
   },
   {
+   "deck": 214401,
+   "event": 2054,
+   "archetype": "RUG Order",
+   "player": "Michael Mazzoletti",
+   "event_name": "Bologna - GBLL Tappa 1",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 9,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 2.49,
+    "pips": {
+     "W": 2.0,
+     "U": 26.0,
+     "B": 2.0,
+     "R": 8.0,
+     "G": 23.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 4,
+     "Grim Lavamancer": 1,
+     "Tarmogoyf": 4,
+     "Vendilion Clique": 3,
+     "Progenitus": 1,
+     "Daze": 3,
+     "Mental Misstep": 3,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Lightning Bolt": 2,
+     "Fire // Ice": 3,
+     "Green Sun's Zenith": 3,
+     "Natural Order": 4,
+     "Sylvan Library": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 16
+  },
+  {
    "deck": 213891,
    "event": 1925,
    "archetype": "Hive Mind",
@@ -221,6 +382,160 @@
    "style": "control",
    "style_why": "cards",
    "label_count": 15
+  },
+  {
+   "deck": 214244,
+   "event": 2011,
+   "archetype": "Spiral Tide",
+   "player": "Nicola Tizzoni",
+   "event_name": "BCLL#1 - Asti",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-04",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 0,
+     "U": 50.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Intuition": 1,
+     "Pact of Negation": 1,
+     "Meditate": 2,
+     "Cunning Wish": 3,
+     "Mental Misstep": 3,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "High Tide": 4,
+     "Turnabout": 4,
+     "Merchant Scroll": 4,
+     "Ponder": 4,
+     "Preordain": 4,
+     "Time Spiral": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 14
+  },
+  {
+   "deck": 214457,
+   "event": 2066,
+   "archetype": "Aggro Loam",
+   "player": "Sylvain Grolleau",
+   "event_name": "Legacy @ MC",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-11",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 3,
+    "avg_cmc": 1.67,
+    "pips": {
+     "W": 9.0,
+     "U": 0,
+     "B": 8.0,
+     "R": 6.0,
+     "G": 11.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Burning Wish": 3,
+     "Dark Confidant": 4,
+     "Kavu Predator": 4,
+     "Kitchen Finks": 1,
+     "Knight of the Reliquary": 4,
+     "Life from the Loam": 2,
+     "Mox Diamond": 4,
+     "Punishing Fire": 3,
+     "Swords to Plowshares": 4,
+     "Thoughtseize": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 214232,
+   "event": 2008,
+   "archetype": "Stoneblade",
+   "player": "Davide Christian Orazi",
+   "event_name": "EVIL#2 - Verona",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-04",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 3,
+    "counters": 9,
+    "sweepers": 3,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 12.0,
+     "U": 28.0,
+     "B": 1.0,
+     "R": 1.0,
+     "G": 1.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Stoneforge Mystic": 3,
+     "Counterspell": 2,
+     "Enlightened Tutor": 2,
+     "Mental Misstep": 3,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Firespout": 2,
+     "Humility": 1,
+     "Counterbalance": 3,
+     "Jace, the Mind Sculptor": 2,
+     "Batterskull": 1,
+     "Ensnaring Bridge": 1,
+     "Sword of the Meek": 1,
+     "Thopter Foundry": 2,
+     "Sensei's Divining Top": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
   },
   {
    "deck": 214240,
@@ -375,6 +690,112 @@
    "label_count": 1
   },
   {
+   "deck": 213875,
+   "event": 1923,
+   "archetype": "Punishing zoo",
+   "player": "Ra\u00fal Carcel\u00e9n",
+   "event_name": "GP Trial Amsterdam 2 @ Spanish Nationals",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-13",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 9,
+    "avg_cmc": 1.66,
+    "pips": {
+     "W": 12.0,
+     "U": 0,
+     "B": 0,
+     "R": 9.0,
+     "G": 24.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wild Nacatl": 4,
+     "Qasali Pridemage": 1,
+     "Noble Hierarch": 4,
+     "Knight of the Reliquary": 3,
+     "Tarmogoyf": 4,
+     "Scavenging Ooze": 1,
+     "Gaddock Teeg": 1,
+     "Swords to Plowshares": 4,
+     "Lightning Bolt": 4,
+     "Punishing Fire": 4,
+     "Green Sun's Zenith": 4,
+     "Sylvan Library": 2,
+     "Ajani Vengeant": 1,
+     "Elspeth, Knight-Errant": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 211982,
+   "event": 1544,
+   "archetype": "Dredge",
+   "player": "Giusti Matteo",
+   "event_name": "Goblin Bologna Legacy League # 9",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-05-01",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 47,
+    "lands": 14,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 8.0,
+     "U": 11.0,
+     "B": 37.0,
+     "R": 2.0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Flame-Kin Zealot": 1,
+     "Iona, Shield of Emeria": 1,
+     "Golgari Thug": 3,
+     "Golgari Grave-Troll": 4,
+     "Ichorid": 4,
+     "Narcomoeba": 4,
+     "Putrid Imp": 4,
+     "Stinkweed Imp": 4,
+     "Tireless Tribe": 4,
+     "Careful Study": 3,
+     "Dread Return": 3,
+     "Breakthrough": 4,
+     "Cabal Therapy": 4,
+     "Bridge from Below": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 41
+  },
+  {
    "deck": 212833,
    "event": 1727,
    "archetype": "Dark Horizon",
@@ -422,6 +843,61 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 35
+  },
+  {
+   "deck": 211581,
+   "event": 1464,
+   "archetype": "Ad Nauseam",
+   "player": "Weston Brown",
+   "event_name": "Knight Ware Inc. Studio City, CA.",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-04-17",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 47,
+    "lands": 13,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.13,
+    "pips": {
+     "W": 4.0,
+     "U": 8.0,
+     "B": 16.0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Ad Nauseam": 1,
+     "Silence": 1,
+     "Orim's Chant": 3,
+     "Brainstorm": 4,
+     "Dark Ritual": 4,
+     "Empty the Warrens": 1,
+     "Tendrils of Agony": 1,
+     "Burning Wish": 4,
+     "Duress": 4,
+     "Infernal Tutor": 4,
+     "Ponder": 4,
+     "Rite of Flame": 4,
+     "Chrome Mox": 4,
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 29
   },
   {
    "deck": 212532,
@@ -523,6 +999,59 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 24
+  },
+  {
+   "deck": 212389,
+   "event": 1633,
+   "archetype": "Sneak Attack",
+   "player": "Samuel Tharmaratnam",
+   "event_name": "All 14 Grand Prix Trial @ Providence",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-05-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 8,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 4.61,
+    "pips": {
+     "W": 8.0,
+     "U": 41.0,
+     "B": 8.0,
+     "R": 13.0,
+     "G": 8.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Emrakul, the Aeons Torn": 4,
+     "Progenitus": 4,
+     "Blood Moon": 1,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Intuition": 3,
+     "Lotus Petal": 4,
+     "Misdirection": 3,
+     "Ponder": 4,
+     "Show and Tell": 4,
+     "Sneak Attack": 4,
+     "Wipe Away": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 18
   },
   {
    "deck": 211335,
@@ -675,59 +1204,117 @@
    "style": "combo",
    "style_why": "override",
    "label_count": 4
-  }
- ],
- "alternates": [
+  },
   {
-   "deck": 214244,
-   "event": 2011,
-   "archetype": "Spiral Tide",
-   "player": "Nicola Tizzoni",
-   "event_name": "BCLL#1 - Asti",
+   "deck": 212849,
+   "event": 1729,
+   "archetype": "Team Italia",
+   "player": "Omar Rohner",
+   "event_name": "6\u00ba LML 3",
    "stars": 2,
    "rank": "1",
-   "date": "2011-09-04",
-   "summer": true,
-   "s": 1.0,
+   "date": "2011-06-19",
+   "summer": false,
+   "s": 0.8,
    "f": {
-    "spells": 42,
-    "lands": 18,
-    "creatures": 0,
-    "counters": 8,
+    "spells": 37,
+    "lands": 23,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 1,
+    "avg_cmc": 1.92,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 24.0,
+     "R": 5.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Gatekeeper of Malakir": 2,
+     "Dark Confidant": 4,
+     "Grim Lavamancer": 4,
+     "Stoneforge Mystic": 4,
+     "Swords to Plowshares": 4,
+     "Hymn to Tourach": 4,
+     "Thoughtseize": 4,
+     "Vindicate": 4,
+     "Ajani Vengeant": 1,
+     "Elspeth, Knight-Errant": 1,
+     "Basilisk Collar": 1,
+     "Batterskull": 1,
+     "Sword of Body and Mind": 1,
+     "Sensei's Divining Top": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 211083,
+   "event": 1370,
+   "archetype": "UB Control",
+   "player": "Josh Cicio",
+   "event_name": "NELC Qualifer @ Jupiter Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-04-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 8,
+    "counters": 14,
     "sweepers": 0,
-    "draw": 12,
+    "draw": 9,
     "burn": 0,
-    "avg_cmc": 2.5,
+    "avg_cmc": 2.26,
     "pips": {
      "W": 0,
-     "U": 50.0,
-     "B": 0,
+     "U": 30.0,
+     "B": 16.0,
      "R": 0,
      "G": 0
     },
     "colors": [
-     "U"
+     "U",
+     "B"
     ],
     "names": {
-     "Intuition": 1,
-     "Pact of Negation": 1,
-     "Meditate": 2,
-     "Cunning Wish": 3,
-     "Mental Misstep": 3,
-     "Brainstorm": 4,
+     "Dark Confidant": 4,
+     "Tombstalker": 2,
+     "Vendilion Clique": 2,
+     "Diabolic Edict": 1,
+     "Darkblast": 1,
+     "Ghastly Demise": 1,
+     "Go for the Throat": 1,
+     "Stifle": 4,
      "Force of Will": 4,
-     "High Tide": 4,
-     "Turnabout": 4,
-     "Merchant Scroll": 4,
-     "Ponder": 4,
-     "Preordain": 4,
-     "Time Spiral": 4
+     "Brainstorm": 4,
+     "Daze": 2,
+     "Spell Pierce": 2,
+     "Spell Snare": 2,
+     "Inquisition of Kozilek": 2,
+     "Thoughtseize": 2,
+     "Sensei's Divining Top": 2,
+     "Jace, the Mind Sculptor": 2
     }
    },
-   "style": "combo",
-   "style_why": "override",
-   "label_count": 14
-  },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
   {
    "deck": 212841,
    "event": 1728,
@@ -780,112 +1367,58 @@
    "label_count": 44
   },
   {
-   "deck": 211982,
-   "event": 1544,
-   "archetype": "Dredge",
-   "player": "Giusti Matteo",
-   "event_name": "Goblin Bologna Legacy League # 9",
+   "deck": 212008,
+   "event": 1550,
+   "archetype": "Bant aggro",
+   "player": "Jon\u00e1\u009a Koz\u00e1k",
+   "event_name": "Czech Legacy Series III. (Prague)",
    "stars": 2,
    "rank": "1",
-   "date": "2011-05-01",
+   "date": "2011-04-30",
    "summer": false,
    "s": 0.8,
    "f": {
-    "spells": 47,
-    "lands": 14,
-    "creatures": 29,
-    "counters": 0,
-    "sweepers": 4,
-    "draw": 3,
-    "burn": 0,
-    "avg_cmc": 2.51,
-    "pips": {
-     "W": 8.0,
-     "U": 11.0,
-     "B": 37.0,
-     "R": 2.0,
-     "G": 4.0
-    },
-    "colors": [
-     "W",
-     "U",
-     "B"
-    ],
-    "names": {
-     "Flame-Kin Zealot": 1,
-     "Iona, Shield of Emeria": 1,
-     "Golgari Thug": 3,
-     "Golgari Grave-Troll": 4,
-     "Ichorid": 4,
-     "Narcomoeba": 4,
-     "Putrid Imp": 4,
-     "Stinkweed Imp": 4,
-     "Tireless Tribe": 4,
-     "Careful Study": 3,
-     "Dread Return": 3,
-     "Breakthrough": 4,
-     "Cabal Therapy": 4,
-     "Bridge from Below": 4
-    }
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 41
-  },
-  {
-   "deck": 211581,
-   "event": 1464,
-   "archetype": "Ad Nauseam",
-   "player": "Weston Brown",
-   "event_name": "Knight Ware Inc. Studio City, CA.",
-   "stars": 2,
-   "rank": "1",
-   "date": "2011-04-17",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 47,
-    "lands": 13,
-    "creatures": 0,
-    "counters": 0,
+    "spells": 37,
+    "lands": 23,
+    "creatures": 14,
+    "counters": 4,
     "sweepers": 0,
-    "draw": 8,
+    "draw": 6,
     "burn": 0,
-    "avg_cmc": 1.13,
+    "avg_cmc": 2.32,
     "pips": {
-     "W": 4.0,
-     "U": 8.0,
-     "B": 16.0,
-     "R": 9.0,
-     "G": 0
+     "W": 12.0,
+     "U": 25.0,
+     "B": 0,
+     "R": 0,
+     "G": 15.0
     },
     "colors": [
      "W",
      "U",
-     "B",
-     "R"
+     "G"
     ],
     "names": {
-     "Ad Nauseam": 1,
-     "Silence": 1,
-     "Orim's Chant": 3,
+     "Vendilion Clique": 2,
+     "Tarmogoyf": 2,
+     "Noble Hierarch": 4,
+     "Knight of the Reliquary": 3,
+     "Qasali Pridemage": 2,
+     "Stoneforge Mystic": 2,
+     "Rhox War Monk": 1,
+     "Sower of Temptation": 2,
+     "Swords to Plowshares": 4,
+     "Green Sun's Zenith": 3,
      "Brainstorm": 4,
-     "Dark Ritual": 4,
-     "Empty the Warrens": 1,
-     "Tendrils of Agony": 1,
-     "Burning Wish": 4,
-     "Duress": 4,
-     "Infernal Tutor": 4,
-     "Ponder": 4,
-     "Rite of Flame": 4,
-     "Chrome Mox": 4,
-     "Lion's Eye Diamond": 4,
-     "Lotus Petal": 4
+     "Force of Will": 4,
+     "Jace, the Mind Sculptor": 2,
+     "Umezawa's Jitte": 1,
+     "Sword of Feast and Famine": 1
     }
    },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 29
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 12
   },
   {
    "deck": 212378,
@@ -940,6 +1473,57 @@
    "label_count": 10
   },
   {
+   "deck": 206881,
+   "event": 531,
+   "archetype": "CounterTop Bant",
+   "player": "Gabriele Mancino",
+   "event_name": "Tappa di Legacy - Bologna (Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2010-10-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 16.0,
+     "U": 31.0,
+     "B": 0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Counterbalance": 4,
+     "Elspeth, Knight-Errant": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Sensei's Divining Top": 3,
+     "Noble Hierarch": 4,
+     "Rhox War Monk": 4,
+     "Tarmogoyf": 4,
+     "Qasali Pridemage": 4,
+     "Force of Will": 4,
+     "Daze": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
    "deck": 210910,
    "event": 1338,
    "archetype": "Landstill Pernicous Jace",
@@ -987,58 +1571,6 @@
    "style": "control",
    "style_why": "cards",
    "label_count": 9
-  },
-  {
-   "deck": 209445,
-   "event": 1047,
-   "archetype": "Supreme Blue",
-   "player": "Monteleone Emanuel",
-   "event_name": "Goblin Bologna Legacy League #6",
-   "stars": 2,
-   "rank": "1",
-   "date": "2011-02-13",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 7,
-    "counters": 8,
-    "sweepers": 3,
-    "draw": 11,
-    "burn": 0,
-    "avg_cmc": 2.21,
-    "pips": {
-     "W": 6.0,
-     "U": 34.0,
-     "B": 0,
-     "R": 3.5,
-     "G": 5.5
-    },
-    "colors": [
-     "W",
-     "U",
-     "G"
-    ],
-    "names": {
-     "Vendilion Clique": 1,
-     "Grim Lavamancer": 2,
-     "Tarmogoyf": 4,
-     "Counterspell": 2,
-     "Spell Snare": 2,
-     "Brainstorm": 4,
-     "Force of Will": 4,
-     "Swords to Plowshares": 4,
-     "Firespout": 3,
-     "Counterbalance": 4,
-     "Elspeth, Knight-Errant": 1,
-     "Jace, the Mind Sculptor": 3,
-     "Sensei's Divining Top": 4
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 7
   },
   {
    "deck": 211798,
@@ -1143,6 +1675,169 @@
    "label_count": 6
   },
   {
+   "deck": 207788,
+   "event": 737,
+   "archetype": "Doomsday",
+   "player": "Christoph Alsheimer",
+   "event_name": "FUNtainment (N\u00fcrnberg)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2010-12-04",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 1.42,
+    "pips": {
+     "W": 4.0,
+     "U": 10.0,
+     "B": 30.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Preordain": 1,
+     "Lotus Petal": 1,
+     "Tendrils of Agony": 1,
+     "Ill-Gotten Gains": 1,
+     "Meditate": 1,
+     "Duress": 3,
+     "Cabal Ritual": 3,
+     "Dark Ritual": 4,
+     "Doomsday": 4,
+     "Orim's Chant": 4,
+     "Infernal Tutor": 4,
+     "Lion's Eye Diamond": 4,
+     "Sensei's Divining Top": 4,
+     "Ponder": 4,
+     "Brainstorm": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 211034,
+   "event": 1357,
+   "archetype": "Show & Bant",
+   "player": "Alessandro Dumas",
+   "event_name": "Goblin Bologna Legacy League #8",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-03-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 9,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.95,
+    "pips": {
+     "W": 4.0,
+     "U": 28.0,
+     "B": 4.0,
+     "R": 4.0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Terastodon": 1,
+     "Birds of Paradise": 2,
+     "Progenitus": 2,
+     "Emrakul, the Aeons Torn": 4,
+     "Noble Hierarch": 4,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Force of Will": 4,
+     "Personal Tutor": 1,
+     "Preordain": 3,
+     "Natural Order": 4,
+     "Show and Tell": 4,
+     "Lotus Petal": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 212384,
+   "event": 1633,
+   "archetype": "Hulk Rebirth",
+   "player": "Felix Lapan",
+   "event_name": "All 14 Grand Prix Trial @ Providence",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-05-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 4.0,
+     "U": 3.0,
+     "B": 8.0,
+     "R": 3.5,
+     "G": 32.5
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Academy Rector": 1,
+     "Birds of Paradise": 4,
+     "Body Double": 1,
+     "Carrion Feeder": 1,
+     "Fauna Shaman": 1,
+     "Mogg Fanatic": 1,
+     "Progenitus": 1,
+     "Protean Hulk": 2,
+     "Reveillark": 1,
+     "Starved Rusalka": 1,
+     "Tinder Wall": 1,
+     "Viscera Seer": 1,
+     "Wall of Roots": 1,
+     "Wild Cantor": 1,
+     "Xantid Swarm": 1,
+     "Cabal Therapy": 4,
+     "Gitaxian Probe": 3,
+     "Green Sun's Zenith": 4,
+     "Natural Order": 4,
+     "Pattern of Rebirth": 3,
+     "Sylvan Library": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
    "deck": 210568,
    "event": 1271,
    "archetype": "Lands",
@@ -1189,386 +1884,64 @@
    "label_count": 3
   },
   {
-   "deck": 212882,
-   "event": 1738,
-   "archetype": "Aggro Loam",
-   "player": "Micah Greenbaum",
-   "event_name": "Star City Games Legacy Denver",
-   "stars": 1,
-   "rank": "1",
-   "date": "2011-06-26",
-   "summer": false,
-   "s": 0.5538461538461539,
-   "f": {
-    "spells": 35,
-    "lands": 26,
-    "creatures": 15,
-    "counters": 0,
-    "sweepers": 2,
-    "draw": 3,
-    "burn": 2,
-    "avg_cmc": 2.06,
-    "pips": {
-     "W": 8.0,
-     "U": 0,
-     "B": 7.5,
-     "R": 15.0,
-     "G": 13.5
-    },
-    "colors": [
-     "W",
-     "B",
-     "R",
-     "G"
-    ],
-    "names": {
-     "Countryside Crusher": 3,
-     "Dark Confidant": 4,
-     "Knight of the Reliquary": 4,
-     "Tarmogoyf": 4,
-     "Punishing Fire": 2,
-     "Swords to Plowshares": 2,
-     "Burning Wish": 3,
-     "Devastating Dreams": 2,
-     "Life from the Loam": 3,
-     "Vindicate": 2,
-     "Worm Harvest": 1,
-     "Mox Diamond": 4,
-     "Sylvan Library": 1
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 12
-  },
-  {
-   "deck": 210375,
-   "event": 1236,
-   "archetype": "Maverick",
-   "player": "Luis Viciano",
-   "event_name": "Open City of Bridges - Spain -",
+   "deck": 209590,
+   "event": 1082,
+   "archetype": "Death & Taxes",
+   "player": "Eric Fry",
+   "event_name": "NELC Qualifier @ Jupiter Games",
    "stars": 2,
-   "rank": "2",
-   "date": "2011-02-20",
+   "rank": "1",
+   "date": "2011-02-12",
    "summer": false,
-   "s": 0.5333333333333333,
+   "s": 0.8,
    "f": {
-    "spells": 39,
-    "lands": 21,
-    "creatures": 26,
+    "spells": 38,
+    "lands": 23,
+    "creatures": 27,
     "counters": 0,
     "sweepers": 0,
     "draw": 1,
     "burn": 1,
-    "avg_cmc": 1.74,
+    "avg_cmc": 1.84,
     "pips": {
-     "W": 22.0,
+     "W": 39.0,
      "U": 0,
      "B": 0,
      "R": 0,
-     "G": 20.0
+     "G": 0
     },
     "colors": [
-     "W",
-     "G"
+     "W"
     ],
     "names": {
-     "Eternal Witness": 2,
-     "Scryb Ranger": 2,
-     "Mother of Runes": 3,
-     "Weathered Wayfarer": 3,
-     "Birds of Paradise": 4,
-     "Knight of the Reliquary": 4,
-     "Qasali Pridemage": 4,
-     "Stoneforge Mystic": 4,
-     "Swords to Plowshares": 4,
-     "Sylvan Library": 2,
      "Sword of Fire and Ice": 1,
      "Sword of Light and Shadow": 1,
      "Umezawa's Jitte": 1,
-     "Aether Vial": 4
+     "Swords to Plowshares": 4,
+     "Aether Vial": 4,
+     "Goldmeadow Harrier": 2,
+     "Phyrexian Revoker": 2,
+     "Flickerwisp": 3,
+     "J\u00f6tun Grunt": 3,
+     "Leonin Arbiter": 3,
+     "Mangara of Corondor": 3,
+     "Stoneforge Mystic": 3,
+     "Serra Avenger": 4,
+     "Mother of Runes": 4
     }
    },
    "style": "aggro",
    "style_why": "cards",
-   "label_count": 12
+   "label_count": 3
   }
  ],
- "pool_size": 27,
+ "pool_size": 52,
  "rejected_illegal": [
-  {
-   "archetype": "Zenith Maverick",
-   "deck": 214369,
-   "player": "Christoph Lemke-Pensel",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Maverick",
-   "deck": 213818,
-   "player": "Jos\u00e9 Salvador Requena",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Maverick",
-   "deck": 214428,
-   "player": "Ricardo Sanz de Ari\u00f1o",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Maverick",
-   "deck": 214235,
-   "player": "Giacomo Raffa",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Pro Zenith Bant",
-   "deck": 214425,
-   "player": "Jose Angel Cantero",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Pro Zenith Bant",
-   "deck": 212890,
-   "player": "Alexander Kwan",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Pro Zenith Bant",
-   "deck": 210328,
-   "player": "AJ Sacher",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Pro Zenith Bant",
-   "deck": 211252,
-   "player": "Daniele Pati",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "RUG Order",
-   "deck": 214401,
-   "player": "Michael Mazzoletti",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "RUG Order",
-   "deck": 214405,
-   "player": "Emanuele Marcotti",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "RUG Order",
-   "deck": 213747,
-   "player": "Ewald Croxo",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "RUG Order",
-   "deck": 214233,
-   "player": "Giovanni Baldinato",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Aggro Loam",
-   "deck": 214457,
-   "player": "Sylvain Grolleau",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Maverick",
-   "deck": 213765,
-   "player": "Jorge Alarc\u00f3n",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Maverick",
-   "deck": 209926,
-   "player": "Marinari Manuel",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Maverick",
-   "deck": 213894,
-   "player": "Wellmann Marco",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Stoneblade",
-   "deck": 214232,
-   "player": "Davide Christian Orazi",
-   "why": [
-    "Seal of Cleansing (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "RUG Natural Order",
-   "deck": 213440,
-   "player": "Rufino Parra Mart\u00ednez",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "RUG Natural Order",
-   "deck": 211917,
-   "player": "David Nolan",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Stoneforge Zenith Maverick",
-   "deck": 214435,
-   "player": "Jordi Vilella",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Stoneforge Maverick",
-   "deck": 213899,
-   "player": "Marius Hausmann",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Punishing zoo",
-   "deck": 213875,
-   "player": "Ra\u00fal Carcel\u00e9n",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Scavenging Ooze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Sneak Attack",
-   "deck": 212389,
-   "player": "Samuel Tharmaratnam",
-   "why": [
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Sneak Attack",
-   "deck": 212267,
-   "player": "Michael Bondi",
-   "why": [
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Sneak Attack",
-   "deck": 214242,
-   "player": "Tom\u00e1\u009a Mike\u009a",
-   "why": [
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Sneak Attack",
-   "deck": 210033,
-   "player": "Alex GisLason",
-   "why": [
-    "Progenitus (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant aggro",
-   "deck": 212008,
-   "player": "Jon\u00e1\u009a Koz\u00e1k",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant aggro",
-   "deck": 210127,
-   "player": "Hausmann Marius",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant aggro",
-   "deck": 213634,
-   "player": "Marc Santos Galiano",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant aggro",
-   "deck": 212009,
-   "player": "Tom\u00e1\u009a M\u00e1r",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
   {
    "archetype": "Ooze Survival",
    "deck": 207217,
    "player": "Gazzotti Federico",
    "why": [
-    "Noble Hierarch (not in legal sets)",
     "Survival of the Fittest (banned)"
    ]
   },
@@ -1577,8 +1950,6 @@
    "deck": 208289,
    "player": "Nicola Landoni",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
     "Survival of the Fittest (banned)"
    ]
   },
@@ -1587,8 +1958,6 @@
    "deck": 208017,
    "player": "Saverio Magri",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
     "Survival of the Fittest (banned)"
    ]
   },
@@ -1601,20 +1970,10 @@
    ]
   },
   {
-   "archetype": "CounterTop Bant",
-   "deck": 206881,
-   "player": "Gabriele Mancino",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Survival UG",
    "deck": 207374,
    "player": "Nick Spagnolo",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Submerge (not in legal sets)",
     "Survival of the Fittest (banned)"
    ]
   },
@@ -1623,9 +1982,7 @@
    "deck": 207919,
    "player": "Hakim Mezhoud",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
-    "Submerge (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
@@ -1633,8 +1990,6 @@
    "deck": 206976,
    "player": "James Rynkiewicz",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
     "Survival of the Fittest (banned)"
    ]
   },
@@ -1643,116 +1998,7 @@
    "deck": 207380,
    "player": "Wesley Wise",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)",
     "Survival of the Fittest (banned)"
-   ]
-  },
-  {
-   "archetype": "Bant",
-   "deck": 207366,
-   "player": "Alberto Manchado",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant",
-   "deck": 208156,
-   "player": "Riccardo Matrisciano",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Merfolks Ub",
-   "deck": 211004,
-   "player": "Nicola Tizzoni",
-   "why": [
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Merfolks Ub",
-   "deck": 211983,
-   "player": "Bisagni Jacopo",
-   "why": [
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Merfolks Ub",
-   "deck": 211977,
-   "player": "NichoLas Baxter",
-   "why": [
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Bant",
-   "deck": 211974,
-   "player": "Antonio Pinto",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Bant",
-   "deck": 213748,
-   "player": "Florian Tep",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Bant",
-   "deck": 212372,
-   "player": "James Rynkiewicz",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Bant",
-   "deck": 213052,
-   "player": "Ivan de Castro",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Zoo",
-   "deck": 210195,
-   "player": "Lorenzo Bachiorri",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Zoo",
-   "deck": 211788,
-   "player": "Venturini Ivan",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Zoo",
-   "deck": 209450,
-   "player": "Cascella Tommaso",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Zenith Zoo",
-   "deck": 210380,
-   "player": "Gin\u00e9s Valera",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
    ]
   },
   {
@@ -1760,175 +2006,155 @@
    "deck": 212000,
    "player": "Giuseppe Messina",
    "why": [
-    "Submerge (not in legal sets)",
-    "unknown card: Fire / Ice"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Punishing Zoo",
-   "deck": 209955,
-   "player": "Miguel \u00c1ngel Rodr\u00edguez",
+   "archetype": "Grim Caw-Blade",
+   "deck": 213048,
+   "player": "Adr\u00e0 Galit\u00f3",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Punishing Zoo",
-   "deck": 211568,
-   "player": "Anchisi Corrado",
+   "archetype": "UGw Survival",
+   "deck": 208286,
+   "player": "Stefano Knoll",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Punishing Zoo",
-   "deck": 210036,
-   "player": "Shawn Yu",
+   "archetype": "UGw Survival",
+   "deck": 207847,
+   "player": "James Rynkiewicz",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Punishing Zoo",
-   "deck": 211009,
-   "player": "Simone Giaquinto",
+   "archetype": "UGw Survival",
+   "deck": 207931,
+   "player": "Florent Pompigne",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Doomsday",
-   "deck": 207788,
-   "player": "Christoph Alsheimer",
+   "archetype": "GW Survival Aggro",
+   "deck": 207844,
+   "player": "Christopher McCord",
    "why": [
-    "Reverent Silence (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Pro Bant",
-   "deck": 209852,
-   "player": "Antonio Pinto",
+   "archetype": "GW Survival Aggro",
+   "deck": 208287,
+   "player": "Matteo Gallo",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Pro Bant",
-   "deck": 211156,
-   "player": "Enric Luz\u00e1n Pi",
+   "archetype": "GW Survival Aggro",
+   "deck": 208288,
+   "player": "Luca Lovino",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Pro Bant",
-   "deck": 208961,
-   "player": "Belmer Yann",
+   "archetype": "Survival Ooze",
+   "deck": 207981,
+   "player": "Joey Manner",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Pro Bant",
-   "deck": 209504,
-   "player": "Enric Luz\u00e1n Pi",
+   "archetype": "Survival Ooze",
+   "deck": 207957,
+   "player": "Masayuki Yasuda",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Show & Bant",
-   "deck": 211034,
-   "player": "Alessandro Dumas",
+   "archetype": "Dark Horizon Zenith",
+   "deck": 212380,
+   "player": "Grant Garvin",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Show & Bant",
-   "deck": 209808,
-   "player": "Joe Cisneros",
+   "archetype": "Survival no combo",
+   "deck": 208261,
+   "player": "Matteo Guarnieri",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Show & Bant",
-   "deck": 210913,
-   "player": "Nejc Finzgar",
+   "archetype": "2-lands Belcher",
+   "deck": 207559,
+   "player": "Flavien Garin",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Show & Bant",
-   "deck": 209764,
-   "player": "AJ Sacher",
+   "archetype": "Survival Ug",
+   "deck": 205859,
+   "player": "Patrick \"patoch\" Bouvier",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "Survival of the Fittest (banned)"
    ]
   },
   {
-   "archetype": "Hulk Rebirth",
-   "deck": 212384,
-   "player": "Felix Lapan",
+   "archetype": "Pro Zenith Maverick",
+   "deck": 214246,
+   "player": "Lorenzo Manera",
    "why": [
-    "Progenitus (not in legal sets)"
+    "incomplete list: 0 main, 0 sideboard"
    ]
   },
   {
-   "archetype": "Hulk Rebirth",
-   "deck": 213588,
-   "player": "Felix Lapan",
+   "archetype": "Tourach Stoneblade",
+   "deck": 214407,
+   "player": "Manuel Zanella",
    "why": [
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hulk Rebirth",
-   "deck": 212377,
-   "player": "Jeremie Ross-Latour",
-   "why": [
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Countertop Progenitus",
-   "deck": 210374,
-   "player": "Paco Benlloch",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Countertop Progenitus",
-   "deck": 208615,
-   "player": "Rafael del Riego",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Countertop Progenitus",
-   "deck": 211980,
-   "player": "Mauro Morrone",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Progenitus (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   }
  ],
  "duplicates_dropped": [
+  {
+   "dropped": "Maverick",
+   "player": "Jorge Alarc\u00f3n",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
+  },
+  {
+   "dropped": "RUG Natural Order",
+   "player": "Rufino Parra Mart\u00ednez",
+   "kept": "RUG Order",
+   "kept_player": "Michael Mazzoletti"
+  },
+  {
+   "dropped": "Stoneforge Zenith Maverick",
+   "player": "Jordi Vilella",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
+  },
+  {
+   "dropped": "Stoneforge Maverick",
+   "player": "Marius Hausmann",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
+  },
   {
    "dropped": "ANT",
    "player": "Karlo Honoridez",
@@ -1942,10 +2168,40 @@
    "kept_player": "Pierre Sommen"
   },
   {
+   "dropped": "Bant",
+   "player": "Alberto Manchado",
+   "kept": "CounterTop Bant",
+   "kept_player": "Gabriele Mancino"
+  },
+  {
+   "dropped": "Merfolks Ub",
+   "player": "Nicola Tizzoni",
+   "kept": "Mono U Merfolk",
+   "kept_player": "Filipe Lambert Maniezzo"
+  },
+  {
    "dropped": "Landstill",
    "player": "\"Kromos\"",
    "kept": "Landstill Pernicous Jace",
    "kept_player": "Stjepan Sucic"
+  },
+  {
+   "dropped": "Zenith Bant",
+   "player": "Antonio Pinto",
+   "kept": "Pro Zenith Bant",
+   "kept_player": "Jose Angel Cantero"
+  },
+  {
+   "dropped": "Supreme Blue",
+   "player": "Monteleone Emanuel",
+   "kept": "CounterTop Bant",
+   "kept_player": "Gabriele Mancino"
+  },
+  {
+   "dropped": "Zenith Zoo",
+   "player": "Lorenzo Bachiorri",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
   },
   {
    "dropped": "Team america",
@@ -1955,7 +2211,7 @@
   },
   {
    "dropped": "Grim Caw-Blade",
-   "player": "Adr\u00e0 Galit\u00f3",
+   "player": "Nate",
    "kept": "Caw-Blade",
    "kept_player": "Alberto Manchado"
   },
@@ -1964,6 +2220,18 @@
    "player": "Gandhi Jagasia",
    "kept": "Zoo",
    "kept_player": "Pat Cox"
+  },
+  {
+   "dropped": "Punishing Zoo",
+   "player": "Miguel \u00c1ngel Rodr\u00edguez",
+   "kept": "Punishing zoo",
+   "kept_player": "Ra\u00fal Carcel\u00e9n"
+  },
+  {
+   "dropped": "Pro Bant",
+   "player": "Antonio Pinto",
+   "kept": "Pro Zenith Bant",
+   "kept_player": "Jose Angel Cantero"
   },
   {
    "dropped": "Tezzeret Affinity",
@@ -1978,30 +2246,253 @@
    "kept_player": "Alberto Manchado"
   },
   {
-   "dropped": "Stoneblade",
-   "player": "Chris Boozer",
+   "dropped": "Countertop Progenitus",
+   "player": "Paco Benlloch",
+   "kept": "CounterTop Bant",
+   "kept_player": "Gabriele Mancino"
+  },
+  {
+   "dropped": "UW Countertop",
+   "player": "Jay Pangasinan",
+   "kept": "Stoneblade",
+   "kept_player": "Davide Christian Orazi"
+  },
+  {
+   "dropped": "Dark Maverick",
+   "player": "Maicol Beltrame",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
+  },
+  {
+   "dropped": "Goblins RGB",
+   "player": "Adri\u00e0 Romero",
+   "kept": "Goblins",
+   "kept_player": "Iain Bartolomei"
+  },
+  {
+   "dropped": "Big Big Zoo",
+   "player": "Simone Giaquinto",
+   "kept": "Punishing zoo",
+   "kept_player": "Ra\u00fal Carcel\u00e9n"
+  },
+  {
+   "dropped": "Landstill Caw Blade",
+   "player": "Lorenzo Lerro",
    "kept": "Caw-Blade",
    "kept_player": "Alberto Manchado"
   },
   {
-   "dropped": "Merfolks Ub",
-   "player": "Oscar Merino",
+   "dropped": "GWz",
+   "player": "Manuel Marinari",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
+  },
+  {
+   "dropped": "Zoo Cryptic",
+   "player": "Greg Komar",
+   "kept": "RUG Order",
+   "kept_player": "Michael Mazzoletti"
+  },
+  {
+   "dropped": "Reckless Charge Zoo",
+   "player": "Marco Kroves",
+   "kept": "Zoo",
+   "kept_player": "Pat Cox"
+  },
+  {
+   "dropped": "UR Stiflenought",
+   "player": "AJ Sacher",
+   "kept": "Canadian Thresh",
+   "kept_player": "Felix Heptner"
+  },
+  {
+   "dropped": "Junk & Taxes",
+   "player": "Roberto Maffei",
+   "kept": "Death & Taxes",
+   "kept_player": "Eric Fry"
+  },
+  {
+   "dropped": "UWB Landstill",
+   "player": "Lucas Mercader",
+   "kept": "Landstill Pernicous Jace",
+   "kept_player": "Stjepan Sucic"
+  },
+  {
+   "dropped": "Ur Merfolk",
+   "player": "Isak Mottelson",
    "kept": "Mono U Merfolk",
    "kept_player": "Filipe Lambert Maniezzo"
+  },
+  {
+   "dropped": "Progenitus Bant",
+   "player": "Antonio Giordani",
+   "kept": "Pro Zenith Bant",
+   "kept_player": "Jose Angel Cantero"
+  },
+  {
+   "dropped": "Big Zoo (Zasca Team)",
+   "player": "Albert Cuartiella",
+   "kept": "Punishing zoo",
+   "kept_player": "Ra\u00fal Carcel\u00e9n"
+  },
+  {
+   "dropped": "One Faerie",
+   "player": "Roberto Sartini",
+   "kept": "Canadian Thresh",
+   "kept_player": "Felix Heptner"
+  },
+  {
+   "dropped": "RUG order",
+   "player": "Alex Bertoncini",
+   "kept": "RUG Order",
+   "kept_player": "Michael Mazzoletti"
+  },
+  {
+   "dropped": "Manaless Dredge",
+   "player": "Nicholas Rausch",
+   "kept": "Dredge",
+   "kept_player": "Giusti Matteo"
+  },
+  {
+   "dropped": "Big Zoo",
+   "player": "Gerard Coll",
+   "kept": "Punishing zoo",
+   "kept_player": "Ra\u00fal Carcel\u00e9n"
+  },
+  {
+   "dropped": "Burn",
+   "player": "Tom\u00e1\u009a Dubrava",
+   "kept": "Burn !",
+   "kept_player": "Manuel G\u00f3mez"
+  },
+  {
+   "dropped": "NO RUG",
+   "player": "Sean Ryan",
+   "kept": "RUG Order",
+   "kept_player": "Michael Mazzoletti"
+  },
+  {
+   "dropped": "Thopters Countertop",
+   "player": "Adria\u00a1n Riaza",
+   "kept": "Stoneblade",
+   "kept_player": "Davide Christian Orazi"
+  },
+  {
+   "dropped": "Canadian Threshold",
+   "player": "Jonathan Genovese",
+   "kept": "Dark Threshold",
+   "kept_player": "Ghesini Andrea"
+  },
+  {
+   "dropped": "Esper Blade",
+   "player": "Mido Kagawa",
+   "kept": "Caw-Blade",
+   "kept_player": "Alberto Manchado"
+  },
+  {
+   "dropped": "Team Amercia",
+   "player": "Andre Luff",
+   "kept": "UB Control",
+   "kept_player": "Josh Cicio"
+  },
+  {
+   "dropped": "Bubble Hulk",
+   "player": "Juan Miguel Carrascosa",
+   "kept": "Hulk Rebirth",
+   "kept_player": "Felix Lapan"
+  },
+  {
+   "dropped": "RUG Natural Order Punishing",
+   "player": "Juan Francisco Carri\u00f3n Valverde",
+   "kept": "RUG Order",
+   "kept_player": "Michael Mazzoletti"
+  },
+  {
+   "dropped": "Junk Depths",
+   "player": "Jesse Roberts",
+   "kept": "Dark Horizon",
+   "kept_player": "Pierre Sommen"
+  },
+  {
+   "dropped": "Blade Control",
+   "player": "Steffen M\u00f6ller",
+   "kept": "Caw-Blade",
+   "kept_player": "Alberto Manchado"
+  },
+  {
+   "dropped": "Bwr Pikula",
+   "player": "Alessandro Malvasi",
+   "kept": "Team Italia",
+   "kept_player": "Omar Rohner"
+  },
+  {
+   "dropped": "Grim Stoneblade",
+   "player": "Emilio Cirillo",
+   "kept": "Caw-Blade",
+   "kept_player": "Alberto Manchado"
+  },
+  {
+   "dropped": "Maverick Rebels",
+   "player": "Ivan de Castro",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
+  },
+  {
+   "dropped": "Doomsday combo",
+   "player": "Christoph Alsheimer",
+   "kept": "Ad Nauseam",
+   "kept_player": "Weston Brown"
+  },
+  {
+   "dropped": "RUG Control",
+   "player": "Marcel Kachapov",
+   "kept": "RUG Order",
+   "kept_player": "Michael Mazzoletti"
+  },
+  {
+   "dropped": "Bant Stoneblade",
+   "player": "James Pogue",
+   "kept": "Stoneblade",
+   "kept_player": "Davide Christian Orazi"
+  },
+  {
+   "dropped": "High Tide",
+   "player": "Jesse Hatfield",
+   "kept": "Spiral Tide",
+   "kept_player": "Nicola Tizzoni"
+  },
+  {
+   "dropped": "Countertop",
+   "player": "Kazuho Sasou",
+   "kept": "CounterTop Bant",
+   "kept_player": "Gabriele Mancino"
+  },
+  {
+   "dropped": "Pernicious jace",
+   "player": "Matthias Frauenschl\u00e4ger",
+   "kept": "Landstill Pernicous Jace",
+   "kept_player": "Stjepan Sucic"
+  },
+  {
+   "dropped": "Pro Zenith Maverick",
+   "player": "Matheus Gossn De Oliveira",
+   "kept": "Zenith Maverick",
+   "kept_player": "Christoph Lemke-Pensel"
   }
  ],
- "objective": 10.47283950617284,
+ "objective": 21.65207100591716,
  "pool_colors": {
-  "U": 18,
-  "B": 10,
-  "G": 12,
-  "W": 12,
-  "R": 7
+  "U": 34,
+  "B": 21,
+  "G": 24,
+  "W": 24,
+  "R": 14
  },
  "pool_styles": {
-  "control": 7,
-  "combo": 5,
-  "aggro": 9,
-  "midrange": 6
- }
+  "control": 14,
+  "aggro": 18,
+  "midrange": 11,
+  "combo": 9
+ },
+ "kept_lost": []
 }

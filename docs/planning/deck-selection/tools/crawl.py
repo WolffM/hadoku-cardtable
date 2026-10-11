@@ -2,14 +2,14 @@
 competitive-level event (Pro, Major, Competitive; not the online dailies) inside the
 era's window, for any of the three formats (`--format ST|MO|LE` — mtgtop8's own codes,
 verified directly against the site: f=ST is "Standard events", f=MO "Modern events",
-f=LE "Legacy events"). Writes cache/candidates-<year>.json for ST (wave 34's name,
-kept), cache/candidates-modern-<year>.json / candidates-legacy-<year>.json for the
-other two (`eras.py`'s naming helpers). Shared cache across all three lanes/formats —
+f=LE "Legacy events"). Writes candidates-<year>.json for ST (wave 34's name, kept),
+candidates-modern-<year>.json / candidates-legacy-<year>.json for the other two, under
+`eras.CACHE_DIR` (`eras.py`'s naming helpers). Shared cache across all three lanes/formats —
 never per-lane. Polite: one request every 0.5 s, never parallel; stop crawling at the
 first sign of throttling (HTTP 429/503, repeated timeouts) rather than retrying."""
 import html, json, os, re, sys, time, urllib.parse, urllib.request
 sys.path.insert(0, os.path.dirname(__file__))
-from eras import eras, cache_path
+from eras import eras, cache_path, CACHE_DIR
 
 UA = 'hadoku-cardtable/0.1 (deck library selection; contact: repo owner)'
 
@@ -53,12 +53,17 @@ if __name__ == '__main__':
     argv = sys.argv[1:]
     fmt = 'ST'
     if '--format' in argv: fmt = argv[argv.index('--format') + 1]
+    # `--levels PMCR` adds mtgtop8's Regular events (local tournaments) for an era whose
+    # competitive events hold too few distinct decks — the operator, 2026-10-10: "i'm happy
+    # to take a bad set of 24 and then weed out a handful of weak ones per era". They carry
+    # the fewest stars, so `select_decks.strength` ranks them below every competitive finish.
+    levels = argv[argv.index('--levels') + 1] if '--levels' in argv else 'PMC'
     years = [int(a) for a in argv if a.isdigit()]
-    os.makedirs('cache', exist_ok=True)
+    os.makedirs(CACHE_DIR, exist_ok=True)
     for era in eras(fmt):
         if years and era['year'] not in years: continue
-        t, rows = crawl(era, fmt)
-        json.dump({'era': era, 'total': t, 'decks': rows}, open(cache_path(fmt, era['year']), 'w'), indent=1)
+        t, rows = crawl(era, fmt, levels)
+        json.dump({'era': era, 'levels': levels, 'total': t, 'decks': rows}, open(cache_path(fmt, era['year']), 'w'), indent=1)
         evs = {(r['event'], r['event_name'], r['stars']) for r in rows}
         print(era['year'], era['format'], 'reported', t, 'parsed', len(rows), 'events', len(evs), flush=True)
         time.sleep(0.5)

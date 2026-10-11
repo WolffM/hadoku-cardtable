@@ -1,0 +1,35 @@
+[metadata]
+Name=Time Sieve (Olivier Ruel)
+Deck Type=Constructed
+Format=Standard (M10)
+Effective=2009-07-17
+Source URL=https://www.mtgtop8.com/event?e=439&d=151395&f=ST
+Comment=Nationals - France 2009: Olivier Ruel, 7th, Time Sieve. Transcribed from mtgtop8 deck 151395.
+[Main]
+7 Island|M10
+4 Pollen Lullaby|LRW
+4 Fieldmist Borderpost|ARB
+4 Mistvein Borderpost|ARB
+4 Time Warp|M10
+4 Elsewhere Flask|SHM
+4 Howling Mine|M10
+4 Open the Vaults|M10
+3 Silence|M10
+3 Time Sieve|ARB
+3 Kaleidostone|CFX
+3 Swamp|M10
+3 Plains|M10
+3 Mystic Gate|SHM
+2 Ethersworn Canonist|ALA
+2 Cryptic Command|LRW
+2 Jace Beleren|M10
+2 Tezzeret the Seeker|ALA
+[Sideboard]
+1 Silence|M10
+2 Ethersworn Canonist|ALA
+1 Cryptic Command|LRW
+1 Jace Beleren|M10
+3 Meddling Mage|ARB
+3 Burrenton Forge-Tender|LRW
+2 Negate|M10
+2 Vedalken Outlander|CFX

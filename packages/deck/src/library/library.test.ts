@@ -343,45 +343,48 @@ describe('the library as a whole', () => {
   // Wave 34 replaced the previous pin (eight collections, 49 decks) wholesale:
   // nine power-summer eras, 2008-2016, 96 decks. Wave 48 §T extended Standard
   // back to 2003 and added Modern (2012-2016, §M) and Legacy (2005-2016, §L):
-  // 31 eras across three families, 338 decks. Thin seasons (fewer than 12
-  // legal candidates, not padded to fit — the brief's own rule): Standard 2003
-  // (8) and 2005 (7); Legacy 2005 (4) and 2006 (7). Every other era is 12.
-  it('is thirty-one eras across three families and three hundred thirty-eight decks, oldest first within each family', () => {
+  // 31 eras across three families, 338 decks. 2026-10-10 doubled the target to
+  // 24 per era (the operator: "can you try to get 24?") and kept every one of
+  // the 338: 676 decks. Thin seasons (fewer than 24 legal, distinct
+  // candidates on mtgtop8, competitive and regular events both — not padded):
+  // Standard 2003 (8), 2005 (7) and 2009 (11); Legacy 2005 (9) and 2006 (17).
+  // Every other era is 24.
+  it('is thirty-one eras across three families and 676 decks, oldest first within each family', () => {
     expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
       ['power-summer-2003', 'standard', 'Standard (8ED)', '2003-09-01', 8],
-      ['power-summer-2004', 'standard', 'Standard (5DN)', '2004-06-20', 12],
+      ['power-summer-2004', 'standard', 'Standard (5DN)', '2004-06-20', 24],
       ['power-summer-2005', 'standard', 'Standard (9ED)', '2005-08-20', 7],
-      ['power-summer-2006', 'standard', 'Standard (CSP)', '2006-08-20', 12],
-      ['power-summer-2007', 'standard', 'Standard (10E)', '2007-07-20', 12],
-      ['power-summer-2008', 'standard', 'Standard (EVE)', '2008-07-25', 12],
-      ['power-summer-2009', 'standard', 'Standard (M10)', '2009-07-17', 4],
-      ['power-summer-2010', 'standard', 'Standard (M11)', '2010-07-16', 8],
-      ['power-summer-2011', 'standard', 'Standard (M12)', '2011-07-15', 12],
-      ['power-summer-2012', 'standard', 'Standard (M13)', '2012-07-13', 12],
-      ['power-summer-2013', 'standard', 'Standard (M14)', '2013-07-19', 12],
-      ['power-summer-2014', 'standard', 'Standard (M15)', '2014-07-18', 12],
-      ['power-summer-2015', 'standard', 'Standard (ORI)', '2015-07-17', 12],
-      ['power-summer-2016', 'standard', 'Standard (EMN)', '2016-07-22', 12],
-      ['power-summer-modern-2012', 'modern', 'Modern (M13)', '2012-07-13', 12],
-      ['power-summer-modern-2013', 'modern', 'Modern (M14)', '2013-07-19', 12],
-      ['power-summer-modern-2014', 'modern', 'Modern (M15)', '2014-07-18', 12],
-      ['power-summer-modern-2015', 'modern', 'Modern (ORI)', '2015-07-17', 12],
-      ['power-summer-modern-2016', 'modern', 'Modern (EMN)', '2016-07-22', 12],
-      ['power-summer-legacy-2005', 'legacy', 'Legacy (9ED)', '2005-08-20', 4],
-      ['power-summer-legacy-2006', 'legacy', 'Legacy (CSP)', '2006-08-20', 7],
-      ['power-summer-legacy-2007', 'legacy', 'Legacy (10E)', '2007-07-20', 12],
-      ['power-summer-legacy-2008', 'legacy', 'Legacy (EVE)', '2008-07-25', 12],
-      ['power-summer-legacy-2009', 'legacy', 'Legacy (M10)', '2009-07-17', 12],
-      ['power-summer-legacy-2010', 'legacy', 'Legacy (M11)', '2010-07-16', 12],
-      ['power-summer-legacy-2011', 'legacy', 'Legacy (M12)', '2011-07-15', 12],
-      ['power-summer-legacy-2012', 'legacy', 'Legacy (M13)', '2012-07-13', 12],
-      ['power-summer-legacy-2013', 'legacy', 'Legacy (M14)', '2013-07-19', 12],
-      ['power-summer-legacy-2014', 'legacy', 'Legacy (M15)', '2014-07-18', 12],
-      ['power-summer-legacy-2015', 'legacy', 'Legacy (ORI)', '2015-07-17', 12],
-      ['power-summer-legacy-2016', 'legacy', 'Legacy (EMN)', '2016-07-22', 12],
+      ['power-summer-2006', 'standard', 'Standard (CSP)', '2006-08-20', 24],
+      ['power-summer-2007', 'standard', 'Standard (10E)', '2007-07-20', 24],
+      ['power-summer-2008', 'standard', 'Standard (EVE)', '2008-07-25', 24],
+      ['power-summer-2009', 'standard', 'Standard (M10)', '2009-07-17', 11],
+      ['power-summer-2010', 'standard', 'Standard (M11)', '2010-07-16', 24],
+      ['power-summer-2011', 'standard', 'Standard (M12)', '2011-07-15', 24],
+      ['power-summer-2012', 'standard', 'Standard (M13)', '2012-07-13', 24],
+      ['power-summer-2013', 'standard', 'Standard (M14)', '2013-07-19', 24],
+      ['power-summer-2014', 'standard', 'Standard (M15)', '2014-07-18', 24],
+      ['power-summer-2015', 'standard', 'Standard (ORI)', '2015-07-17', 24],
+      ['power-summer-2016', 'standard', 'Standard (EMN)', '2016-07-22', 24],
+      ['power-summer-modern-2012', 'modern', 'Modern (M13)', '2012-07-13', 24],
+      ['power-summer-modern-2013', 'modern', 'Modern (M14)', '2013-07-19', 24],
+      ['power-summer-modern-2014', 'modern', 'Modern (M15)', '2014-07-18', 24],
+      ['power-summer-modern-2015', 'modern', 'Modern (ORI)', '2015-07-17', 24],
+      ['power-summer-modern-2016', 'modern', 'Modern (EMN)', '2016-07-22', 24],
+      ['power-summer-legacy-2005', 'legacy', 'Legacy (9ED)', '2005-08-20', 9],
+      ['power-summer-legacy-2006', 'legacy', 'Legacy (CSP)', '2006-08-20', 17],
+      ['power-summer-legacy-2007', 'legacy', 'Legacy (10E)', '2007-07-20', 24],
+      ['power-summer-legacy-2008', 'legacy', 'Legacy (EVE)', '2008-07-25', 24],
+      ['power-summer-legacy-2009', 'legacy', 'Legacy (M10)', '2009-07-17', 24],
+      ['power-summer-legacy-2010', 'legacy', 'Legacy (M11)', '2010-07-16', 24],
+      ['power-summer-legacy-2011', 'legacy', 'Legacy (M12)', '2011-07-15', 24],
+      ['power-summer-legacy-2012', 'legacy', 'Legacy (M13)', '2012-07-13', 24],
+      ['power-summer-legacy-2013', 'legacy', 'Legacy (M14)', '2013-07-19', 24],
+      ['power-summer-legacy-2014', 'legacy', 'Legacy (M15)', '2014-07-18', 24],
+      ['power-summer-legacy-2015', 'legacy', 'Legacy (ORI)', '2015-07-17', 24],
+      ['power-summer-legacy-2016', 'legacy', 'Legacy (EMN)', '2016-07-22', 24],
     ]);
-    expect(ALL_DECKS).toHaveLength(338);
-    expect(libraryDeckPaths()).toHaveLength(338);
+    expect(ALL_DECKS).toHaveLength(676);
+    expect(libraryDeckPaths()).toHaveLength(676);
   });
 
   it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {

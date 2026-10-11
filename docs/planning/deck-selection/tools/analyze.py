@@ -1,24 +1,50 @@
 """What a deck list is, from the cards in it: legal in an era or not, which colours it
 really plays (mana-cost pips, not the archetype's name), and which style it plays like."""
-import json, math, re
+import json, math, os, re
 from collections import Counter
-from cards import load, is_land, BASICS
+from cards import load, is_land, BASICS, lookup_in
 
 IDX = load()
+
+def lookup(name):
+    return lookup_in(IDX, name)
 COLORS = 'WUBRG'
 
+EDITIONS = os.environ.get('FORGE_EDITIONS_ROOT', '/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res/editions')
+
+def _scryfall_codes():
+    """Forge's set code -> Scryfall's, from Forge's own edition files. The eras name sets in
+    Forge's codes (they come from its format files) and the card corpus is Scryfall's, and the
+    two differ: Conflux is CFX to Forge and CON to Scryfall, so every Conflux card read as
+    'not in legal sets' until this existed — Standard 2009 kept 4 decks of 89, and Modern
+    lost Path to Exile in every era. `Code2` is Forge's older alias (FVR, COM, …)."""
+    out = {}
+    for f in os.listdir(EDITIONS):
+        if not f.endswith('.txt'):
+            continue
+        txt = open(os.path.join(EDITIONS, f), encoding='utf-8', errors='replace').read()
+        head = dict(re.findall(r'^(Code|Code2|ScryfallCode)=(\S+)$', txt, re.M))
+        scry = (head.get('ScryfallCode') or head.get('Code') or '').upper()
+        for k in ('Code', 'Code2'):
+            if head.get(k):
+                out.setdefault(head[k].upper(), scry)
+    return out
+
+SCRYFALL_CODE = _scryfall_codes()
+
+def era_sets(era):
+    return {SCRYFALL_CODE.get(c, c) for c in (s.strip().upper() for s in era['sets'].split(','))}
+
 def era_rules(era):
-    sets = {s.strip().upper() for s in era['sets'].split(',')}
-    banned = set(era.get('banned') or [])
-    return sets, banned
+    return era_sets(era), set(era.get('banned') or [])
 
 def legality(main, side, era, banned):
-    sets = {s.strip().upper() for s in era['sets'].split(',')}
+    sets = era_sets(era)
     illegal, unknown = [], []
     for n, st, name in main + side:
         if name in BASICS:
             continue
-        e = IDX.get(name)
+        e = lookup(name)
         if e is None:
             unknown.append(name); continue
         if name in banned or e['name'] in banned:
@@ -26,6 +52,23 @@ def legality(main, side, era, banned):
         if not (e['sets'] & sets):
             illegal.append(f'{name} (not in legal sets)')
     return sorted(set(illegal)), sorted(set(unknown))
+
+def over_copy_limit(main, side):
+    """Names past the four-copy rule across main and sideboard. mtgtop8 sometimes lists one
+    card on two lines (a Landstill list came out with 8 Brainstorm); a card whose own text
+    allows any number (Relentless Rats) is exempt."""
+    n = Counter()
+    for k, _, name in main + side:
+        n[name] += k
+    out = []
+    for name, k in n.items():
+        if k <= 4 or name in BASICS:
+            continue
+        e = lookup(name)
+        if e is not None and 'any number of cards named' in (e['text'] or ''):
+            continue
+        out.append(f'{k}x {name} (over the four-copy limit)')
+    return out
 
 PIP = re.compile(r'\{([^}]+)\}')
 
@@ -48,7 +91,7 @@ def features(main):
     cmc_sum = 0.0; lands = 0
     names = Counter()
     for n, st, name in main:
-        e = IDX.get(name)
+        e = lookup(name)
         if e is None:
             continue
         if is_land(e):

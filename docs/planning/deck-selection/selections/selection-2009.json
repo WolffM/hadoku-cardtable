@@ -10,6 +10,61 @@
  },
  "chosen": [
   {
+   "deck": 435790,
+   "event": 30116,
+   "archetype": "Cruel Control",
+   "player": "Enric Mart\u00ed",
+   "event_name": "Nationals - Spain 2009",
+   "stars": 3,
+   "rank": "1",
+   "date": "2009-07-23",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 27,
+    "creatures": 12,
+    "counters": 5,
+    "sweepers": 11,
+    "draw": 10,
+    "burn": 3,
+    "avg_cmc": 4.03,
+    "pips": {
+     "W": 19.0,
+     "U": 27.0,
+     "B": 12.0,
+     "R": 19.0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Negate": 1,
+     "Naya Charm": 1,
+     "Runed Halo": 1,
+     "Path to Exile": 1,
+     "Terminate": 2,
+     "Volcanic Fallout": 2,
+     "Ajani Vengeant": 2,
+     "Hallowed Burial": 2,
+     "Cruel Ultimatum": 2,
+     "Esper Charm": 4,
+     "Cryptic Command": 4,
+     "Wall of Denial": 2,
+     "Bogardan Hellkite": 3,
+     "Kitchen Finks": 3,
+     "Mulldrifter": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
    "deck": 151389,
    "event": 439,
    "archetype": "Elf Rock",
@@ -57,6 +112,54 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 1
+  },
+  {
+   "deck": 151390,
+   "event": 439,
+   "archetype": "Blightning",
+   "player": "Antoine M\u00e9nard",
+   "event_name": "Nationals - France 2009",
+   "stars": 3,
+   "rank": "2",
+   "date": "2009-07-26",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 16,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 18.0,
+     "R": 52.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Anathemancer": 4,
+     "Demigod of Revenge": 4,
+     "Lightning Bolt": 4,
+     "Flame Javelin": 4,
+     "Figure of Destiny": 4,
+     "Volcanic Fallout": 4,
+     "Blightning": 4,
+     "Hellspark Elemental": 4,
+     "Magma Spray": 2,
+     "Banefire": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
   },
   {
    "deck": 435791,
@@ -157,7 +260,108 @@
    },
    "style": "control",
    "style_why": "label",
-   "label_count": 19
+   "label_count": 26
+  },
+  {
+   "deck": 435797,
+   "event": 30116,
+   "archetype": "Red Deck Wins",
+   "player": "Jos\u00e9 Garcia",
+   "event_name": "Nationals - Spain 2009",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2009-07-23",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 14,
+    "avg_cmc": 2.16,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 6.0,
+     "R": 52.0,
+     "G": 10.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tattermunge Maniac": 4,
+     "Goblin Outlander": 4,
+     "Jund Hackblade": 4,
+     "Boggart Ram-Gang": 4,
+     "Tarfire": 2,
+     "Lightning Bolt": 4,
+     "Magma Spray": 4,
+     "Flame Javelin": 4,
+     "Ball Lightning": 4,
+     "Figure of Destiny": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 151395,
+   "event": 439,
+   "archetype": "Time Sieve",
+   "player": "Olivier Ruel",
+   "event_name": "Nationals - France 2009",
+   "stars": 3,
+   "rank": "7",
+   "date": "2009-07-26",
+   "summer": true,
+   "s": 0.41602919535301897,
+   "f": {
+    "spells": 45,
+    "lands": 16,
+    "creatures": 2,
+    "counters": 2,
+    "sweepers": 2,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 21.0,
+     "U": 33.0,
+     "B": 7.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Pollen Lullaby": 4,
+     "Fieldmist Borderpost": 4,
+     "Mistvein Borderpost": 4,
+     "Time Warp": 4,
+     "Elsewhere Flask": 4,
+     "Howling Mine": 4,
+     "Open the Vaults": 4,
+     "Silence": 3,
+     "Time Sieve": 3,
+     "Kaleidostone": 3,
+     "Ethersworn Canonist": 2,
+     "Cryptic Command": 2,
+     "Jace Beleren": 2,
+     "Tezzeret the Seeker": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
   },
   {
    "deck": 132879,
@@ -205,40 +409,192 @@
    },
    "style": "aggro",
    "style_why": "label",
-   "label_count": 5
+   "label_count": 6
+  },
+  {
+   "deck": 146957,
+   "event": 436,
+   "archetype": "5C Blood",
+   "player": "Michael Jacob",
+   "event_name": "Grand Prix Seattle 2009",
+   "stars": 1,
+   "rank": "7",
+   "date": "2009-05-31",
+   "summer": false,
+   "s": 0.17620060038480806,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 4,
+    "sweepers": 8,
+    "draw": 5,
+    "burn": 2,
+    "avg_cmc": 3.26,
+    "pips": {
+     "W": 0,
+     "U": 17.0,
+     "B": 22.0,
+     "R": 24.0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Anathemancer": 4,
+     "Cryptic Command": 4,
+     "Bloodbraid Elf": 4,
+     "Boggart Ram-Gang": 4,
+     "Maelstrom Pulse": 4,
+     "Putrid Leech": 4,
+     "Sygg, River Cutthroat": 3,
+     "Bituminous Blast": 2,
+     "Jund Charm": 2,
+     "Volcanic Fallout": 2,
+     "Cruel Ultimatum": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 151399,
+   "event": 440,
+   "archetype": "Big Druid Deck",
+   "player": "Yuuma Shiota",
+   "event_name": "Japanese Nationals 2009",
+   "stars": 0,
+   "rank": "3",
+   "date": "2009-07-19",
+   "summer": true,
+   "s": 0.16408408567713523,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.85,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 49.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Elvish Archdruid": 4,
+     "Primal Command": 4,
+     "Heritage Druid": 4,
+     "Llanowar Elves": 4,
+     "Ranger of Eos": 4,
+     "Nettle Sentinel": 4,
+     "Elvish Visionary": 4,
+     "Gilt-Leaf Archdruid": 3,
+     "Path to Exile": 3,
+     "Regal Force": 3,
+     "Devoted Druid": 2,
+     "Mirror Entity": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 145420,
+   "event": 429,
+   "archetype": "5C Elementals",
+   "player": "unknown player",
+   "event_name": "National Qualifier 2009 - Tokyo",
+   "stars": 0,
+   "rank": "",
+   "date": "2009-05-09",
+   "summer": false,
+   "s": 0.05453340915348291,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 37,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.38,
+    "pips": {
+     "W": 8.0,
+     "U": 16.0,
+     "B": 9.0,
+     "R": 20.0,
+     "G": 8.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Mulldrifter": 4,
+     "Reveillark": 4,
+     "Sower of Temptation": 4,
+     "Smokebraider": 4,
+     "Bloom Tender": 4,
+     "Fulminator Mage": 4,
+     "Horde of Notions": 4,
+     "Incandescent Soulstoke": 4,
+     "Flamekin Harbinger": 4,
+     "Shriekmaw": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
   }
  ],
  "alternates": [],
- "pool_size": 4,
+ "pool_size": 11,
  "rejected_illegal": [
   {
-   "archetype": "Cruel Control",
-   "deck": 435790,
-   "player": "Enric Mart\u00ed",
+   "archetype": "GW Tokens",
+   "deck": 145219,
+   "player": "Robert Beverly",
    "why": [
-    "Banefire (not in legal sets)",
-    "Exotic Orchard (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Brushland (not in legal sets)",
+    "Treetop Village (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
-   "archetype": "Blightning",
-   "deck": 151390,
-   "player": "Antoine M\u00e9nard",
+   "archetype": "GW Tokens",
+   "deck": 145737,
+   "player": "Chris Sowder",
    "why": [
-    "Banefire (not in legal sets)",
-    "Hellspark Elemental (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
+    "Brushland (not in legal sets)",
+    "Treetop Village (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
-   "archetype": "Blightning",
-   "deck": 151393,
-   "player": "Yohan Allouche",
+   "archetype": "GW Tokens",
+   "deck": 145735,
+   "player": "Duke Cruise",
    "why": [
-    "Banefire (not in legal sets)",
-    "Hellspark Elemental (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
+    "Brushland (not in legal sets)",
+    "Treetop Village (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -248,35 +604,17 @@
    "why": [
     "Adarkar Wastes (not in legal sets)",
     "Brushland (not in legal sets)",
-    "Noble Hierarch (not in legal sets)"
+    "Treetop Village (not in legal sets)"
    ]
   },
   {
-   "archetype": "GW Tokens",
-   "deck": 145219,
-   "player": "Robert Beverly",
+   "archetype": "Bant Aggro",
+   "deck": 145740,
+   "player": "James Dobbins",
    "why": [
     "Brushland (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Kithkins",
-   "deck": 435792,
-   "player": "Saul Aguado",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Kithkins",
-   "deck": 148107,
-   "player": "Daniel de Almeida Alves",
-   "why": [
-    "Aura of Silence (not in legal sets)",
-    "Glorious Anthem (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Treetop Village (not in legal sets)",
+    "Yavimaya Coast (not in legal sets)"
    ]
   },
   {
@@ -284,9 +622,7 @@
    "deck": 435795,
    "player": "Jamie Marrero",
    "why": [
-    "Exotic Orchard (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)",
-    "Wall of Reverence (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
@@ -294,17 +630,8 @@
    "deck": 252602,
    "player": "Gabriel Nassif, 8-0-1",
    "why": [
-    "Exotic Orchard (not in legal sets)",
     "Paladin en-Vec (not in legal sets)",
     "Tidings (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Deck Wins",
-   "deck": 435797,
-   "player": "Jos\u00e9 Garcia",
-   "why": [
-    "Goblin Outlander (not in legal sets)"
    ]
   },
   {
@@ -364,7 +691,7 @@
    "why": [
     "Brushland (not in legal sets)",
     "Llanowar Wastes (not in legal sets)",
-    "Noble Hierarch (not in legal sets)"
+    "Treetop Village (not in legal sets)"
    ]
   },
   {
@@ -372,18 +699,9 @@
    "deck": 138503,
    "player": "Gabriel Nassif",
    "why": [
-    "Exotic Orchard (not in legal sets)",
     "Remove Soul (not in legal sets)",
-    "Scepter of Fugue (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Time Sieve",
-   "deck": 151395,
-   "player": "Olivier Ruel",
-   "why": [
-    "Kaleidostone (not in legal sets)",
-    "Vedalken Outlander (not in legal sets)"
+    "Terror (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -393,7 +711,7 @@
    "why": [
     "Caves of Koilos (not in legal sets)",
     "Glorious Anthem (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -403,7 +721,7 @@
    "why": [
     "Caves of Koilos (not in legal sets)",
     "Glorious Anthem (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Terror (not in legal sets)"
    ]
   },
   {
@@ -413,7 +731,7 @@
    "why": [
     "Caves of Koilos (not in legal sets)",
     "Glorious Anthem (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -421,8 +739,7 @@
    "deck": 145189,
    "player": "Miles Rodriguez",
    "why": [
-    "Caves of Koilos (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Caves of Koilos (not in legal sets)"
    ]
   },
   {
@@ -430,9 +747,9 @@
    "deck": 145218,
    "player": "Jake Miller",
    "why": [
-    "Banefire (not in legal sets)",
     "Ghitu Encampment (not in legal sets)",
-    "Goblin Outlander (not in legal sets)"
+    "Mogg Fanatic (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
    ]
   },
   {
@@ -441,8 +758,8 @@
    "player": "David Irvine",
    "why": [
     "Brushland (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Treetop Village (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -451,18 +768,28 @@
    "player": "Allison Abe",
    "why": [
     "Brushland (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Treetop Village (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
-   "archetype": "EsperLark",
-   "deck": 145191,
-   "player": "Matthew Franklin",
+   "archetype": "GW Overrun",
+   "deck": 145854,
+   "player": "Josh Napper",
    "why": [
-    "Adarkar Wastes (not in legal sets)",
-    "Caves of Koilos (not in legal sets)",
-    "Mind Stone (not in legal sets)"
+    "Brushland (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GW Overrun",
+   "deck": 145853,
+   "player": "Makota Yoshida",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Treetop Village (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -476,12 +803,31 @@
    ]
   },
   {
+   "archetype": "Boat Brew",
+   "deck": 145209,
+   "player": "Nathan Zimmerman",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "EsperLark",
+   "deck": 145191,
+   "player": "Matthew Franklin",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Caves of Koilos (not in legal sets)",
+    "Mind Stone (not in legal sets)"
+   ]
+  },
+  {
    "archetype": "BW Aggro",
    "deck": 145187,
    "player": "Axel Jensen",
    "why": [
-    "Caves of Koilos (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Caves of Koilos (not in legal sets)"
    ]
   },
   {
@@ -490,8 +836,7 @@
    "player": "Zach Jesse",
    "why": [
     "Condemn (not in legal sets)",
-    "Exotic Orchard (not in legal sets)",
-    "Filigree Fracture (not in legal sets)"
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -499,9 +844,27 @@
    "deck": 145212,
    "player": "Patrick Crane",
    "why": [
-    "Exotic Orchard (not in legal sets)",
     "Paladin en-Vec (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5CC",
+   "deck": 146305,
+   "player": "Riccardo Neri",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Shivan Reef (not in legal sets)",
+    "Tidings (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5CC",
+   "deck": 145199,
+   "player": "Andres Suarez",
+   "why": [
+    "Remove Soul (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -521,17 +884,7 @@
    "why": [
     "Caves of Koilos (not in legal sets)",
     "Glorious Anthem (not in legal sets)",
-    "Martial Coup (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "5CC",
-   "deck": 146305,
-   "player": "Riccardo Neri",
-   "why": [
-    "Adarkar Wastes (not in legal sets)",
-    "Martial Coup (not in legal sets)",
-    "Nicol Bolas, Planeswalker (not in legal sets)"
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -565,13 +918,23 @@
    ]
   },
   {
+   "archetype": "BW Persist",
+   "deck": 145852,
+   "player": "Brandon \"Dobby\" Willis",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
    "archetype": "WR Vengeant",
    "deck": 138500,
    "player": "Akimasa Yamamoto",
    "why": [
-    "Banefire (not in legal sets)",
     "Battlefield Forge (not in legal sets)",
-    "Mind Stone (not in legal sets)"
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
    ]
   },
   {
@@ -579,9 +942,8 @@
    "deck": 138502,
    "player": "Jan Ruess",
    "why": [
-    "Banefire (not in legal sets)",
     "Battlefield Forge (not in legal sets)",
-    "Lapse of Certainty (not in legal sets)"
+    "Mogg Fanatic (not in legal sets)"
    ]
   },
   {
@@ -590,8 +952,8 @@
    "player": "Brian Robinson",
    "why": [
     "Adarkar Wastes (not in legal sets)",
-    "Ancient Ziggurat (not in legal sets)",
-    "Brushland (not in legal sets)"
+    "Brushland (not in legal sets)",
+    "Caves of Koilos (not in legal sets)"
    ]
   },
   {
@@ -602,6 +964,115 @@
     "Ghitu Encampment (not in legal sets)",
     "Incinerate (not in legal sets)",
     "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BG Elves",
+   "deck": 146023,
+   "player": "Kevin Ambler",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BG Elves",
+   "deck": 146022,
+   "player": "Brian Tidwell",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BG Elves",
+   "deck": 145196,
+   "player": "Brian Tidwell",
+   "why": [
+    "Avatar of Might (not in legal sets)",
+    "Civic Wayfinder (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BG Elves",
+   "deck": 146018,
+   "player": "Eric Bush",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Toutounaze",
+   "deck": 138689,
+   "player": "Thomas Guillemin",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)",
+    "Loyal Sentry (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Toutounaze",
+   "deck": 138687,
+   "player": "Guillaume Kouba",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)",
+    "Incinerate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Toutounaze",
+   "deck": 253176,
+   "player": "Aaron Nicastri",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RW Llark",
+   "deck": 138228,
+   "player": "Saito Tomoharu",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RW Llark",
+   "deck": 138683,
+   "player": "Frederic Lales",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Lol Kim",
+   "deck": 145748,
+   "player": "Daniel Suydam",
+   "why": [
+    "Avatar of Might (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "This isn't Ghost Dad",
+   "deck": 145855,
+   "player": "Grahm Salva",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -619,9 +1090,9 @@
    "deck": 146960,
    "player": "Charles Gerndon Dupont",
    "why": [
-    "Banefire (not in legal sets)",
     "Ghitu Encampment (not in legal sets)",
-    "Hellspark Elemental (not in legal sets)"
+    "Incinerate (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
    ]
   },
   {
@@ -639,7 +1110,6 @@
    "deck": 138498,
    "player": "Cedric Phillips",
    "why": [
-    "Banefire (not in legal sets)",
     "Battlefield Forge (not in legal sets)",
     "Glorious Anthem (not in legal sets)"
    ]
@@ -655,34 +1125,6 @@
    ]
   },
   {
-   "archetype": "5C Blood",
-   "deck": 146957,
-   "player": "Michael Jacob",
-   "why": [
-    "Exotic Orchard (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "5C Blood",
-   "deck": 252592,
-   "player": "Josh Wludyka",
-   "why": [
-    "Exotic Orchard (not in legal sets)",
-    "Loxodon Warhammer (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "5C Blood",
-   "deck": 252594,
-   "player": "Michael Jacob",
-   "why": [
-    "Exotic Orchard (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Zealous Kithkins",
    "deck": 148114,
    "player": "Juan V\u00e9liz",
@@ -693,13 +1135,97 @@
    ]
   },
   {
-   "archetype": "Jund Blood",
-   "deck": 252591,
-   "player": "Noah Weil",
+   "archetype": "Jund Ramp",
+   "deck": 145202,
+   "player": "Justin Lenhart",
    "why": [
-    "Banefire (not in legal sets)",
-    "Karplusan Forest (not in legal sets)",
-    "Llanowar Wastes (not in legal sets)"
+    "Loxodon Warhammer (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jund Ramp",
+   "deck": 145736,
+   "player": "Daniel Schaffer",
+   "why": [
+    "Loxodon Warhammer (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The Scalabrine Offense",
+   "deck": 145747,
+   "player": "Miles Fraser",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red/White",
+   "deck": 138227,
+   "player": "Iyota Tatsuya",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Swans",
+   "deck": 146021,
+   "player": "Drew Dumanski",
+   "why": [
+    "Ghitu Encampment (not in legal sets)",
+    "Incinerate (not in legal sets)",
+    "Remove Soul (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Tiago Chan Fan Club",
+   "deck": 145746,
+   "player": "Louis Garcia",
+   "why": [
+    "Caves of Koilos (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Coeur de Loup (B/G Elves)",
+   "deck": 138686,
+   "player": "Sebastien Ameeuw",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nakamura Shu-he-he",
+   "deck": 138225,
+   "player": "Watanabe Yuya",
+   "why": [
+    "Incinerate (not in legal sets)",
+    "Remove Soul (not in legal sets)",
+    "Seismic Assault (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jiggo spark (by Takahashi Junya)",
+   "deck": 138226,
+   "player": "Mitsui Hideo",
+   "why": [
+    "Ghitu Encampment (not in legal sets)",
+    "Incinerate (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Turbo Fog",
+   "deck": 145745,
+   "player": "Todd Aaron",
+   "why": [
+    "Holy Day (not in legal sets)",
+    "Wrath of God (not in legal sets)"
    ]
   },
   {
@@ -707,9 +1233,182 @@
    "deck": 252605,
    "player": "Olivier Ruel, 8-0-1",
    "why": [
-    "Font of Mythos (not in legal sets)",
+    "Holy Day (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Turbo Fog",
+   "deck": 145427,
+   "player": "unknown player",
+   "why": [
     "Holy Day (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Reveillark",
+   "deck": 145733,
+   "player": "Austin Saylor",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Story Circle (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Reveillark",
+   "deck": 145197,
+   "player": "Ben Jackson",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Remove Soul (not in legal sets)",
+    "Tidings (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Elves",
+   "deck": 145734,
+   "player": "Steven Baker",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Elves",
+   "deck": 130076,
+   "player": "unknown player",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Quick 'n Toast",
+   "deck": 146019,
+   "player": "Christian Flodstrom-Sconce",
+   "why": [
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Christmassacre",
+   "deck": 145847,
+   "player": "Shane Williams",
+   "why": [
+    "Creeping Mold (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Incinerate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Aggro Cruise",
+   "deck": 145848,
+   "player": "Craig Stapleton",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Incinerate (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Arbor Day",
+   "deck": 145851,
+   "player": "David Castro",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Turbo Grinding",
+   "deck": 145206,
+   "player": "Ali Aintrazi",
+   "why": [
+    "Boomerang (not in legal sets)",
+    "Evacuation (not in legal sets)",
+    "Remove Soul (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Vengeant Weenie",
+   "deck": 145198,
+   "player": "Gabriel Costa-Giomi",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Glorious Anthem (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Doran Bant",
+   "deck": 138685,
+   "player": "Francois Lemaitre",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Brushland (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hakanaku mo Towa no Kanashi",
+   "deck": 138221,
+   "player": "Miyamoto Hiroya",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "AKKA Mar",
+   "deck": 138223,
+   "player": "Tozuka Kouta",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)",
+    "Mind Stone (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Happy Happy Smile'09 [...]",
+   "deck": 138224,
+   "player": "Tabe Keita",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Incinerate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "HAMA RDW",
+   "deck": 138222,
+   "player": "Yamauchi Takashi",
+   "why": [
+    "Ghitu Encampment (not in legal sets)",
+    "Incinerate (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red For Dead",
+   "deck": 145743,
+   "player": "Theron Lewis",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Loyal Sentry (not in legal sets)",
+    "Mind Stone (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jund Blood",
+   "deck": 252591,
+   "player": "Noah Weil",
+   "why": [
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
    ]
   },
   {
@@ -717,19 +1416,178 @@
    "deck": 252599,
    "player": "Laurent Cestaro, 8-0-1",
    "why": [
-    "Banefire (not in legal sets)",
-    "Battlefield Forge (not in legal sets)",
-    "Mind Stone (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Toutounaze",
-   "deck": 253176,
-   "player": "Aaron Nicastri",
-   "why": [
     "Battlefield Forge (not in legal sets)",
     "Mind Stone (not in legal sets)",
     "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RG Aggro",
+   "deck": 146017,
+   "player": "Jesse Grizzle",
+   "why": [
+    "Incinerate (not in legal sets)",
+    "Karplusan Forest (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bloodbraid Jund",
+   "deck": 146016,
+   "player": "Sean Salazar",
+   "why": [
+    "Incinerate (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Fat Chick Thriller",
+   "deck": 145741,
+   "player": "Christopher Rondan",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Story Circle (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Profane Elves",
+   "deck": 145422,
+   "player": "unknown player",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Profane Elves",
+   "deck": 145423,
+   "player": "unknown player",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Kithkin Backlash",
+   "deck": 129704,
+   "player": "unknown player",
+   "why": [
+    "Battlefield Forge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Kithkin Backlash",
+   "deck": 130089,
+   "player": "unknown player",
+   "why": [
+    "Battlefield Forge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 129705,
+   "player": "unknown player",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Condemn (not in legal sets)",
+    "Faerie Conclave (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 130088,
+   "player": "unknown player",
+   "why": [
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reveillark",
+   "deck": 129708,
+   "player": "unknown player",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Condemn (not in legal sets)",
+    "Story Circle (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reveillark",
+   "deck": 130091,
+   "player": "unknown player",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Caves of Koilos (not in legal sets)",
+    "Condemn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The Prophecy",
+   "deck": 130080,
+   "player": "unknown player",
+   "why": [
+    "Condemn (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The Prophecy",
+   "deck": 130077,
+   "player": "unknown player",
+   "why": [
+    "Condemn (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Kithkin Fire",
+   "deck": 130081,
+   "player": "unknown player",
+   "why": [
+    "Glorious Anthem (not in legal sets)",
+    "Incinerate (not in legal sets)",
+    "Story Circle (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goodie Bag",
+   "deck": 130079,
+   "player": "unknown player",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "B Quick'n Toast.",
+   "deck": 130082,
+   "player": "unknown player",
+   "why": [
+    "Remove Soul (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Justice Toast",
+   "deck": 130092,
+   "player": "unknown player",
+   "why": [
+    "Condemn (not in legal sets)",
+    "Faerie Conclave (not in legal sets)",
+    "Wrath of God (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RDW",
+   "deck": 130093,
+   "player": "unknown player",
+   "why": [
+    "Ghitu Encampment (not in legal sets)",
+    "Incinerate (not in legal sets)"
    ]
   }
  ],
@@ -745,18 +1603,50 @@
    "player": "Sergio Garcia",
    "kept": "Faeries",
    "kept_player": "Guillaume Matignon"
+  },
+  {
+   "dropped": "Mode de Faerie",
+   "player": "Yuuya Watanabe",
+   "kept": "Faeries",
+   "kept_player": "Guillaume Matignon"
+  },
+  {
+   "dropped": "Elfball",
+   "player": "Kenji Tsumura",
+   "kept": "Big Druid Deck",
+   "kept_player": "Yuuma Shiota"
+  },
+  {
+   "dropped": "White Weenie",
+   "player": "unknown player",
+   "kept": "Kithkins",
+   "kept_player": "Hannes Kerem"
+  },
+  {
+   "dropped": "Piticii V2",
+   "player": "unknown player",
+   "kept": "Kithkins",
+   "kept_player": "Hannes Kerem"
+  },
+  {
+   "dropped": "Little Funny Guys",
+   "player": "unknown player",
+   "kept": "Kithkins",
+   "kept_player": "Hannes Kerem"
   }
  ],
- "objective": -6.329166358655999,
+ "objective": -15.768317462704669,
  "pool_colors": {
-  "W": 2,
-  "B": 3,
-  "G": 2,
-  "R": 1,
-  "U": 1
+  "W": 6,
+  "U": 5,
+  "B": 8,
+  "R": 6,
+  "G": 6
  },
  "pool_styles": {
-  "aggro": 3,
-  "control": 1
- }
+  "control": 3,
+  "aggro": 4,
+  "midrange": 4
+ },
+ "kept_lost": []
 }

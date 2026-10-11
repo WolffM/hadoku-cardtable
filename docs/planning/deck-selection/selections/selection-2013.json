@@ -157,6 +157,105 @@
    "label_count": 49
   },
   {
+   "deck": 232697,
+   "event": 5640,
+   "archetype": "Naya",
+   "player": "Rudy Briksza",
+   "event_name": "Starcitygames Open Series: Atlanta",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-09-14",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.58,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 0,
+     "R": 26.0,
+     "G": 22.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Mizzium Mortars": 2,
+     "Bonfire of the Damned": 2,
+     "Selesnya Charm": 2,
+     "Domri Rade": 4,
+     "Voice of Resurgence": 4,
+     "Thundermaw Hellkite": 4,
+     "Scavenging Ooze": 3,
+     "Loxodon Smiter": 3,
+     "Hellrider": 2,
+     "Flinthoof Boar": 2,
+     "Boros Reckoner": 4,
+     "Avacyn's Pilgrim": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 44
+  },
+  {
+   "deck": 231923,
+   "event": 5516,
+   "archetype": "Red Deck Wins",
+   "player": "Joseph Herrera",
+   "event_name": "Starcitygames Open Series: Baltimore",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-08-24",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 13,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 0,
+     "R": 53.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Boros Reckoner": 4,
+     "Ash Zealot": 4,
+     "Pillar of Flame": 4,
+     "Searing Spear": 4,
+     "Brimstone Volley": 3,
+     "Burning Earth": 4,
+     "Chandra, Pyromaster": 2,
+     "Chandra's Phoenix": 4,
+     "Hellrider": 3,
+     "Thundermaw Hellkite": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 20
+  },
+  {
    "deck": 229438,
    "event": 5101,
    "archetype": "Reanimator",
@@ -316,6 +415,56 @@
    "label_count": 44
   },
   {
+   "deck": 228555,
+   "event": 4944,
+   "archetype": "Bant Hexproof",
+   "player": "Takahashi Jun\u00b4ya",
+   "event_name": "WMCQ '13 (Tokyo, Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-04-07",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 22.0,
+     "U": 14.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 14.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Simic Charm": 2,
+     "Rancor": 4,
+     "Gift of Orzhova": 4,
+     "Ethereal Armor": 4,
+     "Silverblade Paladin": 2,
+     "Loxodon Smiter": 4,
+     "Invisible Stalker": 4,
+     "Geist of Saint Traft": 4,
+     "Fencing Ace": 2,
+     "Avacyn's Pilgrim": 4,
+     "Spectral Flight": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 42
+  },
+  {
    "deck": 223512,
    "event": 3976,
    "archetype": "Bant Control",
@@ -416,6 +565,57 @@
    "label_count": 21
   },
   {
+   "deck": 227391,
+   "event": 4739,
+   "archetype": "Prime Speaker Bant",
+   "player": "Matt Sperling",
+   "event_name": "PTQ Theros (Santa Clara, California)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-04-07",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 16,
+    "counters": 2,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.4,
+    "pips": {
+     "W": 29.0,
+     "U": 19.0,
+     "B": 0,
+     "R": 0,
+     "G": 19.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Restoration Angel": 4,
+     "Loxodon Smiter": 4,
+     "Thragtusk": 4,
+     "Angel of Serenity": 2,
+     "Prime Speaker Zegana": 2,
+     "Farseek": 4,
+     "Sphinx's Revelation": 3,
+     "Supreme Verdict": 2,
+     "Syncopate": 2,
+     "Detention Sphere": 2,
+     "Azorius Charm": 3,
+     "Selesnya Charm": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 15
+  },
+  {
    "deck": 224468,
    "event": 4187,
    "archetype": "Human Reanimator",
@@ -464,6 +664,115 @@
    "style": "combo",
    "style_why": "label",
    "label_count": 13
+  },
+  {
+   "deck": 221676,
+   "event": 3599,
+   "archetype": "Tokens",
+   "player": "Marc Blesso",
+   "event_name": "Starcitygames Open Series: Providence",
+   "stars": 3,
+   "rank": "1",
+   "date": "2012-10-13",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 18.0,
+     "U": 0,
+     "B": 4.0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Sever the Bloodline": 1,
+     "Lingering Souls": 4,
+     "Sorin, Lord of Innistrad": 3,
+     "Garruk Relentless // Garruk, the Veil-Cursed": 3,
+     "Selesnya Charm": 2,
+     "Oblivion Ring": 1,
+     "Intangible Virtue": 3,
+     "Thragtusk": 4,
+     "Borderland Ranger": 4,
+     "Avacyn's Pilgrim": 4,
+     "Armada Wurm": 1,
+     "Arbor Elf": 4,
+     "Angel of Serenity": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 228956,
+   "event": 5019,
+   "archetype": "UWr Control",
+   "player": "Ken-Min Yeoh",
+   "event_name": "Starcitygames Open Series: Dallas",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-05-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 3,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 11,
+    "burn": 7,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 19.0,
+     "U": 34.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Dissipate": 2,
+     "Azorius Charm": 3,
+     "Detention Sphere": 1,
+     "Assemble the Legion": 1,
+     "Tamiyo, the Moon Sage": 1,
+     "Jace, Architect of Thought": 1,
+     "Snapcaster Mage": 2,
+     "Aetherling": 1,
+     "Turn // Burn": 2,
+     "Warleader's Helix": 2,
+     "Mizzium Mortars": 1,
+     "Pillar of Flame": 2,
+     "Supreme Verdict": 3,
+     "Terminus": 1,
+     "Syncopate": 1,
+     "Sphinx's Revelation": 4,
+     "Searing Spear": 2,
+     "Essence Scatter": 1,
+     "Think Twice": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 10
   },
   {
    "deck": 221569,
@@ -568,6 +877,111 @@
    "label_count": 14
   },
   {
+   "deck": 231881,
+   "event": 5511,
+   "archetype": "Esper Control",
+   "player": "Hiroaki Kitahara",
+   "event_name": "GP Kitakyushu Grinders Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-08-23",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 4,
+    "sweepers": 2,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 13.0,
+     "U": 29.0,
+     "B": 12.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Warped Physique": 1,
+     "Tragic Slip": 1,
+     "Supreme Verdict": 2,
+     "Far // Away": 2,
+     "Doom Blade": 2,
+     "Dissipate": 2,
+     "Azorius Charm": 2,
+     "Syncopate": 2,
+     "Think Twice": 3,
+     "Sphinx's Revelation": 3,
+     "Snapcaster Mage": 3,
+     "Lifebane Zombie": 3,
+     "Augur of Bolas": 4,
+     "Restoration Angel": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 226065,
+   "event": 4491,
+   "archetype": "Rakdos Control",
+   "player": "Corey Camp",
+   "event_name": "SCG IQ - Hatboro, PA",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-03-02",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 2.81,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 40.0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Rakdos's Return": 1,
+     "Runechanter's Pike": 2,
+     "Ultimate Price": 2,
+     "Murder": 2,
+     "Sign in Blood": 3,
+     "Searing Spear": 3,
+     "Dreadbore": 3,
+     "Mizzium Mortars": 3,
+     "Thundermaw Hellkite": 1,
+     "Olivia Voldaren": 2,
+     "Thrill-Kill Assassin": 2,
+     "Disciple of Bolas": 4,
+     "Desecration Demon": 4,
+     "Vampire Nighthawk": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
    "deck": 225223,
    "event": 4326,
    "archetype": "BUG Persist Aggro",
@@ -619,157 +1033,269 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 1
-  }
- ],
- "alternates": [
+  },
   {
-   "deck": 232697,
-   "event": 5640,
-   "archetype": "Naya",
-   "player": "Rudy Briksza",
-   "event_name": "Starcitygames Open Series: Atlanta",
+   "deck": 230280,
+   "event": 5251,
+   "archetype": "Jund Aggro",
+   "player": "Stephen Ruck",
+   "event_name": "Starcitygames Open Series: Worcester",
    "stars": 3,
-   "rank": "1",
-   "date": "2013-09-14",
-   "summer": true,
-   "s": 1.0,
+   "rank": "2",
+   "date": "2013-07-06",
+   "summer": false,
+   "s": 0.5333333333333334,
    "f": {
-    "spells": 36,
-    "lands": 24,
-    "creatures": 22,
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
     "counters": 0,
-    "sweepers": 6,
+    "sweepers": 7,
     "draw": 0,
-    "burn": 4,
-    "avg_cmc": 2.58,
+    "burn": 3,
+    "avg_cmc": 2.76,
     "pips": {
-     "W": 15.0,
+     "W": 0,
      "U": 0,
-     "B": 0,
-     "R": 26.0,
-     "G": 22.0
+     "B": 9.0,
+     "R": 24.0,
+     "G": 23.0
     },
     "colors": [
-     "W",
+     "B",
      "R",
      "G"
     ],
     "names": {
-     "Mizzium Mortars": 2,
-     "Bonfire of the Damned": 2,
-     "Selesnya Charm": 2,
-     "Domri Rade": 4,
-     "Voice of Resurgence": 4,
+     "Bonfire of the Damned": 3,
+     "Putrefy": 2,
+     "Domri Rade": 3,
      "Thundermaw Hellkite": 4,
-     "Scavenging Ooze": 3,
-     "Loxodon Smiter": 3,
-     "Hellrider": 2,
-     "Flinthoof Boar": 2,
-     "Boros Reckoner": 4,
-     "Avacyn's Pilgrim": 4
+     "Knight of Infamy": 3,
+     "Huntmaster of the Fells // Ravager of the Fells": 2,
+     "Ghor-Clan Rampager": 4,
+     "Flinthoof Boar": 4,
+     "Falkenrath Aristocrat": 4,
+     "Borderland Ranger": 1,
+     "Avacyn's Pilgrim": 3,
+     "Arbor Elf": 4
     }
    },
    "style": "aggro",
-   "style_why": "cards",
-   "label_count": 44
+   "style_why": "label",
+   "label_count": 31
   },
   {
-   "deck": 231923,
-   "event": 5516,
-   "archetype": "Red Deck Wins",
-   "player": "Joseph Herrera",
-   "event_name": "Starcitygames Open Series: Baltimore",
+   "deck": 227636,
+   "event": 4782,
+   "archetype": "URG Control",
+   "player": "Jeff Hoogland",
+   "event_name": "Starcitygames Open Series: Milwaukee",
    "stars": 3,
-   "rank": "1",
-   "date": "2013-08-24",
-   "summer": true,
-   "s": 1.0,
+   "rank": "3",
+   "date": "2013-04-13",
+   "summer": false,
+   "s": 0.4463087130418078,
    "f": {
     "spells": 35,
     "lands": 25,
-    "creatures": 18,
+    "creatures": 15,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 11,
+    "avg_cmc": 2.57,
+    "pips": {
+     "W": 0,
+     "U": 18.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Think Twice": 3,
+     "Syncopate": 3,
+     "Izzet Charm": 3,
+     "Dissipate": 3,
+     "Mizzium Mortars": 4,
+     "Searing Spear": 4,
+     "Snapcaster Mage": 3,
+     "Wolfir Avenger": 4,
+     "Yeva, Nature's Herald": 4,
+     "Huntmaster of the Fells // Ravager of the Fells": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 227318,
+   "event": 4729,
+   "archetype": "Weird Reanimator",
+   "player": "Jonathan Phippen",
+   "event_name": "WMCQ '13 (Cape Town, South Africa)",
+   "stars": 2,
+   "rank": "4",
+   "date": "2013-04-07",
+   "summer": false,
+   "s": 0.3058823529411765,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 10,
     "counters": 0,
     "sweepers": 3,
-    "draw": 0,
-    "burn": 13,
-    "avg_cmc": 2.97,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 3.24,
     "pips": {
-     "W": 6.0,
+     "W": 21.0,
      "U": 0,
-     "B": 0,
-     "R": 53.0,
+     "B": 17.0,
+     "R": 23.0,
      "G": 0
     },
     "colors": [
      "W",
+     "B",
      "R"
     ],
     "names": {
-     "Boros Reckoner": 4,
-     "Ash Zealot": 4,
-     "Pillar of Flame": 4,
-     "Searing Spear": 4,
-     "Brimstone Volley": 3,
-     "Burning Earth": 4,
-     "Chandra, Pyromaster": 2,
-     "Chandra's Phoenix": 4,
-     "Hellrider": 3,
-     "Thundermaw Hellkite": 3
+     "Assemble the Legion": 1,
+     "Blasphemous Act": 1,
+     "Rakdos's Return": 1,
+     "Rolling Temblor": 1,
+     "Liliana of the Veil": 2,
+     "Unburial Rites": 2,
+     "Tragic Slip": 2,
+     "Dreadbore": 3,
+     "Mizzium Mortars": 3,
+     "Faithless Looting": 4,
+     "Lingering Souls": 4,
+     "Olivia Voldaren": 1,
+     "Thundermaw Hellkite": 1,
+     "Obzedat, Ghost Council": 2,
+     "Angel of Serenity": 2,
+     "Boros Reckoner": 4
     }
    },
-   "style": "aggro",
+   "style": "combo",
    "style_why": "label",
-   "label_count": 20
+   "label_count": 1
   },
   {
-   "deck": 228555,
-   "event": 4944,
-   "archetype": "Bant Hexproof",
-   "player": "Takahashi Jun\u00b4ya",
-   "event_name": "WMCQ '13 (Tokyo, Japan)",
-   "stars": 3,
-   "rank": "1",
-   "date": "2013-04-07",
+   "deck": 228895,
+   "event": 5008,
+   "archetype": "4CC Griffin",
+   "player": "Guillaume Louvel",
+   "event_name": "All Star Caen 2013",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2013-05-26",
    "summer": false,
-   "s": 0.8,
+   "s": 0.28309804904252894,
    "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 16,
+    "spells": 36,
+    "lands": 24,
+    "creatures": 10,
     "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
+    "sweepers": 4,
+    "draw": 5,
     "burn": 0,
-    "avg_cmc": 2.05,
+    "avg_cmc": 3.08,
     "pips": {
-     "W": 22.0,
-     "U": 14.0,
-     "B": 4.0,
+     "W": 4.0,
+     "U": 20.0,
+     "B": 23.0,
      "R": 0,
-     "G": 14.0
+     "G": 11.0
     },
     "colors": [
-     "W",
      "U",
+     "B",
      "G"
     ],
     "names": {
-     "Simic Charm": 2,
-     "Rancor": 4,
-     "Gift of Orzhova": 4,
-     "Ethereal Armor": 4,
-     "Silverblade Paladin": 2,
-     "Loxodon Smiter": 4,
-     "Invisible Stalker": 4,
-     "Geist of Saint Traft": 4,
-     "Fencing Ace": 2,
-     "Avacyn's Pilgrim": 4,
-     "Spectral Flight": 4
+     "Obzedat, Ghost Council": 1,
+     "Deathrite Shaman": 2,
+     "Snapcaster Mage": 2,
+     "Thragtusk": 2,
+     "Misthollow Griffin": 3,
+     "Liliana of the Veil": 2,
+     "Abrupt Decay": 2,
+     "Far // Away": 2,
+     "Putrefy": 2,
+     "Sphinx's Revelation": 2,
+     "Forbidden Alchemy": 3,
+     "Thought Scour": 3,
+     "Unburial Rites": 2,
+     "Farseek": 4,
+     "Mutilate": 4
     }
    },
-   "style": "aggro",
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 229850,
+   "event": 5178,
+   "archetype": "Esper Control (Solar Flare)",
+   "player": "Robert Seder",
+   "event_name": "Starcitygames Open Series: Philadelphia",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-06-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 5,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 3.39,
+    "pips": {
+     "W": 17.0,
+     "U": 37.0,
+     "B": 5.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Terminus": 4,
+     "Think Twice": 3,
+     "Syncopate": 2,
+     "Sphinx's Revelation": 4,
+     "Far // Away": 4,
+     "Dissipate": 2,
+     "Cyclonic Rift": 1,
+     "Azorius Charm": 3,
+     "Restoration Angel": 1,
+     "Snapcaster Mage": 4,
+     "Jace, Architect of Thought": 2,
+     "Jace, Memory Adept": 1,
+     "Sorin, Lord of Innistrad": 1,
+     "Tamiyo, the Moon Sage": 1
+    }
+   },
+   "style": "control",
    "style_why": "label",
-   "label_count": 42
+   "label_count": 34
   },
   {
    "deck": 230279,
@@ -820,57 +1346,6 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 24
-  },
-  {
-   "deck": 227391,
-   "event": 4739,
-   "archetype": "Prime Speaker Bant",
-   "player": "Matt Sperling",
-   "event_name": "PTQ Theros (Santa Clara, California)",
-   "stars": 3,
-   "rank": "1",
-   "date": "2013-04-07",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 16,
-    "counters": 2,
-    "sweepers": 2,
-    "draw": 6,
-    "burn": 0,
-    "avg_cmc": 3.4,
-    "pips": {
-     "W": 29.0,
-     "U": 19.0,
-     "B": 0,
-     "R": 0,
-     "G": 19.0
-    },
-    "colors": [
-     "W",
-     "U",
-     "G"
-    ],
-    "names": {
-     "Restoration Angel": 4,
-     "Loxodon Smiter": 4,
-     "Thragtusk": 4,
-     "Angel of Serenity": 2,
-     "Prime Speaker Zegana": 2,
-     "Farseek": 4,
-     "Sphinx's Revelation": 3,
-     "Supreme Verdict": 2,
-     "Syncopate": 2,
-     "Detention Sphere": 2,
-     "Azorius Charm": 3,
-     "Selesnya Charm": 3
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 15
   },
   {
    "deck": 222200,
@@ -925,57 +1400,6 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 12
-  },
-  {
-   "deck": 221676,
-   "event": 3599,
-   "archetype": "Tokens",
-   "player": "Marc Blesso",
-   "event_name": "Starcitygames Open Series: Providence",
-   "stars": 3,
-   "rank": "1",
-   "date": "2012-10-13",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 14,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 3,
-    "avg_cmc": 3.03,
-    "pips": {
-     "W": 18.0,
-     "U": 0,
-     "B": 4.0,
-     "R": 0,
-     "G": 23.0
-    },
-    "colors": [
-     "W",
-     "G"
-    ],
-    "names": {
-     "Sever the Bloodline": 1,
-     "Lingering Souls": 4,
-     "Sorin, Lord of Innistrad": 3,
-     "Garruk Relentless // Garruk, the Veil-Cursed": 3,
-     "Selesnya Charm": 2,
-     "Oblivion Ring": 1,
-     "Intangible Virtue": 3,
-     "Thragtusk": 4,
-     "Borderland Ranger": 4,
-     "Avacyn's Pilgrim": 4,
-     "Armada Wurm": 1,
-     "Arbor Elf": 4,
-     "Angel of Serenity": 1
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 10
   },
   {
    "deck": 225052,
@@ -1230,60 +1654,226 @@
    "style": "control",
    "style_why": "label",
    "label_count": 1
+  },
+  {
+   "deck": 442178,
+   "event": 31168,
+   "archetype": "Boros Humans",
+   "player": "Kyle Schriner",
+   "event_name": "PTQ Theros (Burnsville, Minnesota)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-08-10",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 48.0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Brave the Elements": 3,
+     "Searing Spear": 4,
+     "Doomed Traveler": 1,
+     "Thalia, Guardian of Thraben": 4,
+     "Sublime Archangel": 4,
+     "Silverblade Paladin": 4,
+     "Knight of Glory": 4,
+     "Fiendslayer Paladin": 4,
+     "Champion of the Parish": 4,
+     "Banisher Priest": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 229110,
+   "event": 5047,
+   "archetype": "Naya Human",
+   "player": "Jake Dietrich",
+   "event_name": "2013 Spring States - Nebraska",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-05-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 33,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 0,
+     "R": 17.0,
+     "G": 18.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Searing Spear": 3,
+     "Viashino Firstblade": 4,
+     "Thalia, Guardian of Thraben": 3,
+     "Mayor of Avabruck // Howlpack Alpha": 4,
+     "Lightning Mauler": 4,
+     "Ghor-Clan Rampager": 2,
+     "Flinthoof Boar": 4,
+     "Experiment One": 4,
+     "Champion of the Parish": 4,
+     "Burning-Tree Emissary": 4,
+     "Boros Elite": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 44
+  },
+  {
+   "deck": 696003,
+   "event": 65589,
+   "archetype": "Jundanimator",
+   "player": "Bernhard Hendrawan",
+   "event_name": "WMCQ @ Jakarta (Indonesia)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-06-02",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 3.43,
+    "pips": {
+     "W": 21.0,
+     "U": 0,
+     "B": 10.0,
+     "R": 16.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Mizzium Mortars": 2,
+     "Harvest Pyre": 2,
+     "Lingering Souls": 3,
+     "Mulch": 4,
+     "Faithless Looting": 4,
+     "Unburial Rites": 4,
+     "Grisly Salvage": 4,
+     "Olivia Voldaren": 1,
+     "Sire of Insanity": 1,
+     "Thragtusk": 4,
+     "Angel of Serenity": 4,
+     "Boros Reckoner": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 225222,
+   "event": 4326,
+   "archetype": "UWR Aggro",
+   "player": "Jimmy Wild",
+   "event_name": "Grand Prix Trial London Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-02-09",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 10,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 14.0,
+     "U": 6.0,
+     "B": 2.0,
+     "R": 38.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Ash Zealot": 4,
+     "Boros Reckoner": 4,
+     "Geist of Saint Traft": 3,
+     "Hellrider": 4,
+     "Rakdos Cackler": 4,
+     "Snapcaster Mage": 2,
+     "Stromkirk Noble": 4,
+     "Blind Obedience": 1,
+     "Boros Charm": 4,
+     "Pillar of Flame": 2,
+     "Searing Spear": 4,
+     "Unsummon": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
   }
  ],
- "pool_size": 38,
+ "pool_size": 78,
  "rejected_illegal": [
   {
-   "archetype": "BW Aristocrats",
-   "deck": 230679,
-   "player": "AJ Sacher",
+   "archetype": "BWR Control",
+   "deck": 231600,
+   "player": "Ricky Goff",
    "why": [
-    "unknown card: Profit / Loss"
-   ]
-  },
-  {
-   "archetype": "Esper Control (Solar Flare)",
-   "deck": 229850,
-   "player": "Robert Seder",
-   "why": [
-    "unknown card: Far / Away"
-   ]
-  },
-  {
-   "archetype": "UWr Control",
-   "deck": 228956,
-   "player": "Ken-Min Yeoh",
-   "why": [
-    "unknown card: Turn / Burn"
-   ]
-  },
-  {
-   "archetype": "Esper Control",
-   "deck": 231881,
-   "player": "Hiroaki Kitahara",
-   "why": [
-    "unknown card: Far / Away"
-   ]
-  },
-  {
-   "archetype": "BW Humans",
-   "deck": 231887,
-   "player": "Tatsuya Haseba",
-   "why": [
-    "unknown card: Profit / Loss"
-   ]
-  },
-  {
-   "archetype": "Boros Humans",
-   "deck": 442178,
-   "player": "Kyle Schriner",
-   "why": [
-    "unknown card: Wear / Tear"
+    "5x Blood Baron of Vizkopa (over the four-copy limit)"
    ]
   }
  ],
  "duplicates_dropped": [
+  {
+   "dropped": "BW Aristocrats",
+   "player": "AJ Sacher",
+   "kept": "Aristocrats",
+   "kept_player": "nicholas mudd"
+  },
   {
    "dropped": "Jund Control",
    "player": "Reid Duke / reiderrabbit",
@@ -1303,10 +1893,10 @@
    "kept_player": "Sean Weihe"
   },
   {
-   "dropped": "UWr Control",
-   "player": "Pierre Dagen",
-   "kept": "Esper Control (Solar Flare)",
-   "kept_player": "Matthias Hunt"
+   "dropped": "BW Humans",
+   "player": "Tatsuya Haseba",
+   "kept": "Aristocrats",
+   "kept_player": "nicholas mudd"
   },
   {
    "dropped": "Naya Blitz",
@@ -1353,8 +1943,8 @@
   {
    "dropped": "UW Control",
    "player": "Jake Moldosky",
-   "kept": "Esper Control (Solar Flare)",
-   "kept_player": "Matthias Hunt"
+   "kept": "UW Flash",
+   "kept_player": "Elie Pichon"
   },
   {
    "dropped": "MBC Golgari",
@@ -1367,20 +1957,183 @@
    "player": "Kevin Jones",
    "kept": "UW Flash",
    "kept_player": "Elie Pichon"
+  },
+  {
+   "dropped": "Obv UWr",
+   "player": "Guillaume Matignon",
+   "kept": "UWr Control",
+   "kept_player": "Ken-Min Yeoh"
+  },
+  {
+   "dropped": "Bant Aggro",
+   "player": "Feryy Ijaya",
+   "kept": "Bant Hexproof",
+   "kept_player": "Takahashi Jun\u00b4ya"
+  },
+  {
+   "dropped": "BUG Duskmantle",
+   "player": "Thomas Leray",
+   "kept": "BUG Persist Aggro",
+   "kept_player": "Thomas McVeigh"
+  },
+  {
+   "dropped": "Naya Aggro",
+   "player": "Dylan Draper",
+   "kept": "Selesnya Aggro / Naya",
+   "kept_player": "Joseph Herrera"
+  },
+  {
+   "dropped": "UW Miracle",
+   "player": "Edgar Flores",
+   "kept": "UWR Control",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "Wr Humans",
+   "player": "ThomasHerkenhoff",
+   "kept": "Boros Humans",
+   "kept_player": "Kyle Schriner"
+  },
+  {
+   "dropped": "Wur Control",
+   "player": "Donny Peck",
+   "kept": "UWr Midrange",
+   "kept_player": "JacobGagnon"
+  },
+  {
+   "dropped": "Mono Black Control",
+   "player": "Robbie Cordell",
+   "kept": "Golgari Control",
+   "kept_player": "Othon Voutsis"
+  },
+  {
+   "dropped": "U So Kull",
+   "player": "Victor Hartanto",
+   "kept": "Jundanimator",
+   "kept_player": "Bernhard Hendrawan"
+  },
+  {
+   "dropped": "R\u00e9animator",
+   "player": "Yann Dommanschet",
+   "kept": "Reanimator",
+   "kept_player": "Tom Strong"
+  },
+  {
+   "dropped": "Turbo Fog",
+   "player": "S\u00b8ren Larsen",
+   "kept": "Fog",
+   "kept_player": "BReal2"
+  },
+  {
+   "dropped": "Rug Control",
+   "player": "Adam Craig Katz",
+   "kept": "URG Control",
+   "kept_player": "Jeff Hoogland"
+  },
+  {
+   "dropped": "Fat Red",
+   "player": "Aaron Muranaka",
+   "kept": "Red Deck Wins",
+   "kept_player": "Joseph Herrera"
+  },
+  {
+   "dropped": "Reanimate",
+   "player": "Mark Hadiwidjaja",
+   "kept": "Reanimator",
+   "kept_player": "Tom Strong"
+  },
+  {
+   "dropped": "THE ONLY FIRST MODAFUCKIN' TRUE  PATRIOT",
+   "player": "Cl\u00e9ment \"noskcaj\" Sillere",
+   "kept": "UWr Midrange",
+   "kept_player": "JacobGagnon"
+  },
+  {
+   "dropped": "Selesnya Token",
+   "player": "Wes Stapley",
+   "kept": "I have a dream. Doubling season.",
+   "kept_player": "Ryan Dail"
+  },
+  {
+   "dropped": "UWR Midrange",
+   "player": "Joel Larsson",
+   "kept": "UWr Midrange",
+   "kept_player": "JacobGagnon"
+  },
+  {
+   "dropped": "UWR Delver",
+   "player": "Ralph Creighton",
+   "kept": "UWx Midrange",
+   "kept_player": "Ryan Hipp"
+  },
+  {
+   "dropped": "RUG Aggro",
+   "player": "Patrick Hardison",
+   "kept": "URG Control",
+   "kept_player": "Jeff Hoogland"
+  },
+  {
+   "dropped": "Burn / Heavy Red",
+   "player": "Adam Laforest",
+   "kept": "Red Deck Wins",
+   "kept_player": "Joseph Herrera"
+  },
+  {
+   "dropped": "Sa\u00efto Naya",
+   "player": "Eric Froehlich",
+   "kept": "Naya",
+   "kept_player": "Rudy Briksza"
+  },
+  {
+   "dropped": "WG Humans",
+   "player": "Peter Kelly",
+   "kept": "Boros Humans",
+   "kept_player": "Kyle Schriner"
+  },
+  {
+   "dropped": "UW Delver Midrange",
+   "player": "Yuuta Takahashi",
+   "kept": "UW Midrange",
+   "kept_player": "Matt Nass"
+  },
+  {
+   "dropped": "Kessig Bant",
+   "player": "Melissa DeTora",
+   "kept": "Bant Control",
+   "kept_player": "Reid Duke"
+  },
+  {
+   "dropped": "Patriot",
+   "player": "Piotr Wald",
+   "kept": "UWx Midrange",
+   "kept_player": "Ryan Hipp"
+  },
+  {
+   "dropped": "UW Tempo",
+   "player": "Lukas Tajak",
+   "kept": "UW Flash",
+   "kept_player": "Elie Pichon"
+  },
+  {
+   "dropped": "Azorius Humans",
+   "player": "Jonas Wienand",
+   "kept": "Boros Humans",
+   "kept_player": "Kyle Schriner"
   }
  ],
- "objective": 9.776304383249144,
+ "objective": 17.68961096210754,
  "pool_colors": {
-  "B": 15,
-  "R": 19,
-  "G": 24,
-  "W": 29,
-  "U": 12
+  "B": 35,
+  "R": 37,
+  "G": 48,
+  "W": 53,
+  "U": 27
  },
  "pool_styles": {
-  "midrange": 10,
-  "aggro": 17,
-  "combo": 2,
-  "control": 9
- }
+  "midrange": 20,
+  "aggro": 34,
+  "combo": 3,
+  "control": 21
+ },
+ "kept_lost": []
 }

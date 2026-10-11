@@ -124,6 +124,58 @@
    "label_count": 1
   },
   {
+   "deck": 207201,
+   "event": 595,
+   "archetype": "Not Quite Gro",
+   "player": "Cavern Ninja",
+   "event_name": "Big Arse II - New York (USA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2005-07-17",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 6,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 12.0,
+     "U": 37.0,
+     "B": 0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Disenchant": 2,
+     "Stifle": 2,
+     "Counterspell": 2,
+     "Daze": 3,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Accumulated Knowledge": 4,
+     "Predict": 4,
+     "Serum Visions": 4,
+     "Brainstorm": 4,
+     "Mystic Enforcer": 2,
+     "Meddling Mage": 4,
+     "Werebear": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
    "deck": 206752,
    "event": 190,
    "archetype": "R Tiger Sligh",
@@ -269,76 +321,249 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 1
+  },
+  {
+   "deck": 206757,
+   "event": 190,
+   "archetype": "WRG Zoo",
+   "player": "Matt Holmen",
+   "event_name": "GenCon 2005 Legacy Championship",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2005-08-29",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 15.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Blastoderm": 3,
+     "Goblin Legionnaire": 3,
+     "Isamaru, Hound of Konda": 2,
+     "Kird Ape": 4,
+     "Savannah Lions": 2,
+     "Troll Ascetic": 3,
+     "Werebear": 4,
+     "Armageddon": 2,
+     "Fire // Ice": 2,
+     "Incinerate": 2,
+     "Isochron Scepter": 3,
+     "Lightning Bolt": 4,
+     "Swords to Plowshares": 4,
+     "Tithe": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 207205,
+   "event": 595,
+   "archetype": "RGSA",
+   "player": "Jeff",
+   "event_name": "Big Arse II - New York (USA)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2005-07-17",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 10.0,
+     "G": 42.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Naturalize": 2,
+     "Burning Wish": 3,
+     "Survival of the Fittest": 4,
+     "Rofellos, Llanowar Emissary": 1,
+     "Spore Frog": 1,
+     "Viridian Zealot": 1,
+     "Deranged Hermit": 1,
+     "Genesis": 1,
+     "Goblin Sharpshooter": 1,
+     "Squee, Goblin Nabob": 1,
+     "Anger": 1,
+     "Ravenous Baloth": 3,
+     "Troll Ascetic": 3,
+     "Llanowar Elves": 4,
+     "Flametongue Kavu": 4,
+     "Eternal Witness": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207206,
+   "event": 595,
+   "archetype": "Crappy Survival Junk",
+   "player": "Watcher487",
+   "event_name": "Big Arse II - New York (USA)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2005-07-17",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 5.0,
+     "G": 41.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Umezawa's Jitte": 4,
+     "Aether Vial": 4,
+     "Land Grant": 2,
+     "Survival of the Fittest": 4,
+     "Anger": 1,
+     "Fangren Firstborn": 1,
+     "Flametongue Kavu": 1,
+     "Genesis": 1,
+     "Goblin Sharpshooter": 1,
+     "Granger Guildmage": 1,
+     "Orcish Settlers": 1,
+     "Quirion Ranger": 1,
+     "Rofellos, Llanowar Emissary": 1,
+     "Sakura-Tribe Elder": 1,
+     "Spore Frog": 1,
+     "Squee, Goblin Nabob": 1,
+     "Stampeding Wildebeests": 1,
+     "Wall of Blossoms": 1,
+     "Eternal Witness": 2,
+     "Spike Feeder": 2,
+     "Troll Ascetic": 2,
+     "Viridian Zealot": 2,
+     "Fyndhorn Elves": 2,
+     "Llanowar Elves": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207208,
+   "event": 595,
+   "archetype": "Angel Stompy Variant",
+   "player": "Philip Stolze",
+   "event_name": "Big Arse II - New York (USA)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2005-07-17",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 3,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 38.0,
+     "U": 4.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Chrome Mox": 2,
+     "Swords to Plowshares": 4,
+     "Tithe": 2,
+     "Sword of Fire and Ice": 3,
+     "Umezawa's Jitte": 2,
+     "Duress": 4,
+     "Seal of Cleansing": 2,
+     "Isamaru, Hound of Konda": 1,
+     "Silver Knight": 4,
+     "Spectral Lynx": 3,
+     "Exalted Angel": 4,
+     "Soltari Priest": 3,
+     "Meddling Mage": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
   }
  ],
  "alternates": [],
- "pool_size": 4,
- "rejected_illegal": [
-  {
-   "archetype": "Not Quite Gro",
-   "deck": 207201,
-   "player": "Cavern Ninja",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UR Landstill",
-   "deck": 206755,
-   "player": "Raymond Robilland",
-   "why": [
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "WRG Zoo",
-   "deck": 206757,
-   "player": "Matt Holmen",
-   "why": [
-    "Blastoderm (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Landstill (UWr)",
-   "deck": 207203,
-   "player": "RayD3",
-   "why": [
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "RGSA",
-   "deck": 207205,
-   "player": "Jeff",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Crappy Survival Junk",
-   "deck": 207206,
-   "player": "Watcher487",
-   "why": [
-    "Stampede Driver (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Angel Stompy Variant",
-   "deck": 207208,
-   "player": "Philip Stolze",
-   "why": [
-    "Seal of Cleansing (not in legal sets)"
-   ]
-  }
- ],
+ "pool_size": 9,
+ "rejected_illegal": [],
  "duplicates_dropped": [
   {
    "dropped": "RW Vial Goblins",
    "player": "Noah Swartz",
    "kept": "R Vial Goblins",
    "kept_player": "Michael Riley"
+  },
+  {
+   "dropped": "UR Landstill",
+   "player": "Raymond Robilland",
+   "kept": "UW Landstill",
+   "kept_player": "Zvi Mowshowitz"
+  },
+  {
+   "dropped": "Landstill (UWr)",
+   "player": "RayD3",
+   "kept": "UW Landstill",
+   "kept_player": "Zvi Mowshowitz"
   },
   {
    "dropped": "Vial Goblins",
@@ -353,14 +578,16 @@
    "kept_player": "Zvi Mowshowitz"
   }
  ],
- "objective": -6.9921141086977405,
+ "objective": -26.893186703655815,
  "pool_colors": {
-  "R": 3,
-  "W": 1,
-  "U": 1
+  "R": 6,
+  "W": 4,
+  "U": 2,
+  "G": 4
  },
  "pool_styles": {
-  "aggro": 3,
-  "control": 1
- }
+  "aggro": 7,
+  "control": 2
+ },
+ "kept_lost": []
 }

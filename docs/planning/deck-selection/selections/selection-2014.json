@@ -108,6 +108,56 @@
    "label_count": 146
   },
   {
+   "deck": 246643,
+   "event": 8094,
+   "archetype": "Orzhov Control",
+   "player": "Rosmarudin Faizal",
+   "event_name": "WMCQ - Singapore #2",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-08-31",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 10.0,
+     "U": 4.5,
+     "B": 46.5,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Devour Flesh": 3,
+     "Hero's Downfall": 4,
+     "Banishing Light": 1,
+     "Underworld Connections": 3,
+     "Bile Blight": 3,
+     "Thoughtseize": 4,
+     "Elspeth, Sun's Champion": 2,
+     "Pack Rat": 4,
+     "Obzedat, Ghost Council": 1,
+     "Nightveil Specter": 3,
+     "Desecration Demon": 3,
+     "Blood Baron of Vizkopa": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 68
+  },
+  {
    "deck": 245535,
    "event": 7915,
    "archetype": "Selesnya Aggro",
@@ -405,6 +455,57 @@
    "label_count": 78
   },
   {
+   "deck": 233978,
+   "event": 5854,
+   "archetype": "Jund Aggro",
+   "player": "Jordan Welzbacher",
+   "event_name": "Michigan State Championship 2013",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-10-13",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 5,
+    "avg_cmc": 2.61,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 12.0,
+     "R": 21.0,
+     "G": 27.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Burning-Tree Emissary": 4,
+     "Dreg Mangler": 4,
+     "Mistcutter Hydra": 3,
+     "Polukranos, World Eater": 2,
+     "Scavenging Ooze": 3,
+     "Stormbreath Dragon": 3,
+     "Sylvan Caryatid": 4,
+     "Xenagos, the Reveler": 3,
+     "Dreadbore": 3,
+     "Mizzium Mortars": 2,
+     "Putrefy": 2,
+     "Rakdos's Return": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 48
+  },
+  {
    "deck": 233753,
    "event": 5810,
    "archetype": "Gruul Team",
@@ -502,217 +603,6 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 18
-  },
-  {
-   "deck": 246643,
-   "event": 8094,
-   "archetype": "Orzhov Control",
-   "player": "Rosmarudin Faizal",
-   "event_name": "WMCQ - Singapore #2",
-   "stars": 3,
-   "rank": "1",
-   "date": "2014-08-31",
-   "summer": true,
-   "s": 1.0,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 14,
-    "counters": 0,
-    "sweepers": 2,
-    "draw": 3,
-    "burn": 0,
-    "avg_cmc": 2.97,
-    "pips": {
-     "W": 10.0,
-     "U": 4.5,
-     "B": 46.5,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "B"
-    ],
-    "names": {
-     "Devour Flesh": 3,
-     "Hero's Downfall": 4,
-     "Banishing Light": 1,
-     "Underworld Connections": 3,
-     "Bile Blight": 3,
-     "Thoughtseize": 4,
-     "Elspeth, Sun's Champion": 2,
-     "Pack Rat": 4,
-     "Obzedat, Ghost Council": 1,
-     "Nightveil Specter": 3,
-     "Desecration Demon": 3,
-     "Blood Baron of Vizkopa": 3
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 68
-  },
-  {
-   "deck": 233978,
-   "event": 5854,
-   "archetype": "Jund Aggro",
-   "player": "Jordan Welzbacher",
-   "event_name": "Michigan State Championship 2013",
-   "stars": 3,
-   "rank": "1",
-   "date": "2013-10-13",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 36,
-    "lands": 24,
-    "creatures": 19,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 5,
-    "avg_cmc": 2.61,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 12.0,
-     "R": 21.0,
-     "G": 27.0
-    },
-    "colors": [
-     "B",
-     "R",
-     "G"
-    ],
-    "names": {
-     "Burning-Tree Emissary": 4,
-     "Dreg Mangler": 4,
-     "Mistcutter Hydra": 3,
-     "Polukranos, World Eater": 2,
-     "Scavenging Ooze": 3,
-     "Stormbreath Dragon": 3,
-     "Sylvan Caryatid": 4,
-     "Xenagos, the Reveler": 3,
-     "Dreadbore": 3,
-     "Mizzium Mortars": 2,
-     "Putrefy": 2,
-     "Rakdos's Return": 3
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 48
-  }
- ],
- "alternates": [
-  {
-   "deck": 246524,
-   "event": 8074,
-   "archetype": "Reanimator",
-   "player": "Albert Bayrante",
-   "event_name": "WMCQ - Philippines #1",
-   "stars": 3,
-   "rank": "2",
-   "date": "2014-08-17",
-   "summer": true,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 38,
-    "lands": 20,
-    "creatures": 20,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 3.68,
-    "pips": {
-     "W": 17.0,
-     "U": 0,
-     "B": 18.0,
-     "R": 0,
-     "G": 32.0
-    },
-    "colors": [
-     "W",
-     "B",
-     "G"
-    ],
-    "names": {
-     "Elvish Mystic": 4,
-     "Sylvan Caryatid": 4,
-     "Satyr Wayfinder": 4,
-     "Courser of Kruphix": 4,
-     "Blood Baron of Vizkopa": 3,
-     "Angel of Serenity": 3,
-     "Sylvan Primordial": 2,
-     "Grisly Salvage": 4,
-     "Obzedat's Aid": 4,
-     "Whip of Erebos": 2,
-     "Vraska the Unseen": 2,
-     "Ajani, Mentor of Heroes": 1,
-     "Garruk, Apex Predator": 1
-    }
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 3,
-   "swapped_out_reason": "mtgtop8 export for deck 246524 contains an unresolvable \"2 [] Unknown Card\" line (wave 34 lane D); replaced by deck 233978 (Jund Aggro, Jordan Welzbacher), the next clean alternate (the higher-scoring UWr Control alternate was already used for this era's other swap)."
-  },
-  {
-   "deck": 238190,
-   "event": 6646,
-   "archetype": "UWr Control",
-   "player": "Rob Catton",
-   "event_name": "PTQ Journey Into Nyx (Sheffield, England)",
-   "stars": 3,
-   "rank": "1",
-   "date": "2014-02-16",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 1,
-    "counters": 7,
-    "sweepers": 6,
-    "draw": 8,
-    "burn": 6,
-    "avg_cmc": 3.32,
-    "pips": {
-     "W": 26.0,
-     "U": 37.0,
-     "B": 0,
-     "R": 10.0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U",
-     "R"
-    ],
-    "names": {
-     "Azorius Charm": 2,
-     "Izzet Charm": 2,
-     "Syncopate": 1,
-     "Mizzium Mortars": 3,
-     "Last Breath": 1,
-     "Detention Sphere": 4,
-     "Dissolve": 2,
-     "Counterflux": 2,
-     "Warleader's Helix": 1,
-     "Jace, Architect of Thought": 3,
-     "Supreme Verdict": 4,
-     "Assemble the Legion": 2,
-     "Elspeth, Sun's Champion": 2,
-     "Aetherling": 1,
-     "Sphinx's Revelation": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 12,
-   "swapped_out_reason": "mtgtop8 export for deck 238190 contains an unresolvable \"SB: 2 [] Unknown Card\" line (wave 34 lane D); replaced by deck 246643 (Orzhov Control, Rosmarudin Faizal), the top-scoring alternate not already an archetype in this era."
   },
   {
    "deck": 244202,
@@ -817,6 +707,522 @@
    "label_count": 6
   },
   {
+   "deck": 234558,
+   "event": 5956,
+   "archetype": "Boros  Aggro",
+   "player": "Ben Lundquist",
+   "event_name": "Starcitygames Open Series: Los Angeles",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-11-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 26,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 44.0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 2.0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Spear of Heliod": 1,
+     "Ajani, Caller of the Pride": 3,
+     "Boros Charm": 4,
+     "Brave the Elements": 4,
+     "Azorius Arrester": 2,
+     "Dryad Militant": 4,
+     "Daring Skyjek": 4,
+     "Boros Elite": 4,
+     "Precinct Captain": 4,
+     "Soldier of the Pantheon": 4,
+     "Frontline Medic": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 246168,
+   "event": 8015,
+   "archetype": "Jund",
+   "player": "Josef Vlach",
+   "event_name": "WMCQ Prague",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-19",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 5,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 11.0,
+     "R": 20.0,
+     "G": 33.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Sylvan Caryatid": 4,
+     "Elvish Mystic": 2,
+     "Abrupt Decay": 4,
+     "Dreadbore": 4,
+     "Rakdos's Return": 3,
+     "Xenagos, the Reveler": 3,
+     "Chandra, Pyromaster": 2,
+     "Stormbreath Dragon": 3,
+     "Polukranos, World Eater": 4,
+     "Courser of Kruphix": 4,
+     "Scavenging Ooze": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 27
+  },
+  {
+   "deck": 246739,
+   "event": 8112,
+   "archetype": "WR Burn",
+   "player": "Jos\u00e9 Ortiz",
+   "event_name": "WMCQ - Medell\u00edn, Colombia",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-08-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 27,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 0,
+     "R": 49.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Shock": 4,
+     "Boros Charm": 4,
+     "Searing Blood": 4,
+     "Lightning Strike": 4,
+     "Warleader's Helix": 4,
+     "Skullcrack": 3,
+     "Stoke the Flames": 4,
+     "Chandra's Phoenix": 4,
+     "Young Pyromancer": 4,
+     "Eidolon of the Great Revel": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 242568,
+   "event": 7436,
+   "archetype": "UWr Control",
+   "player": "Trevor Humphries",
+   "event_name": "States/Champs New York",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 2,
+    "counters": 8,
+    "sweepers": 7,
+    "draw": 6,
+    "burn": 3,
+    "avg_cmc": 3.47,
+    "pips": {
+     "W": 24.0,
+     "U": 41.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Magma Spray": 1,
+     "Fated Retribution": 1,
+     "Deicide": 1,
+     "Elixir of Immortality": 1,
+     "Elspeth, Sun's Champion": 2,
+     "Turn // Burn": 2,
+     "Syncopate": 2,
+     "Izzet Charm": 2,
+     "Dissolve": 2,
+     "Counterflux": 2,
+     "Jace, Architect of Thought": 4,
+     "Supreme Verdict": 4,
+     "Sphinx's Revelation": 4,
+     "Detention Sphere": 4,
+     "Aetherling": 1,
+     "Keranos, God of Storms": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 238915,
+   "event": 6774,
+   "archetype": "Esper Midrange",
+   "player": "Dominic Musolino",
+   "event_name": "GP Melbourne 2014 - Grinders Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-02-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 23,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 41.0,
+     "U": 16.0,
+     "B": 11.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Negate": 2,
+     "Spear of Heliod": 2,
+     "Whip of Erebos": 1,
+     "Far // Away": 3,
+     "Detention Sphere": 4,
+     "Soldier of the Pantheon": 4,
+     "Precinct Captain": 4,
+     "Obzedat, Ghost Council": 3,
+     "Lyev Skyknight": 4,
+     "Imposing Sovereign": 2,
+     "Ephara, God of the Polis": 3,
+     "Brimaz, King of Oreskos": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 242994,
+   "event": 7497,
+   "archetype": "4c PW Control",
+   "player": "Ryan Reeves",
+   "event_name": "States/Champs Idaho",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 26,
+    "creatures": 0,
+    "counters": 2,
+    "sweepers": 5,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 3.2,
+    "pips": {
+     "W": 21.0,
+     "U": 30.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Negate": 1,
+     "Syncopate": 1,
+     "Elspeth, Sun's Champion": 1,
+     "Banishing Light": 1,
+     "Elixir of Immortality": 1,
+     "Vraska the Unseen": 1,
+     "Kiora, the Crashing Wave": 2,
+     "Hero's Downfall": 2,
+     "Doom Blade": 2,
+     "Jace, Architect of Thought": 3,
+     "Urban Evolution": 3,
+     "Sphinx's Revelation": 3,
+     "Abrupt Decay": 3,
+     "Azorius Charm": 3,
+     "Supreme Verdict": 4,
+     "Detention Sphere": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 242977,
+   "event": 7495,
+   "archetype": "Reanimator",
+   "player": "Justin Miller",
+   "event_name": "States/Champs Nevada",
+   "stars": 2,
+   "rank": "2",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.61,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 22.0,
+     "R": 0,
+     "G": 32.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Obzedat's Aid": 4,
+     "Whip of Erebos": 2,
+     "Grisly Salvage": 4,
+     "Vraska the Unseen": 2,
+     "Elspeth, Sun's Champion": 3,
+     "Obzedat, Ghost Council": 2,
+     "Courser of Kruphix": 4,
+     "Sylvan Primordial": 3,
+     "Sylvan Caryatid": 4,
+     "Shadowborn Demon": 2,
+     "Satyr Wayfinder": 4,
+     "Elvish Mystic": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 233430,
+   "event": 5770,
+   "archetype": "Orzhov Devotion",
+   "player": "JonathanBrostoff",
+   "event_name": "Illinois State Championship 2013",
+   "stars": 2,
+   "rank": "2",
+   "date": "2013-10-09",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 37,
+    "lands": 25,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 3.49,
+    "pips": {
+     "W": 7.0,
+     "U": 6.0,
+     "B": 61.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Underworld Connections": 1,
+     "Liliana of the Dark Realms": 1,
+     "Pharika's Cure": 1,
+     "Doom Blade": 4,
+     "Hero's Downfall": 4,
+     "Whip of Erebos": 4,
+     "Lifebane Zombie": 1,
+     "Obzedat, Ghost Council": 2,
+     "Blood Baron of Vizkopa": 3,
+     "Desecration Demon": 4,
+     "Nightveil Specter": 4,
+     "Gray Merchant of Asphodel": 4,
+     "Blood Scrivener": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 243005,
+   "event": 7498,
+   "archetype": "BUG Control",
+   "player": "Brian Pentz",
+   "event_name": "States/Champs Delaware",
+   "stars": 2,
+   "rank": "3",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.34129489820844133,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 3,
+    "sweepers": 5,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 3.36,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 22.0,
+     "R": 0,
+     "G": 25.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Cyclonic Rift": 1,
+     "Kiora, the Crashing Wave": 2,
+     "Golgari Charm": 2,
+     "Jace, Architect of Thought": 2,
+     "Hero's Downfall": 3,
+     "Abrupt Decay": 3,
+     "Dissolve": 3,
+     "Aetherling": 2,
+     "Prophet of Kruphix": 3,
+     "Reaper of the Wilds": 3,
+     "Sylvan Caryatid": 4,
+     "Courser of Kruphix": 4,
+     "Desecration Demon": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 233867,
+   "event": 5827,
+   "archetype": "Prime Speaker Bant",
+   "player": "Chris Starr",
+   "event_name": "Ohio State Championship 2013",
+   "stars": 2,
+   "rank": "4",
+   "date": "2013-10-05",
+   "summer": false,
+   "s": 0.3058823529411765,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.54,
+    "pips": {
+     "W": 0,
+     "U": 15.0,
+     "B": 25.0,
+     "R": 0,
+     "G": 30.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Prognostic Sphinx": 2,
+     "Prime Speaker Zegana": 3,
+     "Desecration Demon": 4,
+     "Boon Satyr": 4,
+     "Aetherling": 1,
+     "Scavenging Ooze": 2,
+     "Sylvan Caryatid": 4,
+     "Varolz, the Scar-Striped": 1,
+     "Witchstalker": 2,
+     "Abrupt Decay": 3,
+     "Far // Away": 3,
+     "Hero's Downfall": 2,
+     "Putrefy": 2,
+     "Whip of Erebos": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
    "deck": 242846,
    "event": 7477,
    "archetype": "Naya Control",
@@ -919,64 +1325,14 @@
    "label_count": 1
   },
   {
-   "deck": 246168,
-   "event": 8015,
-   "archetype": "Jund",
-   "player": "Josef Vlach",
-   "event_name": "WMCQ Prague",
+   "deck": 243229,
+   "event": 7536,
+   "archetype": "Naya Aggro",
+   "player": "Nick Peternell",
+   "event_name": "States/Champs N. California",
    "stars": 2,
    "rank": "1",
-   "date": "2014-08-19",
-   "summer": true,
-   "s": 0.7647058823529412,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 19,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 5,
-    "avg_cmc": 2.78,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 11.0,
-     "R": 20.0,
-     "G": 33.0
-    },
-    "colors": [
-     "B",
-     "R",
-     "G"
-    ],
-    "names": {
-     "Sylvan Caryatid": 4,
-     "Elvish Mystic": 2,
-     "Abrupt Decay": 4,
-     "Dreadbore": 4,
-     "Rakdos's Return": 3,
-     "Xenagos, the Reveler": 3,
-     "Chandra, Pyromaster": 2,
-     "Stormbreath Dragon": 3,
-     "Polukranos, World Eater": 4,
-     "Courser of Kruphix": 4,
-     "Scavenging Ooze": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 27
-  },
-  {
-   "deck": 234163,
-   "event": 5890,
-   "archetype": "Gruul Aggro",
-   "player": "Matthew Badger",
-   "event_name": "New Hampshire State Championship 2013",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-10-05",
+   "date": "2014-05-17",
    "summer": false,
    "s": 0.611764705882353,
    "f": {
@@ -986,63 +1342,14 @@
     "counters": 0,
     "sweepers": 0,
     "draw": 0,
-    "burn": 8,
-    "avg_cmc": 2.21,
+    "burn": 3,
+    "avg_cmc": 1.95,
     "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 2.0,
-     "R": 46.0,
-     "G": 10.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Domri Rade": 2,
-     "Chandra, Pyromaster": 2,
-     "Shock": 2,
-     "Lightning Strike": 4,
-     "Firefist Striker": 4,
-     "Burning-Tree Emissary": 4,
-     "Rakdos Cackler": 4,
-     "Ghor-Clan Rampager": 4,
-     "Chandra's Phoenix": 4,
-     "Firedrinker Satyr": 4,
-     "Ash Zealot": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 15
-  },
-  {
-   "deck": 235624,
-   "event": 6176,
-   "archetype": "Naya Aggro",
-   "player": "Juergen Smutek",
-   "event_name": "GP Vienna 2013 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-11-29",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 36,
-    "lands": 24,
-    "creatures": 15,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 9,
-    "avg_cmc": 2.28,
-    "pips": {
-     "W": 28.0,
+     "W": 32.5,
      "U": 0,
      "B": 0,
-     "R": 18.0,
-     "G": 19.0
+     "R": 11.5,
+     "G": 20.0
     },
     "colors": [
      "W",
@@ -1050,17 +1357,17 @@
      "G"
     ],
     "names": {
-     "Chandra, Pyromaster": 3,
-     "Chained to the Rocks": 4,
-     "Mizzium Mortars": 2,
-     "Advent of the Wurm": 4,
-     "Lightning Strike": 4,
+     "Boros Charm": 3,
+     "Giant Growth": 3,
+     "Brave the Elements": 4,
      "Selesnya Charm": 4,
-     "Scavenging Ooze": 1,
-     "Boros Reckoner": 4,
+     "Fabled Hero": 2,
+     "Voice of Resurgence": 3,
+     "Boros Reckoner": 3,
+     "Fleecemane Lion": 4,
+     "Ghor-Clan Rampager": 4,
      "Soldier of the Pantheon": 4,
-     "Voice of Resurgence": 4,
-     "Fleecemane Lion": 2
+     "Dryad Militant": 4
     }
    },
    "style": "aggro",
@@ -1218,51 +1525,323 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 17
+  },
+  {
+   "deck": 233421,
+   "event": 5769,
+   "archetype": "BWR Control",
+   "player": "Bryan Rich",
+   "event_name": "Idaho State Championship 2013",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-10-09",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 26,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 2,
+    "burn": 8,
+    "avg_cmc": 3.09,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 28.0,
+     "R": 24.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Mizzium Mortars": 2,
+     "Warleader's Helix": 2,
+     "Doom Blade": 1,
+     "Hero's Downfall": 1,
+     "Shock": 2,
+     "Obzedat, Ghost Council": 2,
+     "Blood Baron of Vizkopa": 1,
+     "Boros Reckoner": 4,
+     "Desecration Demon": 4,
+     "Rakdos's Return": 1,
+     "Whip of Erebos": 2,
+     "Rakdos Keyrune": 1,
+     "Chandra, Pyromaster": 1,
+     "Elspeth, Sun's Champion": 1,
+     "Thoughtseize": 2,
+     "Dreadbore": 3,
+     "Read the Bones": 2,
+     "Anger of the Gods": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 15
+  },
+  {
+   "deck": 242536,
+   "event": 7432,
+   "archetype": "Golgari Aggro",
+   "player": "Paul Ewenstein",
+   "event_name": "States/Champs Massachusetts",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.9,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 37.5,
+     "R": 0,
+     "G": 34.5
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Commune with the Gods": 1,
+     "Whip of Erebos": 2,
+     "Grisly Salvage": 4,
+     "Abrupt Decay": 2,
+     "Pharika, God of Affliction": 2,
+     "Jarad, Golgari Lich Lord": 3,
+     "Nyx Weaver": 2,
+     "Nighthowler": 4,
+     "Herald of Torment": 1,
+     "Sylvan Caryatid": 3,
+     "Shadowborn Demon": 3,
+     "Satyr Wayfinder": 3,
+     "Nemesis of Mortals": 3,
+     "Lotleth Troll": 1,
+     "Elvish Mystic": 4,
+     "Deathrite Shaman": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 242743,
+   "event": 7463,
+   "archetype": "Naya PW",
+   "player": "Joshua Watts",
+   "event_name": "States/Champs Texas",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 3.49,
+    "pips": {
+     "W": 25.0,
+     "U": 0,
+     "B": 0,
+     "R": 16.0,
+     "G": 24.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chandra, Pyromaster": 2,
+     "Assemble the Legion": 2,
+     "Ajani, Mentor of Heroes": 3,
+     "Elspeth, Sun's Champion": 3,
+     "Xenagos, the Reveler": 3,
+     "Mizzium Mortars": 4,
+     "Manaweft Sliver": 2,
+     "Scavenging Ooze": 2,
+     "Archangel of Thune": 2,
+     "Trostani, Selesnya's Voice": 3,
+     "Purphoros, God of the Forge": 3,
+     "Voice of Resurgence": 4,
+     "Sylvan Caryatid": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 233496,
+   "event": 5778,
+   "archetype": "Mono Green Aggro",
+   "player": "Nehemiah Vincent",
+   "event_name": "Montana State Championship 2013",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-10-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 52.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Ranger's Guile": 3,
+     "Scavenging Ooze": 3,
+     "Reverent Hunter": 3,
+     "Polukranos, World Eater": 2,
+     "Nylea, God of the Hunt": 3,
+     "Kalonian Tusker": 4,
+     "Kalonian Hydra": 2,
+     "Experiment One": 4,
+     "Elvish Mystic": 4,
+     "Deadbridge Goliath": 2,
+     "Burning-Tree Emissary": 4,
+     "Boon Satyr": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 238912,
+   "event": 6774,
+   "archetype": "Rakdos Aggro",
+   "player": "Mark Tagoba",
+   "event_name": "GP Melbourne 2014 - Grinders Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-02-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 29.0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Dreadbore": 3,
+     "Madcap Skills": 4,
+     "Lightning Strike": 4,
+     "Doom Blade": 4,
+     "Tormented Hero": 4,
+     "Spike Jester": 4,
+     "Rakdos Shred-Freak": 4,
+     "Rakdos Cackler": 4,
+     "Pain Seer": 4,
+     "Mogis's Marauder": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 242600,
+   "event": 7441,
+   "archetype": "Orzhov Human",
+   "player": "Chris Nighbor",
+   "event_name": "States/Champs Wisconsin",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-05-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.92,
+    "pips": {
+     "W": 38.0,
+     "U": 0,
+     "B": 13.0,
+     "R": 0,
+     "G": 2.0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Banisher Priest": 2,
+     "Daring Skyjek": 4,
+     "Dryad Militant": 4,
+     "Imposing Sovereign": 2,
+     "Precinct Captain": 4,
+     "Soldier of the Pantheon": 4,
+     "Xathrid Necromancer": 4,
+     "Brimaz, King of Oreskos": 1,
+     "Athreos, God of Passage": 1,
+     "Ajani, Caller of the Pride": 1,
+     "Banishing Light": 1,
+     "Brave the Elements": 2,
+     "Orzhov Charm": 4,
+     "Spear of Heliod": 1,
+     "Thoughtseize": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
   }
  ],
- "pool_size": 35,
+ "pool_size": 50,
  "rejected_illegal": [
-  {
-   "archetype": "Boros Aggro",
-   "deck": 241834,
-   "player": "Tyler Winn",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Gruul Aggro",
-   "deck": 238600,
-   "player": "Jonathon Habel",
-   "why": [
-    "unknown card: Flesh / Blood"
-   ]
-  },
-  {
-   "archetype": "Boros  Aggro",
-   "deck": 234558,
-   "player": "Ben Lundquist",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "WR Burn",
-   "deck": 246739,
-   "player": "Jos\u00e9 Ortiz",
-   "why": [
-    "unknown card: Toil / Trouble",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "WR Burn",
-   "deck": 246744,
-   "player": "Felix Moncada",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
   {
    "archetype": "Mono Black Aggro with Sorrin",
    "deck": 247383,
@@ -1274,107 +1853,19 @@
    ]
   },
   {
-   "archetype": "Boros Burn",
-   "deck": 246533,
-   "player": "Stefan Krall",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Naya Aggro",
-   "deck": 243229,
-   "player": "Nick Peternell",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
    "archetype": "Mono Black Aggro",
    "deck": 243902,
    "player": "Charles Zhang",
    "why": [
-    "unknown card: Profit / Loss"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "BWR Control",
-   "deck": 233421,
-   "player": "Bryan Rich",
+   "archetype": "Mono Green Aggro",
+   "deck": 243894,
+   "player": "Trey Van Cleave",
    "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "BWR Control",
-   "deck": 234173,
-   "player": "Gary Chen",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "BWR Control",
-   "deck": 234560,
-   "player": "David Moline",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "BWR Control",
-   "deck": 233232,
-   "player": "Hien Nguyen",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Esper Midrange",
-   "deck": 238915,
-   "player": "Dominic Musolino",
-   "why": [
-    "unknown card: Far / Away"
-   ]
-  },
-  {
-   "archetype": "Orzhov Human",
-   "deck": 242600,
-   "player": "Chris Nighbor",
-   "why": [
-    "unknown card: Profit / Loss"
-   ]
-  },
-  {
-   "archetype": "Devotion to Boros",
-   "deck": 235760,
-   "player": "Robb Miknus",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Devotion to Boros",
-   "deck": 234695,
-   "player": "Jared LaCombe",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Devotion to Red",
-   "deck": 237248,
-   "player": "Kent Ketter",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Devotion to Red",
-   "deck": 237854,
-   "player": "Eli Kassis",
-   "why": [
-    "unknown card: Wear / Tear"
+    "unknown card: Unknown Card"
    ]
   },
   {
@@ -1396,6 +1887,72 @@
     "Sandsteppe Citadel (not in legal sets)",
     "Siege Rhino (not in legal sets)"
    ]
+  },
+  {
+   "archetype": "Abzan Graveyard",
+   "deck": 247381,
+   "player": "Sveiks",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Empty the Pits (not in legal sets)",
+    "Sandsteppe Citadel (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Graveyard",
+   "deck": 247377,
+   "player": "Djinn",
+   "why": [
+    "Murderous Cut (not in legal sets)",
+    "Necropolis Fiend (not in legal sets)",
+    "Sandsteppe Citadel (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Constellation",
+   "deck": 247376,
+   "player": "aytor_92",
+   "why": [
+    "Murderous Cut (not in legal sets)",
+    "Necropolis Fiend (not in legal sets)",
+    "Sandsteppe Citadel (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant PW Control",
+   "deck": 240289,
+   "player": "Andrew Vorel",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 247378,
+   "player": "Havock",
+   "why": [
+    "Bloodstained Mire (not in legal sets)",
+    "Deflecting Palm (not in legal sets)",
+    "End Hostilities (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Aggro",
+   "deck": 247379,
+   "player": "mazaza",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Rakshasa Deathdealer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GU Devotion",
+   "deck": 246796,
+   "player": "William Holtzman",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
   }
  ],
  "duplicates_dropped": [
@@ -1416,6 +1973,12 @@
    "player": "Andrew Tenjum",
    "kept": "Devotion to Black",
    "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Gruul Aggro",
+   "player": "Jonathon Habel",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
   },
   {
    "dropped": "Devotion to Azorius",
@@ -1448,6 +2011,12 @@
    "kept_player": "Jordan Welzbacher"
   },
   {
+   "dropped": "Boros Burn",
+   "player": "Stefan Krall",
+   "kept": "WR Burn",
+   "kept_player": "Jos\u00e9 Ortiz"
+  },
+  {
    "dropped": "Azorius Control",
    "player": "Ogie Jaro",
    "kept": "UW Control",
@@ -1478,30 +2047,301 @@
    "kept_player": "Rob Hunsaker"
   },
   {
+   "dropped": "Devotion to Red",
+   "player": "Kent Ketter",
+   "kept": "Devotion to Boros",
+   "kept_player": "Robb Miknus"
+  },
+  {
    "dropped": "G/W Aggro",
    "player": "Pepe Rodriguez",
    "kept": "Selesnya Aggro",
    "kept_player": "Scott Lipp"
   },
   {
-   "dropped": "Devotion to Red",
-   "player": "Kevin Heath",
+   "dropped": "Rabble Jund",
+   "player": "Michael Miller",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "Uw Devotion",
+   "player": "Jorge Moreno",
+   "kept": "Devotion to Blue",
+   "kept_player": "Mik Red"
+  },
+  {
+   "dropped": "Devotion to Orzhov",
+   "player": "Jay Pangasinan",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Jund Walkers",
+   "player": "Kris Sim",
+   "kept": "Jund PW",
+   "kept_player": "Giorgio Gaeta"
+  },
+  {
+   "dropped": "Jund Monsters",
+   "player": "William Pizzi",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "Devotion to Gruul",
+   "player": "Didier Deurloo",
+   "kept": "Devotion to Green",
+   "kept_player": "Hal Brady"
+  },
+  {
+   "dropped": "Gruul Monsters",
+   "player": "Niels Molle",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "RG Fat",
+   "player": "Christopher Posporelis",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "Monoblue Devotion",
+   "player": "Gaby Spartz",
+   "kept": "Devotion to Blue",
+   "kept_player": "Mik Red"
+  },
+  {
+   "dropped": "Mono Black Devotion",
+   "player": "Anthony Aguilar",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Jund Planeswalkers",
+   "player": "Carlos Morales",
+   "kept": "Jund",
+   "kept_player": "Josef Vlach"
+  },
+  {
+   "dropped": "Gr Devotion",
+   "player": "Rodrigo Nu\u00f1ez",
+   "kept": "Devotion to Green",
+   "kept_player": "Hal Brady"
+  },
+  {
+   "dropped": "Devotion To Golgari",
+   "player": "Alwin Gunawan",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Gruul Monster",
+   "player": "Hiroyoshi Tsuchimochi",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "Devotion to Back",
+   "player": "Poya Nobari",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Boros Deck Wins",
+   "player": "Adrian Sullivan",
+   "kept": "Boros Aggro",
+   "kept_player": "Neil Hartman"
+  },
+  {
+   "dropped": "Devotion to RUG",
+   "player": "Daniel Cobb",
+   "kept": "Devotion to Green",
+   "kept_player": "Hal Brady"
+  },
+  {
+   "dropped": "WW Anthem",
+   "player": "Steve Lippitt",
+   "kept": "Weenie White",
+   "kept_player": "Tom Griffin"
+  },
+  {
+   "dropped": "B/U Devotion",
+   "player": "Enzo Valencia",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "R/W BURN (Magma Jet Sucks!)",
+   "player": "Jorge Corpancho",
+   "kept": "WR Burn",
+   "kept_player": "Jos\u00e9 Ortiz"
+  },
+  {
+   "dropped": "R/G Devotion",
+   "player": "Sebastian Oballe",
    "kept": "Devotion to Boros",
-   "kept_player": "James Gates"
+   "kept_player": "Robb Miknus"
+  },
+  {
+   "dropped": "GW Aggro",
+   "player": "Patrick Bishop",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Scott Lipp"
+  },
+  {
+   "dropped": "RW Burn",
+   "player": "Jonathan Voss",
+   "kept": "WR Burn",
+   "kept_player": "Jos\u00e9 Ortiz"
+  },
+  {
+   "dropped": "Black Devotion",
+   "player": "Diego Galaz",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Blue Devotion",
+   "player": "Horacio Soto",
+   "kept": "Devotion to Blue",
+   "kept_player": "Mik Red"
+  },
+  {
+   "dropped": "Gb Devotion",
+   "player": "V\u00edctor Leiva",
+   "kept": "Devotion to Green",
+   "kept_player": "Hal Brady"
+  },
+  {
+   "dropped": "Monoblack Devotion",
+   "player": "Neftali Forero",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Boros",
+   "player": "Daniel Tuong",
+   "kept": "Boros Aggro",
+   "kept_player": "Neil Hartman"
+  },
+  {
+   "dropped": "Other - Aggro",
+   "player": "Luca Ravagli",
+   "kept": "Boros  Aggro",
+   "kept_player": "Ben Lundquist"
+  },
+  {
+   "dropped": "RUG Midrange",
+   "player": "Chris Arnold",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "RDW",
+   "player": "Mario Martinez",
+   "kept": "Red Deck Wins",
+   "kept_player": "Manuel Orellana"
+  },
+  {
+   "dropped": "WW",
+   "player": "Keith Hebert",
+   "kept": "Boros  Aggro",
+   "kept_player": "Ben Lundquist"
+  },
+  {
+   "dropped": "Boroos",
+   "player": "John Guy",
+   "kept": "Boros Aggro",
+   "kept_player": "Neil Hartman"
+  },
+  {
+   "dropped": "Devotion to Simic",
+   "player": "Rob Wiecenski",
+   "kept": "Devotion to Green",
+   "kept_player": "Hal Brady"
+  },
+  {
+   "dropped": "Devotion to black",
+   "player": "Gr\u00e9gory Buchholtz",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Orzhov Weenie",
+   "player": "Quentin Doebler",
+   "kept": "Boros  Aggro",
+   "kept_player": "Ben Lundquist"
+  },
+  {
+   "dropped": "Devotion To Black",
+   "player": "Victor Wirontono Susenio",
+   "kept": "Devotion to Black",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Junk Walker",
+   "player": "Muhammad Habibi Indra",
+   "kept": "Junk (BWG)",
+   "kept_player": "Andrew Price"
+  },
+  {
+   "dropped": "Devotion To Blue",
+   "player": "Michael Hogyarta",
+   "kept": "Devotion to Blue",
+   "kept_player": "Mik Red"
+  },
+  {
+   "dropped": "Boros White",
+   "player": "Niklas Kaltenb\u00f6ck",
+   "kept": "Boros  Aggro",
+   "kept_player": "Ben Lundquist"
+  },
+  {
+   "dropped": "Rakdos Deck Wins - 7/1",
+   "player": "Kent Ketter (7-1)",
+   "kept": "Devotion to Boros",
+   "kept_player": "Robb Miknus"
+  },
+  {
+   "dropped": "Gruul",
+   "player": "Carsten Linden",
+   "kept": "Gruul Team",
+   "kept_player": "Zach Stern"
+  },
+  {
+   "dropped": "BR Control",
+   "player": "Stanislav Cifka",
+   "kept": "Rakdos  Control",
+   "kept_player": "Ryan Lyle"
+  },
+  {
+   "dropped": "Gruul Devotion",
+   "player": "Feng Da",
+   "kept": "Devotion to Green",
+   "kept_player": "Hal Brady"
+  },
+  {
+   "dropped": "Junk Control",
+   "player": "Brian Braun-Duin",
+   "kept": "Junk (BWG)",
+   "kept_player": "Andrew Price"
   }
  ],
- "objective": 9.757687074829931,
+ "objective": 14.329969408012367,
  "pool_colors": {
-  "U": 6,
-  "B": 18,
-  "W": 20,
-  "G": 19,
-  "R": 17
+  "U": 11,
+  "B": 28,
+  "W": 27,
+  "G": 24,
+  "R": 25
  },
  "pool_styles": {
-  "aggro": 15,
-  "midrange": 10,
-  "control": 9,
+  "aggro": 16,
+  "midrange": 17,
+  "control": 16,
   "combo": 1
- }
+ },
+ "kept_lost": []
 }

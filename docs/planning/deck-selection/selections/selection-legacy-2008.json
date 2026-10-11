@@ -75,6 +75,105 @@
  },
  "chosen": [
   {
+   "deck": 125762,
+   "event": 385,
+   "archetype": "MeatHooks",
+   "player": "Blake Patrow",
+   "event_name": "# GenCon 2008 Legacy Championship",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 19,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.93,
+    "pips": {
+     "W": 12.0,
+     "U": 30.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Daze": 4,
+     "Force of Will": 4,
+     "Aether Vial": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Winged Sliver": 4,
+     "Crystalline Sliver": 4,
+     "Sinew Sliver": 4,
+     "Muscle Sliver": 4,
+     "Ponder": 3,
+     "Hibernation Sliver": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 110873,
+   "event": 136,
+   "archetype": "Thresh",
+   "player": "Tatiana",
+   "event_name": "# LegacyMegaEvent 2007",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-12-18",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 8,
+    "counters": 13,
+    "sweepers": 0,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 4.0,
+     "U": 36.0,
+     "B": 0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Counterspell": 2,
+     "Stifle": 3,
+     "Sensei's Divining Top": 3,
+     "Predict": 3,
+     "Counterbalance": 3,
+     "Tarmogoyf": 4,
+     "Swords to Plowshares": 4,
+     "Ponder": 4,
+     "Nimble Mongoose": 4,
+     "Force of Will": 4,
+     "Daze": 4,
+     "Brainstorm": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 16
+  },
+  {
    "deck": 118534,
    "event": 298,
    "archetype": "Ichorid",
@@ -84,7 +183,7 @@
    "rank": "1",
    "date": "2008-04-27",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 48,
     "lands": 12,
@@ -129,6 +228,55 @@
    "label_count": 13
   },
   {
+   "deck": 116005,
+   "event": 257,
+   "archetype": "Aggro Loam",
+   "player": "Christoph Weitkamp",
+   "event_name": "# Iserlohn Legacy (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-03-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 3,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 25.0,
+     "G": 14.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chalice of the Void": 4,
+     "Mox Diamond": 4,
+     "Burning Wish": 4,
+     "Tarmogoyf": 4,
+     "Countryside Crusher": 4,
+     "Life from the Loam": 3,
+     "Seismic Assault": 3,
+     "Terravore": 3,
+     "Devastating Dreams": 2,
+     "Engineered Explosives": 2,
+     "Genesis": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
    "deck": 118544,
    "event": 299,
    "archetype": "Landstill",
@@ -138,7 +286,7 @@
    "rank": "1",
    "date": "2008-03-19",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 36,
     "lands": 24,
@@ -180,6 +328,114 @@
    "label_count": 8
   },
   {
+   "deck": 106851,
+   "event": 76,
+   "archetype": "Survival",
+   "player": "Brian Diefendorf",
+   "event_name": "# The Mana Leak Open 3 Day 1",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-11-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.28,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 10.0,
+     "R": 10.0,
+     "G": 26.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Spike Feeder": 1,
+     "Squee, Goblin Nabob": 1,
+     "Rofellos, Llanowar Emissary": 1,
+     "Genesis": 1,
+     "Anger": 1,
+     "Flametongue Kavu": 1,
+     "Indrik Stomphowler": 1,
+     "Shriekmaw": 1,
+     "Big Game Hunter": 1,
+     "Tin Street Hooligan": 1,
+     "Magus of the Moon": 2,
+     "Cabal Therapy": 3,
+     "Eternal Witness": 4,
+     "Tarmogoyf": 4,
+     "Survival of the Fittest": 4,
+     "Burning Wish": 4,
+     "Thoughtseize": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 117944,
+   "event": 294,
+   "archetype": "UGb Threshold",
+   "player": "\u00d3scar Mesegu\u00e9",
+   "event_name": "# Liga Catalana de Legacy II (Spain)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-04-19",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 15,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 1.71,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 7.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Spell Snare": 4,
+     "Ponder": 4,
+     "Force of Will": 4,
+     "Daze": 4,
+     "Nimble Mongoose": 4,
+     "Dark Confidant": 4,
+     "Brainstorm": 4,
+     "Tarmogoyf": 4,
+     "Stifle": 3,
+     "Ghastly Demise": 3,
+     "Werebear": 2,
+     "Serum Visions": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
    "deck": 119287,
    "event": 309,
    "archetype": "BGW The Rock",
@@ -189,7 +445,7 @@
    "rank": "1",
    "date": "2008-05-11",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 37,
     "lands": 23,
@@ -232,6 +488,57 @@
    "label_count": 2
   },
   {
+   "deck": 121499,
+   "event": 347,
+   "archetype": "Panzerfaust",
+   "player": "Dennis Rosinski",
+   "event_name": "# Trader-Liga Legacy - D\u00fclmen (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-06-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 14,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.03,
+    "pips": {
+     "W": 13.0,
+     "U": 27.0,
+     "B": 12.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Meddling Mage": 4,
+     "Dark Confidant": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Repeal": 3,
+     "Duress": 3,
+     "J\u00f6tun Grunt": 3,
+     "Daze": 3,
+     "Shadowmage Infiltrator": 3,
+     "Spell Snare": 2,
+     "Vindicate": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 120124,
    "event": 326,
    "archetype": "Purple Death",
@@ -241,7 +548,7 @@
    "rank": "1",
    "date": "2008-05-25",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 40,
     "lands": 20,
@@ -293,7 +600,7 @@
    "rank": "1",
    "date": "2008-05-25",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 38,
     "lands": 22,
@@ -341,7 +648,7 @@
    "rank": "1",
    "date": "2008-05-11",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 42,
     "lands": 18,
@@ -385,6 +692,58 @@
    "label_count": 1
   },
   {
+   "deck": 117928,
+   "event": 292,
+   "archetype": "UBg Big Fish",
+   "player": "Ogasawara Sho",
+   "event_name": "# Ancient Memory Convention #35 (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-04-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 13,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 16.0,
+     "R": 0,
+     "G": 5.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Ponder": 4,
+     "Force of Will": 4,
+     "Dark Confidant": 4,
+     "Brainstorm": 4,
+     "Tarmogoyf": 4,
+     "Smother": 4,
+     "Stifle": 3,
+     "Vendilion Clique": 3,
+     "Daze": 3,
+     "Thoughtseize": 3,
+     "Chrome Mox": 2,
+     "Tombstalker": 2,
+     "Putrefy": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 110837,
    "event": 134,
    "archetype": "LftL Aggro relou",
@@ -394,7 +753,7 @@
    "rank": "1",
    "date": "2007-12-22",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 35,
     "lands": 25,
@@ -443,7 +802,7 @@
    "rank": "1",
    "date": "2007-12-01",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 42,
     "lands": 19,
@@ -500,7 +859,7 @@
    "rank": "3-4",
    "date": "2008-08-15",
    "summer": true,
-   "s": 0.6973573641278247,
+   "s": 0.5578858913022597,
    "f": {
     "spells": 58,
     "lands": 2,
@@ -546,6 +905,105 @@
    "label_count": 5
   },
   {
+   "deck": 119286,
+   "event": 309,
+   "archetype": "Aluren",
+   "player": "Mauro Grassi",
+   "event_name": "# DragonsLeague - Naoniscon (Italy)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2008-05-11",
+   "summer": false,
+   "s": 0.5333333333333333,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 0,
+     "U": 22.0,
+     "B": 5.0,
+     "R": 4.0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Aluren": 4,
+     "Force of Will": 4,
+     "Intuition": 4,
+     "Wall of Roots": 4,
+     "Brainstorm": 4,
+     "Imperial Recruiter": 3,
+     "Living Wish": 3,
+     "Cabal Therapy": 3,
+     "Eternal Witness": 2,
+     "Cavern Harpy": 2,
+     "Man-o'-War": 2,
+     "Ghitu Slinger": 1,
+     "Essence Warden": 1,
+     "Coiling Oracle": 1,
+     "Echoing Truth": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 6
+  },
+  {
+   "deck": 116307,
+   "event": 263,
+   "archetype": "Armageddon Stax",
+   "player": "Abraham Ure\u00f1a",
+   "event_name": "# Liga Catalana de Legacy - Barcelona (Spain)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2008-03-15",
+   "summer": false,
+   "s": 0.5333333333333333,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 12,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.82,
+    "pips": {
+     "W": 16.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Armageddon": 4,
+     "Chalice of the Void": 4,
+     "Crucible of Worlds": 4,
+     "Smokestack": 4,
+     "Magus of the Tabernacle": 4,
+     "Mox Diamond": 4,
+     "Ghostly Prison": 4,
+     "Trinisphere": 4,
+     "Exalted Angel": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
    "deck": 115762,
    "event": 245,
    "archetype": "iPop Negation",
@@ -555,7 +1013,7 @@
    "rank": "2",
    "date": "2008-03-22",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5333333333333333,
    "f": {
     "spells": 46,
     "lands": 14,
@@ -609,7 +1067,7 @@
    "rank": "2",
    "date": "2008-03-19",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5333333333333333,
    "f": {
     "spells": 35,
     "lands": 25,
@@ -661,7 +1119,7 @@
    "rank": "3-4",
    "date": "2008-07-13",
    "summer": false,
-   "s": 0.5578858913022599,
+   "s": 0.44630871304180786,
    "f": {
     "spells": 38,
     "lands": 22,
@@ -703,9 +1161,224 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 2
+  },
+  {
+   "deck": 108024,
+   "event": 105,
+   "archetype": "Enchantress",
+   "player": "Tom Hens",
+   "event_name": "# MCM's Legacy Tournament - Mol (Belgium)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2007-11-18",
+   "summer": false,
+   "s": 0.44630871304180786,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 7,
+    "burn": 1,
+    "avg_cmc": 2.15,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 0,
+     "R": 1.0,
+     "G": 30.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Sterling Grove": 4,
+     "Argothian Enchantress": 4,
+     "Elephant Grass": 4,
+     "Enchantress's Presence": 4,
+     "Utopia Sprawl": 4,
+     "Exploration": 3,
+     "Solitary Confinement": 3,
+     "Sylvan Library": 2,
+     "Oblivion Ring": 2,
+     "Replenish": 2,
+     "Ground Seal": 2,
+     "City of Solitude": 1,
+     "Seal of Primordium": 1,
+     "Sacred Mesa": 1,
+     "Moat": 1,
+     "Words of War": 1,
+     "Wild Growth": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 110851,
+   "event": 134,
+   "archetype": "TES",
+   "player": "Matteus Lamers",
+   "event_name": "# Legacy Mol (Belgium)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-12-22",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 49,
+    "lands": 11,
+    "creatures": 1,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.35,
+    "pips": {
+     "W": 4.0,
+     "U": 9.0,
+     "B": 18.0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Orim's Chant": 4,
+     "Lion's Eye Diamond": 4,
+     "Cabal Ritual": 4,
+     "Dark Ritual": 4,
+     "Infernal Tutor": 4,
+     "Lotus Petal": 4,
+     "Brainstorm": 4,
+     "Rite of Flame": 4,
+     "Burning Wish": 4,
+     "Ponder": 3,
+     "Chrome Mox": 3,
+     "Plunge into Darkness": 2,
+     "Ill-Gotten Gains": 1,
+     "Diminishing Returns": 1,
+     "Tendrils of Agony": 1,
+     "Empty the Warrens": 1,
+     "Simian Spirit Guide": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 2
+  },
+  {
+   "deck": 117951,
+   "event": 294,
+   "archetype": "BWR Frikula",
+   "player": "David Yepez",
+   "event_name": "# Liga Catalana de Legacy II (Spain)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2008-04-19",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 41,
+    "lands": 20,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 1.93,
+    "pips": {
+     "W": 16.0,
+     "U": 0,
+     "B": 24.0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Umezawa's Jitte": 2,
+     "Seal of Cleansing": 2,
+     "Lightning Bolt": 3,
+     "Thoughtseize": 4,
+     "Swords to Plowshares": 4,
+     "Dark Ritual": 4,
+     "Vindicate": 4,
+     "Lightning Helix": 4,
+     "J\u00f6tun Grunt": 2,
+     "Hypnotic Specter": 4,
+     "Dark Confidant": 4,
+     "Taurean Mauler": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
   }
  ],
  "alternates": [
+  {
+   "deck": 122272,
+   "event": 371,
+   "archetype": "Dreadstill",
+   "player": "Alex Delgado",
+   "event_name": "# Liga Catalana de Legacy IV - Badalona (Spain)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-06-21",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 16,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Engineered Explosives": 1,
+     "Pithing Needle": 1,
+     "Tormod's Crypt": 1,
+     "Trickbind": 2,
+     "Phyrexian Dreadnought": 2,
+     "Crucible of Worlds": 2,
+     "Tarmogoyf": 3,
+     "Brainstorm": 3,
+     "Trinket Mage": 3,
+     "Daze": 3,
+     "Counterbalance": 3,
+     "Spell Snare": 3,
+     "Standstill": 4,
+     "Force of Will": 4,
+     "Stifle": 4,
+     "Sensei's Divining Top": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
   {
    "deck": 108021,
    "event": 105,
@@ -716,7 +1389,7 @@
    "rank": "1",
    "date": "2007-11-18",
    "summer": false,
-   "s": 1.0,
+   "s": 0.8,
    "f": {
     "spells": 37,
     "lands": 23,
@@ -758,6 +1431,109 @@
    "label_count": 2
   },
   {
+   "deck": 120803,
+   "event": 340,
+   "archetype": "Faeries",
+   "player": "Manuel Faber",
+   "event_name": "# Iserlohn Legacy (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-06-01",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 13,
+    "counters": 13,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.15,
+    "pips": {
+     "W": 1.0,
+     "U": 37.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Spellstutter Sprite": 4,
+     "Force of Will": 4,
+     "Scion of Oona": 4,
+     "Daze": 3,
+     "Brainstorm": 3,
+     "Ancestral Vision": 3,
+     "Bitterblossom": 3,
+     "Vendilion Clique": 2,
+     "Counterbalance": 2,
+     "Counterspell": 2,
+     "Vedalken Shackles": 2,
+     "Pestermite": 2,
+     "Chrome Mox": 2,
+     "Sensei's Divining Top": 2,
+     "Engineered Explosives": 1,
+     "Mistbind Clique": 1,
+     "Enlightened Tutor": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 125763,
+   "event": 385,
+   "archetype": "Boros Deck Wins",
+   "player": "Chris Bergeson",
+   "event_name": "# GenCon 2008 Legacy Championship",
+   "stars": 2,
+   "rank": "2",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 19,
+    "avg_cmc": 1.85,
+    "pips": {
+     "W": 18.0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Fireblast": 3,
+     "Chain Lightning": 4,
+     "Price of Progress": 4,
+     "Magma Jet": 4,
+     "Lightning Helix": 4,
+     "Lightning Bolt": 4,
+     "J\u00f6tun Grunt": 3,
+     "Grim Lavamancer": 3,
+     "Isamaru, Hound of Konda": 3,
+     "Goblin Legionnaire": 4,
+     "Savannah Lions": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
    "deck": 125765,
    "event": 385,
    "archetype": "Aggro Elves",
@@ -767,7 +1543,7 @@
    "rank": "3-4",
    "date": "2008-08-15",
    "summer": true,
-   "s": 0.6973573641278247,
+   "s": 0.5578858913022597,
    "f": {
     "spells": 43,
     "lands": 17,
@@ -818,7 +1594,7 @@
    "rank": "2",
    "date": "2007-11-03",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5333333333333333,
    "f": {
     "spells": 42,
     "lands": 18,
@@ -859,108 +1635,155 @@
    "label_count": 6
   },
   {
-   "deck": 119286,
-   "event": 309,
-   "archetype": "Aluren",
-   "player": "Mauro Grassi",
-   "event_name": "# DragonsLeague - Naoniscon (Italy)",
+   "deck": 120423,
+   "event": 333,
+   "archetype": "CAL",
+   "player": "Dennis Rosinski",
+   "event_name": "# Iserlohn Legacy (Germany)",
    "stars": 2,
    "rank": "2",
    "date": "2008-05-11",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5333333333333333,
    "f": {
-    "spells": 39,
-    "lands": 22,
-    "creatures": 12,
-    "counters": 4,
-    "sweepers": 0,
-    "draw": 4,
-    "burn": 0,
-    "avg_cmc": 2.62,
-    "pips": {
-     "W": 0,
-     "U": 22.0,
-     "B": 5.0,
-     "R": 4.0,
-     "G": 21.0
-    },
-    "colors": [
-     "U",
-     "G"
-    ],
-    "names": {
-     "Aluren": 4,
-     "Force of Will": 4,
-     "Intuition": 4,
-     "Wall of Roots": 4,
-     "Brainstorm": 4,
-     "Imperial Recruiter": 3,
-     "Living Wish": 3,
-     "Cabal Therapy": 3,
-     "Eternal Witness": 2,
-     "Cavern Harpy": 2,
-     "Man-o'-War": 2,
-     "Ghitu Slinger": 1,
-     "Essence Warden": 1,
-     "Coiling Oracle": 1,
-     "Echoing Truth": 1
-    }
-   },
-   "style": "combo",
-   "style_why": "override",
-   "label_count": 6
-  },
-  {
-   "deck": 115997,
-   "event": 256,
-   "archetype": "CAL",
-   "player": "Linus Neitzke",
-   "event_name": "# Iserlohn Legacy (Germany)",
-   "stars": 2,
-   "rank": "2",
-   "date": "2008-01-20",
-   "summer": false,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 8,
+    "spells": 32,
+    "lands": 28,
+    "creatures": 4,
     "counters": 0,
     "sweepers": 2,
     "draw": 3,
-    "burn": 2,
-    "avg_cmc": 1.71,
+    "burn": 3,
+    "avg_cmc": 1.97,
     "pips": {
-     "W": 1.0,
-     "U": 0,
+     "W": 2.0,
+     "U": 4.0,
      "B": 0,
-     "R": 16.0,
-     "G": 21.0
+     "R": 17.0,
+     "G": 14.0
     },
     "colors": [
+     "U",
      "R",
      "G"
     ],
     "names": {
-     "Exploration": 4,
-     "Mox Diamond": 4,
-     "Burning Wish": 4,
-     "Terravore": 4,
-     "Life from the Loam": 3,
-     "Tarmogoyf": 3,
-     "Gamble": 2,
      "Devastating Dreams": 2,
-     "Seismic Assault": 2,
-     "Crop Rotation": 2,
-     "Engineered Explosives": 2,
+     "Eternal Witness": 3,
+     "Seismic Assault": 3,
+     "Life from the Loam": 3,
+     "Burning Wish": 4,
+     "Mox Diamond": 4,
+     "Intuition": 4,
+     "Exploration": 4,
      "Genesis": 1,
-     "Solitary Confinement": 1
+     "Solitary Confinement": 2,
+     "Engineered Explosives": 2
     }
    },
    "style": "midrange",
    "style_why": "default",
    "label_count": 3
+  },
+  {
+   "deck": 121500,
+   "event": 347,
+   "archetype": "Schleifend der Stein zermahlend mein Sein",
+   "player": "Alexander Kimpel",
+   "event_name": "# Trader-Liga Legacy - D\u00fclmen (Germany)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2008-06-15",
+   "summer": false,
+   "s": 0.5333333333333333,
+   "f": {
+    "spells": 44,
+    "lands": 17,
+    "creatures": 15,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 1.89,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 5.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Stifle": 4,
+     "Force of Will": 4,
+     "Daze": 4,
+     "Brainstorm": 4,
+     "Tarmogoyf": 4,
+     "Ponder": 3,
+     "Counterbalance": 3,
+     "Trinket Mage": 3,
+     "Dark Confidant": 3,
+     "Painter's Servant": 3,
+     "Smother": 2,
+     "Phyrexian Dreadnought": 2,
+     "Engineered Explosives": 2,
+     "Sensei's Divining Top": 2,
+     "Grindstone": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 117945,
+   "event": 294,
+   "archetype": "Ur Landstill",
+   "player": "Edgar Moreno",
+   "event_name": "# Liga Catalana de Legacy II (Spain)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2008-04-19",
+   "summer": false,
+   "s": 0.5333333333333333,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 12,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.77,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Counterspell": 4,
+     "Fire // Ice": 4,
+     "Force of Will": 4,
+     "Lightning Bolt": 4,
+     "Mana Leak": 4,
+     "Standstill": 4,
+     "Chain of Vapor": 3,
+     "Nevinyrral's Disk": 3,
+     "Fact or Fiction": 3,
+     "Crucible of Worlds": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
   },
   {
    "deck": 116006,
@@ -972,7 +1795,7 @@
    "rank": "2",
    "date": "2008-03-02",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5333333333333333,
    "f": {
     "spells": 41,
     "lands": 19,
@@ -1029,7 +1852,7 @@
    "rank": "2",
    "date": "2007-12-18",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5333333333333333,
    "f": {
     "spells": 36,
     "lands": 24,
@@ -1079,7 +1902,7 @@
    "rank": "5-8",
    "date": "2008-08-15",
    "summer": true,
-   "s": 0.5784455328993979,
+   "s": 0.46275642631951835,
    "f": {
     "spells": 41,
     "lands": 19,
@@ -1121,503 +1944,17 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 1
-  },
-  {
-   "deck": 117946,
-   "event": 294,
-   "archetype": "Aggro Loam",
-   "player": "Jaume Bonet",
-   "event_name": "# Liga Catalana de Legacy II (Spain)",
-   "stars": 2,
-   "rank": "3-4",
-   "date": "2008-04-19",
-   "summer": false,
-   "s": 0.5578858913022599,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 16,
-    "counters": 0,
-    "sweepers": 2,
-    "draw": 3,
-    "burn": 3,
-    "avg_cmc": 1.85,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 25.0,
-     "G": 15.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Chalice of the Void": 4,
-     "Magus of the Moon": 4,
-     "Mox Diamond": 4,
-     "Tarmogoyf": 4,
-     "Terravore": 4,
-     "Countryside Crusher": 4,
-     "Seismic Assault": 3,
-     "Life from the Loam": 3,
-     "Engineered Explosives": 2,
-     "Devastating Dreams": 2
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 9
-  },
-  {
-   "deck": 206730,
-   "event": 347,
-   "archetype": "Survival",
-   "player": "Alexander Podeschwa",
-   "event_name": "# Trader-Liga Legacy - D\u00fclmen (Germany)",
-   "stars": 2,
-   "rank": "3-4",
-   "date": "2008-06-15",
-   "summer": false,
-   "s": 0.5578858913022599,
-   "f": {
-    "spells": 42,
-    "lands": 18,
-    "creatures": 26,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 4,
-    "avg_cmc": 1.93,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 24.0,
-     "G": 19.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Anger": 1,
-     "Kird Ape": 4,
-     "Magus of the Moon": 2,
-     "Mogg Fanatic": 4,
-     "Squee, Goblin Nabob": 1,
-     "Eternal Witness": 1,
-     "Genesis": 1,
-     "River Boa": 4,
-     "Skyshroud Elite": 4,
-     "Tarmogoyf": 4,
-     "Blood Moon": 4,
-     "Lightning Bolt": 4,
-     "Price of Progress": 4,
-     "Survival of the Fittest": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 6
-  },
-  {
-   "deck": 206924,
-   "event": 245,
-   "archetype": "Solidarity",
-   "player": "Jose Manuel Mart\u00ednez",
-   "event_name": "@ Black Lotus Shop - Barcelona (Spain)",
-   "stars": 2,
-   "rank": "3-4",
-   "date": "2008-03-22",
-   "summer": false,
-   "s": 0.5578858913022599,
-   "f": {
-    "spells": 0,
-    "lands": 0,
-    "creatures": 0,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 0,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [],
-    "names": {}
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 2
-  },
-  {
-   "deck": 118547,
-   "event": 299,
-   "archetype": "Stax",
-   "player": "Francisco Jos\u00e9 Garc\u00eda Vizcaino",
-   "event_name": "# Tarmodual Tournament - Madrid (Spain)",
-   "stars": 2,
-   "rank": "3-4",
-   "date": "2008-03-19",
-   "summer": false,
-   "s": 0.5578858913022599,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 6,
-    "counters": 0,
-    "sweepers": 11,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 2.86,
-    "pips": {
-     "W": 20.0,
-     "U": 0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W"
-    ],
-    "names": {
-     "Trinisphere": 3,
-     "Magus of the Tabernacle": 3,
-     "Smokestack": 3,
-     "Oblivion Ring": 3,
-     "Exalted Angel": 3,
-     "Ghostly Prison": 4,
-     "Mox Diamond": 4,
-     "Crucible of Worlds": 4,
-     "Chalice of the Void": 4,
-     "Armageddon": 4
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 2
   }
  ],
- "pool_size": 26,
+ "pool_size": 69,
  "rejected_illegal": [
   {
-   "archetype": "MeatHooks",
-   "deck": 125762,
-   "player": "Blake Patrow",
+   "archetype": "Solidarity",
+   "deck": 206924,
+   "player": "Jose Manuel Mart\u00ednez",
    "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 110873,
-   "player": "Tatiana",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 110838,
-   "player": "Kris Boschmans",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 110880,
-   "player": "kingalex92",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 108027,
-   "player": "Kris Boschmans",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Aggro Loam",
-   "deck": 116005,
-   "player": "Christoph Weitkamp",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Aggro Loam",
-   "deck": 108023,
-   "player": "Stijn De Clercq",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Survival",
-   "deck": 106851,
-   "player": "Brian Diefendorf",
-   "why": [
-    "unknown card: Boom / Bust",
-    "unknown card: Rough / Tumble"
-   ]
-  },
-  {
-   "archetype": "Dreadstill",
-   "deck": 122272,
-   "player": "Alex Delgado",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Dreadstill",
-   "deck": 122275,
-   "player": "Eduardo Albericio",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Dreadstill",
-   "deck": 118546,
-   "player": "Pedro Juan Fajardo",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "TarmoDreadstill",
-   "deck": 123191,
-   "player": "Eugenio Capocasale",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "TarmoDreadstill",
-   "deck": 123192,
-   "player": "Nicola Landoni",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UGb Threshold",
-   "deck": 117944,
-   "player": "\u00d3scar Mesegu\u00e9",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UGb Threshold",
-   "deck": 120812,
-   "player": "Lazo Vujinovic",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Panzerfaust",
-   "deck": 121499,
-   "player": "Dennis Rosinski",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Faeries",
-   "deck": 120803,
-   "player": "Manuel Faber",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UBg Big Fish",
-   "deck": 117928,
-   "player": "Ogasawara Sho",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "U/G/r Threshold",
-   "deck": 116306,
-   "player": "Sergi Garc\u00e9s",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Boros Deck Wins",
-   "deck": 125763,
-   "player": "Chris Bergeson",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "CAL",
-   "deck": 120423,
-   "player": "Dennis Rosinski",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Armageddon Stax",
-   "deck": 116307,
-   "player": "Abraham Ure\u00f1a",
-   "why": [
-    "Seal of Cleansing (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UG Thresh",
-   "deck": 107527,
-   "player": "David Jensen",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UG Thresh",
-   "deck": 107531,
-   "player": "Rasmus S\u00f8gaard",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "AggroLoam",
-   "deck": 122273,
-   "player": "Xavier Muntada",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Schleifend der Stein zermahlend mein Sein",
-   "deck": 121500,
-   "player": "Alexander Kimpel",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Dark Belcher",
-   "deck": 120805,
-   "player": "Georg Seydel",
-   "why": [
-    "Reverent Silence (not in legal sets)",
-    "unknown card: Rough / Tumble"
-   ]
-  },
-  {
-   "archetype": "UG Dreadstill",
-   "deck": 120415,
-   "player": "\u00c0lex Mateu",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Ur Landstill",
-   "deck": 117945,
-   "player": "Edgar Moreno",
-   "why": [
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "White Stax",
-   "deck": 108222,
-   "player": "Dylan Joluffe",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Ubg Faerie Fish",
-   "deck": 125769,
-   "player": "Josh Bettens",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Tempo Thresh",
-   "deck": 123194,
-   "player": "Ruggero Moroni",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Tempo Thresh",
-   "deck": 123196,
-   "player": "Valerio Ferrari",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Red Tempo Thresh",
-   "deck": 123195,
-   "player": "Luca Lovino",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Fish",
-   "deck": 110875,
-   "player": "Pepto",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Fish",
-   "deck": 108229,
-   "player": "John Harduvel",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Fish",
-   "deck": 106859,
-   "player": "Matt Denham",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Deadguy Ale",
-   "deck": 121501,
-   "player": "Bernd Brendem\u00fchl",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
    ]
   }
  ],
@@ -1629,10 +1966,40 @@
    "kept_player": "Jaime Cano"
   },
   {
+   "dropped": "TarmoDreadstill",
+   "player": "Eugenio Capocasale",
+   "kept": "Dreadstill",
+   "kept_player": "Alex Delgado"
+  },
+  {
+   "dropped": "U/G/r Threshold",
+   "player": "Sergi Garc\u00e9s",
+   "kept": "UGb Threshold",
+   "kept_player": "\u00d3scar Mesegu\u00e9"
+  },
+  {
    "dropped": "The Rock",
    "player": "Yamada Akira",
    "kept": "BGW The Rock",
    "kept_player": "Leonardo Romano"
+  },
+  {
+   "dropped": "UG Thresh",
+   "player": "David Jensen",
+   "kept": "Thresh",
+   "kept_player": "Tatiana"
+  },
+  {
+   "dropped": "AggroLoam",
+   "player": "Xavier Muntada",
+   "kept": "Aggro Loam",
+   "kept_player": "Christoph Weitkamp"
+  },
+  {
+   "dropped": "Dark Belcher",
+   "player": "Georg Seydel",
+   "kept": "Belcher",
+   "kept_player": "Matthew Elias"
   },
   {
    "dropped": "Rw Goblins",
@@ -1641,10 +2008,22 @@
    "kept_player": "Guillem Ragull"
   },
   {
+   "dropped": "UG Dreadstill",
+   "player": "\u00c0lex Mateu",
+   "kept": "Dreadstill",
+   "kept_player": "Alex Delgado"
+  },
+  {
    "dropped": "4C Goyf Landstill",
    "player": "Matteo Berton",
    "kept": "Landstill",
    "kept_player": "Jaime Cano"
+  },
+  {
+   "dropped": "White Stax",
+   "player": "Dylan Joluffe",
+   "kept": "Armageddon Stax",
+   "kept_player": "Abraham Ure\u00f1a"
   },
   {
    "dropped": "Rg Goblins",
@@ -1665,24 +2044,241 @@
    "kept_player": "Jaime Cano"
   },
   {
-   "dropped": "Armageddon Stax",
-   "player": "Tony Ferr\u00e9",
-   "kept": "Stax",
-   "kept_player": "Francisco Jos\u00e9 Garc\u00eda Vizcaino"
+   "dropped": "Red Tempo Thresh",
+   "player": "Ruggero Moroni",
+   "kept": "Thresh",
+   "kept_player": "Tatiana"
+  },
+  {
+   "dropped": "Fish",
+   "player": "Pepto",
+   "kept": "Ubg Faerie Fish",
+   "kept_player": "Josh Bettens"
+  },
+  {
+   "dropped": "Stax",
+   "player": "Francisco Jos\u00e9 Garc\u00eda Vizcaino",
+   "kept": "Armageddon Stax",
+   "kept_player": "Abraham Ure\u00f1a"
+  },
+  {
+   "dropped": "BG Rock",
+   "player": "Uemura Taisei",
+   "kept": "BGW The Rock",
+   "kept_player": "Leonardo Romano"
+  },
+  {
+   "dropped": "Rbg Goblins",
+   "player": "Jesko H\u00fcttenhain",
+   "kept": "Rgb Goblins",
+   "kept_player": "Guillem Ragull"
+  },
+  {
+   "dropped": "UGb Winter Thresh",
+   "player": "Yoshioka Hideaki",
+   "kept": "Thresh",
+   "kept_player": "Tatiana"
+  },
+  {
+   "dropped": "Rgw VialGoblins",
+   "player": "Jonas Harbili",
+   "kept": "Rgb Goblins",
+   "kept_player": "Guillem Ragull"
+  },
+  {
+   "dropped": "Elves!",
+   "player": "Abel Planting",
+   "kept": "Aggro Elves",
+   "kept_player": "Brad Herwy"
+  },
+  {
+   "dropped": "Slivers",
+   "player": "Kyle Donovan",
+   "kept": "MeatHooks",
+   "kept_player": "Blake Patrow"
+  },
+  {
+   "dropped": "UGr Threshold",
+   "player": "Max Heitmayer",
+   "kept": "UGb Threshold",
+   "kept_player": "\u00d3scar Mesegu\u00e9"
+  },
+  {
+   "dropped": "2 Land Belcher",
+   "player": "David Mauri",
+   "kept": "Belcher",
+   "kept_player": "Matthew Elias"
+  },
+  {
+   "dropped": "White Rock",
+   "player": "Roel Jans",
+   "kept": "LftL Aggro relou",
+   "kept_player": "Baptist Matthys"
+  },
+  {
+   "dropped": "Threshold",
+   "player": "Sergi Garc\u00e9s",
+   "kept": "UGb Threshold",
+   "kept_player": "\u00d3scar Mesegu\u00e9"
+  },
+  {
+   "dropped": "Tarmo Painter",
+   "player": "Jos\u00e9 Antonio David Sendas",
+   "kept": "RU Imperial Painter",
+   "kept_player": "John Scamihorn"
+  },
+  {
+   "dropped": "Rgb Zoo",
+   "player": "Phillip Volk",
+   "kept": "RGb Goyf Sligh",
+   "kept_player": "Markus Seine"
+  },
+  {
+   "dropped": "UWb Trinket Fish",
+   "player": "Ogasawara Sho",
+   "kept": "UBg Big Fish",
+   "kept_player": "Ogasawara Sho"
+  },
+  {
+   "dropped": "Confinement Aggro Loam",
+   "player": "Osada Masahiro",
+   "kept": "Aggro Loam",
+   "kept_player": "Christoph Weitkamp"
+  },
+  {
+   "dropped": "URb Painter",
+   "player": "Daniel Rodr\u00edguez",
+   "kept": "RU Imperial Painter",
+   "kept_player": "John Scamihorn"
+  },
+  {
+   "dropped": "RG Aggro Loam",
+   "player": "Adri\u00e0 Bosch",
+   "kept": "Aggro Loam",
+   "kept_player": "Christoph Weitkamp"
+  },
+  {
+   "dropped": "RGb Aggro Loam",
+   "player": "Xavier Muntada",
+   "kept": "Aggro Loam",
+   "kept_player": "Christoph Weitkamp"
+  },
+  {
+   "dropped": "UWgb MeatHooks",
+   "player": "Fernando Yanguas",
+   "kept": "MeatHooks",
+   "kept_player": "Blake Patrow"
+  },
+  {
+   "dropped": "UGB Bitterblossom Threshold",
+   "player": "Matteo Franceschet",
+   "kept": "UGb Threshold",
+   "kept_player": "\u00d3scar Mesegu\u00e9"
+  },
+  {
+   "dropped": "UB Reanimator",
+   "player": "Roberto Novello",
+   "kept": "Reanimator",
+   "kept_player": "Rodrigo Gonzalez"
+  },
+  {
+   "dropped": "Storm Enchantress",
+   "player": "Sandro Campigotto",
+   "kept": "Enchantress",
+   "kept_player": "Tom Hens"
+  },
+  {
+   "dropped": "UWB Fish",
+   "player": "Alberto Franzin",
+   "kept": "UWb Fish",
+   "kept_player": "Philipp Schr\u00f6der"
+  },
+  {
+   "dropped": "GWB Survival",
+   "player": "Christian H\u00f6ttgen",
+   "kept": "GWU Survival",
+   "kept_player": "Christian H\u00f6ttgen"
+  },
+  {
+   "dropped": "Pox",
+   "player": "Niklas Scholten",
+   "kept": "BG Pox",
+   "kept_player": "Giulio Trapani"
+  },
+  {
+   "dropped": "Innovator Aluren",
+   "player": "Koizumi Yohei",
+   "kept": "Aluren",
+   "kept_player": "Mauro Grassi"
+  },
+  {
+   "dropped": "RW Goblins",
+   "player": "Francesco Bonfatti",
+   "kept": "Rgb Goblins",
+   "kept_player": "Guillem Ragull"
+  },
+  {
+   "dropped": "UWB Landstill",
+   "player": "Roberto Libanore",
+   "kept": "Landstill",
+   "kept_player": "Jaime Cano"
+  },
+  {
+   "dropped": "Counterslivers",
+   "player": "Jordi Castellv\u00ed",
+   "kept": "MeatHooks",
+   "kept_player": "Blake Patrow"
+  },
+  {
+   "dropped": "U/W/b Landstill",
+   "player": "Alberto Quintero",
+   "kept": "Landstill",
+   "kept_player": "Jaime Cano"
+  },
+  {
+   "dropped": "Rgwb VialGoblins",
+   "player": "Nicolai Ruckel",
+   "kept": "Rgb Goblins",
+   "kept_player": "Guillem Ragull"
+  },
+  {
+   "dropped": "RG Beatz",
+   "player": "Eugen Libkin",
+   "kept": "RGb Goyf Sligh",
+   "kept_player": "Markus Seine"
+  },
+  {
+   "dropped": "Vial Goblins",
+   "player": "Andr\u00e9 Lohmann",
+   "kept": "Rgb Goblins",
+   "kept_player": "Guillem Ragull"
+  },
+  {
+   "dropped": "Magus Bridge Burn",
+   "player": "Peter Steurs",
+   "kept": "Burn",
+   "kept_player": "Massimiliano Vazzadini"
+  },
+  {
+   "dropped": "UGr Thresh",
+   "player": "Danni Andersen",
+   "kept": "Thresh",
+   "kept_player": "Tatiana"
   }
  ],
- "objective": 10.171416825449809,
+ "objective": 16.123188331696227,
  "pool_colors": {
-  "U": 11,
-  "B": 9,
-  "W": 8,
-  "G": 15,
-  "R": 12
+  "W": 26,
+  "U": 38,
+  "G": 32,
+  "B": 34,
+  "R": 23
  },
  "pool_styles": {
-  "aggro": 13,
-  "control": 5,
-  "midrange": 5,
-  "combo": 3
- }
+  "aggro": 26,
+  "control": 15,
+  "midrange": 24,
+  "combo": 4
+ },
+ "kept_lost": []
 }

@@ -1,0 +1,42 @@
+[metadata]
+Name=Storm (Brandon Osborne)
+Deck Type=Constructed
+Format=Legacy (EMN)
+Effective=2016-07-22
+Source URL=https://www.mtgtop8.com/event?e=13377&d=278431&f=LE
+Comment=SCG Classic - Somerset: Brandon Osborne, 1st, Storm. Transcribed from mtgtop8 deck 278431.
+[Main]
+1 Island|A
+1 Swamp|A
+1 Bayou|A
+4 Misty Rainforest|ZEN
+4 Polluted Delta|ON
+1 Tropical Island|A
+2 Underground Sea|A
+1 Volcanic Island|B
+4 Lion's Eye Diamond|MI
+4 Lotus Petal|TE
+1 Sensei's Divining Top|CHK
+1 Ad Nauseam|ALA
+4 Brainstorm|IA
+4 Cabal Ritual|TO
+4 Dark Ritual|A
+1 Rain of Filth|US
+3 Cabal Therapy|JU
+3 Duress|US
+4 Gitaxian Probe|NPH
+4 Infernal Tutor|DIS
+2 Past in Flames|ISD
+4 Ponder|LRW
+1 Preordain|M11
+1 Tendrils of Agony|SC
+[Sideboard]
+1 Sensei's Divining Top|CHK
+2 Tendrils of Agony|SC
+1 Xantid Swarm|SC
+3 Abrupt Decay|RTR
+1 Disfigure|ZEN
+2 Echoing Truth|DS
+2 Flusterstorm|CMD
+2 Krosan Grip|TSP
+1 Empty the Warrens|TSP

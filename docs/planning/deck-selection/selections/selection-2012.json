@@ -371,6 +371,59 @@
    "label_count": 65
   },
   {
+   "deck": 217606,
+   "event": 2724,
+   "archetype": "Gr Aggro",
+   "player": "Mason Lange",
+   "event_name": "Starcitygames Open Series: Madison",
+   "stars": 3,
+   "rank": "1",
+   "date": "2012-05-12",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 2.34,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 13.0,
+     "G": 37.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Incinerate": 1,
+     "Pillar of Flame": 1,
+     "Garruk Relentless // Garruk, the Veil-Cursed": 2,
+     "Galvanic Blast": 3,
+     "Sword of War and Peace": 3,
+     "Green Sun's Zenith": 4,
+     "Daybreak Ranger // Nightfall Predator": 1,
+     "Wolfir Silverheart": 1,
+     "Acidic Slime": 1,
+     "Hellrider": 2,
+     "Wolfir Avenger": 3,
+     "Birds of Paradise": 4,
+     "Huntmaster of the Fells // Ravager of the Fells": 4,
+     "Llanowar Elves": 4,
+     "Strangleroot Geist": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 50
+  },
+  {
    "deck": 218144,
    "event": 2811,
    "archetype": "Tezzeret Control",
@@ -427,6 +480,58 @@
    "label_count": 9
   },
   {
+   "deck": 218062,
+   "event": 2799,
+   "archetype": "Naya Aggro",
+   "player": "Lance Behrens",
+   "event_name": "Starcitygames Open Series: St. Louis",
+   "stars": 3,
+   "rank": "2",
+   "date": "2012-07-14",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.59,
+    "pips": {
+     "W": 10.0,
+     "U": 0,
+     "B": 0,
+     "R": 8.0,
+     "G": 18.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Avacyn's Pilgrim": 4,
+     "Birds of Paradise": 4,
+     "Blade Splicer": 3,
+     "Borderland Ranger": 2,
+     "Huntmaster of the Fells // Ravager of the Fells": 4,
+     "Llanowar Elves": 1,
+     "Restoration Angel": 4,
+     "Thragtusk": 3,
+     "Thalia, Guardian of Thraben": 3,
+     "Dismember": 2,
+     "Bonfire of the Damned": 4,
+     "Sword of Body and Mind": 1,
+     "Sword of Feast and Famine": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
    "deck": 218966,
    "event": 2996,
    "archetype": "Kessig U",
@@ -474,6 +579,56 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 2
+  },
+  {
+   "deck": 218149,
+   "event": 2812,
+   "archetype": "Genesis Wave",
+   "player": "Kurt Crane",
+   "event_name": "Starcitygames Open Series: Buffalo",
+   "stars": 3,
+   "rank": "2",
+   "date": "2012-07-28",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.54,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 51.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Arbor Elf": 4,
+     "Birds of Paradise": 4,
+     "Craterhoof Behemoth": 1,
+     "Elvish Archdruid": 4,
+     "Elvish Visionary": 4,
+     "Llanowar Elves": 4,
+     "Restoration Angel": 4,
+     "Soul of the Harvest": 3,
+     "Village Bell-Ringer": 2,
+     "Ezuri, Renegade Leader": 1,
+     "Genesis Wave": 4,
+     "Green Sun's Zenith": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
   },
   {
    "deck": 214807,
@@ -527,6 +682,59 @@
    "label_count": 33
   },
   {
+   "deck": 217451,
+   "event": 2703,
+   "archetype": "Esper Control",
+   "player": "Gerald Leitzinger",
+   "event_name": "WMCQ'12 (Wien, Austria)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-04-16",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 4,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 4.0,
+     "U": 17.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Grave Titan": 1,
+     "Snapcaster Mage": 3,
+     "Dissipate": 2,
+     "Go for the Throat": 2,
+     "Forbidden Alchemy": 3,
+     "Think Twice": 3,
+     "Tragic Slip": 3,
+     "Mana Leak": 4,
+     "Black Sun's Zenith": 2,
+     "Lingering Souls": 4,
+     "Curse of Death's Hold": 2,
+     "Liliana of the Veil": 2,
+     "Batterskull": 1,
+     "Ratchet Bomb": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 15
+  },
+  {
    "deck": 214601,
    "event": 2092,
    "archetype": "GW Token",
@@ -574,6 +782,275 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 14
+  },
+  {
+   "deck": 214876,
+   "event": 2153,
+   "archetype": "Mono Black Infect",
+   "player": "Joshua Saylor",
+   "event_name": "States 2011 - Alabama",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-10-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.91,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 37.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Tumble Magnet": 1,
+     "Contagion Clasp": 2,
+     "Dismember": 2,
+     "Distress": 2,
+     "Nihil Spellbomb": 2,
+     "Doom Blade": 2,
+     "Tezzeret's Gambit": 3,
+     "Virulent Wound": 3,
+     "Lashwrithe": 4,
+     "Liliana of the Veil": 4,
+     "Whispering Specter": 2,
+     "Phyrexian Vatmother": 2,
+     "Skithiryx, the Blight Dragon": 2,
+     "Phyrexian Crusader": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 11
+  },
+  {
+   "deck": 217357,
+   "event": 2687,
+   "archetype": "FRites",
+   "player": "Austin Fritz",
+   "event_name": "PTQ Seattle (Lenexa, Kansas)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-04-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.08,
+    "pips": {
+     "W": 12.0,
+     "U": 0,
+     "B": 4.0,
+     "R": 6.0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wurmcoil Engine": 3,
+     "Birds of Paradise": 4,
+     "Llanowar Elves": 1,
+     "Inferno Titan": 1,
+     "Avacyn's Pilgrim": 4,
+     "Elesh Norn, Grand Cenobite": 4,
+     "Mulch": 4,
+     "Faithless Looting": 4,
+     "Tracker's Instincts": 3,
+     "Lingering Souls": 4,
+     "Unburial Rites": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 214801,
+   "event": 2134,
+   "archetype": "RUG Control",
+   "player": "Travis Bailey",
+   "event_name": "States 2011 - Newfoundland",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-10-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 16,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 9,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 0,
+     "R": 7.0,
+     "G": 22.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Negate": 1,
+     "Arc Trail": 1,
+     "Batterskull": 1,
+     "Sword of War and Peace": 2,
+     "Garruk, Primal Hunter": 2,
+     "Garruk Relentless // Garruk, the Veil-Cursed": 2,
+     "Geistflame": 3,
+     "Brimstone Volley": 3,
+     "Mana Leak": 4,
+     "Wurmcoil Engine": 1,
+     "Snapcaster Mage": 2,
+     "Consecrated Sphinx": 2,
+     "Thrun, the Last Troll": 3,
+     "Skinshifter": 4,
+     "Viridian Emissary": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 216404,
+   "event": 2524,
+   "archetype": "Unsolar Flare",
+   "player": "Pradeep Widana-Pathirana",
+   "event_name": "Pop-a-Lot.com Super Series Event #2",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-02-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 6,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.12,
+    "pips": {
+     "W": 16.0,
+     "U": 22.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Snapcaster Mage": 3,
+     "Consecrated Sphinx": 2,
+     "Elesh Norn, Grand Cenobite": 1,
+     "White Sun's Zenith": 2,
+     "Think Twice": 4,
+     "Forbidden Alchemy": 3,
+     "Dissipate": 2,
+     "Doom Blade": 3,
+     "Mana Leak": 4,
+     "Timely Reinforcements": 1,
+     "Day of Judgment": 2,
+     "Pristine Talisman": 3,
+     "Oblivion Ring": 1,
+     "Gideon Jura": 1,
+     "Karn Liberated": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 7
+  },
+  {
+   "deck": 217475,
+   "event": 2707,
+   "archetype": "Birthing Pod",
+   "player": "John Seaton",
+   "event_name": "WMCQ'12 (Wellington, New Zeland)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-04-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.54,
+    "pips": {
+     "W": 13.0,
+     "U": 2.0,
+     "B": 9.0,
+     "R": 3.0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Phantasmal Image": 2,
+     "Strangleroot Geist": 2,
+     "Viridian Emissary": 2,
+     "Sylvok Replica": 1,
+     "Fiend Hunter": 1,
+     "Daybreak Ranger // Nightfall Predator": 1,
+     "Skinrender": 1,
+     "Huntmaster of the Fells // Ravager of the Fells": 3,
+     "Acidic Slime": 2,
+     "Archon of Justice": 1,
+     "Sun Titan": 1,
+     "Wurmcoil Engine": 1,
+     "Brutalizer Exarch": 1,
+     "Reaper from the Abyss": 1,
+     "Elesh Norn, Grand Cenobite": 1,
+     "Sheoldred, Whispering One": 1,
+     "Rampant Growth": 2,
+     "Lingering Souls": 3,
+     "Birthing Pod": 4,
+     "Sorin, Lord of Innistrad": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 6
   },
   {
    "deck": 217751,
@@ -625,164 +1102,172 @@
    "style": "combo",
    "style_why": "label",
    "label_count": 6
-  }
- ],
- "alternates": [
-  {
-   "deck": 217606,
-   "event": 2724,
-   "archetype": "Gr Aggro",
-   "player": "Mason Lange",
-   "event_name": "Starcitygames Open Series: Madison",
-   "stars": 3,
-   "rank": "1",
-   "date": "2012-05-12",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 20,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 7,
-    "avg_cmc": 2.34,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 13.0,
-     "G": 37.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Incinerate": 1,
-     "Pillar of Flame": 1,
-     "Garruk Relentless // Garruk, the Veil-Cursed": 2,
-     "Galvanic Blast": 3,
-     "Sword of War and Peace": 3,
-     "Green Sun's Zenith": 4,
-     "Daybreak Ranger // Nightfall Predator": 1,
-     "Wolfir Silverheart": 1,
-     "Acidic Slime": 1,
-     "Hellrider": 2,
-     "Wolfir Avenger": 3,
-     "Birds of Paradise": 4,
-     "Huntmaster of the Fells // Ravager of the Fells": 4,
-     "Llanowar Elves": 4,
-     "Strangleroot Geist": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 50
   },
   {
-   "deck": 218062,
-   "event": 2799,
-   "archetype": "Naya Aggro",
-   "player": "Lance Behrens",
-   "event_name": "Starcitygames Open Series: St. Louis",
-   "stars": 3,
-   "rank": "2",
-   "date": "2012-07-14",
-   "summer": true,
-   "s": 0.6666666666666666,
+   "deck": 218002,
+   "event": 2784,
+   "archetype": "RUG Pod",
+   "player": "Nikos Michailidis",
+   "event_name": "PTQ Seattle (Athens, Greece)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-06-30",
+   "summer": false,
+   "s": 0.611764705882353,
    "f": {
     "spells": 37,
     "lands": 23,
-    "creatures": 23,
+    "creatures": 25,
     "counters": 0,
-    "sweepers": 4,
+    "sweepers": 0,
     "draw": 0,
-    "burn": 4,
-    "avg_cmc": 2.59,
+    "burn": 0,
+    "avg_cmc": 2.86,
     "pips": {
-     "W": 10.0,
-     "U": 0,
+     "W": 0,
+     "U": 1.0,
      "B": 0,
-     "R": 8.0,
-     "G": 18.0
+     "R": 12.0,
+     "G": 33.0
     },
     "colors": [
-     "W",
      "R",
      "G"
     ],
     "names": {
-     "Avacyn's Pilgrim": 4,
+     "Phyrexian Metamorph": 1,
      "Birds of Paradise": 4,
-     "Blade Splicer": 3,
+     "Llanowar Elves": 4,
+     "Inferno Titan": 1,
+     "Primeval Titan": 1,
      "Borderland Ranger": 2,
+     "Acidic Slime": 1,
+     "Hound of Griselbrand": 1,
+     "Viridian Corrupter": 1,
+     "Zealous Conscripts": 1,
      "Huntmaster of the Fells // Ravager of the Fells": 4,
-     "Llanowar Elves": 1,
-     "Restoration Angel": 4,
-     "Thragtusk": 3,
-     "Thalia, Guardian of Thraben": 3,
-     "Dismember": 2,
-     "Bonfire of the Damned": 4,
-     "Sword of Body and Mind": 1,
-     "Sword of Feast and Famine": 2
+     "Phantasmal Image": 1,
+     "Stingerfling Spider": 1,
+     "Strangleroot Geist": 4,
+     "Pyreheart Wolf": 1,
+     "Urabrask the Hidden": 1,
+     "Green Sun's Zenith": 4,
+     "Birthing Pod": 4
     }
    },
-   "style": "aggro",
+   "style": "combo",
    "style_why": "label",
-   "label_count": 5
+   "label_count": 6
   },
   {
-   "deck": 218149,
-   "event": 2812,
-   "archetype": "Genesis Wave",
-   "player": "Kurt Crane",
-   "event_name": "Starcitygames Open Series: Buffalo",
-   "stars": 3,
-   "rank": "2",
-   "date": "2012-07-28",
-   "summer": true,
-   "s": 0.6666666666666666,
+   "deck": 218014,
+   "event": 2787,
+   "archetype": "Esper Midrange",
+   "player": "Yohan Dudognon",
+   "event_name": "WMCQ'12 - France",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-07-01",
+   "summer": false,
+   "s": 0.611764705882353,
    "f": {
-    "spells": 39,
-    "lands": 21,
-    "creatures": 27,
-    "counters": 0,
-    "sweepers": 2,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 2.54,
+    "spells": 37,
+    "lands": 23,
+    "creatures": 13,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 2,
+    "avg_cmc": 2.38,
     "pips": {
-     "W": 6.0,
-     "U": 0,
-     "B": 0,
+     "W": 16.0,
+     "U": 18.0,
+     "B": 4.0,
      "R": 0,
-     "G": 51.0
+     "G": 0
     },
     "colors": [
      "W",
-     "G"
+     "U",
+     "B"
     ],
     "names": {
-     "Arbor Elf": 4,
-     "Birds of Paradise": 4,
-     "Craterhoof Behemoth": 1,
-     "Elvish Archdruid": 4,
-     "Elvish Visionary": 4,
-     "Llanowar Elves": 4,
+     "Tamiyo, the Moon Sage": 1,
+     "Divine Offering": 1,
+     "Mana Leak": 2,
+     "Gut Shot": 2,
+     "Gideon Jura": 2,
+     "Go for the Throat": 2,
+     "Doom Blade": 2,
+     "Ponder": 4,
+     "Thought Scour": 4,
+     "Lingering Souls": 4,
+     "Phantasmal Image": 2,
+     "Blade Splicer": 3,
      "Restoration Angel": 4,
-     "Soul of the Harvest": 3,
-     "Village Bell-Ringer": 2,
-     "Ezuri, Renegade Leader": 1,
-     "Genesis Wave": 4,
-     "Green Sun's Zenith": 4
+     "Snapcaster Mage": 4
     }
    },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 1
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
   },
+  {
+   "deck": 218960,
+   "event": 2996,
+   "archetype": "Mono Black Control",
+   "player": "Ramon Nogueira",
+   "event_name": "Friday Night Magic Championship @ Gen Con",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2012-08-17",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.42,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 52.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Pristine Talisman": 4,
+     "Mutilate": 3,
+     "Go for the Throat": 2,
+     "Duress": 3,
+     "Doom Blade": 1,
+     "Dismember": 1,
+     "Curse of Death's Hold": 2,
+     "Black Sun's Zenith": 3,
+     "Vampire Nighthawk": 4,
+     "Phyrexian Metamorph": 2,
+     "Grave Titan": 2,
+     "Sorin Markov": 2,
+     "Karn Liberated": 2,
+     "Surgical Extraction": 1,
+     "Sorin's Vengeance": 1,
+     "Sign in Blood": 4,
+     "Sever the Bloodline": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 4
+  }
+ ],
+ "alternates": [
   {
    "deck": 215649,
    "event": 2333,
@@ -983,59 +1468,6 @@
    "label_count": 19
   },
   {
-   "deck": 217451,
-   "event": 2703,
-   "archetype": "Esper Control",
-   "player": "Gerald Leitzinger",
-   "event_name": "WMCQ'12 (Wien, Austria)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2012-04-16",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 4,
-    "counters": 6,
-    "sweepers": 2,
-    "draw": 3,
-    "burn": 0,
-    "avg_cmc": 2.62,
-    "pips": {
-     "W": 4.0,
-     "U": 17.0,
-     "B": 19.0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U",
-     "B"
-    ],
-    "names": {
-     "Grave Titan": 1,
-     "Snapcaster Mage": 3,
-     "Dissipate": 2,
-     "Go for the Throat": 2,
-     "Forbidden Alchemy": 3,
-     "Think Twice": 3,
-     "Tragic Slip": 3,
-     "Mana Leak": 4,
-     "Black Sun's Zenith": 2,
-     "Lingering Souls": 4,
-     "Curse of Death's Hold": 2,
-     "Liliana of the Veil": 2,
-     "Batterskull": 1,
-     "Ratchet Bomb": 2
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 15
-  },
-  {
    "deck": 214884,
    "event": 2155,
    "archetype": "UW Blade",
@@ -1086,55 +1518,6 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 12
-  },
-  {
-   "deck": 215645,
-   "event": 2332,
-   "archetype": "UW Control",
-   "player": "Papadopoulos Panagiotis",
-   "event_name": "Unofficial GPT - Lille",
-   "stars": 2,
-   "rank": "1",
-   "date": "2011-12-03",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 31,
-    "lands": 26,
-    "creatures": 7,
-    "counters": 7,
-    "sweepers": 0,
-    "draw": 3,
-    "burn": 0,
-    "avg_cmc": 2.97,
-    "pips": {
-     "W": 9.0,
-     "U": 25.0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U"
-    ],
-    "names": {
-     "Snapcaster Mage": 4,
-     "Consecrated Sphinx": 3,
-     "Mana Leak": 4,
-     "Think Twice": 3,
-     "Dissipate": 2,
-     "Midnight Haunting": 4,
-     "Forbidden Alchemy": 3,
-     "Negate": 1,
-     "Sword of Feast and Famine": 3,
-     "Oblivion Ring": 3,
-     "Gideon Jura": 1
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 11
   },
   {
    "deck": 215202,
@@ -1188,59 +1571,364 @@
    "label_count": 11
   },
   {
-   "deck": 214876,
-   "event": 2153,
-   "archetype": "Mono Black Infect",
-   "player": "Joshua Saylor",
-   "event_name": "States 2011 - Alabama",
+   "deck": 217365,
+   "event": 2688,
+   "archetype": "BW Tokens",
+   "player": "Randy Cummings",
+   "event_name": "PTQ Seattle (Tallahassee, Florida)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-04-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 40.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Hero of Bladehold": 4,
+     "Champion of the Parish": 4,
+     "Doomed Traveler": 4,
+     "Midnight Haunting": 4,
+     "Divine Offering": 1,
+     "Gather the Townsfolk": 4,
+     "Lingering Souls": 4,
+     "Intangible Virtue": 4,
+     "Oblivion Ring": 3,
+     "Honor of the Pure": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 6
+  },
+  {
+   "deck": 214829,
+   "event": 2142,
+   "archetype": "Puresteel Paladin",
+   "player": "Greg Stiver",
+   "event_name": "States 2011 - Mississippi",
    "stars": 2,
    "rank": "1",
    "date": "2011-10-15",
    "summer": false,
    "s": 0.611764705882353,
    "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 10,
+    "spells": 37,
+    "lands": 23,
+    "creatures": 14,
     "counters": 0,
-    "sweepers": 0,
-    "draw": 5,
-    "burn": 0,
-    "avg_cmc": 2.91,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 1.95,
     "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 37.0,
+     "W": 25.0,
+     "U": 5.0,
+     "B": 0,
      "R": 0,
      "G": 0
     },
     "colors": [
-     "B"
+     "W",
+     "U"
     ],
     "names": {
-     "Tumble Magnet": 1,
-     "Contagion Clasp": 2,
-     "Dismember": 2,
-     "Distress": 2,
-     "Nihil Spellbomb": 2,
-     "Doom Blade": 2,
-     "Tezzeret's Gambit": 3,
-     "Virulent Wound": 3,
-     "Lashwrithe": 4,
-     "Liliana of the Veil": 4,
-     "Whispering Specter": 2,
-     "Phyrexian Vatmother": 2,
-     "Skithiryx, the Blight Dragon": 2,
-     "Phyrexian Crusader": 4
+     "Puresteel Paladin": 4,
+     "Doomed Traveler": 2,
+     "Invisible Stalker": 3,
+     "Spellskite": 1,
+     "Mirran Crusader": 2,
+     "Geist of Saint Traft": 2,
+     "Dispatch": 4,
+     "Day of Judgment": 1,
+     "Sword of War and Peace": 3,
+     "Sword of Feast and Famine": 2,
+     "Mortarpod": 3,
+     "Flayer Husk": 4,
+     "Silver-Inlaid Dagger": 2,
+     "Accorder's Shield": 1,
+     "Mox Opal": 1,
+     "Oblivion Ring": 1,
+     "Angelic Destiny": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 217972,
+   "event": 2778,
+   "archetype": "UW Midrange",
+   "player": "Antonino De Rosa",
+   "event_name": "PTQ Seattle (Rimini, Italia)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-07-01",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 3,
+    "sweepers": 2,
+    "draw": 9,
+    "burn": 1,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 18.0,
+     "U": 19.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Gut Shot": 1,
+     "Batterskull": 1,
+     "Tamiyo, the Moon Sage": 1,
+     "Gideon Jura": 2,
+     "Day of Judgment": 2,
+     "Mana Leak": 3,
+     "Vapor Snag": 4,
+     "Ponder": 4,
+     "Gitaxian Probe": 4,
+     "Sun Titan": 1,
+     "Phantasmal Image": 2,
+     "Restoration Angel": 4,
+     "Blade Splicer": 4,
+     "Snapcaster Mage": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 217727,
+   "event": 2744,
+   "archetype": "WR Humans",
+   "player": "Luca Cortesi",
+   "event_name": "PTQ Seattle (Bologna, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-05-20",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.47,
+    "pips": {
+     "W": 38.0,
+     "U": 0,
+     "B": 0,
+     "R": 7.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Manic Vandal": 1,
+     "Stormblood Berserker": 2,
+     "Lightning Mauler": 3,
+     "Fiend Hunter": 2,
+     "Hero of Bladehold": 4,
+     "Silverblade Paladin": 3,
+     "Mirran Crusader": 3,
+     "Champion of the Parish": 4,
+     "Doomed Traveler": 2,
+     "Zealous Conscripts": 1,
+     "Thalia, Guardian of Thraben": 3,
+     "Gather the Townsfolk": 2,
+     "Sword of War and Peace": 3,
+     "Honor of the Pure": 3
     }
    },
    "style": "aggro",
    "style_why": "label",
-   "label_count": 11
+   "label_count": 2
+  },
+  {
+   "deck": 217690,
+   "event": 2739,
+   "archetype": "UG poison",
+   "player": "Damien Mace",
+   "event_name": "WMCQ'12 (Poitiers, France)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-05-29",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 3,
+    "avg_cmc": 1.53,
+    "pips": {
+     "W": 0,
+     "U": 9.0,
+     "B": 0,
+     "R": 0,
+     "G": 13.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Runechanter's Pike": 1,
+     "Artful Dodge": 1,
+     "Livewire Lash": 1,
+     "Titanic Growth": 2,
+     "Gut Shot": 2,
+     "Ponder": 4,
+     "Gitaxian Probe": 4,
+     "Ranger's Guile": 4,
+     "Mutagenic Growth": 4,
+     "Apostle's Blessing": 4,
+     "Wild Defiance": 4,
+     "Glistener Elf": 3,
+     "Blighted Agent": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 218064,
+   "event": 2799,
+   "archetype": "Mono Green Aggro",
+   "player": "Michael Alakayleh",
+   "event_name": "Starcitygames Open Series: St. Louis",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2012-07-14",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 49.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Dismember": 2,
+     "Revenge of the Hunted": 3,
+     "Green Sun's Zenith": 4,
+     "Rancor": 4,
+     "Viridian Corrupter": 1,
+     "Wolfir Silverheart": 1,
+     "Thragtusk": 1,
+     "Ulvenwald Tracker": 2,
+     "Predator Ooze": 3,
+     "Llanowar Elves": 3,
+     "Dungrove Elder": 4,
+     "Strangleroot Geist": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
   }
  ],
- "pool_size": 39,
- "rejected_illegal": [],
+ "pool_size": 65,
+ "rejected_illegal": [
+  {
+   "archetype": "UW Control",
+   "deck": 215645,
+   "player": "Papadopoulos Panagiotis",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "UB Zombie",
+   "deck": 217515,
+   "player": "Hayden Bedsole",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "GR Ramp",
+   "deck": 214496,
+   "player": "Brian Sondag",
+   "why": [
+    "incomplete list: 60 main, 16 sideboard"
+   ]
+  },
+  {
+   "archetype": "UR Control",
+   "deck": 214700,
+   "player": "Brian Siu",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Kes",
+   "deck": 214899,
+   "player": "Justin Keaton",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "RUG Ramp",
+   "deck": 217976,
+   "player": "William Cavaglieri",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  }
+ ],
  "duplicates_dropped": [
   {
    "dropped": "UW Talrand Delver",
@@ -1279,6 +1967,12 @@
    "kept_player": "John Hagermanfletcher"
   },
   {
+   "dropped": "UW Control",
+   "player": "Dan Gillis",
+   "kept": "Unsolar Flare",
+   "kept_player": "Pradeep Widana-Pathirana"
+  },
+  {
    "dropped": "Zombies",
    "player": "Davide Quaglia",
    "kept": "BR Zombies",
@@ -1301,12 +1995,6 @@
    "player": "Tom\u00e1\u009a Van\u011bk",
    "kept": "Naya Pod",
    "kept_player": "Caleb Durward"
-  },
-  {
-   "dropped": "GR Ramp",
-   "player": "Brian Sondag",
-   "kept": "Kessig Titan",
-   "kept_player": "John Cuvelier"
   },
   {
    "dropped": "Bant Pod",
@@ -1337,20 +2025,237 @@
    "player": "Zakk Meza",
    "kept": "Naya Pod",
    "kept_player": "Caleb Durward"
+  },
+  {
+   "dropped": "Mono U Delver",
+   "player": "Shaheen Soorani",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "UB Zombi",
+   "player": "Richard Parker",
+   "kept": "UB Zombie",
+   "kept_player": "Joshua Wagener"
+  },
+  {
+   "dropped": "Black Kessig",
+   "player": "Conley Woods",
+   "kept": "Kessig Titan",
+   "kept_player": "John Cuvelier"
+  },
+  {
+   "dropped": "Delver Blade",
+   "player": "Charles Gindy",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "UW Token",
+   "player": "Cedric Phillips",
+   "kept": "GW Token",
+   "kept_player": "Mikael Conrow"
+  },
+  {
+   "dropped": "Delver Spirit",
+   "player": "Matth\u00e4us Steurer",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "UW Human Delver",
+   "player": "Nicholas Spagnolo",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "Wu Humans",
+   "player": "Arnaud Bedlewski",
+   "kept": "WR Humans",
+   "kept_player": "Luca Cortesi"
+  },
+  {
+   "dropped": "Kessig Titan B",
+   "player": "Federico Basoni",
+   "kept": "Kessig Titan",
+   "kept_player": "John Cuvelier"
+  },
+  {
+   "dropped": "Kessig White",
+   "player": "Rene Marksfeld",
+   "kept": "W Kessig Titan",
+   "kept_player": "Marcin \u017bebrowski"
+  },
+  {
+   "dropped": "Kessig Titan Mono Green",
+   "player": "Suripat Maikhu",
+   "kept": "W Kessig Titan",
+   "kept_player": "Marcin \u017bebrowski"
+  },
+  {
+   "dropped": "Desesperate 5c Solar",
+   "player": "Chye Yian Hsiang",
+   "kept": "Solar Flare",
+   "kept_player": "Jeremy Dombek"
+  },
+  {
+   "dropped": "RW Humans",
+   "player": "Jesse Gordon",
+   "kept": "WR Humans",
+   "kept_player": "Luca Cortesi"
+  },
+  {
+   "dropped": "Aura Delver",
+   "player": "Jeff Rasmussen",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "WR Aggro",
+   "player": "Justin Schibanoff",
+   "kept": "WR Humans",
+   "kept_player": "Luca Cortesi"
+  },
+  {
+   "dropped": "Illusions",
+   "player": "Zbigniew Wichlacz",
+   "kept": "Illusion",
+   "kept_player": "Alex Bertoncini"
+  },
+  {
+   "dropped": "Saint WW with Leaks",
+   "player": "Aaron Yue",
+   "kept": "Saint WW",
+   "kept_player": "John Hagermanfletcher"
+  },
+  {
+   "dropped": "Spirit Delver",
+   "player": "Javier Arevalo",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "RG Aggro",
+   "player": "Marien Couverturier",
+   "kept": "Gr Aggro",
+   "kept_player": "Mason Lange"
+  },
+  {
+   "dropped": "UW Humans",
+   "player": "S\u00f8ren Graversen",
+   "kept": "WR Humans",
+   "kept_player": "Luca Cortesi"
+  },
+  {
+   "dropped": "Bant Birthing Pod",
+   "player": "Russell Amoriello",
+   "kept": "Birthing Pod",
+   "kept_player": "John Seaton"
+  },
+  {
+   "dropped": "Caw-Blade",
+   "player": "Ricky Allaer",
+   "kept": "UW Blade",
+   "kept_player": "Billy Hahn"
+  },
+  {
+   "dropped": "RG Pod",
+   "player": "Carozzo Luigi",
+   "kept": "RUG Pod",
+   "kept_player": "Nikos Michailidis"
+  },
+  {
+   "dropped": "UWR Delver",
+   "player": "Bill Chronopoulos",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "BW Humans",
+   "player": "Morten Pedersen",
+   "kept": "WR Humans",
+   "kept_player": "Luca Cortesi"
+  },
+  {
+   "dropped": "U/W Delver",
+   "player": "Aaron Leblanc",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "WB Tokens",
+   "player": "Chris Basco",
+   "kept": "BW Tokens",
+   "kept_player": "Randy Cummings"
+  },
+  {
+   "dropped": "Kessig Titan with U",
+   "player": "Jason Dank",
+   "kept": "Kessig Titan",
+   "kept_player": "John Cuvelier"
+  },
+  {
+   "dropped": "Esper Delver",
+   "player": "Thomas Enevoldsen",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "Mono Black Zombies",
+   "player": "Paul Indelicato",
+   "kept": "BR Zombies",
+   "kept_player": "Han Kyu"
+  },
+  {
+   "dropped": "Delver Pike",
+   "player": "R\u00e9mi Fortier",
+   "kept": "UW Delver",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "PW Control",
+   "player": "Andrea Mengucci",
+   "kept": "Orzhov PW Control",
+   "kept_player": "Finn Thruz"
+  },
+  {
+   "dropped": "GW Pod",
+   "player": "Flavius Iepan",
+   "kept": "Naya Pod",
+   "kept_player": "Caleb Durward"
+  },
+  {
+   "dropped": "U/W Blade",
+   "player": "Brian Braun-Duin",
+   "kept": "UW Blade",
+   "kept_player": "Billy Hahn"
+  },
+  {
+   "dropped": "UWb Blade",
+   "player": "Raphael Levy",
+   "kept": "Unsolar Flare",
+   "kept_player": "Pradeep Widana-Pathirana"
+  },
+  {
+   "dropped": "Soalr Flare",
+   "player": "Washi_min",
+   "kept": "Solar Flare",
+   "kept_player": "Jeremy Dombek"
   }
  ],
- "objective": 9.644773175542406,
+ "objective": 17.263619635508523,
  "pool_colors": {
-  "W": 22,
-  "U": 17,
-  "R": 11,
-  "G": 16,
-  "B": 11
+  "W": 34,
+  "U": 29,
+  "R": 21,
+  "G": 25,
+  "B": 21
  },
  "pool_styles": {
-  "aggro": 16,
-  "combo": 4,
-  "midrange": 13,
-  "control": 6
- }
+  "aggro": 29,
+  "combo": 5,
+  "midrange": 16,
+  "control": 15
+ },
+ "kept_lost": []
 }

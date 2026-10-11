@@ -409,6 +409,64 @@
    "label_count": 1
   },
   {
+   "deck": 276570,
+   "event": 13097,
+   "archetype": "Sultai Midrange",
+   "player": "Ali Aintrazi",
+   "event_name": "SCG Standard - Columbus",
+   "stars": 3,
+   "rank": "2",
+   "date": "2016-07-23",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 36,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.33,
+    "pips": {
+     "W": 0,
+     "U": 9.0,
+     "B": 25.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Murder": 1,
+     "Scour the Laboratory": 1,
+     "Ultimate Price": 1,
+     "Oath of Liliana": 1,
+     "Grasp of Darkness": 1,
+     "Ob Nixilis Reignited": 1,
+     "Traverse the Ulvenwald": 2,
+     "Ruinous Path": 2,
+     "Oath of Jace": 2,
+     "Liliana, the Last Hope": 2,
+     "Hedron Archive": 4,
+     "Languish": 4,
+     "Emrakul, the Promised End": 1,
+     "Dragonlord Silumgar": 1,
+     "Ishkanah, Grafwidow": 1,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 1,
+     "Den Protector": 2,
+     "Sylvan Advocate": 4,
+     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 8
+  },
+  {
    "deck": 277757,
    "event": 13253,
    "archetype": "Naya PW",
@@ -515,218 +573,6 @@
    "label_count": 47
   },
   {
-   "deck": 270517,
-   "event": 12251,
-   "archetype": "Golgari Control",
-   "player": "Lucas Giuliani",
-   "event_name": "Grand Prix Toronto 2016 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2016-04-29",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 33,
-    "lands": 27,
-    "creatures": 4,
-    "counters": 0,
-    "sweepers": 3,
-    "draw": 5,
-    "burn": 1,
-    "avg_cmc": 3.42,
-    "pips": {
-     "W": 1.0,
-     "U": 0,
-     "B": 44.0,
-     "R": 0,
-     "G": 7.0
-    },
-    "colors": [
-     "B",
-     "G"
-    ],
-    "names": {
-     "Ob Nixilis Reignited": 1,
-     "Sorin, Grim Nemesis": 1,
-     "Kalitas, Traitor of Ghet": 2,
-     "Nissa, Vastwood Seer // Nissa, Sage Animist": 2,
-     "Duress": 2,
-     "Transgress the Mind": 2,
-     "Read the Bones": 4,
-     "Ruinous Path": 3,
-     "Languish": 3,
-     "Dark Petition": 4,
-     "Nissa's Renewal": 1,
-     "Seasons Past": 2,
-     "Grasp of Darkness": 3,
-     "Ultimate Price": 2,
-     "Dead Weight": 1
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 8
-  },
-  {
-   "deck": 270468,
-   "event": 12243,
-   "archetype": "Mardu Control",
-   "player": "Fujiwara Takashi",
-   "event_name": "Standard @ Hareruya",
-   "stars": 2,
-   "rank": "1",
-   "date": "2016-04-26",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 8,
-    "counters": 0,
-    "sweepers": 6,
-    "draw": 4,
-    "burn": 0,
-    "avg_cmc": 3.59,
-    "pips": {
-     "W": 4.0,
-     "U": 0,
-     "B": 32.0,
-     "R": 22.0,
-     "G": 0
-    },
-    "colors": [
-     "B",
-     "R"
-    ],
-    "names": {
-     "Nahiri, the Harbinger": 2,
-     "Painful Truths": 2,
-     "Chandra, Flamecaller": 3,
-     "Languish": 3,
-     "To the Slaughter": 4,
-     "Grasp of Darkness": 4,
-     "Ruinous Path": 4,
-     "Transgress the Mind": 4,
-     "Linvala, the Preserver": 1,
-     "Pia and Kiran Nalaar": 3,
-     "Goblin Dark-Dwellers": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 7
-  }
- ],
- "alternates": [
-  {
-   "deck": 276570,
-   "event": 13097,
-   "archetype": "Sultai Midrange",
-   "player": "Ali Aintrazi",
-   "event_name": "SCG Standard - Columbus",
-   "stars": 3,
-   "rank": "2",
-   "date": "2016-07-23",
-   "summer": true,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 36,
-    "lands": 26,
-    "creatures": 14,
-    "counters": 0,
-    "sweepers": 4,
-    "draw": 8,
-    "burn": 0,
-    "avg_cmc": 3.33,
-    "pips": {
-     "W": 0,
-     "U": 9.0,
-     "B": 25.0,
-     "R": 0,
-     "G": 10.0
-    },
-    "colors": [
-     "U",
-     "B",
-     "G"
-    ],
-    "names": {
-     "Murder": 1,
-     "Scour the Laboratory": 1,
-     "Ultimate Price": 1,
-     "Oath of Liliana": 1,
-     "Grasp of Darkness": 1,
-     "Ob Nixilis Reignited": 1,
-     "Traverse the Ulvenwald": 2,
-     "Ruinous Path": 2,
-     "Oath of Jace": 2,
-     "Liliana, the Last Hope": 2,
-     "Hedron Archive": 4,
-     "Languish": 4,
-     "Emrakul, the Promised End": 1,
-     "Dragonlord Silumgar": 1,
-     "Ishkanah, Grafwidow": 1,
-     "Nissa, Vastwood Seer // Nissa, Sage Animist": 1,
-     "Den Protector": 2,
-     "Sylvan Advocate": 4,
-     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 8
-  },
-  {
-   "deck": 272414,
-   "event": 12550,
-   "archetype": "Golgari Aristocrats",
-   "player": "Marteinn Fridriksson",
-   "event_name": "Grand Prix Manchester 2016 - Trial Winners",
-   "stars": 2,
-   "rank": "1",
-   "date": "2016-05-27",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 27,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 2.51,
-    "pips": {
-     "W": 0,
-     "U": 2.0,
-     "B": 17.0,
-     "R": 0,
-     "G": 25.0
-    },
-    "colors": [
-     "B",
-     "G"
-    ],
-    "names": {
-     "Cryptolith Rite": 3,
-     "Collected Company": 4,
-     "Ultimate Price": 1,
-     "Dragonlord Silumgar": 2,
-     "Liliana, Heretical Healer // Liliana, Defiant Necromancer": 1,
-     "Catacomb Sifter": 4,
-     "Nantuko Husk": 4,
-     "Duskwatch Recruiter // Krallenhorde Howler": 4,
-     "Elvish Visionary": 4,
-     "Zulaport Cutthroat": 4,
-     "Blisterpod": 2,
-     "Loam Dryad": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 26
-  },
-  {
    "deck": 270516,
    "event": 12251,
    "archetype": "Izzet Control",
@@ -774,55 +620,6 @@
    "style": "control",
    "style_why": "label",
    "label_count": 14
-  },
-  {
-   "deck": 274294,
-   "event": 12802,
-   "archetype": "Bant Humans",
-   "player": "Anders Gotfredsen",
-   "event_name": "WMCQ Denmark (Odense)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2016-06-19",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 26,
-    "counters": 1,
-    "sweepers": 0,
-    "draw": 1,
-    "burn": 0,
-    "avg_cmc": 2.51,
-    "pips": {
-     "W": 19.0,
-     "U": 5.0,
-     "B": 0,
-     "R": 0,
-     "G": 20.0
-    },
-    "colors": [
-     "W",
-     "U",
-     "G"
-    ],
-    "names": {
-     "Collected Company": 4,
-     "Thalia's Lieutenant": 4,
-     "Thraben Inspector": 3,
-     "Duskwatch Recruiter // Krallenhorde Howler": 4,
-     "Lambholt Pacifist // Lambholt Butcher": 4,
-     "Tireless Tracker": 4,
-     "Eldrazi Displacer": 3,
-     "Reflector Mage": 4,
-     "Dromoka's Command": 4,
-     "Ojutai's Command": 1
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 12
   },
   {
    "deck": 274596,
@@ -926,6 +723,59 @@
    "label_count": 9
   },
   {
+   "deck": 270517,
+   "event": 12251,
+   "archetype": "Golgari Control",
+   "player": "Lucas Giuliani",
+   "event_name": "Grand Prix Toronto 2016 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-04-29",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 5,
+    "burn": 1,
+    "avg_cmc": 3.42,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 44.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Ob Nixilis Reignited": 1,
+     "Sorin, Grim Nemesis": 1,
+     "Kalitas, Traitor of Ghet": 2,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 2,
+     "Duress": 2,
+     "Transgress the Mind": 2,
+     "Read the Bones": 4,
+     "Ruinous Path": 3,
+     "Languish": 3,
+     "Dark Petition": 4,
+     "Nissa's Renewal": 1,
+     "Seasons Past": 2,
+     "Grasp of Darkness": 3,
+     "Ultimate Price": 2,
+     "Dead Weight": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
    "deck": 274158,
    "event": 12781,
    "archetype": "Orzhov Aggro",
@@ -974,6 +824,55 @@
     }
    },
    "style": "aggro",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 270468,
+   "event": 12243,
+   "archetype": "Mardu Control",
+   "player": "Fujiwara Takashi",
+   "event_name": "Standard @ Hareruya",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-04-26",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.59,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 32.0,
+     "R": 22.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Nahiri, the Harbinger": 2,
+     "Painful Truths": 2,
+     "Chandra, Flamecaller": 3,
+     "Languish": 3,
+     "To the Slaughter": 4,
+     "Grasp of Darkness": 4,
+     "Ruinous Path": 4,
+     "Transgress the Mind": 4,
+     "Linvala, the Preserver": 1,
+     "Pia and Kiran Nalaar": 3,
+     "Goblin Dark-Dwellers": 4
+    }
+   },
+   "style": "control",
    "style_why": "label",
    "label_count": 7
   },
@@ -1029,57 +928,6 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 6
-  },
-  {
-   "deck": 271643,
-   "event": 12451,
-   "archetype": "Sultai Aggro",
-   "player": "Jaberwocki",
-   "event_name": "MTGO Standard PTQ",
-   "stars": 2,
-   "rank": "1",
-   "date": "2016-05-15",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 19,
-    "counters": 0,
-    "sweepers": 2,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 2.79,
-    "pips": {
-     "W": 0,
-     "U": 2.0,
-     "B": 24.0,
-     "R": 0,
-     "G": 20.0
-    },
-    "colors": [
-     "B",
-     "G"
-    ],
-    "names": {
-     "Traverse the Ulvenwald": 1,
-     "Grasp of Darkness": 1,
-     "Languish": 2,
-     "Ruinous Path": 3,
-     "Oath of Nissa": 4,
-     "Ultimate Price": 4,
-     "Dragonlord Silumgar": 2,
-     "Duskwatch Recruiter // Krallenhorde Howler": 2,
-     "Kalitas, Traitor of Ghet": 2,
-     "The Gitrog Monster": 2,
-     "Nissa, Vastwood Seer // Nissa, Sage Animist": 3,
-     "Sylvan Advocate": 4,
-     "Tireless Tracker": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 5
   },
   {
    "deck": 275648,
@@ -1224,9 +1072,782 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 2
+  },
+  {
+   "deck": 270466,
+   "event": 12243,
+   "archetype": "Boros Aggro",
+   "player": "Miyauchi Makoto",
+   "event_name": "Standard @ Hareruya",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-04-26",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 3,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Chandra's Ignition": 2,
+     "Spatial Contortion": 2,
+     "Nahiri, the Harbinger": 2,
+     "Lightning Axe": 3,
+     "Pia and Kiran Nalaar": 2,
+     "Vile Aggregate": 4,
+     "Thought-Knot Seer": 4,
+     "Thopter Engineer": 4,
+     "Reality Smasher": 4,
+     "Hedron Crawler": 4,
+     "Hangarback Walker": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 270330,
+   "event": 12222,
+   "archetype": "Naya",
+   "player": "Michael Angelo Evangelio",
+   "event_name": "PPTQ @ Upkeep Hobby Shop (Philippines)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-04-24",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 18.0,
+     "U": 0,
+     "B": 0,
+     "R": 8.0,
+     "G": 27.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Archangel Avacyn // Avacyn, the Purifier": 2,
+     "Declaration in Stone": 4,
+     "Sylvan Advocate": 4,
+     "Lambholt Pacifist // Lambholt Butcher": 4,
+     "Deathmist Raptor": 4,
+     "Den Protector": 3,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 1,
+     "Linvala, the Preserver": 1,
+     "Dragonlord Atarka": 1,
+     "Hidden Dragonslayer": 1,
+     "Chandra, Flamecaller": 1,
+     "Arlinn Kord // Arlinn, Embraced by the Moon": 2,
+     "Nahiri, the Harbinger": 3,
+     "Dromoka's Command": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 279189,
+   "event": 13472,
+   "archetype": "Jund",
+   "player": "bone55",
+   "event_name": "MTGO Standard MOCS",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2016-09-11",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 12.0,
+     "R": 10.0,
+     "G": 17.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Liliana, the Last Hope": 3,
+     "Distended Mindbender": 1,
+     "Emrakul, the Promised End": 1,
+     "Goblin Dark-Dwellers": 2,
+     "Ishkanah, Grafwidow": 2,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 2,
+     "Pilgrim's Eye": 2,
+     "Sylvan Advocate": 2,
+     "Tireless Tracker": 2,
+     "Languish": 2,
+     "Traverse the Ulvenwald": 4,
+     "Fiery Impulse": 4,
+     "Grapple with the Past": 3,
+     "Kozilek's Return": 2,
+     "To the Slaughter": 2,
+     "Vessel of Nascency": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 14
   }
  ],
- "pool_size": 26,
+ "alternates": [
+  {
+   "deck": 272414,
+   "event": 12550,
+   "archetype": "Golgari Aristocrats",
+   "player": "Marteinn Fridriksson",
+   "event_name": "Grand Prix Manchester 2016 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-05-27",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 0,
+     "U": 2.0,
+     "B": 17.0,
+     "R": 0,
+     "G": 25.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Cryptolith Rite": 3,
+     "Collected Company": 4,
+     "Ultimate Price": 1,
+     "Dragonlord Silumgar": 2,
+     "Liliana, Heretical Healer // Liliana, Defiant Necromancer": 1,
+     "Catacomb Sifter": 4,
+     "Nantuko Husk": 4,
+     "Duskwatch Recruiter // Krallenhorde Howler": 4,
+     "Elvish Visionary": 4,
+     "Zulaport Cutthroat": 4,
+     "Blisterpod": 2,
+     "Loam Dryad": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 26
+  },
+  {
+   "deck": 274294,
+   "event": 12802,
+   "archetype": "Bant Humans",
+   "player": "Anders Gotfredsen",
+   "event_name": "WMCQ Denmark (Odense)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-06-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 26,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 19.0,
+     "U": 5.0,
+     "B": 0,
+     "R": 0,
+     "G": 20.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Collected Company": 4,
+     "Thalia's Lieutenant": 4,
+     "Thraben Inspector": 3,
+     "Duskwatch Recruiter // Krallenhorde Howler": 4,
+     "Lambholt Pacifist // Lambholt Butcher": 4,
+     "Tireless Tracker": 4,
+     "Eldrazi Displacer": 3,
+     "Reflector Mage": 4,
+     "Dromoka's Command": 4,
+     "Ojutai's Command": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 271643,
+   "event": 12451,
+   "archetype": "Sultai Aggro",
+   "player": "Jaberwocki",
+   "event_name": "MTGO Standard PTQ",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-05-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.79,
+    "pips": {
+     "W": 0,
+     "U": 2.0,
+     "B": 24.0,
+     "R": 0,
+     "G": 20.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Traverse the Ulvenwald": 1,
+     "Grasp of Darkness": 1,
+     "Languish": 2,
+     "Ruinous Path": 3,
+     "Oath of Nissa": 4,
+     "Ultimate Price": 4,
+     "Dragonlord Silumgar": 2,
+     "Duskwatch Recruiter // Krallenhorde Howler": 2,
+     "Kalitas, Traitor of Ghet": 2,
+     "The Gitrog Monster": 2,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 3,
+     "Sylvan Advocate": 4,
+     "Tireless Tracker": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 278957,
+   "event": 13444,
+   "archetype": "Temur Emerge",
+   "player": "Todd Anderson",
+   "event_name": "StarCityGames.com Standard - Richmond",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2016-09-03",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.77,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 24.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Gather the Pack": 2,
+     "Kozilek's Return": 4,
+     "Vessel of Nascency": 4,
+     "Traverse the Ulvenwald": 4,
+     "Nissa's Pilgrimage": 4,
+     "Grapple with the Past": 4,
+     "Ishkanah, Grafwidow": 2,
+     "Elder Deep-Fiend": 2,
+     "Wretched Gryff": 3,
+     "Pilgrim's Eye": 3,
+     "Emrakul, the Promised End": 3,
+     "Primal Druid": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 277758,
+   "event": 13253,
+   "archetype": "Sultai Control",
+   "player": "Itou Motoaki",
+   "event_name": "7th Standard God Challenger Finals",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2016-08-11",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.58,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 29.0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Den Protector": 1,
+     "Distended Mindbender": 3,
+     "Dragonlord Silumgar": 1,
+     "Emrakul, the Promised End": 1,
+     "Ishkanah, Grafwidow": 2,
+     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 3,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 1,
+     "Pilgrim's Eye": 4,
+     "Tireless Tracker": 3,
+     "Grasp of Darkness": 4,
+     "Ultimate Price": 2,
+     "Languish": 3,
+     "Ruinous Path": 3,
+     "Traverse the Ulvenwald": 2,
+     "Liliana, the Last Hope": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 272577,
+   "event": 12568,
+   "archetype": "Gruul Ramp",
+   "player": "A_Baiotto",
+   "event_name": "MTGO Standard Champs",
+   "stars": 3,
+   "rank": "2",
+   "date": "2016-05-23",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 26.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Oath of Nissa": 4,
+     "Hedron Archive": 4,
+     "Traverse the Ulvenwald": 4,
+     "Ruin in Their Wake": 4,
+     "Explosive Vegetation": 4,
+     "World Breaker": 2,
+     "Ulamog, the Ceaseless Hunger": 1,
+     "Tireless Tracker": 2,
+     "Hedron Crawler": 3,
+     "Dragonlord Atarka": 4,
+     "Deathcap Cultivator": 2,
+     "Chandra, Flamecaller": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 21
+  },
+  {
+   "deck": 277109,
+   "event": 13166,
+   "archetype": "Esper Midrange",
+   "player": "Takeuchi Ryota",
+   "event_name": "BIG MAGIC OPEN Vol.7 - Standard Open",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2016-07-30",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 3.15,
+    "pips": {
+     "W": 28.0,
+     "U": 6.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Sorin, Grim Nemesis": 1,
+     "Anguished Unmaking": 1,
+     "Tragic Arrogance": 1,
+     "Liliana, the Last Hope": 2,
+     "Stasis Snare": 2,
+     "Silkwrap": 2,
+     "Grasp of Darkness": 2,
+     "Declaration in Stone": 3,
+     "Transgress the Mind": 3,
+     "Ayli, Eternal Pilgrim": 2,
+     "Dragonlord Silumgar": 2,
+     "Archangel Avacyn // Avacyn, the Purifier": 3,
+     "Eldrazi Displacer": 3,
+     "Wasteland Strangler": 3,
+     "Spell Queller": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 277106,
+   "event": 13166,
+   "archetype": "Azorius Aggro",
+   "player": "Shimizu Shouta",
+   "event_name": "BIG MAGIC OPEN Vol.7 - Standard Open",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2016-07-30",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 32,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.71,
+    "pips": {
+     "W": 30.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Ojutai's Command": 3,
+     "Bygone Bishop": 3,
+     "Nebelgast Herald": 3,
+     "Anafenza, Kin-Tree Spirit": 3,
+     "Archangel Avacyn // Avacyn, the Purifier": 3,
+     "Reflector Mage": 4,
+     "Spell Queller": 4,
+     "Selfless Spirit": 4,
+     "Rattlechains": 4,
+     "Mausoleum Wanderer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 277157,
+   "event": 13174,
+   "archetype": "Simic Aggro",
+   "player": "Cory Dissinger",
+   "event_name": "StarCityGames.com Open Baltimore",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2016-07-31",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 18,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 0,
+     "U": 15.0,
+     "B": 0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Clash of Wills": 1,
+     "Pulse of Murasa": 2,
+     "Nissa's Pilgrimage": 2,
+     "Kiora, Master of the Depths": 2,
+     "Traverse the Ulvenwald": 3,
+     "Oath of Nissa": 3,
+     "Crush of Tentacles": 4,
+     "Void Grafter": 1,
+     "Hangarback Walker": 1,
+     "Emrakul, the Promised End": 1,
+     "Elvish Visionary": 1,
+     "Bounding Krasis": 1,
+     "Ishkanah, Grafwidow": 1,
+     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 2,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 2,
+     "Noose Constrictor": 4,
+     "Den Protector": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 277108,
+   "event": 13166,
+   "archetype": "Simic Emerge",
+   "player": "Asahara Akira",
+   "event_name": "BIG MAGIC OPEN Vol.7 - Standard Open",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2016-07-30",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 3.59,
+    "pips": {
+     "W": 0,
+     "U": 16.0,
+     "B": 5.0,
+     "R": 4.0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Gravepurge": 1,
+     "Grapple with the Past": 4,
+     "Kozilek's Return": 4,
+     "Take Inventory": 4,
+     "Gather the Pack": 4,
+     "Advanced Stitchwing": 2,
+     "Elder Deep-Fiend": 3,
+     "Vexing Scuttler": 3,
+     "Stitchwing Skaab": 4,
+     "Prized Amalgam": 4,
+     "Noose Constrictor": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 274116,
+   "event": 12779,
+   "archetype": "Abzan Control",
+   "player": "Jeff Hoogland",
+   "event_name": "StarCityGames.com Standard - Orlando",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2016-06-19",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 3.3,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 39.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Ob Nixilis Reignited": 1,
+     "Seasons Past": 1,
+     "Virulent Plague": 1,
+     "Anguished Unmaking": 2,
+     "Dark Petition": 2,
+     "Transgress the Mind": 2,
+     "Sorin, Grim Nemesis": 2,
+     "Ruinous Path": 3,
+     "Read the Bones": 3,
+     "Ultimate Price": 3,
+     "Grasp of Darkness": 3,
+     "Languish": 4,
+     "Nissa, Vastwood Seer // Nissa, Sage Animist": 1,
+     "Linvala, the Preserver": 1,
+     "Sylvan Advocate": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 269223,
+   "event": 12064,
+   "archetype": "W/B Eldrazi",
+   "player": "Eric Hymel",
+   "event_name": "SCG Baltimore",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2016-04-11",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 3.15,
+    "pips": {
+     "W": 34.0,
+     "U": 0,
+     "B": 8.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Gideon, Ally of Zendikar": 2,
+     "Sorin, Grim Nemesis": 2,
+     "Ultimate Price": 2,
+     "Anguished Unmaking": 2,
+     "Declaration in Stone": 4,
+     "Matter Reshaper": 1,
+     "Ayli, Eternal Pilgrim": 2,
+     "Hedron Crawler": 3,
+     "Eldrazi Displacer": 4,
+     "Knight of the White Orchid": 4,
+     "Thought-Knot Seer": 4,
+     "Archangel Avacyn // Avacyn, the Purifier": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  }
+ ],
+ "pool_size": 45,
  "rejected_illegal": [
   {
    "archetype": "Abzan Midrange",
@@ -1917,14 +2538,6 @@
    ]
   },
   {
-   "archetype": "Naya Aggro",
-   "deck": 272882,
-   "player": "Ariel Nagy",
-   "why": [
-    "Sigarda, Host of Herons (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Bring to Light",
    "deck": 261286,
    "player": "Nate Red",
@@ -2103,6 +2716,505 @@
     "Crackling Doom (not in legal sets)",
     "Disdainful Stroke (not in legal sets)"
    ]
+  },
+  {
+   "archetype": "4c Aggro",
+   "deck": 261341,
+   "player": "Lawrence Wight",
+   "why": [
+    "Arc Lightning (not in legal sets)",
+    "Bloodsoaked Champion (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Aggro",
+   "deck": 262754,
+   "player": "Marquis Johnson",
+   "why": [
+    "Bloodstained Mire (not in legal sets)",
+    "Crater's Claws (not in legal sets)",
+    "Feed the Clan (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Dragons",
+   "deck": 266874,
+   "player": "Henry Freedman",
+   "why": [
+    "Bloodstained Mire (not in legal sets)",
+    "Ghostfire Blade (not in legal sets)",
+    "Kolaghan, the Storm's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RB dragons",
+   "deck": 266293,
+   "player": "Orry Swift",
+   "why": [
+    "Bloodstained Mire (not in legal sets)",
+    "Flamewake Phoenix (not in legal sets)",
+    "Kolaghan, the Storm's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Control PW",
+   "deck": 261429,
+   "player": "Gabriel Steffe",
+   "why": [
+    "Erase (not in legal sets)",
+    "Scoured Barrens (not in legal sets)",
+    "Seeker of the Way (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul",
+   "deck": 260861,
+   "player": "Ryan Gerleve",
+   "why": [
+    "Arc Lightning (not in legal sets)",
+    "Ashcloud Phoenix (not in legal sets)",
+    "Become Immense (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan PW Control",
+   "deck": 261466,
+   "player": "__FAB__",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Aggro",
+   "deck": 267452,
+   "player": "fgorge",
+   "why": [
+    "Disdainful Stroke (not in legal sets)",
+    "Ghostfire Blade (not in legal sets)",
+    "Reality Shift (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Midrange",
+   "deck": 260568,
+   "player": "Adam Varner",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Butcher of the Horde (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Midrange",
+   "deck": 263348,
+   "player": "Edgar Magalhaes",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Crackling Doom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Midrange",
+   "deck": 262933,
+   "player": "Todd Anderson",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Crackling Doom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Collected Abzan",
+   "deck": 264635,
+   "player": "Andy Ferguson",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Arashin Cleric (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Collected Abzan",
+   "deck": 261279,
+   "player": "Matt Axtell",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Sandsteppe Citadel (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UB Aristocrats",
+   "deck": 261468,
+   "player": "Jeppebc",
+   "why": [
+    "Bloodsoaked Champion (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan",
+   "deck": 261044,
+   "player": "Kazuyuki Takimura",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan",
+   "deck": 266265,
+   "player": "Jacob Romero",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan",
+   "deck": 261260,
+   "player": "Daniel Little",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Polluted Delta (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan",
+   "deck": 266262,
+   "player": "Pierson Laughlin",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Arashin Cleric (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Temur Megamorph",
+   "deck": 263127,
+   "player": "William Pizzi (Team Italy)",
+   "why": [
+    "Disdainful Stroke (not in legal sets)",
+    "Frontier Bivouac (not in legal sets)",
+    "Heir of the Wilds (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 261674,
+   "player": "Nick Bradshaw",
+   "why": [
+    "Arc Lightning (not in legal sets)",
+    "Ashcloud Phoenix (not in legal sets)",
+    "Flamewake Phoenix (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 266639,
+   "player": "Mark Dictus",
+   "why": [
+    "Abzan Falconer (not in legal sets)",
+    "Feat of Resistance (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 266737,
+   "player": "Mark Jacobsn",
+   "why": [
+    "Abzan Battle Priest (not in legal sets)",
+    "Abzan Falconer (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 266741,
+   "player": "Chapman Sim",
+   "why": [
+    "Abzan Battle Priest (not in legal sets)",
+    "Abzan Falconer (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Collected Company",
+   "deck": 266875,
+   "player": "Aria Bare",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Collected Company",
+   "deck": 266636,
+   "player": "Jesper Box",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Collected Company",
+   "deck": 266877,
+   "player": "Matt Oien",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Selesnya Hardened Scales",
+   "deck": 261603,
+   "player": "Joshua Johnson",
+   "why": [
+    "Abzan Falconer (not in legal sets)",
+    "Arashin Cleric (not in legal sets)",
+    "Feat of Resistance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Selesnya Hardened Scales",
+   "deck": 268792,
+   "player": "Miyoshi Tomohito",
+   "why": [
+    "Abzan Battle Priest (not in legal sets)",
+    "Abzan Falconer (not in legal sets)",
+    "Hardened Scales (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Green",
+   "deck": 267717,
+   "player": "Jeferson Silva",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Crackling Doom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Green",
+   "deck": 266738,
+   "player": "Brock Mosley",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rally",
+   "deck": 267012,
+   "player": "Tom Law",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rally",
+   "deck": 267006,
+   "player": "Usama Sajjad",
+   "why": [
+    "Anafenza, the Foremost (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "rally",
+   "deck": 266294,
+   "player": "Avery Williams",
+   "why": [
+    "Arashin Cleric (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "rally",
+   "deck": 266292,
+   "player": "hal brady",
+   "why": [
+    "Anafenza, the Foremost (not in legal sets)",
+    "Arashin Cleric (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Simic",
+   "deck": 267213,
+   "player": "William Cruse",
+   "why": [
+    "Disdainful Stroke (not in legal sets)",
+    "Ghostfire Blade (not in legal sets)",
+    "Stubborn Denial (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sultai Megamorph",
+   "deck": 260870,
+   "player": "J.T. Davis",
+   "why": [
+    "Murderous Cut (not in legal sets)",
+    "Opulent Palace (not in legal sets)",
+    "Polluted Delta (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 266281,
+   "player": "cco",
+   "why": [
+    "Become Immense (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Hooting Mandrills (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 262751,
+   "player": "Ben Schoenbrun",
+   "why": [
+    "Arc Lightning (not in legal sets)",
+    "Become Immense (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 261102,
+   "player": "Will Yankauskas",
+   "why": [
+    "Become Immense (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Monastery Swiftspear (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 261682,
+   "player": "Scott Kirkwood",
+   "why": [
+    "Arc Lightning (not in legal sets)",
+    "Become Immense (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4C Rally",
+   "deck": 265060,
+   "player": "Matthew Tickal",
+   "why": [
+    "Abzan Ascendancy (not in legal sets)",
+    "Arashin Cleric (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4C Rally",
+   "deck": 265157,
+   "player": "Hal Brady",
+   "why": [
+    "Anafenza, the Foremost (not in legal sets)",
+    "Arashin Cleric (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4C Rally",
+   "deck": 265162,
+   "player": "Daniel Getreu",
+   "why": [
+    "Anafenza, the Foremost (not in legal sets)",
+    "Arashin Cleric (not in legal sets)",
+    "Flooded Strand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Temur Aggro",
+   "deck": 262609,
+   "player": "Josh McClain",
+   "why": [
+    "Bloodstained Mire (not in legal sets)",
+    "Crater's Claws (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Temur Aggro",
+   "deck": 261002,
+   "player": "Kenneth Kitay",
+   "why": [
+    "Embodiment of Spring (not in legal sets)",
+    "Flooded Strand (not in legal sets)",
+    "Frontier Siege (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Temur Aggro",
+   "deck": 261413,
+   "player": "Eric English",
+   "why": [
+    "Bloodstained Mire (not in legal sets)",
+    "Crux of Fate (not in legal sets)",
+    "Disdainful Stroke (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5c Bring to Light",
+   "deck": 260569,
+   "player": "Gerry Thompson",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Anafenza, the Foremost (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5c Bring to Light",
+   "deck": 260872,
+   "player": "Taylor Kluska",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)",
+    "Crux of Fate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5c Bring to Light",
+   "deck": 260864,
+   "player": "Jose Gayton",
+   "why": [
+    "Abzan Charm (not in legal sets)",
+    "Arashin Cleric (not in legal sets)",
+    "Bloodstained Mire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "---",
+   "deck": 271476,
+   "player": "Marco Held",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
   }
  ],
  "duplicates_dropped": [
@@ -2143,23 +3255,156 @@
    "kept_player": "Devin Weiss"
   },
   {
+   "dropped": "GR Ramp",
+   "player": "Noah Rumpp",
+   "kept": "Green Ramp",
+   "kept_player": "Joshua Dickerson"
+  },
+  {
+   "dropped": "Mono-White Humans",
+   "player": "Kellen Pastore",
+   "kept": "Weenie White",
+   "kept_player": "BradPitKeeper"
+  },
+  {
+   "dropped": "Naya Midrange",
+   "player": "David Bollenback",
+   "kept": "Naya PW",
+   "kept_player": "Wakizaka Hironari"
+  },
+  {
+   "dropped": "Jund Delerium",
+   "player": "Robert Santana",
+   "kept": "Jund",
+   "kept_player": "bone55"
+  },
+  {
+   "dropped": "Emerge",
+   "player": "Noah Walker",
+   "kept": "Temur Emerge",
+   "kept_player": "Todd Anderson"
+  },
+  {
+   "dropped": "WB Control",
+   "player": "Leon Hendrian",
+   "kept": "Orzhov Control",
+   "kept_player": "Edvin Marsson"
+  },
+  {
+   "dropped": "UR Control",
+   "player": "Noah Walker",
+   "kept": "Izzet Control",
+   "kept_player": "James Ogier"
+  },
+  {
+   "dropped": "RW Humans",
+   "player": "Pedro Carvalho",
+   "kept": "Weenie White",
+   "kept_player": "BradPitKeeper"
+  },
+  {
+   "dropped": "Company",
+   "player": "Artur Queiroz",
+   "kept": "Collected Bant",
+   "kept_player": "Finespoo"
+  },
+  {
+   "dropped": "U/R Control",
+   "player": "Todd Anderson",
+   "kept": "Izzet Control",
+   "kept_player": "James Ogier"
+  },
+  {
+   "dropped": "White-Black Control",
+   "player": "Seth Manfield",
+   "kept": "Orzhov Control",
+   "kept_player": "Edvin Marsson"
+  },
+  {
+   "dropped": "GW aggro",
+   "player": "Pablo Astorga",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Osyp Lebedowicz"
+  },
+  {
+   "dropped": "GolgaDrazi",
+   "player": "mothkebab",
+   "kept": "Sultai Aggro",
+   "kept_player": "Jaberwocki"
+  },
+  {
+   "dropped": "G/R Ramp",
+   "player": "Ron Kerrshey Estrella",
+   "kept": "Goggles Ramp",
+   "kept_player": "Aleksa Telaron"
+  },
+  {
+   "dropped": "Zombies",
+   "player": "stainerson",
+   "kept": "Mono Black Aggro",
+   "kept_player": "BradPitKeeper"
+  },
+  {
+   "dropped": "W/U Humans",
+   "player": "Dwayne Graham",
+   "kept": "Weenie White",
+   "kept_player": "BradPitKeeper"
+  },
+  {
+   "dropped": "BW Control",
+   "player": "Walter Filho",
+   "kept": "Orzhov Control",
+   "kept_player": "Edvin Marsson"
+  },
+  {
+   "dropped": "Selesnya PW",
+   "player": "Gerry Thompson",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Osyp Lebedowicz"
+  },
+  {
+   "dropped": "BG Control",
+   "player": "Jo\u00e3o Lucas Caparroz",
+   "kept": "Sultai Aggro",
+   "kept_player": "Jaberwocki"
+  },
+  {
+   "dropped": "Eldrazi Golgari",
+   "player": "Jarno Eggersgl\u00fc\u00df",
+   "kept": "Sultai Aggro",
+   "kept_player": "Jaberwocki"
+  },
+  {
+   "dropped": "RW Aggro",
+   "player": "Gema Bastari",
+   "kept": "Weenie White",
+   "kept_player": "BradPitKeeper"
+  },
+  {
+   "dropped": "Eldrazi Aggro",
+   "player": "_EzMud1",
+   "kept": "White Eldrazi",
+   "kept_player": "Devin Weiss"
+  },
+  {
    "dropped": "Bant Control",
    "player": "Ralph Joseph Villa",
    "kept": "Collected Bant",
    "kept_player": "Finespoo"
   }
  ],
- "objective": 7.700603318250377,
+ "objective": 10.520238832478732,
  "pool_colors": {
-  "W": 12,
-  "U": 12,
-  "G": 13,
-  "B": 11,
-  "R": 9
+  "W": 20,
+  "U": 18,
+  "G": 22,
+  "B": 18,
+  "R": 20
  },
  "pool_styles": {
-  "midrange": 8,
-  "aggro": 11,
-  "control": 7
- }
+  "midrange": 17,
+  "aggro": 17,
+  "control": 11
+ },
+ "kept_lost": []
 }

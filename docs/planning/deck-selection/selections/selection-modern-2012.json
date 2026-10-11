@@ -192,6 +192,62 @@
    "label_count": 5
   },
   {
+   "deck": 219382,
+   "event": 3078,
+   "archetype": "Birthing Pod",
+   "player": "Valentin Chab",
+   "event_name": "MTGMulligan Open Buenos Aires",
+   "stars": 3,
+   "rank": "2",
+   "date": "2012-08-18",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 22,
+    "counters": 1,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 9.0,
+     "U": 3.0,
+     "B": 0,
+     "R": 13.0,
+     "G": 27.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Birthing Pod": 4,
+     "Chord of Calling": 4,
+     "Kiki-Jiki, Mirror Breaker": 4,
+     "Linvala, Keeper of Silence": 1,
+     "Phantasmal Image": 1,
+     "Zealous Conscripts": 1,
+     "Deceiver Exarch": 1,
+     "Restoration Angel": 4,
+     "Wall of Omens": 1,
+     "Harmonic Sliver": 1,
+     "Wall of Roots": 4,
+     "Kitchen Finks": 1,
+     "Eternal Witness": 1,
+     "Noble Hierarch": 3,
+     "Glen Elendra Archmage": 1,
+     "Birds of Paradise": 4,
+     "Spellskite": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
    "deck": 216889,
    "event": 2598,
    "archetype": "Affinity",
@@ -242,6 +298,54 @@
    "label_count": 60
   },
   {
+   "deck": 216753,
+   "event": 2579,
+   "archetype": "Caw-Blade",
+   "player": "Brandon Ayers",
+   "event_name": "PTQ Barcelona (Omaha, Nebraska)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-03-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 12,
+    "counters": 11,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 8.0,
+     "U": 35.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Snapcaster Mage": 4,
+     "Squadron Hawk": 4,
+     "Vendilion Clique": 4,
+     "Cryptic Command": 4,
+     "Mana Leak": 3,
+     "Path to Exile": 4,
+     "Spell Snare": 4,
+     "Mortarpod": 2,
+     "Vedalken Shackles": 2,
+     "Jace Beleren": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 22
+  },
+  {
    "deck": 216464,
    "event": 2533,
    "archetype": "Faeries",
@@ -288,6 +392,57 @@
    "style": "control",
    "style_why": "label",
    "label_count": 17
+  },
+  {
+   "deck": 216237,
+   "event": 2500,
+   "archetype": "Boros",
+   "player": "Timothy Thomason",
+   "event_name": "PTQ Barcelona (Lubbock, Texas)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-01-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 1.65,
+    "pips": {
+     "W": 20.0,
+     "U": 0,
+     "B": 0,
+     "R": 23.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Figure of Destiny": 2,
+     "Goblin Bushwhacker": 1,
+     "Goblin Guide": 4,
+     "Grim Lavamancer": 4,
+     "Plated Geopede": 4,
+     "Ranger of Eos": 2,
+     "Simian Spirit Guide": 1,
+     "Steppe Lynx": 4,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 4,
+     "Path to Exile": 4,
+     "Oblivion Ring": 1,
+     "Elspeth, Knight-Errant": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 16
   },
   {
    "deck": 216873,
@@ -393,6 +548,55 @@
    "label_count": 12
   },
   {
+   "deck": 216221,
+   "event": 2498,
+   "archetype": "UB Delver",
+   "player": "Denis Stepanov",
+   "event_name": "PTQ Barcelona (Moscow, Russia)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-01-22",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 1.86,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 14.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Dark Confidant": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Snapcaster Mage": 4,
+     "Vendilion Clique": 3,
+     "Cryptic Command": 2,
+     "Disfigure": 2,
+     "Mana Leak": 4,
+     "Smother": 4,
+     "Inquisition of Kozilek": 4,
+     "Serum Visions": 4,
+     "Sword of Feast and Famine": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
    "deck": 216513,
    "event": 2540,
    "archetype": "Red Deck Wins",
@@ -493,6 +697,159 @@
    "label_count": 8
   },
   {
+   "deck": 216497,
+   "event": 2538,
+   "archetype": "BW Tokens",
+   "player": "Henry Romero",
+   "event_name": "PTQ Barcelona (Portland, Oregon)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-02-18",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.59,
+    "pips": {
+     "W": 44.0,
+     "U": 0,
+     "B": 10.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Hero of Bladehold": 2,
+     "Tidehollow Sculler": 4,
+     "Path to Exile": 4,
+     "Raise the Alarm": 4,
+     "Smother": 2,
+     "Inquisition of Kozilek": 4,
+     "Lingering Souls": 4,
+     "Spectral Procession": 4,
+     "Honor of the Pure": 4,
+     "Intangible Virtue": 2,
+     "Ajani Goldmane": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 6
+  },
+  {
+   "deck": 214546,
+   "event": 2080,
+   "archetype": "Gift Control",
+   "player": "Antoine Leblond",
+   "event_name": "South Modern Open",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-10-09",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 7,
+    "sweepers": 3,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.09,
+    "pips": {
+     "W": 9.0,
+     "U": 17.0,
+     "B": 0,
+     "R": 0,
+     "G": 14.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Kitchen Finks": 1,
+     "Obstinate Baloth": 1,
+     "Eternal Witness": 2,
+     "Sakura-Tribe Elder": 3,
+     "Snapcaster Mage": 3,
+     "Birds of Paradise": 4,
+     "Cryptic Command": 1,
+     "Repeal": 1,
+     "Mana Leak": 3,
+     "Spell Snare": 3,
+     "Gifts Ungiven": 4,
+     "Path to Exile": 4,
+     "Day of Judgment": 1,
+     "Wrath of God": 1,
+     "Engineered Explosives": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 217009,
+   "event": 2617,
+   "archetype": "Naya Zoo",
+   "player": "Pedro Martinho",
+   "event_name": "PTQ Barcelona (TopDecK Coimbra, Portugal)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-03-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 19,
+    "avg_cmc": 1.65,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Grim Lavamancer": 3,
+     "Kird Ape": 4,
+     "Loam Lion": 4,
+     "Woolly Thoctar": 3,
+     "Tarmogoyf": 4,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 4,
+     "Path to Exile": 3,
+     "Searing Blaze": 4,
+     "Rift Bolt": 4,
+     "Seal of Fire": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
    "deck": 217076,
    "event": 2627,
    "archetype": "Next Level U",
@@ -543,6 +900,267 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 2
+  },
+  {
+   "deck": 216846,
+   "event": 2593,
+   "archetype": "Gifts Tron",
+   "player": "Matija Vlahovic",
+   "event_name": "PTQ Barcelona (Budapest, Hungary)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-03-11",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 5,
+    "counters": 5,
+    "sweepers": 2,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 3.37,
+    "pips": {
+     "W": 15.0,
+     "U": 14.0,
+     "B": 1.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Ulamog, the Infinite Gyre": 1,
+     "Snapcaster Mage": 1,
+     "Emrakul, the Aeons Torn": 1,
+     "Elesh Norn, Grand Cenobite": 1,
+     "Iona, Shield of Emeria": 1,
+     "Repeal": 1,
+     "Gifts Ungiven": 3,
+     "Path to Exile": 4,
+     "Remand": 4,
+     "Condescend": 1,
+     "Thirst for Knowledge": 4,
+     "Timely Reinforcements": 1,
+     "Unburial Rites": 1,
+     "Wrath of God": 1,
+     "Day of Judgment": 1,
+     "Mindslaver": 1,
+     "Expedition Map": 3,
+     "Azorius Signet": 4,
+     "Oblivion Ring": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 216777,
+   "event": 2582,
+   "archetype": "GW Tokens",
+   "player": "Bobby Oleksy",
+   "event_name": "PTQ Barcelona (St. Charles, Missouri)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-02-25",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 41.0,
+     "U": 0,
+     "B": 1.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Ethersworn Canonist": 4,
+     "Soul Warden": 4,
+     "Beckon Apparition": 2,
+     "Midnight Haunting": 4,
+     "Path to Exile": 4,
+     "Raise the Alarm": 3,
+     "Spectral Procession": 4,
+     "Shrine of Loyal Legions": 2,
+     "Honor of the Pure": 2,
+     "Intangible Virtue": 4,
+     "Oblivion Ring": 1,
+     "Worship": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 218180,
+   "event": 2817,
+   "archetype": "UW Angel",
+   "player": "Tzu-Ching Kuo",
+   "event_name": "2012 World Magic Cup",
+   "stars": 1,
+   "rank": "1",
+   "date": "2012-08-18",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 15,
+    "counters": 10,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 15.0,
+     "U": 25.0,
+     "B": 0,
+     "R": 0,
+     "G": 2.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Elspeth, Knight-Errant": 1,
+     "Sword of Feast and Famine": 2,
+     "Cryptic Command": 2,
+     "Dismember": 2,
+     "Path to Exile": 4,
+     "Spell Snare": 4,
+     "Remand": 4,
+     "Kitchen Finks": 2,
+     "Vendilion Clique": 2,
+     "Geist of Saint Traft": 3,
+     "Restoration Angel": 4,
+     "Snapcaster Mage": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 216754,
+   "event": 2579,
+   "archetype": "Doran",
+   "player": "Tyke Pope",
+   "event_name": "PTQ Barcelona (Omaha, Nebraska)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-03-03",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.89,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 12.0,
+     "R": 0,
+     "G": 25.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Thoughtseize": 1,
+     "Slaughter Pact": 1,
+     "Nameless Inversion": 1,
+     "Elspeth, Knight-Errant": 1,
+     "Zealous Persecution": 2,
+     "Maelstrom Pulse": 2,
+     "Inquisition of Kozilek": 3,
+     "Path to Exile": 3,
+     "Kitchen Finks": 1,
+     "Doran, the Siege Tower": 3,
+     "Treefolk Harbinger": 3,
+     "Qasali Pridemage": 4,
+     "Noble Hierarch": 4,
+     "Knight of the Reliquary": 4,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 217021,
+   "event": 2620,
+   "archetype": "Esper Control",
+   "player": "Myles Housman",
+   "event_name": "PTQ Barcelona (Brooklyn, New York)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-03-18",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 11,
+    "counters": 10,
+    "sweepers": 3,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 1.92,
+    "pips": {
+     "W": 8.0,
+     "U": 23.0,
+     "B": 9.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Dark Confidant": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Snapcaster Mage": 3,
+     "Cryptic Command": 3,
+     "Mana Leak": 4,
+     "Path to Exile": 4,
+     "Smother": 1,
+     "Spell Pierce": 1,
+     "Spell Snare": 2,
+     "Inquisition of Kozilek": 4,
+     "Lingering Souls": 4,
+     "Sword of Feast and Famine": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
   },
   {
    "deck": 216847,
@@ -655,6 +1273,108 @@
  ],
  "alternates": [
   {
+   "deck": 216745,
+   "event": 2578,
+   "archetype": "Boremandos",
+   "player": "Dan Jessup",
+   "event_name": "PTQ Barcelona (Philadelphia, Pennsylvania)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-03-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 16,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 8,
+    "avg_cmc": 1.46,
+    "pips": {
+     "W": 15.0,
+     "U": 20.0,
+     "B": 0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Geist of Saint Traft": 3,
+     "Grim Lavamancer": 1,
+     "Snapcaster Mage": 4,
+     "Steppe Lynx": 4,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 4,
+     "Path to Exile": 4,
+     "Remand": 3,
+     "Spell Pierce": 2,
+     "Serum Visions": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 25
+  },
+  {
+   "deck": 216711,
+   "event": 2572,
+   "archetype": "Bant",
+   "player": "Mauro Di Luzio",
+   "event_name": "PTQ Barcelona (Bari, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2012-03-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 18.0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 4,
+     "Birds of Paradise": 3,
+     "Tarmogoyf": 4,
+     "Qasali Pridemage": 3,
+     "Geist of Saint Traft": 4,
+     "Troll Ascetic": 4,
+     "Thrun, the Last Troll": 2,
+     "Spell Pierce": 4,
+     "Path to Exile": 4,
+     "Steelshaper's Gift": 1,
+     "Sword of Light and Shadow": 1,
+     "Sword of Feast and Famine": 1,
+     "Elspeth, Knight-Errant": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 20
+  },
+  {
    "deck": 216229,
    "event": 2499,
    "archetype": "UR Storm",
@@ -705,29 +1425,389 @@
    "label_count": 15
   },
   {
-   "deck": 216221,
-   "event": 2498,
-   "archetype": "UB Delver",
-   "player": "Denis Stepanov",
-   "event_name": "PTQ Barcelona (Moscow, Russia)",
+   "deck": 216085,
+   "event": 2476,
+   "archetype": "Martyr Life",
+   "player": "David Gardner",
+   "event_name": "Modern Warfare 2",
    "stars": 2,
    "rank": "1",
-   "date": "2012-01-22",
+   "date": "2012-01-14",
    "summer": false,
    "s": 0.611764705882353,
    "f": {
     "spells": 37,
     "lands": 23,
-    "creatures": 15,
-    "counters": 6,
-    "sweepers": 2,
-    "draw": 6,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 0,
     "burn": 0,
-    "avg_cmc": 1.86,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 41.5,
+     "U": 0,
+     "B": 0,
+     "R": 0.5,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Elspeth, Knight-Errant": 2,
+     "Oblivion Ring": 1,
+     "Ghostly Prison": 2,
+     "Wrath of God": 3,
+     "Proclamation of Rebirth": 4,
+     "Path to Exile": 4,
+     "Weathered Wayfarer": 1,
+     "Student of Warfare": 2,
+     "Squadron Hawk": 4,
+     "Serra Ascendant": 4,
+     "Ranger of Eos": 4,
+     "Martyr of Sands": 4,
+     "Kami of False Hope": 1,
+     "Figure of Destiny": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 8
+  },
+  {
+   "deck": 220137,
+   "event": 3230,
+   "archetype": "Reveillark Esper",
+   "player": "Riccardo Fava",
+   "event_name": "Milano - MM Saturday",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-09-01",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 19,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.47,
+    "pips": {
+     "W": 20.0,
+     "U": 7.0,
+     "B": 5.0,
+     "R": 0,
+     "G": 2.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Mystical Teachings": 1,
+     "Smother": 1,
+     "Pact of Negation": 1,
+     "Slaughter Pact": 1,
+     "Engineered Explosives": 2,
+     "Momentary Blink": 3,
+     "Path to Exile": 4,
+     "Thoughtseize": 4,
+     "Phantasmal Image": 1,
+     "Snapcaster Mage": 2,
+     "Kitchen Finks": 2,
+     "Blade Splicer": 2,
+     "Aven Riftwatcher": 3,
+     "Reveillark": 3,
+     "Mulldrifter": 3,
+     "Restoration Angel": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 217037,
+   "event": 2622,
+   "archetype": "White Weenie",
+   "player": "Jason Simard",
+   "event_name": "PTQ Barcelona (Winnipeg , Manitoba)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-03-17",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 38.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Aven Mindcensor": 3,
+     "Blade Splicer": 4,
+     "Flickerwisp": 3,
+     "Isamaru, Hound of Konda": 2,
+     "Kitchen Finks": 3,
+     "Leonin Arbiter": 4,
+     "Serra Avenger": 3,
+     "Stonecloaker": 1,
+     "Thalia, Guardian of Thraben": 3,
+     "Harm's Way": 2,
+     "Path to Exile": 4,
+     "Aether Vial": 4,
+     "Sword of Light and Shadow": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 216720,
+   "event": 2573,
+   "archetype": "Naya Trap",
+   "player": "Griffim3",
+   "event_name": "PTQ Barcelona (MTGO, #3492072)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-03-04",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.5,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 0,
+     "R": 3.0,
+     "G": 34.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Emrakul, the Aeons Torn": 4,
+     "Fauna Shaman": 2,
+     "Knight of the Reliquary": 4,
+     "Lotus Cobra": 4,
+     "Nest Invader": 3,
+     "Noble Hierarch": 3,
+     "Primeval Titan": 2,
+     "Spellskite": 2,
+     "Terastodon": 2,
+     "Summoning Trap": 3,
+     "Through the Breach": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 216688,
+   "event": 2569,
+   "archetype": "Bant Conscription",
+   "player": "Jake Miller",
+   "event_name": "PTQ Barcelona (Standish, Maine)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-03-03",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 21,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.83,
+    "pips": {
+     "W": 24.0,
+     "U": 10.0,
+     "B": 0,
+     "R": 0,
+     "G": 20.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Knight of the Reliquary": 4,
+     "Lotus Cobra": 4,
+     "Mirran Crusader": 4,
+     "Vendilion Clique": 1,
+     "Noble Hierarch": 4,
+     "Sovereigns of Lost Alara": 4,
+     "Bant Charm": 4,
+     "Path to Exile": 4,
+     "Eldrazi Conscription": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 216417,
+   "event": 2526,
+   "archetype": "Naya Control",
+   "player": "Bj\u00f6rn Lampinen",
+   "event_name": "PTQ Barcelona (Copenhagen, Danmark)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-02-20",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 16.0,
+     "U": 0,
+     "B": 0,
+     "R": 9.0,
+     "G": 26.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 4,
+     "Birds of Paradise": 2,
+     "Qasali Pridemage": 3,
+     "Fauna Shaman": 4,
+     "Squadron Hawk": 4,
+     "Knight of the Reliquary": 3,
+     "Kitchen Finks": 1,
+     "Bloodbraid Elf": 4,
+     "Huntmaster of the Fells // Ravager of the Fells": 2,
+     "Thrun, the Last Troll": 1,
+     "Gaddock Teeg": 1,
+     "Path to Exile": 3,
+     "Lightning Bolt": 3,
+     "Steelshaper's Gift": 1,
+     "Sword of War and Peace": 1,
+     "Sword of Feast and Famine": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 216222,
+   "event": 2498,
+   "archetype": "Mono U Merfolk",
+   "player": "Sergei Bulatov",
+   "event_name": "PTQ Barcelona (Moscow, Russia)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-01-22",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 29,
+    "counters": 12,
+    "sweepers": 2,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.07,
     "pips": {
      "W": 0,
-     "U": 28.0,
-     "B": 14.0,
+     "U": 52.0,
+     "B": 2.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Cursecatcher": 4,
+     "Merrow Reejerey": 4,
+     "Lord of Atlantis": 4,
+     "Silvergill Adept": 4,
+     "Wake Thrasher": 2,
+     "Sygg, River Cutthroat": 2,
+     "Vendilion Clique": 3,
+     "Cosi's Trickster": 2,
+     "Coralhelm Commander": 2,
+     "Merfolk Sovereign": 2,
+     "Rune Snag": 4,
+     "Spell Snare": 2,
+     "Cryptic Command": 2,
+     "Aether Vial": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 215163,
+   "event": 2223,
+   "archetype": "UB Faeries",
+   "player": "Alberto Saval Marhuenda",
+   "event_name": "Primer Modern Ateneo Comics",
+   "stars": 2,
+   "rank": "2",
+   "date": "2011-11-06",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 14,
+    "counters": 9,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 1,
+    "avg_cmc": 2.23,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 12.0,
      "R": 0,
      "G": 0
     },
@@ -736,492 +1816,91 @@
      "B"
     ],
     "names": {
-     "Dark Confidant": 4,
-     "Delver of Secrets // Insectile Aberration": 4,
-     "Snapcaster Mage": 4,
-     "Vendilion Clique": 3,
-     "Cryptic Command": 2,
-     "Disfigure": 2,
+     "Duress": 1,
+     "Victim of Night": 1,
+     "Sword of War and Peace": 1,
+     "Cryptic Command": 1,
+     "Dismember": 1,
+     "Doom Blade": 1,
+     "Go for the Throat": 1,
+     "Sword of Feast and Famine": 1,
+     "Sword of Fire and Ice": 1,
+     "Sword of Light and Shadow": 1,
+     "Smother": 1,
+     "Inquisition of Kozilek": 3,
+     "Thoughtseize": 3,
      "Mana Leak": 4,
-     "Smother": 4,
-     "Inquisition of Kozilek": 4,
-     "Serum Visions": 4,
-     "Sword of Feast and Famine": 2
+     "Mistbind Clique": 1,
+     "Vendilion Clique": 3,
+     "Snapcaster Mage": 3,
+     "Pestermite": 3,
+     "Spellstutter Sprite": 4
     }
    },
-   "style": "aggro",
+   "style": "control",
    "style_why": "label",
-   "label_count": 12
+   "label_count": 1
+  },
+  {
+   "deck": 217070,
+   "event": 2626,
+   "archetype": "Hive Mind",
+   "player": "bozidar2121",
+   "event_name": "PTQ Barcelona (MTGO, #3606620)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2012-03-24",
+   "summer": false,
+   "s": 0.34129489820844133,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 5,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 0,
+     "U": 17.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Ethereal Usher": 1,
+     "Simian Spirit Guide": 4,
+     "Gitaxian Probe": 2,
+     "Hive Mind": 4,
+     "Intervention Pact": 1,
+     "Pact of Negation": 4,
+     "Pact of the Titan": 4,
+     "Pentad Prism": 4,
+     "Remand": 4,
+     "Seething Song": 4,
+     "Serum Visions": 4,
+     "Slaughter Pact": 1,
+     "Sleight of Hand": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
   }
  ],
- "pool_size": 14,
+ "pool_size": 59,
  "rejected_illegal": [
-  {
-   "archetype": "Birthing Pod",
-   "deck": 219382,
-   "player": "Valentin Chab",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 220142,
-   "player": "Davide Sartori",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 219390,
-   "player": "Mancuso Antonino",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 219389,
-   "player": "Saracco Marco",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 216865,
-   "player": "Good_Game",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 216761,
-   "player": "Greg Park",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 216416,
-   "player": "Tobias Str\u00f6m",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Melira Pod",
-   "deck": 216481,
-   "player": "Mika\u00ebl Rabie",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boremandos",
-   "deck": 216745,
-   "player": "Dan Jessup",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boremandos",
-   "deck": 216687,
-   "player": "Brandon Gade",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boremandos",
-   "deck": 216424,
-   "player": "RealDizzy",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boremandos",
-   "deck": 219380,
-   "player": "Joaquin Fuentes",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Caw-Blade",
-   "deck": 216753,
-   "player": "Brandon Ayers",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Caw-Blade",
-   "deck": 216704,
-   "player": "Leandro Cabrera",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Caw-Blade",
-   "deck": 216514,
-   "player": "Chris Alexander",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Caw-Blade",
-   "deck": 216188,
-   "player": "Darth_Revan",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant",
-   "deck": 216711,
-   "player": "Mauro Di Luzio",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant",
-   "deck": 216456,
-   "player": "Desley Mooij",
-   "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant",
-   "deck": 216882,
-   "player": "Jesse Piland",
-   "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Bant",
-   "deck": 216490,
-   "player": "Alexandre Koenig",
-   "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boros",
-   "deck": 216237,
-   "player": "Timothy Thomason",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boros",
-   "deck": 216089,
-   "player": "kbr3",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boros",
-   "deck": 216664,
-   "player": "Kris Jensen",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Boros",
-   "deck": 216196,
-   "player": "djhousebeats",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Delver Scepter",
-   "deck": 217124,
-   "player": "Robin Dolar",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Delver Scepter",
-   "deck": 216489,
-   "player": "Emanuel Sutor",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Delver Scepter",
-   "deck": 216195,
-   "player": "Dracc0n",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "unknown card: Research / Development"
-   ]
-  },
-  {
-   "archetype": "Delver Scepter",
-   "deck": 217843,
-   "player": "SaintGreen",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Deck Wins",
-   "deck": 216905,
-   "player": "Orry Swift",
-   "why": [
-    "Hellspark Elemental (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Martyr Life",
-   "deck": 216085,
-   "player": "David Gardner",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Martyr Life",
-   "deck": 216615,
-   "player": "Derek Umamoto",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Martyr Life",
-   "deck": 216082,
-   "player": "Giampiero Grespi",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Martyr Life",
-   "deck": 216893,
-   "player": "Jonathan Ohliger",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BW Tokens",
-   "deck": 216497,
-   "player": "Henry Romero",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BW Tokens",
-   "deck": 217078,
-   "player": "Stefano Eusebi",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BW Tokens",
-   "deck": 216476,
-   "player": "Markus Ginter",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BW Tokens",
-   "deck": 217006,
-   "player": "Jun'ichi Miyajima",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gift Control",
-   "deck": 214546,
-   "player": "Antoine Leblond",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gift Control",
-   "deck": 219381,
-   "player": "Ignacio Venini",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gift Control",
-   "deck": 215290,
-   "player": "Shuhei Nakamura",
-   "why": [
-    "Punishing Fire (banned)"
-   ]
-  },
-  {
-   "archetype": "Gift Control",
-   "deck": 214547,
-   "player": "Joan Donote",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Naya Zoo",
-   "deck": 217009,
-   "player": "Pedro Martinho",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Naya Zoo",
-   "deck": 217012,
-   "player": "Tiago Domingues",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Naya Zoo",
-   "deck": 215164,
-   "player": "Jose Antonio Perez",
-   "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "unknown card: Boom / Bust"
-   ]
-  },
-  {
-   "archetype": "Gift Tron",
-   "deck": 216881,
-   "player": "Joshua Cho",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gift Tron",
-   "deck": 216834,
-   "player": "\u00d8yvind Harding",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Caw Blade",
-   "deck": 217028,
-   "player": "haiSOOOOdesu",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Caw Blade",
-   "deck": 216090,
-   "player": "haiSOOOOdesu",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Esper Blade",
-   "deck": 216473,
-   "player": "Heiner Kolp",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Esper Blade",
-   "deck": 216892,
-   "player": "Timothy Froehlig",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
   {
    "archetype": "The Rock",
    "deck": 215162,
    "player": "Jason Noguez",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "The Rock",
-   "deck": 216623,
-   "player": "Jun.I",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gifts Tron",
-   "deck": 216846,
-   "player": "Matija Vlahovic",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "GW Tokens",
-   "deck": 216777,
-   "player": "Bobby Oleksy",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UW Angel",
-   "deck": 218180,
-   "player": "Tzu-Ching Kuo (Chinese Taipei)",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Reveillark Esper",
-   "deck": 220137,
-   "player": "Riccardo Fava",
-   "why": [
-    "Path to Exile (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
@@ -1229,9 +1908,7 @@
    "deck": 215297,
    "player": "Andrew Roistan",
    "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)"
    ]
   },
   {
@@ -1239,148 +1916,91 @@
    "deck": 214550,
    "player": "Omar Leon",
    "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)"
    ]
   },
   {
-   "archetype": "WB Tokens",
-   "deck": 217952,
-   "player": "Jun'ichi Miyajima",
+   "archetype": "Blue Zoo",
+   "deck": 215165,
+   "player": "Jos\u00e9 Manuel Chaparro",
    "why": [
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)",
+    "6x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Martyr-Proclamation",
-   "deck": 215303,
-   "player": "Alan Warnock",
+   "archetype": "Molten Zoo",
+   "deck": 214549,
+   "player": "Andre Nellburg",
    "why": [
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)"
    ]
   },
   {
-   "archetype": "UW Tron",
-   "deck": 216986,
-   "player": "ZeJustin",
+   "archetype": "Zoo",
+   "deck": 215166,
+   "player": "Jose Salvador Requena Perez",
    "why": [
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)"
    ]
   },
   {
-   "archetype": "UW Tron",
-   "deck": 217038,
-   "player": "Morgan Anderson",
+   "archetype": "Zoo",
+   "deck": 215281,
+   "player": "Janus Kofoed",
    "why": [
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)"
    ]
   },
   {
-   "archetype": "UW Tron",
-   "deck": 217131,
-   "player": "Zoltan Szoke",
+   "archetype": "Zoo",
+   "deck": 215284,
+   "player": "Phillip Lorren",
    "why": [
-    "Path to Exile (not in legal sets)"
+    "Wild Nacatl (banned)"
    ]
   },
   {
-   "archetype": "UW Tron",
-   "deck": 217041,
-   "player": "Dustin Deschutter",
+   "archetype": "Unburial Gifts",
+   "deck": 216462,
+   "player": "Bas Melis",
    "why": [
-    "Path to Exile (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Doran",
-   "deck": 216754,
-   "player": "Tyke Pope",
+   "archetype": "Teaching",
+   "deck": 216461,
+   "player": "Gijs de Goeijen",
    "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Doran",
-   "deck": 216845,
-   "player": "Paolo Bini",
+   "archetype": "Boros Landfall",
+   "deck": 215167,
+   "player": "Javier Verdu Barcelo",
    "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Doran",
-   "deck": 218182,
-   "player": "Gerald Camangon (Philippines)",
+   "archetype": "Counter Cat",
+   "deck": 214551,
+   "player": "Larry Evans",
    "why": [
-    "Knight of the Reliquary (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Esper Control",
-   "deck": 217021,
-   "player": "Myles Housman",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Esper Control",
-   "deck": 216752,
-   "player": "Gery Pawelzik",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Esper Control",
-   "deck": 216460,
-   "player": "Ruud Warmenhoven",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Unburial Gift",
-   "deck": 216786,
-   "player": "John Barber",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Unburial Gift",
-   "deck": 216792,
-   "player": "Si Ning Li",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UW Delver",
-   "deck": 217834,
-   "player": "Manu S",
-   "why": [
-    "Path to Exile (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "White Weenie",
-   "deck": 217037,
-   "player": "Jason Simard",
-   "why": [
-    "Path to Exile (not in legal sets)",
-    "unknown card: J\ufffdtun Grunt"
+    "Wild Nacatl (banned)"
    ]
   }
  ],
  "duplicates_dropped": [
+  {
+   "dropped": "Melira Pod",
+   "player": "Good_Game",
+   "kept": "Birthing Pod",
+   "kept_player": "Valentin Chab"
+  },
   {
    "dropped": "Exarch Twin",
    "player": "Jimmi Caroli",
@@ -1392,6 +2012,12 @@
    "player": "Zygonn",
    "kept": "UR Storm",
    "kept_player": "Riccardo Reale"
+  },
+  {
+   "dropped": "Delver Scepter",
+   "player": "Robin Dolar",
+   "kept": "Boremandos",
+   "kept_player": "Dan Jessup"
   },
   {
    "dropped": "Green Tron",
@@ -1424,6 +2050,18 @@
    "kept_player": "Riccardo Reale"
   },
   {
+   "dropped": "Caw Blade",
+   "player": "haiSOOOOdesu",
+   "kept": "Caw-Blade",
+   "kept_player": "Brandon Ayers"
+  },
+  {
+   "dropped": "Esper Blade",
+   "player": "Heiner Kolp",
+   "kept": "Caw-Blade",
+   "kept_player": "Brandon Ayers"
+  },
+  {
    "dropped": "UB Affinity",
    "player": "susbus",
    "kept": "Affinity",
@@ -1454,30 +2092,247 @@
    "kept_player": "Jeffrey Tang"
   },
   {
+   "dropped": "WB Tokens",
+   "player": "Jun'ichi Miyajima",
+   "kept": "BW Tokens",
+   "kept_player": "Henry Romero"
+  },
+  {
+   "dropped": "Martyr-Proclamation",
+   "player": "Alan Warnock",
+   "kept": "Martyr Life",
+   "kept_player": "David Gardner"
+  },
+  {
    "dropped": "Canadian RUG Tempo",
    "player": "Scott Richards",
    "kept": "RUG Tempo",
    "kept_player": "Stefano Meoni"
   },
   {
+   "dropped": "UW Tron",
+   "player": "ZeJustin",
+   "kept": "Gifts Tron",
+   "kept_player": "Matija Vlahovic"
+  },
+  {
    "dropped": "Swath Storm",
    "player": "Alec Nezin",
    "kept": "UR Storm",
    "kept_player": "Riccardo Reale"
+  },
+  {
+   "dropped": "Unburial Gift",
+   "player": "John Barber",
+   "kept": "Gifts Tron",
+   "kept_player": "Matija Vlahovic"
+  },
+  {
+   "dropped": "UW Delver",
+   "player": "Manu S",
+   "kept": "UB Delver",
+   "kept_player": "Denis Stepanov"
+  },
+  {
+   "dropped": "Urza Gift Rite",
+   "player": "Michael McGee",
+   "kept": "Gifts Tron",
+   "kept_player": "Matija Vlahovic"
+  },
+  {
+   "dropped": "Eldrazi Tron",
+   "player": "Samwise_GeeGee",
+   "kept": "Gift Tron",
+   "kept_player": "John Alesi"
+  },
+  {
+   "dropped": "Mono White Tokens",
+   "player": "tkgons",
+   "kept": "GW Tokens",
+   "kept_player": "Bobby Oleksy"
+  },
+  {
+   "dropped": "Merfolk",
+   "player": "Martin Garcia Toledo",
+   "kept": "Mono U Merfolk",
+   "kept_player": "Sergei Bulatov"
+  },
+  {
+   "dropped": "Splinter Twin",
+   "player": "HiKiKomoRinGo",
+   "kept": "Twin Exarch",
+   "kept_player": "Gallinari Samuele"
+  },
+  {
+   "dropped": "Tribal Zoo",
+   "player": "Fabio De Forte",
+   "kept": "Naya Zoo",
+   "kept_player": "Pedro Martinho"
+  },
+  {
+   "dropped": "UR Faeries",
+   "player": "Mauro Petruzzella",
+   "kept": "Faeries",
+   "kept_player": "Marco Dolazza"
+  },
+  {
+   "dropped": "Patriot Delver",
+   "player": "St\u00e9phane Daul",
+   "kept": "UB Delver",
+   "kept_player": "Denis Stepanov"
+  },
+  {
+   "dropped": "Ru Affinity",
+   "player": "Dave Nolan",
+   "kept": "Affinity",
+   "kept_player": "Jeffrey Tang"
+  },
+  {
+   "dropped": "Tron Eldrazi",
+   "player": "Adam Tellis",
+   "kept": "Gifts Tron",
+   "kept_player": "Matija Vlahovic"
+  },
+  {
+   "dropped": "UR Affinity",
+   "player": "Patrick Buckley",
+   "kept": "Affinity",
+   "kept_player": "Jeffrey Tang"
+  },
+  {
+   "dropped": "Grixis Delver",
+   "player": "Ondrej Maly",
+   "kept": "UB Delver",
+   "kept_player": "Denis Stepanov"
+  },
+  {
+   "dropped": "UWR Tempo",
+   "player": "HungryHungryHomer",
+   "kept": "Boremandos",
+   "kept_player": "Dan Jessup"
+  },
+  {
+   "dropped": "Esper Midrange",
+   "player": "Ryuuji Watanabe",
+   "kept": "Esper Control",
+   "kept_player": "Myles Housman"
+  },
+  {
+   "dropped": "Delver Blade",
+   "player": "Donald Kastner",
+   "kept": "Caw-Blade",
+   "kept_player": "Brandon Ayers"
+  },
+  {
+   "dropped": "Ur Eldrazi Tron",
+   "player": "Zonast",
+   "kept": "Gift Tron",
+   "kept_player": "John Alesi"
+  },
+  {
+   "dropped": "Mono Red Storm",
+   "player": "Dan Gushen",
+   "kept": "UR Storm",
+   "kept_player": "Riccardo Reale"
+  },
+  {
+   "dropped": "4 Swords Bant",
+   "player": "Matts5600",
+   "kept": "Bant",
+   "kept_player": "Mauro Di Luzio"
+  },
+  {
+   "dropped": "Angel Pod",
+   "player": "Aaron Estrin",
+   "kept": "Birthing Pod",
+   "kept_player": "Valentin Chab"
+  },
+  {
+   "dropped": "Urza Eldrazi",
+   "player": "Massimo Infranca",
+   "kept": "Gift Tron",
+   "kept_player": "John Alesi"
+  },
+  {
+   "dropped": "Ad Nauseam",
+   "player": "Bertil Elfgren",
+   "kept": "Unlife Ad Nauseam",
+   "kept_player": "Christian Wagner"
+  },
+  {
+   "dropped": "Bant Legends",
+   "player": "Giovanni Chisci",
+   "kept": "Bant",
+   "kept_player": "Mauro Di Luzio"
+  },
+  {
+   "dropped": "GW Trap",
+   "player": "Christian Gawrilowicz",
+   "kept": "Naya Trap",
+   "kept_player": "Griffim3"
+  },
+  {
+   "dropped": "Through the Jund",
+   "player": "Mattia Rizzi",
+   "kept": "Jund",
+   "kept_player": "David D\u00b4esposito"
+  },
+  {
+   "dropped": "Gift Esper",
+   "player": "Shaheen Soorani",
+   "kept": "Unburial Gifts",
+   "kept_player": "HAUMPH"
+  },
+  {
+   "dropped": "Mono White Token",
+   "player": "Greg Park",
+   "kept": "GW Tokens",
+   "kept_player": "Bobby Oleksy"
+  },
+  {
+   "dropped": "Sword Zoo",
+   "player": "Daniel Dusang",
+   "kept": "Boom Zoo",
+   "kept_player": "Pierluigi Aceto"
+  },
+  {
+   "dropped": "T-Bant",
+   "player": "John Connor",
+   "kept": "Bant",
+   "kept_player": "Mauro Di Luzio"
+  },
+  {
+   "dropped": "Ub Affinity",
+   "player": "RemiFortier",
+   "kept": "Affinity",
+   "kept_player": "Jeffrey Tang"
+  },
+  {
+   "dropped": "Steel Affinity",
+   "player": "Julia Kreuels",
+   "kept": "Affinity",
+   "kept_player": "Jeffrey Tang"
+  },
+  {
+   "dropped": "Saint Zoo",
+   "player": "Kenny Fung",
+   "kept": "Bant",
+   "kept_player": "Mauro Di Luzio"
   }
  ],
- "objective": 0.8492365044246816,
+ "objective": 14.0196195579621,
  "pool_colors": {
-  "B": 6,
-  "R": 8,
-  "G": 6,
-  "U": 9,
-  "W": 2
+  "B": 22,
+  "R": 23,
+  "G": 24,
+  "U": 30,
+  "W": 33
  },
  "pool_styles": {
-  "aggro": 5,
-  "combo": 4,
-  "control": 3,
-  "midrange": 2
- }
+  "aggro": 26,
+  "combo": 6,
+  "control": 16,
+  "midrange": 11
+ },
+ "kept_lost": []
 }

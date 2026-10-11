@@ -250,6 +250,58 @@
    "label_count": 1
   },
   {
+   "deck": 124458,
+   "event": 380,
+   "archetype": "Quick 'n Toast",
+   "player": "Olivier Ruel",
+   "event_name": "Nationals - France 2008",
+   "stars": 3,
+   "rank": "2",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 36,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 9,
+    "sweepers": 10,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 5.0,
+     "U": 24.0,
+     "B": 0,
+     "R": 2.0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Mystical Teachings": 1,
+     "Coalition Relic": 1,
+     "Condemn": 2,
+     "Pact of Negation": 2,
+     "Slaughter Pact": 2,
+     "Cryptic Command": 3,
+     "Rune Snag": 4,
+     "Firespout": 4,
+     "Careful Consideration": 4,
+     "Platinum Angel": 1,
+     "Mulldrifter": 2,
+     "Kitchen Finks": 3,
+     "Cloudthresher": 3,
+     "Wall of Roots": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
    "deck": 124468,
    "event": 378,
    "archetype": "Elves",
@@ -500,208 +552,6 @@
    "label_count": 1
   },
   {
-   "deck": 106455,
-   "event": 56,
-   "archetype": "UW Pickles",
-   "player": "Paul Cheon",
-   "event_name": "Grand Prix Krakow 2007",
-   "stars": 1,
-   "rank": "1",
-   "date": "2007-11-04",
-   "summer": false,
-   "s": 0.42352941176470593,
-   "f": {
-    "spells": 33,
-    "lands": 27,
-    "creatures": 15,
-    "counters": 8,
-    "sweepers": 7,
-    "draw": 4,
-    "burn": 0,
-    "avg_cmc": 3.42,
-    "pips": {
-     "W": 9.0,
-     "U": 40.0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U"
-    ],
-    "names": {
-     "Teferi, Mage of Zhalfir": 2,
-     "Brine Elemental": 3,
-     "Wrath of God": 3,
-     "Oblivion Ring": 3,
-     "Ancestral Vision": 4,
-     "Phyrexian Ironfoot": 4,
-     "Cryptic Command": 4,
-     "Vesuvan Shapeshifter": 4,
-     "Rune Snag": 4,
-     "Venser, Shaper Savant": 2
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 1
-  },
-  {
-   "deck": 106457,
-   "event": 56,
-   "archetype": "ManaRamp",
-   "player": "Armin Birner",
-   "event_name": "Grand Prix Krakow 2007",
-   "stars": 1,
-   "rank": "3",
-   "date": "2007-11-04",
-   "summer": false,
-   "s": 0.2362810833750747,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 13,
-    "counters": 0,
-    "sweepers": 3,
-    "draw": 4,
-    "burn": 5,
-    "avg_cmc": 3.59,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 24.0,
-     "G": 36.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Tarmogoyf": 3,
-     "Garruk Wildspeaker": 3,
-     "Bogardan Hellkite": 3,
-     "Search for Tomorrow": 4,
-     "Wall of Roots": 4,
-     "Incinerate": 4,
-     "Harmonize": 4,
-     "Siege-Gang Commander": 4,
-     "Hostility": 1,
-     "Disintegrate": 1,
-     "Molten Disaster": 1,
-     "Cloudthresher": 2,
-     "Fertile Ground": 3
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 12
-  }
- ],
- "alternates": [
-  {
-   "deck": 124458,
-   "event": 380,
-   "archetype": "Quick 'n Toast",
-   "player": "Olivier Ruel",
-   "event_name": "Nationals - France 2008",
-   "stars": 3,
-   "rank": "2",
-   "date": "2008-08-03",
-   "summer": true,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 36,
-    "lands": 25,
-    "creatures": 9,
-    "counters": 9,
-    "sweepers": 10,
-    "draw": 3,
-    "burn": 0,
-    "avg_cmc": 3.03,
-    "pips": {
-     "W": 5.0,
-     "U": 24.0,
-     "B": 0,
-     "R": 2.0,
-     "G": 21.0
-    },
-    "colors": [
-     "U",
-     "G"
-    ],
-    "names": {
-     "Mystical Teachings": 1,
-     "Coalition Relic": 1,
-     "Condemn": 2,
-     "Pact of Negation": 2,
-     "Slaughter Pact": 2,
-     "Cryptic Command": 3,
-     "Rune Snag": 4,
-     "Firespout": 4,
-     "Careful Consideration": 4,
-     "Platinum Angel": 1,
-     "Mulldrifter": 2,
-     "Kitchen Finks": 3,
-     "Cloudthresher": 3,
-     "Wall of Roots": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 4
-  },
-  {
-   "deck": 603836,
-   "event": 54378,
-   "archetype": "Seismic Swans",
-   "player": "Hugo De Jong",
-   "event_name": "Nationals - Netherlands 2008",
-   "stars": 3,
-   "rank": "2",
-   "date": "2008-08-15",
-   "summer": true,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 4,
-    "counters": 0,
-    "sweepers": 4,
-    "draw": 9,
-    "burn": 4,
-    "avg_cmc": 2.68,
-    "pips": {
-     "W": 4.0,
-     "U": 12.0,
-     "B": 16.0,
-     "R": 14.0,
-     "G": 4.0
-    },
-    "colors": [
-     "U",
-     "B",
-     "R"
-    ],
-    "names": {
-     "Pithing Needle": 1,
-     "Gaea's Blessing": 2,
-     "Elsewhere Flask": 3,
-     "Telling Time": 4,
-     "Beseech the Queen": 4,
-     "Seismic Assault": 4,
-     "Ponder": 4,
-     "Thoughtseize": 4,
-     "Firespout": 4,
-     "Swans of Bryn Argoll": 4
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 3
-  },
-  {
    "deck": 124472,
    "event": 378,
    "archetype": "GR Aggro",
@@ -801,6 +651,54 @@
    "label_count": 1
   },
   {
+   "deck": 106455,
+   "event": 56,
+   "archetype": "UW Pickles",
+   "player": "Paul Cheon",
+   "event_name": "Grand Prix Krakow 2007",
+   "stars": 1,
+   "rank": "1",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 15,
+    "counters": 8,
+    "sweepers": 7,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.42,
+    "pips": {
+     "W": 9.0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Teferi, Mage of Zhalfir": 2,
+     "Brine Elemental": 3,
+     "Wrath of God": 3,
+     "Oblivion Ring": 3,
+     "Ancestral Vision": 4,
+     "Phyrexian Ironfoot": 4,
+     "Cryptic Command": 4,
+     "Vesuvan Shapeshifter": 4,
+     "Rune Snag": 4,
+     "Venser, Shaper Savant": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 106456,
    "event": 56,
    "archetype": "MUC Guile",
@@ -897,53 +795,55 @@
    "label_count": 13
   },
   {
-   "deck": 125616,
-   "event": 384,
-   "archetype": "Full Fat Merfolk",
-   "player": "William Cavaglieri",
-   "event_name": "Grand Prix Copenhagen 2008",
+   "deck": 106457,
+   "event": 56,
+   "archetype": "ManaRamp",
+   "player": "Armin Birner",
+   "event_name": "Grand Prix Krakow 2007",
    "stars": 1,
-   "rank": "6",
-   "date": "2008-08-24",
-   "summer": true,
-   "s": 0.23093395621997462,
+   "rank": "3",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.2362810833750747,
    "f": {
     "spells": 37,
     "lands": 23,
-    "creatures": 27,
-    "counters": 7,
-    "sweepers": 4,
-    "draw": 10,
-    "burn": 0,
-    "avg_cmc": 2.65,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 4,
+    "burn": 5,
+    "avg_cmc": 3.59,
     "pips": {
      "W": 0,
-     "U": 44.0,
+     "U": 0,
      "B": 0,
-     "R": 0,
-     "G": 10.0
+     "R": 24.0,
+     "G": 36.0
     },
     "colors": [
-     "U",
+     "R",
      "G"
     ],
     "names": {
-     "Tarmogoyf": 4,
-     "Lord of Atlantis": 4,
-     "Merrow Reejerey": 4,
-     "Silvergill Adept": 4,
-     "Cryptic Command": 4,
-     "Stonybrook Banneret": 4,
-     "Chameleon Colossus": 3,
-     "Sage's Dousing": 3,
-     "Ponder": 3,
-     "Wake Thrasher": 2,
-     "Venser, Shaper Savant": 2
+     "Tarmogoyf": 3,
+     "Garruk Wildspeaker": 3,
+     "Bogardan Hellkite": 3,
+     "Search for Tomorrow": 4,
+     "Wall of Roots": 4,
+     "Incinerate": 4,
+     "Harmonize": 4,
+     "Siege-Gang Commander": 4,
+     "Hostility": 1,
+     "Disintegrate": 1,
+     "Molten Disaster": 1,
+     "Cloudthresher": 2,
+     "Fertile Ground": 3
     }
    },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 1
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 12
   },
   {
    "deck": 122454,
@@ -1040,9 +940,407 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 2
+  },
+  {
+   "deck": 108630,
+   "event": 117,
+   "archetype": "Teachings",
+   "player": "Guillaume Wafo-Tapa",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 6,
+    "counters": 6,
+    "sweepers": 8,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 3.36,
+    "pips": {
+     "W": 0,
+     "U": 33.0,
+     "B": 11.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Wydwen, the Biting Gale": 1,
+     "Teferi, Mage of Zhalfir": 1,
+     "Damnation": 4,
+     "Triskelavus": 1,
+     "Slaughter Pact": 1,
+     "Pact of Negation": 2,
+     "Tendrils of Corruption": 2,
+     "Pithing Needle": 2,
+     "Mystical Teachings": 3,
+     "Aeon Chronicler": 3,
+     "Coalition Relic": 4,
+     "Coldsteel Heart": 4,
+     "Cryptic Command": 4,
+     "Careful Consideration": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 108639,
+   "event": 117,
+   "archetype": "Goblins",
+   "player": "Jerome Renevier",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 2.28,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 20.0,
+     "R": 25.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Profane Command": 2,
+     "Tarfire": 3,
+     "Siege-Gang Commander": 3,
+     "Wort, Boggart Auntie": 4,
+     "Squeaking Pie Sneak": 4,
+     "Mogg War Marshal": 4,
+     "Incinerate": 4,
+     "Mad Auntie": 4,
+     "Knucklebone Witch": 4,
+     "Mogg Fanatic": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 108654,
+   "event": 117,
+   "archetype": "Red Death",
+   "player": "Georgias Kapalas",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 16,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 14.0,
+     "R": 30.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Shock": 4,
+     "Shadow Guildmage": 4,
+     "Incinerate": 4,
+     "Magus of the Scroll": 4,
+     "Mogg Fanatic": 4,
+     "Oona's Prowler": 4,
+     "Rift Bolt": 4,
+     "Sulfur Elemental": 4,
+     "Dauthi Slayer": 3,
+     "Tarfire": 2,
+     "Fiery Temper": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 106498,
+   "event": 56,
+   "archetype": "Rg Aggro",
+   "player": "Andreas Szabo",
+   "event_name": "Grand Prix Krakow 2007",
+   "stars": 1,
+   "rank": "Day 1 undefeated",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 35.0,
+     "G": 4.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tarfire": 4,
+     "Greater Gargadon": 4,
+     "Incinerate": 4,
+     "Martyr of Ashes": 4,
+     "Mogg War Marshal": 4,
+     "Mogg Fanatic": 4,
+     "Tarmogoyf": 4,
+     "Rift Bolt": 4,
+     "Inner-Flame Acolyte": 3,
+     "Threaten": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 106499,
+   "event": 56,
+   "archetype": "Scryb & Force",
+   "player": "Przemek Oberbek",
+   "event_name": "Grand Prix Krakow 2007",
+   "stars": 1,
+   "rank": "Day 1 undefeated",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 19,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 0,
+     "U": 21.0,
+     "B": 0,
+     "R": 0,
+     "G": 35.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Rune Snag": 4,
+     "Troll Ascetic": 4,
+     "Llanowar Elves": 4,
+     "Birds of Paradise": 4,
+     "Call of the Herd": 3,
+     "Garruk Wildspeaker": 3,
+     "Scryb Ranger": 3,
+     "Psionic Blast": 3,
+     "Mystic Snake": 3,
+     "Loxodon Warhammer": 2,
+     "Spectral Force": 2,
+     "Sower of Temptation": 2,
+     "Jace Beleren": 1,
+     "Venser, Shaper Savant": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
   }
  ],
- "pool_size": 21,
+ "alternates": [
+  {
+   "deck": 603836,
+   "event": 54378,
+   "archetype": "Seismic Swans",
+   "player": "Hugo De Jong",
+   "event_name": "Nationals - Netherlands 2008",
+   "stars": 3,
+   "rank": "2",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 9,
+    "burn": 4,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 4.0,
+     "U": 12.0,
+     "B": 16.0,
+     "R": 14.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Pithing Needle": 1,
+     "Gaea's Blessing": 2,
+     "Elsewhere Flask": 3,
+     "Telling Time": 4,
+     "Beseech the Queen": 4,
+     "Seismic Assault": 4,
+     "Ponder": 4,
+     "Thoughtseize": 4,
+     "Firespout": 4,
+     "Swans of Bryn Argoll": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 125616,
+   "event": 384,
+   "archetype": "Full Fat Merfolk",
+   "player": "William Cavaglieri",
+   "event_name": "Grand Prix Copenhagen 2008",
+   "stars": 1,
+   "rank": "6",
+   "date": "2008-08-24",
+   "summer": true,
+   "s": 0.23093395621997462,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 7,
+    "sweepers": 4,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.65,
+    "pips": {
+     "W": 0,
+     "U": 44.0,
+     "B": 0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Tarmogoyf": 4,
+     "Lord of Atlantis": 4,
+     "Merrow Reejerey": 4,
+     "Silvergill Adept": 4,
+     "Cryptic Command": 4,
+     "Stonybrook Banneret": 4,
+     "Chameleon Colossus": 3,
+     "Sage's Dousing": 3,
+     "Ponder": 3,
+     "Wake Thrasher": 2,
+     "Venser, Shaper Savant": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 108459,
+   "event": 117,
+   "archetype": "Sea Stompy",
+   "player": "Simon Englund",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "Day 1 undefeated",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 25.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Fatal Frenzy": 1,
+     "Rift Bolt": 4,
+     "Tarmogoyf": 4,
+     "Psionic Blast": 4,
+     "Mogg Fanatic": 4,
+     "Threaten": 4,
+     "Keldon Marauders": 4,
+     "Incinerate": 4,
+     "Greater Gargadon": 4,
+     "Looter il-Kor": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 27,
  "rejected_illegal": [
   {
    "archetype": "Angelfire",
@@ -1091,7 +1389,7 @@
    "why": [
     "Carven Caryatid (not in legal sets)",
     "Castigate (not in legal sets)",
-    "Godless Shrine (not in legal sets)"
+    "Crime / Punishment (not in legal sets)"
    ]
   },
   {
@@ -1101,7 +1399,7 @@
    "why": [
     "Angel of Despair (not in legal sets)",
     "Castigate (not in legal sets)",
-    "Debtors' Knell (not in legal sets)"
+    "Crime / Punishment (not in legal sets)"
    ]
   },
   {
@@ -1286,20 +1584,33 @@
    "player": "Kang Jisang",
    "kept": "MUC Guile",
    "kept_player": "Amiel Tenenbaum"
+  },
+  {
+   "dropped": "ManaRamp w/ u",
+   "player": "Tamas Nagy",
+   "kept": "ManaRamp",
+   "kept_player": "Armin Birner"
+  },
+  {
+   "dropped": "Pickles",
+   "player": "Adam Yurchick",
+   "kept": "UW Pickles",
+   "kept_player": "Paul Cheon"
   }
  ],
- "objective": 7.470039384335927,
+ "objective": -10.91549336111705,
  "pool_colors": {
-  "B": 9,
-  "R": 8,
-  "U": 11,
+  "B": 12,
+  "R": 12,
+  "U": 14,
   "W": 3,
-  "G": 10
+  "G": 13
  },
  "pool_styles": {
-  "aggro": 7,
-  "control": 6,
+  "aggro": 10,
+  "control": 7,
   "combo": 1,
-  "midrange": 7
- }
+  "midrange": 9
+ },
+ "kept_lost": []
 }

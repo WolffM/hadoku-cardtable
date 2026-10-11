@@ -85,6 +85,55 @@
  },
  "chosen": [
   {
+   "deck": 258843,
+   "event": 10251,
+   "archetype": "Omni - Show",
+   "player": "Josh Pelrine",
+   "event_name": "SCG Legacy Open - Washington",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-08-09",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 2,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 3.93,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Emrakul, the Aeons Torn": 2,
+     "Spell Pierce": 4,
+     "Force of Will": 4,
+     "Cunning Wish": 3,
+     "Impulse": 1,
+     "Dig Through Time": 4,
+     "Brainstorm": 4,
+     "Show and Tell": 4,
+     "Ponder": 4,
+     "Preordain": 4,
+     "Gitaxian Probe": 4,
+     "Omniscience": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 35
+  },
+  {
    "deck": 259398,
    "event": 10385,
    "archetype": "Lands (Eternal Garden)",
@@ -128,6 +177,59 @@
    "style": "midrange",
    "style_why": "default",
    "label_count": 21
+  },
+  {
+   "deck": 248459,
+   "event": 8439,
+   "archetype": "UW Miracles",
+   "player": "Kawakita Shirou",
+   "event_name": "Eternal Festival Tokyo - 2014",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-11-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 1,
+    "counters": 8,
+    "sweepers": 4,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 3.08,
+    "pips": {
+     "W": 20.0,
+     "U": 37.0,
+     "B": 0,
+     "R": 2.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Dig Through Time": 3,
+     "Counterspell": 2,
+     "Red Elemental Blast": 1,
+     "Brainstorm": 4,
+     "Entreat the Angels": 2,
+     "Supreme Verdict": 1,
+     "Terminus": 3,
+     "Council's Judgment": 1,
+     "Counterbalance": 3,
+     "Jace, the Mind Sculptor": 3,
+     "Pyroblast": 1,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Sensei's Divining Top": 4,
+     "Vendilion Clique": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 60
   },
   {
    "deck": 253929,
@@ -439,6 +541,168 @@
    "label_count": 15
   },
   {
+   "deck": 260033,
+   "event": 10487,
+   "archetype": "Monastery",
+   "player": "Evan Flynn",
+   "event_name": "SCG Premier IQ Worcester",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-09-13",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 8,
+    "counters": 8,
+    "sweepers": 1,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 8.0,
+     "U": 34.0,
+     "B": 7.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Toxic Deluge": 1,
+     "Jace, the Mind Sculptor": 1,
+     "Counterspell": 2,
+     "Spell Pierce": 2,
+     "Dig Through Time": 3,
+     "Brainstorm": 4,
+     "Gitaxian Probe": 4,
+     "Ponder": 4,
+     "Cabal Therapy": 4,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Baleful Strix": 2,
+     "Snapcaster Mage": 2,
+     "Monastery Mentor": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 258488,
+   "event": 10166,
+   "archetype": "UW Control",
+   "player": "Miguel Alcoriza",
+   "event_name": "MKM Series #2 Toulouse - Main Event",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-07-26",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 3,
+    "counters": 11,
+    "sweepers": 1,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 2.55,
+    "pips": {
+     "W": 11.0,
+     "U": 43.0,
+     "B": 0,
+     "R": 2.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Secure the Wastes": 1,
+     "Spell Snare": 1,
+     "Supreme Verdict": 1,
+     "Flusterstorm": 2,
+     "Counterspell": 2,
+     "Council's Judgment": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Pyroblast": 2,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Preordain": 4,
+     "Dig Through Time": 4,
+     "Snapcaster Mage": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 258842,
+   "event": 10251,
+   "archetype": "Stoneblade",
+   "player": "Shaheen Soorani",
+   "event_name": "SCG Legacy Open - Washington",
+   "stars": 3,
+   "rank": "2",
+   "date": "2015-08-09",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 7,
+    "counters": 4,
+    "sweepers": 1,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.61,
+    "pips": {
+     "W": 15.0,
+     "U": 29.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Stoneforge Mystic": 4,
+     "Snapcaster Mage": 2,
+     "Vendilion Clique": 1,
+     "Engineered Explosives": 1,
+     "Batterskull": 1,
+     "Umezawa's Jitte": 1,
+     "Swords to Plowshares": 4,
+     "Force of Will": 3,
+     "Counterspell": 1,
+     "Intuition": 1,
+     "Dig Through Time": 2,
+     "Brainstorm": 4,
+     "Supreme Verdict": 1,
+     "Lingering Souls": 3,
+     "Thoughtseize": 4,
+     "Ponder": 1,
+     "Council's Judgment": 1,
+     "Jace, the Mind Sculptor": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 39
+  },
+  {
    "deck": 257820,
    "event": 10023,
    "archetype": "Storm",
@@ -547,6 +811,55 @@
    "label_count": 14
   },
   {
+   "deck": 260631,
+   "event": 10602,
+   "archetype": "Burn",
+   "player": "Matthew Vaughan",
+   "event_name": "Eternal Masters 2015 - Australian Legacy",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-07-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 24,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 54.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Eidolon of the Great Revel": 4,
+     "Grim Lavamancer": 2,
+     "Goblin Guide": 4,
+     "Lightning Bolt": 4,
+     "Chain Lightning": 4,
+     "Rift Bolt": 4,
+     "Lava Spike": 4,
+     "Sensei's Divining Top": 1,
+     "Price of Progress": 4,
+     "Searing Blaze": 4,
+     "Fireblast": 4,
+     "Sulfuric Vortex": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 11
+  },
+  {
    "deck": 443391,
    "event": 31377,
    "archetype": "Jund",
@@ -651,6 +964,221 @@
    "label_count": 5
   },
   {
+   "deck": 257819,
+   "event": 10023,
+   "archetype": "Goblins",
+   "player": "Aston Ramsden",
+   "event_name": "Grand Prix Lille 2015 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-07-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.29,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 39.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Tarfire": 3,
+     "Aether Vial": 4,
+     "Tuktuk Scrapper": 1,
+     "Krenko, Mob Boss": 1,
+     "Goblin Ringleader": 4,
+     "Goblin Sharpshooter": 1,
+     "Goblin Rabblemaster": 1,
+     "Goblin Warchief": 4,
+     "Goblin Matron": 4,
+     "Gempalm Incinerator": 2,
+     "Mogg War Marshal": 3,
+     "Goblin Piledriver": 4,
+     "Legion Loyalist": 1,
+     "Skirk Prospector": 1,
+     "Goblin Lackey": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 251485,
+   "event": 9035,
+   "archetype": "TES",
+   "player": "Pierre Melin",
+   "event_name": "Belgian Legacy Cup Finals '14",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-12-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 1.24,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 20.0,
+     "R": 5.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Empty the Warrens": 1,
+     "Past in Flames": 1,
+     "Ad Nauseam": 1,
+     "Duress": 3,
+     "Cabal Therapy": 4,
+     "Chrome Mox": 1,
+     "Lotus Petal": 4,
+     "Lion's Eye Diamond": 4,
+     "Cabal Ritual": 3,
+     "Dark Ritual": 4,
+     "Burning Wish": 3,
+     "Infernal Tutor": 4,
+     "Gitaxian Probe": 4,
+     "Ponder": 4,
+     "Brainstorm": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 2
+  },
+  {
+   "deck": 257806,
+   "event": 10023,
+   "archetype": "Pox",
+   "player": "Teodor Suntburg",
+   "event_name": "Grand Prix Lille 2015 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-07-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 2,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.85,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 38.0,
+     "R": 0,
+     "G": 11.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Thoughtseize": 1,
+     "Raven's Crime": 1,
+     "Sensei's Divining Top": 1,
+     "Pernicious Deed": 2,
+     "Innocent Blood": 2,
+     "Hymn to Tourach": 2,
+     "Life from the Loam": 3,
+     "Inquisition of Kozilek": 3,
+     "Liliana of the Veil": 3,
+     "Entomb": 3,
+     "Crop Rotation": 3,
+     "Abrupt Decay": 3,
+     "Smallpox": 4,
+     "Nether Spirit": 1,
+     "Vengeful Pharaoh": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 247314,
+   "event": 8225,
+   "archetype": "BUG Faeries",
+   "player": "Borja Ceberio",
+   "event_name": "IV Arcanis Deluxe: Legacy Main Event",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-09-27",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 18,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 9.0,
+     "R": 0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Dimir Charm": 1,
+     "Umezawa's Jitte": 1,
+     "Spell Pierce": 2,
+     "Green Sun's Zenith": 3,
+     "Bitterblossom": 3,
+     "Abrupt Decay": 3,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Edric, Spymaster of Trest": 1,
+     "Reclamation Sage": 1,
+     "Mistbind Clique": 1,
+     "Sower of Temptation": 1,
+     "Scryb Ranger": 2,
+     "Vendilion Clique": 2,
+     "Quickling": 2,
+     "Deathrite Shaman": 4,
+     "Spellstutter Sprite": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
    "deck": 248460,
    "event": 8439,
    "archetype": "Reanimator",
@@ -705,14 +1233,265 @@
    "style": "combo",
    "style_why": "label",
    "label_count": 13
+  },
+  {
+   "deck": 250213,
+   "event": 8795,
+   "archetype": "Loam",
+   "player": "Simo Lagerspetz",
+   "event_name": "Finnish Legacy Champs 2014",
+   "stars": 2,
+   "rank": "2",
+   "date": "2014-12-14",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 30,
+    "lands": 30,
+    "creatures": 1,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 2,
+    "avg_cmc": 1.5,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 23.0,
+     "R": 6.0,
+     "G": 6.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Flame Jab": 1,
+     "Punishing Fire": 1,
+     "Raven's Crime": 1,
+     "Crop Rotation": 2,
+     "Faithless Looting": 4,
+     "Life from the Loam": 4,
+     "Entomb": 4,
+     "Mox Diamond": 4,
+     "Liliana of the Veil": 4,
+     "Smallpox": 4,
+     "Nether Spirit": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 260029,
+   "event": 10487,
+   "archetype": "Enchantress",
+   "player": "Curtis Wiemann",
+   "event_name": "SCG Premier IQ Worcester",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2015-09-13",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 9.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 33.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Argothian Enchantress": 4,
+     "Eidolon of Blossoms": 1,
+     "Emrakul, the Aeons Torn": 1,
+     "Helm of Obedience": 1,
+     "Green Sun's Zenith": 4,
+     "Solitary Confinement": 2,
+     "Rest in Peace": 2,
+     "Exploration": 1,
+     "Elephant Grass": 4,
+     "Sterling Grove": 2,
+     "Runed Halo": 1,
+     "Mirri's Guile": 4,
+     "Enchantress's Presence": 4,
+     "Banishing Light": 1,
+     "Utopia Sprawl": 4,
+     "Wild Growth": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
   }
  ],
  "alternates": [
   {
-   "deck": 254785,
+   "deck": 254239,
+   "event": 9462,
+   "archetype": "Canadian Threshold",
+   "player": "Jacob Wilson",
+   "event_name": "StarCityGames.com Invitational - Richmond",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-03-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 16,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 4,
+    "avg_cmc": 1.67,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Ponder": 4,
+     "Stifle": 4,
+     "Spell Pierce": 4,
+     "Lightning Bolt": 4,
+     "Force of Will": 4,
+     "Dismember": 2,
+     "Daze": 4,
+     "Brainstorm": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Nimble Mongoose": 4,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 31
+  },
+  {
+   "deck": 254271,
+   "event": 9466,
+   "archetype": "BUG Aggro / Midrange",
+   "player": "Guillem Salvador",
+   "event_name": "V Edicion Arcanis Deluxe 2015 - Main Legacy",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-03-28",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 14,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.15,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Liliana of the Veil": 2,
+     "Abrupt Decay": 4,
+     "Hymn to Tourach": 4,
+     "Force of Will": 4,
+     "Daze": 4,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "Tasigur, the Golden Fang": 2,
+     "Tarmogoyf": 4,
+     "Deathrite Shaman": 4,
+     "Delver of Secrets // Insectile Aberration": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 13
+  },
+  {
+   "deck": 259397,
+   "event": 10385,
+   "archetype": "Merfolk",
+   "player": "Robert Dacunto",
+   "event_name": "SCG Premier IQ Somerset",
+   "stars": 3,
+   "rank": "2",
+   "date": "2015-08-30",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 0,
+     "U": 46.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Echoing Truth": 1,
+     "Day's Undoing": 2,
+     "Chalice of the Void": 4,
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "Phantasmal Image": 3,
+     "Silvergill Adept": 4,
+     "Cursecatcher": 4,
+     "Master of the Pearl Trident": 4,
+     "True-Name Nemesis": 4,
+     "Lord of Atlantis": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 12
+  },
+  {
+   "deck": 254786,
    "event": 9543,
-   "archetype": "Sneak Show",
-   "player": "Daisuke Akase",
+   "archetype": "Patriot Aggro",
+   "player": "Arthor James",
    "event_name": "Grand Prix Kyoto 2015 - Trial Winners",
    "stars": 2,
    "rank": "1",
@@ -720,95 +1499,96 @@
    "summer": false,
    "s": 0.611764705882353,
    "f": {
-    "spells": 40,
-    "lands": 20,
-    "creatures": 8,
-    "counters": 6,
-    "sweepers": 0,
-    "draw": 9,
-    "burn": 0,
-    "avg_cmc": 4.53,
-    "pips": {
-     "W": 0,
-     "U": 30.0,
-     "B": 16.0,
-     "R": 5.0,
-     "G": 0
-    },
-    "colors": [
-     "U",
-     "B"
-    ],
-    "names": {
-     "Omniscience": 1,
-     "Sneak Attack": 4,
-     "Ponder": 4,
-     "Burning Wish": 1,
-     "Gitaxian Probe": 1,
-     "Show and Tell": 3,
-     "Brainstorm": 4,
-     "Impulse": 1,
-     "Force of Will": 4,
-     "Spell Pierce": 2,
-     "Intuition": 1,
-     "Dig Through Time": 2,
-     "Lotus Petal": 4,
-     "Griselbrand": 4,
-     "Emrakul, the Aeons Torn": 4
-    }
-   },
-   "style": "combo",
-   "style_why": "override",
-   "label_count": 19
-  },
-  {
-   "deck": 260631,
-   "event": 10602,
-   "archetype": "Burn",
-   "player": "Matthew Vaughan",
-   "event_name": "Eternal Masters 2015 - Australian Legacy",
-   "stars": 2,
-   "rank": "1",
-   "date": "2015-07-06",
-   "summer": false,
-   "s": 0.611764705882353,
-   "f": {
     "spells": 41,
     "lands": 19,
     "creatures": 10,
-    "counters": 0,
+    "counters": 11,
     "sweepers": 0,
-    "draw": 1,
-    "burn": 24,
-    "avg_cmc": 2.07,
+    "draw": 11,
+    "burn": 4,
+    "avg_cmc": 1.8,
     "pips": {
-     "W": 0,
-     "U": 0,
+     "W": 7.0,
+     "U": 31.0,
      "B": 0,
-     "R": 54.0,
+     "R": 4.0,
      "G": 0
     },
     "colors": [
-     "R"
+     "W",
+     "U"
     ],
     "names": {
-     "Eidolon of the Great Revel": 4,
-     "Grim Lavamancer": 2,
-     "Goblin Guide": 4,
+     "Gitaxian Probe": 3,
+     "Ponder": 4,
      "Lightning Bolt": 4,
-     "Chain Lightning": 4,
-     "Rift Bolt": 4,
-     "Lava Spike": 4,
-     "Sensei's Divining Top": 1,
-     "Price of Progress": 4,
-     "Searing Blaze": 4,
-     "Fireblast": 4,
-     "Sulfuric Vortex": 2
+     "Spell Pierce": 3,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 3,
+     "Daze": 4,
+     "Umezawa's Jitte": 1,
+     "Batterskull": 1,
+     "True-Name Nemesis": 2,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Stoneforge Mystic": 4
     }
    },
    "style": "aggro",
    "style_why": "label",
-   "label_count": 11
+   "label_count": 15
+  },
+  {
+   "deck": 257827,
+   "event": 10023,
+   "archetype": "Berserk Poison",
+   "player": "John Casey",
+   "event_name": "Grand Prix Lille 2015 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-07-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.93,
+    "pips": {
+     "W": 0,
+     "U": 19.0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Force of Will": 3,
+     "Daze": 3,
+     "Stifle": 1,
+     "Spell Pierce": 1,
+     "Vines of Vastwood": 3,
+     "Become Immense": 2,
+     "Berserk": 2,
+     "Invigorate": 4,
+     "Crop Rotation": 2,
+     "Brainstorm": 4,
+     "Gitaxian Probe": 3,
+     "Noble Hierarch": 4,
+     "Blighted Agent": 4,
+     "Glistener Elf": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 13
   },
   {
    "deck": 257823,
@@ -859,55 +1639,55 @@
    "label_count": 10
   },
   {
-   "deck": 257819,
-   "event": 10023,
-   "archetype": "Goblins",
-   "player": "Aston Ramsden",
-   "event_name": "Grand Prix Lille 2015 - Trial Winners",
+   "deck": 254778,
+   "event": 9543,
+   "archetype": "High Tide",
+   "player": "Yuuya Takimura",
+   "event_name": "Grand Prix Kyoto 2015 - Trial Winners",
    "stars": 2,
    "rank": "1",
-   "date": "2015-07-03",
+   "date": "2015-04-17",
    "summer": false,
    "s": 0.611764705882353,
    "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 30,
-    "counters": 0,
+    "spells": 42,
+    "lands": 18,
+    "creatures": 0,
+    "counters": 9,
     "sweepers": 0,
-    "draw": 0,
-    "burn": 3,
-    "avg_cmc": 2.29,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.69,
     "pips": {
      "W": 0,
-     "U": 0,
+     "U": 57.0,
      "B": 0,
-     "R": 39.0,
+     "R": 0,
      "G": 0
     },
     "colors": [
-     "R"
+     "U"
     ],
     "names": {
-     "Tarfire": 3,
-     "Aether Vial": 4,
-     "Tuktuk Scrapper": 1,
-     "Krenko, Mob Boss": 1,
-     "Goblin Ringleader": 4,
-     "Goblin Sharpshooter": 1,
-     "Goblin Rabblemaster": 1,
-     "Goblin Warchief": 4,
-     "Goblin Matron": 4,
-     "Gempalm Incinerator": 2,
-     "Mogg War Marshal": 3,
-     "Goblin Piledriver": 4,
-     "Legion Loyalist": 1,
-     "Skirk Prospector": 1,
-     "Goblin Lackey": 4
+     "Force of Will": 4,
+     "Meditate": 1,
+     "Cunning Wish": 1,
+     "Flusterstorm": 3,
+     "Brainstorm": 4,
+     "Dig Through Time": 2,
+     "Turnabout": 4,
+     "Blue Sun's Zenith": 1,
+     "Spell Pierce": 1,
+     "High Tide": 4,
+     "Pact of Negation": 1,
+     "Time Spiral": 4,
+     "Preordain": 4,
+     "Merchant Scroll": 4,
+     "Ponder": 4
     }
    },
-   "style": "aggro",
-   "style_why": "label",
+   "style": "control",
+   "style_why": "cards",
    "label_count": 4
   },
   {
@@ -1065,286 +1845,117 @@
    "style": "combo",
    "style_why": "label",
    "label_count": 1
+  },
+  {
+   "deck": 257812,
+   "event": 10023,
+   "archetype": "BUG Shadow",
+   "player": "Cailliau Manoel",
+   "event_name": "Grand Prix Lille 2015 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-07-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 16,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.3,
+    "pips": {
+     "W": 0,
+     "U": 22.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Berserk": 1,
+     "Reanimate": 2,
+     "Dig Through Time": 2,
+     "Gitaxian Probe": 3,
+     "Force of Will": 3,
+     "Thoughtseize": 4,
+     "Daze": 4,
+     "Dismember": 4,
+     "Brainstorm": 4,
+     "Gurmag Angler": 1,
+     "Street Wraith": 3,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Deathrite Shaman": 4,
+     "Death's Shadow": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 248836,
+   "event": 8505,
+   "archetype": "Turbo Dark Depths",
+   "player": "Jonathan Spagnolo",
+   "event_name": "GP Edison 2014 - Trials Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2014-11-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 4,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.51,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Spell Pierce": 1,
+     "Ponder": 3,
+     "Inquisition of Kozilek": 3,
+     "Lotus Petal": 4,
+     "Thoughtseize": 4,
+     "Brainstorm": 4,
+     "Dark Ritual": 4,
+     "Force of Will": 4,
+     "Crop Rotation": 4,
+     "Daze": 4,
+     "Vampire Hexmage": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
   }
  ],
- "pool_size": 19,
+ "pool_size": 58,
  "rejected_illegal": [
-  {
-   "archetype": "Omni - Show",
-   "deck": 258843,
-   "player": "Josh Pelrine",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni - Show",
-   "deck": 259106,
-   "player": "Chris VanMeter",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni - Show",
-   "deck": 257818,
-   "player": "Frank Van Rijn",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni - Show",
-   "deck": 257824,
-   "player": "Sebastian Finkes",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UW Miracles",
-   "deck": 248459,
-   "player": "Kawakita Shirou",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Miracles",
-   "deck": 257817,
-   "player": "Kilyuk Alexander",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Miracles",
-   "deck": 257825,
-   "player": "Devin Reilly",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Miracles",
-   "deck": 257833,
-   "player": "Alexey Romanchuk",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UR Delver",
-   "deck": 248187,
-   "player": "Kevin Jones",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "UR Delver",
-   "deck": 247423,
-   "player": "Bob Huang",
-   "why": [
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "Stoneblade",
-   "deck": 248628,
-   "player": "Rudy Briksza",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "Stoneblade",
-   "deck": 248057,
-   "player": "Ben Glancy",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "Stoneblade",
-   "deck": 258842,
-   "player": "Shaheen Soorani",
-   "why": [
-    "Telemin Performance (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Stoneblade",
-   "deck": 257801,
-   "player": "Ante Omrcen",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Canadian Threshold",
-   "deck": 254239,
-   "player": "Jacob Wilson",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)",
-    "unknown card: Rough / Tumble"
-   ]
-  },
-  {
-   "archetype": "Canadian Threshold",
-   "deck": 250917,
-   "player": "Daryl Ayers",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)",
-    "unknown card: Rough / Tumble"
-   ]
-  },
-  {
-   "archetype": "Canadian Threshold",
-   "deck": 254772,
-   "player": "Hiroyuki Kaga",
-   "why": [
-    "Submerge (not in legal sets)",
-    "unknown card: Rough / Tumble"
-   ]
-  },
-  {
-   "archetype": "Canadian Threshold",
-   "deck": 248816,
-   "player": "Julien Medici",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)",
-    "Treasure Cruise (banned)"
-   ]
-  },
   {
    "archetype": "Patriot Aggro",
    "deck": 248179,
    "player": "Anthony Leen",
    "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Patriot Aggro",
-   "deck": 254786,
-   "player": "Arthor James",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Patriot Aggro",
-   "deck": 248771,
-   "player": "Tashiro Kouichi",
-   "why": [
     "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "Patriot Aggro",
-   "deck": 248636,
-   "player": "Gideon Zipprich",
-   "why": [
-    "Treasure Cruise (banned)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "BUG Threshold",
-   "deck": 251423,
-   "player": "Jim Davis",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Threshold",
-   "deck": 250214,
-   "player": "Roman Nikolaev",
-   "why": [
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "BUG Threshold",
-   "deck": 248846,
-   "player": "Jason Ko",
-   "why": [
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "BUG Threshold",
-   "deck": 248850,
-   "player": "Pete Johnson",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "BUG Aggro / Midrange",
-   "deck": 254271,
-   "player": "Guillem Salvador",
-   "why": [
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Aggro / Midrange",
-   "deck": 257804,
-   "player": "Jo\u00e3o Alveirinho",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Grixis Delver",
-   "deck": 256472,
-   "player": "Noah Walker",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Grixis Delver",
-   "deck": 257811,
-   "player": "Joonas Kyl\u00e4-Harakka",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Grixis Delver",
-   "deck": 258491,
-   "player": "Gabriel Deloison",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Grixis Delver",
-   "deck": 254151,
-   "player": "Romain Van Den Brande",
-   "why": [
-    "Flusterstorm (not in legal sets)"
    ]
   },
   {
@@ -1352,8 +1963,7 @@
    "deck": 249953,
    "player": "Viti Enrico",
    "why": [
-    "Treasure Cruise (banned)",
-    "unknown card: Wear / Tear"
+    "Treasure Cruise (banned)"
    ]
   },
   {
@@ -1361,373 +1971,7 @@
    "deck": 250515,
    "player": "Yoann Allier",
    "why": [
-    "Flusterstorm (not in legal sets)",
-    "Treasure Cruise (banned)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Jeskai Miracle",
-   "deck": 247817,
-   "player": "Angelo Cadei",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Monastery",
-   "deck": 260033,
-   "player": "Evan Flynn",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Monastery",
-   "deck": 254130,
-   "player": "Paolo Pikec",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 258488,
-   "player": "Miguel Alcoriza",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UW Control",
-   "deck": 255645,
-   "player": "Riccardo Biava",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Monastery Miracle",
-   "deck": 260243,
-   "player": "Cedric Moulin",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Merfolk",
-   "deck": 259397,
-   "player": "Robert Dacunto",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Merfolk",
-   "deck": 257814,
-   "player": "Goran Elez",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Merfolk",
-   "deck": 252095,
-   "player": "Nakanishi Yutaka",
-   "why": [
-    "Ensnare (not in legal sets)",
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Merfolk",
-   "deck": 259403,
-   "player": "Ben Friedman",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Sneak Show",
-   "deck": 257808,
-   "player": "Jonathan Anghelescu",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Berserk Poison",
-   "deck": 257827,
-   "player": "John Casey",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Berserk Poison",
-   "deck": 251199,
-   "player": "Stefan Czolk",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Berserk Poison",
-   "deck": 250031,
-   "player": "Linus Grupp",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)",
     "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "Berserk Poison",
-   "deck": 249505,
-   "player": "Edoardo Talignani",
-   "why": [
-    "Submerge (not in legal sets)",
-    "Treasure Cruise (banned)"
-   ]
-  },
-  {
-   "archetype": "Reanimator",
-   "deck": 257822,
-   "player": "David Haller",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Reanimator",
-   "deck": 248855,
-   "player": "Mark Schmit",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Reanimator",
-   "deck": 249492,
-   "player": "Eddy Bonello",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "4c Delver",
-   "deck": 257810,
-   "player": "Ale\u009a Borek",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "4c Delver",
-   "deck": 260241,
-   "player": "Baptist Matthys",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "4c Delver",
-   "deck": 258492,
-   "player": "Javier Rodriguez Pozo",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "4c Delver",
-   "deck": 259127,
-   "player": "Charlie Holland",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni Show",
-   "deck": 251255,
-   "player": "Kamioka Masayuki",
-   "why": [
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni Show",
-   "deck": 250516,
-   "player": "Nicolas Goldberg",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni Show",
-   "deck": 248790,
-   "player": "Matsumoto Yuuki",
-   "why": [
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Omni Show",
-   "deck": 254153,
-   "player": "Nicolas Goldberg",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Delver",
-   "deck": 254784,
-   "player": "Katsuya Miura",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Delver",
-   "deck": 253933,
-   "player": "Bob Marshall",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Delver",
-   "deck": 251677,
-   "player": "Thore Hehn",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Delver",
-   "deck": 251679,
-   "player": "Jorge Andersen",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "High Tide",
-   "deck": 254778,
-   "player": "Yuuya Takimura",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "High Tide",
-   "deck": 247823,
-   "player": "Roberto Libanore",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "High Tide",
-   "deck": 251480,
-   "player": "Sander Hendrickx",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "High Tide",
-   "deck": 247838,
-   "player": "Nicola Guidi",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UWr Miracles",
-   "deck": 257831,
-   "player": "Spiridon Vardaramatos",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Miracles",
-   "deck": 248740,
-   "player": "Mike Sigrist",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "UWr Miracles",
-   "deck": 250119,
-   "player": "Reid Duke",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "TES",
-   "deck": 251485,
-   "player": "Pierre Melin",
-   "why": [
-    "Massacre (not in legal sets)",
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "TES",
-   "deck": 258840,
-   "player": "Bryant Cook",
-   "why": [
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Death, Blood & Taxes",
-   "deck": 257815,
-   "player": "Nicolas Duguet",
-   "why": [
-    "Seal of Cleansing (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Pox",
-   "deck": 257806,
-   "player": "Teodor Suntburg",
-   "why": [
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "BUG Shadow",
-   "deck": 257812,
-   "player": "Cailliau Manoel",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Candian Threshold",
-   "deck": 254156,
-   "player": "Yoann Allier",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
    ]
   },
   {
@@ -1735,16 +1979,7 @@
    "deck": 250589,
    "player": "Robert Graves",
    "why": [
-    "Treasure Cruise (banned)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Turbo Dark Depths",
-   "deck": 248836,
-   "player": "Jonathan Spagnolo",
-   "why": [
-    "Flusterstorm (not in legal sets)"
+    "Treasure Cruise (banned)"
    ]
   },
   {
@@ -1756,49 +1991,6 @@
    ]
   },
   {
-   "archetype": "UR Landstill",
-   "deck": 248540,
-   "player": "Thomas Paulin",
-   "why": [
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "BUG Faeries",
-   "deck": 247314,
-   "player": "Borja Ceberio",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "Submerge (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Jeskai Miracles",
-   "deck": 247818,
-   "player": "Thomas Vlcek",
-   "why": [
-    "Flusterstorm (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Jeskai Miracles",
-   "deck": 247819,
-   "player": "Giulio Zorzi",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Jeskai Miracles",
-   "deck": 247840,
-   "player": "Andrea Ghesini",
-   "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
    "archetype": "Petal Burn",
    "deck": 249952,
    "player": "Tassinari Matteo",
@@ -1807,89 +1999,335 @@
    ]
   },
   {
-   "archetype": "Miracles",
-   "deck": 258849,
-   "player": "Derek Feil",
+   "archetype": "Young Stoneblade",
+   "deck": 248866,
+   "player": "Brian Braun-Duin",
    "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
+    "Treasure Cruise (banned)"
    ]
   },
   {
-   "archetype": "Miracles",
-   "deck": 257955,
-   "player": "Alex Avance",
+   "archetype": "BUG Midrange",
+   "deck": 250118,
+   "player": "Gerard Fabiano",
    "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
+    "Treasure Cruise (banned)"
    ]
   },
   {
-   "archetype": "Miracles",
-   "deck": 257956,
-   "player": "Hamlet McBacon",
+   "archetype": "URb Delver",
+   "deck": 248541,
+   "player": "Louis Bachaud",
    "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
+    "Treasure Cruise (banned)",
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Miracles",
-   "deck": 248870,
-   "player": "Tomas Vlcek",
+   "archetype": "Canadian BUG",
+   "deck": 247776,
+   "player": "Hans Jacob Kuhlmann Godd...",
    "why": [
-    "Flusterstorm (not in legal sets)",
-    "unknown card: Wear / Tear"
+    "Treasure Cruise (banned)"
    ]
   },
   {
-   "archetype": "Aluren",
-   "deck": 260357,
-   "player": "Alex Barnett",
+   "archetype": "UR Burn",
+   "deck": 247834,
+   "player": "Lorenzo Lerro",
    "why": [
-    "Parasitic Strix (not in legal sets)"
+    "Treasure Cruise (banned)"
    ]
   },
   {
-   "archetype": "Delver BUG",
-   "deck": 258953,
-   "player": "Cody Johnston",
+   "archetype": "Deathblade",
+   "deck": 247822,
+   "player": "Fabio Di Pasquale",
    "why": [
-    "Flusterstorm (not in legal sets)"
+    "Treasure Cruise (banned)"
+   ]
+  },
+  {
+   "archetype": "Young Grixis",
+   "deck": 250912,
+   "player": "Ed Demicco",
+   "why": [
+    "Treasure Cruise (banned)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Stoneblade",
+   "deck": 250120,
+   "player": "Brian Braun-Duin",
+   "why": [
+    "Treasure Cruise (banned)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Mono Blue Aggro",
+   "deck": 249504,
+   "player": "Alessio Torrini",
+   "why": [
+    "Treasure Cruise (banned)"
    ]
   }
  ],
  "duplicates_dropped": [
   {
-   "dropped": "BUG Aggro / Midrange",
-   "player": "Geoffrey Noirot",
-   "kept": "Shardless BUG",
-   "kept_player": "Tristan Polzl"
+   "dropped": "BUG Threshold",
+   "player": "Jim Davis",
+   "kept": "Canadian Threshold",
+   "kept_player": "Jacob Wilson"
+  },
+  {
+   "dropped": "Grixis Delver",
+   "player": "Noah Walker",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "Jeskai Miracle",
+   "player": "Angelo Cadei",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
+  },
+  {
+   "dropped": "Monastery Miracle",
+   "player": "Cedric Moulin",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
+  },
+  {
+   "dropped": "Sneak Show",
+   "player": "Jonathan Anghelescu",
+   "kept": "Omni - Show",
+   "kept_player": "Josh Pelrine"
+  },
+  {
+   "dropped": "4c Delver",
+   "player": "Ale\u009a Borek",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "Omni Show",
+   "player": "Kamioka Masayuki",
+   "kept": "Omni - Show",
+   "kept_player": "Josh Pelrine"
+  },
+  {
+   "dropped": "BUG Delver",
+   "player": "Katsuya Miura",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "UWr Miracles",
+   "player": "Spiridon Vardaramatos",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
   },
   {
    "dropped": "Death, Blood & Taxes",
-   "player": "Momme Grupp",
+   "player": "Nicolas Duguet",
    "kept": "Death & Taxes",
    "kept_player": "Kellen Pastore"
+  },
+  {
+   "dropped": "Candian Threshold",
+   "player": "Yoann Allier",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
   },
   {
    "dropped": "Griffin",
    "player": "Jesper Holm",
    "kept": "Food Griffin",
    "kept_player": "Jeffrey Chen"
+  },
+  {
+   "dropped": "Jeskai Miracles",
+   "player": "Thomas Vlcek",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
+  },
+  {
+   "dropped": "Miracles",
+   "player": "Derek Feil",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
+  },
+  {
+   "dropped": "Delver BUG",
+   "player": "Cody Johnston",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "RDW",
+   "player": "John Taylor",
+   "kept": "Burn",
+   "kept_player": "Matthew Vaughan"
+  },
+  {
+   "dropped": "Monastery Miracles",
+   "player": "Claudio Bonanni",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
+  },
+  {
+   "dropped": "Lands",
+   "player": "David Long",
+   "kept": "Lands (Eternal Garden)",
+   "kept_player": "Alexander Lorenz"
+  },
+  {
+   "dropped": "Threshold UGr",
+   "player": "Dennis Dr\u00e4ger",
+   "kept": "Canadian Threshold",
+   "kept_player": "Jacob Wilson"
+  },
+  {
+   "dropped": "UW miracles",
+   "player": "Aoyagi Motohiko",
+   "kept": "UW Miracles",
+   "kept_player": "Kawakita Shirou"
+  },
+  {
+   "dropped": "Infect",
+   "player": "James Rynkiewicz",
+   "kept": "Berserk Poison",
+   "kept_player": "John Casey"
+  },
+  {
+   "dropped": "UR Aggro",
+   "player": "Onogi Shou",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "Tez Control",
+   "player": "Zach Dobbin",
+   "kept": "Grixis Thopter",
+   "kept_player": "Cameron Wisniewski"
+  },
+  {
+   "dropped": "D&T",
+   "player": "Aaron Higgins",
+   "kept": "Death & Taxes",
+   "kept_player": "Kellen Pastore"
+  },
+  {
+   "dropped": "Berserk Infect",
+   "player": "Simone Giovannetti",
+   "kept": "Berserk Poison",
+   "kept_player": "John Casey"
+  },
+  {
+   "dropped": "Team America",
+   "player": "Fagner Sherer",
+   "kept": "BUG Aggro / Midrange",
+   "kept_player": "Guillem Salvador"
+  },
+  {
+   "dropped": "CandianThreshold",
+   "player": "Suzuki Takayuki",
+   "kept": "Canadian Threshold",
+   "kept_player": "Jacob Wilson"
+  },
+  {
+   "dropped": "Merfolks",
+   "player": "Jean Raynaud",
+   "kept": "Merfolk",
+   "kept_player": "Robert Dacunto"
+  },
+  {
+   "dropped": "Jeskai Delver",
+   "player": "Luis Hack",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "Landstill",
+   "player": "Niwa Hotaka",
+   "kept": "UR Landstill",
+   "kept_player": "Thomas Paulin"
+  },
+  {
+   "dropped": "Death And Taxes",
+   "player": "Eduardo Ancini",
+   "kept": "Death & Taxes",
+   "kept_player": "Kellen Pastore"
+  },
+  {
+   "dropped": "Patriot Pyromancer",
+   "player": "Eli Kassis",
+   "kept": "UR Delver",
+   "kept_player": "Logan Mize"
+  },
+  {
+   "dropped": "Young Grixis Midrange",
+   "player": "Jeff Mcaleer",
+   "kept": "Grixis Pyromancer",
+   "kept_player": "Tom Strong"
+  },
+  {
+   "dropped": "Berserk Stompy",
+   "player": "Mads S\u00f8rensen",
+   "kept": "Berserk Poison",
+   "kept_player": "John Casey"
+  },
+  {
+   "dropped": "Golgari Stoneblade",
+   "player": "Kikuchi Keita",
+   "kept": "Stoneblade",
+   "kept_player": "Shaheen Soorani"
+  },
+  {
+   "dropped": "Junk",
+   "player": "Miso Gavrilovic",
+   "kept": "Stone Junk",
+   "kept_player": "Kikuchi Keita"
+  },
+  {
+   "dropped": "ANT",
+   "player": "Kawamoto Kouhei",
+   "kept": "Storm",
+   "kept_player": "Jonathan Alexander Kurz"
+  },
+  {
+   "dropped": "Twin Exarch",
+   "player": "Max Ansbro",
+   "kept": "UR Landstill",
+   "kept_player": "Thomas Paulin"
+  },
+  {
+   "dropped": "BUG Death Shadow",
+   "player": "Chris Fornace",
+   "kept": "BUG Aggro / Midrange",
+   "kept_player": "Guillem Salvador"
+  },
+  {
+   "dropped": "Esper Blade",
+   "player": "Shohei Yamamoto",
+   "kept": "Stoneblade",
+   "kept_player": "Shaheen Soorani"
   }
  ],
- "objective": 7.176562924338711,
+ "objective": 16.503829428711242,
  "pool_colors": {
-  "R": 6,
-  "G": 7,
-  "W": 4,
-  "U": 9,
-  "B": 10
+  "U": 38,
+  "R": 15,
+  "G": 25,
+  "W": 20,
+  "B": 30
  },
  "pool_styles": {
-  "midrange": 7,
-  "aggro": 6,
-  "combo": 6
- }
+  "control": 19,
+  "midrange": 15,
+  "aggro": 15,
+  "combo": 9
+ },
+ "kept_lost": []
 }

@@ -43,6 +43,55 @@
  },
  "chosen": [
   {
+   "deck": 229136,
+   "event": 5051,
+   "archetype": "Affinity",
+   "player": "Caprioli Davide",
+   "event_name": "SCG Invitational Q. - MLL#11, Milan, Italy",
+   "stars": 3,
+   "rank": "1",
+   "date": "2013-05-19",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 3,
+    "avg_cmc": 1.64,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Steel Overseer": 4,
+     "Etched Champion": 3,
+     "Vault Skirge": 4,
+     "Signal Pest": 4,
+     "Memnite": 2,
+     "Thoughtcast": 4,
+     "Springleaf Drum": 4,
+     "Cranial Plating": 4,
+     "Galvanic Blast": 3,
+     "Mox Opal": 4,
+     "Ornithopter": 4,
+     "Arcbound Ravager": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 39
+  },
+  {
    "deck": 226297,
    "event": 4535,
    "archetype": "Jund",
@@ -52,7 +101,7 @@
    "rank": "1",
    "date": "2013-03-02",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 36,
     "lands": 24,
@@ -94,6 +143,62 @@
    "label_count": 107
   },
   {
+   "deck": 226570,
+   "event": 4587,
+   "archetype": "Birthing Pod",
+   "player": "Jonas Zimmermann",
+   "event_name": "PTQ San Diego'13 (Mannheim, Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-03-10",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 24,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 11.0,
+     "U": 4.0,
+     "B": 1.0,
+     "R": 13.0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Domri Rade": 2,
+     "Birthing Pod": 4,
+     "Kiki-Jiki, Mirror Breaker": 3,
+     "Linvala, Keeper of Silence": 1,
+     "Phantasmal Image": 1,
+     "Zealous Conscripts": 1,
+     "Avacyn's Pilgrim": 2,
+     "Deceiver Exarch": 2,
+     "Restoration Angel": 3,
+     "Wall of Omens": 3,
+     "Wall of Roots": 1,
+     "Kitchen Finks": 3,
+     "Noble Hierarch": 4,
+     "Murderous Redcap": 1,
+     "Glen Elendra Archmage": 1,
+     "Birds of Paradise": 4,
+     "Spellskite": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 57
+  },
+  {
    "deck": 226170,
    "event": 4509,
    "archetype": "UWr Midrange",
@@ -103,7 +208,7 @@
    "rank": "1",
    "date": "2013-03-02",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 35,
     "lands": 25,
@@ -154,7 +259,7 @@
    "rank": "1",
    "date": "2013-01-20",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 37,
     "lands": 23,
@@ -197,6 +302,55 @@
    "label_count": 36
   },
   {
+   "deck": 225338,
+   "event": 4347,
+   "archetype": "Scapeshift",
+   "player": "MATTIA RIZZI",
+   "event_name": "PTQ San Diego'13 (Milan, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-02-10",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 4,
+    "counters": 9,
+    "sweepers": 5,
+    "draw": 13,
+    "burn": 2,
+    "avg_cmc": 2.57,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 3.0,
+     "R": 4.0,
+     "G": 18.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Izzet Charm": 2,
+     "Telling Time": 3,
+     "Pyroclasm": 2,
+     "Cryptic Command": 3,
+     "Sakura-Tribe Elder": 4,
+     "Scapeshift": 4,
+     "Farseek": 2,
+     "Search for Tomorrow": 4,
+     "Serum Visions": 4,
+     "Remand": 4,
+     "Clutch of the Undercity": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 34
+  },
+  {
    "deck": 225807,
    "event": 4447,
    "archetype": "Gr Tron",
@@ -206,7 +360,7 @@
    "rank": "1",
    "date": "2013-02-23",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 40,
     "lands": 20,
@@ -247,6 +401,167 @@
    "label_count": 34
   },
   {
+   "deck": 224976,
+   "event": 4277,
+   "archetype": "Red Deck Wins",
+   "player": "Jasper Johnson-Epstein",
+   "event_name": "PTQ San Diego'13 (Indianapolis, Indiana)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-01-19",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 18,
+    "avg_cmc": 1.55,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 5.0,
+     "R": 35.0,
+     "G": 1.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Deathrite Shaman": 2,
+     "Goblin Guide": 4,
+     "Grim Lavamancer": 2,
+     "Vexing Devil": 4,
+     "Hellspark Elemental": 2,
+     "Keldon Marauders": 4,
+     "Bump in the Night": 4,
+     "Lava Spike": 4,
+     "Lightning Bolt": 4,
+     "Shard Volley": 1,
+     "Sudden Shock": 1,
+     "Flames of the Blood Hand": 3,
+     "Rift Bolt": 4,
+     "Searing Blaze": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 16
+  },
+  {
+   "deck": 224362,
+   "event": 4168,
+   "archetype": "Infect Combo",
+   "player": "Wesley Hovanec",
+   "event_name": "PTQ San Diego'13 (Selden, New York)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-01-05",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.27,
+    "pips": {
+     "W": 0,
+     "U": 5.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Vines of Vastwood": 4,
+     "Rancor": 4,
+     "Mutagenic Growth": 4,
+     "Might of Old Krosa": 4,
+     "Groundswell": 4,
+     "Giant Growth": 1,
+     "Distortion Strike": 1,
+     "Apostle's Blessing": 3,
+     "Plague Stinger": 4,
+     "Noble Hierarch": 3,
+     "Glistener Elf": 4,
+     "Blighted Agent": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 13
+  },
+  {
+   "deck": 226038,
+   "event": 4485,
+   "archetype": "Gift Control",
+   "player": "Nick Cuenca",
+   "event_name": "PTQ San Diego'13 (Stratford, Connecticut)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-02-24",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 8,
+    "counters": 3,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 11.0,
+     "U": 9.0,
+     "B": 17.0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Unburial Rites": 1,
+     "Raven's Crime": 1,
+     "Path to Exile": 2,
+     "Mana Leak": 3,
+     "Maelstrom Pulse": 1,
+     "Lingering Souls": 4,
+     "Liliana of the Veil": 3,
+     "Life from the Loam": 1,
+     "Gifts Ungiven": 4,
+     "Engineered Explosives": 1,
+     "Devour Flesh": 1,
+     "Darkblast": 1,
+     "Damnation": 1,
+     "Abrupt Decay": 2,
+     "Snapcaster Mage": 2,
+     "Iona, Shield of Emeria": 1,
+     "Elesh Norn, Grand Cenobite": 1,
+     "Deathrite Shaman": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
    "deck": 225725,
    "event": 4430,
    "archetype": "UW Control",
@@ -256,7 +571,7 @@
    "rank": "1",
    "date": "2013-02-09",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 35,
     "lands": 25,
@@ -308,7 +623,7 @@
    "rank": "1",
    "date": "2013-03-16",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 40,
     "lands": 20,
@@ -358,7 +673,7 @@
    "rank": "1",
    "date": "2013-03-11",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 37,
     "lands": 23,
@@ -410,7 +725,7 @@
    "rank": "1",
    "date": "2013-02-09",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 38,
     "lands": 22,
@@ -448,6 +763,58 @@
    "label_count": 6
   },
   {
+   "deck": 224114,
+   "event": 4115,
+   "archetype": "UW Angel",
+   "player": "Rinnen Davide",
+   "event_name": "PTQ San Diego'13 (Reggio Emilia, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-01-09",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 18,
+    "counters": 10,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 17.0,
+     "U": 26.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Spell Snare": 4,
+     "Mana Leak": 3,
+     "Remand": 1,
+     "Cryptic Command": 2,
+     "Path to Exile": 4,
+     "Dismember": 2,
+     "Whispers of the Muse": 1,
+     "Wall of Omens": 2,
+     "Baneslayer Angel": 1,
+     "Restoration Angel": 4,
+     "Snapcaster Mage": 3,
+     "Vendilion Clique": 3,
+     "Geist of Saint Traft": 2,
+     "Blade Splicer": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
    "deck": 225120,
    "event": 4303,
    "archetype": "Delverless RUG",
@@ -457,7 +824,7 @@
    "rank": "1",
    "date": "2013-02-04",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 38,
     "lands": 22,
@@ -497,6 +864,56 @@
    "label_count": 3
   },
   {
+   "deck": 226273,
+   "event": 4532,
+   "archetype": "Zombie",
+   "player": "Gerald Jim Bob Sixkiller",
+   "event_name": "PTQ San Diego'13 (Springfield, Missouri)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-03-02",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 45.0,
+     "R": 4.0,
+     "G": 6.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Victim of Night": 2,
+     "Liliana of the Veil": 3,
+     "Inquisition of Kozilek": 3,
+     "Lightning Bolt": 4,
+     "Geralf's Messenger": 3,
+     "Deathrite Shaman": 4,
+     "Lotleth Troll": 4,
+     "Gravecrawler": 4,
+     "Diregraf Ghoul": 4,
+     "Bloodghast": 4,
+     "Thoughtseize": 1,
+     "Blasting Station": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
    "deck": 225914,
    "event": 4467,
    "archetype": "BW Hatebear",
@@ -506,7 +923,7 @@
    "rank": "1",
    "date": "2013-02-27",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 36,
     "lands": 24,
@@ -556,7 +973,7 @@
    "rank": "1",
    "date": "2013-02-23",
    "summer": false,
-   "s": 1.0,
+   "s": 0.7647058823529411,
    "f": {
     "spells": 38,
     "lands": 22,
@@ -596,352 +1013,6 @@
    "label_count": 1
   },
   {
-   "deck": 225338,
-   "event": 4347,
-   "archetype": "Scapeshift",
-   "player": "MATTIA RIZZI",
-   "event_name": "PTQ San Diego'13 (Milan, Italy)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-02-10",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 4,
-    "counters": 9,
-    "sweepers": 5,
-    "draw": 13,
-    "burn": 2,
-    "avg_cmc": 2.57,
-    "pips": {
-     "W": 0,
-     "U": 28.0,
-     "B": 3.0,
-     "R": 4.0,
-     "G": 18.0
-    },
-    "colors": [
-     "U",
-     "G"
-    ],
-    "names": {
-     "Izzet Charm": 2,
-     "Telling Time": 3,
-     "Pyroclasm": 2,
-     "Cryptic Command": 3,
-     "Sakura-Tribe Elder": 4,
-     "Scapeshift": 4,
-     "Farseek": 2,
-     "Search for Tomorrow": 4,
-     "Serum Visions": 4,
-     "Remand": 4,
-     "Clutch of the Undercity": 3
-    }
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 34
-  }
- ],
- "alternates": [
-  {
-   "deck": 223629,
-   "event": 4006,
-   "archetype": "Unknown Scapeshift",
-   "player": "Helmut Summersberger",
-   "event_name": "PTQ San Diego'13 (Dortmund, Germany)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2012-12-22",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 0,
-    "lands": 60,
-    "creatures": 0,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 0,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [],
-    "names": {}
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 1,
-   "swapped_out_reason": "mtgtop8 export for deck 223629 (\"Unknown Scapeshift\", Helmut Summersberger) is not a real decklist \u2014 mtgtop8 itself hides this list (the archetype name says \"Unknown\") and the .dec export is just \"60 Forest\", 0 spells, 0 sideboard. Not transcribable as a 60+15 card deck; replaced by deck 225338 (Scapeshift, MATTIA RIZZI), the next-best alternate (same event, same date, same strength tier, same style) that is not already an archetype in this era."
-  },
-  {
-   "deck": 226347,
-   "event": 4541,
-   "archetype": "Aura Hexproof",
-   "player": "James G.",
-   "event_name": "PTQ San Diego'13 (Louisville, Kentucky)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-02-09",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 40,
-    "lands": 20,
-    "creatures": 12,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 1.35,
-    "pips": {
-     "W": 26.0,
-     "U": 2.0,
-     "B": 0,
-     "R": 0,
-     "G": 16.0
-    },
-    "colors": [
-     "W",
-     "G"
-    ],
-    "names": {
-     "Spirit Mantle": 4,
-     "Spider Umbra": 4,
-     "Rancor": 4,
-     "Path to Exile": 3,
-     "Hyena Umbra": 3,
-     "Fists of Ironwood": 2,
-     "Ethereal Armor": 4,
-     "Daybreak Coronet": 4,
-     "Slippery Bogle": 4,
-     "Kor Spiritdancer": 4,
-     "Gladecover Scout": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 13
-  },
-  {
-   "deck": 226038,
-   "event": 4485,
-   "archetype": "Gift Control",
-   "player": "Nick Cuenca",
-   "event_name": "PTQ San Diego'13 (Stratford, Connecticut)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-02-24",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 8,
-    "counters": 3,
-    "sweepers": 1,
-    "draw": 2,
-    "burn": 0,
-    "avg_cmc": 2.68,
-    "pips": {
-     "W": 11.0,
-     "U": 9.0,
-     "B": 17.0,
-     "R": 0,
-     "G": 6.0
-    },
-    "colors": [
-     "W",
-     "U",
-     "B",
-     "G"
-    ],
-    "names": {
-     "Unburial Rites": 1,
-     "Raven's Crime": 1,
-     "Path to Exile": 2,
-     "Mana Leak": 3,
-     "Maelstrom Pulse": 1,
-     "Lingering Souls": 4,
-     "Liliana of the Veil": 3,
-     "Life from the Loam": 1,
-     "Gifts Ungiven": 4,
-     "Engineered Explosives": 1,
-     "Devour Flesh": 1,
-     "Darkblast": 1,
-     "Damnation": 1,
-     "Abrupt Decay": 2,
-     "Snapcaster Mage": 2,
-     "Iona, Shield of Emeria": 1,
-     "Elesh Norn, Grand Cenobite": 1,
-     "Deathrite Shaman": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 12
-  },
-  {
-   "deck": 226048,
-   "event": 4489,
-   "archetype": "4/5c Good Stuff",
-   "player": "Jonathan D. Metzger",
-   "event_name": "PTQ San Diego'13 (Seattle, Washington)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-02-24",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 21,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 15,
-    "avg_cmc": 1.68,
-    "pips": {
-     "W": 17.0,
-     "U": 7.0,
-     "B": 2.0,
-     "R": 17.0,
-     "G": 6.0
-    },
-    "colors": [
-     "W",
-     "U",
-     "R",
-     "G"
-    ],
-    "names": {
-     "Tribal Flames": 4,
-     "Path to Exile": 2,
-     "Lightning Helix": 4,
-     "Lightning Bolt": 4,
-     "Boros Charm": 3,
-     "Tarmogoyf": 4,
-     "Steppe Lynx": 4,
-     "Snapcaster Mage": 3,
-     "Grim Lavamancer": 2,
-     "Geist of Saint Traft": 4,
-     "Deathrite Shaman": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 9
-  },
-  {
-   "deck": 224114,
-   "event": 4115,
-   "archetype": "UW Angel",
-   "player": "Rinnen Davide",
-   "event_name": "PTQ San Diego'13 (Reggio Emilia, Italy)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-01-09",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 18,
-    "counters": 10,
-    "sweepers": 2,
-    "draw": 4,
-    "burn": 0,
-    "avg_cmc": 2.46,
-    "pips": {
-     "W": 17.0,
-     "U": 26.0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U"
-    ],
-    "names": {
-     "Spell Snare": 4,
-     "Mana Leak": 3,
-     "Remand": 1,
-     "Cryptic Command": 2,
-     "Path to Exile": 4,
-     "Dismember": 2,
-     "Whispers of the Muse": 1,
-     "Wall of Omens": 2,
-     "Baneslayer Angel": 1,
-     "Restoration Angel": 4,
-     "Snapcaster Mage": 3,
-     "Vendilion Clique": 3,
-     "Geist of Saint Traft": 2,
-     "Blade Splicer": 3
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 6
-  },
-  {
-   "deck": 226273,
-   "event": 4532,
-   "archetype": "Zombie",
-   "player": "Gerald Jim Bob Sixkiller",
-   "event_name": "PTQ San Diego'13 (Springfield, Missouri)",
-   "stars": 2,
-   "rank": "1",
-   "date": "2013-03-02",
-   "summer": false,
-   "s": 1.0,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 23,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 6,
-    "avg_cmc": 1.68,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 45.0,
-     "R": 4.0,
-     "G": 6.0
-    },
-    "colors": [
-     "B",
-     "G"
-    ],
-    "names": {
-     "Victim of Night": 2,
-     "Liliana of the Veil": 3,
-     "Inquisition of Kozilek": 3,
-     "Lightning Bolt": 4,
-     "Geralf's Messenger": 3,
-     "Deathrite Shaman": 4,
-     "Lotleth Troll": 4,
-     "Gravecrawler": 4,
-     "Diregraf Ghoul": 4,
-     "Bloodghast": 4,
-     "Thoughtseize": 1,
-     "Blasting Station": 2
-    }
-   },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 1
-  },
-  {
    "deck": 231110,
    "event": 5388,
    "archetype": "UWx Midrange",
@@ -951,7 +1022,7 @@
    "rank": "1",
    "date": "2013-08-05",
    "summer": true,
-   "s": 0.8653846153846154,
+   "s": 0.6617647058823529,
    "f": {
     "spells": 34,
     "lands": 26,
@@ -1004,7 +1075,7 @@
    "rank": "3",
    "date": "2013-05-19",
    "summer": false,
-   "s": 0.7295430886260319,
+   "s": 0.5578858913022597,
    "f": {
     "spells": 44,
     "lands": 16,
@@ -1046,105 +1117,416 @@
    "label_count": 14
   },
   {
-   "deck": 226298,
-   "event": 4535,
-   "archetype": "Affinity",
-   "player": "Shane Simpson",
-   "event_name": "PTQ San Diego'13 (Calgary, Alberta)",
+   "deck": 225373,
+   "event": 4353,
+   "archetype": "Boom Naya",
+   "player": "Elia Rossi",
+   "event_name": "MLL#6-Milano",
    "stars": 2,
-   "rank": "2",
-   "date": "2013-03-02",
+   "rank": "3",
+   "date": "2013-02-03",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.4266186227605516,
    "f": {
-    "spells": 44,
-    "lands": 16,
-    "creatures": 25,
+    "spells": 38,
+    "lands": 22,
+    "creatures": 17,
     "counters": 0,
     "sweepers": 0,
     "draw": 0,
     "burn": 6,
-    "avg_cmc": 1.25,
+    "avg_cmc": 2.71,
     "pips": {
-     "W": 4.0,
+     "W": 8.0,
      "U": 0,
-     "B": 0,
-     "R": 6.0,
-     "G": 0
+     "B": 1.5,
+     "R": 19.0,
+     "G": 18.5
     },
     "colors": [
      "W",
-     "R"
+     "R",
+     "G"
     ],
     "names": {
-     "Boros Charm": 2,
-     "Vault Skirge": 4,
-     "Steel Overseer": 2,
-     "Signal Pest": 4,
-     "Ornithopter": 4,
-     "Memnite": 4,
-     "Etched Champion": 4,
-     "Arcbound Ravager": 3,
-     "Steelshaper's Gift": 2,
-     "Springleaf Drum": 3,
-     "Mox Opal": 4,
-     "Galvanic Blast": 4,
-     "Cranial Plating": 4
+     "Sword of War and Peace": 1,
+     "Sword of Light and Shadow": 1,
+     "Dismember": 2,
+     "Lingering Souls": 2,
+     "Lightning Helix": 2,
+     "Boom // Bust": 3,
+     "Blood Moon": 3,
+     "Lightning Bolt": 4,
+     "Birds of Paradise": 2,
+     "Noble Hierarch": 3,
+     "Deathrite Shaman": 3,
+     "Tarmogoyf": 4,
+     "Huntmaster of the Fells // Ravager of the Fells": 4,
+     "Knight of the Reliquary": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 225869,
+   "event": 4458,
+   "archetype": "Deathcloud",
+   "player": "Sander Sepp",
+   "event_name": "PTQ San Diego'13 (Tallinn, Estonia)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2013-02-23",
+   "summer": false,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.75,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 31.0,
+     "R": 0,
+     "G": 25.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Inquisition of Kozilek": 2,
+     "Thoughtseize": 2,
+     "Fertile Ground": 4,
+     "Sakura-Tribe Elder": 4,
+     "Abrupt Decay": 3,
+     "Kitchen Finks": 4,
+     "Liliana of the Veil": 4,
+     "Crucible of Worlds": 1,
+     "Garruk Wildspeaker": 4,
+     "Damnation": 2,
+     "Thragtusk": 2,
+     "Death Cloud": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 225377,
+   "event": 4353,
+   "archetype": "Esper Tapout",
+   "player": "Riccardo Bondani",
+   "event_name": "MLL#6-Milano",
+   "stars": 2,
+   "rank": "7",
+   "date": "2013-02-03",
+   "summer": false,
+   "s": 0.3181399729170145,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 33.0,
+     "U": 12.0,
+     "B": 0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Wall of Omens": 3,
+     "Restoration Angel": 4,
+     "Repeal": 1,
+     "Dismember": 1,
+     "Oblivion Ring": 2,
+     "Jace Beleren": 2,
+     "Lingering Souls": 4,
+     "Path to Exile": 4,
+     "Baneslayer Angel": 1,
+     "Teferi, Mage of Zhalfir": 1,
+     "Sun Titan": 2,
+     "Knight of the White Orchid": 2,
+     "Vendilion Clique": 2,
+     "Blade Splicer": 3,
+     "Kitchen Finks": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 226347,
+   "event": 4541,
+   "archetype": "Aura Hexproof",
+   "player": "James G.",
+   "event_name": "PTQ San Diego'13 (Louisville, Kentucky)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-02-09",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.35,
+    "pips": {
+     "W": 26.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Spirit Mantle": 4,
+     "Spider Umbra": 4,
+     "Rancor": 4,
+     "Path to Exile": 3,
+     "Hyena Umbra": 3,
+     "Fists of Ironwood": 2,
+     "Ethereal Armor": 4,
+     "Daybreak Coronet": 4,
+     "Slippery Bogle": 4,
+     "Kor Spiritdancer": 4,
+     "Gladecover Scout": 4
     }
    },
    "style": "aggro",
    "style_why": "label",
-   "label_count": 39
+   "label_count": 13
   },
   {
-   "deck": 226192,
-   "event": 4516,
-   "archetype": "Gruul Aggro",
-   "player": "pinpin59",
-   "event_name": "PTQ San Diego'13 (MTGO, #5125306)",
+   "deck": 226048,
+   "event": 4489,
+   "archetype": "4/5c Good Stuff",
+   "player": "Jonathan D. Metzger",
+   "event_name": "PTQ San Diego'13 (Seattle, Washington)",
    "stars": 2,
-   "rank": "2",
-   "date": "2013-03-10",
+   "rank": "1",
+   "date": "2013-02-24",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.7647058823529411,
    "f": {
-    "spells": 41,
-    "lands": 19,
-    "creatures": 28,
+    "spells": 38,
+    "lands": 22,
+    "creatures": 21,
     "counters": 0,
     "sweepers": 0,
     "draw": 0,
-    "burn": 7,
-    "avg_cmc": 1.73,
+    "burn": 15,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 17.0,
+     "U": 7.0,
+     "B": 2.0,
+     "R": 17.0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tribal Flames": 4,
+     "Path to Exile": 2,
+     "Lightning Helix": 4,
+     "Lightning Bolt": 4,
+     "Boros Charm": 3,
+     "Tarmogoyf": 4,
+     "Steppe Lynx": 4,
+     "Snapcaster Mage": 3,
+     "Grim Lavamancer": 2,
+     "Geist of Saint Traft": 4,
+     "Deathrite Shaman": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 9
+  },
+  {
+   "deck": 226079,
+   "event": 4495,
+   "archetype": "Gruul Aggro",
+   "player": "Gabriel Carlton-Barnes",
+   "event_name": "PTQ San Diego'13 (Seattle, Washington)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-02-23",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 1.64,
     "pips": {
      "W": 0,
      "U": 0,
      "B": 0,
-     "R": 29.0,
-     "G": 20.0
+     "R": 31.0,
+     "G": 19.0
     },
     "colors": [
      "R",
      "G"
     ],
     "names": {
+     "Searing Blaze": 4,
+     "Seal of Fire": 4,
+     "Lightning Bolt": 4,
+     "Tarmogoyf": 4,
      "Kird Ape": 4,
      "Goblin Guide": 4,
-     "Ghor-Clan Rampager": 4,
+     "Ghor-Clan Rampager": 3,
      "Flinthoof Boar": 4,
      "Experiment One": 4,
-     "Burning-Tree Emissary": 4,
-     "Tarfire": 1,
-     "Searing Blaze": 2,
-     "Lightning Bolt": 4,
-     "Dismember": 2,
-     "Vexing Devil": 4,
-     "Tarmogoyf": 4
+     "Burning-Tree Emissary": 4
     }
    },
    "style": "aggro",
    "style_why": "label",
    "label_count": 5
+  },
+  {
+   "deck": 225935,
+   "event": 4471,
+   "archetype": "Hatebears",
+   "player": "Olivier L\u00e9vy",
+   "event_name": "PTQ San Diego'13 (Paris, France)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2013-03-03",
+   "summer": false,
+   "s": 0.7647058823529411,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 33.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Sword of War and Peace": 2,
+     "Noble Hierarch": 4,
+     "Leonin Arbiter": 4,
+     "Aven Mindcensor": 3,
+     "Mirran Crusader": 2,
+     "Baneslayer Angel": 3,
+     "Birds of Paradise": 2,
+     "Avacyn's Pilgrim": 1,
+     "Loxodon Smiter": 2,
+     "Thrun, the Last Troll": 1,
+     "Spellskite": 1,
+     "Sigarda, Host of Herons": 1,
+     "Path to Exile": 4,
+     "Thalia, Guardian of Thraben": 4,
+     "Linvala, Keeper of Silence": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 229137,
+   "event": 5051,
+   "archetype": "Naya",
+   "player": "Alava Fabio",
+   "event_name": "SCG Invitational Q. - MLL#11, Milan, Italy",
+   "stars": 3,
+   "rank": "2",
+   "date": "2013-05-19",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 5,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 17.0,
+     "U": 0,
+     "B": 1.5,
+     "R": 11.0,
+     "G": 24.5
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Elspeth, Knight-Errant": 1,
+     "Domri Rade": 2,
+     "Ajani Vengeant": 1,
+     "Path to Exile": 3,
+     "Lightning Bolt": 4,
+     "Qasali Pridemage": 1,
+     "Kitchen Finks": 2,
+     "Thundermaw Hellkite": 2,
+     "Lotus Cobra": 2,
+     "Deathrite Shaman": 3,
+     "Noble Hierarch": 4,
+     "Loxodon Smiter": 4,
+     "Tarmogoyf": 4,
+     "Knight of the Reliquary": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
   },
   {
    "deck": 226037,
@@ -1156,7 +1538,7 @@
    "rank": "2",
    "date": "2013-02-24",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5098039215686274,
    "f": {
     "spells": 39,
     "lands": 21,
@@ -1210,7 +1592,7 @@
    "rank": "2",
    "date": "2013-02-23",
    "summer": false,
-   "s": 0.6666666666666666,
+   "s": 0.5098039215686274,
    "f": {
     "spells": 38,
     "lands": 22,
@@ -1250,75 +1632,264 @@
    "style": "aggro",
    "style_why": "cards",
    "label_count": 5
+  },
+  {
+   "deck": 225936,
+   "event": 4471,
+   "archetype": "Dredgevine",
+   "player": "S\u00e9bastien Fourreau",
+   "event_name": "PTQ San Diego'13 (Paris, France)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2013-03-03",
+   "summer": false,
+   "s": 0.5098039215686274,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 4,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 35.0,
+     "R": 18.0,
+     "G": 17.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Darkblast": 2,
+     "Abrupt Decay": 2,
+     "Lightning Bolt": 4,
+     "Life from the Loam": 1,
+     "Faithless Looting": 4,
+     "Golgari Thug": 1,
+     "Stinkweed Imp": 2,
+     "Demigod of Revenge": 4,
+     "Vengevine": 4,
+     "Lotleth Troll": 4,
+     "Bloodghast": 4,
+     "Gravecrawler": 4,
+     "Deathrite Shaman": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 225726,
+   "event": 4430,
+   "archetype": "Token (Mono W / Polymorph ...)",
+   "player": "Christopher Davis",
+   "event_name": "PTQ San Diego'13 (Memphis, Tennessee)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2013-02-09",
+   "summer": false,
+   "s": 0.5098039215686274,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 47.0,
+     "U": 0,
+     "B": 11.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Intangible Virtue": 2,
+     "Honor of the Pure": 2,
+     "Zealous Persecution": 3,
+     "Thoughtseize": 4,
+     "Spectral Procession": 4,
+     "Raise the Alarm": 4,
+     "Path to Exile": 4,
+     "Lingering Souls": 4,
+     "Hero of Bladehold": 2,
+     "Tidehollow Sculler": 4,
+     "Auriok Champion": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 224157,
+   "event": 4124,
+   "archetype": "Merfolk",
+   "player": "Jaime De Mingo Blanco",
+   "event_name": "The Ice Gathering V (GPT Londres)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2012-12-29",
+   "summer": false,
+   "s": 0.5098039215686274,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 24,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 0,
+     "U": 44.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Aether Vial": 4,
+     "Spell Snare": 4,
+     "Echoing Truth": 4,
+     "Spreading Seas": 4,
+     "Master of the Pearl Trident": 4,
+     "Merrow Reejerey": 4,
+     "Silvergill Adept": 4,
+     "Phantasmal Image": 4,
+     "Lord of Atlantis": 4,
+     "Cursecatcher": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 226571,
+   "event": 4587,
+   "archetype": "BUG",
+   "player": "Julian Felix Flury",
+   "event_name": "PTQ San Diego'13 (Mannheim, Germany)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2013-03-10",
+   "summer": false,
+   "s": 0.5098039215686274,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 18,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.09,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 25.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Liliana of the Veil": 4,
+     "Batterskull": 1,
+     "Maelstrom Pulse": 2,
+     "Inquisition of Kozilek": 4,
+     "Thoughtseize": 1,
+     "Geth's Verdict": 1,
+     "Mana Leak": 2,
+     "Go for the Throat": 2,
+     "Vendilion Clique": 3,
+     "Snapcaster Mage": 3,
+     "Deathrite Shaman": 4,
+     "Tarmogoyf": 4,
+     "Dark Confidant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 226177,
+   "event": 4510,
+   "archetype": "UB Delver",
+   "player": "Juan Carlos Jara",
+   "event_name": "PTQ San Diego'13 (C\u00e1diz, Spain)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2013-03-02",
+   "summer": false,
+   "s": 0.5098039215686274,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 17,
+    "counters": 8,
+    "sweepers": 3,
+    "draw": 11,
+    "burn": 5,
+    "avg_cmc": 1.62,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 11.0,
+     "R": 6.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Thoughtseize": 2,
+     "Serum Visions": 4,
+     "Pillar of Flame": 1,
+     "Inquisition of Kozilek": 3,
+     "Spell Snare": 1,
+     "Remand": 3,
+     "Mana Leak": 1,
+     "Lightning Bolt": 4,
+     "Electrolyze": 1,
+     "Cryptic Command": 3,
+     "Vendilion Clique": 1,
+     "Snapcaster Mage": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Deathrite Shaman": 4,
+     "Dark Confidant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
   }
  ],
- "pool_size": 36,
+ "pool_size": 49,
  "rejected_illegal": [
-  {
-   "archetype": "Affinity",
-   "deck": 229136,
-   "player": "Caprioli Davide",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Affinity",
-   "deck": 230540,
-   "player": "Thibault Manandhar",
-   "why": [
-    "unknown card: Wear / Tear"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 226570,
-   "player": "Jonas Zimmermann",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 225679,
-   "player": "Tim Ealey",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 225371,
-   "player": "Davide Rinnen",
-   "why": [
-    "Noble Hierarch (not in legal sets)",
-    "Phyrexian Marauder (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Birthing Pod",
-   "deck": 224729,
-   "player": "RedArmada",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Deck Wins",
-   "deck": 224976,
-   "player": "Jasper Johnson-Epstein",
-   "why": [
-    "Hellspark Elemental (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Red Deck Wins",
-   "deck": 224115,
-   "player": "Masini Alberto",
-   "why": [
-    "Hellspark Elemental (not in legal sets)"
-   ]
-  },
   {
    "archetype": "Sunny Side Up",
    "deck": 225689,
@@ -1360,54 +1931,6 @@
    ]
   },
   {
-   "archetype": "Infect Combo",
-   "deck": 224362,
-   "player": "Wesley Hovanec",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Infect Combo",
-   "deck": 225804,
-   "player": "Olaf Johansen",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Infect Combo",
-   "deck": 225347,
-   "player": "LUCA CHIERA",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Infect Combo",
-   "deck": 223973,
-   "player": "sacakewalk",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Gruul Aggro",
-   "deck": 226079,
-   "player": "Gabriel Carlton-Barnes",
-   "why": [
-    "Volcanic Fallout (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebears",
-   "deck": 225935,
-   "player": "Olivier L\u00e9vy",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Lingering Jund",
    "deck": 224540,
    "player": "Guillaume Vincent",
@@ -1416,51 +1939,11 @@
    ]
   },
   {
-   "archetype": "Naya",
-   "deck": 229137,
-   "player": "Alava Fabio",
+   "archetype": "Unknown Scapeshift",
+   "deck": 223629,
+   "player": "Helmut Summersberger",
    "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebear",
-   "deck": 225339,
-   "player": "Fiordelmondo Matteo",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Hatebear",
-   "deck": 229142,
-   "player": "Vinci Stefano",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UB Delver",
-   "deck": 226177,
-   "player": "Juan Carlos Jara",
-   "why": [
-    "Countersquall (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UB Delver",
-   "deck": 226030,
-   "player": "Drew Levin",
-   "why": [
-    "Countersquall (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UB Delver",
-   "deck": 226372,
-   "player": "Jani Lindroos",
-   "why": [
-    "Countersquall (not in legal sets)"
+    "placeholder list: 0 nonland cards"
    ]
   },
   {
@@ -1468,8 +1951,7 @@
    "deck": 230541,
    "player": "Amand Dosimont",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "unknown card: Wear / Tear"
+    "unknown card: Unknown Card"
    ]
   },
   {
@@ -1481,62 +1963,59 @@
    ]
   },
   {
-   "archetype": "Pod",
-   "deck": 225938,
-   "player": "Thomas Drapala",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Pod",
-   "deck": 222209,
-   "player": "Jonas K\u00f6stler",
-   "why": [
-    "Noble Hierarch (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Naya Aggro",
    "deck": 226176,
    "player": "Jes\u00fas Valderrama",
    "why": [
-    "Ancient Tomb (not in legal sets)",
-    "Noble Hierarch (not in legal sets)",
-    "unknown card: Boom / Bust"
+    "Ancient Tomb (not in legal sets)"
    ]
   },
   {
-   "archetype": "Naya Aggro",
-   "deck": 225375,
-   "player": "Andrea Ciotta",
+   "archetype": "Storm",
+   "deck": 222203,
+   "player": "Olivier Ruel",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "Seething Song (banned)"
    ]
   },
   {
-   "archetype": "Boom Naya",
-   "deck": 225373,
-   "player": "Elia Rossi",
+   "archetype": "Storm",
+   "deck": 222236,
+   "player": "Kenny Oberg",
    "why": [
-    "Noble Hierarch (not in legal sets)",
-    "unknown card: Boom / Bust"
+    "Seething Song (banned)"
    ]
   },
   {
-   "archetype": "Angel Pod",
-   "deck": 224058,
-   "player": "Noham maubert",
+   "archetype": "Merfolks",
+   "deck": 221967,
+   "player": "Satoshi Yamaguchi",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "unknown card: Unknown Card"
    ]
   },
   {
-   "archetype": "Angel Pod",
-   "deck": 225710,
-   "player": "Takeyuki Matsubara",
+   "archetype": "Merfolks",
+   "deck": 221925,
+   "player": "Michael Majors",
    "why": [
-    "Noble Hierarch (not in legal sets)"
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Boom/Bust Zoo",
+   "deck": 221882,
+   "player": "Marco Cammilluzzi",
+   "why": [
+    "Bloodbraid Elf (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund Scapeshift",
+   "deck": 221945,
+   "player": "Davide Quaglia",
+   "why": [
+    "Bloodbraid Elf (banned)"
    ]
   }
  ],
@@ -1554,10 +2033,22 @@
    "kept_player": "TenaciousDealer"
   },
   {
+   "dropped": "Hatebear",
+   "player": "Fiordelmondo Matteo",
+   "kept": "Hatebears",
+   "kept_player": "Olivier L\u00e9vy"
+  },
+  {
    "dropped": "UWR Control",
    "player": "Pascal P\u00fctter",
    "kept": "UWx Midrange",
    "kept_player": "Shahar Shenhar"
+  },
+  {
+   "dropped": "Pod",
+   "player": "Thomas Drapala",
+   "kept": "Birthing Pod",
+   "kept_player": "Jonas Zimmermann"
   },
   {
    "dropped": "Gifts",
@@ -1566,30 +2057,165 @@
    "kept_player": "Nick Cuenca"
   },
   {
+   "dropped": "Naya Aggro",
+   "player": "Andrea Ciotta",
+   "kept": "Boom Naya",
+   "kept_player": "Elia Rossi"
+  },
+  {
    "dropped": "BW Tokens",
    "player": "Mikebrav",
    "kept": "Token (Mono W / Polymorph ...)",
    "kept_player": "Christopher Davis"
   },
   {
-   "dropped": "WW Hatebear",
-   "player": "melv.p",
-   "kept": "Hatebear",
-   "kept_player": "Maxime Mangenot"
+   "dropped": "Infect",
+   "player": "Vincent Haller",
+   "kept": "Infect Combo",
+   "kept_player": "Wesley Hovanec"
+  },
+  {
+   "dropped": "Angel Pod",
+   "player": "Noham maubert",
+   "kept": "Birthing Pod",
+   "kept_player": "Jonas Zimmermann"
+  },
+  {
+   "dropped": "Patriot",
+   "player": "Alrik Mabire",
+   "kept": "Boremandos",
+   "kept_player": "Esko Pakka"
+  },
+  {
+   "dropped": "Atog Affinity",
+   "player": "Raido Kahm",
+   "kept": "Affinity",
+   "kept_player": "Caprioli Davide"
+  },
+  {
+   "dropped": "4 cards",
+   "player": "Gregory Cassini",
+   "kept": "Birthing Pod",
+   "kept_player": "Jonas Zimmermann"
+  },
+  {
+   "dropped": "UW Angels",
+   "player": "Emanuel Sutor",
+   "kept": "UW Angel",
+   "kept_player": "Rinnen Davide"
+  },
+  {
+   "dropped": "Tribal Zoo",
+   "player": "Antonio Serrano",
+   "kept": "Zoo",
+   "kept_player": "Ivan Van Loh"
+  },
+  {
+   "dropped": "Rock",
+   "player": "Josh Utter-Leyton",
+   "kept": "Jund",
+   "kept_player": "Doug Potter"
+  },
+  {
+   "dropped": "Junky Doran",
+   "player": "Dar\u00edo P\u00e9rez",
+   "kept": "Doran & Junk",
+   "kept_player": "TenaciousDealer"
+  },
+  {
+   "dropped": "Caw-Blade",
+   "player": "Edgar Flores",
+   "kept": "UW Angel",
+   "kept_player": "Rinnen Davide"
+  },
+  {
+   "dropped": "Robots",
+   "player": "Davide Colla",
+   "kept": "Affinity",
+   "kept_player": "Caprioli Davide"
+  },
+  {
+   "dropped": "BUG Control",
+   "player": "Mathieu Hautot",
+   "kept": "BUG",
+   "kept_player": "Julian Felix Flury"
+  },
+  {
+   "dropped": "The Rock",
+   "player": "Marcelino Freeman",
+   "kept": "Jund",
+   "kept_player": "Doug Potter"
+  },
+  {
+   "dropped": "Twin",
+   "player": "Peter Dun",
+   "kept": "Twin Exarch",
+   "kept_player": "Giulio Pasqui"
+  },
+  {
+   "dropped": "PW Zoo",
+   "player": "Brian Kibler",
+   "kept": "Naya",
+   "kept_player": "Alava Fabio"
+  },
+  {
+   "dropped": "4c Gifts",
+   "player": "Yohan Dudognon",
+   "kept": "Gift Control",
+   "kept_player": "Nick Cuenca"
+  },
+  {
+   "dropped": "Doran",
+   "player": "Christian Calcano",
+   "kept": "Doran & Junk",
+   "kept_player": "TenaciousDealer"
+  },
+  {
+   "dropped": "RUG Delver",
+   "player": "Ivan Floch",
+   "kept": "RUG Aggro",
+   "kept_player": "Connor Thompson"
+  },
+  {
+   "dropped": "Glitering Junk",
+   "player": "Paul Heynen",
+   "kept": "Doran & Junk",
+   "kept_player": "TenaciousDealer"
+  },
+  {
+   "dropped": "4C Good Stuff",
+   "player": "Bo Li",
+   "kept": "4/5c Good Stuff",
+   "kept_player": "Jonathan D. Metzger"
+  },
+  {
+   "dropped": "Gifts Control",
+   "player": "Andre Mueller",
+   "kept": "Gift Control",
+   "kept_player": "Nick Cuenca"
+  },
+  {
+   "dropped": "WB Tokens",
+   "player": "Craig Wescoe",
+   "kept": "Token (Mono W / Polymorph ...)",
+   "kept_player": "Christopher Davis"
   }
  ],
- "objective": 11.63888888888889,
+ "objective": 16.78267943160366,
  "pool_colors": {
-  "B": 13,
-  "G": 16,
-  "W": 17,
-  "U": 16,
-  "R": 19
+  "U": 22,
+  "B": 21,
+  "G": 23,
+  "W": 22,
+  "R": 25
  },
  "pool_styles": {
-  "aggro": 21,
-  "control": 6,
-  "combo": 8,
-  "midrange": 1
- }
+  "aggro": 25,
+  "combo": 10,
+  "control": 10,
+  "midrange": 4
+ },
+ "kept_lost": [
+  223629
+ ]
 }

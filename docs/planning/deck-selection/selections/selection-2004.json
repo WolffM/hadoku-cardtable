@@ -357,6 +357,55 @@
    "label_count": 2
   },
   {
+   "deck": 603344,
+   "event": 54310,
+   "archetype": "RG Beasts with LL",
+   "player": "Michael Kotchoff",
+   "event_name": "Nationals - Australia 2004",
+   "stars": 3,
+   "rank": "2",
+   "date": "2004-07-10",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 8,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 22.0,
+     "G": 30.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Panoptic Mirror": 1,
+     "Plow Under": 2,
+     "Stone Rain": 4,
+     "Molten Rain": 4,
+     "Electrostatic Bolt": 4,
+     "Pyrite Spellbomb": 4,
+     "Arc-Slogger": 3,
+     "Troll Ascetic": 3,
+     "Eternal Witness": 4,
+     "Ravenous Baloth": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 603385,
    "event": 54315,
    "archetype": "Death Cloud",
@@ -457,6 +506,54 @@
    "label_count": 2
   },
   {
+   "deck": 603425,
+   "event": 54323,
+   "archetype": "RG Beats",
+   "player": "Luka Gasparac",
+   "event_name": "Grand Prix Rimini 2004",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2004-09-10",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.83,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 27.0,
+     "G": 18.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Fireball": 3,
+     "Magma Jet": 4,
+     "Electrostatic Bolt": 4,
+     "Molten Rain": 4,
+     "Tel-Jilad Justice": 4,
+     "Viridian Shaman": 2,
+     "Molder Slug": 2,
+     "Eternal Witness": 4,
+     "Arc-Slogger": 4,
+     "Solemn Simulacrum": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 518638,
    "event": 43119,
    "archetype": "Read the Goblin Bidding",
@@ -503,201 +600,6 @@
    },
    "style": "aggro",
    "style_why": "label",
-   "label_count": 1
-  },
-  {
-   "deck": 600601,
-   "event": 53923,
-   "archetype": "G/w Control",
-   "player": "Bill Stead",
-   "event_name": "Nationals - US 2004",
-   "stars": 3,
-   "rank": "2",
-   "date": "2004-06-18",
-   "summer": false,
-   "s": 0.5333333333333334,
-   "f": {
-    "spells": 33,
-    "lands": 27,
-    "creatures": 6,
-    "counters": 0,
-    "sweepers": 8,
-    "draw": 12,
-    "burn": 0,
-    "avg_cmc": 4.0,
-    "pips": {
-     "W": 48.0,
-     "U": 0,
-     "B": 0,
-     "R": 0,
-     "G": 4.0
-    },
-    "colors": [
-     "W"
-    ],
-    "names": {
-     "Mindslaver": 1,
-     "Pulse of the Fields": 3,
-     "Wing Shards": 3,
-     "Akroma's Vengeance": 4,
-     "Oxidize": 4,
-     "Renewed Faith": 4,
-     "Decree of Justice": 4,
-     "Wrath of God": 4,
-     "Solemn Simulacrum": 2,
-     "Eternal Dragon": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 2
-  },
-  {
-   "deck": 271039,
-   "event": 12317,
-   "archetype": "BG Cemetery",
-   "player": "\u008eiga Fritz",
-   "event_name": "Nationals - Slovenia 2004",
-   "stars": 3,
-   "rank": "5-8",
-   "date": "2004-07-04",
-   "summer": true,
-   "s": 0.46275642631951847,
-   "f": {
-    "spells": 39,
-    "lands": 21,
-    "creatures": 27,
-    "counters": 0,
-    "sweepers": 3,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 3.21,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 22.0,
-     "R": 0,
-     "G": 36.0
-    },
-    "colors": [
-     "B",
-     "G"
-    ],
-    "names": {
-     "Birds of Paradise": 4,
-     "Vine Trellis": 4,
-     "Krosan Tusker": 4,
-     "Solemn Simulacrum": 4,
-     "Viridian Zealot": 2,
-     "Viridian Shaman": 4,
-     "Eternal Witness": 3,
-     "Bane of the Living": 3,
-     "Ravenous Baloth": 3,
-     "Oversold Cemetery": 4,
-     "Death Cloud": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 1
-  }
- ],
- "alternates": [
-  {
-   "deck": 603344,
-   "event": 54310,
-   "archetype": "RG Beasts with LL",
-   "player": "Michael Kotchoff",
-   "event_name": "Nationals - Australia 2004",
-   "stars": 3,
-   "rank": "2",
-   "date": "2004-07-10",
-   "summer": true,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 18,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 4,
-    "burn": 8,
-    "avg_cmc": 2.78,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 22.0,
-     "G": 30.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Panoptic Mirror": 1,
-     "Plow Under": 2,
-     "Stone Rain": 4,
-     "Molten Rain": 4,
-     "Electrostatic Bolt": 4,
-     "Pyrite Spellbomb": 4,
-     "Arc-Slogger": 3,
-     "Troll Ascetic": 3,
-     "Eternal Witness": 4,
-     "Ravenous Baloth": 4,
-     "Birds of Paradise": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 1
-  },
-  {
-   "deck": 603425,
-   "event": 54323,
-   "archetype": "RG Beats",
-   "player": "Luka Gasparac",
-   "event_name": "Grand Prix Rimini 2004",
-   "stars": 3,
-   "rank": "3-4",
-   "date": "2004-09-10",
-   "summer": true,
-   "s": 0.5578858913022597,
-   "f": {
-    "spells": 35,
-    "lands": 25,
-    "creatures": 16,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 8,
-    "avg_cmc": 2.83,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 27.0,
-     "G": 18.0
-    },
-    "colors": [
-     "R",
-     "G"
-    ],
-    "names": {
-     "Fireball": 3,
-     "Magma Jet": 4,
-     "Electrostatic Bolt": 4,
-     "Molten Rain": 4,
-     "Tel-Jilad Justice": 4,
-     "Viridian Shaman": 2,
-     "Molder Slug": 2,
-     "Eternal Witness": 4,
-     "Arc-Slogger": 4,
-     "Solemn Simulacrum": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
    "label_count": 1
   },
   {
@@ -850,6 +752,53 @@
    "label_count": 1
   },
   {
+   "deck": 600601,
+   "event": 53923,
+   "archetype": "G/w Control",
+   "player": "Bill Stead",
+   "event_name": "Nationals - US 2004",
+   "stars": 3,
+   "rank": "2",
+   "date": "2004-06-18",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 4.0,
+    "pips": {
+     "W": 48.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Mindslaver": 1,
+     "Pulse of the Fields": 3,
+     "Wing Shards": 3,
+     "Akroma's Vengeance": 4,
+     "Oxidize": 4,
+     "Renewed Faith": 4,
+     "Decree of Justice": 4,
+     "Wrath of God": 4,
+     "Solemn Simulacrum": 2,
+     "Eternal Dragon": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
    "deck": 720298,
    "event": 68716,
    "archetype": "Ponza",
@@ -947,6 +896,55 @@
    "label_count": 1
   },
   {
+   "deck": 271039,
+   "event": 12317,
+   "archetype": "BG Cemetery",
+   "player": "\u008eiga Fritz",
+   "event_name": "Nationals - Slovenia 2004",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2004-07-04",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.21,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 22.0,
+     "R": 0,
+     "G": 36.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Vine Trellis": 4,
+     "Krosan Tusker": 4,
+     "Solemn Simulacrum": 4,
+     "Viridian Zealot": 2,
+     "Viridian Shaman": 4,
+     "Eternal Witness": 3,
+     "Bane of the Living": 3,
+     "Ravenous Baloth": 3,
+     "Oversold Cemetery": 4,
+     "Death Cloud": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 600597,
    "event": 53923,
    "archetype": "March Of The Machines",
@@ -993,54 +991,6 @@
    "style": "control",
    "style_why": "cards",
    "label_count": 1
-  },
-  {
-   "deck": 603266,
-   "event": 54298,
-   "archetype": "Big Red",
-   "player": "Teruya Kakumae",
-   "event_name": "Nationals - Japan 2004",
-   "stars": 3,
-   "rank": "5-8",
-   "date": "2004-06-12",
-   "summer": false,
-   "s": 0.37020514105561475,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 12,
-    "counters": 0,
-    "sweepers": 2,
-    "draw": 0,
-    "burn": 12,
-    "avg_cmc": 3.16,
-    "pips": {
-     "W": 0,
-     "U": 0,
-     "B": 0,
-     "R": 42.0,
-     "G": 0
-    },
-    "colors": [
-     "R"
-    ],
-    "names": {
-     "Pyroclasm": 2,
-     "Talisman of Indulgence": 2,
-     "Talisman of Impulse": 2,
-     "Seething Song": 4,
-     "Shrapnel Blast": 4,
-     "Pulse of the Forge": 4,
-     "Electrostatic Bolt": 4,
-     "Chrome Mox": 4,
-     "Arc-Slogger": 4,
-     "Solemn Simulacrum": 4,
-     "Furnace Dragon": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 2
   },
   {
    "deck": 600595,
@@ -1188,6 +1138,106 @@
    "style": "control",
    "style_why": "label",
    "label_count": 1
+  },
+  {
+   "deck": 253069,
+   "event": 9243,
+   "archetype": "KCI",
+   "player": "Manuel Bevand",
+   "event_name": "Worlds 2004 (San Francisco)",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2004-09-05",
+   "summer": true,
+   "s": 0.2953513542188434,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 0,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 0,
+     "U": 17.0,
+     "B": 0,
+     "R": 1.0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Chrome Mox": 4,
+     "Condescend": 4,
+     "Fabricate": 3,
+     "Fireball": 1,
+     "Goblin Charbelcher": 1,
+     "Krark-Clan Ironworks": 4,
+     "Myr Incubator": 4,
+     "Pentad Prism": 4,
+     "Serum Visions": 3,
+     "Talisman of Dominance": 3,
+     "Talisman of Progress": 3,
+     "Thirst for Knowledge": 3,
+     "Thoughtcast": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 603266,
+   "event": 54298,
+   "archetype": "Big Red",
+   "player": "Teruya Kakumae",
+   "event_name": "Nationals - Japan 2004",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2004-06-12",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 3.16,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 42.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Pyroclasm": 2,
+     "Talisman of Indulgence": 2,
+     "Talisman of Impulse": 2,
+     "Seething Song": 4,
+     "Shrapnel Blast": 4,
+     "Pulse of the Forge": 4,
+     "Electrostatic Bolt": 4,
+     "Chrome Mox": 4,
+     "Arc-Slogger": 4,
+     "Solemn Simulacrum": 4,
+     "Furnace Dragon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
   }
  ],
  "pool_size": 25,
@@ -1339,7 +1389,7 @@
    "kept_player": "John Ormerod"
   }
  ],
- "objective": 7.738814100226298,
+ "objective": 0.6527275906651928,
  "pool_colors": {
   "U": 8,
   "B": 6,
@@ -1351,5 +1401,6 @@
   "aggro": 5,
   "control": 9,
   "midrange": 11
- }
+ },
+ "kept_lost": []
 }

@@ -113,6 +113,56 @@
    "label_count": 6
   },
   {
+   "deck": 601475,
+   "event": 54061,
+   "archetype": "Heartbeat",
+   "player": "Guillaume Cardin",
+   "event_name": "Nationals - Canada 2006",
+   "stars": 3,
+   "rank": "1",
+   "date": "2006-08-04",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 9,
+    "counters": 8,
+    "sweepers": 1,
+    "draw": 9,
+    "burn": 1,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 0,
+     "U": 18.0,
+     "B": 3.0,
+     "R": 2.0,
+     "G": 26.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Invoke the Firemind": 1,
+     "Pyroclasm": 1,
+     "Weird Harvest": 3,
+     "Kodama's Reach": 4,
+     "Early Harvest": 4,
+     "Muddle the Mixture": 4,
+     "Remand": 4,
+     "Sensei's Divining Top": 4,
+     "Heartbeat of Spring": 4,
+     "Maga, Traitor to Mortals": 1,
+     "Drift of Phantasms": 4,
+     "Sakura-Tribe Elder": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
    "deck": 601390,
    "event": 54047,
    "archetype": "Sea Stompy",
@@ -312,6 +362,107 @@
    "label_count": 1
   },
   {
+   "deck": 601494,
+   "event": 54063,
+   "archetype": "Bg Demonfire",
+   "player": "Ken Ishimaru",
+   "event_name": "Nationals - Japan 2006",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2006-08-25",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 20.0,
+     "R": 7.0,
+     "G": 23.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Genju of the Cedars": 2,
+     "Putrefy": 2,
+     "Persecute": 2,
+     "Demonfire": 4,
+     "Umezawa's Jitte": 4,
+     "Ink-Eyes, Servant of Oni": 1,
+     "Giant Solifuge": 3,
+     "Birds of Paradise": 4,
+     "Dark Confidant": 4,
+     "Ohran Viper": 4,
+     "Hypnotic Specter": 4,
+     "Llanowar Elves": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 601476,
+   "event": 54061,
+   "archetype": "Snakes",
+   "player": "Mike Vasovski",
+   "event_name": "Nationals - Canada 2006",
+   "stars": 3,
+   "rank": "2",
+   "date": "2006-08-04",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 6,
+    "sweepers": 5,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.82,
+    "pips": {
+     "W": 0,
+     "U": 13.0,
+     "B": 0,
+     "R": 0,
+     "G": 29.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Chord of Calling": 2,
+     "Mana Leak": 3,
+     "Remand": 3,
+     "Coat of Arms": 3,
+     "Umezawa's Jitte": 3,
+     "Sosuke's Summons": 4,
+     "Seshiro the Anointed": 2,
+     "Ninja of the Deep Hours": 3,
+     "Patagia Viper": 3,
+     "Sakura-Tribe Scout": 4,
+     "Sakura-Tribe Elder": 4,
+     "Coiling Oracle": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
    "deck": 544647,
    "event": 46642,
    "archetype": "Izzetron",
@@ -462,256 +613,6 @@
    "label_count": 1
   },
   {
-   "deck": 253153,
-   "event": 9254,
-   "archetype": "Ghazi Glare",
-   "player": "Katsuhiro Mori",
-   "event_name": "Worlds 2005 (Yokohama)",
-   "stars": 1,
-   "rank": "1",
-   "date": "2005-12-04",
-   "summer": false,
-   "s": 0.42352941176470593,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 21,
-    "counters": 0,
-    "sweepers": 7,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 3.16,
-    "pips": {
-     "W": 19.0,
-     "U": 0,
-     "B": 0,
-     "R": 0,
-     "G": 38.0
-    },
-    "colors": [
-     "W",
-     "G"
-    ],
-    "names": {
-     "Arashi, the Sky Asunder": 3,
-     "Birds of Paradise": 1,
-     "Kodama of the North Tree": 3,
-     "Llanowar Elves": 3,
-     "Loxodon Hierarch": 4,
-     "Selesnya Guildmage": 4,
-     "Wood Elves": 4,
-     "Yosei, the Morning Star": 2,
-     "Congregation at Dawn": 2,
-     "Glare of Subdual": 3,
-     "Pithing Needle": 3,
-     "Seed Spark": 2,
-     "Umezawa's Jitte": 3
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 4
-  },
-  {
-   "deck": 601488,
-   "event": 54062,
-   "archetype": "Enduring Ideal",
-   "player": "Holger Althues",
-   "event_name": "Nationals - Germany 2006",
-   "stars": 3,
-   "rank": "5-8",
-   "date": "2006-08-11",
-   "summer": false,
-   "s": 0.37020514105561475,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 4,
-    "counters": 8,
-    "sweepers": 0,
-    "draw": 5,
-    "burn": 1,
-    "avg_cmc": 3.51,
-    "pips": {
-     "W": 9.0,
-     "U": 31.0,
-     "B": 0,
-     "R": 3.0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U"
-    ],
-    "names": {
-     "Zur's Weirding": 1,
-     "Form of the Dragon": 1,
-     "Simic Signet": 2,
-     "Enduring Ideal": 3,
-     "Confiscate": 3,
-     "Faith's Fetters": 3,
-     "Annex": 4,
-     "Azorius Signet": 4,
-     "Mana Leak": 4,
-     "Remand": 4,
-     "Compulsive Research": 4,
-     "Court Hussar": 4
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 2
-  },
-  {
-   "deck": 541700,
-   "event": 46262,
-   "archetype": "Orzhov Control",
-   "player": "Tristan Guedj",
-   "event_name": "CR PACA @ Cannes (France)",
-   "stars": 2,
-   "rank": "5",
-   "date": "2006-02-18",
-   "summer": false,
-   "s": 0.28309804904252894,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 7,
-    "counters": 0,
-    "sweepers": 7,
-    "draw": 4,
-    "burn": 0,
-    "avg_cmc": 3.57,
-    "pips": {
-     "W": 21.5,
-     "U": 0,
-     "B": 36.5,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "B"
-    ],
-    "names": {
-     "Kagemaro, First to Suffer": 3,
-     "Kokusho, the Evening Star": 4,
-     "Last Gasp": 3,
-     "Mortify": 4,
-     "Cranial Extraction": 2,
-     "Castigate": 4,
-     "Wrath of God": 4,
-     "Debtors' Knell": 1,
-     "Faith's Fetters": 4,
-     "Phyrexian Arena": 4,
-     "Orzhov Signet": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 2
-  }
- ],
- "alternates": [
-  {
-   "deck": 601483,
-   "event": 54062,
-   "archetype": "Ninjas",
-   "player": "Maximilian Bracht",
-   "event_name": "Nationals - Germany 2006",
-   "stars": 3,
-   "rank": "1",
-   "date": "2006-08-11",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 40,
-    "lands": 20,
-    "creatures": 19,
-    "counters": 11,
-    "sweepers": 0,
-    "draw": 8,
-    "burn": 0,
-    "avg_cmc": 1.93,
-    "pips": {
-     "W": 0,
-     "U": 40.0,
-     "B": 0,
-     "R": 0,
-     "G": 4.0
-    },
-    "colors": [
-     "U"
-    ],
-    "names": {
-     "Boomerang": 2,
-     "Disrupting Shoal": 3,
-     "Sleight of Hand": 4,
-     "Mana Leak": 4,
-     "Remand": 4,
-     "Repeal": 4,
-     "Higure, the Still Wind": 3,
-     "Ornithopter": 4,
-     "Erayo, Soratami Ascendant // Erayo's Essence": 4,
-     "Ninja of the Deep Hours": 4,
-     "Birds of Paradise": 4
-    }
-   },
-   "style": "aggro",
-   "style_why": "cards",
-   "label_count": 3
-  },
-  {
-   "deck": 601476,
-   "event": 54061,
-   "archetype": "Snakes",
-   "player": "Mike Vasovski",
-   "event_name": "Nationals - Canada 2006",
-   "stars": 3,
-   "rank": "2",
-   "date": "2006-08-04",
-   "summer": false,
-   "s": 0.5333333333333334,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 20,
-    "counters": 6,
-    "sweepers": 5,
-    "draw": 3,
-    "burn": 0,
-    "avg_cmc": 2.82,
-    "pips": {
-     "W": 0,
-     "U": 13.0,
-     "B": 0,
-     "R": 0,
-     "G": 29.0
-    },
-    "colors": [
-     "U",
-     "G"
-    ],
-    "names": {
-     "Chord of Calling": 2,
-     "Mana Leak": 3,
-     "Remand": 3,
-     "Coat of Arms": 3,
-     "Umezawa's Jitte": 3,
-     "Sosuke's Summons": 4,
-     "Seshiro the Anointed": 2,
-     "Ninja of the Deep Hours": 3,
-     "Patagia Viper": 3,
-     "Sakura-Tribe Scout": 4,
-     "Sakura-Tribe Elder": 4,
-     "Coiling Oracle": 4
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 3
-  },
-  {
    "deck": 601477,
    "event": 54061,
    "archetype": "Hand In Hand",
@@ -860,6 +761,57 @@
    "label_count": 2
   },
   {
+   "deck": 253153,
+   "event": 9254,
+   "archetype": "Ghazi Glare",
+   "player": "Katsuhiro Mori",
+   "event_name": "Worlds 2005 (Yokohama)",
+   "stars": 1,
+   "rank": "1",
+   "date": "2005-12-04",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.16,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 38.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Arashi, the Sky Asunder": 3,
+     "Birds of Paradise": 1,
+     "Kodama of the North Tree": 3,
+     "Llanowar Elves": 3,
+     "Loxodon Hierarch": 4,
+     "Selesnya Guildmage": 4,
+     "Wood Elves": 4,
+     "Yosei, the Morning Star": 2,
+     "Congregation at Dawn": 2,
+     "Glare of Subdual": 3,
+     "Pithing Needle": 3,
+     "Seed Spark": 2,
+     "Umezawa's Jitte": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
    "deck": 252866,
    "event": 9219,
    "archetype": "Gruul Beats",
@@ -908,55 +860,54 @@
    "label_count": 1
   },
   {
-   "deck": 541697,
-   "event": 46262,
-   "archetype": "Izzet Machinegun",
-   "player": "Rapha\u00ebl Th\u00e9bault",
-   "event_name": "CR PACA @ Cannes (France)",
-   "stars": 2,
-   "rank": "2",
-   "date": "2006-02-18",
+   "deck": 601488,
+   "event": 54062,
+   "archetype": "Enduring Ideal",
+   "player": "Holger Althues",
+   "event_name": "Nationals - Germany 2006",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2006-08-11",
    "summer": false,
-   "s": 0.407843137254902,
+   "s": 0.37020514105561475,
    "f": {
-    "spells": 41,
-    "lands": 19,
-    "creatures": 13,
-    "counters": 6,
+    "spells": 37,
+    "lands": 23,
+    "creatures": 4,
+    "counters": 8,
     "sweepers": 0,
-    "draw": 16,
-    "burn": 6,
-    "avg_cmc": 1.76,
+    "draw": 5,
+    "burn": 1,
+    "avg_cmc": 3.51,
     "pips": {
-     "W": 0,
-     "U": 33.0,
+     "W": 9.0,
+     "U": 31.0,
      "B": 0,
-     "R": 21.0,
+     "R": 3.0,
      "G": 0
     },
     "colors": [
-     "U",
-     "R"
+     "W",
+     "U"
     ],
     "names": {
-     "Jushi Apprentice // Tomoya the Revealer": 1,
-     "Kira, Great Glass-Spinner": 1,
-     "Frostling": 3,
-     "Gelectrode": 4,
-     "Izzet Guildmage": 4,
-     "Mana Leak": 2,
-     "Electrolyze": 4,
-     "Quicken": 4,
+     "Zur's Weirding": 1,
+     "Form of the Dragon": 1,
+     "Simic Signet": 2,
+     "Enduring Ideal": 3,
+     "Confiscate": 3,
+     "Faith's Fetters": 3,
+     "Annex": 4,
+     "Azorius Signet": 4,
+     "Mana Leak": 4,
      "Remand": 4,
-     "Repeal": 4,
-     "Shock": 4,
-     "Volcanic Hammer": 2,
-     "Sleight of Hand": 4
+     "Compulsive Research": 4,
+     "Court Hussar": 4
     }
    },
-   "style": "aggro",
-   "style_why": "label",
-   "label_count": 1
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
   },
   {
    "deck": 541696,
@@ -1010,6 +961,351 @@
    "label_count": 1
   },
   {
+   "deck": 541700,
+   "event": 46262,
+   "archetype": "Orzhov Control",
+   "player": "Tristan Guedj",
+   "event_name": "CR PACA @ Cannes (France)",
+   "stars": 2,
+   "rank": "5",
+   "date": "2006-02-18",
+   "summer": false,
+   "s": 0.28309804904252894,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.57,
+    "pips": {
+     "W": 21.5,
+     "U": 0,
+     "B": 36.5,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Kagemaro, First to Suffer": 3,
+     "Kokusho, the Evening Star": 4,
+     "Last Gasp": 3,
+     "Mortify": 4,
+     "Cranial Extraction": 2,
+     "Castigate": 4,
+     "Wrath of God": 4,
+     "Debtors' Knell": 1,
+     "Faith's Fetters": 4,
+     "Phyrexian Arena": 4,
+     "Orzhov Signet": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 252862,
+   "event": 9219,
+   "archetype": "Owling Mine",
+   "player": "Tiago Chan",
+   "event_name": "Pro Tour Honolulu 2006",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2006-03-05",
+   "summer": false,
+   "s": 0.2362810833750747,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 4,
+    "counters": 4,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 0,
+     "U": 40.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Kami of the Crescent Moon": 4,
+     "Boomerang": 4,
+     "Ebony Owl Netsuke": 4,
+     "Evacuation": 2,
+     "Exhaustion": 4,
+     "Eye of Nowhere": 4,
+     "Howling Mine": 4,
+     "Remand": 4,
+     "Sleight of Hand": 4,
+     "Sudden Impact": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 253157,
+   "event": 9254,
+   "archetype": "Critical Mass",
+   "player": "Ding Leong",
+   "event_name": "Worlds 2005 (Yokohama)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2005-12-04",
+   "summer": false,
+   "s": 0.1959909570294431,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 18.0,
+     "B": 0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Sensei's Divining Top": 3,
+     "Mana Leak": 3,
+     "Hinder": 4,
+     "Umezawa's Jitte": 4,
+     "Keiga, the Tide Star": 3,
+     "Kodama of the North Tree": 4,
+     "Llanowar Elves": 4,
+     "Sakura-Tribe Elder": 4,
+     "Wood Elves": 4,
+     "Meloku the Clouded Mirror": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 253158,
+   "event": 9254,
+   "archetype": "UB Control",
+   "player": "Marcio Carvalho",
+   "event_name": "Worlds 2005 (Yokohama)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2005-12-04",
+   "summer": false,
+   "s": 0.1959909570294431,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 12,
+    "counters": 13,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.09,
+    "pips": {
+     "W": 0,
+     "U": 46.0,
+     "B": 9.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Azami, Lady of Scrolls": 3,
+     "Ink-Eyes, Servant of Oni": 1,
+     "Jushi Apprentice // Tomoya the Revealer": 4,
+     "Keiga, the Tide Star": 1,
+     "Meloku the Clouded Mirror": 3,
+     "Boomerang": 3,
+     "Disrupting Shoal": 3,
+     "Hideous Laughter": 2,
+     "Hinder": 4,
+     "Last Gasp": 3,
+     "Mana Leak": 3,
+     "Pithing Needle": 2,
+     "Rewind": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 253161,
+   "event": 9254,
+   "archetype": "UR Tron",
+   "player": "Werner Cloete",
+   "event_name": "Worlds 2005 (Yokohama)",
+   "stars": 1,
+   "rank": "Day 1 undefeated",
+   "date": "2005-12-04",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 7,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 3.31,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Keiga, the Tide Star": 4,
+     "Meloku the Clouded Mirror": 4,
+     "Blaze": 2,
+     "Compulsive Research": 4,
+     "Confiscate": 2,
+     "Dimir Signet": 3,
+     "Hinder": 3,
+     "Mana Leak": 4,
+     "Pyroclasm": 4,
+     "Telling Time": 4,
+     "Tidings": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 601483,
+   "event": 54062,
+   "archetype": "Ninjas",
+   "player": "Maximilian Bracht",
+   "event_name": "Nationals - Germany 2006",
+   "stars": 3,
+   "rank": "1",
+   "date": "2006-08-11",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 19,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.93,
+    "pips": {
+     "W": 0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Boomerang": 2,
+     "Disrupting Shoal": 3,
+     "Sleight of Hand": 4,
+     "Mana Leak": 4,
+     "Remand": 4,
+     "Repeal": 4,
+     "Higure, the Still Wind": 3,
+     "Ornithopter": 4,
+     "Erayo, Soratami Ascendant // Erayo's Essence": 4,
+     "Ninja of the Deep Hours": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 541697,
+   "event": 46262,
+   "archetype": "Izzet Machinegun",
+   "player": "Rapha\u00ebl Th\u00e9bault",
+   "event_name": "CR PACA @ Cannes (France)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2006-02-18",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 13,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 16,
+    "burn": 6,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 0,
+     "U": 33.0,
+     "B": 0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Jushi Apprentice // Tomoya the Revealer": 1,
+     "Kira, Great Glass-Spinner": 1,
+     "Frostling": 3,
+     "Gelectrode": 4,
+     "Izzet Guildmage": 4,
+     "Mana Leak": 2,
+     "Electrolyze": 4,
+     "Quicken": 4,
+     "Remand": 4,
+     "Repeal": 4,
+     "Shock": 4,
+     "Volcanic Hammer": 2,
+     "Sleight of Hand": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
    "deck": 541694,
    "event": 46262,
    "archetype": "E7 Orzhov",
@@ -1060,109 +1356,10 @@
    "label_count": 1
   },
   {
-   "deck": 252862,
-   "event": 9219,
-   "archetype": "Owling Mine",
-   "player": "Tiago Chan",
-   "event_name": "Pro Tour Honolulu 2006",
-   "stars": 1,
-   "rank": "3-4",
-   "date": "2006-03-05",
-   "summer": false,
-   "s": 0.2362810833750747,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 4,
-    "counters": 4,
-    "sweepers": 2,
-    "draw": 4,
-    "burn": 4,
-    "avg_cmc": 2.37,
-    "pips": {
-     "W": 0,
-     "U": 40.0,
-     "B": 0,
-     "R": 4.0,
-     "G": 0
-    },
-    "colors": [
-     "U"
-    ],
-    "names": {
-     "Kami of the Crescent Moon": 4,
-     "Boomerang": 4,
-     "Ebony Owl Netsuke": 4,
-     "Evacuation": 2,
-     "Exhaustion": 4,
-     "Eye of Nowhere": 4,
-     "Howling Mine": 4,
-     "Remand": 4,
-     "Sleight of Hand": 4,
-     "Sudden Impact": 4
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 2
-  },
-  {
-   "deck": 252863,
-   "event": 9219,
-   "archetype": "Heartbeat",
-   "player": "Maximilian Bracht",
-   "event_name": "Pro Tour Honolulu 2006",
-   "stars": 1,
-   "rank": "5-8",
-   "date": "2006-03-05",
-   "summer": false,
-   "s": 0.1959909570294431,
-   "f": {
-    "spells": 38,
-    "lands": 22,
-    "creatures": 9,
-    "counters": 8,
-    "sweepers": 0,
-    "draw": 9,
-    "burn": 1,
-    "avg_cmc": 2.42,
-    "pips": {
-     "W": 0,
-     "U": 21.0,
-     "B": 3.0,
-     "R": 1.0,
-     "G": 23.0
-    },
-    "colors": [
-     "U",
-     "G"
-    ],
-    "names": {
-     "Drift of Phantasms": 4,
-     "Maga, Traitor to Mortals": 1,
-     "Sakura-Tribe Elder": 4,
-     "Boomerang": 1,
-     "Compulsive Research": 1,
-     "Early Harvest": 4,
-     "Heartbeat of Spring": 4,
-     "Invoke the Firemind": 1,
-     "Kodama's Reach": 4,
-     "Muddle the Mixture": 4,
-     "Recollect": 1,
-     "Remand": 4,
-     "Sensei's Divining Top": 4,
-     "Weird Harvest": 1
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 4
-  },
-  {
-   "deck": 253157,
+   "deck": 253160,
    "event": 9254,
-   "archetype": "Critical Mass",
-   "player": "Ding Leong",
+   "archetype": "Bug Critical",
+   "player": "Andr\u00e9 Coimbra",
    "event_name": "Worlds 2005 (Yokohama)",
    "stars": 1,
    "rank": "5-8",
@@ -1170,80 +1367,47 @@
    "summer": false,
    "s": 0.1959909570294431,
    "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 19,
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
     "counters": 7,
     "sweepers": 0,
-    "draw": 3,
+    "draw": 0,
     "burn": 0,
-    "avg_cmc": 3.0,
+    "avg_cmc": 2.61,
     "pips": {
      "W": 0,
-     "U": 18.0,
-     "B": 0,
+     "U": 26.0,
+     "B": 15.0,
      "R": 0,
-     "G": 24.0
+     "G": 11.0
     },
     "colors": [
      "U",
+     "B",
      "G"
     ],
     "names": {
-     "Sensei's Divining Top": 3,
-     "Mana Leak": 3,
-     "Hinder": 4,
-     "Umezawa's Jitte": 4,
-     "Keiga, the Tide Star": 3,
-     "Kodama of the North Tree": 4,
-     "Llanowar Elves": 4,
-     "Sakura-Tribe Elder": 4,
-     "Wood Elves": 4,
-     "Meloku the Clouded Mirror": 4
+     "Birds of Paradise": 4,
+     "Dimir Cutpurse": 4,
+     "Elves of Deep Shadow": 4,
+     "Hypnotic Specter": 4,
+     "Meloku the Clouded Mirror": 2,
+     "Ninja of the Deep Hours": 4,
+     "Hinder": 3,
+     "Mana Leak": 4,
+     "Putrefy": 3,
+     "Threads of Disloyalty": 3,
+     "Umezawa's Jitte": 3
     }
    },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 2
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
   }
  ],
- "pool_size": 27,
- "rejected_illegal": [
-  {
-   "archetype": "Heartbeat",
-   "deck": 601475,
-   "player": "Guillaume Cardin",
-   "why": [
-    "unknown card: Research / Development"
-   ]
-  },
-  {
-   "archetype": "Heartbeat",
-   "deck": 601397,
-   "player": "Rogier Maaten",
-   "why": [
-    "unknown card: Crime / Punishment",
-    "unknown card: Research / Development"
-   ]
-  },
-  {
-   "archetype": "Heartbeat",
-   "deck": 255577,
-   "player": "Guillaume Matignon",
-   "why": [
-    "unknown card: Crime / Punishment",
-    "unknown card: Research / Development"
-   ]
-  },
-  {
-   "archetype": "Bg Demonfire",
-   "deck": 601494,
-   "player": "Ken Ishimaru",
-   "why": [
-    "unknown card: Crime / Punishment"
-   ]
-  }
- ],
+ "pool_size": 28,
+ "rejected_illegal": [],
  "duplicates_dropped": [
   {
    "dropped": "UR Ponza",
@@ -1312,17 +1476,18 @@
    "kept_player": "Nathon Braymore"
   }
  ],
- "objective": 5.620063445961042,
+ "objective": 5.605932849179693,
  "pool_colors": {
   "U": 15,
-  "B": 10,
+  "B": 11,
   "W": 11,
-  "R": 10,
-  "G": 11
+  "G": 12,
+  "R": 11
  },
  "pool_styles": {
   "midrange": 6,
-  "aggro": 13,
-  "control": 8
- }
+  "control": 8,
+  "aggro": 14
+ },
+ "kept_lost": []
 }

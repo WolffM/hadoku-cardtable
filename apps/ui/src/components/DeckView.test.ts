@@ -260,14 +260,22 @@ describe("a deck's colours are a fold over its own card list", () => {
   // cost in that era's frozen pool is purely generic — checked by folding
   // every chosen deck in the library against its own fixture and listing
   // which ones read zero colours, not assumed from the archetype name; these
-  // two were the only two. Genuinely colourless decks are real, competitive
+  // two were the only two — and doubling the library to 24 per era (2026-10-10)
+  // brought three more artifact prison decks, read off the same fold.
+  // Genuinely colourless decks are real, competitive
   // Legacy archetypes, so this is a named exception, not a loosened floor —
   // a fold that broke (like the Modern GR Tron bug this same wave found,
   // which this test caught) still reads 0 for every OTHER deck and fails
   // here.
-  const COLOURLESS_DECKS = new Set(['power-legacy-2012-2-eric-fry-mud', 'power-legacy-2016-1-demetrio-morselli-mud']);
+  const COLOURLESS_DECKS = new Set([
+    'power-legacy-2006-3-rick-jander78-argiro-5-3',
+    'power-legacy-2012-2-eric-fry-mud',
+    'power-legacy-2013-1-martin-pohlmeyer-mud',
+    'power-legacy-2014-1-simo-partinen-mud-post',
+    'power-legacy-2016-1-demetrio-morselli-mud',
+  ]);
 
-  it('gives every deck in the library at least one colour, except the one real colourless deck', () => {
+  it('gives every deck in the library at least one colour, except the real colourless ones', () => {
     // Not every deck across the library is two colours: 2008's "4c Reveillark
     // Control" (Shouhei Yamamoto) is a real four-colour deck, named for
     // exactly that, and 2013's "Human Reanimator" (Joe Lossett) genuinely

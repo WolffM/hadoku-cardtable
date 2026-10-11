@@ -1,0 +1,33 @@
+[metadata]
+Name=Walk Machine (David Goldfarb)
+Deck Type=Constructed
+Format=Modern (ORI)
+Effective=2015-07-17
+Source URL=https://www.mtgtop8.com/event?e=10151&d=258403&f=MO
+Comment=Mana Deprived Super Series (Toronto): David Goldfarb, 1st, Walk Machine. Transcribed from mtgtop8 deck 258403.
+[Main]
+3 Cryptic Command|LRW
+4 Dictate of Kruphix|JOU
+1 Elixir of Immortality|M14
+2 Gigadrowse|GP
+1 Jace Beleren|M11
+1 Mikokoro, Center of the Sea|SOK
+4 Remand|RAV
+4 Serum Visions|FD
+1 Spell Snare|DIS
+3 Telling Time|10E
+4 Temporal Mastery|AVR
+1 Thassa, God of the Sea|THS
+4 Time Warp|M10
+4 Walk the Aeons|TSP
+22 Island|ORI
+1 Ghost Quarter|ISD
+[Sideboard]
+2 Gigadrowse|GP
+1 Spell Snare|DIS
+1 Aetherize|GTC
+3 Hurkyl's Recall|10E
+1 Laboratory Maniac|ISD
+3 Spell Pierce|ZEN
+2 Swan Song|THS
+2 Wipe Away|TSP

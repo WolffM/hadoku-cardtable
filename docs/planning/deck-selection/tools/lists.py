@@ -10,9 +10,11 @@ change which deck is returned, so varying it does not require widening the
 cache key."""
 import os, re, time, urllib.request
 
-CACHE = '/tmp/claude-1000/deck-cache'
+CACHE = os.path.expanduser('~/.cache/cardtable-deck-selection/deck-cache')
 UA = 'hadoku-cardtable/0.1 (deck library selection)'
-LINE = re.compile(r'^(?:(SB):\s*)?(\d+)\s+\[([A-Za-z0-9]+)\]\s+(\S.*)$')
+# The set may be empty: mtgtop8 writes `2 [] Unknown Card` for a card it could not identify,
+# and skipping that line made a 58-card list read as complete and legal.
+LINE = re.compile(r'^(?:(SB):\s*)?(\d+)\s+\[([A-Za-z0-9]*)\]\s+(\S.*)$')
 
 def fetch(deck_id, fmt='ST'):
     os.makedirs(CACHE, exist_ok=True)
@@ -20,7 +22,14 @@ def fetch(deck_id, fmt='ST'):
     if not os.path.exists(path):
         req = urllib.request.Request(f'https://www.mtgtop8.com/dec?d={deck_id}&f={fmt}', headers={'User-Agent': UA})
         with urllib.request.urlopen(req, timeout=40) as r:
-            open(path, 'w', encoding='utf-8').write(r.read().decode('utf-8', 'replace'))
+            raw = r.read()
+            # mtgtop8's export is Latin-1: decoding it as UTF-8 turned `Jötun Grunt` into
+            # `J\ufffdtun Grunt`, a card no corpus has.
+            try:
+                text = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                text = raw.decode('cp1252')
+            open(path, 'w', encoding='utf-8').write(text)
         time.sleep(0.4)
     return open(path, encoding='utf-8').read()
 

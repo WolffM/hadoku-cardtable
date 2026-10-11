@@ -491,7 +491,7 @@
    "kept_player": "Douwe Van Noordenburg"
   }
  ],
- "objective": 1.493447364447301,
+ "objective": -33.64940977840985,
  "pool_colors": {
   "B": 1,
   "G": 2,
@@ -503,5 +503,6 @@
   "aggro": 4,
   "midrange": 1,
   "control": 2
- }
+ },
+ "kept_lost": []
 }

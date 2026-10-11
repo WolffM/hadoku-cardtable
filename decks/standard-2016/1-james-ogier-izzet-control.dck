@@ -1,0 +1,37 @@
+[metadata]
+Name=Izzet Control (James Ogier)
+Deck Type=Constructed
+Format=Standard (EMN)
+Effective=2016-07-22
+Source URL=https://www.mtgtop8.com/event?e=12251&d=270516&f=ST
+Comment=Grand Prix Toronto 2016 - Trial Winners: James Ogier, 1st, Izzet Control. Transcribed from mtgtop8 deck 270516.
+[Main]
+3 Drownyard Temple|SOI
+4 Shivan Reef|ORI
+3 Wandering Fumarole|OGW
+2 Sunken Hollow|BFZ
+4 Smoldering Marsh|BFZ
+2 Evolving Wilds|BFZ
+1 Swamp|SOI
+2 Island|SOI
+4 Mountain|SOI
+4 Fevered Visions|SOI
+3 Pyromancer's Goggles|ORI
+2 Fiery Impulse|ORI
+4 Fiery Temper|SOI
+3 Lightning Axe|SOI
+2 Fall of the Titans|OGW
+3 Magmatic Insight|ORI
+4 Tormenting Voice|SOI
+4 Thing in the Ice|SOI
+4 Jace, Vryn's Prodigy|ORI
+2 Chandra, Flamecaller|OGW
+[Sideboard]
+2 Kolaghan's Command|DTK
+1 Silumgar's Command|DTK
+2 Virulent Plague|DTK
+2 Transgress the Mind|BFZ
+2 Dispel|BFZ
+2 Negate|OGW
+3 Radiant Flames|BFZ
+1 Chandra, Flamecaller|OGW

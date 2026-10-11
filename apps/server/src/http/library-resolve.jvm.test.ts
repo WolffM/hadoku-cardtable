@@ -6,8 +6,8 @@
  * Those are different questions. The corpus is Scryfall data and says whether
  * a NAME is legal in a format; it says nothing about whether the exact `Name|
  * SET` pair a `.dck` line writes is a printing Forge itself knows, under the
- * edition code Forge itself uses. `build-library.ts`'s `CARD_SET_FIXUPS` is a
- * fix this exact check found: six Time Spiral "timeshifted" reprints mtgtop8
+ * edition code Forge itself uses. `build-library.ts`'s `timeshiftedOnly` is a
+ * fix this exact check found: Time Spiral "timeshifted" reprints mtgtop8
  * exports as plain `[TSP]`, which the real corpus is indifferent to (the NAME
  * is legal either way) but which Forge's card database refuses under that
  * edition code, because Forge has no Time Spiral printing of them at all — only

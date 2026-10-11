@@ -451,24 +451,6 @@
    ]
   },
   {
-   "archetype": "Goblin Bidding",
-   "deck": 603367,
-   "player": "Tsuyoshi Fujita",
-   "why": [
-    "Goblin Matron (not in legal sets)",
-    "Sulfurous Springs (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Goblin Bidding",
-   "deck": 603370,
-   "player": "Osamu Fujita",
-   "why": [
-    "Goblin Matron (not in legal sets)",
-    "Sulfurous Springs (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Mono-black Zombies",
    "deck": 600604,
    "player": "Stephane Damizet",
@@ -585,14 +567,6 @@
     "Corrupt (not in legal sets)",
     "Duress (not in legal sets)",
     "Engineered Plague (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Astral Slide",
-   "deck": 599807,
-   "player": "Gabe Walls",
-   "why": [
-    "Disenchant (not in legal sets)"
    ]
   },
   {
@@ -724,23 +698,6 @@
    ]
   },
   {
-   "archetype": "Reanimator",
-   "deck": 601730,
-   "player": "Simon Marshall-unitt",
-   "why": [
-    "Duress (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Reanimator",
-   "deck": 601656,
-   "player": "Pierre Malherbaud",
-   "why": [
-    "Duress (not in legal sets)",
-    "Sulfurous Springs (not in legal sets)"
-   ]
-  },
-  {
    "archetype": "Zombie Infestation",
    "deck": 599803,
    "player": "Neil Reeves",
@@ -828,7 +785,7 @@
    "kept_player": "Zvi Mowshowitz"
   }
  ],
- "objective": 1.2768389348309785,
+ "objective": -28.098161065169023,
  "pool_colors": {
   "W": 3,
   "U": 2,
@@ -841,5 +798,6 @@
   "midrange": 1,
   "aggro": 3,
   "combo": 1
- }
+ },
+ "kept_lost": []
 }

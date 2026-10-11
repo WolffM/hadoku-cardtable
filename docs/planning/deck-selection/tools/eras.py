@@ -31,9 +31,14 @@ def infix(fmt):
     return INFIX[fmt]
 
 
+# On disk and outside the repo, beside `lists.py`'s deck cache: the crawl is ~35 minutes of
+# polite requests, and a cache under /tmp (tmpfs here) or in the tree is lost or committed.
+CACHE_DIR = os.environ.get('DECK_SELECTION_CACHE', os.path.expanduser('~/.cache/cardtable-deck-selection/candidates'))
+
+
 def cache_path(fmt, year):
     i = infix(fmt)
-    return f'cache/candidates-{year}.json' if i is None else f'cache/candidates-{i}-{year}.json'
+    return f'{CACHE_DIR}/candidates-{year}.json' if i is None else f'{CACHE_DIR}/candidates-{i}-{year}.json'
 
 
 def selection_path(fmt, year):

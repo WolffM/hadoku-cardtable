@@ -74,6 +74,58 @@
  },
  "chosen": [
   {
+   "deck": 107058,
+   "event": 85,
+   "archetype": "Thresh",
+   "player": "Makuta Eiji",
+   "event_name": "# Ancient Memory Convention #28 (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-09-23",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 9,
+    "counters": 13,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 3,
+    "avg_cmc": 1.81,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 5.0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Fire // Ice": 2,
+     "Quirion Dryad": 2,
+     "Stifle": 2,
+     "Tarmogoyf": 3,
+     "Werebear": 3,
+     "Lightning Bolt": 3,
+     "Spell Snare": 3,
+     "Serum Visions": 4,
+     "Brainstorm": 4,
+     "Mental Note": 4,
+     "Nimble Mongoose": 4,
+     "Daze": 4,
+     "Force of Will": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 8
+  },
+  {
    "deck": 107025,
    "event": 82,
    "archetype": "Goblins",
@@ -229,6 +281,60 @@
     }
    },
    "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 101767,
+   "event": 25,
+   "archetype": "Kampelmann's t\u00e4schchen ist sergej",
+   "player": "Markus Seine",
+   "event_name": "# Iserlohn Legacy (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 10,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 2,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 6.0,
+     "U": 31.0,
+     "B": 0,
+     "R": 5.0,
+     "G": 10.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Accumulated Knowledge": 4,
+     "Force of Will": 4,
+     "Nimble Mongoose": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Tarmogoyf": 4,
+     "Fire // Ice": 3,
+     "Daze": 3,
+     "Repeal": 2,
+     "Mystic Enforcer": 2,
+     "Counterspell": 2,
+     "Lightning Bolt": 2,
+     "Isochron Scepter": 2,
+     "Misdirection": 1,
+     "Mental Note": 1
+    }
+   },
+   "style": "control",
    "style_why": "cards",
    "label_count": 1
   },
@@ -475,6 +581,60 @@
    "label_count": 1
   },
   {
+   "deck": 101769,
+   "event": 25,
+   "archetype": "Meat free Deck",
+   "player": "Dennis Kampelmann",
+   "event_name": "# Iserlohn Legacy (Germany)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 14,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 6.0,
+     "U": 32.0,
+     "B": 9.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Daze": 4,
+     "Portent": 4,
+     "Brainstorm": 4,
+     "Tarmogoyf": 4,
+     "Counterbalance": 3,
+     "Shadowmage Infiltrator": 3,
+     "Meddling Mage": 3,
+     "Chrome Mox": 3,
+     "Dark Confidant": 3,
+     "Swords to Plowshares": 3,
+     "Vedalken Shackles": 2,
+     "Sensei's Divining Top": 2,
+     "Ghastly Demise": 1,
+     "Tombstalker": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
    "deck": 107063,
    "event": 85,
    "archetype": "Belcher",
@@ -575,109 +735,6 @@
    "style_why": "label",
    "label_count": 1
   },
-  {
-   "deck": 107064,
-   "event": 85,
-   "archetype": "MUC",
-   "player": "Takamizu Tomohiro",
-   "event_name": "# Ancient Memory Convention #28 (Japan)",
-   "stars": 2,
-   "rank": "5-8",
-   "date": "2007-09-23",
-   "summer": true,
-   "s": 0.46275642631951835,
-   "f": {
-    "spells": 38,
-    "lands": 23,
-    "creatures": 3,
-    "counters": 14,
-    "sweepers": 0,
-    "draw": 4,
-    "burn": 0,
-    "avg_cmc": 2.74,
-    "pips": {
-     "W": 0,
-     "U": 48.0,
-     "B": 0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "U"
-    ],
-    "names": {
-     "Spell Snare": 4,
-     "Counterspell": 4,
-     "Force of Will": 4,
-     "Brainstorm": 4,
-     "Fact or Fiction": 3,
-     "Engineered Explosives": 3,
-     "Back to Basics": 3,
-     "Cunning Wish": 3,
-     "Misdirection": 2,
-     "Forbid": 2,
-     "Vedalken Shackles": 2,
-     "Flash of Insight": 1,
-     "Morphling": 1,
-     "Teferi, Mage of Zhalfir": 1,
-     "Rainbow Efreet": 1
-    }
-   },
-   "style": "control",
-   "style_why": "cards",
-   "label_count": 1
-  },
-  {
-   "deck": 102082,
-   "event": 35,
-   "archetype": "Pikula",
-   "player": "Ogasawara, Sho",
-   "event_name": "# Ancient Memory Convention #25 (Japan)",
-   "stars": 2,
-   "rank": "5-8",
-   "date": "2007-06-24",
-   "summer": false,
-   "s": 0.37020514105561475,
-   "f": {
-    "spells": 37,
-    "lands": 23,
-    "creatures": 11,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 2,
-    "avg_cmc": 2.0,
-    "pips": {
-     "W": 8.0,
-     "U": 0,
-     "B": 46.0,
-     "R": 0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "B"
-    ],
-    "names": {
-     "Duress": 4,
-     "Hymn to Tourach": 4,
-     "Vindicate": 4,
-     "Dark Ritual": 4,
-     "Dark Confidant": 4,
-     "Swords to Plowshares": 4,
-     "Sinkhole": 4,
-     "Hypnotic Specter": 4,
-     "Nantuko Shade": 2,
-     "Cursed Scroll": 2,
-     "Tombstalker": 1
-    }
-   },
-   "style": "midrange",
-   "style_why": "default",
-   "label_count": 2
-  }
- ],
- "alternates": [
   {
    "deck": 102079,
    "event": 35,
@@ -783,6 +840,109 @@
    "label_count": 1
   },
   {
+   "deck": 107031,
+   "event": 82,
+   "archetype": "Angel Stompy",
+   "player": "Matteo Luppi",
+   "event_name": "@ San Giorgio",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-10-07",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 2.2,
+    "pips": {
+     "W": 48.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Exalted Angel": 4,
+     "Cataclysm": 4,
+     "Silver Knight": 4,
+     "Mother of Runes": 4,
+     "Swords to Plowshares": 4,
+     "Chrome Mox": 3,
+     "Soltari Priest": 3,
+     "J\u00f6tun Grunt": 2,
+     "Isamaru, Hound of Konda": 2,
+     "Umezawa's Jitte": 2,
+     "Savannah Lions": 2,
+     "Mask of Memory": 2,
+     "Serra Avenger": 2,
+     "Sword of Fire and Ice": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 107064,
+   "event": 85,
+   "archetype": "MUC",
+   "player": "Takamizu Tomohiro",
+   "event_name": "# Ancient Memory Convention #28 (Japan)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-09-23",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 3,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 0,
+     "U": 48.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Spell Snare": 4,
+     "Counterspell": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Fact or Fiction": 3,
+     "Engineered Explosives": 3,
+     "Back to Basics": 3,
+     "Cunning Wish": 3,
+     "Misdirection": 2,
+     "Forbid": 2,
+     "Vedalken Shackles": 2,
+     "Flash of Insight": 1,
+     "Morphling": 1,
+     "Teferi, Mage of Zhalfir": 1,
+     "Rainbow Efreet": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
    "deck": 101773,
    "event": 25,
    "archetype": "Keiner mag Eugen.dec",
@@ -831,6 +991,108 @@
    "style": "control",
    "style_why": "cards",
    "label_count": 1
+  },
+  {
+   "deck": 101781,
+   "event": 25,
+   "archetype": "UW B\u00e4renmarke",
+   "player": "Michael Steinecke",
+   "event_name": "# Iserlohn Legacy (Germany)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 48,
+    "lands": 12,
+    "creatures": 31,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.92,
+    "pips": {
+     "W": 41.0,
+     "U": 21.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "Meddling Mage": 4,
+     "Brainstorm": 4,
+     "Ramosian Sergeant": 4,
+     "Serra Avenger": 4,
+     "Silver Knight": 3,
+     "Tithe": 3,
+     "J\u00f6tun Grunt": 3,
+     "Isamaru, Hound of Konda": 3,
+     "Whipcorder": 3,
+     "Cloud of Faeries": 3,
+     "Knight of the Holy Nimbus": 2,
+     "Umezawa's Jitte": 2,
+     "Serendib Efreet": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 102082,
+   "event": 35,
+   "archetype": "Pikula",
+   "player": "Ogasawara, Sho",
+   "event_name": "# Ancient Memory Convention #25 (Japan)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-06-24",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 46.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Duress": 4,
+     "Hymn to Tourach": 4,
+     "Vindicate": 4,
+     "Dark Ritual": 4,
+     "Dark Confidant": 4,
+     "Swords to Plowshares": 4,
+     "Sinkhole": 4,
+     "Hypnotic Specter": 4,
+     "Nantuko Shade": 2,
+     "Cursed Scroll": 2,
+     "Tombstalker": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
   },
   {
    "deck": 102094,
@@ -933,6 +1195,57 @@
    "label_count": 1
   },
   {
+   "deck": 102085,
+   "event": 35,
+   "archetype": "Tog",
+   "player": "Kubotera, Yuuki",
+   "event_name": "# Ancient Memory Convention #25 (Japan)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-06-24",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 10,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 1.83,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Daze": 4,
+     "Dark Confidant": 4,
+     "Brainstorm": 4,
+     "Serum Visions": 4,
+     "Piracy Charm": 3,
+     "Counterbalance": 3,
+     "Engineered Explosives": 3,
+     "Rotting Giant": 3,
+     "Psychatog": 3,
+     "Sensei's Divining Top": 3,
+     "Stifle": 2,
+     "Umezawa's Jitte": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
    "deck": 206743,
    "event": 387,
    "archetype": "Suicide Black",
@@ -973,6 +1286,111 @@
      "Nantuko Shade": 4,
      "Order of the Ebon Hand": 4,
      "Stromgald Crusader": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 107041,
+   "event": 83,
+   "archetype": "Faerie Stompy",
+   "player": "Enrico Basso",
+   "event_name": "# Finale Emilia I",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-09-02",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 18,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 4,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Chalice of the Void": 4,
+     "Sea Drake": 4,
+     "Force of Will": 4,
+     "Umezawa's Jitte": 4,
+     "Trinket Mage": 4,
+     "Chrome Mox": 4,
+     "Cloud of Faeries": 4,
+     "Serendib Efreet": 4,
+     "Sword of Fire and Ice": 4,
+     "Thirst for Knowledge": 3,
+     "Sea Sprite": 2,
+     "Pithing Needle": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 101632,
+   "event": 13,
+   "archetype": "Friggorid",
+   "player": "Ernest Turck",
+   "event_name": "# GenCon 2007 - Indianapolis (USA)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-08-18",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 53,
+    "lands": 7,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.4,
+    "pips": {
+     "W": 1.0,
+     "U": 16.0,
+     "B": 36.0,
+     "R": 2.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Deep Analysis": 4,
+     "Stinkweed Imp": 4,
+     "Lion's Eye Diamond": 4,
+     "Breakthrough": 4,
+     "Ichorid": 4,
+     "Narcomoeba": 4,
+     "Bridge from Below": 4,
+     "Cabal Therapy": 4,
+     "Golgari Grave-Troll": 4,
+     "Putrid Imp": 3,
+     "Lotus Petal": 3,
+     "Dread Return": 3,
+     "Golgari Thug": 3,
+     "Cephalid Sage": 2,
+     "Careful Study": 2,
+     "Flame-Kin Zealot": 1
     }
    },
    "style": "aggro",
@@ -1029,157 +1447,14 @@
    "label_count": 1
   }
  ],
- "pool_size": 19,
+ "pool_size": 27,
  "rejected_illegal": [
-  {
-   "archetype": "Thresh",
-   "deck": 107058,
-   "player": "Makuta Eiji",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 107033,
-   "player": "Massimo Scalchi",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 107062,
-   "player": "Date Tsutomu",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Thresh",
-   "deck": 107034,
-   "player": "Pietro Froio",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UG Thresh",
-   "deck": 101627,
-   "player": "Peter Olszewski",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Kampelmann's t\u00e4schchen ist sergej",
-   "deck": 101767,
-   "player": "Markus Seine",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Meat free Deck",
-   "deck": 101769,
-   "player": "Dennis Kampelmann",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UGR Thresh",
-   "deck": 101629,
-   "player": "David Caplan",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "UGR Thresh",
-   "deck": 101631,
-   "player": "James King",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "UGR Thresh",
-   "deck": 101635,
-   "player": "Steve Conway",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "UGR Thresh",
-   "deck": 102091,
-   "player": "Thomas Huber",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Fish",
-   "deck": 102933,
-   "player": "Manuel Warcholik",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Fish",
-   "deck": 107066,
-   "player": "Shiina Jun-ichiro",
-   "why": [
-    "Daze (not in legal sets)",
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Fish",
-   "deck": 206748,
-   "player": "Max Tietze",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Volkersbrunner GroooUuuw",
-   "deck": 101771,
-   "player": "Christof Bachmann",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "NQG",
-   "deck": 101772,
-   "player": "Nils H\u00fcndgen",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
   {
    "archetype": "Hulk Flash",
    "deck": 206744,
    "player": "Steven Sadin",
    "why": [
-    "Daze (not in legal sets)",
-    "Flash (banned)",
-    "Massacre (not in legal sets)"
+    "Flash (banned)"
    ]
   },
   {
@@ -1187,9 +1462,7 @@
    "deck": 206745,
    "player": "Gadiel Szleifer",
    "why": [
-    "Daze (not in legal sets)",
-    "Flash (banned)",
-    "Massacre (not in legal sets)"
+    "Flash (banned)"
    ]
   },
   {
@@ -1197,137 +1470,58 @@
    "deck": 206750,
    "player": "Ryan Trepanier",
    "why": [
-    "Daze (not in legal sets)",
-    "Flash (banned)",
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Faerie Stompy",
-   "deck": 107041,
-   "player": "Enrico Basso",
-   "why": [
-    "Sea Drake (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Faerie Stompy",
-   "deck": 102086,
-   "player": "Tsuyuki, Kouichi",
-   "why": [
-    "Sea Drake (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "URG Thresh",
-   "deck": 102935,
-   "player": "Bernd Hartmann",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "URG Thresh",
-   "deck": 102934,
-   "player": "Frederic Timmer",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Pikula",
-   "deck": 102937,
-   "player": "Thomas Scheel",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Angel Stompy",
-   "deck": 107031,
-   "player": "Matteo Luppi",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "Friggorid",
-   "deck": 101632,
-   "player": "Ernest Turck",
-   "why": [
-    "Reverent Silence (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "die PCA hat das Szepter in der Hand!",
-   "deck": 101777,
-   "player": "Denny Kupferschmied",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "UW B\u00e4renmarke",
-   "deck": 101781,
-   "player": "Michael Steinecke",
-   "why": [
-    "unknown card: J\ufffdtun Grunt"
-   ]
-  },
-  {
-   "archetype": "4c Fish",
-   "deck": 102090,
-   "player": "Florian Hering",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "4c Thresh",
-   "deck": 102093,
-   "player": "Markus M\u00fchlhofer",
-   "why": [
-    "Accumulated Knowledge (not in legal sets)",
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
-   ]
-  },
-  {
-   "archetype": "Rb Sligh",
-   "deck": 102084,
-   "player": "Tachiki, Yasuo",
-   "why": [
-    "Massacre (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "Tog",
-   "deck": 102085,
-   "player": "Kubotera, Yuuki",
-   "why": [
-    "Daze (not in legal sets)"
-   ]
-  },
-  {
-   "archetype": "UGr Threshold",
-   "deck": 206749,
-   "player": "Paul Nicolo",
-   "why": [
-    "Daze (not in legal sets)",
-    "unknown card: Fire / Ice"
+    "Flash (banned)"
    ]
   }
  ],
  "duplicates_dropped": [
   {
+   "dropped": "UG Thresh",
+   "player": "Peter Olszewski",
+   "kept": "Thresh",
+   "kept_player": "Makuta Eiji"
+  },
+  {
+   "dropped": "UGR Thresh",
+   "player": "David Caplan",
+   "kept": "Thresh",
+   "kept_player": "Makuta Eiji"
+  },
+  {
+   "dropped": "Fish",
+   "player": "Manuel Warcholik",
+   "kept": "Meat free Deck",
+   "kept_player": "Dennis Kampelmann"
+  },
+  {
+   "dropped": "Volkersbrunner GroooUuuw",
+   "player": "Christof Bachmann",
+   "kept": "Thresh",
+   "kept_player": "Makuta Eiji"
+  },
+  {
+   "dropped": "NQG",
+   "player": "Nils H\u00fcndgen",
+   "kept": "Kampelmann's t\u00e4schchen ist sergej",
+   "kept_player": "Markus Seine"
+  },
+  {
+   "dropped": "URG Thresh",
+   "player": "Bernd Hartmann",
+   "kept": "Thresh",
+   "kept_player": "Makuta Eiji"
+  },
+  {
    "dropped": "Lands!",
    "player": "Narita Chisato",
    "kept": "Lands",
    "kept_player": "Ryan Trepanier"
+  },
+  {
+   "dropped": "die PCA hat das Szepter in der Hand!",
+   "player": "Denny Kupferschmied",
+   "kept": "Kampelmann's t\u00e4schchen ist sergej",
+   "kept_player": "Markus Seine"
   },
   {
    "dropped": "Hampelmann.dec",
@@ -1336,30 +1530,55 @@
    "kept_player": "Tsuda Yuugo"
   },
   {
+   "dropped": "4c Fish",
+   "player": "Florian Hering",
+   "kept": "Meat free Deck",
+   "kept_player": "Dennis Kampelmann"
+  },
+  {
    "dropped": "Goblins IIII",
    "player": "Natsume, Takuya",
    "kept": "Goblins",
    "kept_player": "Andrea Maccagnani"
   },
   {
+   "dropped": "4c Thresh",
+   "player": "Markus M\u00fchlhofer",
+   "kept": "Thresh",
+   "kept_player": "Makuta Eiji"
+  },
+  {
+   "dropped": "Rb Sligh",
+   "player": "Tachiki, Yasuo",
+   "kept": "3c Sligh",
+   "kept_player": "Osada, Masahiro"
+  },
+  {
    "dropped": "Gr Goblins",
    "player": "Owen Turtenwald",
    "kept": "Goblins",
    "kept_player": "Andrea Maccagnani"
+  },
+  {
+   "dropped": "UGr Threshold",
+   "player": "Paul Nicolo",
+   "kept": "Thresh",
+   "kept_player": "Makuta Eiji"
   }
  ],
- "objective": 8.352223654688792,
+ "objective": 13.75713521138514,
  "pool_colors": {
-  "R": 7,
-  "W": 5,
-  "U": 7,
-  "B": 8,
-  "G": 9
+  "U": 14,
+  "R": 8,
+  "G": 11,
+  "W": 9,
+  "B": 11
  },
  "pool_styles": {
-  "aggro": 8,
+  "control": 7,
+  "aggro": 12,
   "combo": 4,
-  "control": 4,
-  "midrange": 3
- }
+  "midrange": 4
+ },
+ "kept_lost": []
 }

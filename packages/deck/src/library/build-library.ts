@@ -7,6 +7,9 @@
  *   node packages/deck/src/library/build-library.ts                 # every era
  *   node packages/deck/src/library/build-library.ts --only=2011     # one era
  *
+ * `--forge-res=<dir>` names Forge's res tree (default `forge/forge-gui/res`
+ * here); it reads the edition files that place timeshifted reprints.
+ *
  * ## What it reads
  *
  * The nine power-summer eras this wave replaced the old library with
@@ -30,7 +33,8 @@
  * ## The cache
  *
  * mtgtop8 is one fetch per deck and this library is 96 decks, so a re-run
- * reads a local cache first (`--cache=<dir>`, default `/tmp/deck-export-cache`)
+ * reads a local cache first (`--cache=<dir>`, default
+ * `~/.cache/cardtable-deck-selection/deck-cache`, the one `tools/lists.py` fills)
  * and only reaches the network for an id it has not seen, writing what it
  * fetches back into the cache for next time. Polite either way: one request
  * every 500ms when the network is actually used. Nothing else in this lane
@@ -46,6 +50,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -66,7 +71,8 @@ import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 /** `packages/deck/src/library` → the repo root. */
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const SELECTIONS_DIR = join(REPO_ROOT, 'docs', 'planning', 'deck-selection', 'selections');
-const DEFAULT_CACHE = '/tmp/deck-export-cache';
+/** On disk, not tmpfs, and shared with `tools/lists.py`: the selection has already fetched every deck this writes. */
+const DEFAULT_CACHE = join(homedir(), '.cache', 'cardtable-deck-selection', 'deck-cache');
 
 /**
  * `Format` and `Effective` are ours, so `dck-write.ts`'s `FORGE_METADATA_KEYS`
@@ -106,47 +112,32 @@ const LIBRARY_SPELLING: DckSpelling = {
 const SET_CODE_FIXUPS: ReadonlyMap<string, string> = new Map([['CS', 'CSP']]);
 
 /**
- * **Per-card fixups** — mtgtop8 labels a reprint under the main set's code
- * when the card was actually only reprinted on that set's "timeshifted" bonus
- * sheet, which Forge (and Scryfall) catalogue as a SEPARATE edition. Found the
- * same way as the blanket fixups: checking every (card, set) pair this library
- * uses against Forge's own card database — `CardDb.getCardFromSet` returns
- * null for exactly these six under `TSP`, because Forge has no Time Spiral
- * printing of them at all, only a Time Spiral TIMESHIFTED (`TSB`) one. mtgtop8
- * exports all six as `[TSP] <name>` regardless; the corpus confirms `tsb` is
- * each one's only printing inside the 2008 era's legal sets.
+ * **Timeshifted reprints** — mtgtop8 labels a reprint under the main set's code
+ * when the card was only reprinted on that set's "timeshifted" bonus sheet,
+ * which Forge (and Scryfall) catalogue as a SEPARATE edition:
+ * `CardDb.getCardFromSet` returns null for `Akroma, Angel of Wrath|TSP`,
+ * because Forge has no Time Spiral printing of it, only a Time Spiral
+ * Timeshifted (`TSB`) one. Found by `library-resolve.jvm.test.ts`.
  *
- * Keyed by `"Name|WRONG_SET"` so a fix never touches a different card that
- * happens to share a set code with one of these.
+ * This was a hand-kept list of twenty cards until 2026-10-10, when doubling the
+ * library found fourteen more. It is derived from Forge's own edition files
+ * now: a card exported as `TSP` that Forge prints in `TSB` and not in `TSP` is
+ * the `TSB` printing.
  */
-const CARD_SET_FIXUPS: ReadonlyMap<string, string> = new Map([
-  ['Avalanche Riders|TSP', 'TSB'],
-  ['Disintegrate|TSP', 'TSB'],
-  ['Lord of Atlantis|TSP', 'TSB'],
-  ['Pendelhaven|TSP', 'TSB'],
-  ['Shadow Guildmage|TSP', 'TSB'],
-  ['Wall of Roots|TSP', 'TSB'],
-  // Wave 48 §T: found by the manager running library-resolve.jvm.test.ts
-  // against the real jar on Standard 2007 and Modern 2012-2016 — the same
-  // Time Spiral "timeshifted" case as the six above, confirmed the same way:
-  // each of these 14 is in `Time Spiral Timeshifted.txt`
-  // ($CARDTABLE_FORGE_RES/editions/), not `Time Spiral.txt`, so `TSP` is not
-  // a printing Forge's CardDb has for any of them.
-  ['Call of the Herd|TSP', 'TSB'],
-  ['Claws of Gix|TSP', 'TSB'],
-  ['Disenchant|TSP', 'TSB'],
-  ['Dodecapod|TSP', 'TSB'],
-  ['Gemstone Mine|TSP', 'TSB'],
-  ['Lightning Angel|TSP', 'TSB'],
-  ['Mystic Snake|TSP', 'TSB'],
-  ['Sacred Mesa|TSP', 'TSB'],
-  ['Serrated Arrows|TSP', 'TSB'],
-  ['Stupor|TSP', 'TSB'],
-  ['The Rack|TSP', 'TSB'],
-  ["Tormod's Crypt|TSP", 'TSB'],
-  ['Willbender|TSP', 'TSB'],
-  ['Withered Wretch|TSP', 'TSB'],
-]);
+function timeshiftedOnly(forgeRes: string): ReadonlySet<string> {
+  const names = (file: string): Set<string> => {
+    const text = readFileSync(join(forgeRes, 'editions', file), 'utf8');
+    const cards = text.slice(text.indexOf('[cards]'));
+    const out = new Set<string>();
+    for (const line of cards.split(/\r?\n/)) {
+      const matched = /^\S+\s+\S+\s+(.+?)(?:\s+@.*)?$/.exec(line.trim());
+      if (matched !== null && line.trim() !== '[cards]') out.add(matched[1] as string);
+    }
+    return out;
+  };
+  const main = names('Time Spiral.txt');
+  return new Set([...names('Time Spiral Timeshifted.txt')].filter((n) => !main.has(n)));
+}
 
 /** One deck the selection chose, as `selection-<year>.json` records it. */
 interface ChosenDeck {
@@ -163,7 +154,7 @@ interface SelectionFile {
   readonly chosen: readonly ChosenDeck[];
 }
 
-/** `'1'` → `'1st'`, `'3-4'` → `'3rd-4th'`, `'5-8'` → `'5th-8th'`. Ranks never exceed 8 in this selection. */
+/** `'1'` → `'1st'`, `'3-4'` → `'3rd-4th'`, `'5-8'` → `'5th-8th'`. */
 function ordinal(n: number): string {
   if (n % 10 === 1 && n % 100 !== 11) return `${String(n)}st`;
   if (n % 10 === 2 && n % 100 !== 12) return `${String(n)}nd`;
@@ -171,16 +162,21 @@ function ordinal(n: number): string {
   return `${String(n)}th`;
 }
 
+/** A finish mtgtop8 gives as a placing (`1`, `3-4`); older events also give words (`Day 1 undefeated`) or nothing. */
+const PLACING = /^\d+(?:-\d+)?$/;
+
 function placingOf(rank: string): string {
+  if (!PLACING.test(rank)) return rank === '' ? 'unranked' : rank;
   return rank
     .split('-')
     .map((part) => ordinal(Number(part)))
     .join('-');
 }
 
-/** The leading number of a (possibly joint) rank — `'5-8'` → `5`. Used as the filename's sort prefix. */
-function rankNumber(rank: string): number {
-  return Number(rank.split('-')[0]);
+/** The filename's sort prefix: a placing's leading number (`'5-8'` → `5`), else the finish's own words, slugged. */
+function rankPrefix(rank: string): string {
+  if (PLACING.test(rank)) return String(Number(rank.split('-')[0]));
+  return slugifyForLibrary(rank) || 'unranked';
 }
 
 /** mtgtop8's plain-text export for one deck. `f=` is only a filename hint, but it must still name the real format — a Modern/Legacy deck fetched under `f=ST` still returns the right cards, but writes a wrong Source URL into the `.dck`. */
@@ -204,7 +200,7 @@ interface DecList {
   readonly sideboard: DeckEntry[];
 }
 
-function parseDecExport(text: string, what: string): DecList {
+function parseDecExport(text: string, what: string, timeshifted: ReadonlySet<string>): DecList {
   const main: DeckEntry[] = [];
   const sideboard: DeckEntry[] = [];
 
@@ -219,10 +215,11 @@ function parseDecExport(text: string, what: string): DecList {
       throw new Error(`${what}: cannot parse export line ${JSON.stringify(raw)}`);
     }
     const [, count, rawSet, rawName] = matched;
-    const name = (rawName as string).trim();
+    // mtgtop8 spells a split card `Fire / Ice`; Forge and Scryfall spell it `Fire // Ice`.
+    const name = (rawName as string).trim().replace(' / ', ' // ');
     const upperSet = (rawSet as string).toUpperCase();
     const blanketFixed = SET_CODE_FIXUPS.get(upperSet) ?? upperSet;
-    const set = CARD_SET_FIXUPS.get(`${name}|${upperSet}`) ?? blanketFixed;
+    const set = upperSet === 'TSP' && timeshifted.has(name) ? 'TSB' : blanketFixed;
     const entry: DeckEntry = {
       count: Number(count),
       card: {
@@ -284,13 +281,20 @@ function buildDeckFile(
 
 /** The file this deck is written to, repo-root-relative-within-its-collection. */
 export function fileNameFor(source: ChosenDeck): string {
-  return `${String(rankNumber(source.rank))}-${slugifyForLibrary(source.player)}-${slugifyForLibrary(source.archetype)}.dck`;
+  return `${rankPrefix(source.rank)}-${slugifyForLibrary(source.player)}-${slugifyForLibrary(source.archetype)}.dck`;
 }
 
 async function fetchText(url: string): Promise<string> {
   const response = await fetch(url, { headers: { 'user-agent': 'hadoku-cardtable/0.1 (deck library build)' } });
   if (!response.ok) throw new Error(`${url}: HTTP ${String(response.status)}`);
-  return await response.text();
+  // mtgtop8's export is Latin-1, and `response.text()` decodes as UTF-8: `Jötun Grunt`
+  // came out as `J\uFFFDtun Grunt`. Strict UTF-8 first, Windows-1252 when that fails.
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
 }
 
 /** Delay between network fetches, so a cold cache is still polite. */
@@ -393,6 +397,13 @@ async function main(): Promise<void> {
   const family = (arg('family') ?? 'standard') as FormatFamily;
   const only = arg('only');
   const cacheDir = arg('cache') ?? DEFAULT_CACHE;
+  // Forge's res tree, read-only, for its edition files. A worktree has none of
+  // its own (`forge/` is the deploy tree's), so point it at one that does.
+  const forgeRes = arg('forge-res') ?? join(REPO_ROOT, 'forge', 'forge-gui', 'res');
+  if (!existsSync(join(forgeRes, 'editions'))) {
+    throw new Error(`${forgeRes} has no editions/ — pass --forge-res=<a checkout with forge/>/forge/forge-gui/res`);
+  }
+  const timeshifted = timeshiftedOnly(forgeRes);
   const jobs = buildJobs(family, only);
   const fmtCode = MTGTOP8_FORMAT_CODE[family];
 
@@ -406,7 +417,7 @@ async function main(): Promise<void> {
     for (const source of job.chosen) {
       const what = `${source.player} (mtgtop8 ${String(source.deck)})`;
       const text = await cachedExport(source.deck, cacheDir, fmtCode);
-      const list = parseDecExport(text, what);
+      const list = parseDecExport(text, what, timeshifted);
       const file = buildDeckFile({ format: job.format, date: job.date }, source, list, fmtCode);
       const fileName = fileNameFor(source);
       if (job.catalogued !== null) {
