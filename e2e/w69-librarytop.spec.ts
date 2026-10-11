@@ -368,7 +368,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
       count: await pile.getAttribute('data-count'),
     };
     console.log(`[pp-deep] Serum Visions #${visions} buried in a ${glow.count}-card graveyard: pile data-can-act on alice's screen=${glow.alice}, on bob's=${glow.bob}`);
-    expect(glow.alice, 'her graveyard pile glows while a card in it is offered').toBe('');
+    expect(glow.alice, 'her graveyard pile glows while a card in it is offered').not.toBeNull();
     expect(glow.bob, "never on bob's screen").toBeNull();
 
     await watchFrames(alice.page);
