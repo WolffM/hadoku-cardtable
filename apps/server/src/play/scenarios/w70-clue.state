@@ -1,0 +1,18 @@
+# The operator, 2026-10-11 (match m-131c6008692a, Izzet Control): "clue wasn't clickable until
+# after i tapped lands. clue should be activatable there because i clearly did have 2 mana."
+# Seat 0 (human), turn-1 Main Phase 1: a Clue token and four untapped lands from that deck, a
+# Smoldering Marsh and the deck's spells in hand. `w70-clue.spec.ts` plays the land and clicks
+# the Clue.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Smoldering Marsh;Fall of the Titans;Fiery Temper;Lightning Axe
+humanbattlefield=T:c_a_clue_draw;Shivan Reef;Wandering Fumarole;Mountain;Drownyard Temple
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
