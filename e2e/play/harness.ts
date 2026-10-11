@@ -362,6 +362,34 @@ export interface PlayStack {
   restart(): Promise<void>;
 }
 
+/** The longest a seat may hold a live server window with nothing on its screen to press. */
+export const DEAD_BAR_MAX_MS = 3_000;
+
+/**
+ * Every spec's dead-bar check, at its stack's `stop()`. The client reports `bar-stuck`
+ * (`apps/ui/src/play/live/bar-hold.ts`) once a live server window has had nothing pressable
+ * on its screen for `BAR_STUCK_MS`, and again when that ends; a seat stuck past
+ * {@link DEAD_BAR_MAX_MS}, or still stuck when the log ends, fails the spec that ran it. The
+ * server's own `window-resent` repairs are printed beside it.
+ */
+function assertNoDeadBar(serverLogFile: string): void {
+  if (!existsSync(serverLogFile)) return;
+  const rows = readFileSync(serverLogFile, 'utf8')
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
+  const lastAt = rows.length === 0 ? 0 : Date.parse(String(rows.at(-1)!.t));
+  for (const r of rows.filter((r) => r.evt === 'window-resent')) console.log(`[window-resent] ${JSON.stringify(r)}`);
+  const stuck = rows.filter((r) => r.evt === 'client' && r.kind === 'bar-stuck');
+  for (const r of stuck) console.log(`[bar-stuck] ${JSON.stringify(r)}`);
+  const dead = stuck.filter((r, i) => {
+    if (r.phase === 'cleared') return Number(r.ms) > DEAD_BAR_MAX_MS;
+    const cleared = stuck.slice(i + 1).some((c) => c.phase === 'cleared' && c.seat === r.seat && c.matchId === r.matchId);
+    return !cleared && Number(r.ms) + (lastAt - Date.parse(String(r.t))) > DEAD_BAR_MAX_MS;
+  });
+  if (dead.length > 0) throw new Error(`a seat's live window had nothing pressable for over ${DEAD_BAR_MAX_MS} ms: ${dead.map((r) => JSON.stringify(r)).join(' ; ')}`);
+}
+
 async function waitForHealth(server: ChildProcess): Promise<void> {
   const deadline = Date.now() + 30_000;
   let last = 'no answer';
@@ -544,6 +572,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     // Only now: while the server was up, the JVMs it means to keep are exactly
     // what this would have killed.
     if (options.reap !== false) reap();
+    assertNoDeadBar(serverLogFile);
   };
 
   try {

@@ -27,9 +27,11 @@ export const ClientEventSchema = z
      * play and why — a view's derived events, a decision's chime, a button's
      * press — so "it played three times" is read from the log (the operator,
      * 2026-10-10: *"as we investigate these things, please make sure we have
-     * ample telemetry"*).
+     * ample telemetry"*). `bar-stuck`: the server's latest bar for this seat had
+     * an enabled button and the screen offered nothing to press for longer than
+     * `BAR_STUCK_MS` (`phase: 'held'`), and again when that ends (`'cleared'`).
      */
-    kind: z.enum(['info', 'handover', 'landing', 'sound']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck']),
     data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
   })
   .strict();

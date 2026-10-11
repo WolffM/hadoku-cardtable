@@ -276,6 +276,7 @@ import { installPresence } from './presence.ts';
 import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
+import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
 import { deriveSoundEvents } from './sound-events.ts';
 import { isMuted, playRole, playSoundEvents, setMatchMusic, type DelayedSoundEvent } from '../../sound/index.ts';
 import {
@@ -287,9 +288,11 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  declaringCombat,
   dismissReveal,
   genuinelyAsked,
   isAutoYieldOn,
+  liveBar,
   nothingToDecide,
   noteAutoAnswered,
   choosingMulligan,
@@ -1422,7 +1425,7 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
  */
 function PaymentWindow({ match }: { match: LiveMatch }) {
   const messageId = useId();
-  const bar = match.buttons;
+  const bar = liveBar(match);
   return (
     <div className="live__prompt" data-testid="live-payment-host">
       <section className="confirm live__payment" data-testid="live-payment" role="dialog" aria-labelledby={messageId}>
@@ -1777,6 +1780,28 @@ export interface LiveBoardProps {
   roomId?: string | null;
 }
 
+/**
+ * `bar-stuck` (`./bar-hold.ts`): reported once the screen has offered nothing to press under a
+ * live server bar for `BAR_STUCK_MS`, and again when that ends, each with what held it.
+ */
+function useBarStuckReport(match: LiveMatch, stuck: boolean, detail: () => ClientEvent['data']): void {
+  const detailRef = useRef(detail);
+  detailRef.current = detail;
+  useEffect(() => {
+    if (!stuck) return undefined;
+    const from = Date.now();
+    let reported = false;
+    const timer = setTimeout(() => {
+      reported = true;
+      reportClient(match.transport, match.matchId, 'bar-stuck', { phase: 'held', ms: Date.now() - from, ...detailRef.current() });
+    }, BAR_STUCK_MS);
+    return () => {
+      clearTimeout(timer);
+      if (reported) reportClient(match.transport, match.matchId, 'bar-stuck', { phase: 'cleared', ms: Date.now() - from, ...detailRef.current() });
+    };
+  }, [stuck, match]);
+}
+
 /** A control-bar press, with its sound. `pressButton` refuses a disabled button; then nothing plays. */
 function pressWithSound(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   const pressed = pressButton(match, which);
@@ -1846,7 +1871,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   }, [match, autoCallId, auto, pending]);
   /* Nothing renders for an ask that answers itself — not even for a frame. */
   const ask = auto === null && !spectator ? pending : null;
-  const bar = match.buttons;
+  const bar = liveBar(match);
   const status = liveStatus(match);
   /* `null` while the match is live, which is the whole of §B.5. */
   const statusLine = statusText(match);
@@ -2209,6 +2234,34 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * button that reads `End Turn`, gated on it being pressable at all.
    */
   const highlightEndTurn = endTurnEnabled && nothingToDecide(match);
+  const stuck =
+    !spectator &&
+    status === 'live' &&
+    barStuck(match.buttons, yielding, {
+      nextPhase: nextPhaseEnabled,
+      endTurn: endTurnEnabled,
+      decisionOk,
+      decisionCancel,
+      ask: askOpen,
+      payment: paying,
+      selection: selectionPopup,
+      confirm: confirmPrompt,
+      playOrDraw,
+      mulliganPick,
+      pregame: pregameWait,
+      combat: declaringCombat(match),
+    });
+  useBarStuckReport(match, stuck, () => ({
+    route,
+    hold: match.barHold?.reason ?? '',
+    label1: match.buttons?.label1 ?? '',
+    enable1: match.buttons?.enable1 ?? false,
+    label2: match.buttons?.label2 ?? '',
+    enable2: match.buttons?.enable2 ?? false,
+    asks: match.asks.length,
+    prompt: (match.prompt ?? '').split('\n').slice(0, 3).join(' / ').slice(0, 80),
+    turn: match.view?.turn ?? -1,
+  }));
   /*
    * On the other seat's turn the same slot reads Auto Yield / Cancel Yield.
    * Pressable the instant that turn starts, before Forge has shown anything

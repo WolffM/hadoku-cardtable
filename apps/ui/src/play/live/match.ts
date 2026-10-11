@@ -252,6 +252,7 @@ import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
 import { toBoardView, type BoardView } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
+import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { foldPackets, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
@@ -522,6 +523,13 @@ export interface LiveMatch {
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   buttons: LiveButtons | null;
+  /**
+   * The one client-side hold on {@link LiveMatch.buttons} (`./bar-hold.ts`): set by
+   * {@link pressButton}, cleared by the next `updateButtons`, and never standing longer than
+   * `BAR_HOLD_MAX_MS`. Read the bar a seat may press through {@link liveBar}, never by
+   * editing `buttons`.
+   */
+  barHold: BarHold | null;
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
   /**
@@ -825,6 +833,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     promptTrigger: null,
     triggerDecisions: [],
     buttons: null,
+    barHold: null,
     selectables: null,
     weaklySelectable: null,
     weaklySelectableManaOnly: null,
@@ -958,7 +967,7 @@ export function answerAsk(match: LiveMatch, callId: string, method: BlockingMeth
  * Forge would otherwise take the click as an answer to whatever it asks next.
  */
 export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
-  const bar = match.buttons;
+  const bar = liveBar(match);
   if (bar === null) return false;
   if (which === 'ok' ? !bar.enable1 : !bar.enable2) return false;
   // Forge's game thread is parked on the open question; a press now would
@@ -967,11 +976,33 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   send(match, { kind: 'act', method: which === 'ok' ? 'selectButtonOk' : 'selectButtonCancel' });
   // Forge sends a fresh bar for the next decision; until it does, the bar we
   // just answered must not be pressable twice.
-  match.buttons = { ...bar, enable1: false, enable2: false };
-  match.inputLive = false;
+  holdBar(match, which === 'ok' ? 'pressed-ok' : 'pressed-cancel');
   match.stats.replies += 1;
   notify(match);
   return true;
+}
+
+/** The bar this seat may press now: Forge's latest, unless {@link LiveMatch.barHold} still stands. */
+export function liveBar(match: LiveMatch): LiveButtons | null {
+  return pressableBar(match.buttons, match.barHold, Date.now());
+}
+
+/**
+ * Hold the bar back — the ONLY way this client keeps a live bar from being pressed. The next
+ * `updateButtons` lifts it; if none comes within `BAR_HOLD_MAX_MS`, Forge kept the input it
+ * showed, and the bar and the board's clicks are live again as they were.
+ */
+function holdBar(match: LiveMatch, reason: string): void {
+  const hold: BarHold = { reason, since: Date.now() };
+  const wasLive = match.inputLive;
+  match.barHold = hold;
+  match.inputLive = false;
+  setTimeout(() => {
+    if (match.barHold !== hold) return;
+    match.barHold = null;
+    match.inputLive = wasLive;
+    notify(match);
+  }, BAR_HOLD_MAX_MS);
 }
 
 /**
@@ -2159,6 +2190,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
   match.inputLive = false;
+  match.barHold = null;
   match.over = false;
   match.finished = false;
   unspend(match);
@@ -2412,6 +2444,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       enable1: frame.enable1 === true,
       enable2: frame.enable2 === true,
     };
+    match.barHold = null;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'setSelectables') {
     match.selectables = {
@@ -2522,6 +2555,7 @@ function discardLocal(match: LiveMatch): void {
   match.promptCard = null;
   match.promptTrigger = null;
   match.buttons = null;
+  match.barHold = null;
   match.selectables = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;

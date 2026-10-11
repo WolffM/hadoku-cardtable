@@ -42,6 +42,7 @@ import {
   attackersLeft,
   pressButton,
   REFUSED_MS,
+  liveBar,
   selectCard,
   selectPlayer,
   setAutoYield,
@@ -53,6 +54,7 @@ import {
   type MatchTransport,
 } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
+import { BAR_HOLD_MAX_MS } from './bar-hold.ts';
 import { MATCH_EVENTS, parseMatchAck, parseServerEnvelope } from './transport.ts';
 
 const FRAMES = fixtureFrames();
@@ -809,6 +811,34 @@ describe('clicking the board: only what Forge offered', () => {
     expect(selectCard(m, mine[0]!)).toBe(true);
     await until('the click', () => s.clientFrames().length === 2);
     expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk', 'selectCard']);
+  });
+
+  it('a press holds the bar back until Forge shows the next one, and never longer than BAR_HOLD_MAX_MS', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    const pressedAt = Date.now();
+    expect(pressButton(m, 'ok')).toBe(true);
+    expect(m.barHold?.reason).toBe('pressed-ok');
+    // The server's bar is never edited: the hold is the only thing between it and the screen.
+    expect(m.buttons?.enable1).toBe(true);
+    expect(liveBar(m)?.enable1).toBe(false);
+    expect(pressButton(m, 'ok')).toBe(false);
+    // Forge says nothing more: the bar it showed is live again, as are the board's clicks.
+    await until('the hold to lapse', () => m.barHold === null, BAR_HOLD_MAX_MS + 2000);
+    expect(Date.now() - pressedAt).toBeGreaterThanOrEqual(BAR_HOLD_MAX_MS - 50);
+    expect(liveBar(m)?.enable1).toBe(true);
+    expect(m.inputLive).toBe(true);
+    expect(pressButton(m, 'ok')).toBe(true);
+    await until('both presses', () => s.clientFrames().length === 2);
+  });
+
+  it('the next updateButtons lifts a hold at once, whatever it says', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    await sendAndApply(s, m, [bar(true)]);
+    expect(m.barHold).toBeNull();
+    expect(liveBar(m)?.enable1).toBe(true);
   });
 
   it('selectPlayer carries the player, and a snapshot is followed by the selection the server re-sends', async () => {

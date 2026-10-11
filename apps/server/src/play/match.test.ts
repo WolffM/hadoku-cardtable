@@ -18,7 +18,7 @@ import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame }
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { ACT_SILENCE_MS, MATCH_ENDED_TITLE, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
+import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -2578,6 +2578,84 @@ describe('hold-decide-forward', () => {
 			expect(h.match.setTriggerDecision(0, KEY, 'ACCEPT')).toMatchObject({ ok: false });
 			expect(yieldActs(h)).toEqual([]);
 			expect(h.match.triggerDecisions(SEAT1_ID)).toEqual([]);
+		});
+	});
+
+	describe('a window Forge keeps after the seat acted: re-sent, never left dead', () => {
+		const PRIORITY = 'Priority: Seat 2\nTurn: 3 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty';
+		const bars = (h: Harness, from: number) =>
+			envelopesFor(h, SEAT1_ID)
+				.slice(from)
+				.map((e) => e.frame)
+				.filter((f): f is Extract<typeof f, { method: 'updateButtons' }> => f.method === 'updateButtons')
+				.map((f) => `${f.label1}:${f.enable1}/${f.label2}:${f.enable2}`);
+		const offer = (callId: string) => ({
+			kind: 'ask' as const,
+			callId,
+			method: 'getAbilityToPlay' as const,
+			hostCard: { kind: 'card' as const, id: 960 },
+			abilities: [80, 81].map((id) => ({ kind: 'spellAbility' as const, id, label: `ability ${id}` })),
+			triggerEvent: null,
+		});
+
+		/** Seat 1 holds a live priority window (full control, so no stop decides it), clicks a card, and Forge asks which ability. */
+		function pickerOpen(): { h: Harness; from: number } {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, PRIORITY) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }) },
+			);
+			const from = envelopesFor(h, SEAT1_ID).length;
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 960 }, otherCardViewsToSelect: [], triggerEvent: null }));
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: offer('s1-22') });
+			return { h, from };
+		}
+		const none = ClientFrameSchema.parse({ kind: 'reply', callId: 's1-22', method: 'getAbilityToPlay', result: null });
+
+		it('a picker answered None, then nothing from Forge: the live window is back ANSWER_SILENCE_MS later, once', () => {
+			const { h, from } = pickerOpen();
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false']);
+			expect(h.match.fromClient(SEAT1_ID, none)).toEqual({ ok: true });
+			vi.advanceTimersByTime(ANSWER_SILENCE_MS - 1);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false']);
+			vi.advanceTimersByTime(1);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false', 'OK:true/End Turn:true']);
+			const resent = envelopesFor(h, SEAT1_ID).slice(from).map((e) => e.frame.method);
+			expect(resent.slice(-2)).toEqual(['showPromptMessage', 'updateButtons']);
+			expect(h.logs.filter((l) => l.evt === 'window-resent')).toEqual([
+				{ evt: 'window-resent', matchId: h.match.id, seat: SEAT1_ID, after: 'answer', label1: 'OK', label2: 'End Turn' },
+			]);
+			vi.advanceTimersByTime(ACT_SILENCE_MS * 2);
+			expect(h.logs.filter((l) => l.evt === 'window-resent')).toHaveLength(1);
+		});
+
+		it('a picker answered and Forge shows its next window: nothing is re-sent', () => {
+			const { h, from } = pickerOpen();
+			h.match.fromClient(SEAT1_ID, none);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'Undo (1)', enable1: true, enable2: true }) });
+			vi.advanceTimersByTime(ACT_SILENCE_MS * 2);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false', 'OK:true/Undo (1):true']);
+			expect(h.logs.filter((l) => l.evt === 'window-resent')).toEqual([]);
+		});
+
+		it('an act Forge never answers at all: the live window is back after ACT_SILENCE_MS, beside the lost-ask re-send', () => {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, PRIORITY) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }) },
+			);
+			const from = envelopesFor(h, SEAT1_ID).length;
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 960 }, otherCardViewsToSelect: [], triggerEvent: null }));
+			vi.advanceTimersByTime(ACT_SILENCE_MS);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false', 'OK:true/End Turn:true']);
+			expect(h.logs.find((l) => l.evt === 'window-resent')).toMatchObject({ seat: SEAT1_ID, after: 'act' });
+			expect(h.host.commands).toContainEqual({ t: 'resend-pending', seat: SEAT1_ID });
 		});
 	});
 });

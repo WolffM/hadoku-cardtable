@@ -531,8 +531,17 @@ export interface SeatState {
 	unparsed: Map<string, Fallback>;
 	/** Every ask callId Forge has sent this seat, so a re-sent ask ({@link Match.armActWatch}) is handled once. */
 	seenAsks: Set<string>;
-	/** Armed by an input act, disarmed by any frame for this seat; see {@link Match.armActWatch}. */
+	/** Armed by an input act or an ask answered under a disabled bar, disarmed by any frame for this seat; see {@link Match.armActWatch}. */
 	actWatch: NodeJS.Timeout | null;
+	/**
+	 * The live bar {@link Match.disableStaleButtons} took off this seat's screen, until Forge
+	 * shows the seat anything (`showPromptMessage`, `updateButtons`, `setSelectables`). Forge
+	 * does not always answer an act: a "which ability?" picker answered None, or with an ability
+	 * Forge then declines to play, leaves the same `InputPassPriority` standing and sends
+	 * nothing (`InputPassPriority.onCardSelected` returns without `stop()`). This is that
+	 * input's own bar, and {@link Match.resendWindow} puts it back.
+	 */
+	staleBar: ButtonsFrame | null;
 }
 
 export interface MatchDeps {
@@ -604,6 +613,14 @@ export interface MatchDeps {
 export const ACT_SILENCE_MS = 10_000;
 
 /**
+ * How long an ask answered under a disabled bar ({@link SeatState.staleBar}) may go with no
+ * window back before the server re-sends the seat's own live window. Forge answers a picked
+ * ability within milliseconds (a payment, a target, the next priority bar); silence this long
+ * is Forge keeping the input it already showed.
+ */
+export const ANSWER_SILENCE_MS = 1_500;
+
+/**
  * The asks an abort may close: for these the bridge answers Forge with the
  * ask's own default, never a null (`PlayBridge.java`'s `showConfirmDialog`
  * :1407, `showOptionDialog` :1421, `confirm` :1448). Every other ask returns
@@ -622,6 +639,12 @@ const ABORT_SAFE: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptio
 function answersAnInput(frame: unknown): boolean {
 	const f = frame as { kind?: unknown; method?: unknown } | null;
 	return f?.kind === 'ask' || f?.method === 'showPromptMessage' || f?.method === 'updateButtons' || f?.method === 'setSelectables';
+}
+
+/** Forge showing a seat its input — what ends {@link SeatState.staleBar}. An ask does not: answering it can still leave Forge silent. */
+function showsAWindow(frame: unknown): boolean {
+	const f = frame as { kind?: unknown; method?: unknown } | null;
+	return f?.kind === 'notify' && (f.method === 'showPromptMessage' || f.method === 'updateButtons' || f.method === 'setSelectables');
 }
 
 const INPUT_ACTS: ReadonlySet<string> = new Set(['selectButtonOk', 'selectButtonCancel', 'selectCard', 'selectPlayer', 'selectAbility', 'useMana']);
@@ -1026,6 +1049,7 @@ export class Match {
 			unparsed: new Map(),
 			seenAsks: new Set(),
 			actWatch: null,
+			staleBar: null,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -1139,7 +1163,7 @@ export class Match {
 		this.host.send(command);
 		if (command.t === 'act' && INPUT_ACTS.has(command.frame.method)) {
 			const s = this.seats[command.seat];
-			if (s !== undefined) this.armActWatch(s);
+			if (s !== undefined) this.armActWatch(s, 'act');
 		}
 	}
 
@@ -1161,15 +1185,37 @@ export class Match {
 	 * with nothing pending is re-sent nothing, and a callId already seen is
 	 * dropped in {@link Match.onFrame}.
 	 */
-	private armActWatch(s: SeatState): void {
+	private armActWatch(s: SeatState, after: 'act' | 'answer'): void {
 		if (s.actWatch !== null) clearTimeout(s.actWatch);
-		s.actWatch = setTimeout(() => {
-			s.actWatch = null;
-			if (this.status !== 'running') return;
-			this.deps.log({ evt: 'act-unanswered', matchId: this.id, seat: s.seat, openAsks: s.asks.size });
-			this.command({ t: 'resend-pending', seat: s.seat });
-		}, this.deps.actSilenceMs ?? ACT_SILENCE_MS);
+		s.actWatch = setTimeout(
+			() => {
+				s.actWatch = null;
+				if (this.status !== 'running') return;
+				if (s.staleBar !== null && s.asks.size === 0) this.resendWindow(s, after);
+				if (after === 'answer') return;
+				this.deps.log({ evt: 'act-unanswered', matchId: this.id, seat: s.seat, openAsks: s.asks.size });
+				this.command({ t: 'resend-pending', seat: s.seat });
+			},
+			after === 'act' ? (this.deps.actSilenceMs ?? ACT_SILENCE_MS) : ANSWER_SILENCE_MS,
+		);
 		s.actWatch.unref();
+	}
+
+	/**
+	 * Forge kept the input it last showed this seat and said nothing after the seat's act or
+	 * answer ({@link SeatState.staleBar}): that input's prompt and live bar go back on the
+	 * seat's screen, as they were. Idempotent — the bar is taken once, and Forge's own next
+	 * frame replaces whatever this sent.
+	 */
+	private resendWindow(s: SeatState, after: 'act' | 'answer'): void {
+		const bar = s.staleBar;
+		if (bar === null) return;
+		s.staleBar = null;
+		s.buttons = bar;
+		if (s.prompt !== null) this.send(s, s.prompt);
+		this.send(s, bar);
+		this.deps.log({ evt: 'window-resent', matchId: this.id, seat: s.seat, after, label1: bar.label1, label2: bar.label2 });
+		this.checkWaitingOn();
 	}
 
 	private disarmActWatch(seat: number): void {
@@ -1623,6 +1669,7 @@ export class Match {
 					ms: this.now() - ask.sentAt,
 				});
 				this.command({ t: 'reply', seat, callId: frame.callId, result: frame.result });
+				if (s.staleBar !== null) this.armActWatch(s, 'answer');
 				return { ok: true };
 			}
 			case 'abort': {
@@ -1805,6 +1852,10 @@ export class Match {
 			case 'frame':
 				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
 				if (answersAnInput(line.frame)) this.disarmActWatch(line.seat);
+				if (showsAWindow(line.frame)) {
+					const shown = this.seats[line.seat];
+					if (shown !== undefined) shown.staleBar = null;
+				}
 				this.onFrame(line.seat, line.frame);
 				return;
 			case 'resent':
@@ -2494,6 +2545,7 @@ export class Match {
 		if (buttons === null || buttons.method !== 'updateButtons') return;
 		if (!buttons.enable1 && !buttons.enable2) return;
 		const disabled = { ...buttons, enable1: false, enable2: false, focus1: false };
+		s.staleBar = buttons;
 		s.buttons = disabled;
 		this.send(s, disabled);
 		// An answer bar (the coin toss, the opening Keep/Mulligan, …) is
