@@ -777,6 +777,19 @@
 }
 
 /*
+ * And the same step below the card, outside its box, so a turned card still claims a portrait
+ * card's height in its row. Without it a row of nothing but turned cards was shorter than a
+ * card, and anything that made the row a card tall again — a drag's placement columns, an
+ * untapped card joining it — re-centred the row and moved every turned card in it by 11px (the
+ * operator, 2026-10-11: "when dragging cards i notice tapped cards shift down slightly"). The
+ * card's own box, and every mark drawn against it, is unchanged. A pile's `<li>` is sized by its
+ * fan (`board.css`) and is left out.
+ */
+.board-card:not([data-pile-size]):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+  margin-bottom: calc((680 / 488 - 488 / 680) / 2 * 100%);
+}
+
+/*
  * The card is laid out portrait at the landscape box's HEIGHT, so that turned
  * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
  * and w·488/680 tall.
