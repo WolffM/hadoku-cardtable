@@ -926,6 +926,46 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
+  it('a creature that resolves while its back is still gliding is hidden under its flying copy on the commit that draws it — never a painted frame in its slot first (w67-shaman bears)', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let onStack: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => onStack, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    const gap = reservedGap(canvas);
+    await frame();
+    theirs = [121];
+    onStack = [121];
+    wake!();
+    await frame();
+    // Still on its way into the gap, 100 px short of it.
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    back.getBoundingClientRect = () => rect({ left: 300, top: 200, width: 60, height: 84 });
+    // It resolves: the board draws it in the gap and consumes the reservation — and no frame passes.
+    gap.remove();
+    const li = document.createElement('li');
+    li.setAttribute('data-board-card', '121');
+    li.innerHTML = '<button class="board-card__face"><article class="card"><span class="card__name">Grizzly Bears</span></article></button>';
+    li.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(li);
+    onStack = [];
+    forgetPendingPlacements();
+    await Promise.resolve();
+    expect(li.hasAttribute('data-cast-landing'), 'the card is hidden before the frame paints').toBe(true);
+    expect(canvas.querySelector('.presence__handoff'), 'its copy covers it').not.toBeNull();
+    expect(canvas.querySelector('.presence__back'), 'the back handed over to the copy').toBeNull();
+    expect(placedMod.placeSpell, 'the stack layer never drew it').not.toHaveBeenCalled();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('telemetry: their creature’s hand-over to the stack card and its landing are each reported once, as the receiver, from the back’s drawn box', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;

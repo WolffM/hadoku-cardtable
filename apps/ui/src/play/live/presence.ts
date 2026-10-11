@@ -659,13 +659,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
   let unhanded: { id: number; at: number } | null = null;
   /**
-   * A creature of theirs that went to the stack on its way to a reserved column (the other seat
-   * held priority): its back turned into the placed face where it stood. When it resolves, its
-   * tile copy flies from there into the column — the trip a permanent always makes — instead of
-   * the card popping into the gap (presence.spec's release case, red on 812689e). Watched on the
-   * DOM itself, so the flight starts in the same frame the board draws the card: waiting for the
-   * next match change showed the card in its slot for 13–79 ms first (the Viridian Shaman
-   * recording, 2026-10-09).
+   * The card of theirs a placement is waiting for, watched on the DOM until the board draws it in
+   * its column: its tile copy flies there from where its stand-in is — the back in the gap, or,
+   * for a creature that went to the stack first (the other seat held priority), the placed face
+   * its back turned into — instead of the card popping into the gap (presence.spec's release
+   * case, red on 812689e). On the DOM itself, so the flight starts in the same frame the board
+   * draws the card: waiting for the next match change showed the card in its slot for 13–79 ms
+   * first (the Viridian Shaman recording, 2026-10-09), and the next animation frame for one
+   * painted frame (w67-shaman's bears, a spell resolving before the glide ended).
    */
   let stackBound: MutationObserver | null = null;
   /**
@@ -1010,15 +1011,20 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     landCastGhost(canvas, null, ghost, { x: from.left + from.width / 2, y: from.top + from.height / 2 }, slot);
   }
 
-  /** `stackBound`: fly `card` from `from` the moment the board draws it in their battlefield. */
-  function flyWhenDrawn(card: number, from: Point): void {
+  /**
+   * `stackBound`: fly `card` from `from()` the moment the board draws it in their battlefield —
+   * in the commit's own microtask, so the card is never painted in its slot before its copy
+   * covers it. `from()` returning null means the play ended some other way: nothing flies.
+   */
+  function flyWhenDrawn(card: number, from: () => Point | null): void {
     stackBound?.disconnect();
     const until = Date.now() + PLACEMENT_WAIT_MS;
     const watch = new MutationObserver(() => {
       if (Date.now() < until && !onTheirBattlefield(card)) return;
       watch.disconnect();
       if (stackBound === watch) stackBound = null;
-      if (Date.now() < until) flyTile(card, from);
+      const at = Date.now() < until ? from() : null;
+      if (at !== null) flyTile(card, at);
     });
     watch.observe(canvas, { childList: true, subtree: true });
     stackBound = watch;
@@ -1038,64 +1044,51 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     }
     if (waiting !== null && back !== null) {
       // A PERMANENT (`forBattlefield`): `Board` consumes the reservation when it draws the card in
-      // the gap, and the stand-in simply goes. That happens in React's commit of this very change,
-      // which may be AFTER this listener runs — so the reservation is read on the next frame, past
-      // the commit. A SPELL's wait has no reservation to read; only the id check below clears it.
+      // the gap, and `onPlacement`'s watch flies it there on that commit. That commit may be AFTER
+      // this listener runs — so the reservation is read on the next frame, past it: still pending
+      // means the card went to the stack. A SPELL's wait has no reservation to read; only the id
+      // check below clears it.
       if (waiting.forBattlefield) {
         const theirs = host.theirPlayerId?.() ?? null;
         const standIn = back;
-        const card = waiting.card;
         requestAnimationFrame(() => {
-          if (waiting === null || back !== standIn) return;
-          if (theirs === null) return;
-          if (pendingPlacementFor(theirs) !== null) {
-            // AE26 (the Mana Leak screenshot): a CREATURE dragged to the battlefield carries a
-            // placement (a column is reserved, this wait expects it there) — but while the other
-            // seat holds priority it sits on the STACK first. Past React's commit (this frame) a
-            // fresh id of theirs that is still nowhere on the battlefield, with the reservation
-            // still pending, is on the stack: the spell case — the back hands over to the placed
-            // card at its own point, turned over in place; the column's reservation stays for the
-            // day it resolves. The host says which of their cards are on the stack; without that
-            // reader (tests), "not on the battlefield" stands in for it.
-            //
-            // Forge answers a cast in about the glide's own time, so the back may still be on its
-            // way into the gap: handing over then drew the face short of it, and the card hopped the
-            // rest of the way when it landed (w67-shaman, 16 px). The glide finishes first, the stack
-            // card held hidden meanwhile (`holdSpell`: its pending window alone ran out first when
-            // the glide started late, and it showed at the default spot). A spell that resolves
-            // meanwhile is in its column, and the branch below flies it there.
-            const onStack = fresh.find((id) => onTheirStack(id));
-            if (onStack === undefined) return;
-            play.stackFrameAt ??= Date.now();
-            const wait = waiting;
-            const settle = (): void => {
-              handTimer = null;
-              afterSeek = null;
-              if (waiting !== wait || back !== standIn || !onTheirStack(onStack)) return;
-              const left = glide === 'seeking' ? null : (glide ?? 0) - Date.now();
-              if (left === null || left > 0) {
-                holdSpell(onStack);
-                heldSpell = onStack;
-                if (left === null) afterSeek = settle;
-                else handTimer = setTimeout(settle, left);
-                return;
-              }
-              const at = handToSpell(onStack);
-              if (at !== null) flyWhenDrawn(onStack, at);
-            };
-            if (handTimer !== null) clearTimeout(handTimer);
-            settle();
-            return;
-          }
-          // The card is in its column. The stand-in was still on its 300 ms glide there more often
-          // than not (Forge answers a cast faster than that), and taking it down here cut the glide
-          // short: the back vanished mid-flight and the card popped into the gap — the owner's own
-          // screen glides the whole way (`landCastGhost`). So the back hands over to the card's own
-          // tile copy from wherever it is right now, which finishes the trip; the card waits hidden
-          // under it. From the gap itself (Forge was slow), the trip is a stand-still reveal.
-          const from = drawnCentre(standIn) ?? backAt;
-          stopWaiting();
-          if (card !== null && from !== null) flyTile(card, from);
+          if (waiting === null || back !== standIn || theirs === null || pendingPlacementFor(theirs) === null) return;
+          // AE26 (the Mana Leak screenshot): a CREATURE dragged to the battlefield carries a
+          // placement (a column is reserved, this wait expects it there) — but while the other
+          // seat holds priority it sits on the STACK first. Past React's commit (this frame) a
+          // fresh id of theirs that is still nowhere on the battlefield, with the reservation
+          // still pending, is on the stack: the spell case — the back hands over to the placed
+          // card at its own point, turned over in place; the column's reservation stays for the
+          // day it resolves. The host says which of their cards are on the stack; without that
+          // reader (tests), "not on the battlefield" stands in for it.
+          //
+          // Forge answers a cast in about the glide's own time, so the back may still be on its
+          // way into the gap: handing over then drew the face short of it, and the card hopped the
+          // rest of the way when it landed (w67-shaman, 16 px). The glide finishes first, the stack
+          // card held hidden meanwhile (`holdSpell`: its pending window alone ran out first when
+          // the glide started late, and it showed at the default spot). A spell that resolves
+          // meanwhile is in its column, and `onPlacement`'s watch flies it there.
+          const onStack = fresh.find((id) => onTheirStack(id));
+          if (onStack === undefined) return;
+          play.stackFrameAt ??= Date.now();
+          const wait = waiting;
+          const settle = (): void => {
+            handTimer = null;
+            afterSeek = null;
+            if (waiting !== wait || back !== standIn || !onTheirStack(onStack)) return;
+            const left = glide === 'seeking' ? null : (glide ?? 0) - Date.now();
+            if (left === null || left > 0) {
+              holdSpell(onStack);
+              heldSpell = onStack;
+              if (left === null) afterSeek = settle;
+              else handTimer = setTimeout(settle, left);
+              return;
+            }
+            const at = handToSpell(onStack);
+            if (at !== null) flyWhenDrawn(onStack, () => at);
+          };
+          if (handTimer !== null) clearTimeout(handTimer);
+          settle();
         });
         return;
       }
@@ -1186,7 +1179,20 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     standBack(root, root.getBoundingClientRect(), from);
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
-    waiting = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
+    const wait = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
+    waiting = wait;
+    // The card reaching its column while the stand-in still waits — straight from the hand, or a
+    // spell resolving before the glide let it hand over to the stack — finishes the stand-in's
+    // trip: the card's own tile copy flies on from wherever the stand-in is drawn now (Forge
+    // answers a cast faster than the 300 ms glide more often than not; taking the back down cut
+    // the glide short and the card popped into the gap), and from the gap itself (Forge was slow)
+    // it is a stand-still reveal. A spell handed over to the stack re-arms this from there.
+    flyWhenDrawn(card, () => {
+      if (waiting !== wait || back !== standIn) return null;
+      const at = drawnCentre(standIn) ?? backAt;
+      stopWaiting();
+      return at;
+    });
     // The board draws the reserved gap on its next commit — usually before the next frame, not
     // always under load (a busy claw left the back at the release point, w67-shaman): looked for
     // again each frame until it is there.
