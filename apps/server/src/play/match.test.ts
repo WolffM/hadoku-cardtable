@@ -332,9 +332,8 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 	});
 
 	it('an ask the browser answers inside the grace is never told to the other seat — no flash', () => {
-		// A lone `getAbilityToPlay` on a land play is open 14–21 ms against the real jar
-		// (`w62-bounce.jvm.test.ts`); the other screen flashed "Waiting for Alice to decide…"
-		// twice per land before this (claws run 37842845722).
+		// The other screen flashed "Waiting for Alice to decide…" twice per land before the grace
+		// (claws run 37842845722).
 		vi.useFakeTimers();
 		const h = waitingHarness();
 		h.host.push(...OPENING);
@@ -347,6 +346,54 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		vi.advanceTimersByTime(500);
 		expect(h.told.length, 'nothing told: the wait never outlived the grace').toBe(before);
 		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+	});
+
+	describe("the seat's own click's one-ability offer, which its browser answers by itself", () => {
+		const offer = (callId: string, hostCard: number) => ({
+			t: 'frame' as const,
+			seat: 0,
+			frame: {
+				kind: 'ask' as const,
+				callId,
+				method: 'getAbilityToPlay' as const,
+				hostCard: { kind: 'card' as const, id: hostCard },
+				abilities: [{ kind: 'spellAbility' as const, id: 255, label: 'Play land' }],
+				triggerEvent: null,
+			},
+		});
+		const click = (h: Harness, card: number) =>
+			h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: card }, otherCardViewsToSelect: [], triggerEvent: null }));
+
+		it('is never told to the other seat, however long a loaded browser takes to answer it', () => {
+			// Claws: the browser's reply took 154 and 371 ms, past the grace, and bob read
+			// "Waiting for Alice to decide…" for a land Alice had already played (e2e/w62-bounce.spec.ts).
+			vi.useFakeTimers();
+			const h = waitingHarness();
+			h.host.push(...OPENING);
+			h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+			vi.advanceTimersByTime(200);
+			const before = h.told.length;
+			click(h, 121);
+			h.host.push(offer('land-1', 121));
+			expect(h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'land-1'), 'the browser is asked').toBe(true);
+			vi.advanceTimersByTime(400);
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+			expect(h.told.slice(before).some((seats) => seats[0]?.waitingOn !== undefined), 'never told').toBe(false);
+		});
+
+		it('under full control it is the picker, a real decision: told after the grace', () => {
+			vi.useFakeTimers();
+			const h = waitingHarness();
+			h.host.push(...OPENING);
+			h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+			h.match.setFullControl(0, true);
+			vi.advanceTimersByTime(200);
+			click(h, 121);
+			h.host.push(offer('land-2', 121));
+			vi.advanceTimersByTime(200);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getAbilityToPlay' } });
+			expect(h.told.at(-1)![0]).toMatchObject({ waitingOn: { method: 'getAbilityToPlay' } });
+		});
 	});
 
 	it('a wait that appears is told after the grace even while frames keep re-checking it — the grace is a delay, never a debounce (AE16)', () => {

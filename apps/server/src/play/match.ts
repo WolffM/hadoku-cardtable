@@ -789,6 +789,21 @@ const FRAMES_RING_SIZE = 500;
 const YIELD_ACCEPT_LABEL = 'Accept';
 const YIELD_DECLINE_LABEL = 'Decline';
 
+/**
+ * An ask this seat's browser answers the moment it lands, with no one deciding
+ * anything: a `getAbilityToPlay` with one ability while full control is off
+ * (`autoAnswer` in `apps/ui/src/play/prompts/rules.ts` — the offer the seat's
+ * own click opened, which `onlyAnswer` leaves to the browser so the board can
+ * say what was played). It is open for as long as that browser takes to render
+ * and reply: 14–21 ms against the jar, 139–371 ms on a loaded claw, where
+ * `WAITING_ON_GRACE_MS` no longer covered it and the other screen read
+ * "Waiting for Alice to decide…" for a land she had already played
+ * (`e2e/w62-bounce.spec.ts`).
+ */
+function answersItself(frame: ServerFrame, fullControl: boolean): boolean {
+	return !fullControl && frame.kind === 'ask' && frame.method === 'getAbilityToPlay' && frame.abilities.length === 1;
+}
+
 /** A wait that appears is told to the other seat after this long; one that clears, at once — `Match.checkWaitingOn`. */
 const WAITING_ON_GRACE_MS = 150;
 
@@ -1304,9 +1319,12 @@ export class Match {
 	 * seat's folded history, never this seat's: a card only this seat can see
 	 * (its own hand) is absent from that fold and resolves to `null`; the
 	 * stack and a battlefield are public either way and resolve to a name.
+	 *
+	 * **An ask the browser answers on its own is nobody's decision** —
+	 * {@link answersItself}.
 	 */
 	private waitingOnFor(s: SeatState): { method: string; hostCard: string | null } | null {
-		const decision = s.asks.values().next().value;
+		const decision = [...s.asks.values()].find((ask) => !answersItself(ask.frame, s.fullControl));
 		// A live bar on an ORDINARY priority window (Forge's "Priority: …" prompt) is not a decision
 		// either: the seat merely holds priority. The operator, 2026-10-08 (AE13), after a bounceland
 		// returned itself with no choice to make: *"it still shows 'Waiting for Bella to decide…' as if
@@ -1385,10 +1403,10 @@ export class Match {
 			this.deps.seatsChanged?.(this.seatIdentities());
 		};
 		// A wait that CLEARS is told at once (the other seat must not sit on a stale sentence — AD5).
-		// A wait that APPEARS is told after a short grace: an ask the browser answers on its own the
-		// moment it lands (a lone `getAbilityToPlay` on a land play — measured 14–21 ms open,
-		// `w62-bounce.jvm.test.ts`) flashed "Waiting for Alice to decide…" twice on the other
-		// screen per land played (claws run 37842845722). Nobody reads a 150 ms delay on a real wait.
+		// A wait that APPEARS is told after a short grace, so a fact that is gone again a few frames
+		// later never flashes on the other screen. Nobody reads a 150 ms delay on a real wait. An ask
+		// the browser answers on its own is not a wait at all (`answersItself`): no grace is long
+		// enough for a loaded browser's reply.
 		const told = this.lastWaitingOnKey === '' ? [] : (JSON.parse(this.lastWaitingOnKey) as (unknown | null)[]);
 		const appears = facts.some((f, i) => f !== null && JSON.stringify(f) !== JSON.stringify(told[i] ?? null));
 		if (!appears) {
