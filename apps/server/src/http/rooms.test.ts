@@ -257,7 +257,7 @@ describe('POST /api/rooms', () => {
 			'name',
 			'you',
 		]);
-		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name', 'ready']);
+		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
 
 		// The verbatim body, for the lanes coding against it.
 		if (process.env.CARDTABLE_ROOMVIEW_OUT) {
@@ -1248,7 +1248,8 @@ describe('POST /api/rooms/:id/identity', () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
 			import('../room/lobby.ts').RoomView;
-		expect(memberAvatars(room)[0]).not.toHaveProperty('avatarId');
+		// The character the room handed her, until she says which is hers.
+		expect(room.members[0]?.avatarId).toBe('sage');
 
 		const set = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: 'wanderer' } });
 		expect(set.status).toBe(200);
@@ -1271,11 +1272,9 @@ describe('POST /api/rooms/:id/identity', () => {
 		expect(set.status).toBe(200);
 		const after = (set.json() as import('../room/lobby.ts').RoomView).members;
 		expect(after.find((m) => m.name === 'user-bob')?.avatarId).toBe('rogue');
-		// Alice is untouched, and her key is still absent rather than cleared to
-		// something. There is no field in the body that could have named her.
-		expect(memberAvatars(set.json() as import('../room/lobby.ts').RoomView).find((m) => m.name === 'user-alice')).not.toHaveProperty(
-			'avatarId',
-		);
+		// Alice is untouched: she still wears the character the room handed her.
+		// There is no field in the body that could have named her.
+		expect(after.find((m) => m.name === 'user-alice')?.avatarId).toBe('sage');
 	});
 
 	it('leaves the key OFF the wire for a member with no avatar, never sending "" or null', async () => {
@@ -1284,6 +1283,8 @@ describe('POST /api/rooms/:id/identity', () => {
 			import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: 'mage' } });
+		// Bob clears the character he was handed: a member with none.
+		await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'bob', body: { avatarId: null } });
 
 		// On the BYTES, because this is the property a browser depends on: an
 		// empty string survives a `!== undefined` check and then resolves to a

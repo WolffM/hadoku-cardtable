@@ -17,8 +17,8 @@
  * start, for a fresh browser whose cache is empty (w31 P3b); after that the cache
  * is the newer of the two, because the picker writes it on every save.
  *
- * The unset case is still watchparty's (`WATCHPARTY_ROSTER_FOR_HOST.md`): a
- * viewer with no readable avatar asserts nothing and this does not invent one.
+ * A viewer with no readable avatar asserts nothing: the room handed them a
+ * character on joining (`room/lobby.ts`'s `AVATAR_POOL`), and that stands.
  * A viewer who CLEARS theirs is not noticed either, for the same reason the
  * assert never sent `null` before: the cache holds no avatar either way.
  */

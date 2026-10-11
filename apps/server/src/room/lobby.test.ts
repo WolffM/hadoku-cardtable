@@ -26,6 +26,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { loadTablesLibrary } from '../http/library.ts';
 import {
 	AVATAR_ID_MAX,
+	AVATAR_POOL,
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
 	draftIdOfPool,
@@ -765,15 +766,17 @@ describe('a member\'s avatar', () => {
 	const avatarOf = (room: RoomView | undefined, memberId: string) =>
 		room?.members.find((m) => m.id === memberId);
 
-	it('is absent until it is set, and is then carried on every view of the room', async () => {
+	it('is handed out on joining, the first character no member wears, and a pick replaces it on every view of the room', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
-		// A member who has never picked one: no key, on the create result and on
-		// every later read.
-		expect(made.room.members[0]).not.toHaveProperty('avatarId');
-		expect(avatarOf(lobby.get(made.room.id), ALICE.id)).not.toHaveProperty('avatarId');
+		// A member who has never picked one wears the room's first free character,
+		// on the create result and on every later read.
+		expect(made.room.members[0]?.avatarId).toBe('sage');
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		expect(lobby.join(made.room.id, CAROL).ok).toBe(true);
+		expect(lobby.get(made.room.id)?.members.map((m) => m.avatarId)).toEqual(['sage', 'herald', 'cleric']);
 
 		expect(lobby.setAvatar(made.room.id, ALICE.id, 'wanderer')).toBe(true);
 		expect(avatarOf(lobby.get(made.room.id), ALICE.id)?.avatarId).toBe('wanderer');
@@ -810,7 +813,51 @@ describe('a member\'s avatar', () => {
 
 		expect(lobby.setAvatar(made.room.id, BOB.id, 'rogue')).toBe(true);
 		expect(avatarOf(lobby.get(made.room.id), BOB.id)?.avatarId).toBe('rogue');
-		expect(avatarOf(lobby.get(made.room.id), ALICE.id)).not.toHaveProperty('avatarId');
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)?.avatarId).toBe('sage');
+	});
+
+	it('moves a handed-out character to the next free one when another member picks it, and never moves a pick', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Picks', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		const heard: unknown[] = [];
+		lobby.onAvatarChange((c) => heard.push(c));
+
+		// Bob picks alice's handed-out sage: he wears it, she is handed the next free.
+		expect(lobby.setAvatar(id, BOB.id, 'sage')).toBe(true);
+		expect(avatarOf(lobby.get(id), BOB.id)?.avatarId).toBe('sage');
+		expect(avatarOf(lobby.get(id), ALICE.id)?.avatarId).toBe('herald');
+		expect(heard).toEqual([
+			{ roomId: id, memberId: BOB.id, avatarId: 'sage' },
+			{ roomId: id, memberId: ALICE.id, avatarId: 'herald' },
+		]);
+
+		// Alice picks; bob then picking hers takes nothing from her.
+		expect(lobby.setAvatar(id, ALICE.id, 'knight')).toBe(true);
+		expect(lobby.setAvatar(id, BOB.id, 'knight')).toBe(true);
+		expect(lobby.get(id)?.members.map((m) => m.avatarId)).toEqual(['knight', 'knight']);
+	});
+
+	it('is handed out only while a character is free, and a leaver frees theirs', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const callers = [ALICE, BOB, CAROL, ...Array.from({ length: AVATAR_POOL.length - 2 }, (_, i) => ({ id: `fk:${String(i + 4).repeat(16).slice(0, 16)}`, name: `user-${i + 4}` }))];
+		const made = lobby.create(callers[0]!, { name: 'Crowd', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		for (const c of callers.slice(1)) expect(lobby.join(id, c).ok).toBe(true);
+		const members = lobby.get(id)?.members ?? [];
+		expect(members.slice(0, AVATAR_POOL.length).map((m) => m.avatarId)).toEqual([...AVATAR_POOL]);
+		// One more member than characters: they go without, as in watchparty.
+		expect(members[AVATAR_POOL.length]).not.toHaveProperty('avatarId');
+
+		lobby.leave(id, BOB.id);
+		const late = { id: 'fk:eeeeeeeeeeeeeeee', name: 'user-late' };
+		expect(lobby.join(id, late).ok).toBe(true);
+		expect(avatarOf(lobby.get(id), late.id)?.avatarId).toBe('herald');
 	});
 
 	it('survives a restart, because it is persisted beside the name and not in the opaque blob', async () => {
@@ -827,7 +874,8 @@ describe('a member\'s avatar', () => {
 		// the right half of the snapshot.
 		const second = await openLobby({ dir });
 		expect(avatarOf(second.get(made.room.id), ALICE.id)?.avatarId).toBe('knight');
-		expect(avatarOf(second.get(made.room.id), BOB.id)).not.toHaveProperty('avatarId');
+		// A handed-out one is persisted the same way: bob keeps his face across a deploy.
+		expect(avatarOf(second.get(made.room.id), BOB.id)?.avatarId).toBe('herald');
 	});
 
 	it('folds null and every blank spelling to ABSENT, never to an empty string', async () => {

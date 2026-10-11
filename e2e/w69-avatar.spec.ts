@@ -12,7 +12,7 @@
  * holding the mark and the life number under it: a tall box with straight
  * sides around the face.
  *
- * Alice wears a character; bob keeps the drawn mark. Each opens and closes the
+ * Alice wears a character; bob clears the one he was handed and wears the drawn mark. Each opens and closes the
  * settings from their own face every way the popover closes, presses a key
  * after the press that closed it, and focuses the face from the keyboard with
  * the turn ring off and on. Every state's screenshot of the face is compared,
@@ -60,11 +60,14 @@ const SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84" v
  * `POST /api/rooms/:id/identity` with the match id, which the server resolves to
  * its room and carries to the running match's seat (Q6). Their sprite server is
  * stood in for by `SPRITE`.
+ *
+ * Bob clears the character the room handed him on joining (`null`, the same
+ * call), which leaves his seat the drawn mark.
  */
-async function wearCharacter(f: Friend, origin: string, matchId: string, sprite: string): Promise<void> {
+async function wearCharacter(f: Friend, origin: string, matchId: string, sprite: string | null): Promise<void> {
   await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
   const res = await f.context.request.post(`${origin}/cardtable/api/rooms/${matchId}/identity`, { data: { avatarId: sprite } });
-  expect(res.ok(), `${f.name}: the room takes her character (${res.status()} ${await res.text()})`).toBe(true);
+  expect(res.ok(), `${f.name}: the room takes their character (${res.status()} ${await res.text()})`).toBe(true);
 }
 
 const trigger = (f: Friend): Locator => f.page.getByTestId('seat-settings');
@@ -251,9 +254,10 @@ test(titled("your own face stays a circle when it opens and closes the settings,
     const bob = await openFriend(browser, 'bob');
     const { matchId } = await enterMatch(alice, bob, stack.origin);
     await wearCharacter(alice, stack.origin, matchId, 'rogue');
+    await wearCharacter(bob, stack.origin, matchId, null);
     await expect(trigger(alice).getByTestId('seat-avatar'), "alice's face is her character").toBeVisible({ timeout: 30_000 });
     await expect(trigger(alice).getByTestId('seat-avatar')).toHaveJSProperty('complete', true);
-    await expect(trigger(bob).locator('svg.face__art'), "bob's face is the drawn mark").toBeVisible();
+    await expect(trigger(bob).locator('svg.face__art'), "bob's face is the drawn mark").toBeVisible({ timeout: 20_000 });
     await everyWay(alice);
     await everyWay(bob);
   } finally {

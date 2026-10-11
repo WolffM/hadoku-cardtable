@@ -223,9 +223,9 @@ function watchpartyPrefsClient(): PrefsClient<WatchpartyPrefs> {
 /**
  * This viewer's chosen avatar from their ACCOUNT, falling back to this browser's
  * cache when the account cannot be read (offline, signed out, a host without the
- * prefs route). Null when neither knows: that is the unset case (D2), which only
- * watchparty's own auto-assigned sprite could fill and nothing readable to us
- * carries.
+ * prefs route). Null when neither knows: the viewer has picked nothing, and
+ * wears the character the room handed them on joining (`room/lobby.ts`'s
+ * `AVATAR_POOL`).
  */
 export async function accountAvatarId(userId: string | null | undefined): Promise<string | null> {
   try {

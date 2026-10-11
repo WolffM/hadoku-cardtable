@@ -182,7 +182,8 @@ export function useWhoami(): Who | null | 'pending' {
  * **A refusal is ignored, deliberately.** `roomId` here is whatever the route
  * carries, which for `#/match/<id>` is a MATCH id. The server resolves that to
  * the lobby room that started the match (`roomOfMatch`); it used to answer 404
- * for both players at every match start (wave 31 P3b). A viewer with no avatar sends nothing at all; the server's "clear it"
+ * for both players at every match start (wave 31 P3b). A viewer with no avatar sends nothing at all and keeps the
+ * character the room handed them on joining; the server's "clear it"
  * case exists for a viewer who HAD one and dropped it, which only the chrome can
  * tell us about, and it cannot yet.
  */

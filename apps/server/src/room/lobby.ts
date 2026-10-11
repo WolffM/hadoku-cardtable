@@ -291,13 +291,49 @@ function avatarIdOf(v: unknown): string | undefined {
 	return trimmed === '' || trimmed.length > AVATAR_ID_MAX ? undefined : trimmed;
 }
 
+/**
+ * The characters a room hands out to a member who has not picked one, in the
+ * order it hands them out: watchparty's `CHARACTER_ORDER`
+ * (`hadoku-watchparty` `packages/shared/src/protocol.ts`), which its server
+ * draws from on join (`apps/server/src/ws/join.ts`). Copied because that
+ * package is private to their repo; `docs/requests/ROOMS_AVATAR_POOL.md` asks
+ * for it to be published. A picked avatar is never checked against this list.
+ */
+export const AVATAR_POOL = ['sage', 'herald', 'cleric', 'knight', 'mage', 'brawler', 'wanderer', 'rogue'] as const;
+
+/**
+ * The first character in the pool no current member wears — watchparty's
+ * `getAvailableSprites(room)[0]` (`@wolffm/rooms-server`'s `availableAvatars`,
+ * which reads a socket room's claim set; ours is the members themselves).
+ * Undefined when all are taken: that member goes without, as in watchparty.
+ */
+function freeAvatar(members: readonly MemberRecord[]): string | undefined {
+	const worn = new Set(members.map((m) => m.avatarId));
+	return AVATAR_POOL.find((a) => !worn.has(a));
+}
+
+/** A new member, wearing the room's next free character. */
+function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: number): MemberRecord {
+	const avatarId = freeAvatar(room);
+	return {
+		id: caller.id,
+		name: caller.name,
+		joinedAt,
+		state: undefined,
+		ready: false,
+		...(avatarId === undefined ? {} : { avatarId, avatarGiven: true }),
+	};
+}
+
 export interface RoomMember {
 	/** A ParticipantId from `identityFromHeaders`. */
 	id: string;
 	/** `userIdOf(req)` — the same string `/api/whoami` returns as `userId`. */
 	name: string;
 	/**
-	 * The character this member picked in watchparty's room, when they have one.
+	 * The character this member picked in watchparty's room, or the one this
+	 * room handed them on joining when they had picked none (`AVATAR_POOL`).
+	 * Absent only when every character was taken, or the member cleared it.
 	 *
 	 * **Absent or a non-blank string, never `null` and never `''`** — see
 	 * `avatarIdOf`. The value is watchparty's `sprite` id (`sage`, `herald`,
@@ -670,6 +706,13 @@ interface MemberRecord {
 	ready: boolean;
 	/** Normalised by `avatarIdOf` on the way in, so this is never `''` and never `null`. */
 	avatarId?: string;
+	/**
+	 * The room handed `avatarId` out (`newMember`) rather than the member picking
+	 * it, so a member who picks the same character takes it over. In memory only:
+	 * after a restart a handed-out avatar counts as picked, which costs at most a
+	 * shared face until somebody picks again.
+	 */
+	avatarGiven?: true;
 }
 
 interface RoomRecord {
@@ -1120,7 +1163,7 @@ class FileLobby implements Lobby {
 			draftStartedAt: null,
 			createdAt: now,
 			updatedAt: now,
-			members: [{ id: caller.id, name: caller.name, joinedAt: now, state: undefined, ready: false }],
+			members: [newMember([], caller, now)],
 		};
 		this.#rooms.set(id, room);
 		if (input.password !== undefined && input.password !== '') {
@@ -1149,7 +1192,7 @@ class FileLobby implements Lobby {
 		if (secret !== undefined && !passwordMatches(secret, password ?? '')) {
 			return { ok: false, reason: 'no-match' };
 		}
-		room.members.push({ id: caller.id, name: caller.name, joinedAt: this.#now(), state: undefined, ready: false });
+		room.members.push(newMember(room.members, caller, this.#now()));
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
 		return { ok: true, room: this.#view(room), alreadyMember: false };
@@ -1175,22 +1218,40 @@ class FileLobby implements Lobby {
 		// which for a room somebody leaves open all evening would otherwise be a
 		// snapshot write per reload for a value that never moved. `true` either
 		// way: the caller asked for a state and the room is in it.
+		// A pick of the character the room handed out makes it picked, which
+		// changes nothing anybody sees.
+		delete member.avatarGiven;
 		if (next === member.avatarId) return true;
 		if (next === undefined) delete member.avatarId;
 		else member.avatarId = next;
+		// A pick wins over a character the room handed somebody else: they are
+		// given the next free one, as watchparty's join gives a taken sprite's
+		// asker the next free one. Their own pick, when they have one, is never moved.
+		const moved = room.members.filter((m) => m !== member && m.avatarGiven === true && m.avatarId === next);
+		for (const m of moved) {
+			const free = freeAvatar(room.members);
+			if (free === undefined) {
+				delete m.avatarId;
+				delete m.avatarGiven;
+			} else m.avatarId = free;
+		}
 		this.#persist(room);
+		for (const m of [member, ...moved]) this.#announceAvatar(roomId, m.id, m.avatarId ?? null);
+		return true;
+	}
+
+	#announceAvatar(roomId: string, memberId: string, avatarId: string | null): void {
 		// The id itself, not the member's: which character somebody picked is not
 		// a secret, and a log line that could not name it could not be read.
-		this.#log({ event: 'room-avatar', roomId, avatarId: next ?? null });
+		this.#log({ event: 'room-avatar', roomId, avatarId });
 		for (const listener of [...this.#avatarListeners]) {
 			try {
-				listener({ roomId, memberId, avatarId: next ?? null });
+				listener({ roomId, memberId, avatarId });
 			} catch (err) {
 				// A broken subscriber must not undo a change that is already stored.
 				this.#log({ event: 'room-avatar-listener-failed', roomId, error: (err as Error).message });
 			}
 		}
-		return true;
 	}
 
 	onAvatarChange(listener: AvatarChangeListener): () => void {
