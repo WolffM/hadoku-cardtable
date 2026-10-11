@@ -1,0 +1,19 @@
+# Scapeshift ({2}{G}{G} sorcery, "Sacrifice any number of lands. Search your
+# library for up to that many land cards…"). Seat 0 holds it and ten untapped
+# lands, so the sacrifice is one selection of ten cards — Forge's
+# `choosePermanentsTo` "Select up to 10 land(s) to sacrifice", the tall grid
+# the operator's OK button was hidden under. Seat 1 has nothing to answer
+# with. `e2e/prompt-bar.spec.ts` drives it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Scapeshift
+humanbattlefield=Forest;Forest;Forest;Forest;Island;Island;Mountain;Mountain;Swamp;Plains
+humanlibrary=Forest;Island;Mountain;Swamp;Plains;Wastes;Wastes;Wastes;Wastes;Wastes;Wastes;Wastes
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
