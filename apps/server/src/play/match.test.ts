@@ -2778,3 +2778,60 @@ describe('a scry is one prompt', () => {
 		expect(shown(h, 'x-exile')[0]?.envelope.frame).not.toHaveProperty('rest');
 	});
 });
+
+describe("a modal spell's modes are one prompt", () => {
+	const MODES = ['Counter target spell.', "Return target permanent to its owner's hand.", 'Tap all creatures your opponents control.', 'Draw a card.'];
+	const message = 'Alice activated Cryptic Command - Choose a mode';
+	/** Forge's mode question over `labels`, `modes` set on the first one the way the bridge sets it. */
+	const modeAsk = (callId: string, labels: string[], o: { min?: number; modes?: { min: number; max: number } } = {}) => ({
+		kind: 'ask' as const,
+		callId,
+		method: 'getChoices' as const,
+		message,
+		min: o.min ?? 1,
+		max: 1,
+		choices: labels.map((label, i) => ({ key: `c${i}`, label, ref: { kind: 'spellAbility' as const, id: 741 + MODES.indexOf(label) } })),
+		selected: [],
+		...(o.modes === undefined ? {} : { modes: { ...o.modes, card: { kind: 'card' as const, id: 17 } } }),
+	});
+	const shown = (h: Harness, callId: string) =>
+		h.sent.filter((s) => s.seat === 0 && s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+	const reply = (callId: string, result: string[]) => ClientFrameSchema.parse({ kind: 'reply', callId, method: 'getChoices', result });
+
+	it('"choose two" is one question picking two; Forge gets the first, then the second from the same reply, never asked again', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-1', MODES, { modes: { min: 2, max: 2 } }) });
+		expect(shown(h, 'x-mode-1')[0]?.envelope.frame).toMatchObject({ method: 'getChoices', min: 2, max: 2, modes: { min: 2, max: 2, card: { id: 17 } } });
+
+		expect(h.match.fromClient(0, reply('x-mode-1', ['c0', 'c3']))).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-mode-1', result: ['c0'] }]);
+
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-2', MODES.slice(1)) });
+		expect(shown(h, 'x-mode-2')).toEqual([]);
+		expect(h.host.commands[1]).toEqual({ t: 'reply', seat: 0, callId: 'x-mode-2', result: ['c2'] });
+	});
+
+	it('"choose one or more": fewer picks than the most allowed stop Forge at its optional question', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-3', MODES, { modes: { min: 1, max: 4 } }) });
+		expect(shown(h, 'x-mode-3')[0]?.envelope.frame).toMatchObject({ min: 1, max: 4 });
+		h.match.fromClient(0, reply('x-mode-3', ['c1']));
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-4', [MODES[0]!, MODES[2]!, MODES[3]!], { min: 0 }) });
+		expect(shown(h, 'x-mode-4')).toEqual([]);
+		expect(h.host.commands[1]).toEqual({ t: 'reply', seat: 0, callId: 'x-mode-4', result: [] });
+	});
+
+	it('a later question without the mode next in line reaches the seat; a one-mode spell is left alone', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-5', MODES, { modes: { min: 2, max: 2 } }) });
+		h.match.fromClient(0, reply('x-mode-5', ['c0', 'c3']));
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-6', [MODES[1]!, MODES[2]!]) });
+		expect(shown(h, 'x-mode-6')).toHaveLength(1);
+
+		h.host.push({ t: 'frame', seat: 0, frame: modeAsk('x-mode-7', MODES) });
+		expect(shown(h, 'x-mode-7')[0]?.envelope.frame).toMatchObject({ min: 1, max: 1 });
+	});
+});

@@ -217,6 +217,7 @@ import {
   pressButton,
   selectCard,
   subscribe,
+  type LiveAsk,
   type LiveMatch,
 } from '../match.ts';
 // Where a cast lands on the battlefield — a plain function, not a component,
@@ -336,6 +337,14 @@ function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn'
     }
   }
   return 'limbo';
+}
+
+/** The card an open ask names as its subject, or null. */
+function cardAsked(ask: LiveAsk): number | null {
+  if ('hostCard' in ask) return ask.hostCard.id;
+  if (ask.method === 'getChoices') return ask.modes?.card.id ?? null;
+  if (ask.method === 'order') return ask.referenceCard?.id ?? null;
+  return null;
 }
 
 /** Forge's state has the card on a battlefield — the one zone that draws an element per card for it to land on. */
@@ -881,11 +890,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
-  /** Forge is asking this seat something about `cardId`, or taking its payment. */
+  /**
+   * Forge is asking this seat something about `cardId`, or taking its payment.
+   * A cast asks some of its questions while the card is still in the hand —
+   * which ability, its modes (`modes.card`), its optional costs (an `order`
+   * whose `referenceCard` it is) — and each names the card, so a person
+   * taking their time over one keeps it in the air.
+   */
   function askedAbout(cardId: number): boolean {
     if (payingMana(match)) return true;
     if (match.promptCard === cardId && (match.selectables !== null || match.asks.length > 0 || stackAsk(match) !== null)) return true;
-    return match.asks.some((ask) => 'hostCard' in ask && ask.hostCard.id === cardId);
+    return match.asks.some((ask) => cardAsked(ask) === cardId);
   }
 
   /**

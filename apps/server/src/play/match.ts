@@ -130,6 +130,7 @@ import {
 	type StopWindow,
 } from './auto.js';
 import { answerRest, arrangeAsk, restOrder } from './arrange.js';
+import { firstMode, modesAsk, nextMode, type ModesLeft } from './modes.js';
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
@@ -491,6 +492,12 @@ export interface SeatState {
 	 * and is answered with it (`./arrange.ts`). Cleared by the next ask either way.
 	 */
 	restOnTop: number[] | null;
+	/**
+	 * The modes a modal spell's one prompt picked that Forge has not asked for
+	 * yet, until its later mode questions arrive and are answered with them
+	 * (`./modes.ts`). Cleared by the next ask either way.
+	 */
+	modesLeft: ModesLeft | null;
 	/**
 	 * Half of a window a decider can answer, held until the other half
 	 * arrives so the window is decided before either reaches the wire. A
@@ -1010,6 +1017,7 @@ export class Match {
 			pendingReveal: null,
 			mergedChoice: new Map(),
 			restOnTop: null,
+			modesLeft: null,
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
@@ -1590,6 +1598,15 @@ export class Match {
 					s.restOnTop = rest.length > 1 ? rest : null;
 					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, rest });
 					this.command({ t: 'reply', seat, callId: frame.callId, result: { ordered: reply.ordered, rememberDecision: reply.rememberDecision } });
+					return { ok: true };
+				}
+				// A modal spell's one prompt: Forge is sent the first mode, and the rest
+				// wait for its later mode questions (`./modes.ts`).
+				if (frame.method === 'getChoices' && ask.frame.kind === 'ask' && ask.frame.method === 'getChoices' && ask.frame.modes !== undefined) {
+					const first = firstMode(ask.frame, frame.result as string[]);
+					s.modesLeft = first.left;
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, modes: frame.result });
+					this.command({ t: 'reply', seat, callId: frame.callId, result: first.result });
 					return { ok: true };
 				}
 				// Wave 35 §S, R4 — a real (unmerged) discard choice answered plainly:
@@ -2860,7 +2877,24 @@ export class Match {
 			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: restAnswer });
 			return;
 		}
-		const frame = arrangeAsk(offered) ?? this.narrowNames(s, offered);
+		const modes = s.modesLeft;
+		s.modesLeft = null;
+		const modeAnswer = modes === null ? null : nextMode(offered, modes);
+		if (modeAnswer !== null) {
+			s.modesLeft = modeAnswer.left;
+			s.autoAnswered += 1;
+			this.deps.log({
+				evt: 'ask-auto-answered',
+				matchId: this.id,
+				seat: s.seat,
+				callId: offered.callId,
+				method: offered.method,
+				why: 'the modes the modal spell prompt already picked',
+			});
+			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: modeAnswer.result });
+			return;
+		}
+		const frame = arrangeAsk(offered) ?? modesAsk(offered) ?? this.narrowNames(s, offered);
 		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
 		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : onlyAnswer(frame, s.policy));

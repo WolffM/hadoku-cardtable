@@ -561,6 +561,14 @@ export const ConfirmReplySchema = z.boolean();
  * Forge's `CardFaceView`s, every face of every card a predicate lets through —
  * 33,659 for Cabal Therapy's "nonland"). It replaces `choices`, which is then
  * empty: each name is its own key, so the reply quotes the chosen name back.
+ *
+ * `modes` is ours, never Forge's: the bridge sets it on the first of a modal
+ * spell's mode questions (`PlayBridge.java`'s `ModeCounts`). Forge asks one
+ * mode per `getChoices` (`PlayerControllerHuman.chooseModeForAbility`); `min`
+ * and `max` are the modes it will take in all, as `CharmEffect.makeChoices`
+ * counted them, and `card` is the spell's own card. The server shows the seat
+ * one question picking `min`..`max` and answers Forge's later mode questions
+ * from that reply (`apps/server/src/play/modes.ts`).
  */
 export const GetChoicesSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -572,6 +580,7 @@ export const GetChoicesSchema = z.strictObject({
   choices: z.array(ChoiceOptionSchema),
   selected: z.array(z.string()),
   names: z.array(z.string()).optional(),
+  modes: z.strictObject({ min: z.number().int(), max: z.number().int(), card: CardRefSchema }).optional(),
 });
 
 export const GetChoicesReplySchema = z.array(z.string());

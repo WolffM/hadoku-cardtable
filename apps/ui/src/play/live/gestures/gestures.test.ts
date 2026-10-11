@@ -3047,6 +3047,32 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
 
+  it('a modal spell keeps waiting past PARK_UNANSWERED_MS while its modes are chosen, the card still in the hand', async () => {
+    // The operator on Cryptic Command, 2026-10-11: "it seems to go back to hand after doing the first selection".
+    const { s, m, canvas, card } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 's0-65',
+        method: 'getChoices',
+        message: 'Alice activated Cryptic Command - Choose a mode',
+        min: 2,
+        max: 2,
+        choices: [
+          { key: 'c0', label: 'Counter target spell.', ref: { kind: 'spellAbility', id: 741 } },
+          { key: 'c1', label: 'Draw a card.', ref: { kind: 'spellAbility', id: 744 } },
+          { key: 'c2', label: 'Tap all creatures your opponents control.', ref: { kind: 'spellAbility', id: 743 } },
+        ],
+        selected: [],
+        modes: { min: 2, max: 2, card: { kind: 'card', id: card } },
+      }),
+    );
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
+    expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
+  }, 20_000);
+
   it('a card Forge stopped offering between the lift and the release is not sent, and floats back', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);

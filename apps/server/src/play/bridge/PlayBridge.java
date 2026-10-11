@@ -1507,6 +1507,24 @@ public final class PlayBridge {
             return out;
         }
 
+        /**
+         * The first of a modal spell's mode questions, as Forge counts them: how many
+         * modes this seat picks in all and whose spell they are, or null for any other
+         * list. {@link ModeCounts} recorded the count on the game thread just before
+         * Forge asked; the spell's card is the abilities' own host.
+         */
+        private <T> JsonObject modesOf(final List<T> choices) {
+            if (choices == null || choices.isEmpty() || !(choices.get(0) instanceof SpellAbilityView sa)) { return null; }
+            final PlayerView me = getCurrentPlayer();
+            final int[] count = me == null ? null : BridgeGui.ModeCounts.PENDING.remove(me.getId());
+            if (count == null || sa.getHostCard() == null) { return null; }
+            final JsonObject o = new JsonObject();
+            o.addProperty("min", count[0]);
+            o.addProperty("max", count[1]);
+            o.add("card", ref("card", sa.getHostCard().getId()));
+            return o;
+        }
+
         @Override
         public <T> List<T> getChoices(final String message, final int min, final int max, final List<T> choices,
                                       final List<T> selected, final FSerializableFunction<T, String> display) {
@@ -1528,6 +1546,8 @@ public final class PlayBridge {
                 f.add("names", names);
             } else {
                 f.add("choices", choices(ask, "c", choices, display));
+                final JsonObject modes = modesOf(choices);
+                if (modes != null) { f.add("modes", modes); }
             }
             final JsonArray sel = new JsonArray();
             if (selected != null && choices != null) {
@@ -2061,6 +2081,7 @@ public final class PlayBridge {
             }
             hm.setStartGameHook(() -> {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
+                ModeCounts.install(hm.getGame());
                 if (state == null) { return; }
                 state.applyToGame(hm.getGame());
                 resyncSeats(hm.getGame());
@@ -2102,6 +2123,75 @@ public final class PlayBridge {
                     }
                 }
             }
+        }
+
+        /**
+         * How many modes a modal spell's caster picks, as Forge itself counts them.
+         *
+         * <p>{@code CharmEffect.makeChoices} works out {@code min} and {@code num} ("choose
+         * two", "choose one or both", "choose one or more") and hands them to
+         * {@code PlayerControllerHuman.chooseModeForAbility}, which then asks ONE mode at a
+         * time — {@code getGui().one(...)} per mode, {@code oneOrNone} past {@code min}
+         * ({@code PlayerControllerHuman.java:1925-1951}) — so the wire never carries the
+         * count. Just before that loop the controller offers the choice to its macro system
+         * ({@code macros().consumeRememberedModeChoice(choices, min, num, allowRepeat)},
+         * {@code :1917}), with the count. Each human seat's macro system is wrapped here
+         * (Forge's own {@code RecordActionsMacroSystem} kept underneath, every call passed
+         * through) so that call also leaves {@code {min, num}} under the chooser's player
+         * id; the seat's next {@code getChoices} — Forge's first mode question — carries it
+         * as {@code modes} ({@link SeatGui#modesOf}), and the server asks the seat once.
+         * A spell that may pick one mode twice ({@code CanRepeatModes}) is still asked a
+         * mode at a time: one list of checkboxes cannot pick an entry twice. The private {@code macros} field is set by reflection, as
+         * {@link #refreshActionable} does; no Forge file changes.
+         */
+        static final class ModeCounts implements forge.interfaces.IMacroSystem {
+            static final Map<Integer, int[]> PENDING = new ConcurrentHashMap<>();
+
+            private final forge.interfaces.IMacroSystem forge;
+            private final int playerId;
+
+            private ModeCounts(final forge.interfaces.IMacroSystem forge, final int playerId) {
+                this.forge = forge;
+                this.playerId = playerId;
+            }
+
+            static void install(final Game game) {
+                for (final var player : game.getPlayers()) {
+                    if (!(player.getController() instanceof PlayerControllerHuman human) || human.macros() instanceof ModeCounts) { continue; }
+                    try {
+                        final java.lang.reflect.Field macros = PlayerControllerHuman.class.getDeclaredField("macros");
+                        macros.setAccessible(true);
+                        macros.set(human, new ModeCounts(human.macros(), player.getId()));
+                    } catch (final ReflectiveOperationException e) {
+                        System.err.println("[bridge] ModeCounts: macros reflection failed (" + e + "); modes are asked one at a time");
+                    }
+                }
+            }
+
+            @Override public List<String> consumeRememberedModeChoice(final List<String> choices, final int min, final int num, final boolean allowRepeat) {
+                final List<String> remembered = forge.consumeRememberedModeChoice(choices, min, num, allowRepeat);
+                if (remembered == null && num > 1 && !allowRepeat) { PENDING.put(playerId, new int[] { min, num }); }
+                return remembered;
+            }
+
+            @Override public void addRememberedAction(final forge.game.player.actions.PlayerAction action) { forge.addRememberedAction(action); }
+            @Override public void setRememberedActions() { forge.setRememberedActions(); }
+            @Override public void nextRememberedAction() { forge.nextRememberedAction(); }
+            @Override public void repeatRememberedActions() { forge.repeatRememberedActions(); }
+            @Override public void cancelPlayback() { forge.cancelPlayback(); }
+            @Override public void cancelCurrentMacro() { forge.cancelCurrentMacro(); }
+            @Override public boolean isRecording() { return forge.isRecording(); }
+            @Override public boolean isReplaying() { return forge.isReplaying(); }
+            @Override public boolean hasRememberedActions() { return forge.hasRememberedActions(); }
+            @Override public Byte consumeRememberedColorChoice(final List<MagicColor.Color> choices) { return forge.consumeRememberedColorChoice(choices); }
+            @Override public Map<Byte, Integer> consumeRememberedManaCombo(final List<MagicColor.Color> choices, final int manaAmount, final boolean different) {
+                return forge.consumeRememberedManaCombo(choices, manaAmount, different);
+            }
+            @Override public List<String> consumeRememberedAbilityOrder(final List<String> choices) { return forge.consumeRememberedAbilityOrder(choices); }
+            @Override public org.apache.commons.lang3.tuple.ImmutablePair<forge.game.card.CardCollection, forge.game.card.CardCollection> consumeRememberedScry(final forge.game.card.CardCollection topN) {
+                return forge.consumeRememberedScry(topN);
+            }
+            @Override public String playbackText() { return forge.playbackText(); }
         }
 
         /**
