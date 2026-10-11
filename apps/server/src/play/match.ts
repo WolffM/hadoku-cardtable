@@ -128,7 +128,9 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
+import { artOf } from './art.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import { faceNames, namesForFormat } from './names.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 
 /**
@@ -520,6 +522,11 @@ export interface SeatState {
 
 export interface MatchDeps {
 	host: MatchHostFactory;
+	/**
+	 * The card names legal in a format id (`names.ts`'s `formatNameSets`), or null
+	 * when the format has no list. Absent: every card-name ask offers Forge's whole list.
+	 */
+	formatNames?(format: string): ReadonlySet<string> | null;
 	/** Deliver one envelope to every connection bound to this seat. */
 	emit(seat: number, envelope: ServerEnvelope): void;
 	log(entry: Record<string, unknown>): void;
@@ -890,6 +897,9 @@ export class Match {
 	 * seat's `history` grows past the cached length.
 	 */
 	private readonly foldedCache = new Map<number, { len: number; state: ReadonlyMap<string, WireObj> }>();
+
+	/** Every name either seat's deck (or a test scenario) plays — offered by a card-name ask whatever the format. */
+	private deckNames: ReadonlySet<string> | null = null;
 
 	constructor(
 		id: string,
@@ -1436,6 +1446,10 @@ export class Match {
 				if (ask === undefined) return { ok: false, error: 'stale-reply' };
 				if (ask.method !== frame.method) {
 					return { ok: false, error: `reply is for ${frame.method}, the open ask is ${ask.method}` };
+				}
+				const named = ask.frame.method === 'getChoices' ? ask.frame.names : undefined;
+				if (named !== undefined && !(frame.result as string[]).every((name) => named.includes(name))) {
+					return { ok: false, error: 'reply names a card that was not offered' };
 				}
 				this.closeAsk(s, ask.callId);
 				// Wave 35 §S, R4 — the browser answered a SYNTHETIC ask standing in
@@ -2712,7 +2726,8 @@ export class Match {
 	 * branch there gates on a notify method an ask never carries), so sending
 	 * it here is complete, not a partial duplicate.
 	 */
-	private openAsk(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask' }>): void {
+	private openAsk(s: SeatState, offered: Extract<ServerFrame, { kind: 'ask' }>): void {
+		const frame = this.narrowNames(s, offered);
 		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
 		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : onlyAnswer(frame, s.policy));
@@ -2737,6 +2752,17 @@ export class Match {
 			return;
 		}
 		this.openAskFrame(s, frame.callId, frame.method, frame);
+	}
+
+	/** A card-name ask offers what the match's format allows and the decks play (`names.ts`). */
+	private narrowNames(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask' }>): Extract<ServerFrame, { kind: 'ask' }> {
+		if (frame.method !== 'getChoices' || frame.names === undefined) return frame;
+		const format = this.spec.format ?? null;
+		const legal = format === null ? null : (this.deps.formatNames?.(format) ?? null);
+		this.deckNames ??= faceNames(artOf(this.spec).map((card) => card.name));
+		const names = namesForFormat(frame.names, legal, this.deckNames);
+		this.deps.log({ evt: 'name-ask', matchId: this.id, seat: s.seat, callId: frame.callId, format, offered: frame.names.length, shown: names.length });
+		return names === frame.names ? frame : { ...frame, names: [...names] };
 	}
 
 	/**

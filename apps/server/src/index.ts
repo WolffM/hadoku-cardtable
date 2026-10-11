@@ -78,7 +78,7 @@ import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
-import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
+import { attachPlay, jvmHostConfig, jvmHostFactory, roomFormatNames, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -416,7 +416,7 @@ setInterval(sweepRooms, ROOM_SWEEP_MS).unref();
 // deck is in, and play's registry does not exist until attachPlay below — which
 // must stay after this call for the gate to answer first at all.
 let play: PlayHandle | null = null;
-attachTables(api, {
+const tables = attachTables(api, {
 	repoRoot: resolve(PKG_ROOT, '../..'),
 	draftRooms,
 	rooms: lobby,
@@ -436,6 +436,8 @@ play = attachPlay(io, api, {
 	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 	onGameOver: matchStats.gameOver,
+	// A card-name ask offers the names of the room's pool (`play/names.ts`).
+	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
 });
 
 // ── The browser bridge ───────────────────────────────────────────────────────

@@ -14,3 +14,4 @@ export {
 	type JvmPoolOptions,
 	type MatchHostFactory,
 } from './host.js';
+export { roomFormatNames } from './names.js';

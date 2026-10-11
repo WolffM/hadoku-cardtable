@@ -19,6 +19,7 @@ import { startScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
+const FORMAT = 'legacy-2005-08-20';
 const nameAsk = (page: Page) => page.locator('[data-testid="live-prompt"][data-method="getChoices"]').filter({ hasText: /card name/i });
 const zoneNames = (page: Page, zone: 'hand' | 'graveyard', owner: 'you' | 'them') =>
   page.locator(`[data-zone="${zone}"][data-owner="${owner}"] [data-board-card] .card__name`).allTextContents();
@@ -46,7 +47,7 @@ test(titled('Cabal Therapy: the name picker is up at once, offers the format’s
   test.setTimeout(4 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'w69-name-card');
+    const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'w69-name-card', { format: FORMAT });
     for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
     await watchForPicker(alice.page);
     const castAt = Date.now();
@@ -98,7 +99,7 @@ test(titled('Cabal Therapy: the name picker is up at once, offers the format’s
     console.log(`[gg-name] "goblin gui" offers: ${JSON.stringify(goblins)}`);
     expect(goblins, 'Goblin Guide (2010) is not offered in Legacy 2005').not.toContain('Goblin Guide');
     await search.fill('');
-    await search.pressSequentially('grizz');
+    await search.pressSequentially('grizzly b');
     await expect(options.first(), 'typing part of the name finds it').toHaveText('Grizzly Bears');
     await search.press('Enter');
     await expect(nameAsk(alice.page), 'Enter names it').toHaveCount(0, { timeout: 10_000 });

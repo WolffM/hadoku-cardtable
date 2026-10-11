@@ -37,6 +37,7 @@ import forge.game.GameEntityView;
 import forge.game.GameState;
 import forge.game.GameView;
 import forge.game.event.GameEventCombatUpdate;
+import forge.game.card.CardFaceView;
 import forge.game.card.CardView;
 import forge.game.card.CounterType;
 import forge.game.keyword.KeywordCollectionView;
@@ -1470,12 +1471,25 @@ public final class PlayBridge {
             f.addProperty("message", str(message));
             f.addProperty("min", min);
             f.addProperty("max", max);
-            f.add("choices", choices(ask, "c", choices, display));
+            final boolean named = choices != null && !choices.isEmpty() && choices.get(0) instanceof CardFaceView;
+            if (named) {
+                // A card-name ask (`chooseSingleCardFace`): every face Forge's predicate let
+                // through, tens of thousands of them. Each name is its own key, listed once.
+                final JsonArray names = new JsonArray();
+                for (final T item : choices) {
+                    final String name = ((CardFaceView) item).getName();
+                    if (ask.byKey.putIfAbsent(name, item) == null) { names.add(name); }
+                }
+                f.add("choices", new JsonArray());
+                f.add("names", names);
+            } else {
+                f.add("choices", choices(ask, "c", choices, display));
+            }
             final JsonArray sel = new JsonArray();
             if (selected != null && choices != null) {
                 for (final T s : selected) {
                     final int i = choices.indexOf(s);
-                    if (i >= 0) { sel.add("c" + i); }
+                    if (i >= 0) { sel.add(named ? ((CardFaceView) s).getName() : "c" + i); }
                 }
             }
             f.add("selected", sel);

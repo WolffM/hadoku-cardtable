@@ -1076,6 +1076,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				decks: [players[0]!.state.text, botDeck!.text],
 				avatarIds: [players[0]!.member.avatarId, undefined],
 				names: [players[0]!.member.name, undefined],
+				format: room.format,
 			};
 			next();
 			return;
@@ -1087,6 +1088,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// Seat names (wave 31 shape 1): the same order, each the member's display
 			// name, so Forge's own prompts and the board say who is who.
 			names: players.map((p) => p.member.name),
+			// The pool a card-name ask is narrowed to (`play/names.ts`).
+			format: room.format,
 		};
 		next();
 	}

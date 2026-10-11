@@ -293,6 +293,12 @@ export interface MatchSpec {
 	 * otherwise, so production never sends one.
 	 */
 	scenario?: string;
+	/**
+	 * The room's format id (`room/lobby.ts`'s `FormatId`): what a card-name ask is
+	 * narrowed to (`names.ts`). Inert in the JVM — `configFrom` never reads it — and
+	 * kept in `config.json` so a match taken back after a restart still has it.
+	 */
+	format?: string;
 }
 
 type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];

@@ -642,7 +642,7 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 	switch (frame.method) {
 
 		case 'getChoices': {
-			const keys = frame.choices.map((c) => c.key);
+			const keys = frame.names ?? frame.choices.map((c) => c.key);
 			if (frame.min === keys.length && frame.max >= keys.length) {
 				return ok(callId, frame.method, keys, 'every option had to be chosen');
 			}

@@ -99,7 +99,7 @@ export function choiceBounds(min: number, max: number): { min: number; max: numb
 
 export function getChoicesProblems(ask: AskOf<'getChoices'>, reply: readonly string[]): Problems {
   const problems: Problems = [];
-  const known = new Set(ask.choices.map((c) => c.key));
+  const known = new Set(ask.names ?? ask.choices.map((c) => c.key));
   for (const key of reply) if (!known.has(key)) problems.push(`"${key}" was not offered`);
   for (const key of duplicates(reply)) problems.push(`"${key}" chosen twice`);
   const { min, max } = choiceBounds(ask.min, ask.max);

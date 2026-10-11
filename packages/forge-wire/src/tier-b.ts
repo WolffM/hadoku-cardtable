@@ -554,6 +554,11 @@ export const ConfirmReplySchema = z.boolean();
  * List<T> selected, FSerializableFunction<T, String> display)` —
  * IGuiGame.java:185. See the module header on the `<T>` and `display`
  * projection. The reply is the chosen options' keys.
+ *
+ * `names` is a card-name ask (`PlayerControllerHuman.chooseSingleCardFace`:
+ * Forge's `CardFaceView`s, every face of every card a predicate lets through —
+ * 33,659 for Cabal Therapy's "nonland"). It replaces `choices`, which is then
+ * empty: each name is its own key, so the reply quotes the chosen name back.
  */
 export const GetChoicesSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -564,6 +569,7 @@ export const GetChoicesSchema = z.strictObject({
   max: z.number().int(),
   choices: z.array(ChoiceOptionSchema),
   selected: z.array(z.string()),
+  names: z.array(z.string()).optional(),
 });
 
 export const GetChoicesReplySchema = z.array(z.string());

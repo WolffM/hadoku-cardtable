@@ -17,12 +17,13 @@
  * path and the live driver see exactly what they saw before.
  */
 
-import { useState } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
 import { OptionButton, PromptShell, promptTileFor } from './PromptShell.tsx';
 import { isZoneDividerLabel, plainRulesText, promptText, refName, translateTargetWords, type PromptLookup } from './lookup.ts';
+import { nameIndex, searchNames } from './name-search.ts';
 import { RulesText } from './RulesText.tsx';
 import {
   abilityProblems,
@@ -150,7 +151,82 @@ function NumberChoiceSlider({
   );
 }
 
-export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>) {
+export function GetChoicesPrompt(props: PromptProps<'getChoices'>) {
+  return props.ask.names !== undefined ? <NamePickPrompt {...props} /> : <ListChoicesPrompt {...props} />;
+}
+
+/**
+ * A card-name ask (Cabal Therapy, Pithing Needle): a search over the names, never
+ * the whole list drawn — 33,659 rows froze the tab long enough to drop its socket
+ * (the operator, 2026-10-11). Typing narrows the matches; arrows move through
+ * them, Enter or a click names the card.
+ */
+function NamePickPrompt({ ask, onAnswer }: PromptProps<'getChoices'>) {
+  const names = ask.names ?? [];
+  const index = useMemo(() => nameIndex(names), [names]);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
+  const matches = useMemo(() => searchNames(index, query), [index, query]);
+  const at = Math.min(active, Math.max(0, matches.length - 1));
+  const pick = (name: string) => {
+    const problems = getChoicesProblems(ask, [name]);
+    assertAnswerable('getChoices', problems);
+    onAnswer(checkedReply('getChoices', [name]));
+  };
+  const decline = choiceBounds(ask.min, ask.max).min === 0 ? () => onAnswer(checkedReply('getChoices', [])) : undefined;
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActive(Math.min(Math.max(at + step, 0), Math.max(0, matches.length - 1)));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const name = matches[at];
+      if (name !== undefined) pick(name);
+    }
+  };
+  return (
+    <PromptShell method="getChoices" title={promptText(ask.message)} onSubmit={decline}>
+      <input
+        className="prompt__input prompt__name-search"
+        data-testid="prompt-name-search"
+        type="search"
+        role="combobox"
+        aria-label={promptText(ask.message)}
+        aria-expanded={matches.length > 0}
+        aria-controls={`names-${ask.callId}`}
+        aria-activedescendant={matches.length > 0 ? `names-${ask.callId}-${at}` : undefined}
+        autoComplete="off"
+        spellCheck={false}
+        autoFocus
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setActive(0);
+        }}
+        onKeyDown={onKeyDown}
+      />
+      <ul className="prompt__list prompt__names" id={`names-${ask.callId}`} role="listbox">
+        {matches.map((name, i) => (
+          <li
+            key={name}
+            id={`names-${ask.callId}-${i}`}
+            role="option"
+            aria-selected={i === at}
+            data-testid="prompt-name-option"
+            data-active={i === at || undefined}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => pick(name)}
+          >
+            {name}
+          </li>
+        ))}
+      </ul>
+    </PromptShell>
+  );
+}
+
+function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>) {
   const bounds = choiceBounds(ask.min, ask.max);
   const known = new Set(ask.choices.map((c) => c.key));
   const range = bounds.max > 0 ? numericChoiceRange(ask) : null;

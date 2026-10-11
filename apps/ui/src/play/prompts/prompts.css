@@ -657,3 +657,17 @@
 .reveal-notice > .prompt__submit {
   align-self: flex-end;
 }
+
+/* ── naming a card: a search, and the few names that match ────────── */
+
+.prompt__name-search {
+  width: 100%;
+}
+
+.prompt__names > li {
+  cursor: pointer;
+}
+
+.prompt__names > li[data-active] {
+  border-color: var(--accent);
+}

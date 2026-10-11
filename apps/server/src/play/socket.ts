@@ -157,6 +157,8 @@ export interface PlayDeps {
 	rejoinGraceMs?: number;
 	/** A match's game ended: Forge's verdict and every seat's history are final. The stats reporter listens. */
 	onGameOver?(match: Match): void;
+	/** See {@link MatchDeps.formatNames}. */
+	formatNames?(format: string): ReadonlySet<string> | null;
 }
 
 export interface PlayHandle {
@@ -291,7 +293,8 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 }
 
 /**
- * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?], names?: [string?, string?], scenario?: string }`.
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?], names?: [string?, string?], scenario?: string, format?: string }`.
+ * `format` is the room's format id, which a card-name ask is narrowed to (`names.ts`).
  *
  * `names` (wave 31 §S) is what Forge shows for each seat, in seat order — see
  * {@link sanitizeSeatName}. Unlike `avatarIds` it IS the Forge player's name,
@@ -316,7 +319,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
-		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds' && key !== 'names' && key !== 'scenario') {
+		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds' && key !== 'names' && key !== 'scenario' && key !== 'format') {
 			return { ok: false, error: `unknown field ${key}` };
 		}
 	}
@@ -348,6 +351,10 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		}
 		scenario = b.scenario;
 	}
+	if (b.format !== undefined && (typeof b.format !== 'string' || b.format.length === 0 || b.format.length > 200)) {
+		return { ok: false, error: 'format is a format id' };
+	}
+	const format = b.format as string | undefined;
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
 	// whole spec to the JVM. `jvm.test.ts` has always used it by building a spec
@@ -399,6 +406,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		],
 		...(Number.isFinite(seed) ? { seed } : {}),
 		...(scenario === undefined ? {} : { scenario }),
+		...(format === undefined ? {} : { format }),
 	};
 	return { ok: true, spec };
 }
@@ -511,6 +519,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
+		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
 		seatsChanged: (match, seats) => {
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
 			// — both seats, and spectators — gets the new roster on the event a join

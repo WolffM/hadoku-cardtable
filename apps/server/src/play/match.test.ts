@@ -2533,3 +2533,68 @@ describe("declare-attackers' farewell", () => {
 		expect(h.logs.filter((l) => l.why === 'attack-farewell')).toEqual([]);
 	});
 });
+
+describe('a card-name ask', () => {
+	const DECK = '[metadata]\nName=Guides\n[Main]\n4 Goblin Guide|ZEN\n56 Mountain|ZEN\n';
+
+	function named(format: string | undefined) {
+		const { factory, hosts } = replayFactory();
+		const sent: Harness['sent'] = [];
+		const logs: Record<string, unknown>[] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: (e) => logs.push(e),
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
+			formatNames: (id) => (id === 'legacy-2005' ? new Set(['Grizzly Bears', 'Llanowar Elves']) : null),
+		});
+		const match = registry.create({
+			seats: [
+				{ name: 'Seat 1', ai: false, deck: null },
+				{ name: 'Seat 2', ai: false, deck: DECK },
+			],
+			...(format === undefined ? {} : { format }),
+		});
+		const h: Harness = { match, host: hosts[0] as ReplayHost, sent, logs };
+		h.host.push(...OPENING);
+		h.host.push({
+			t: 'frame',
+			seat: 0,
+			frame: {
+				kind: 'ask',
+				callId: 'x-name-1',
+				method: 'getChoices',
+				message: 'Choose a nonland card name.',
+				min: 1,
+				max: 1,
+				choices: [],
+				selected: [],
+				names: ['Ach! Hans, Run!', 'Goblin Guide', 'Grizzly Bears', 'Llanowar Elves'],
+			},
+		});
+		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-name-1');
+		return { h, names: (shown?.envelope.frame as { names?: string[] } | undefined)?.names };
+	}
+
+	const answer = (name: string) => ClientFrameSchema.parse({ kind: 'reply', callId: 'x-name-1', method: 'getChoices', result: [name] });
+
+	it('offers the names the format allows and a deck plays, never one outside both', () => {
+		const { h, names } = named('legacy-2005');
+		expect(names).toEqual(['Goblin Guide', 'Grizzly Bears', 'Llanowar Elves']);
+		expect(h.logs.find((l) => l.evt === 'name-ask')).toMatchObject({ format: 'legacy-2005', offered: 4, shown: 3 });
+		expect(h.match.fromClient(0, answer('Ach! Hans, Run!'))).toEqual({ ok: false, error: 'reply names a card that was not offered' });
+		expect(h.host.commands).toEqual([]);
+	});
+
+	it('the chosen name reaches Forge as its own key', () => {
+		const { h } = named('legacy-2005');
+		expect(h.match.fromClient(0, answer('Grizzly Bears'))).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-name-1', result: ['Grizzly Bears'] }]);
+	});
+
+	it('a match with no format offers Forge’s whole list', () => {
+		expect(named(undefined).names).toEqual(['Ach! Hans, Run!', 'Goblin Guide', 'Grizzly Bears', 'Llanowar Elves']);
+		expect(named('free').names).toHaveLength(4);
+	});
+});
