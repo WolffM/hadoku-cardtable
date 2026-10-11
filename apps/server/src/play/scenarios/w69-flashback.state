@@ -1,0 +1,21 @@
+# w69-flashback (the operator, 2026-10-11, on Cabal Therapy): "it was awkward to play from the graveyard.
+# i was like dragging an arrow from the graveyard, but it should be possible to pick up cards from the
+# graveyard if they have flashback. so i should be able to drag them and play them like a spell, not have
+# a target arrow drawn. the target arrow should come after the spell is played." Alice's graveyard is
+# Island, Think Twice, Firebolt (Firebolt on top, drawn whole). Five Mountains and three Islands pay both
+# flashbacks ({4}{R}, then {2}{U}), so Forge offers both from the graveyard at her main phase; Firebolt
+# asks its target only once cast. The Island under them is a card the pile opens from (a click on an
+# offered card is that card's own). The Island in hand keeps the main phase a real stop.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Island;Island;Island
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=Island;Think Twice;Firebolt
+aihand=
+aibattlefield=Forest
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
