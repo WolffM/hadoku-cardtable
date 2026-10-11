@@ -592,6 +592,44 @@
   box-shadow: 0 0 12px var(--accent);
 }
 
+/* ── refused: Forge turned this card's play away ────────────────────────── */
+
+/*
+ * The operator, 2026-10-11: a play Forge refused used to come back with nothing said. A short shake
+ * and a ring in the danger colour (`LiveMatch.refused`). The value alternates per refusal so a second
+ * one of the same card restarts the animation.
+ */
+.board-card[data-refused='odd'] > .board-card__face {
+  animation: card-refused-odd 0.6s ease-out;
+}
+
+.board-card[data-refused='even'] > .board-card__face {
+  animation: card-refused-even 0.6s ease-out;
+}
+
+.board-card[data-refused] > .board-card__face .card {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+@keyframes card-refused-odd {
+  0%, 100% { translate: 0 0; }
+  20%, 60% { translate: -4px 0; }
+  40%, 80% { translate: 4px 0; }
+}
+
+@keyframes card-refused-even {
+  0%, 100% { translate: 0 0; }
+  20%, 60% { translate: -4px 0; }
+  40%, 80% { translate: 4px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-refused] > .board-card__face {
+    animation: none;
+  }
+}
+
 /* ── picked: this one of the offer is already chosen ───────────────────── */
 
 /*

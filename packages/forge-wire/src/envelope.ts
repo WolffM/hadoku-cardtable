@@ -145,8 +145,8 @@ export const REPLY_SCHEMAS = {
 /* ── Server → client ─────────────────────────────────────────────────── */
 
 /**
- * Every frame the bridge may send a browser: 32 arms, discriminated on
- * `method` — 9 Tier A, 20 Tier B, 3 Tier C. The last three are the state
+ * Every frame the bridge may send a browser: 33 arms, discriminated on
+ * `method` — 10 Tier A, 20 Tier B, 3 Tier C. The last three are the state
  * channel, modelled from the Wave 7 captures in `tier-c.ts`.
  *
  * This number had said 29 since before Wave 19, which added two server frames

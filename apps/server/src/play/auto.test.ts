@@ -2253,7 +2253,7 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		push(h, seat, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', me));
 	}
 
-	it('presses Forge’s own Cancel, exactly once for that cost, and says nothing', () => {
+	it('presses Forge’s own Cancel, exactly once for that cost, and says nothing — the seat sees the refusal', () => {
 		const h = harness();
 		unpayable(h, 0);
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
@@ -2269,6 +2269,9 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 		// The cast never happened, so there is nothing to account for: no line.
 		expect(says(h, 0)).toEqual([]);
+		// The seat did not cancel it; it sees its play turned away, once, and the other seat sees nothing.
+		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction' }]);
+		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
 	});
 
 	it('never presses it when Forge’s Auto is live — that is the payment’s business', () => {

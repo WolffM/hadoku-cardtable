@@ -599,6 +599,19 @@ export interface LiveMatch {
    */
   lastSelectedCard: number | null;
   /**
+   * The card whose click began this seat's current act: a click with no
+   * selection open and no payment running, so never a target or a land tapped
+   * to pay. The card a refusal ({@link LiveMatch.refused}) marks.
+   */
+  actCard: number | null;
+  /**
+   * The card Forge just turned away (`flashIncorrectAction`: a click it would
+   * refuse, or a payment the server cancelled because nothing can pay it),
+   * for {@link REFUSED_MS}. `seq` tells a second refusal of the same card from
+   * the first, so the mark is drawn again.
+   */
+  refused: { card: number; seq: number } | null;
+  /**
    * Wave 49 §A — the bridge's OWN wire fact for the counterspell arc (X3,
    * wave 46 §B): `fromId → toId`, straight off `PlayBridge.java`'s own
    * `stackTargetSpells` (`../fold.ts`'s `FoldResult.stackTargetSpells`, folded
@@ -822,6 +835,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     spent: { cards: new Set(), players: new Set() },
     attackIntent: null,
     lastSelectedCard: null,
+    actCard: null,
+    refused: null,
     stackTargetSpells: new Map(),
     avatarByPlayerId: null,
     nameByPlayerId: null,
@@ -1374,6 +1389,7 @@ function cardIdsInView(view: BoardView): Set<number> {
  */
 export function selectCard(match: LiveMatch, cardId: number, placement?: Placement): boolean {
   if (!boardInteraction(match).selectable.has(cardId)) return false;
+  if (match.selectables === null && !payingMana(match)) match.actCard = cardId;
   match.spent.cards.add(cardId);
   match.lastSelectedCard = cardId;
   noteAttackIntent(match, cardId);
@@ -2453,6 +2469,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       match.says.push(frame.message);
       if (match.says.length > SAYS_KEPT) match.says.shift();
     }
+  } else if (frame.kind === 'notify' && frame.method === 'flashIncorrectAction') {
+    if (match.actCard !== null) refuse(match, match.actCard);
   } else if (frame.kind === 'notify' && frame.method === 'clearWeaklySelectable') {
     // The input that offered them has stopped. `inputLive` is NOT cleared
     // here: Forge clears the set at the END of priority and again at the start
@@ -2462,6 +2480,19 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.weaklySelectableManaOnly = null;
   }
   foldFrames(match, [frame]);
+}
+
+/** How long a refused card is marked ({@link LiveMatch.refused}). */
+export const REFUSED_MS = 900;
+
+function refuse(match: LiveMatch, card: number): void {
+  const seq = (match.refused?.seq ?? 0) + 1;
+  match.refused = { card, seq };
+  setTimeout(() => {
+    if (match.refused?.seq !== seq) return;
+    match.refused = null;
+    notify(match);
+  }, REFUSED_MS);
 }
 
 /** The frames Forge sends when an input shows, refreshes or stops: "Forge spoke". */
@@ -2500,6 +2531,8 @@ function discardLocal(match: LiveMatch): void {
   match.inputLive = false;
   match.attackIntent = null;
   match.lastSelectedCard = null;
+  match.actCard = null;
+  match.refused = null;
   match.stackTargetSpells = new Map();
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;

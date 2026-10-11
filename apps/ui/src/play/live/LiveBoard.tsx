@@ -2099,6 +2099,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * `selectable` itself claims for the same cards.
      */
     actionable: offered.selectionOpen ? EMPTY_CARD_IDS : offered.selectable,
+    refused: match.refused ?? undefined,
     /*
      * The operator, Playtest 10: *"hard to tell when i have a card selected
      * because the background for all cards is green."* Forge's own

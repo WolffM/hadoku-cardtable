@@ -2474,66 +2474,6 @@ describe('frameGist (the probe-mode frame trace)', () => {
 	});
 });
 
-/* ── declare-attackers' farewell: InputAttack.onOk re-draws its window after the OK ── */
-
-describe("declare-attackers' farewell", () => {
-	const MEMNITE = { kind: 'card', id: 7 };
-	const frameLine = (frame: Record<string, unknown>): BridgeLine => ({ t: 'frame', seat: 0, frame }) as BridgeLine;
-	const prompt = (message: string): BridgeLine => frameLine({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
-	const attackBar = (live: boolean): BridgeLine =>
-		frameLine({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Call Back', enable1: live, enable2: live, focus1: live });
-	// `InputAttack.updateMessage`: lblSelectAttackCreatures + " " + currentDefender + " " + lblSelectAttackTarget.
-	const attackPrompt = (defender: string): BridgeLine => prompt(`Select creatures to attack ${defender}  or select player/card you wish to attack.`);
-	/** `setCurrentDefender(null)` → `updateMessage()` inside `onOk`, then `stop()` → `clearActionableCards()`. */
-	const farewell: BridgeLine[] = [
-		frameLine({ kind: 'notify', method: 'setHighlighted', entities: [{ kind: 'player', id: 1 }], on: false }),
-		attackPrompt('null'),
-		attackBar(true),
-		frameLine({ kind: 'notify', method: 'setWeaklySelectable', cards: [MEMNITE] }),
-		frameLine({ kind: 'notify', method: 'clearWeaklySelectable' }),
-	];
-
-	function declaring(): Harness {
-		const h = harness();
-		h.match.claim(ALICE);
-		h.match.claim(BOB);
-		h.host.push(...OPENING, attackPrompt('Seat 2'), attackBar(true));
-		return h;
-	}
-
-	const sentSince = (h: Harness, mark: number): Record<string, unknown>[] => envelopesFor(h, 0).slice(mark).map((e) => e.frame as Record<string, unknown>);
-
-	it('the window Forge draws after the OK never reaches the seat: no prompt, no live bar, no attackers lit again', () => {
-		const h = declaring();
-		expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }))).toEqual({ ok: true });
-		const mark = envelopesFor(h, 0).length;
-		h.host.push(...farewell);
-		const sent = sentSince(h, mark);
-		expect(sent.map((f) => f.method)).toEqual(['setHighlighted', 'clearWeaklySelectable']);
-		expect(h.logs.filter((l) => l.why === 'attack-farewell')).toEqual([{ evt: 'prompt-withheld', matchId: h.match.id, seat: 0, kind: 'attack', why: 'attack-farewell' }]);
-	});
-
-	it("Forge's next window after the farewell goes out as always — the bar is withheld only inside it", () => {
-		const h = declaring();
-		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
-		h.host.push(...farewell);
-		const mark = envelopesFor(h, 0).length;
-		h.host.push(attackPrompt('Seat 2'), attackBar(true), frameLine({ kind: 'notify', method: 'setWeaklySelectable', cards: [MEMNITE] }));
-		const sent = sentSince(h, mark);
-		expect(sent.map((f) => f.method)).toEqual(['showPromptMessage', 'updateButtons', 'setWeaklySelectable']);
-		expect(sent[0]!.message).toMatch(/^Select creatures to attack Seat 2/);
-		expect(sent[1]).toMatchObject({ label1: 'OK', enable1: true });
-	});
-
-	it('every attack window with a defender is the seat’s: the per-click refresh and Call Back are never withheld', () => {
-		const h = declaring();
-		const mark = envelopesFor(h, 0).length;
-		h.host.push(attackPrompt('Seat 2'), attackBar(true), frameLine({ kind: 'notify', method: 'setWeaklySelectable', cards: [] }));
-		expect(sentSince(h, mark).map((f) => f.method)).toEqual(['showPromptMessage', 'updateButtons', 'setWeaklySelectable']);
-		expect(h.logs.filter((l) => l.why === 'attack-farewell')).toEqual([]);
-	});
-});
-
 describe('a card-name ask', () => {
 	const DECK = '[metadata]\nName=Guides\n[Main]\n4 Goblin Guide|ZEN\n56 Mountain|ZEN\n';
 

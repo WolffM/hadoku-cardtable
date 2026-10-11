@@ -1,5 +1,5 @@
 /*
- * Tier A — 15 methods, scalars only.
+ * Tier A — 16 methods, scalars only.
  *
  * Both directions are asserted for every one of them: the example frame parses,
  * and each of its systematically broken variants is REJECTED. The negatives are
@@ -32,10 +32,10 @@ const clientExamples = Object.fromEntries(
   Object.entries(CLIENT_FRAME_EXAMPLES).filter(([method]) => TIER_A.has(method)),
 );
 
-describe('Tier A — the 15 scalar-only methods', () => {
-  it('models exactly 15 methods, 9 server and 6 client', () => {
-    expect(TIER_A_METHODS).toHaveLength(15);
-    expect(Object.keys(serverExamples)).toHaveLength(9);
+describe('Tier A — the 16 scalar-only methods', () => {
+  it('models exactly 16 methods, 10 server and 6 client', () => {
+    expect(TIER_A_METHODS).toHaveLength(16);
+    expect(Object.keys(serverExamples)).toHaveLength(10);
     expect(Object.keys(clientExamples)).toHaveLength(6);
   });
 

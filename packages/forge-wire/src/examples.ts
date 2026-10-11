@@ -61,6 +61,7 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
   finishGame: { kind: 'notify', method: 'finishGame' },
   clearSelectables: { kind: 'notify', method: 'clearSelectables' },
   clearWeaklySelectable: { kind: 'notify', method: 'clearWeaklySelectable' },
+  flashIncorrectAction: { kind: 'notify', method: 'flashIncorrectAction' },
   message: { kind: 'notify', method: 'message', message: 'Turn 3', title: 'Forge' },
   showErrorDialog: {
     kind: 'notify',

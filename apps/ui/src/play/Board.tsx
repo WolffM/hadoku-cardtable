@@ -497,6 +497,12 @@ export interface BoardInteraction {
    */
   actionable?: ReadonlySet<number>;
   /**
+   * The card Forge just turned away (`LiveMatch.refused`): drawn with a brief
+   * refusal mark, `seq` restarting it for a second refusal of the same card.
+   * **Absent means nothing refused.**
+   */
+  refused?: { card: number; seq: number };
+  /**
    * Item 17.2 — *"when playing a card, it should get put in the 'decision
    * area' and the arrow should draw from there."* The id of the hand card
    * this seat clicked to cast, while Forge is asking for its target
@@ -2226,6 +2232,7 @@ function CardOnBoard({
       data-block-focus={(interaction?.blockFocus === entry.id) || undefined}
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
+      data-refused={interaction?.refused?.card === entry.id ? (interaction.refused.seq % 2 === 0 ? 'even' : 'odd') : undefined}
       /* Forge says this card is attached to something: not the player's doing. */
       data-attached={(entry.attachedToId ?? null) !== null || undefined}
       data-pile-size={above.length > 0 ? pile!.length : undefined}

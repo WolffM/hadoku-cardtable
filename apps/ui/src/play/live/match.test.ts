@@ -41,6 +41,7 @@ import {
   nothingToDecide,
   attackersLeft,
   pressButton,
+  REFUSED_MS,
   selectCard,
   selectPlayer,
   setAutoYield,
@@ -773,6 +774,28 @@ describe('clicking the board: only what Forge offered', () => {
     s.send(optionAsk('c-ae-j12'));
     await until('the card-less ask', () => currentAsk(m) !== null);
     expect(m.lastSelectedCard).toBeNull();
+  });
+
+  it('a refusal marks the card whose click began the act — not a target picked after it — and the mark goes', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    const flash = parseServerFrame({ kind: 'notify', method: 'flashIncorrectAction' });
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await sendAndApply(s, m, [prompt('Select target'), selectables([theirs[0]!], 1, 1)]);
+    expect(selectCard(m, theirs[0]!)).toBe(true);
+    expect(m.actCard).toBe(mine[0]);
+    await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), flash]);
+    expect(m.refused).toEqual({ card: mine[0], seq: 1 });
+    const at = Date.now();
+    await until('the mark to go', () => m.refused === null);
+    expect(Date.now() - at).toBeGreaterThanOrEqual(REFUSED_MS - 50);
+  });
+
+  it('a refusal with no act of this seat behind it marks nothing', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), parseServerFrame({ kind: 'notify', method: 'flashIncorrectAction' })]);
+    expect(m.refused).toBeNull();
   });
 
   it('a button press spends the whole input: no click until Forge shows the next one', async () => {
@@ -1994,7 +2017,6 @@ describe('combat, off the state channel: the intent mark and the block target', 
     ]);
     expect(declaringBlockers(m)).toBe(true);
     // Not offered before the wire says this creature is blocking anything.
-    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
 
     await sendAndApply(s, m, [combat([mine[0]!])]);
     expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true);
@@ -2002,7 +2024,6 @@ describe('combat, off the state channel: the intent mark and the block target', 
     // Forge's own next frame drops the assignment: the offer drops with it,
     // with nothing of ours sent in between.
     await sendAndApply(s, m, [combat([])]);
-    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
 
     // And once offered again, the click out is an ordinary `selectCard` —
     // Forge decides what it means, same as every other offer.

@@ -1350,6 +1350,11 @@ public final class PlayBridge {
             frame(notify("clearWeaklySelectable"));
         }
 
+        /** Forge turned the seat's act away (a click whose every ability it would refuse): the browser marks it. */
+        @Override public void flashIncorrectAction() {
+            frame(notify("flashIncorrectAction"));
+        }
+
         @Override public void hideZones(final PlayerView controller, final Iterable<PlayerZoneUpdate> zonesToUpdate) {
             if (controller == null) { return; }
             final JsonObject f = notify("hideZones");
@@ -1704,7 +1709,6 @@ public final class PlayBridge {
         @Override protected void updateCurrentPlayer(final PlayerView player) { }
         @Override public boolean isUiSetToSkipPhase(final PlayerView playerTurn, final PhaseType phase) { return false; }
         @Override public void showCombat() { }
-        @Override public void flashIncorrectAction() { }
         @Override public void alertUser() { }
         @Override public void updatePhase(final boolean saveState) { }
         @Override public void updateTurn(final PlayerView player) { }

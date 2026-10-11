@@ -1,18 +1,20 @@
 /*
- * Tier A — the 15 methods that carry nothing but scalars.
+ * Tier A — the 16 methods that carry nothing but scalars.
  *
  * Wave 6 lane F's classification (`docs/spikes/itoclient.md`, "Tier A —
  * strings, numbers, booleans and enums only. Browser-ready as-is. 14
  * methods."), plus `clearWeaklySelectable`, which Wave 19 lane B added: it is
  * the other half of `setWeaklySelectable` (`tier-b.ts`), takes no argument at
- * all (ProtocolMethod.java:72) and so belongs here beside `clearSelectables`.
+ * all (ProtocolMethod.java:72) and so belongs here beside `clearSelectables`;
+ * and `flashIncorrectAction`, a refusal the seat must see (a click Forge
+ * turned away), which takes nothing either.
  * Argument and return types below come from
  * `forge/forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java`, with
  * the parameter NAMES from the interfaces that enum dispatches to —
  * `IGuiGame` for `Mode.SERVER` and `IGameController` for `Mode.CLIENT`
  * (ProtocolMethod.java:104-107).
  *
- * Nine are server→client, six are client→server, and three of the nine block
+ * Ten are server→client, six are client→server, and three of the nine block
  * (`showConfirmDialog`, `showOptionDialog`, `showInputDialog`). `envelope.ts`
  * is where blocking is expressed; this file states the payloads.
  *
@@ -33,7 +35,7 @@ import { z } from 'zod';
 
 import { JavaByteSchema, NextGameDecisionSchema, SkinPropSchema } from './refs.ts';
 
-/** The 15 Tier A method names, in `ProtocolMethod` declaration order per direction. */
+/** The 16 Tier A method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_A_METHODS = [
   // Mode.SERVER
   'afterGameEnd',
@@ -45,6 +47,7 @@ export const TIER_A_METHODS = [
   'showInputDialog',
   'clearSelectables',
   'clearWeaklySelectable',
+  'flashIncorrectAction',
   // Mode.CLIENT
   'useMana',
   'selectButtonOk',
@@ -56,7 +59,7 @@ export const TIER_A_METHODS = [
 
 export type TierAMethod = (typeof TIER_A_METHODS)[number];
 
-/* ── Server → client, fire-and-forget (6) ────────────────────────────── */
+/* ── Server → client, fire-and-forget (7) ────────────────────────────── */
 
 /** `void afterGameEnd()` — IGuiGame.java:70. */
 export const AfterGameEndSchema = z.strictObject({
@@ -88,6 +91,19 @@ export const ClearSelectablesSchema = z.strictObject({
 export const ClearWeaklySelectableSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('clearWeaklySelectable'),
+});
+
+/**
+ * `void flashIncorrectAction()` — IGuiGame.java:87.
+ *
+ * Forge turned away what the seat just did: a click whose every ability it
+ * would refuse (`InputPassPriority.onCardSelected`). The server sends the same
+ * frame when it cancels a payment nothing can pay (`Match.maybeCancelUnpayable`),
+ * so neither refusal is silent.
+ */
+export const FlashIncorrectActionSchema = z.strictObject({
+  kind: z.literal('notify'),
+  method: z.literal('flashIncorrectAction'),
 });
 
 /** `void message(String message, String title)` — IGuiGame.java:157. */
@@ -217,7 +233,7 @@ export const NextGameDecisionActionSchema = z.strictObject({
 
 /* ── The tier, assembled ─────────────────────────────────────────────── */
 
-/** The 9 server→client Tier A frames. */
+/** The 10 server→client Tier A frames. */
 export const TIER_A_SERVER_FRAMES = [
   AfterGameEndSchema,
   FinishGameSchema,
@@ -228,6 +244,7 @@ export const TIER_A_SERVER_FRAMES = [
   ShowInputDialogSchema,
   ClearSelectablesSchema,
   ClearWeaklySelectableSchema,
+  FlashIncorrectActionSchema,
 ] as const;
 
 /** The 6 client→server Tier A frames. */

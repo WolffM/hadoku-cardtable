@@ -3,12 +3,13 @@
  *
  * Four things are checked here that no single tier can check on its own:
  *
- *   1. **The census.** 15 + 23 + 3 = 41, no duplicates, and every modelled
+ *   1. **The census.** 16 + 23 + 3 = 42, no duplicates, and every modelled
  *      method has exactly one example. If a tier grows a method without a
  *      frame — or a frame without a method — this is where it shows.
  *      The literals here are the ONLY record of the census's size, so they move
  *      with it: lane F's 38, then Wave 19 lane B's weakly-selectable pair (40),
- *      then Wave 22 lane L's `setHighlighted` (41).
+ *      then Wave 22 lane L's `setHighlighted` (41), then `flashIncorrectAction`
+ *      (42): a refusal the seat must see.
  *   2. **Blocking is settled, not guessed.** 15 methods block; the set of
  *      frames that carry a `callId` must equal that list exactly, and so must
  *      the reply table's keys.
@@ -47,12 +48,12 @@ import { TIER_C_METHODS } from './tier-c.ts';
 
 const SRC_DIR = dirname(fileURLToPath(import.meta.url));
 
-describe('the census — 15 + 23 + 3 = 41', () => {
-  it('matches Wave 6 lane F’s tiering plus the two pairs added since, method for method', () => {
-    expect(TIER_A_METHODS).toHaveLength(15);
+describe('the census — 16 + 23 + 3 = 42', () => {
+  it('matches Wave 6 lane F’s tiering plus the methods added since, method for method', () => {
+    expect(TIER_A_METHODS).toHaveLength(16);
     expect(TIER_B_METHODS).toHaveLength(23);
     expect(TIER_C_METHODS).toHaveLength(3);
-    expect(REQUIRED_METHODS).toHaveLength(41);
+    expect(REQUIRED_METHODS).toHaveLength(42);
   });
 
   it('carries Forge’s priority-time offer, which lane F’s 38 left out', () => {
@@ -70,7 +71,7 @@ describe('the census — 15 + 23 + 3 = 41', () => {
   });
 
   it('names no method twice', () => {
-    expect(new Set(REQUIRED_METHODS).size).toBe(41);
+    expect(new Set(REQUIRED_METHODS).size).toBe(42);
   });
 
   it('has exactly one example per Tier A/B method; Tier C is tested against captures', () => {
@@ -80,7 +81,7 @@ describe('the census — 15 + 23 + 3 = 41', () => {
     ].sort();
     const modelled = [...TIER_A_METHODS, ...TIER_B_METHODS].sort();
     expect(examples).toEqual(modelled);
-    expect(examples).toHaveLength(38);
+    expect(examples).toHaveLength(39);
   });
 });
 
