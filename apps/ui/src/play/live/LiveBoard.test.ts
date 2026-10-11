@@ -9,6 +9,16 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+/*
+ * Every case here boots a real replay server and socket and replays a recorded
+ * game into it: 0.7–2.5 s alone (measured 2026-10-11). Locally `vitest.config.ts`
+ * gives a test 5 s (30 s on CI), and on a shared host at load 30+ a full run
+ * pushed a different one of these past 5 s on five checks in a row while each
+ * passed alone, 18 of 18. This file gets CI's room locally too; no assertion
+ * changes, only the time each is allowed.
+ */
+vi.setConfig({ testTimeout: 30_000 });
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';

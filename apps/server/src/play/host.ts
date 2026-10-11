@@ -38,9 +38,19 @@
  * trying and every match starts cold, which is logged. Measured saving: see
  * `README.md`, "The warm spare, measured".
  *
- * ## The ceiling: at most `MAX_CONCURRENT_MATCHES` JVMs, spare included
+ * ## The ceiling: at most `MAX_CONCURRENT_MATCHES` matches being played
  *
- * Deliberately **2**. Wave 9 lane D measured ~650 MB of RSS for an idle JVM and
+ * **10** since 2026-10-11 (the operator: *"lol why is there a server-wide cap of
+ * 2 concurrent matches? can we really not handle more?"*), counting only the
+ * matches still `starting` or `running` — a finished match keeps its JVM for
+ * `overGraceMs` but no longer holds a slot (conceding used to block the next
+ * game for ten minutes). Measured that day: a live JVM is ~0.65–1 GB RSS and the
+ * host had ~13 GB available, so ten is inside it with room for the finished ones
+ * still winding down. Each person may play at most 5 at once
+ * (`http/routes.ts`'s `MAX_MATCHES_PER_PERSON`). What follows is the original
+ * reasoning for 2, kept because its measurements still hold.
+ *
+ * It was deliberately **2**. Wave 9 lane D measured ~650 MB of RSS for an idle JVM and
  * ~730 MB at peak, and G1 does not hand committed heap back to the OS, so a
  * JVM's RSS only ratchets up for as long as it lives. We therefore budget every
  * JVM at its peak, not its average, and cap the heap so that peak has a bound:
@@ -412,7 +422,7 @@ export interface ReapResult {
 }
 
 /** See "The ceiling" in the module header. Also `PlayDeps.maxMatches`'s default. */
-export const MAX_CONCURRENT_MATCHES = 2;
+export const MAX_CONCURRENT_MATCHES = 10;
 
 /** The per-JVM heap cap, unless `CARDTABLE_PLAY_JVM_OPTS` sets its own. See "The ceiling". */
 export const DEFAULT_JVM_HEAP = '-Xmx1g';

@@ -958,6 +958,41 @@ describe('a room table', () => {
 		expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
 	});
 
+	// The operator, 2026-10-11: "let's make it 5 max per person".
+	it('refuses a person a sixth match at once, by name, and a finished match frees the slot', async () => {
+		const h = await boot();
+		const startIn = async (roomId: string) => {
+			h.lobby.open(roomId, [...MEMBERS]);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH), roomId)).status).toBe(200);
+			expect((await putDeck(h, 'bob', deckBody(SECOND_DECK), roomId)).status).toBe(200);
+			await setReady(h, 'alice', true, roomId);
+			await setReady(h, 'bob', true, roomId);
+			return startNew(roomId);
+		};
+		// `start` feeds Forge's opening to the LAST host once there is one; for a sixth start the
+		// last host is an earlier match's, so this waits for a new one or for the refusal.
+		const startNew = async (roomId: string) => {
+			const before = h.hosts.length;
+			const pending = call(h, 'POST', '/api/play/matches', { room: roomId }, edgeHeaders('alice'));
+			const deadline = Date.now() + 3000;
+			let settled = false;
+			void pending.then(() => (settled = true));
+			while (h.hosts.length === before && !settled && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+			if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
+			return pending;
+		};
+		for (let i = 1; i <= routesMod.MAX_MATCHES_PER_PERSON; i++) expect((await startIn(`r-cap-${String(i)}`)).status).toBe(201);
+		const sixth = await startIn('r-cap-6');
+		expect(sixth.status).toBe(409);
+		expect(sixth.body.error).toBe(`user-alice is already playing ${routesMod.MAX_MATCHES_PER_PERSON} matches`);
+		expect(h.specs).toHaveLength(routesMod.MAX_MATCHES_PER_PERSON);
+
+		// One of them ends (a concession is a game over): it no longer counts.
+		h.hosts[0]!.push({ t: 'gameover', winner: 'Seat 1' });
+		await vi.waitFor(() => expect(h.matches.active().some((m) => m.status === 'over')).toBe(true));
+		expect((await startNew('r-cap-6')).status).toBe(201);
+	});
+
 	// The operator, 2026-10-09: "a lobby toggle for 'Free pick' which allows anyone
 	// to pick any deck regardless of format to play against each other".
 	it('on Free pick, seats a Legacy deck against a Modern one and starts', async () => {

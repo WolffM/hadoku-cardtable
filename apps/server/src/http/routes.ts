@@ -201,7 +201,17 @@ export interface TablesRooms {
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
+/**
+ * How many matches one person may be playing at once (the operator, 2026-10-11:
+ * "let's make it 5 max per person"). Counted per room member at the start, over
+ * the matches still `starting` or `running` — a conceded or finished one does
+ * not count. The server-wide ceiling is `play/host.ts`'s `MAX_CONCURRENT_MATCHES`.
+ */
+export const MAX_MATCHES_PER_PERSON = 5;
+
 export interface TablesMatches {
+	/** Every match the registry still holds, finished ones included; see `MAX_MATCHES_PER_PERSON`. */
+	active(): readonly { status: string; seatOf(participantId: string): number | null }[];
 	get(id: string):
 		| {
 				status: string;
@@ -1000,6 +1010,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {
 			res.status(503).json({ error: 'this server cannot seat a room at a match (no match registry)' });
+			return;
+		}
+		const playing = registry.active().filter((m) => m.status === 'starting' || m.status === 'running');
+		const full = players.find((p) => playing.filter((m) => m.seatOf(p.member.id) !== null).length >= MAX_MATCHES_PER_PERSON);
+		if (full !== undefined) {
+			res.status(409).json({ error: `${full.member.name} is already playing ${MAX_MATCHES_PER_PERSON} matches` });
 			return;
 		}
 

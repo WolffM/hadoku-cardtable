@@ -19,7 +19,7 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
 import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
-import type { BridgeLine } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 
@@ -64,7 +64,7 @@ afterEach(async () => {
 	harness = null;
 });
 
-async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number; probe?: boolean } = {}): Promise<Harness> {
+async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number; probe?: boolean; maxMatches?: number } = {}): Promise<Harness> {
 	const { factory, hosts } = replayFactory();
 	const logs: Record<string, unknown>[] = [];
 	const app = express();
@@ -84,6 +84,7 @@ async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number
 		devIdentity: options.devIdentity,
 		disconnectGraceMs: options.disconnectGraceMs,
 		probe: options.probe,
+		maxMatches: options.maxMatches,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -240,6 +241,29 @@ describe('POST /api/play/matches', () => {
 		});
 		expect(res.status).toBe(400);
 		expect(h.hosts).toHaveLength(0);
+	});
+
+	it('refuses a match past the server-wide ceiling, and a finished match no longer holds a slot', async () => {
+		// 2026-10-11: a conceded game kept its slot for its ten-minute grace, so the next would not start.
+		const h = await boot({ maxMatches: 2 });
+		expect((await startMatch(h)).status).toBe(201);
+		expect((await startMatch(h)).status).toBe(201);
+		const refused = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: '{}',
+		});
+		expect(refused.status).toBe(503);
+		expect(((await refused.json()) as { error: string }).error).toBe('the server is already running 2 matches');
+		expect(h.hosts).toHaveLength(2);
+
+		h.hosts[0]!.push({ t: 'gameover', winner: 'Seat 1' });
+		await waitUntil(() => h.handle.matches.active().some((m) => m.status === 'over'), 'the first match to be over');
+		expect((await startMatch(h)).status).toBe(201);
+	});
+
+	it('defaults the ceiling to MAX_CONCURRENT_MATCHES, which is 10', () => {
+		expect(MAX_CONCURRENT_MATCHES).toBe(10);
 	});
 
 	it('reports a match Forge could not start as a failure, not a hang', async () => {

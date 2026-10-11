@@ -131,7 +131,7 @@ export interface PlayDeps {
 	/** How long a join waits for a starting match. Default 8 s — under the client's 10 s ack timeout. */
 	joinWaitMs?: number;
 	/**
-	 * Concurrent matches (each is a JVM). Default `MAX_CONCURRENT_MATCHES` (2) —
+	 * Matches being played at once (each is a JVM; a finished one does not count). Default `MAX_CONCURRENT_MATCHES` (10) —
 	 * a deliberate ceiling; `host.ts`'s header, "The ceiling", has the argument.
 	 */
 	maxMatches?: number;
@@ -549,9 +549,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(503).json({ error: 'Forge is not configured on this server (CARDTABLE_FORGE_JAR / CARDTABLE_FORGE_RES)' });
 			return;
 		}
+		// Only matches still being played hold a slot: a finished one keeps its JVM for
+		// `overGraceMs`, and counting it meant a conceded game blocked the next (2026-10-11).
 		const max = deps.maxMatches ?? MAX_CONCURRENT_MATCHES;
-		if (matches.active().length >= max) {
-			res.status(503).json({ error: `already running ${max} matches` });
+		if (matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length >= max) {
+			res.status(503).json({ error: `the server is already running ${max} matches` });
 			return;
 		}
 		const match = matches.create(parsed.spec);

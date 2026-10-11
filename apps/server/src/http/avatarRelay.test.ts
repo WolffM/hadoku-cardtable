@@ -27,6 +27,7 @@ function fixture(opts: { matchId?: string | null; owners?: (string | null)[]; st
 		},
 	} as unknown as TablesRooms;
 	const matches: TablesMatches = {
+		active: () => [],
 		get: (id) =>
 			id === 'm-1'
 				? {
