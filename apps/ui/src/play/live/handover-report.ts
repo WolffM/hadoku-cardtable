@@ -25,8 +25,8 @@ export interface HandoverFacts {
   readonly how: string;
   /** The stand-in's centre as drawn right now; null when there is none. */
   readonly from: Point | null;
-  /** The replacement's centre as drawn. */
-  readonly to: Point | null;
+  /** The replacement's centre as drawn — or the replacement itself, measured on the frame the report is taken (a stack card drawn this instant has no box yet). */
+  readonly to: Point | Element | null;
   /** `Date.now()` when the stand-in began its glide into the gap; null when it never glided. */
   readonly glideStartedAt: number | null;
   /** `Date.now()` of the release — on the receiver, when the release reached this screen. */
@@ -67,7 +67,7 @@ export function visibleCopies(root: ParentNode, card: number): number {
 }
 
 /** The event's fields: flat, rounded, and only the ones known (a null is left out). */
-export function handoverData(f: HandoverFacts, doubled: boolean, now = Date.now()): Record<string, string | number | boolean> {
+export function handoverData(f: HandoverFacts & { readonly to: Point | null }, doubled: boolean, now = Date.now()): Record<string, string | number | boolean> {
   const data: Record<string, string | number | boolean> = { screen: f.screen, how: f.how, motion: f.motion, doubled };
   if (f.card !== null) data.card = f.card;
   if (f.from !== null) {
@@ -98,6 +98,7 @@ export function reportHandover(report: Report | undefined, kind: ReportKind, roo
   const now = Date.now();
   requestAnimationFrame(() => {
     const doubled = facts.card !== null && visibleCopies(root, facts.card) > 1;
-    report(kind, handoverData(facts, doubled, now));
+    const to = facts.to instanceof Element ? drawnCentreOf(facts.to) : facts.to;
+    report(kind, handoverData({ ...facts, to }, doubled, now));
   });
 }

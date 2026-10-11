@@ -13,7 +13,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-const facts: HandoverFacts = {
+const facts: HandoverFacts & { readonly to: { x: number; y: number } | null } = {
   screen: 'receiver',
   card: 121,
   how: 'stack',
@@ -92,12 +92,16 @@ describe('reportHandover', () => {
     field.setAttribute('data-placed-card', '121');
     const ghost = drawn(document.createElement('div'), 454, 280);
     ghost.setAttribute('data-cast-ghost', '121');
-    reportHandover(report, 'landing', document, { ...facts, screen: 'caster', how: 'swap' });
+    // The replacement is measured on the report's frame: a stack card drawn this instant has no box yet.
+    const placed = document.createElement('div');
+    document.body.append(placed);
+    reportHandover(report, 'landing', document, { ...facts, screen: 'caster', how: 'swap', to: placed });
+    drawn(placed, 454, 280);
     expect(report, 'not before the frame').not.toHaveBeenCalled();
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(report).toHaveBeenCalledTimes(1);
     expect(report.mock.calls[0]![0]).toBe('landing');
-    expect(report.mock.calls[0]![1]).toMatchObject({ screen: 'caster', how: 'swap', card: 121, doubled: true });
+    expect(report.mock.calls[0]![1]).toMatchObject({ screen: 'caster', how: 'swap', card: 121, doubled: true, toX: 454, toY: 280 });
   });
 
   it('sends nothing without a reporter', () => {

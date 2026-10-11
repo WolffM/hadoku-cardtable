@@ -776,7 +776,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
-  function casterFacts(p: Parked, how: string, from: Point | null, to: Point | null): HandoverFacts {
+  function casterFacts(p: Parked, how: string, from: Point | null, to: Point | Element | null): HandoverFacts {
     return { screen: 'caster', card: p.source, how, from, to, glideStartedAt: p.glideStartedAt, releasedAt: p.releasedAt, stackFrameAt: p.stackFrameAt, motion: options.motion?.() === true };
   }
 
@@ -1508,7 +1508,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     parked.stackFrameAt = Date.now();
     const from = drawnCentreOf(parked.ghost);
     parked.ghost.remove();
-    reportHandover(options.report, 'handover', canvas, casterFacts(parked, 'stack', from, drawnCentreOf(canvas.querySelector(`[data-placed-spell="${id}"]`))));
+    reportHandover(options.report, 'handover', canvas, casterFacts(parked, 'stack', from, canvas.querySelector(`[data-placed-spell="${id}"]`)));
   });
   const observer = new MutationObserver((records) => {
     if (!live) return;
