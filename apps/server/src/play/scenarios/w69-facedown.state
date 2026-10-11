@@ -1,6 +1,6 @@
 # w69-facedown: alice casts Exalted Angel face down (morph, {3}) while bob (Full Control) holds priority,
 # so the face-down spell stays on the stack. Three Plains pay for the morph and not for the Angel itself
-# ({4}{W}{W}), so casting it face down is the one way Forge offers it. Forge lets alice see her own
+# ({4}{W}{W}); Forge still asks which way to cast it (getAbilityToPlay). Forge lets alice see her own
 # face-down card (CardView.canFaceDownBeShownTo: its controller, on the stack); bob is never sent its name.
 turn=1
 activeplayer=human

@@ -6,15 +6,15 @@
  * stack item's source card, so a face-down spell there was still a face — a text tile reading "Hidden
  * card", no art.
  *
- * Scenario `w69-facedown`: alice drags Exalted Angel onto her battlefield; three Plains pay only for
- * its morph, so Forge casts it face down. Bob (Full Control) holds priority, so it stays on the stack.
+ * Scenario `w69-facedown`: alice drags Exalted Angel onto her battlefield and, asked how to cast it,
+ * picks face down (three Plains pay only for its morph). Bob (Full Control) holds priority, so it stays on the stack.
  * Alice's screen is sent her own card (Forge lets the controller look), so her stack card is the
  * Angel; bob's is never sent its name, so his stack card is the same back as any hidden card — the
  * card's own size, named "Hidden card" — and hovering it enlarges that back, never a face.
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castByDrag, makeTitled, offeredNamed } from './play/board.ts';
+import { dragHandCard, makeTitled, offeredNamed, pressPaymentAuto, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -94,7 +94,21 @@ test(titled('a face-down spell on the stack is the caster’s own card on her sc
     let id: number | undefined;
     await expect.poll(async () => (id = await offeredNamed(alice.page, NAME)), { timeout: 60_000, message: `alice is offered ${NAME}` }).not.toBeUndefined();
     const field = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
-    await castByDrag(alice.page, stack, id!, { x: Math.round(field.x + field.width * 0.4), y: Math.round(field.y + field.height * 0.5) });
+    expect(await dragHandCard(alice.page, id!, { x: Math.round(field.x + field.width * 0.4), y: Math.round(field.y + field.height * 0.5) }), 'alice lifts the Angel').toBe(true);
+    // Forge asks which way to cast it (its own cost, or face down for {3}): face down.
+    const choices = alice.page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]');
+    await expect(choices.first(), 'Forge asks how to cast it').toBeVisible({ timeout: 15_000 });
+    console.log(`[w69-facedown] alice is offered: ${(await choices.allTextContents()).map((t) => `"${t.trim()}"`).join(' | ')}`);
+    await choices.filter({ hasText: /face down|morph/i }).first().click();
+    await expect
+      .poll(
+        async () => {
+          await pressPaymentAuto(alice.page);
+          return stackCount(alice.page);
+        },
+        { timeout: 20_000, message: 'the face-down spell reaches the stack' },
+      )
+      .toBe(1);
 
     // Both screens draw it on the stack, shown (not still waiting for its point).
     for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
