@@ -28,6 +28,7 @@ import {
   RESOLVE_BLINK_MS,
   setChainHalted,
   SHIMMER_MS,
+  scatter,
   squareWidth,
 } from './placed.ts';
 
@@ -341,7 +342,8 @@ describe('installPlaced: drawing', () => {
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     // The source's own box is left:100 top:500 width:80 height:110 — beside it is to its right.
     expect(Number.parseFloat(el.style.left)).toBeGreaterThan(180);
-    expect(Number.parseFloat(el.style.top)).toBeCloseTo(555, 0);
+    // Nudged by its own `scatter`, never by more than a quarter of its height.
+    expect(Math.abs(Number.parseFloat(el.style.top) - 555)).toBeLessThanOrEqual(110 / 4);
     handle.dispose();
   });
 
@@ -426,6 +428,64 @@ describe('installPlaced: drawing', () => {
     const squeezed = besideSource({ left: 100, top: 500, right: 180, bottom: 610 }, [], wide, narrow);
     expect(squeezed.x - 120, 'room on neither side: inside the board').toBeGreaterThanOrEqual(6);
     expect(squeezed.x + 120).toBeLessThanOrEqual(300 - 6);
+  });
+
+  it('besideSource wraps a full row to the row above or below, inside the board, never onto the same spot', () => {
+    const sourceBox: Rect = { left: 100, top: 500, right: 180, bottom: 610 };
+    const tile = { width: 240, height: 90 };
+    const bounds: Rect = { left: 0, top: 0, right: 700, bottom: 800 };
+    const taken: Rect[] = [];
+    const spots = [0, 1, 2, 3].map(() => {
+      const at = besideSource(sourceBox, taken, tile, bounds);
+      taken.push({ left: at.x - 120, right: at.x + 120, top: at.y - 45, bottom: at.y + 45 });
+      return at;
+    });
+    expect(spots[0], 'the first beside the source').toEqual({ x: 180 + 6 + 120, y: 555 });
+    expect(spots[1]!.y, 'the second further along the same row').toBe(555);
+    expect(new Set(spots.map((s) => `${s.x},${s.y}`)).size, 'four spots').toBe(4);
+    expect(spots[2]!.y, 'the row is full: the next row').not.toBe(555);
+    for (const s of spots) {
+      expect(s.x - 120).toBeGreaterThanOrEqual(6);
+      expect(s.x + 120).toBeLessThanOrEqual(700 - 6);
+      expect(s.y + 45).toBeLessThanOrEqual(800 - 6);
+    }
+  });
+
+  it('scatter: the same nudge for the same id on every call, different ones for different ids, never past a fifth of the width or a quarter of the height', () => {
+    const tile = { width: 200, height: 100 };
+    expect(scatter(-41, tile)).toEqual(scatter(-41, tile));
+    const nudges = [-41, -42, -43, 7, 8].map((id) => scatter(id, tile));
+    expect(new Set(nudges.map((n) => `${n.dx},${n.dy}`)).size).toBe(nudges.length);
+    for (const n of nudges) {
+      expect(Math.abs(n.dx)).toBeLessThanOrEqual(40);
+      expect(Math.abs(n.dy)).toBeLessThanOrEqual(25);
+    }
+  });
+
+  it('waiting triggers are chips already, the one asked about marked; the stack item takes over its chip where it stands', () => {
+    const { canvas } = board();
+    setChainHalted(true);
+    const handle = installPlaced(canvas);
+    const waiting = (id: number, current = false): StackEntry => ({ ...stackItem(id, { isAbility: true, sourceCardId: 201 }), pending: true, ...(current ? { current: true as const } : {}) });
+    handle.notify({ ...view([]), pendingTriggers: [waiting(-11, true), waiting(-12), waiting(-13)] });
+    const chips = [...canvas.querySelectorAll<HTMLElement>('[data-placed-spell]')];
+    expect(chips.map((c) => c.getAttribute('data-placed-spell'))).toEqual(['-11', '-12', '-13']);
+    expect(chips.every((c) => c.hasAttribute('data-placed-waiting')), 'all three waiting').toBe(true);
+    expect(canvas.querySelectorAll('[data-placed-current]')).toHaveLength(1);
+    expect(canvas.querySelector('[data-placed-current]')!.getAttribute('data-placed-spell')).toBe('-11');
+    expect(canvas.querySelector('[data-placed-next]'), 'nothing waiting is next to resolve').toBeNull();
+    const at = { left: chips[0]!.style.left, top: chips[0]!.style.top };
+    expect(new Set(chips.map((c) => `${c.style.left},${c.style.top}`)).size, 'three spots').toBe(3);
+
+    handle.notify({ ...view([stackItem(40, { isAbility: true, sourceCardId: 201 })]), pendingTriggers: [waiting(-12, true), waiting(-13)] });
+    const onStack = canvas.querySelector<HTMLElement>('[data-placed-spell="40"]')!;
+    expect(onStack, 'the very element the asked-about trigger was drawn as').toBe(chips[0]);
+    expect({ left: onStack.style.left, top: onStack.style.top }, 'where it stood').toEqual(at);
+    expect(onStack.hasAttribute('data-placed-waiting')).toBe(false);
+    expect(onStack.hasAttribute('data-placed-next')).toBe(true);
+    expect(canvas.querySelector('[data-placed-spell="-11"]')).toBeNull();
+    expect(canvas.querySelector('[data-placed-current]')!.getAttribute('data-placed-spell')).toBe('-12');
+    handle.dispose();
   });
 
   it('squareWidth: the width whose height is that width, held between one card and the cap', () => {

@@ -336,6 +336,30 @@ describe('stackTargetSpells (wave 49 §A)', () => {
 	});
 });
 
+describe('pendingTriggers', () => {
+	it("keeps a waiting trigger of a card this seat sees, drops one of a card it may not see (its words name the card)", () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const pending = [
+			{ id: 900, hostCard: onField, controller: 1, key: 'seen' },
+			{ id: 901, hostCard: inTheirHand, controller: 1, key: 'hidden' },
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, pendingTriggers: pending } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.pendingTriggers?.map((t) => t.key)).toEqual(['seen']);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, pendingTriggers: pending } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(owner.payload.pendingTriggers?.map((t) => t.key)).toEqual(['seen', 'hidden']);
+	});
+});
+
 describe('a face-down permanent (real battlefield card, turned face down)', () => {
 	it('shows the table its face-down face and nothing of the card underneath; its controller sees it all', () => {
 		const frames = fixtureFrames();

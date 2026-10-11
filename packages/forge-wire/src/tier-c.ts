@@ -700,6 +700,19 @@ export const StackTargetSpellsSchema = z.array(z.tuple([JavaInt, JavaInt]));
 
 export type StackTargetSpells = z.infer<typeof StackTargetSpellsSchema>;
 
+/**
+ * The bridge's own addition beside `stackTargetSpells`: the triggers Forge has collected and not
+ * yet put on the stack (`PlayBridge.java`'s `pendingTriggersJson`, read off `MagicStack`'s
+ * `activePlayerSAs` and `simultaneousStackEntryList`). `id` is the trigger's own ability id (not a
+ * stack id: it has none yet), `key` its auto-yield key (`WrappedAbility.yieldKey`, the card's words
+ * the chip reads), `current` the one whose target question is open. A full snapshot each time.
+ */
+export const PendingTriggersSchema = z.array(
+  z.strictObject({ id: JavaInt, hostCard: JavaInt, controller: JavaInt, key: z.string(), current: z.literal(true).optional() }),
+);
+
+export type PendingTriggers = z.infer<typeof PendingTriggersSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -716,6 +729,7 @@ export const SetGameViewSchema = z.strictObject({
     gameView: GameStateSchema,
     sequenceNumber: SequenceNumber,
     stackTargetSpells: StackTargetSpellsSchema.optional(),
+    pendingTriggers: PendingTriggersSchema.optional(),
   }),
 });
 
@@ -744,7 +758,7 @@ export const OpenViewSchema = z.strictObject({
 export const ApplyDeltaSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('applyDelta'),
-  payload: z.strictObject({ packet: DeltaPacketSchema, stackTargetSpells: StackTargetSpellsSchema.optional() }),
+  payload: z.strictObject({ packet: DeltaPacketSchema, stackTargetSpells: StackTargetSpellsSchema.optional(), pendingTriggers: PendingTriggersSchema.optional() }),
 });
 
 /** The three Tier C frames, as the envelope's discriminated union consumes them. */

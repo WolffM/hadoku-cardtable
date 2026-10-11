@@ -48,6 +48,7 @@ import {
   selectPlayer,
   setAutoYield,
   setFullControl,
+  setSameTarget,
   SAYS_KEPT,
   socketIoMatchTransport,
   startMatch,
@@ -840,6 +841,33 @@ describe('clicking the board: only what Forge offered', () => {
     await sendAndApply(s, m, [bar(true)]);
     expect(m.barHold).toBeNull();
     expect(liveBar(m)?.enable1).toBe(true);
+  });
+
+  it('"same target for all" rides on the pick while identical triggers wait, and is gone with the next question', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    const target = (more: number) =>
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: 'Valakut, the Molten Pinnacle - Select any target',
+        card: null,
+        targetAbility: { hostCard: { kind: 'card', id: 40 }, abilityId: 7, trigger: '40:9', more },
+      });
+    await sendAndApply(s, m, [target(2), selectables([theirs[0]!], 1, 1)]);
+    expect(m.promptTargetMore).toBe(2);
+    setSameTarget(m, true);
+    expect(selectPlayer(m, 1)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toEqual({ ok: true, value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: 1 }, triggerEvent: null, sameTarget: true } });
+
+    await sendAndApply(s, m, [target(0), selectables([theirs[0]!], 1, 1)]);
+    expect(m.sameTarget, 'unticked for each new question').toBe(false);
+    setSameTarget(m, true);
+    expect(selectPlayer(m, 1)).toBe(true);
+    await until('the second act', () => s.clientFrames().length === 2);
+    expect(s.clientFrames()[1], 'nothing waits behind the last one').toEqual({ ok: true, value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: 1 }, triggerEvent: null } });
   });
 
   it('selectPlayer carries the player, and a snapshot is followed by the selection the server re-sends', async () => {

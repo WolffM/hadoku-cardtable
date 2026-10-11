@@ -253,7 +253,7 @@ import { normalizeAvatarId } from '../../room/avatar.ts';
 import { toBoardView, type BoardView } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
-import { foldPackets, type WireState } from '../fold.ts';
+import { foldPackets, type PendingTriggers, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
@@ -643,6 +643,16 @@ export interface LiveMatch {
    * its one reader, had none left either).
    */
   stackTargetSpells: ReadonlyMap<number, number>;
+  /** The triggers Forge has collected and not yet put on the stack (`../fold.ts`'s `PendingTriggers`), drawn as chips already. */
+  pendingTriggers: PendingTriggers;
+  /**
+   * How many identical triggers still wait for their targets behind the open target question
+   * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
+   * "same target for all".
+   */
+  promptTargetMore: number;
+  /** "Same target for all" ticked on the open target question: the seat's pick goes out with `sameTarget`. */
+  sameTarget: boolean;
   /**
    * This seat's full-control toggle. The server's word after every snapshot,
    * this client's own last word in between. Off by default — and off is also
@@ -847,6 +857,9 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     actCard: null,
     refused: null,
     stackTargetSpells: new Map(),
+    pendingTriggers: [],
+    promptTargetMore: 0,
+    sameTarget: false,
     avatarByPlayerId: null,
     nameByPlayerId: null,
     waitingOn: null,
@@ -1433,6 +1446,7 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
       card: { kind: 'card', id: cardId },
       otherCardViewsToSelect: [],
       triggerEvent: null,
+      ...sameTargetOf(match),
     },
     placement,
   );
@@ -1442,7 +1456,18 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
 export function selectPlayer(match: LiveMatch, playerId: number): boolean {
   if (!boardInteraction(match).selectablePlayers.has(playerId)) return false;
   match.spent.players.add(playerId);
-  return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: playerId }, triggerEvent: null });
+  return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: playerId }, triggerEvent: null, ...sameTargetOf(match) });
+}
+
+/** A pick on a target question with "same target for all" ticked says so; the server answers the rest. */
+function sameTargetOf(match: LiveMatch): { sameTarget?: true } {
+  return match.sameTarget && match.promptTargetMore > 0 ? { sameTarget: true } : {};
+}
+
+/** Tick or clear "same target for all" on the open target question. */
+export function setSameTarget(match: LiveMatch, on: boolean): void {
+  match.sameTarget = on;
+  notify(match);
 }
 
 function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kind: 'act' }>, placement?: Placement): boolean {
@@ -2230,7 +2255,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
  * Rule 1 ("newObjects replace") makes that exact: every object is re-created
  * as it stands, in the order it stands.
  */
-function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readonly (readonly [number, number])[] } {
+function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readonly (readonly [number, number])[]; pendingTriggers: PendingTriggers } {
   return {
     seq: match.forgeSeq,
     checksum: 0,
@@ -2244,6 +2269,7 @@ function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readon
     // (there are none today — every live `applyDelta`/`setGameView` carries
     // it — but a historical replay might) would wipe what was already known.
     stackTargetSpells: [...match.stackTargetSpells],
+    pendingTriggers: match.pendingTriggers,
   };
 }
 
@@ -2260,7 +2286,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers } = frame.payload;
       packets = [
         {
           seq: sequenceNumber,
@@ -2270,11 +2296,12 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
           objectDeltas: {},
           events: [],
           stackTargetSpells,
+          pendingTriggers,
         },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      packets.push({ ...frame.payload.packet, stackTargetSpells: frame.payload.stackTargetSpells });
+      packets.push({ ...frame.payload.packet, stackTargetSpells: frame.payload.stackTargetSpells, pendingTriggers: frame.payload.pendingTriggers });
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2294,6 +2321,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.forgeSeq = folded.seq;
   match.skippedDeltas += folded.skippedDeltas;
   match.stackTargetSpells = folded.stackTargetSpells;
+  match.pendingTriggers = folded.pendingTriggers;
   redraw(match);
 }
 
@@ -2309,6 +2337,7 @@ function redraw(match: LiveMatch): void {
           avatarByPlayerId: match.avatarByPlayerId ?? undefined,
           nameByPlayerId: match.nameByPlayerId ?? undefined,
           stackTargetSpells: match.stackTargetSpells,
+          pendingTriggers: match.pendingTriggers,
         });
   if (match.view?.gameOver === true) match.over = true;
 }
@@ -2450,6 +2479,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // fresh: see the field's note, and `payingMana`.
     match.promptCard = frame.card === null ? null : frame.card.id;
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
+    match.promptTargetMore = frame.targetAbility?.more ?? 0;
+    match.sameTarget = false;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {
     match.buttons = {
@@ -2582,6 +2613,9 @@ function discardLocal(match: LiveMatch): void {
   match.actCard = null;
   match.refused = null;
   match.stackTargetSpells = new Map();
+  match.pendingTriggers = [];
+  match.promptTargetMore = 0;
+  match.sameTarget = false;
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;
   match.waitingOn = null;

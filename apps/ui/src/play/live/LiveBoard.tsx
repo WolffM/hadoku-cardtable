@@ -308,6 +308,7 @@ import {
   sendStopPreference,
   setAutoYield,
   setFullControl,
+  setSameTarget,
   setTriggerDecision,
   subscribe,
   type LiveAsk,
@@ -1973,6 +1974,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     if (!confirmPrompt) setAlways(false);
   }, [confirmPrompt]);
+  /* "Same target for all" on a trigger's target question while identical ones wait behind it (the operator, 2026-10-11). */
+  const sameTargetCheck =
+    !spectator && match.promptTargetMore > 0 && match.inputLive
+      ? { label: 'Same target for all', testId: 'live-same-target', checked: match.sameTarget, onChange: (on: boolean) => setSameTarget(match, on) }
+      : undefined;
   // The decision goes BEFORE the press, so the server still holds this confirm as the seat's prompt when it checks the key.
   const answerTrigger = (which: 'ok' | 'cancel') => {
     const live = bar !== null && (which === 'ok' ? bar.enable1 : bar.enable2);
@@ -2841,7 +2847,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             message={promptText(match.prompt ?? '')}
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') }}
-            always={match.promptTrigger === null ? undefined : { checked: always, onChange: setAlways }}
+            check={match.promptTrigger === null ? undefined : { label: 'Always', testId: 'live-confirm-always', checked: always, onChange: setAlways }}
           />
         </div>
       )}
@@ -2864,7 +2870,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null)}
             button1={decisionOk ? { label: combatDoneLabel(match) ?? bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
+            check={sameTargetCheck}
           />
+        </div>
+      )}
+      {/* A trigger's target with identical ones waiting and no button of Forge's to draw: the box alone, under Forge's own line. */}
+      {sameTargetCheck !== undefined && !(decision && bar !== null) && (
+        <div className="live__prompt" data-testid="live-target-host">
+          <ConfirmPrompt testId="live-target" message={promptText(match.prompt ?? '')} check={sameTargetCheck} />
         </div>
       )}
       {/*

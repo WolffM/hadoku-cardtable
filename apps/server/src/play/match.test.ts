@@ -2576,6 +2576,84 @@ describe('hold-decide-forward', () => {
 		});
 	});
 
+	describe('a batch of identical triggers (six Valakut triggers)', () => {
+		const VALAKUT = 40;
+		const BOB = 0;
+		const selectables = { kind: 'notify' as const, method: 'setSelectables' as const, cards: [{ kind: 'card' as const, id: 77 }], min: 1, max: 1 };
+		const targetPrompt = (abilityId: number, more: number, players = [BOB]) => ({
+			...promptFrame(1, 'Valakut, the Molten Pinnacle - Select any target'),
+			card: { kind: 'card' as const, id: VALAKUT },
+			targetAbility: { hostCard: { kind: 'card' as const, id: VALAKUT }, abilityId, trigger: `${VALAKUT}:9`, more, players: players.map((id) => ({ kind: 'player' as const, id })) },
+		});
+		const targetBar = buttonsFrame(1, { enable1: false, enable2: false });
+		const ask = (h: Harness, abilityId: number, more: number) =>
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: selectables },
+				{ t: 'frame', seat: SEAT1_ID, frame: targetPrompt(abilityId, more) },
+				{ t: 'frame', seat: SEAT1_ID, frame: targetBar },
+			);
+		const dealConfirm = (abilityId: number) => [
+			{ t: 'frame' as const, seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Yes', label2: 'No', enable1: true, enable2: true }) },
+			{ t: 'frame' as const, seat: SEAT1_ID, frame: { ...promptFrame(1, 'Do you want to deal 3 damage to Bob?'), confirmAbility: { hostCard: { kind: 'card' as const, id: VALAKUT }, abilityId } } },
+		];
+		const picks = (h: Harness) => h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'selectPlayer').map((c) => (c.t === 'act' ? c.frame : null));
+		const oks = (h: Harness) => h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'selectButtonOk').length;
+
+		it('one pick with "same target for all" answers the rest, never reaching the seat; Forge never sees the flag', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			ask(h, 101, 2);
+			const shown = envelopesFor(h, SEAT1_ID).length;
+			expect(h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null, sameTarget: true }))).toEqual({ ok: true });
+			ask(h, 102, 1);
+			ask(h, 103, 0);
+			expect(picks(h)).toEqual([0, 1, 2].map(() => ({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null })));
+			expect(methodsSent(h, SEAT1_ID, shown).filter((m) => m === 'showPromptMessage'), 'the two answered questions never reached the seat').toEqual([]);
+		});
+
+		it('a target Forge no longer offers is asked again', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			ask(h, 101, 1);
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null, sameTarget: true }));
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: selectables },
+				{ t: 'frame', seat: SEAT1_ID, frame: targetPrompt(102, 0, []) },
+				{ t: 'frame', seat: SEAT1_ID, frame: targetBar },
+			);
+			expect(picks(h)).toHaveLength(1);
+			expect(methodsSent(h, SEAT1_ID, before)).toContain('showPromptMessage');
+		});
+
+		it('without the box each question is the seat\'s own', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			ask(h, 101, 1);
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null }));
+			const before = envelopesFor(h, SEAT1_ID).length;
+			ask(h, 102, 0);
+			expect(picks(h)).toHaveLength(1);
+			expect(methodsSent(h, SEAT1_ID, before)).toContain('showPromptMessage');
+		});
+
+		it('"Do you want to deal 3 damage" for a target the seat chose is answered Yes, once; an ability it chose nothing for still asks', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			ask(h, 101, 0);
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null }));
+			const before = envelopesFor(h, SEAT1_ID).length;
+			const okBefore = oks(h);
+			h.host.push(...dealConfirm(101));
+			expect(oks(h) - okBefore, 'answered Yes').toBe(1);
+			expect(methodsSent(h, SEAT1_ID, before).filter((m) => m === 'showPromptMessage')).toEqual([]);
+			expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'auto-confirmed', why: 'the seat chose its target' }));
+			h.host.push(...dealConfirm(999));
+			expect(oks(h) - okBefore, 'a confirm for an ability it targeted nothing for').toBe(1);
+			expect(methodsSent(h, SEAT1_ID, before)).toContain('showPromptMessage');
+		});
+	});
+
 	describe("an optional trigger's remembered answer", () => {
 		const KEY = 'Whenever another creature enters the battlefield, you may gain 1 life.';
 		const triggerConfirm = (key = KEY) => ({

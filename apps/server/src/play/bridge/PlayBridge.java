@@ -628,6 +628,108 @@ public final class PlayBridge {
         return null;
     }
 
+    /** The bridge's own facts beside a state frame's packet: what each stack item targets on the stack, and the triggers still to go on it. */
+    static void addStackFacts(final JsonObject payload) {
+        final Game game = liveGame();
+        payload.add("stackTargetSpells", stackTargetSpellsJson(game));
+        final JsonArray pending = pendingTriggersJson(game);
+        if (pending != null) { payload.add("pendingTriggers", pending); }
+    }
+
+    /**
+     * Every seat told the waiting triggers now, with nothing else changed, whenever a question opens
+     * while any wait: a batch is formed on the game thread with no trackable property moving, so no
+     * delta would carry it before its first question (the order of the batch, its first target). An
+     * empty packet, as {@code emitSyntheticMulliganDelta} sends.
+     */
+    static void broadcastIfWaiting() {
+        final Game game = liveGame();
+        try {
+            if (game == null || pendingTriggers(game).isEmpty()) { return; }
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[bridge] broadcastIfWaiting: could not read the waiting triggers (" + e + ")");
+            return;
+        }
+        for (final SeatGui g : SEATS.values()) {
+            final JsonObject f = SeatGui.notify("applyDelta");
+            final JsonObject payload = new JsonObject();
+            payload.add("packet", packetJson(new DeltaPacket(-1L, null, null, 0, null)));
+            addStackFacts(payload);
+            f.add("payload", payload);
+            g.frame(f);
+        }
+    }
+
+    /**
+     * The triggers Forge has collected but not yet put on the stack: the batch
+     * {@code MagicStack.chooseOrderOfSimultaneousStackEntry} hands the controller
+     * ({@code activePlayerSAs}, {@code MagicStack.java:878-909}) while
+     * {@code PlayerControllerHuman.orderAndPlaySimultaneousSa} asks each one's targets in
+     * turn ({@code :2370-2394}), plus the ones still waiting in
+     * {@code simultaneousStackEntryList} for their controller's turn at it. Both lists are
+     * private and stock upstream has no getter, so they are read the way
+     * {@link SeatGui#legalPlayers} reads its input. A trigger already on the stack is not
+     * pending. {@code current} marks the one whose target question is open.
+     *
+     * <p>Null when the lists cannot be read (the game thread moved them under the read):
+     * the frame then omits the field and the client keeps what it had.
+     */
+    static JsonArray pendingTriggersJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            for (final WrappedAbility w : pendingTriggers(game)) {
+                final JsonObject o = new JsonObject();
+                o.addProperty("id", w.getId());
+                o.addProperty("hostCard", w.getHostCard().getId());
+                o.addProperty("controller", w.getActivatingPlayer() == null ? w.getHostCard().getController().getId() : w.getActivatingPlayer().getId());
+                o.addProperty("key", w.yieldKey());
+                if (isTargeting(w)) { o.addProperty("current", true); }
+                out.add(o);
+            }
+            return out;
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[bridge] pendingTriggers: could not read the waiting triggers (" + e + ")");
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<WrappedAbility> pendingTriggers(final Game game) throws ReflectiveOperationException {
+        final forge.game.zone.MagicStack stack = game.getStack();
+        final Set<SpellAbility> onStack = new java.util.HashSet<>();
+        for (final SpellAbilityStackInstance si : stack) { onStack.add(si.getSpellAbility()); }
+        final Set<SpellAbility> waiting = new java.util.LinkedHashSet<>();
+        waiting.addAll(new ArrayList<>((List<SpellAbility>) SeatGui.field(stack, forge.game.zone.MagicStack.class, "activePlayerSAs")));
+        waiting.addAll(new ArrayList<>((List<SpellAbility>) SeatGui.field(stack, forge.game.zone.MagicStack.class, "simultaneousStackEntryList")));
+        final List<WrappedAbility> out = new ArrayList<>();
+        for (final SpellAbility sa : waiting) {
+            if (sa instanceof WrappedAbility w && !onStack.contains(sa) && w.getHostCard() != null && w.getTrigger() != null) { out.add(w); }
+        }
+        return out;
+    }
+
+    /** Whether {@code w}'s controller has its target question open right now. */
+    private static boolean isTargeting(final WrappedAbility w) throws ReflectiveOperationException {
+        final forge.game.player.Player who = w.getActivatingPlayer() == null ? w.getHostCard().getController() : w.getActivatingPlayer();
+        if (who == null || !(who.getController() instanceof PlayerControllerHuman human)) { return false; }
+        final SpellAbility asked = targetedAbility(human);
+        return asked != null && (asked == w || asked == w.getWrappedAbility());
+    }
+
+    /** The ability {@code human}'s open target selection is for, unwrapped from its trigger; null for any other input. */
+    static SpellAbility targetedAbility(final PlayerControllerHuman human) throws ReflectiveOperationException {
+        final Object input = human.getInputQueue().getInput();
+        if (!(input instanceof forge.gamemodes.match.input.InputSelectTargets)) { return null; }
+        final SpellAbility sa = (SpellAbility) SeatGui.field(input, forge.gamemodes.match.input.InputSelectTargets.class, "sa");
+        return sa instanceof WrappedAbility w ? w.getWrappedAbility() : sa;
+    }
+
+    /** One trigger of one card, whichever instance: identical triggers from the same source share it. */
+    static String triggerKey(final SpellAbility sa) {
+        return sa.getHostCard().getId() + ":" + sa.getTrigger().getId();
+    }
+
     /**
      * The live {@code Game}, straight off {@link #LOBBY} — the same access
      * {@link SeatGui#liveMulliganFlag()} uses, and for the same reason: this
@@ -832,6 +934,7 @@ public final class PlayBridge {
             frame.addProperty("callId", callId);
             frame.addProperty("method", method);
             pending.put(callId, ask);
+            broadcastIfWaiting();
             return ask;
         }
 
@@ -931,7 +1034,7 @@ public final class PlayBridge {
             final JsonObject payload = new JsonObject();
             payload.add("gameView", objectTable(full.getNewObjects()));
             payload.addProperty("sequenceNumber", sequenceNumber);
-            payload.add("stackTargetSpells", stackTargetSpellsJson(liveGame()));
+            addStackFacts(payload);
             f.add("payload", payload);
             frame(f);
         }
@@ -965,7 +1068,7 @@ public final class PlayBridge {
                 final JsonObject f = notify("applyDelta");
                 final JsonObject payload = new JsonObject();
                 payload.add("packet", packetJson(packet));
-                payload.add("stackTargetSpells", stackTargetSpellsJson(liveGame()));
+                addStackFacts(payload);
                 f.add("payload", payload);
                 frame(f);
             }
@@ -1072,7 +1175,7 @@ public final class PlayBridge {
             final JsonObject f = notify("applyDelta");
             final JsonObject payload = new JsonObject();
             payload.add("packet", packetJson(synthetic));
-            payload.add("stackTargetSpells", stackTargetSpellsJson(liveGame()));
+            addStackFacts(payload);
             f.add("payload", payload);
             frame(f);
             super.applyDelta(synthetic);
@@ -1124,7 +1227,48 @@ public final class PlayBridge {
             f.add("card", refOrNull(card));
             final JsonObject confirm = confirmAbility();
             if (confirm != null) { f.add("confirmAbility", confirm); }
+            final JsonObject target = targetAbility();
+            if (target != null) { f.add("targetAbility", target); }
             frame(f);
+            broadcastIfWaiting();
+        }
+
+        /**
+         * The trigger an open target selection is for, or null for any other prompt.
+         *
+         * {@code abilityId} is the targeted ability itself, unwrapped from its trigger: the
+         * same {@code SpellAbility} an effect later hands {@code confirmAction} on resolution
+         * ({@code DamageDealEffect.java:180-184}'s "Do you want to deal ..."), so the server can
+         * tell a confirm for a target this seat already chose. {@code trigger} names the
+         * trigger of its card ({@link #triggerKey}), shared by identical instances, and
+         * {@code more} counts the instances still waiting behind this one, and {@code players}
+         * the players this selection accepts.
+         */
+        private JsonObject targetAbility() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            try {
+                final SpellAbility sa = targetedAbility(human);
+                if (sa == null || sa.getHostCard() == null || !sa.getRootAbility().isTrigger() || sa.getRootAbility().getTrigger() == null) { return null; }
+                final String key = triggerKey(sa.getRootAbility());
+                int more = 0;
+                for (final WrappedAbility w : pendingTriggers(liveGame())) {
+                    if (w.getWrappedAbility() != sa.getRootAbility() && triggerKey(w).equals(key)) { more += 1; }
+                }
+                final JsonObject o = new JsonObject();
+                o.add("hostCard", ref("card", sa.getHostCard().getId()));
+                o.addProperty("abilityId", sa.getId());
+                o.addProperty("trigger", key);
+                o.addProperty("more", more);
+                // Read here, with this input live: the selection's own `players` is read while
+                // `InputSelectTargets`'s constructor runs (`:68`), before it is the open input.
+                final JsonArray players = legalPlayers();
+                if (players != null) { o.add("players", players); }
+                return o;
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] targetAbility: could not read the open selection (" + e + ")");
+                return null;
+            }
         }
 
         /**
@@ -1165,6 +1309,7 @@ public final class PlayBridge {
                     final JsonObject trigger = new JsonObject();
                     trigger.addProperty("key", AutoYieldStore.abilitySuffix(w.yieldKey()));
                     trigger.addProperty("name", w.getTrigger().getHostCard().getName());
+                    trigger.addProperty("abilityId", w.getWrappedAbility().getId());
                     o.add("trigger", trigger);
                 }
                 return o;

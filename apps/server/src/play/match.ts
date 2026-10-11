@@ -131,6 +131,7 @@ import {
 } from './auto.js';
 import { answerRest, arrangeAsk, restOrder } from './arrange.js';
 import { firstMode, modesAsk, nextMode, type ModesLeft } from './modes.js';
+import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
@@ -465,6 +466,13 @@ export interface SeatState {
 	 */
 	chosenAbility: { hostCard: number; abilityId: number } | null;
 	/**
+	 * The seat's "same target for all" (`./trigger-targets.ts`): the following target
+	 * selections of the same trigger are answered with it, until the next `Priority:` prompt.
+	 */
+	sameTarget: SameTarget | null;
+	/** The abilities whose targets this seat chose, so their "Do you want to …?" on resolution is answered Yes, once. */
+	chosenTargets: Set<number>;
+	/**
 	 * The card this seat last clicked (`selectCard`), until the next
 	 * `getAbilityToPlay` it receives. A one-ability offer for exactly this card
 	 * is the click's own and goes to the browser, which says what was played; any
@@ -653,7 +661,16 @@ function showsAWindow(frame: unknown): boolean {
 	return f?.kind === 'notify' && (f.method === 'showPromptMessage' || f.method === 'updateButtons' || f.method === 'setSelectables');
 }
 
+type ActFrame = Extract<ClientFrame, { kind: 'act' }>;
+
 const INPUT_ACTS: ReadonlySet<string> = new Set(['selectButtonOk', 'selectButtonCancel', 'selectCard', 'selectPlayer', 'selectAbility', 'useMana']);
+
+/** The act as Forge takes it: `sameTarget` is the server's own (`./trigger-targets.ts`), never Forge's. */
+function forgeAct(frame: ActFrame): ActFrame {
+	if ((frame.method !== 'selectPlayer' && frame.method !== 'selectCard') || frame.sameTarget === undefined) return frame;
+	const { sameTarget: _sameTarget, ...rest } = frame;
+	return rest;
+}
 
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
 export const MATCH_ENDED_TITLE = 'Match ended';
@@ -789,15 +806,17 @@ const PROMPT_HOLD_FLUSH_MS = 2000;
  * `InputPassPriority.showNormalPrompt` the prompt and then its OK bar;
  * `InputPayMana.updateMessage` the `Auto` bar and then the prompt (after
  * `showMessage` has already sent a disabled `Auto` bar);
- * `InputConfirm.showMessage` the Yes/No bar and then the prompt. A prompt with
- * no shape here (an attack, a block, a target) is no decider's to answer and
+ * `InputConfirm.showMessage` the Yes/No bar and then the prompt;
+ * `InputSelectTargets.showMessage` a trigger's target prompt and then its bar.
+ * A prompt with no shape here (an attack, a block, a spell's target) is no decider's to answer and
  * is never held, and neither is a bar with none (InputAttack's per-click
  * refresh above all).
  */
-type WindowShape = 'priority' | 'payment' | 'confirm';
+type WindowShape = 'priority' | 'payment' | 'confirm' | 'target';
 
 function promptShape(frame: PromptFrame): WindowShape | null {
 	if (frame.confirmAbility != null) return 'confirm';
+	if (frame.targetAbility !== undefined) return 'target';
 	if (PAY_MANA.test(frame.message)) return 'payment';
 	if (PRIORITY.test(frame.message)) return 'priority';
 	return null;
@@ -1042,6 +1061,8 @@ export class Match {
 			says: [],
 			lastAbilityToPlay: null,
 			chosenAbility: null,
+			sameTarget: null,
+			chosenTargets: new Set(),
 			clicked: null,
 			pendingReveal: null,
 			mergedChoice: new Map(),
@@ -1617,8 +1638,9 @@ export class Match {
 				if (frame.method === 'selectCard') s.clicked = frame.card.id;
 				if (frame.method === 'concede') this.concededBy = seat;
 				if (frame.method === 'selectButtonCancel' && s.buttons?.method === 'updateButtons' && s.buttons.label2 === 'Mulligan') s.mulligans += 1;
+				this.noteTargetPick(s, frame);
 				this.disableStaleButtons(s);
-				this.command({ t: 'act', seat, frame });
+				this.command({ t: 'act', seat, frame: forgeAct(frame) });
 				return { ok: true };
 			case 'reply': {
 				const ask = s.asks.get(frame.callId);
@@ -2064,7 +2086,10 @@ export class Match {
 			return;
 		} else if (frame.method === 'showPromptMessage') {
 			s.prompt = frame;
-			if (frame.message.startsWith('Priority:')) s.chosenAbility = null;
+			if (frame.message.startsWith('Priority:')) {
+				s.chosenAbility = null;
+				s.sameTarget = null;
+			}
 			// The payment this prompt opens or closes is on record before anything
 			// decides on it (Z4: `maybeCancelUnpayable` must see the payment it is
 			// cancelling) — independent of whether this half is held or sent.
@@ -2143,7 +2168,7 @@ export class Match {
 		if (frame.method === 'showPromptMessage') {
 			const shape = promptShape(frame);
 			this.flushPendingPrompt(s);
-			if (shape === 'priority') {
+			if (shape === 'priority' || shape === 'target') {
 				// Any held bar belonged to the input before this one; this prompt's own bar is next.
 				s.pendingButtons = null;
 				s.pendingPrompt = frame;
@@ -2209,18 +2234,22 @@ export class Match {
 	 * A window left to the seat goes out in the order Forge sent it.
 	 */
 	private decideWindow(s: SeatState, prompt: PromptFrame, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first'): void {
-		const identity = JSON.stringify([prompt.message, prompt.confirmAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
+		const identity = JSON.stringify([prompt.message, prompt.confirmAbility ?? null, prompt.targetAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
 		// At most one decider answers a window: each one that acts sends Forge a press.
 		const why =
 			s.answeredWindow === identity
 				? 'repeat'
-				: this.maybeAutoPass(s)
-					? 'auto-pass'
-					: this.maybeConfirmChosenCost(s)
-						? 'auto-confirm'
-						: this.maybeAutoPay(s)
-							? 'auto-pay'
-							: 'kept';
+				: this.maybeSameTarget(s)
+					? 'same-target'
+					: this.maybeAutoPass(s)
+						? 'auto-pass'
+						: this.maybeConfirmChosenCost(s)
+							? 'auto-confirm'
+							: this.maybeConfirmChosenTarget(s)
+								? 'target-chosen'
+								: this.maybeAutoPay(s)
+									? 'auto-pay'
+									: 'kept';
 		const answered = why !== 'kept';
 		s.answeredWindow = answered ? identity : null;
 		const kind = readPromptFacts(this.notesOf(s)).window;
@@ -2712,6 +2741,46 @@ export class Match {
 		if (s.autoPaid === cost) return false;
 		s.autoPaid = cost;
 		this.deps.log({ evt: 'auto-paid', matchId: this.id, seat: s.seat, cost });
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+		return true;
+	}
+
+	/**
+	 * A seat's pick on a trigger's target selection: the ability's target is chosen (its "may" is
+	 * answered by that), and with `sameTarget` the identical triggers still waiting take it too.
+	 */
+	private noteTargetPick(s: SeatState, frame: ClientFrame): void {
+		const picked = pickedBy(frame);
+		const asked = targetAbilityOf(s.prompt);
+		if (picked === null || asked === null) return;
+		s.chosenTargets.add(asked.abilityId);
+		const same = frame.kind === 'act' && (frame.method === 'selectPlayer' || frame.method === 'selectCard') && frame.sameTarget === true;
+		s.sameTarget = same && asked.more > 0 ? { trigger: asked.trigger, target: picked } : null;
+	}
+
+	/**
+	 * The next identical trigger's target, answered from the seat's "same target for all" — under
+	 * Full Control too: the seat said so for exactly these. Returns whether it answered.
+	 */
+	private maybeSameTarget(s: SeatState): boolean {
+		if (s.ai || this.status !== 'running') return false;
+		const act = sameTargetAct(s.prompt, s.selection, s.sameTarget);
+		const asked = targetAbilityOf(s.prompt);
+		if (act === null || asked === null) return false;
+		s.chosenTargets.add(asked.abilityId);
+		this.deps.log({ evt: 'same-target', matchId: this.id, seat: s.seat, trigger: asked.trigger, target: s.sameTarget?.target, more: asked.more });
+		this.command({ t: 'act', seat: s.seat, frame: act });
+		return true;
+	}
+
+	/** Yes to "Do you want to …?" for an ability whose target this seat chose. Returns whether it answered. */
+	private maybeConfirmChosenTarget(s: SeatState): boolean {
+		const gate = this.autoGateFacts(s);
+		if (gate === null) return false;
+		const abilityId = chosenTargetConfirm(gate.notes, s.chosenTargets);
+		if (abilityId === null) return false;
+		s.chosenTargets.delete(abilityId);
+		this.deps.log({ evt: 'auto-confirmed', matchId: this.id, seat: s.seat, why: 'the seat chose its target' });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
 	}

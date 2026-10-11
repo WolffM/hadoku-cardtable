@@ -85,6 +85,18 @@
   }
 }
 
+/* A trigger Forge has not put on the stack yet: its chip already, quieter until it is there. */
+.placed[data-placed-waiting] {
+  opacity: 0.7;
+}
+
+/* The waiting trigger whose target is being asked for. */
+.placed[data-placed-current] {
+  opacity: 1;
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 /* A spell resolving to anywhere but a battlefield fades briefly (decision c). An arrival IS a battlefield slot already, and is never faded — it is removed at once instead (`placed.ts`'s own `leave`). */
 .placed[data-placed-leaving] {
   opacity: 0;

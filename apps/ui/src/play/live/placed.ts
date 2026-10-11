@@ -318,13 +318,19 @@ export function besideSource(
   bounds: Rect | null = null,
 ): Point {
   const sourceHeight = sourceBox.bottom - sourceBox.top;
+  const centreY = sourceBox.top + sourceHeight / 2;
+  // A row that is full on both sides wraps to the rows above and below it, never piles up at the edge.
+  for (const row of bounds === null ? [0] : [0, -1, 1, -2, 2]) {
+    const spot = alongRow(sourceBox, taken, tile, bounds, centreY + row * (tile.height + BESIDE_GAP));
+    if (spot !== null) return spot;
+  }
   let left = sourceBox.right + BESIDE_GAP;
   for (const box of taken) {
     const sameRow = Math.abs(box.top - sourceBox.top) < sourceHeight;
     if (sameRow && left < box.right + BESIDE_GAP) left = box.right + BESIDE_GAP;
   }
   let x = left + tile.width / 2;
-  let y = sourceBox.top + sourceHeight / 2;
+  let y = centreY;
   if (bounds !== null) {
     const minX = bounds.left + BESIDE_GAP + tile.width / 2;
     const maxX = bounds.right - BESIDE_GAP - tile.width / 2;
@@ -333,6 +339,54 @@ export function besideSource(
     y = Math.min(Math.max(y, bounds.top + BESIDE_GAP + tile.height / 2), Math.max(bounds.top + BESIDE_GAP + tile.height / 2, bounds.bottom - BESIDE_GAP - tile.height / 2));
   }
   return { x, y };
+}
+
+/**
+ * The first free spot on the row centred at `y`: right of the source, clear of every tile already
+ * there, else left of it — or null when neither side has room inside `bounds`.
+ */
+function alongRow(sourceBox: Rect, taken: readonly Rect[], tile: { width: number; height: number }, bounds: Rect | null, y: number): Point | null {
+  const top = y - tile.height / 2;
+  const bottom = y + tile.height / 2;
+  if (bounds !== null && (top < bounds.top + BESIDE_GAP || bottom > bounds.bottom - BESIDE_GAP)) return null;
+  const inRow = taken.filter((box) => box.bottom > top && box.top < bottom);
+  let left = sourceBox.right + BESIDE_GAP;
+  for (const box of [...inRow].sort((a, b) => a.left - b.left)) {
+    if (box.right + BESIDE_GAP > left && box.left < left + tile.width + BESIDE_GAP) left = box.right + BESIDE_GAP;
+  }
+  if (bounds === null || left + tile.width <= bounds.right - BESIDE_GAP) return { x: left + tile.width / 2, y };
+  let right = sourceBox.left - BESIDE_GAP;
+  for (const box of [...inRow].sort((a, b) => b.right - a.right)) {
+    if (box.left - BESIDE_GAP < right && box.right > right - tile.width - BESIDE_GAP) right = box.left - BESIDE_GAP;
+  }
+  return right - tile.width >= bounds.left + BESIDE_GAP ? { x: right - tile.width / 2, y } : null;
+}
+
+/**
+ * A chip's own small, stable nudge off its spot (the operator, 2026-10-11: "i prefer a bit of
+ * random placement rather than stacking all the valakut triggers in the same spot"): seeded by its
+ * id, so both screens and every repaint agree, at most a fifth of the chip's width and a quarter of
+ * its height either way.
+ */
+export function scatter(id: number, tile: { width: number; height: number }): { dx: number; dy: number } {
+  let h = (Math.abs(id) * 2654435761) >>> 0;
+  const next = (): number => {
+    h ^= h << 13;
+    h ^= h >>> 17;
+    h ^= h << 5;
+    h >>>= 0;
+    return h / 0x1_0000_0000;
+  };
+  return { dx: (next() - 0.5) * 0.4 * tile.width, dy: (next() - 0.5) * 0.5 * tile.height };
+}
+
+/** `at`, moved just enough to keep a `tile` centred on it inside `bounds`. */
+function within(at: Point, tile: { width: number; height: number }, bounds: Rect): Point {
+  const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), Math.max(lo, hi));
+  return {
+    x: clamp(at.x, bounds.left + BESIDE_GAP + tile.width / 2, bounds.right - BESIDE_GAP - tile.width / 2),
+    y: clamp(at.y, bounds.top + BESIDE_GAP + tile.height / 2, bounds.bottom - BESIDE_GAP - tile.height / 2),
+  };
 }
 
 /**
@@ -395,6 +449,12 @@ interface Drawn {
   holdCheckAt: number | null;
   /** An ability's chip: the card width and text it was last squared for (`squareChip`), so it is measured once per change. */
   squaredFor: string | null;
+  /** A chip's place off its source's centre, kept once it has its own size, so a repaint never moves it. */
+  offset: { dx: number; dy: number } | null;
+  /** The id this was first drawn for, which seeds its `scatter`: a waiting trigger's chip keeps it on the stack. */
+  readonly seed: number;
+  /** A waiting trigger's chip whose target question was open when last drawn — the one that goes on the stack next. */
+  current: boolean;
 }
 
 /** Overlay-relative centre of a box. */
@@ -499,6 +559,25 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
   }
 
+  /**
+   * A waiting trigger's chip becomes its stack item's when Forge puts it on the stack: the item
+   * that is new and not yet drawn takes over the chip a waiting trigger of the same card just left
+   * (the one asked about first), so it stays exactly where it was.
+   */
+  function handOver(stack: readonly StackEntry[], currentIds: ReadonlySet<number>): void {
+    for (const item of stack) {
+      if (!item.isAbility || drawn.has(item.id) || item.sourceCardId === null) continue;
+      const left = [...drawn].filter(([id, d]) => id < 0 && !currentIds.has(id) && !d.leaving && d.sourceCardId === item.sourceCardId);
+      const taken = left.find(([, d]) => d.current) ?? left[0];
+      if (taken === undefined) continue;
+      const [id, d] = taken;
+      drawn.delete(id);
+      drawn.set(item.id, d);
+      d.el.setAttribute('data-placed-spell', String(item.id));
+      d.el.setAttribute('data-stack-id', String(item.id));
+    }
+  }
+
   /** Prune a record that has sat unmatched past its TTL — a land, a cancelled cast, an echo for an item that never came. */
   function pruneStale(items: readonly StackEntry[]): void {
     const now = Date.now();
@@ -592,6 +671,9 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null,
         holdCheckAt: null,
         squaredFor: null,
+        offset: null,
+        seed: item.id,
+        current: false,
       };
       // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
       if (item.isAbility) resized?.observe(el);
@@ -640,20 +722,32 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     d.squaredFor = key;
   }
 
-  /** The point for an item with no registered placement, plus the box it occupies — for the NEXT ability's own collision check, when it is one. */
-  function positionOf(item: StackEntry, el: HTMLElement, taken: readonly Rect[], bounds: Rect): { at: Point; reserved: Rect | null } | null {
+  /**
+   * The point for an item with no registered placement, plus the box it occupies — for the NEXT ability's own collision check, when it is one.
+   * A chip goes beside its source, nudged by its own `scatter`, and stays at that offset from the source once it has its size.
+   */
+  function positionOf(item: StackEntry, d: Drawn, taken: readonly Rect[], bounds: Rect): { at: Point; reserved: Rect | null } | null {
     const promoted = placements.get(item.id);
     if (promoted !== undefined) return { at: promoted.at, reserved: null };
     if (item.isAbility && item.sourceCardId !== null) {
       const source = cardBox(canvas, item.sourceCardId);
       if (source !== null) {
         const sourceBox = rectOf(source);
-        const drawnBox = el.getBoundingClientRect();
+        const drawnBox = d.el.getBoundingClientRect();
         const tile =
           drawnBox.width > 0
             ? { width: drawnBox.width, height: drawnBox.height }
             : { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top };
-        const at = besideSource(sourceBox, taken, tile, bounds);
+        const centre = { x: (sourceBox.left + sourceBox.right) / 2, y: (sourceBox.top + sourceBox.bottom) / 2 };
+        let at: Point;
+        if (d.offset !== null) {
+          at = within({ x: centre.x + d.offset.dx, y: centre.y + d.offset.dy }, tile, bounds);
+        } else {
+          const spot = besideSource(sourceBox, taken, tile, bounds);
+          const { dx, dy } = scatter(d.seed, tile);
+          at = within({ x: spot.x + dx, y: spot.y + dy }, tile, bounds);
+          if (d.squaredFor !== null) d.offset = { dx: at.x - centre.x, dy: at.y - centre.y };
+        }
         return { at, reserved: { left: at.x - tile.width / 2, right: at.x + tile.width / 2, top: at.y - tile.height / 2, bottom: at.y + tile.height / 2 } };
       }
     }
@@ -784,7 +878,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const overlayBox = root.getBoundingClientRect();
     // Every stack card is a battlefield card's size (`card-size.ts`, the one source) — measured once per paint.
     const cardWidth = battlefieldCardWidth(canvas, 'you') ?? battlefieldCardWidth(canvas, 'them');
-    const currentIds = new Set(view.stack.map((i) => i.id));
+    // The triggers still waiting to go on the stack are chips already, after everything on it.
+    const items = [...view.stack, ...(view.pendingTriggers ?? [])];
+    const currentIds = new Set(items.map((i) => i.id));
+    handOver(view.stack, currentIds);
 
     // Resolved/left items first, so a leaving one never counts toward `taken` below.
     const departed = [...drawn].filter(([id]) => !currentIds.has(id));
@@ -805,9 +902,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
 
     const taken: Rect[] = [];
-    view.stack.forEach((item, index) => {
+    items.forEach((item, index) => {
       if (item.isAbility && !drawn.has(item.id) && chainHalted === false) {
-        undrawn.set(item.id, item.sourceCardId);
+        // A waiting trigger nobody stopped for shimmers once, as the stack item it becomes.
+        if (item.pending !== true) undrawn.set(item.id, item.sourceCardId);
         return;
       }
       undrawn.delete(item.id);
@@ -825,7 +923,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) d.pendingUntil = null;
       d.el.toggleAttribute('data-placed-pending', held !== null || d.pendingUntil !== null);
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
-      const resolved = positionOf(item, d.el, taken, overlayBox);
+      const resolved = positionOf(item, d, taken, overlayBox);
       if (resolved === null) return;
       const { at, reserved } = resolved;
       if (reserved !== null) taken.push(reserved);
@@ -843,8 +941,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const selectable = !item.isAbility && item.sourceCardId !== null && interaction?.isSelectable(item.sourceCardId) === true;
       if (selectable) d.el.setAttribute('data-selectable', '');
       else d.el.removeAttribute('data-selectable');
-      if (index === 0) d.el.setAttribute('data-placed-next', '');
+      if (index === 0 && item.pending !== true) d.el.setAttribute('data-placed-next', '');
       else d.el.removeAttribute('data-placed-next');
+      d.current = item.current === true;
+      d.el.toggleAttribute('data-placed-waiting', item.pending === true);
+      d.el.toggleAttribute('data-placed-current', d.current);
     });
 
     drawArrows(view.stack);

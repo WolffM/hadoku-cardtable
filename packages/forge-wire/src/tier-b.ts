@@ -254,13 +254,30 @@ export const ShowPromptMessageSchema = z.strictObject({
    * `trigger` is present on an optional trigger's confirm only: `key` is the
    * storage key Forge keeps a remembered answer under (`AutoYieldStore.abilitySuffix`
    * of the wrapper's `yieldKey()`, per ability as Forge's default
-   * `UI_AUTO_DECISION_MODE` keeps it), `name` the trigger's host card.
+   * `UI_AUTO_DECISION_MODE` keeps it), `name` the trigger's host card, `abilityId` the ability it
+   * wraps (the one `targetAbility.abilityId` names while its targets are chosen).
    */
   confirmAbility: z
     .strictObject({
       hostCard: CardRefSchema,
       abilityId: z.number().int(),
-      trigger: z.strictObject({ key: z.string().min(1), name: z.string() }).optional(),
+      trigger: z.strictObject({ key: z.string().min(1), name: z.string(), abilityId: z.number().int().optional() }).optional(),
+    })
+    .optional(),
+  /**
+   * Ours: the trigger an open target selection is for (`PlayBridge.java`'s `targetAbility`).
+   * `abilityId` is the targeted ability, the same one a "Do you want to …" confirm names on
+   * resolution; `trigger` is shared by identical triggers of one card; `more` counts those still
+   * waiting for their targets behind this one; `players` the players this selection accepts, read
+   * while it is the open input (absent when unreadable). Absent on every other prompt.
+   */
+  targetAbility: z
+    .strictObject({
+      hostCard: CardRefSchema,
+      abilityId: z.number().int(),
+      trigger: z.string().min(1),
+      more: z.number().int().nonnegative(),
+      players: z.array(PlayerRefSchema).optional(),
     })
     .optional(),
 });
@@ -721,6 +738,8 @@ export const SelectPlayerSchema = z.strictObject({
   method: z.literal('selectPlayer'),
   player: PlayerRefSchema,
   triggerEvent: TriggerEventSchema.nullable(),
+  /** Ours: the same target for every identical trigger still waiting (`targetAbility.more`). The server keeps it; Forge never sees it. */
+  sameTarget: z.literal(true).optional(),
 });
 
 /**
@@ -738,6 +757,8 @@ export const SelectCardSchema = z.strictObject({
   card: CardRefSchema,
   otherCardViewsToSelect: z.array(CardRefSchema),
   triggerEvent: TriggerEventSchema.nullable(),
+  /** Ours: as `selectPlayer`'s. */
+  sameTarget: z.literal(true).optional(),
 });
 
 /** `void selectAbility(SpellAbilityView sa)` — IGameController.java:38. */

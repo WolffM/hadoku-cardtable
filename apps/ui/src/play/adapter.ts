@@ -164,7 +164,7 @@ import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
-import type { WireState } from './fold.ts';
+import type { PendingTriggers, WireState } from './fold.ts';
 import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
 
 export interface BoardCard {
@@ -529,6 +529,14 @@ export interface StackEntry {
    * "nothing on the stack" alike.
    */
   targetStackItemId?: number | null;
+  /**
+   * A trigger Forge has collected and not yet put on the stack (`BoardView.pendingTriggers`):
+   * drawn as its chip already, waiting. Its `id` is the trigger's ability id negated, so it never
+   * meets a stack id.
+   */
+  pending?: true;
+  /** The waiting trigger whose target question is open. */
+  current?: true;
 }
 
 export interface BoardView {
@@ -543,6 +551,11 @@ export interface BoardView {
   players: BoardPlayer[];
   /** Top of the stack first. */
   stack: StackEntry[];
+  /**
+   * The triggers waiting to go on the stack, each as the entry it will be (`pending`). OPTIONAL like
+   * `combat`: `toBoardView` always sets it.
+   */
+  pendingTriggers?: StackEntry[];
   /**
    * Forge's `CombatView`, one entry per attacking band, and empty outside
    * combat. OPTIONAL like `BoardCard`'s late fields: `toBoardView` always sets
@@ -618,6 +631,8 @@ export interface AdaptOptions {
    * as before this wave.
    */
   stackTargetSpells?: ReadonlyMap<number, number>;
+  /** `PlayBridge.java`'s `pendingTriggers` (`../fold.ts`), read onto `BoardView.pendingTriggers`. */
+  pendingTriggers?: PendingTriggers;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -1284,6 +1299,7 @@ export function toBoardView(
     avatarByPlayerId,
     nameByPlayerId,
     stackTargetSpells,
+    pendingTriggers,
   }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
@@ -1378,6 +1394,28 @@ export function toBoardView(
     };
   });
 
+  const waiting: StackEntry[] = (pendingTriggers ?? []).map((t) => {
+    const source = toBoardCard(state, t.hostCard, artIds, printedPT, false, printedType);
+    const sourceName = source?.card.name ?? null;
+    return {
+      id: -t.id,
+      description: t.key,
+      sourceCardId: t.hostCard,
+      sourceName,
+      sourceCard: source?.card ?? null,
+      sourceHidden: source?.hidden === true,
+      abilityText: abilityTextOf(t.key, t.key, sourceName),
+      controllerName: nameOfPlayer(t.controller),
+      isAbility: true,
+      targetCardIds: [],
+      targetPlayerIds: [],
+      targetLabel: null,
+      targetStackItemId: null,
+      pending: true,
+      ...(t.current === true ? { current: true as const } : {}),
+    };
+  });
+
   const phase = readEnum(game, 'Phase');
   return {
     combat: readCombat(game),
@@ -1389,6 +1427,7 @@ export function toBoardView(
     activePlayerId,
     players,
     stack,
+    pendingTriggers: waiting,
     gameOver: readBool(game, 'GameOver'),
     missingCardIds: missing,
   };

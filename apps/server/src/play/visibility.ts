@@ -105,11 +105,14 @@ export interface DeltaPacketJson {
  */
 export type StackTargetSpells = readonly (readonly [number, number])[];
 
+/** `PlayBridge.java`'s `pendingTriggers` — `packages/forge-wire/src/tier-c.ts`'s `PendingTriggersSchema`. */
+export type PendingTriggers = readonly { id: number; hostCard: number; controller: number; key: string; current?: true }[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -495,6 +498,16 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return { seq: packet.seq, checksum: 0, checksumProperties: [], newObjects, objectDeltas, events: [] };
 	}
 
+	/**
+	 * The waiting triggers this seat may see: one whose card it may not see would name that card
+	 * (`key` is the card's words), so it is dropped here, as the card's name is everywhere else.
+	 */
+	function pendingSeen(pending: PendingTriggers | undefined): { pendingTriggers?: PendingTriggers } {
+		if (pending === undefined) return {};
+		const zones = indexZones(raw);
+		return { pendingTriggers: pending.filter((t) => cardVisibility(raw, zones, t.hostCard, who) === 'full') };
+	}
+
 	return {
 		get viewer() {
 			return who;
@@ -534,6 +547,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...(frame.payload.stackTargetSpells === undefined
 								? {}
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
+							...pendingSeen(frame.payload.pendingTriggers),
 						},
 					};
 				}
@@ -546,6 +560,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...(frame.payload.stackTargetSpells === undefined
 								? {}
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
+							...pendingSeen(frame.payload.pendingTriggers),
 						},
 					};
 			}

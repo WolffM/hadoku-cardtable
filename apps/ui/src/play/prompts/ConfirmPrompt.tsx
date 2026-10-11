@@ -219,8 +219,11 @@ export interface ConfirmPromptProps {
   /** Omitted where Forge has not offered the button at all (the bar decision draws only what Forge enabled). */
   button1?: ConfirmPromptButton;
   button2?: ConfirmPromptButton;
-  /** An optional trigger's "Always": ticked, the answer pressed is the one Forge keeps giving. */
-  always?: { checked: boolean; onChange: (checked: boolean) => void };
+  /**
+   * A box beside the buttons: an optional trigger's "Always" (ticked, the answer pressed is the one
+   * Forge keeps giving), a trigger target's "Same target for all".
+   */
+  check?: { label: string; testId: string; checked: boolean; onChange: (checked: boolean) => void };
 }
 
 /**
@@ -231,7 +234,7 @@ export interface ConfirmPromptProps {
  * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this
  * component sends nothing itself.
  */
-export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, always }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, check }: ConfirmPromptProps) {
   const titleId = useId();
   const messageId = useId();
   return (
@@ -253,15 +256,10 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
         <RulesText text={message} />
       </p>
       <div className="confirm__actions">
-        {always !== undefined && (
-          <label className="confirm__always">
-            <input
-              type="checkbox"
-              data-testid={`${testId}-always`}
-              checked={always.checked}
-              onChange={(event) => always.onChange(event.currentTarget.checked)}
-            />
-            Always
+        {check !== undefined && (
+          <label className="confirm__check">
+            <input type="checkbox" data-testid={check.testId} checked={check.checked} onChange={(event) => check.onChange(event.currentTarget.checked)} />
+            {check.label}
           </label>
         )}
         {[button1, button2].map((b, i) => b !== undefined && (

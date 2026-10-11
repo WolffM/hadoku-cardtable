@@ -38,9 +38,16 @@ export type WireState = ReadonlyMap<string, WireObject>;
  */
 export type StackTargetSpellPairs = readonly (readonly [number, number])[];
 
-/** A packet that MAY carry {@link StackTargetSpellPairs} as a sibling field. */
+/**
+ * `PlayBridge.java`'s `pendingTriggers`, the packet's other sibling: the triggers Forge has
+ * collected and not yet put on the stack (`packages/forge-wire`'s `PendingTriggersSchema`).
+ */
+export type PendingTriggers = readonly { id: number; hostCard: number; controller: number; key: string; current?: true }[];
+
+/** A packet that MAY carry {@link StackTargetSpellPairs} and {@link PendingTriggers} as sibling fields. */
 export interface FoldablePacket extends WirePacket {
   stackTargetSpells?: StackTargetSpellPairs;
+  pendingTriggers?: PendingTriggers;
 }
 
 export interface FoldResult {
@@ -59,6 +66,8 @@ export interface FoldResult {
    * carries it.
    */
   stackTargetSpells: ReadonlyMap<number, number>;
+  /** The latest `pendingTriggers` snapshot folded — replaced when present, as `stackTargetSpells` is. */
+  pendingTriggers: PendingTriggers;
 }
 
 export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
@@ -66,11 +75,13 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let seq = 0;
   let skippedDeltas = 0;
   let stackTargetSpells = new Map<number, number>();
+  let pendingTriggers: PendingTriggers = [];
 
   for (const packet of packets) {
     if (packet.stackTargetSpells !== undefined) {
       stackTargetSpells = new Map(packet.stackTargetSpells);
     }
+    if (packet.pendingTriggers !== undefined) pendingTriggers = packet.pendingTriggers;
     for (const [key, obj] of Object.entries(packet.newObjects)) {
       if (isAnnotationKey(key)) continue;
       state.set(key, withoutNulls(obj));
@@ -93,7 +104,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells };
+  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers };
 }
 
 function withoutNulls(obj: WireObject): WireObject {
