@@ -1,0 +1,17 @@
+# The operator, 2026-10-11, Cabal Therapy: "after the spell resolved i am softlocked, it should have
+# shown me something to let me name a card" ... "it took FOREVER to show the picker." Alice (seat 0)
+# holds Cabal Therapy and an untapped Swamp in her main phase; bob (seat 1) holds two nonland cards and
+# a land, so naming Grizzly Bears discards exactly one card from his hand.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Cabal Therapy
+humanbattlefield=Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=Grizzly Bears;Llanowar Elves;Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
