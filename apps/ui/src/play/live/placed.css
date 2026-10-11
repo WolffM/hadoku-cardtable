@@ -34,6 +34,20 @@
 }
 
 /*
+ * An ability's chip (AE29) is text, not a card: it grows WIDER before it grows taller. The
+ * operator, 2026-10-10, of an annihilator trigger: "a very long vertical ability chip which was
+ * ugly … allow ability chips to get a little more horizontal, especially if the reminder text is
+ * very long." At a battlefield card's width a long trigger wrapped to a word a line and stood
+ * several cards tall. Its own text's width now, never narrower than a card, and never wider than
+ * three cards or a third of the board — the text wraps there. One rule, the same on both screens.
+ */
+.placed[data-placed-ability] {
+  width: max-content;
+  min-width: var(--card-w, 5.5rem);
+  max-width: min(calc(var(--card-w, 5.5rem) * 3), 33%);
+}
+
+/*
  * The other seat's item while they drag it (`placed.ts`'s `placeSpell`): each move arrives as one
  * message, and a point set straight from it steps across the board a message at a time. The same
  * short glide their pointer and a card they rearrange get (`presence.css`) turns those samples into

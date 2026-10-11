@@ -121,8 +121,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function mountBoard(interaction?: BoardInteraction) {
-  const utils = render(createElement(Board, interaction === undefined ? { view: VIEW } : { view: VIEW, interaction }));
+function mountBoard(interaction?: BoardInteraction, view: BoardView = VIEW) {
+  const utils = render(createElement(Board, interaction === undefined ? { view } : { view, interaction }));
   const board = utils.container.querySelector<HTMLElement>('.board')!;
   disposers.push(mountInspector(board));
   return {
@@ -176,6 +176,21 @@ describe('opening', () => {
     const shown = panel();
     expect(shown).not.toBeNull();
     expect(shown!.querySelector('.card__name')!.textContent).toBe('Their Card');
+  });
+
+  it('opens for an ability chip on the stack: the chip itself, its whole text, enlarged (the operator, 2026-10-10)', () => {
+    const text = 'Annihilator 6 (Whenever this creature attacks, defending player sacrifices six permanents.)';
+    const ability = { id: 10, description: `Their Card - ${text}`, sourceCardId: 3, sourceName: 'Their Card', sourceCard: card(3, 'Their Card').card, controllerName: 'Them', isAbility: true };
+    const { panel, board } = mountBoard(undefined, { ...VIEW, stack: [ability, ...VIEW.stack] });
+    const chip = board.querySelector<HTMLElement>('[data-stack-id="10"] [data-ability-chip]')!;
+    hover(chip.querySelector('.placed__chip-text')!);
+    const shown = panel();
+    expect(shown, 'hovering the chip opens the one expanded view').not.toBeNull();
+    expect(shown!.querySelector('[data-ability-chip] .placed__chip-text')!.textContent).toContain('defending player sacrifices six permanents');
+    fireEvent.pointerDown(chip, { pointerType: 'mouse' });
+    expect(panel(), 'a press on the chip puts it away, like a card').toBeNull();
+    hover(chip);
+    expect(panel(), 'and it stays away until the pointer has left the chip').toBeNull();
   });
 
   it('while a decision window is open, ANY hovered card enlarges beside the window, never over it', () => {

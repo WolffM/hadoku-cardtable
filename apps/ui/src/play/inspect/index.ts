@@ -155,6 +155,13 @@ interface InspectTarget {
 const INSPECT_IDS = 'data-inspect-ids';
 
 /**
+ * An ability on the stack is drawn as a chip (`live/placed.ts`'s `abilityChip`), not a tile: hovering
+ * it enlarges the chip itself — the ability's whole text, its source's art and name. The operator,
+ * 2026-10-10: "lets also allow hovering them just like cards to see an expanded view."
+ */
+const ABILITY_CHIP = 'data-ability-chip';
+
+/**
  * A window the panel stands beside, never on: a decision pop-up that asks something (the "waiting for
  * the other player" pop-up asks nothing), or an open pile view.
  */
@@ -214,6 +221,8 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
       }
       return null;
     }
+    // An ability's chip on the stack (`live/placed.ts`): its own text, enlarged — a chip read like a card.
+    if (el.hasAttribute(ABILITY_CHIP)) return { card: el.closest('[data-placed-spell]') ?? el, tile: el };
     const id = el.getAttribute('data-card-id');
     if (id !== null && TILE_ID.test(id)) {
       // The tile itself — or a wrapper carrying the tile's own id.

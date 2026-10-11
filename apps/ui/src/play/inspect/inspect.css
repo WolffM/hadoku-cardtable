@@ -53,3 +53,20 @@
 .inspect .card {
   box-shadow: 0 10px 28px var(--shadow);
 }
+
+/* An ability's chip, enlarged (`index.ts`'s `ABILITY_CHIP`): the chip's own look, at a reading size. */
+.inspect .placed__chip {
+  grid-template-rows: 4.5rem auto;
+}
+
+.inspect .placed__chip-name {
+  left: 10px;
+  bottom: 6px;
+  font-size: 14px;
+}
+
+.inspect .placed__chip-text {
+  padding: 9px 12px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}

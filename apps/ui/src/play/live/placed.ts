@@ -304,18 +304,33 @@ export function defaultSpot(canvas: ParentNode): Point | null {
  * Where an ephemeral ability card sits beside its source (Settled): to the
  * source's right, clear of it, and clear of any ephemeral tile already
  * placed there this pass (`taken`) — the next free spot along the row's
- * edge. `width` is the ephemeral tile's own width, read off the source's box
- * as the best available estimate before the tile itself exists.
+ * edge. `tile` is the ephemeral tile's own drawn size — a chip grows wider
+ * than a card for a long text (`placed.css`) — and the source's own box
+ * before it has one. Within `bounds` (the overlay) when given: on the
+ * source's LEFT when its right has no room, else as far in as it must be.
  */
-export function besideSource(sourceBox: Rect, taken: readonly Rect[]): Point {
-  const width = sourceBox.right - sourceBox.left;
-  const height = sourceBox.bottom - sourceBox.top;
+export function besideSource(
+  sourceBox: Rect,
+  taken: readonly Rect[],
+  tile: { width: number; height: number } = { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top },
+  bounds: Rect | null = null,
+): Point {
+  const sourceHeight = sourceBox.bottom - sourceBox.top;
   let left = sourceBox.right + BESIDE_GAP;
   for (const box of taken) {
-    const sameRow = Math.abs(box.top - sourceBox.top) < height;
+    const sameRow = Math.abs(box.top - sourceBox.top) < sourceHeight;
     if (sameRow && left < box.right + BESIDE_GAP) left = box.right + BESIDE_GAP;
   }
-  return { x: left + width / 2, y: sourceBox.top + height / 2 };
+  let x = left + tile.width / 2;
+  let y = sourceBox.top + sourceHeight / 2;
+  if (bounds !== null) {
+    const minX = bounds.left + BESIDE_GAP + tile.width / 2;
+    const maxX = bounds.right - BESIDE_GAP - tile.width / 2;
+    const onLeft = sourceBox.left - BESIDE_GAP - tile.width / 2;
+    if (x > maxX) x = onLeft >= minX ? onLeft : Math.max(minX, maxX);
+    y = Math.min(Math.max(y, bounds.top + BESIDE_GAP + tile.height / 2), Math.max(bounds.top + BESIDE_GAP + tile.height / 2, bounds.bottom - BESIDE_GAP - tile.height / 2));
+  }
+  return { x, y };
 }
 
 /* ── installPlaced: the DOM ───────────────────────────────────────────── */
@@ -436,6 +451,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   /** The latest shimmer on each board card, so an earlier one's timer never cuts a fresh one short. */
   const shimmers = new WeakMap<Element, number>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
+  /**
+   * Everything here is sized off the battlefield's card (`card-size.ts`) and a chip off its own text:
+   * a board that changes size (the window) or a chip whose text has just rendered is drawn again.
+   */
+  const resized = typeof ResizeObserver === 'function' ? new ResizeObserver(() => render()) : null;
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
   const overlay = (): HTMLElement | null => canvas.querySelector<HTMLElement>('[data-board-overlay]');
@@ -531,6 +551,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       el.setAttribute('data-stack-id', String(item.id));
       // The card it is, for a reader counting the card's copies on screen (`handover-report.ts`).
       if (!item.isAbility && item.sourceCardId !== null) el.setAttribute('data-placed-card', String(item.sourceCardId));
+      // An ability is a chip, sized by its text rather than as a card (`placed.css`).
+      if (item.isAbility) el.setAttribute('data-placed-ability', '');
       // Q18: a SPELL (never an ability) may itself be one of Forge's `setSelectables` while it sits
       // on the stack — `sourceCardId` captured once, at creation, same as every other id here.
       const sourceCardId = item.sourceCardId;
@@ -553,6 +575,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null,
         holdCheckAt: null,
       };
+      // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
+      if (item.isAbility) resized?.observe(el);
       if (pending) schedule(render, PLACED_PENDING_MS + 1);
       d.root = mount(el, item, wantBack);
       drawn.set(item.id, d);
@@ -571,17 +595,20 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /** The point for an item with no registered placement, plus the box it occupies — for the NEXT ability's own collision check, when it is one. */
-  function positionOf(item: StackEntry, taken: readonly Rect[]): { at: Point; reserved: Rect | null } | null {
+  function positionOf(item: StackEntry, el: HTMLElement, taken: readonly Rect[], bounds: Rect): { at: Point; reserved: Rect | null } | null {
     const promoted = placements.get(item.id);
     if (promoted !== undefined) return { at: promoted.at, reserved: null };
     if (item.isAbility && item.sourceCardId !== null) {
       const source = cardBox(canvas, item.sourceCardId);
       if (source !== null) {
         const sourceBox = rectOf(source);
-        const at = besideSource(sourceBox, taken);
-        const width = sourceBox.right - sourceBox.left;
-        const height = sourceBox.bottom - sourceBox.top;
-        return { at, reserved: { left: at.x - width / 2, right: at.x + width / 2, top: at.y - height / 2, bottom: at.y + height / 2 } };
+        const drawnBox = el.getBoundingClientRect();
+        const tile =
+          drawnBox.width > 0
+            ? { width: drawnBox.width, height: drawnBox.height }
+            : { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top };
+        const at = besideSource(sourceBox, taken, tile, bounds);
+        return { at, reserved: { left: at.x - tile.width / 2, right: at.x + tile.width / 2, top: at.y - tile.height / 2, bottom: at.y + tile.height / 2 } };
       }
     }
     const at = defaultSpot(canvas);
@@ -592,6 +619,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const d = drawn.get(id);
     if (d === undefined) return;
     deferUnmount(d.root);
+    resized?.unobserve(d.el);
     d.el.remove();
     drawn.delete(id);
     placements.delete(id);
@@ -752,7 +780,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         d.el.removeAttribute('data-placed-pending');
       }
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
-      const resolved = positionOf(item, taken);
+      const resolved = positionOf(item, d.el, taken, overlayBox);
       if (resolved === null) return;
       const { at, reserved } = resolved;
       if (reserved !== null) taken.push(reserved);
@@ -780,6 +808,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
 
   const hook = (): void => render();
   repaintHooks.add(hook);
+  resized?.observe(canvas);
 
   return {
     notify(view: BoardView, nextInteraction?: PlacedInteraction): void {
@@ -791,6 +820,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     dispose(): void {
       live = false;
       repaintHooks.delete(hook);
+      resized?.disconnect();
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       for (const id of [...drawn.keys()]) removeNow(id);

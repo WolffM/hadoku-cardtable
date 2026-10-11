@@ -369,6 +369,29 @@ describe('installPlaced: drawing', () => {
     expect(second.x, 'the second sits clear of the first, not on top of it').toBeGreaterThan(firstBox.right);
   });
 
+  it('besideSource places a chip by its own drawn width, and on the source\'s left when its right is off the board', () => {
+    const sourceBox: Rect = { left: 100, top: 500, right: 180, bottom: 610 };
+    const wide = { width: 240, height: 90 };
+    const bounds: Rect = { left: 0, top: 0, right: 1000, bottom: 800 };
+    expect(besideSource(sourceBox, [], wide, bounds).x, 'clear of the source by its own half-width').toBe(180 + 6 + 120);
+    const nearEdge: Rect = { left: 800, top: 500, right: 880, bottom: 610 };
+    expect(besideSource(nearEdge, [], wide, bounds).x, 'no room on the right: on the left').toBe(800 - 6 - 120);
+    const narrow: Rect = { left: 0, top: 0, right: 300, bottom: 800 };
+    const squeezed = besideSource({ left: 100, top: 500, right: 180, bottom: 610 }, [], wide, narrow);
+    expect(squeezed.x - 120, 'room on neither side: inside the board').toBeGreaterThanOrEqual(6);
+    expect(squeezed.x + 120).toBeLessThanOrEqual(300 - 6);
+  });
+
+  it('an ability is sized as a chip, not as a card (data-placed-ability); a spell is not', () => {
+    const { canvas } = board();
+    setChainHalted(true);
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 }), stackItem(8)]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')!.hasAttribute('data-placed-ability')).toBe(true);
+    expect(canvas.querySelector('[data-placed-spell="8"]')!.hasAttribute('data-placed-ability')).toBe(false);
+    handle.dispose();
+  });
+
   it('exactly one item — the top of Forge’s stack — carries data-placed-next (item 3; the mutation at item 8)', () => {
     const { canvas } = board();
     const handle = installPlaced(canvas);
