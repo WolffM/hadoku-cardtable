@@ -192,7 +192,7 @@ function armState(page: Page, p: { x: number; y: number }): Promise<unknown> {
     const hit = document.elementFromPoint(pt.x, pt.y);
     const chain: (string | null)[] = [];
     for (let el = hit; el !== null && chain.length < 6; el = el.parentElement) chain.push(name(el));
-    const li = hit?.closest<HTMLElement>('li.board-card') ?? null;
+    const li = hit?.closest<HTMLElement>('li.board-card, [data-placed-spell]') ?? null;
     const marks = (el: Element) => Object.fromEntries(Array.from(el.attributes).filter((a) => a.name.startsWith('data-')).map((a) => [a.name, a.value]));
     const shown = (sel: string) => Array.from(document.querySelectorAll(sel)).filter((el) => el.getClientRects().length > 0).map(name);
     return {
