@@ -1646,7 +1646,7 @@ function RoomTableScreen({
         <SettingsGear />
       </header>
 
-      <main className="lobby">
+      <main className="lobby lobby--room">
         {streamed && <StreamedSeats roomId={roomId} members={view?.members ?? []} streamFetch={streamFetch} />}
         {/* Everything below is the builtin room, unchanged. It waits for the
             room record as well as the table so a streamed room never flashes
@@ -1764,181 +1764,187 @@ function RoomTableScreen({
             ) : (
               loaded !== null && (
                 <section className="lobby__card lobby__decks">
-                  <h2>Your deck</h2>
-                  {/* The table's pool: "Format" — one pool, both seats, checked
-                      against the same list, across Standard, Modern and Legacy
-                      alike (wave 48 §U). The LEADER gets a control; everybody else reads
-                      the same text and cannot move it, which is the whole of
-                      *"people who join can only select from the deck
-                      dropdown"*. The leader is named beside it rather than
-                      explained: a mark and a name, not a sentence. */}
-                  {iAmLeader ? (
-                    <>
-                      <label className="lobby__field" htmlFor="format">
-                        {poolFieldLabel(pod)}
-                      </label>
-                      {/* The format tab selector (wave 48 §U), replacing the single
-                          "Matched Standard" optgroup: Standard, Modern, Legacy, plus
-                          a "Drafted pool" tab when the room has one (the CALLER's own
-                          seats — the server scopes that list, so a leader is never
-                          offered a pod they did not draft in). The active tab opens
-                          on the table's own era and only browses which eras the
-                          select below offers; nothing moves the room until an option
-                          in it is chosen. No prose: the tabs are the explanation. */}
-                      <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
-                        {FORMAT_TABS.map((tab) => (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={!freePick && formatTab === tab.id}
-                            data-testid={`format-tab-${tab.id}`}
-                            disabled={busy || underway}
-                            onClick={() => {
-                              setFormatTab(tab.id);
-                              // A tab whose eras do not include the room's pool chooses its first era
-                              // (newest, the list's order) at once, rather than showing nothing chosen
-                              // until the leader picks (the operator, 2026-10-07: "selecting modern
-                              // should default the year selection to the first available").
-                              if (loaded !== null && (freePick || !poolIsOnTab(loaded.formats, tab.id, poolId, pod))) {
-                                const first = erasOf(loaded.formats, tab.id)[0];
-                                if (first !== undefined) choosePool(first.id);
-                              }
-                            }}
-                          >
-                            {tab.label}
-                          </button>
-                        ))}
-                        {loaded.formats.some((f) => f.source === 'draft') && (
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={!freePick && formatTab === 'draft'}
-                            data-testid="format-tab-draft"
-                            disabled={busy || underway}
-                            onClick={() => setFormatTab('draft')}
-                          >
-                            Drafted pool
-                          </button>
-                        )}
-                        {/* Free pick: any deck against any deck. Off goes back to the
-                            browsed tab's newest era — Standard's from a drafted pool. */}
+                  <div className="lobby__deckhead">
+                    <h2>Your deck</h2>
+                    {/* The two actions sit ABOVE the list, not after it — beside the
+                      card's own heading since 2026-10-10, when the room became
+                      rows and every line above the grid came off its height. Operator,
+                        2026-09-30: *"the random button should be at the top, the
+                        ready button should also be at the top"* — the list is a grid
+                        of decks, and a Ready you have to scroll past every one of
+                        them to reach is a Ready nobody finds. Random is a button and
+                        not one of the radios because it is not a state a deck can be
+                        in: it resolves to one of the decks on offer, and the chooser
+                        then reads that deck (`chooseDeck`). */}
+                    <div className="deckpick__bar" data-testid="deck-actions">
+                      <button
+                        type="button"
+                        className="lobby__go"
+                        data-testid="ready-toggle"
+                        aria-pressed={mine?.ready === true}
+                        disabled={busy || deckId === '' || mine === null || !mine.legal || underway}
+                        onClick={() => setReady(!(mine?.ready === true))}
+                      >
+                        {mine?.ready === true ? 'Stand down' : 'Ready'}
+                      </button>
+                      <button
+                        type="button"
+                        className="deckpick__random"
+                        data-testid="deck-random"
+                        data-deck-id={RANDOM_DECK}
+                        disabled={deckOptions === null || underway}
+                        onClick={() => chooseDeck(RANDOM_DECK)}
+                      >
+                        Random
+                      </button>
+                      {/*
+                       * Alone in the room: play Forge's AI instead of waiting for
+                       * someone (the operator, 2026-10-02). The bot plays a random
+                       * library deck legal in this room's pool; the server picks it.
+                       */}
+                      {(view?.members.length ?? 0) === 1 && (
                         <button
                           type="button"
-                          className="lobby__free-pick"
-                          aria-pressed={freePick}
-                          data-testid="free-pick"
-                          disabled={busy || underway}
-                          onClick={() => {
-                            if (!freePick) {
-                              choosePool(FREE_PICK);
-                              return;
-                            }
-                            const era = erasOf(loaded.formats, formatTab === 'draft' ? 'standard' : formatTab)[0];
-                            choosePool(era?.id ?? newestFormat(loaded.formats));
-                          }}
+                          className="deckpick__random"
+                          data-testid="play-vs-bot"
+                          disabled={busy || mine === null || !mine.legal || underway}
+                          onClick={startVsBot}
                         >
-                          Free pick
+                          Play vs Forge AI
                         </button>
-                      </div>
-                      {/* The era the room is ACTUALLY on is not always one this
-                          tab offers (you are browsing Modern while the room
-                          sits on a Standard era), and a native `<select>`
-                          whose `value` matches none of its `<option>`s falls
-                          back to showing the FIRST one as already selected —
-                          which then fires no `change` event if that is the
-                          very one you click, so the room could never be moved
-                          to it (found live, w48 §U: `selectOption` on that
-                          first option sent no PATCH). A disabled, hidden,
-                          EMPTY placeholder option — never any text — keeps
-                          the select correctly showing nothing chosen on this
-                          tab, so every real era here is a genuine change. */}
-                      {!freePick && (
-                        <select
-                          id="format"
-                          data-testid="format"
-                          value={poolOnTab ? poolId : ''}
-                          disabled={busy || underway}
-                          onChange={(e) => choosePool(e.target.value)}
-                        >
-                          {!poolOnTab && <option value="" disabled hidden />}
-                          {formatTab === 'draft'
-                            ? loaded.formats
-                                .filter((f) => f.source === 'draft')
-                                .map((f) => (
-                                  <option key={f.id} value={f.id}>
-                                    {f.name} — {f.cardCount} cards
-                                  </option>
-                                ))
-                            : erasOf(loaded.formats, formatTab).map((f) => (
-                                <option key={f.id} value={f.id}>
-                                  {f.id} — {f.name}
-                                </option>
-                              ))}
-                        </select>
                       )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="lobby__field">{poolFieldLabel(pod)}</span>
-                      <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
-                        {poolLabel(loaded.formats, poolId)}
-                      </span>
-                    </>
-                  )}
-                  <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
+                    </div>
+                  </div>
+                  <div className="lobby__deckformat">
+                    {/* The table's pool: "Format" — one pool, both seats, checked
+                        against the same list, across Standard, Modern and Legacy
+                        alike (wave 48 §U). The LEADER gets a control; everybody else reads
+                        the same text and cannot move it, which is the whole of
+                        *"people who join can only select from the deck
+                        dropdown"*. The leader is named beside it rather than
+                        explained: a mark and a name, not a sentence. */}
+                    {iAmLeader ? (
+                      <>
+                        <label className="lobby__field" htmlFor="format">
+                          {poolFieldLabel(pod)}
+                        </label>
+                        {/* The format tab selector (wave 48 §U), replacing the single
+                            "Matched Standard" optgroup: Standard, Modern, Legacy, plus
+                            a "Drafted pool" tab when the room has one (the CALLER's own
+                            seats — the server scopes that list, so a leader is never
+                            offered a pod they did not draft in). The active tab opens
+                            on the table's own era and only browses which eras the
+                            select below offers; nothing moves the room until an option
+                            in it is chosen. No prose: the tabs are the explanation. */}
+                        <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
+                          {FORMAT_TABS.map((tab) => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={!freePick && formatTab === tab.id}
+                              data-testid={`format-tab-${tab.id}`}
+                              disabled={busy || underway}
+                              onClick={() => {
+                                setFormatTab(tab.id);
+                                // A tab whose eras do not include the room's pool chooses its first era
+                                // (newest, the list's order) at once, rather than showing nothing chosen
+                                // until the leader picks (the operator, 2026-10-07: "selecting modern
+                                // should default the year selection to the first available").
+                                if (loaded !== null && (freePick || !poolIsOnTab(loaded.formats, tab.id, poolId, pod))) {
+                                  const first = erasOf(loaded.formats, tab.id)[0];
+                                  if (first !== undefined) choosePool(first.id);
+                                }
+                              }}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                          {loaded.formats.some((f) => f.source === 'draft') && (
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={!freePick && formatTab === 'draft'}
+                              data-testid="format-tab-draft"
+                              disabled={busy || underway}
+                              onClick={() => setFormatTab('draft')}
+                            >
+                              Drafted pool
+                            </button>
+                          )}
+                          {/* Free pick: any deck against any deck. Off goes back to the
+                              browsed tab's newest era — Standard's from a drafted pool. */}
+                          <button
+                            type="button"
+                            className="lobby__free-pick"
+                            aria-pressed={freePick}
+                            data-testid="free-pick"
+                            disabled={busy || underway}
+                            onClick={() => {
+                              if (!freePick) {
+                                choosePool(FREE_PICK);
+                                return;
+                              }
+                              const era = erasOf(loaded.formats, formatTab === 'draft' ? 'standard' : formatTab)[0];
+                              choosePool(era?.id ?? newestFormat(loaded.formats));
+                            }}
+                          >
+                            Free pick
+                          </button>
+                        </div>
+                        {/* The era the room is ACTUALLY on is not always one this
+                            tab offers (you are browsing Modern while the room
+                            sits on a Standard era), and a native `<select>`
+                            whose `value` matches none of its `<option>`s falls
+                            back to showing the FIRST one as already selected —
+                            which then fires no `change` event if that is the
+                            very one you click, so the room could never be moved
+                            to it (found live, w48 §U: `selectOption` on that
+                            first option sent no PATCH). A disabled, hidden,
+                            EMPTY placeholder option — never any text — keeps
+                            the select correctly showing nothing chosen on this
+                            tab, so every real era here is a genuine change. */}
+                        {!freePick && (
+                          <select
+                            id="format"
+                            data-testid="format"
+                            value={poolOnTab ? poolId : ''}
+                            disabled={busy || underway}
+                            onChange={(e) => choosePool(e.target.value)}
+                          >
+                            {!poolOnTab && <option value="" disabled hidden />}
+                            {formatTab === 'draft'
+                              ? loaded.formats
+                                  .filter((f) => f.source === 'draft')
+                                  .map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                      {f.name} — {f.cardCount} cards
+                                    </option>
+                                  ))
+                              : erasOf(loaded.formats, formatTab).map((f) => (
+                                  <option key={f.id} value={f.id}>
+                                    {f.id} — {f.name}
+                                  </option>
+                                ))}
+                          </select>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="lobby__field">{poolFieldLabel(pod)}</span>
+                        <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
+                          {poolLabel(loaded.formats, poolId)}
+                        </span>
+                      </>
+                    )}
+                    <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
+                  </div>
                   {/* The sets the chosen era is made of, as symbols — the operator's
                       own ask, for a Standard era. A drafted pool has none and draws none; an
                       eternal format's forty-odd sets drew a strip the operator called
                       ridiculous (2026-10-07), so those draw none either. */}
                   {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
 
-                  {/* The two actions sit ABOVE the list, not after it. Operator,
-                      2026-09-30: *"the random button should be at the top, the
-                      ready button should also be at the top"* — the list is a grid
-                      of decks, and a Ready you have to scroll past every one of
-                      them to reach is a Ready nobody finds. Random is a button and
-                      not one of the radios because it is not a state a deck can be
-                      in: it resolves to one of the decks on offer, and the chooser
-                      then reads that deck (`chooseDeck`). */}
-                  <div className="deckpick__bar" data-testid="deck-actions">
-                    <button
-                      type="button"
-                      className="lobby__go"
-                      data-testid="ready-toggle"
-                      aria-pressed={mine?.ready === true}
-                      disabled={busy || deckId === '' || mine === null || !mine.legal || underway}
-                      onClick={() => setReady(!(mine?.ready === true))}
-                    >
-                      {mine?.ready === true ? 'Stand down' : 'Ready'}
-                    </button>
-                    <button
-                      type="button"
-                      className="deckpick__random"
-                      data-testid="deck-random"
-                      data-deck-id={RANDOM_DECK}
-                      disabled={deckOptions === null || underway}
-                      onClick={() => chooseDeck(RANDOM_DECK)}
-                    >
-                      Random
-                    </button>
-                    {/*
-                     * Alone in the room: play Forge's AI instead of waiting for
-                     * someone (the operator, 2026-10-02). The bot plays a random
-                     * library deck legal in this room's pool; the server picks it.
-                     */}
-                    {(view?.members.length ?? 0) === 1 && (
-                      <button
-                        type="button"
-                        className="deckpick__random"
-                        data-testid="play-vs-bot"
-                        disabled={busy || mine === null || !mine.legal || underway}
-                        onClick={startVsBot}
-                      >
-                        Play vs Forge AI
-                      </button>
-                    )}
-                  </div>
                   {actionError !== null && (
                     <p className="lobby__error" role="alert" data-testid="table-error">
                       {actionError}
@@ -1949,7 +1955,7 @@ function RoomTableScreen({
                       answer is the gate's. Disabled until it has answered: an
                       option list assembled before the answer would offer decks
                       the pool does not have. */}
-                  <span className="lobby__field" id="deck-mine-label">
+                  <span className="lobby__field lobby__field--hidden" id="deck-mine-label">
                     You play
                   </span>
                   <DeckChooser

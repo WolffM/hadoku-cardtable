@@ -14,9 +14,13 @@
  *  - the document does not scroll;
  *  - the chrome is exactly the window's height, and watchparty's room frame —
  *    the chat aside with it — ends at the window's bottom edge;
- *  - the only box that may scroll is the screen itself, inside that frame: the
- *    operator kept the layout these screens always had ("please revert the
- *    layout change, it was better before"), so a long list scrolls with it;
+ *  - on the front page the only box that may scroll is the screen itself,
+ *    inside that frame (the operator: "please revert the layout change, it was
+ *    better before");
+ *  - in a room it is the deck grid alone, never the screen — the operator,
+ *    2026-10-10: "can we put the scrollbar inside the deck selector instead of
+ *    for the whole page section? that would be cleaner", with the room's cards
+ *    stacked as rows so the grid gets the height;
  *  - every deck tile keeps its full 190px size, however many decks there are;
  *  - Ready, both seat rows and the first room row lie inside the window;
  *  - no verdict is drawn.
@@ -38,8 +42,8 @@ const PREFIX = '/cardtable';
 const ROOMS_OPEN = 16;
 /** A deck tile's own size (`screens.css` `.deckpick`). */
 const TILE_PX = 190;
-/** The only boxes that may scroll: the front page's and a room's own screen, inside the pinned frame. */
-const MAY_SCROLL = ['lobby', 'constructed'];
+/** The only boxes that may scroll: the front page's own screen, and a room's deck grid. */
+const MAY_SCROLL = ['lobby', 'deck-mine'];
 const SIZES = [
   { width: 1280, height: 800 },
   { width: 1366, height: 768 },
@@ -132,7 +136,7 @@ async function fitsAt(page: Page, who: string, where: string, mustShow: string, 
   }
 }
 
-test(titled('the page and the chat stay the window’s height on the front page and in a Free pick room; only the screen scrolls inside it, tiles at full size'), async ({ browser }) => {
+test(titled('the page and the chat stay the window’s height on the front page and in a Free pick room; only the front page’s screen and the room’s deck grid scroll, tiles at full size'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -190,7 +194,7 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await fitsAt(alice.page, 'alice', 'room', mustShow, failures);
     await fitsAt(bob.page, 'bob', 'room', mustShow, failures);
 
-    expect(failures, 'the page is the window’s height, only the screen scrolls inside it, every tile is full size, and no verdict').toEqual([]);
+    expect(failures, 'the page is the window’s height, only the front page’s screen and the room’s deck grid scroll, every tile is full size, and no verdict').toEqual([]);
   } finally {
     await stack.stop();
   }

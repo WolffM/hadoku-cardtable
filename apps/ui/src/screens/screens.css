@@ -1003,6 +1003,91 @@
 }
 
 /*
+ * A room is rows, not columns, and its deck grid is the only thing that scrolls.
+ *
+ * The operator, 2026-10-10: *"inside a room, theres a lot of wasted space on
+ * the leftside column. the 'at this table' section will never take up more
+ * vertical space so i think we should instead stack these as rows"*, and *"can
+ * we put the scrollbar inside the deck selector instead of for the whole page
+ * section?"*. `.lobby`'s auto-fit grid put "At the table" in a half-width
+ * column with nothing under it, and squeezed the deck grid into the other half.
+ *
+ * So the room's `.lobby` is a column: each card is a row at its content height,
+ * and the deck card takes the remaining height, its grid scrolling inside it.
+ * Everything is `flex: 1 0 0` with the automatic minimum left on, and the grid
+ * keeps most of a tile row as its floor — 1024x700, the smallest size
+ * `e2e/lobby-fit.spec.ts` measures, leaves it ~150px — so only a window
+ * shorter than that falls back to `.shell--fit`'s own scroll instead of
+ * crushing the grid.
+ */
+.lobby--room {
+  display: flex;
+  flex-direction: column;
+  /* `.lobby`'s `start` is the grid's; in a column it would stop every card
+     stretching to the screen's width. */
+  align-items: stretch;
+  flex: 1 0 0;
+}
+
+.lobby--room > .lobby__decks {
+  flex: 1 0 0;
+}
+
+.lobby--room .deckpick {
+  flex: 1 0 0;
+  min-height: 140px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  /* Room for a tile's focus ring (2px outline at a 2px offset), which a
+     scroller would otherwise clip at its edges. */
+  padding: 4px;
+  margin: -4px;
+}
+
+/* The deck card's controls are two rows above the grid, not six: the heading
+   with Ready and Random on its right, and the pool's controls on one wrapping
+   line. Each line here was height the grid did not get. */
+.lobby__deckhead,
+.lobby__deckformat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.lobby__deckhead {
+  justify-content: space-between;
+}
+
+.lobby__deckformat .lobby__format-tabs {
+  margin-bottom: 0;
+}
+
+/* Beside the era tabs rather than across the card from them: the row wraps,
+   and an `auto` margin would strand the select and the leader on a line of
+   their own. */
+.lobby__deckformat .lobby__free-pick {
+  margin-left: 8px;
+}
+
+/* A label that names the deck grid for assistive tech and is not drawn: the
+   grid of decks says what it is. */
+.lobby__field--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A full-width table card puts its two seats side by side, one row high,
+   so the deck grid gets that height too; a narrow screen stacks them again. */
+.lobby--room .tables__players {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+/*
  * The art takes every pixel the footer does not (operator, 2026-10-09: *"allow
  * for the card art to take more of the box's space"*). The name and the colours
  * share one footer row instead of stacking, and the footer is a fixed two-line
