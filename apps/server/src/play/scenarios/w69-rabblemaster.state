@@ -1,0 +1,17 @@
+# w69-rabblemaster: Goblin Rabblemaster's "at the beginning of combat on your turn" trigger goes on the
+# stack when alice moves to combat, while bob (Full Control) holds priority, so it stays there as an
+# ability chip. Forge's stack description for a phase trigger ends in "[Phase: <player>]" (the operator's
+# Delver screenshot read "[Phase: Bella]") — the chip reads the ability's own text without it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Goblin Rabblemaster;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

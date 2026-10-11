@@ -340,6 +340,14 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       );
     }
 
+    // Each screen hands its stand-in over to the stack card where the stand-in comes to rest, never
+    // mid-glide: the stack card is drawn exactly where the stand-in stood (lane U's finding on the
+    // caster: 2–4 px, glideDone=false).
+    for (const r of serverLog(stack).slice(logFrom)) {
+      if (r.evt !== 'client' || r.kind !== 'handover' || r.dist === undefined) continue;
+      expect(Number(r.dist), `${String(r.screen)}: the stack card is drawn where its stand-in stood (glide ${String(r.glideMs)}ms, done=${String(r.glideDone)})`).toBeLessThanOrEqual(1);
+    }
+
     // B1 — once bob's waiting back has handed over, no back of hers stands up again: a stale
     // `placing` echo opened a second one, and her pointer traffic kept it alive.
     const firstWait = backs.find((s) => s.attrs.includes('data-waiting'));
