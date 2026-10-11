@@ -28,6 +28,7 @@ import {
   RESOLVE_BLINK_MS,
   setChainHalted,
   SHIMMER_MS,
+  squareWidth,
 } from './placed.ts';
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
@@ -382,14 +383,60 @@ describe('installPlaced: drawing', () => {
     expect(squeezed.x + 120).toBeLessThanOrEqual(300 - 6);
   });
 
-  it('an ability is sized as a chip, not as a card (data-placed-ability); a spell is not', () => {
+  it('squareWidth: the width whose height is that width, held between one card and the cap', () => {
+    const w = squareWidth(12_000, 54, 14, 60, 300);
+    expect(w, 'square: h(w) = fixed + area / text width').toBeCloseTo(54 + 12_000 / (w - 14), 6);
+    expect(squareWidth(300, 54, 14, 80, 300), 'a short text: never narrower than a card').toBe(80);
+    expect(squareWidth(200_000, 54, 14, 80, 240), 'a very long one: never wider than the cap').toBe(240);
+    expect(squareWidth(12_000, 54, 14, 80, 40), 'a cap under a card is a card').toBe(80);
+  });
+
+  it('an ability’s chip is squared once from its text’s measured area — again only when the card width changes; a spell never', async () => {
     const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<ul class="zone__cards"></ul>');
+    let card = 80;
+    const AREA = 14_000; // the text's laid-out area: ~12 px lines at any width
+    const BAND = 42;
+    let measures = 0;
+    const widthOf = (el: HTMLElement): number => Number.parseFloat(el.style.width) || card;
+    const textHeight = (w: number): number => Math.ceil(AREA / w / 12) * 12;
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('li.board-card:not([data-card-id])')) return rect({ left: 0, top: 0, width: card, height: card * 1.4 });
+      const placed = this.closest<HTMLElement>('[data-placed-spell]');
+      if (placed === null) return original.call(this);
+      const w = widthOf(placed);
+      if (this.classList.contains('placed__chip-text')) {
+        measures += 1;
+        return rect({ left: 0, top: 0, width: w, height: textHeight(w) });
+      }
+      return rect({ left: 0, top: 0, width: w, height: placed.querySelector('.placed__chip-text') === null ? w * 1.4 : BAND + textHeight(w) });
+    });
     setChainHalted(true);
     const handle = installPlaced(canvas);
-    handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 }), stackItem(8)]));
-    expect(canvas.querySelector('[data-placed-spell="9"]')!.hasAttribute('data-placed-ability')).toBe(true);
-    expect(canvas.querySelector('[data-placed-spell="8"]')!.hasAttribute('data-placed-ability')).toBe(false);
+    const stack = [stackItem(9, { isAbility: true, sourceCardId: 201, description: 'Card 201 - When it enters, draw a card.' }), stackItem(8)];
+    handle.notify(view(stack, [{ id: 201 }]));
+    const chip = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(chip.style.width, 'nothing to measure before its text has rendered').toBe('');
+    // A fresh React root commits on its own clock; the chip's own resize redraws it then (the ResizeObserver jsdom lacks).
+    await new Promise((r) => setTimeout(r, 0));
+    handle.notify(view(stack, [{ id: 201 }]));
+    const w = widthOf(chip);
+    const h = BAND + textHeight(w);
+    expect(w / h, `near square (${w}×${h})`).toBeGreaterThan(0.75);
+    expect(w / h, `near square (${w}×${h})`).toBeLessThan(1.33);
+    expect(measures, 'one measure, one correction').toBeLessThanOrEqual(2);
+    expect(canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!.style.width, 'a spell is a card, never squared').toBe('');
+
+    const before = measures;
+    handle.notify(view(stack, [{ id: 201 }]));
+    expect(measures, 'a repaint with nothing changed measures nothing').toBe(before);
+    card = 100;
+    handle.notify(view(stack, [{ id: 201 }]));
+    expect(measures, 'a new card width squares it again').toBeGreaterThan(before);
+    expect(widthOf(chip), 'never narrower than the new card').toBeGreaterThanOrEqual(100);
     handle.dispose();
+    spy.mockRestore();
   });
 
   it('exactly one item — the top of Forge’s stack — carries data-placed-next (item 3; the mutation at item 8)', () => {

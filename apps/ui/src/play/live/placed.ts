@@ -304,8 +304,8 @@ export function defaultSpot(canvas: ParentNode): Point | null {
  * Where an ephemeral ability card sits beside its source (Settled): to the
  * source's right, clear of it, and clear of any ephemeral tile already
  * placed there this pass (`taken`) — the next free spot along the row's
- * edge. `tile` is the ephemeral tile's own drawn size — a chip grows wider
- * than a card for a long text (`placed.css`) — and the source's own box
+ * edge. `tile` is the ephemeral tile's own drawn size — a chip is as wide
+ * as its text needs to be near square (`squareChip`) — and the source's own box
  * before it has one. Within `bounds` (the overlay) when given: on the
  * source's LEFT when its right has no room, else as far in as it must be.
  */
@@ -331,6 +331,19 @@ export function besideSource(
     y = Math.min(Math.max(y, bounds.top + BESIDE_GAP + tile.height / 2), Math.max(bounds.top + BESIDE_GAP + tile.height / 2, bounds.bottom - BESIDE_GAP - tile.height / 2));
   }
   return { x, y };
+}
+
+/**
+ * The width at which an ability chip is as near square as its text allows (the operator,
+ * 2026-10-11: "the goal should be to get as close to square as possible"). The chip is `fixed`
+ * high before its text (the art band and the text's own padding) plus the text's lines, whose area
+ * stays about the same at any width: `h(w) = fixed + area / (w - padX)`. `w = h(w)` is a quadratic;
+ * its larger root, held within `[min, max]` — never narrower than a card, never wider than the cap.
+ */
+export function squareWidth(area: number, fixed: number, padX: number, min: number, max: number): number {
+  const s = fixed + padX;
+  const w = (s + Math.sqrt(s * s - 4 * (padX * fixed - area))) / 2;
+  return Math.min(Math.max(w, min), Math.max(min, max));
 }
 
 /* ── installPlaced: the DOM ───────────────────────────────────────────── */
@@ -378,6 +391,8 @@ interface Drawn {
   pendingUntil: number | null;
   /** When a held spell (`holdSpell`) is next looked at, so one hold schedules one look. */
   holdCheckAt: number | null;
+  /** An ability's chip: the card width and text it was last squared for (`squareChip`), so it is measured once per change. */
+  squaredFor: string | null;
 }
 
 /** Overlay-relative centre of a box. */
@@ -551,8 +566,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       el.setAttribute('data-stack-id', String(item.id));
       // The card it is, for a reader counting the card's copies on screen (`handover-report.ts`).
       if (!item.isAbility && item.sourceCardId !== null) el.setAttribute('data-placed-card', String(item.sourceCardId));
-      // An ability is a chip, sized by its text rather than as a card (`placed.css`).
-      if (item.isAbility) el.setAttribute('data-placed-ability', '');
       // Q18: a SPELL (never an ability) may itself be one of Forge's `setSelectables` while it sits
       // on the stack — `sourceCardId` captured once, at creation, same as every other id here.
       const sourceCardId = item.sourceCardId;
@@ -574,6 +587,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         leaving: false,
         pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null,
         holdCheckAt: null,
+        squaredFor: null,
       };
       // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
       if (item.isAbility) resized?.observe(el);
@@ -592,6 +606,34 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.committed = !wantBack;
     }
     return d;
+  }
+
+  /**
+   * An ability's chip, as near square as it can be (`squareWidth`): one measure of its text's area at
+   * the width it has, the width solved from it, then one correction for where the lines actually
+   * wrapped. Once per chip per card width and text — the redraw the resize itself causes finds it
+   * already squared. Not before its text has rendered (the chip's own resize redraws it then).
+   */
+  function squareChip(d: Drawn, cardWidth: number | null, overlayBox: DOMRect): void {
+    const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
+    const length = text?.textContent?.length ?? 0;
+    if (text === null || length === 0 || cardWidth === null) return;
+    const key = `${cardWidth}:${length}`;
+    if (d.squaredFor === key) return;
+    const style = getComputedStyle(text);
+    const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+    const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+    const max = Math.min(cardWidth * 3, overlayBox.width / 3);
+    for (let pass = 0; pass < 2; pass += 1) {
+      const lines = text.getBoundingClientRect();
+      const chip = d.el.getBoundingClientRect();
+      if (!(lines.width > padX) || !(lines.height > padY)) return; // no layout yet
+      const area = (lines.width - padX) * (lines.height - padY);
+      const w = Math.round(squareWidth(area, chip.height - lines.height + padY, padX, cardWidth, max));
+      if (Math.abs(w - chip.width) < 1) break;
+      d.el.style.width = `${w}px`;
+    }
+    d.squaredFor = key;
   }
 
   /** The point for an item with no registered placement, plus the box it occupies — for the NEXT ability's own collision check, when it is one. */
@@ -768,6 +810,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
       sizeAsBattlefieldCard(d.el, cardWidth);
+      if (d.isAbility) squareChip(d, cardWidth, overlayBox);
       d.targetStackItemId = item.targetStackItemId ?? null;
       const held = record === undefined && d.pendingUntil !== null ? heldUntil(item.sourceCardId) : null;
       // Held past its window: looked at again when the hold runs out (`placeSpell`/`releaseSpell` repaint sooner).
