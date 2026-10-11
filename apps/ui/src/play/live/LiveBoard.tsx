@@ -254,6 +254,7 @@
 import { Component, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, type ClientEvent, type DraftCard } from '@hadoku/shared';
+import { YIELDING } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { navigate, routeHash } from '../../screens/route.ts';
@@ -303,7 +304,6 @@ import {
   setFullControl,
   setTriggerDecision,
   subscribe,
-  YIELDING,
   type LiveAsk,
   type LiveClickables,
   type LiveMatch,
@@ -450,7 +450,6 @@ function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press' | 'tos
   });
 }
 
-/** Forge's own yield window after End Turn (`lblYieldingUntilEndOfTurn`, `lblYieldingUntilPhaseFmt`, `lblYieldingUntilStackClears`). */
 /** Forge's priority status block with something on the stack: "Priority: … / Turn: … / Phase: … / Stack: N to Resolve." */
 const PRIORITY_OVER_STACK = /^Priority: [^\n]*\nTurn: [^\n]*\nPhase: [^\n]*\nStack: \d+ to Resolve\.?$/;
 
@@ -2836,9 +2835,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * `isWaitingForPregameDecision`'s own note), so it gets the plain
        * "Waiting for {name}…" the small line always used; the ordinary
        * mid-game wait gets the server's own fact (`waitingSentence`'s verb
-       * table) when there is one. `!myOwnDecisionOpen`: see that flag's own
-       * note — never drawn over this seat's OWN live decision, stale
-       * fact or not.
+       * table) when there is one. `!viewerOpen`: never drawn while this
+       * seat holds a live bar or decision of its own, stale fact or not —
+       * the operator, 2026-10-11, under full control, read "Waiting for
+       * Hadoku to decide…" over his own live Next Phase / End Turn.
        */}
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
@@ -2846,7 +2846,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <CoinToss {...coinToss} waiting={match.seat !== coinToss.winner} />
         </div>
       )}
-      {waitingForOpponent && !myOwnDecisionOpen && coinToss === null && (
+      {waitingForOpponent && !viewerOpen && coinToss === null && (
         <WaitingPop
           sentence={pregameWait || theirAsk === null ? `Waiting for ${theirName ?? 'the other player'}…` : waitingSentence(theirName ?? 'the other player', theirAsk)}
         />

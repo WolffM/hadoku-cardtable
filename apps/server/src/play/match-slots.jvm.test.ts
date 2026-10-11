@@ -7,8 +7,8 @@
  *     the slot takes a new match.
  *  2. A game ends: a new match starts at once, with the finished one still in the only slot.
  *
- * `maxMatches: 1` stands in for production's 2: the rule is the same at any ceiling, and one JVM at
- * a time is what a claw has room for.
+ * `maxMatches: 1` stands in for production's ceiling (2 then, 10 since): the rule is the same at
+ * any ceiling, and one JVM at a time is what a claw has room for.
  *
  * Skips visibly without a Forge build, like every `*.jvm.test.ts`:
  *
@@ -140,7 +140,7 @@ describe.skipIf(!available.ok)(title, () => {
 	it(
 		'a running match both seats have left stops after the rejoin grace, its JVM exits, and the slot takes a new match',
 		async () => {
-			const s = await server({ disconnectGraceMs: 1000, rejoinGraceMs: 3000 });
+			const s = await server({ disconnectGraceMs: 1000, rejoinGraceMs: 5000 });
 			const res = await s.start();
 			expect(res.status).toBe(201);
 			const matchId = ((await res.json()) as { matchId: string }).matchId;

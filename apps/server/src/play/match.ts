@@ -104,6 +104,7 @@ import {
 	type ClientFrame,
 	type ServerFrame,
 	type TriggerDecision,
+	YIELDING,
 } from '@hadoku/forge-wire';
 import type { RememberedTrigger } from '@hadoku/shared';
 
@@ -527,6 +528,13 @@ export interface MatchDeps {
 	/** How long a finished match keeps its JVM (and answers resyncs) before stopping. */
 	overGraceMs: number;
 	/**
+	 * How long a match with no seat here waits for one to come back before it stops
+	 * ({@link Match.armRejoinGrace}). Absent or 0: never — a suite that drives a match without
+	 * sockets has no seat to be here. `attachPlay` passes 5 minutes (`socket.ts`'s
+	 * `DEFAULT_REJOIN_GRACE_MS`).
+	 */
+	rejoinGraceMs?: number;
+	/**
 	 * How long a seat with no connection keeps its open asks before they are
 	 * aborted as `disconnected`. 0 (the default) aborts at once — Wave 9's
 	 * behaviour; `attachPlay` passes 30 s so a refresh survives.
@@ -752,9 +760,10 @@ const FRAMES_RING_SIZE = 500;
 const YIELD_ACCEPT_LABEL = 'Accept';
 const YIELD_DECLINE_LABEL = 'Decline';
 
-/** How long a just-sent discard choice stays eligible to silence its own echo. */
 /** A wait that appears is told to the other seat after this long; one that clears, at once — `Match.checkWaitingOn`. */
 const WAITING_ON_GRACE_MS = 150;
+
+/** How long a just-sent discard choice stays eligible to silence its own echo. */
 const JUST_DISCARDED_TTL_MS = 5_000;
 
 /** The card ids a `getChoices` frame's `choices` name, in order. */
@@ -831,9 +840,7 @@ export class Match {
 	 * server that read it, and sending it twice would act twice in Forge.
 	 */
 	private replaying = false;
-	/** Somebody has joined a seat since this match existed in this process. */
-	private rejoined = false;
-	/** Armed by `resume`: a re-attached match nobody comes back to is stopped. */
+	/** Armed while no seat is here ({@link Match.armRejoinGrace}): a match nobody comes back to is stopped. */
 	private rejoinTimer: NodeJS.Timeout | null = null;
 	/**
 	 * Wave 35 §S, R4 — the card ids a discard choice JUST sent to Forge. The
@@ -978,7 +985,7 @@ export class Match {
 	 * Separate from `start` for the same reason `start` is separate from the
 	 * constructor: nothing may emit before the match is in the registry.
 	 */
-	resume(attach: (events: HostEvents) => MatchHost, rejoinGraceMs: number): void {
+	resume(attach: (events: HostEvents) => MatchHost): void {
 		if (this.host !== null) return;
 		this.replaying = true;
 		try {
@@ -994,18 +1001,27 @@ export class Match {
 			epoch: this.epoch,
 			seats: this.seats.map((s) => ({ seat: s.seat, playerId: s.playerId, seq: s.seq, asks: s.asks.size })),
 		});
-		// A resumed match with nobody in it is a JVM nobody wants. The seats have
-		// this long to come back before it is stopped for good.
-		if (rejoinGraceMs > 0) {
-			const timer = setTimeout(() => {
-				this.rejoinTimer = null;
-				if (this.rejoined) return;
-				this.deps.log({ evt: 'match-not-rejoined', matchId: this.id, afterMs: rejoinGraceMs });
-				this.stop();
-			}, rejoinGraceMs);
-			timer.unref();
-			this.rejoinTimer = timer;
-		}
+		this.armRejoinGrace();
+	}
+
+	/**
+	 * A match with no seat here is a JVM nobody is using: the seats have
+	 * {@link MatchDeps.rejoinGraceMs} to come back before it is stopped for good. Armed when the
+	 * match goes running or is taken back (its seats can join from then on, not while Forge boots)
+	 * and when the last seat's departure grace runs out; {@link Match.seatConnected} disarms it. Before this covered every match, only a
+	 * re-attached one had it, and a match both players had left held one of the server's two slots
+	 * for ~2 h (2026-10-11: `seat-departing` for both seats, then nothing, then a refused rematch).
+	 */
+	private armRejoinGrace(): void {
+		const grace = this.deps.rejoinGraceMs ?? 0;
+		if (grace <= 0 || this.rejoinTimer !== null || this.anyoneHere()) return;
+		this.rejoinTimer = setTimeout(() => {
+			this.rejoinTimer = null;
+			if (this.anyoneHere()) return;
+			this.deps.log({ evt: 'match-not-rejoined', matchId: this.id, status: this.status, afterMs: grace });
+			this.stop();
+		}, grace);
+		this.rejoinTimer.unref();
 	}
 
 	private hostEvents(): HostEvents {
@@ -1223,7 +1239,13 @@ export class Match {
 		// i needed to make a choice there"* — the bar fallback below read as `confirm` ("decide"). Only
 		// the pregame bars (coin toss, keep/mulligan: no "Priority:" prompt) are a decision made through
 		// the bar alone.
-		const ordinaryPriority = s.prompt !== null && s.prompt.method === 'showPromptMessage' && /^Priority:/.test(s.prompt.message);
+		const promptMessage = s.prompt !== null && s.prompt.method === 'showPromptMessage' ? s.prompt.message : '';
+		const ordinaryPriority = /^Priority:/.test(promptMessage);
+		// Nor is a seat's own yield after End Turn (its Cancel live, `YIELDING`): it passed priority and
+		// decides nothing. The operator, 2026-10-11, under full control on the other seat: *"i see
+		// 'Waiting for Hadoku to decide…' but on Hadoku's side, there is nothing since they clicked end
+		// turn"* — while that full-control seat held priority itself.
+		const barLive = s.wireButtonsLive && !YIELDING.test(promptMessage);
 		const method =
 			s.payment !== null
 				? 'pay'
@@ -1233,7 +1255,7 @@ export class Match {
 						: 'getChoices'
 					: decision !== undefined
 						? decision.method
-						: s.wireButtonsLive
+						: barLive
 							? ordinaryPriority
 								? 'priority'
 								: 'confirm'
@@ -1483,6 +1505,7 @@ export class Match {
 		if (grace <= 0) {
 			s.here = false;
 			this.abortAllAsks(s);
+			this.armRejoinGrace();
 			return;
 		}
 		this.deps.log({ evt: 'seat-departing', matchId: this.id, seat, graceMs: grace, openAsks: s.asks.size });
@@ -1490,6 +1513,7 @@ export class Match {
 			s.departure = null;
 			s.here = false;
 			this.abortAllAsks(s);
+			this.armRejoinGrace();
 		}, grace);
 		s.departure.unref();
 	}
@@ -1508,9 +1532,8 @@ export class Match {
 		const s = this.seats[seat];
 		if (s === undefined) return;
 		s.here = true;
-		// Before the departure check, and not inside it: this is also how a resumed
-		// match learns that somebody came back at all (see `resume`).
-		this.rejoined = true;
+		// Before the departure check, and not inside it: a seat that was never here at all (a new or
+		// re-attached match) disarms it too.
 		if (this.rejoinTimer !== null) {
 			clearTimeout(this.rejoinTimer);
 			this.rejoinTimer = null;
@@ -2626,6 +2649,7 @@ export class Match {
 		if (this.status === 'starting' && this.seats.every((x) => x.ai || x.playerId !== null)) {
 			this.status = 'running';
 			for (const done of this.runningWaiters.splice(0)) done({ ok: true });
+			this.armRejoinGrace();
 		}
 	}
 
@@ -2894,12 +2918,6 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'onGameOver
 	onGameOver?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
 	attach?(record: JvmRecord, events: HostEvents): MatchHost;
-	/**
-	 * How long a resumed match waits for somebody to rejoin before it stops. It is
-	 * a JVM and ~700 MB of RSS; nobody coming back means nobody wants it.
-	 * Default 5 minutes.
-	 */
-	rejoinGraceMs?: number;
 };
 
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
@@ -2937,7 +2955,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				{ epoch: record.epoch, owners: record.owners },
 			);
 			matches.set(record.matchId, match);
-			match.resume((events) => attach(record, events), deps.rejoinGraceMs ?? 5 * 60_000);
+			match.resume((events) => attach(record, events));
 			return match;
 		},
 		handOver() {

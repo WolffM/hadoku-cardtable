@@ -4717,6 +4717,25 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(bothFlagsLit(container), 'the viewer’s own live window is never the stale one').toBe(false);
       expect(seatFlag(container, 'you')).not.toBeNull();
     });
+
+    // The operator, 2026-10-11, under full control: "on full control side i see 'Waiting for Hadoku to
+    // decide…'" — over his own live End Turn. The flags held; the pop-out read only the viewer's own
+    // pop-ups, never a plain live bar.
+    it('the waiting pop-out never draws while the viewer holds a live bar of their own', async () => {
+      const { s, m, container, getByTestId } = await liveBoard();
+      const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+      const pop = () => container.querySelector('[data-testid="live-waiting-pop"]');
+      await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
+      await waitFor(() => expect(pop()).not.toBeNull());
+
+      s.send(priorityDelta(m.view!.seq + 1, viewerId, true));
+      s.send(updateButtons(true));
+      await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
+      expect(pop(), 'the viewer’s own bar is live: nothing to wait for').toBeNull();
+
+      s.send(updateButtons(false));
+      await waitFor(() => expect(pop(), 'passed: the other seat’s decision is theirs again').not.toBeNull());
+    });
   });
 });
 

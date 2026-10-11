@@ -64,7 +64,9 @@ afterEach(async () => {
 	harness = null;
 });
 
-async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number; probe?: boolean; maxMatches?: number } = {}): Promise<Harness> {
+async function boot(
+	options: { devIdentity?: boolean; disconnectGraceMs?: number; probe?: boolean; maxMatches?: number; rejoinGraceMs?: number } = {},
+): Promise<Harness> {
 	const { factory, hosts } = replayFactory();
 	const logs: Record<string, unknown>[] = [];
 	const app = express();
@@ -85,6 +87,7 @@ async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number
 		disconnectGraceMs: options.disconnectGraceMs,
 		probe: options.probe,
 		maxMatches: options.maxMatches,
+		rejoinGraceMs: options.rejoinGraceMs,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -264,6 +267,32 @@ describe('POST /api/play/matches', () => {
 
 	it('defaults the ceiling to MAX_CONCURRENT_MATCHES, which is 10', () => {
 		expect(MAX_CONCURRENT_MATCHES).toBe(10);
+	});
+
+	/** A POST the slot ceiling refuses answers before any host exists, so `startMatch` (which waits for one) cannot send it. */
+	const refusedStart = (h: Harness) =>
+		fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ opponent: 'human' }),
+		});
+
+	// 2026-10-11: both seats left a frozen match ("seat-departing", then nothing) and it held a slot for ~2 h.
+	it('a match every seat has left stops once the rejoin grace runs out, and its slot frees', async () => {
+		const h = await boot({ maxMatches: 1, disconnectGraceMs: 50, rejoinGraceMs: 1500 });
+		const matchId = (await startMatch(h)).body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		expect((await refusedStart(h)).status).toBe(503);
+
+		alice.socket.disconnect();
+		bob.socket.disconnect();
+		await waitUntil(() => h.handle.matches.get(matchId)?.status === 'stopped', 'the match nobody is at to stop');
+		expect((h.hosts[0] as ReplayHost).stopped).toBe(true);
+		expect(h.logs.find((l) => l.evt === 'match-not-rejoined')).toMatchObject({ matchId, afterMs: 1500 });
+		expect((await startMatch(h)).status).toBe(201);
 	});
 
 	it('reports a match Forge could not start as a failure, not a hang', async () => {

@@ -150,8 +150,9 @@ export interface PlayDeps {
 	/** Dev-only per-handshake identity; see the module header. */
 	devIdentity?: boolean;
 	/**
-	 * How long a match taken back from an earlier server waits for somebody to
-	 * rejoin before it is stopped. Default 5 minutes (`createMatchRegistry`).
+	 * How long a match with no seat here — every player gone past `disconnectGraceMs`, nobody
+	 * joined yet, or taken back from an earlier server — waits for one before it is stopped.
+	 * Default {@link DEFAULT_REJOIN_GRACE_MS}.
 	 */
 	rejoinGraceMs?: number;
 	/** A match's game ended: Forge's verdict and every seat's history are final. The stats reporter listens. */
@@ -218,6 +219,15 @@ function handshakeTier(headers: IncomingHttpHeaders): string {
 }
 
 const DEV_USER = /^[a-z0-9-]{1,32}$/;
+
+/**
+ * {@link PlayDeps.rejoinGraceMs}'s default: 5 minutes, counted from when the last seat's own
+ * departure grace (30 s) ran out. Long enough for a browser crash, a laptop lid or a network change
+ * to come back from; short enough that a match both players walked away from does not hold a slot
+ * (`MAX_CONCURRENT_MATCHES`, `MAX_MATCHES_PER_PERSON`) and ~700 MB of JVM past a coffee break. The
+ * same bound a re-attached match always had, so there is one number for "nobody is here".
+ */
+const DEFAULT_REJOIN_GRACE_MS = 5 * 60_000;
 
 /** The one policy: a Forge frame is never droppable (a dropped delta is a desynced board). */
 function playEmitPolicy(log: PlayLog): EmitPolicy {
@@ -495,7 +505,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		},
 		...(attach === undefined ? {} : { attach: (record, events) => attach(record, events) }),
 		...(startingStopPolicy === null ? {} : { stopPolicy: startingStopPolicy }),
-		rejoinGraceMs: deps.rejoinGraceMs,
+		rejoinGraceMs: deps.rejoinGraceMs ?? DEFAULT_REJOIN_GRACE_MS,
 		log,
 		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,

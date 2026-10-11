@@ -123,6 +123,7 @@ export {
   YieldStateSnapshotSchema,
   YieldUpdateSchema,
   ShowPromptMessageSchema,
+  YIELDING,
   UpdateButtonsSchema,
   HideZonesSchema,
   SetSelectablesSchema,

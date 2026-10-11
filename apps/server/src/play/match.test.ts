@@ -606,6 +606,17 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'pay', hostCard: null } });
 		});
 
+		it('a seat\'s own yield after End Turn ("Yielding until …", only Cancel live) carries nothing — it passed priority and decides nothing', () => {
+			// The operator, 2026-10-11, with full control on the other seat: "i see 'Waiting for Hadoku to
+			// decide…' but on Hadoku's side, there is nothing since they clicked end turn".
+			const h = waitingHarness();
+			h.host.push(
+				{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Yielding until end of turn.\nYou may cancel this yield to take an action.', card: null } },
+				barFrame(0, 'OK', 'Cancel', false, true),
+			);
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+		});
+
 		it('clears the instant the seat presses, the same as a real browser click', () => {
 			const h = waitingHarness();
 			// `fromClient` only acts once the match is running — both seats open.
@@ -1187,6 +1198,86 @@ function recordFor(match: Match, state: Survivable): JvmRecord {
 		orphanedAt: new Date().toISOString(),
 	};
 }
+
+describe('a match nobody is at', () => {
+	/** Both seats claimed and opened; the departure grace 1 s, the rejoin grace 5 s. */
+	function table(opened = true): Harness {
+		const { factory, hosts } = replayFactory();
+		const logs: Record<string, unknown>[] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: (e) => logs.push(e),
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			disconnectGraceMs: 1000,
+			rejoinGraceMs: 5000,
+			emit: () => undefined,
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		match.claim(ALICE);
+		match.claim(BOB);
+		const host = hosts[0] as ReplayHost;
+		if (opened) host.push(...OPENING);
+		return { match, host, sent: [], logs };
+	}
+
+	it('stops a running match both seats have left, once their departure grace and then the rejoin grace have run out', () => {
+		vi.useFakeTimers();
+		const h = table();
+		h.match.seatConnected(0);
+		h.match.seatConnected(1);
+		expect(h.match.status).toBe('running');
+		h.match.seatDisconnected(0);
+		h.match.seatDisconnected(1);
+		vi.advanceTimersByTime(1000 + 4999);
+		expect(h.match.status, 'still inside the rejoin grace').toBe('running');
+		vi.advanceTimersByTime(1);
+		expect(h.match.status).toBe('stopped');
+		expect(h.host.stopped).toBe(true);
+		expect(h.logs.find((l) => l.evt === 'match-not-rejoined')).toMatchObject({ matchId: h.match.id, status: 'running', afterMs: 5000 });
+	});
+
+	it('keeps it while one seat is still here', () => {
+		vi.useFakeTimers();
+		const h = table();
+		h.match.seatConnected(0);
+		h.match.seatConnected(1);
+		h.match.seatDisconnected(1);
+		vi.advanceTimersByTime(60_000);
+		expect(h.match.status).toBe('running');
+	});
+
+	it('keeps it when a seat comes back inside the rejoin grace', () => {
+		vi.useFakeTimers();
+		const h = table();
+		h.match.seatConnected(0);
+		h.match.seatConnected(1);
+		h.match.seatDisconnected(0);
+		h.match.seatDisconnected(1);
+		vi.advanceTimersByTime(1000 + 4000);
+		h.match.seatConnected(1);
+		vi.advanceTimersByTime(60_000);
+		expect(h.match.status).toBe('running');
+	});
+
+	it('stops a match nobody ever joined', () => {
+		vi.useFakeTimers();
+		const h = table();
+		vi.advanceTimersByTime(5000);
+		expect(h.match.status).toBe('stopped');
+	});
+
+	it("does not count Forge's boot: a match still starting cannot be joined yet, so nothing is armed", () => {
+		vi.useFakeTimers();
+		const h = table(false);
+		vi.advanceTimersByTime(60_000);
+		expect(h.match.status).toBe('starting');
+		h.host.push(...OPENING);
+		expect(h.match.status).toBe('running');
+		vi.advanceTimersByTime(5000);
+		expect(h.match.status, 'armed once running').toBe('stopped');
+	});
+});
 
 describe('a match that outlives its server', () => {
 	interface Restartable {
@@ -2136,6 +2227,9 @@ describe('hold-decide-forward', () => {
 	it("InputAttack's per-click button refreshes are sent the moment they arrive, never held", () => {
 		vi.useFakeTimers();
 		const h = openedHarness();
+		// Both players at the table, as in a real attack: a match nobody is at keeps its own rejoin timer.
+		h.match.seatConnected(0);
+		h.match.seatConnected(1);
 		const before = envelopesFor(h, SEAT1_ID).length;
 		const attack = (label2: string) => buttonsFrame(1, { label1: 'OK', label2, enable1: true, enable2: true });
 		h.host.push(

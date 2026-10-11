@@ -266,6 +266,14 @@ export const ShowPromptMessageSchema = z.strictObject({
 });
 
 /**
+ * The prompt Forge shows a seat that pressed End Turn: it has passed priority for the rest of the
+ * turn (or phase, or stack) and keeps only a Cancel live to take the yield back
+ * (`AbstractGuiGame.java:598-604`, `lblYieldingUntilEndOfTurn` / `lblYieldingUntilPhaseFmt` /
+ * `lblYieldingUntilStackClears`). Nothing waits on that seat while it shows.
+ */
+export const YIELDING = /^Yielding until /;
+
+/**
  * `void updateButtons(PlayerView owner, String label1, String label2,
  * boolean enable1, boolean enable2, boolean focus1)` — IGuiGame.java:85.
  */

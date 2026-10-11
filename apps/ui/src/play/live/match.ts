@@ -243,6 +243,7 @@ import {
   type BlockingMethod,
   type ClientAbort,
   type ServerFrame,
+  YIELDING,
 } from '@hadoku/forge-wire';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
@@ -1661,9 +1662,6 @@ export function nothingToDecide(match: LiveMatch): boolean {
   }
   return !attackersLeft(view);
 }
-
-/** Forge's own yield window after End Turn (`lblYieldingUntil*`) — moved here from `LiveBoard.tsx` (T9), the one other reader of this fact. */
-export const YIELDING = /^Yielding until /;
 
 /**
  * This seat genuinely has something to decide right now, rather than Forge's

@@ -163,9 +163,9 @@
  * all but killed and swept; one nobody claims within `ORPHAN_CLAIM_MS` of boot
  * is killed too (so a caller that ignores `orphans()` cannot leak a JVM); and
  * a re-attached match whose seats never come back is stopped by the
- * rejoin-grace timer `Match.resume` arms (`match.ts:332`), whose bound is
- * `deps.rejoinGraceMs ?? 5 * 60_000` as passed at `match.ts:1038`, and whose
- * callback `stop()`s the match unless a seat has rejoined first.
+ * rejoin grace every match with no seat here arms (`Match.armRejoinGrace`,
+ * bound `MatchDeps.rejoinGraceMs`, 5 minutes from `attachPlay`), whose callback
+ * `stop()`s the match unless a seat has come back first.
  * **There is no `Match.expectRejoin`**: this comment named one for a wave and
  * the method has never existed — `grep -rn expectRejoin apps packages` finds
  * prose only. Do not reintroduce the name.
