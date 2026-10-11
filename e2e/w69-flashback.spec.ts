@@ -18,7 +18,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { grindPriority, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { clickOnce, enabledOk, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -32,8 +32,6 @@ const targeter = (page: Page) => page.locator('[data-board-overlay] [data-testid
 const back = (page: Page) => page.locator('[data-board-overlay] .presence__back');
 const view = (page: Page) => page.getByTestId('pile-view');
 const lift = (page: Page, id: number) => inYard(page, id).getAttribute('data-cast-lift').catch(() => null);
-/** The placed stack card named `name`, on either screen. */
-const onStack = (page: Page, name: string) => page.locator('[data-placed-spell] .card__name', { hasText: name });
 const acts = (f: Friend): number => messages(f).filter((m) => m.dir === 'out' && m.kind === 'c2s').length;
 
 /** The middle of what a graveyard card shows of itself in the pile (a buried card is a strip). */
@@ -51,18 +49,42 @@ const strip = (page: Page, id: number) =>
 
 const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
-/** Pay whatever the cast still asks (the lone-ability sheet, the mana) until `page`'s stack grows. */
-async function payUntilOnStack(page: Page, before: number, what: string): Promise<void> {
+/**
+ * Every card name a page draws on the stack, from now on. Auto-pass can resolve a spell a few hundred
+ * ms after it lands, between two polls, so the stack is watched rather than sampled.
+ */
+const watchStack = (page: Page) =>
+  page.evaluate(() => {
+    const seen = new Set<string>();
+    (window as unknown as { __stackSeen: () => string[] }).__stackSeen = () => [...seen];
+    const look = (): void => {
+      document.querySelectorAll('[data-placed-spell] .card__name').forEach((el) => seen.add(el.textContent?.trim() ?? ''));
+    };
+    new MutationObserver(look).observe(document.body, { childList: true, subtree: true, characterData: true });
+    look();
+  });
+const stackSeen = (page: Page): Promise<string[]> => page.evaluate(() => (window as unknown as { __stackSeen: () => string[] }).__stackSeen());
+const exiled = (page: Page) => page.locator('.seat[data-viewer] [data-zone="exile"] .card__name').allTextContents();
+
+/**
+ * Answer whatever the cast still asks (the lone-ability sheet, the mana), and pass priority while the
+ * spell waits on the stack, until it has resolved into her exile — never pressing OK on an empty stack,
+ * which would end her main phase.
+ */
+async function resolveIntoExile(alice: Page, bob: Page, name: string): Promise<void> {
   await expect
     .poll(
       async () => {
-        await answerLoneAbility(page);
-        await pressPaymentAuto(page);
-        return stackCount(page);
+        await answerLoneAbility(alice);
+        await pressPaymentAuto(alice);
+        if ((await stackCount(alice)) > 0) {
+          for (const p of [alice, bob]) if ((await enabledOk(p).count()) > 0) await clickOnce(p, await says(p), 'ok');
+        }
+        return (await exiled(alice)).includes(name);
       },
-      { timeout: 20_000, message: `${what} reaches the stack — says "${await says(page)}"` },
+      { timeout: 30_000, message: `${name} resolves into her exile — says "${await says(alice)}"` },
     )
-    .toBeGreaterThan(before);
+    .toBe(true);
 }
 
 test(titled('a flashback card is picked up from the graveyard like a hand card, and its target arrow comes only after it is cast'), async ({ browser }) => {
@@ -122,14 +144,15 @@ test(titled('a flashback card is picked up from the graveyard like a hand card, 
     const arrow = { mode: await targeter(alice.page).getAttribute('data-mode'), source: await targeter(alice.page).getAttribute('data-source') };
     console.log(`[hh-flash] released over the table: says "${(await says(alice.page)).replace(/\s+/g, ' ').trim()}", arrow after the cast mode=${arrow.mode} source=${arrow.source}`);
     expect(arrow.source, 'the arrow leaves from Firebolt').toBe(String(bolt));
+    for (const p of [alice.page, bob.page]) await watchStack(p);
     await alice.page.mouse.click(face.x, face.y);
-    await payUntilOnStack(alice.page, 0, 'Firebolt');
-    await expect(onStack(alice.page, 'Firebolt'), 'Firebolt is on the stack on her screen').toHaveCount(1, { timeout: 10_000 });
-    await expect(onStack(bob.page, 'Firebolt'), "and on bob's").toHaveCount(1, { timeout: 10_000 });
-    console.log(`[hh-flash] Firebolt on the stack: alice ${await stackCount(alice.page)}, bob ${await stackCount(bob.page)}; bob's held backs ${await back(bob.page).count()}`);
+    await resolveIntoExile(alice.page, bob.page, 'Firebolt');
     const bobLife = bob.page.locator('[data-player-face][data-viewer] [data-testid="life"]');
-    await grindPriority([alice.page, bob.page], async () => (await bobLife.textContent())?.trim() === '18' && (await stackCount(alice.page)) === 0, { timeoutMs: 30_000 });
-    console.log(`[hh-flash] Firebolt resolved: bob at ${(await bobLife.textContent())?.trim()} life`);
+    await expect(bobLife, 'Firebolt hit bob').toHaveText('18', { timeout: 10_000 });
+    const boltSeen = { alice: await stackSeen(alice.page), bob: await stackSeen(bob.page) };
+    console.log(`[hh-flash] Firebolt cast, targeted at bob and resolved: drawn on the stack on alice's screen [${boltSeen.alice.join(', ')}], on bob's [${boltSeen.bob.join(', ')}]; bob at ${(await bobLife.textContent())?.trim()} life`);
+    expect(boltSeen.alice, 'Firebolt was on the stack on her screen').toContain('Firebolt');
+    expect(boltSeen.bob, "and on bob's").toContain('Firebolt');
 
     // ── 3. From the expanded pile view: Think Twice is picked up the same way.
     await expect.poll(() => offeredNamed(alice.page, 'Think Twice'), { timeout: 30_000, message: "Think Twice's flashback is offered again" }).toBe(twice);
@@ -143,15 +166,14 @@ test(titled('a flashback card is picked up from the graveyard like a hand card, 
     const fromView = { lift: await lift(alice.page, twice), arrow: await targeter(alice.page).count(), view: await view(alice.page).count() };
     console.log(`[hh-flash] press on Think Twice #${twice} in the pile view, carried to the table: data-cast-lift=${fromView.lift}, arrows drawn=${fromView.arrow}, pile views open=${fromView.view}`);
     expect(fromView, 'the pile view gives Think Twice up to the pointer like a hand card, no arrow').toEqual({ lift: 'lifted', arrow: 0, view: 0 });
-    const before = await stackCount(alice.page);
     await alice.page.mouse.up();
-    await payUntilOnStack(alice.page, before, 'Think Twice');
-    await expect(onStack(bob.page, 'Think Twice'), "Think Twice is on the stack on bob's screen").toHaveCount(1, { timeout: 10_000 });
-    console.log(`[hh-flash] Think Twice on the stack: alice ${await stackCount(alice.page)}, bob ${await stackCount(bob.page)}`);
-    await grindPriority([alice.page, bob.page], async () => (await stackCount(alice.page)) === 0, { timeoutMs: 30_000 });
-    const exiled = await alice.page.locator('.seat[data-viewer] [data-zone="exile"] .card__name').allTextContents();
-    console.log(`[hh-flash] resolved: alice's exile [${exiled.join(', ')}], graveyard ${await alice.page.locator(YARD).getAttribute('data-count')}`);
-    expect(exiled.sort(), 'both flashback spells resolved into exile').toEqual(['Firebolt', 'Think Twice']);
+    await resolveIntoExile(alice.page, bob.page, 'Think Twice');
+    const twiceSeen = { alice: await stackSeen(alice.page), bob: await stackSeen(bob.page) };
+    const exile = await exiled(alice.page);
+    console.log(`[hh-flash] Think Twice cast from the pile view and resolved: drawn on the stack on alice's screen [${twiceSeen.alice.join(', ')}], on bob's [${twiceSeen.bob.join(', ')}]; alice's exile [${exile.join(', ')}], graveyard ${await alice.page.locator(YARD).getAttribute('data-count')}`);
+    expect(twiceSeen.alice, 'Think Twice was on the stack on her screen').toContain('Think Twice');
+    expect(twiceSeen.bob, "and on bob's").toContain('Think Twice');
+    expect(exile.sort(), 'both flashback spells resolved into exile').toEqual(['Firebolt', 'Think Twice']);
   } finally {
     await stack.stop();
   }
