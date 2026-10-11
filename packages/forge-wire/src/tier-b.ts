@@ -585,6 +585,12 @@ export const GetChoicesReplySchema = z.array(z.string());
  * `OrderResult` is a record, `record OrderResult<T>(List<T> ordered,
  * boolean rememberDecision)` (IGuiGame.java:41), so the reply is that pair with
  * `ordered` as keys.
+ *
+ * `rest` is ours, never Forge's: the server sets it on a scry or a surveil
+ * (`apps/server/src/play/arrange.ts`), whose items left in `sourceChoices`
+ * stay on top of the library in an order Forge asks for in a second `order`.
+ * It names that group, and the reply's `rest` is its order — the server
+ * answers Forge's second question with it, so the player is asked once.
  */
 export const OrderSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -599,11 +605,13 @@ export const OrderSchema = z.strictObject({
   referenceCard: CardRefSchema.nullable(),
   sideboardingMode: z.boolean(),
   showRememberCheckbox: z.boolean(),
+  rest: z.string().optional(),
 });
 
 export const OrderReplySchema = z.strictObject({
   ordered: z.array(z.string()),
   rememberDecision: z.boolean(),
+  rest: z.array(z.string()).optional(),
 });
 
 /**

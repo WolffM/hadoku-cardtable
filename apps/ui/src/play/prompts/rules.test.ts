@@ -24,6 +24,7 @@ import {
   getChoicesProblems,
   inputDialogProblems,
   manipulateProblems,
+  moveBetween,
   moveItem,
   numericChoiceRange,
   optionDialogProblems,
@@ -592,8 +593,13 @@ describe('manipulateCardList', () => {
     expect(moveItem([1, 2, 3, 4], 0, 2)).toEqual([2, 3, 1, 4]);
     expect(moveItem([1, 2, 3, 4], 3, 0)).toEqual([4, 1, 2, 3]);
   });
-  // T5: `OrderPrompt`'s placed-list drop and `ManipulateCardListPrompt`'s
-  // `dropBefore` both did this arithmetic by hand — one copy here.
+  it('moveBetween lands a key just before another, or at the end; a fixed source keeps its own order', () => {
+    const lists = { source: ['a', 'b', 'c'], dest: ['d'] };
+    expect(moveBetween(lists, 'c', 'source', 'a')).toEqual({ source: ['c', 'a', 'b'], dest: ['d'] });
+    expect(moveBetween(lists, 'b', 'dest', 'd')).toEqual({ source: ['a', 'c'], dest: ['b', 'd'] });
+    expect(moveBetween(lists, 'a', 'dest', null)).toEqual({ source: ['b', 'c'], dest: ['d', 'a'] });
+    expect(moveBetween(lists, 'd', 'source', 'a', ['a', 'd', 'b', 'c'])).toEqual({ source: ['a', 'd', 'b', 'c'], dest: [] });
+  });
   it('dropBeforeIndex shifts the target back by one only when the dragged item sat before it', () => {
     expect(dropBeforeIndex(0, 3)).toBe(2); // moving from 0: everything after it shifts back
     expect(dropBeforeIndex(3, 0)).toBe(0); // moving from after the target: target index unchanged

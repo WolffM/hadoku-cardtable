@@ -53,7 +53,7 @@ test(
       const source = page.getByTestId('order-source');
       const dest = page.getByTestId('order-dest');
       const sourceRows = source.locator(':scope > li');
-      await expect(sourceRows, 'Scry 2: both looked-at cards start Unplaced').toHaveCount(2);
+      await expect(sourceRows, 'Scry 2: both looked-at cards start on top').toHaveCount(2);
       await expect(dest.locator(':scope > li'), 'nothing placed yet').toHaveCount(0);
 
       // A real press-drag of the first card into the answer's own empty space.
@@ -77,7 +77,7 @@ test(
       expect(sawLift, 'the lifted row follows the pointer, drawn with the board’s own [data-cast-lift]').toBe(true);
       await page.mouse.up();
 
-      await expect(source.locator(':scope > li'), 'one card left Unplaced').toHaveCount(1);
+      await expect(source.locator(':scope > li'), 'one card left on top').toHaveCount(1);
       const destRows = dest.locator(':scope > li');
       await expect(destRows, 'one card placed').toHaveCount(1);
       await expect(destRows.first(), 'the dragged card is the one placed').toHaveAttribute('data-key', firstKey!);

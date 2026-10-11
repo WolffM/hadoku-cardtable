@@ -53,11 +53,12 @@ import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName, translateTargetWords } from './lookup.ts';
-import { dropBeforeIndex, moveItem, orderProblems } from './rules.ts';
+import { moveBetween, moveItem, orderProblems, type OrderLists } from './rules.ts';
 import { rowIdUnder, testIdUnder, usePressDragLift } from './scry-drag.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 
-const LIST_TESTIDS = ['order-source', 'order-dest'] as const;
+const LIST_TESTID = { source: 'order-source', dest: 'order-dest' } as const;
+type Side = keyof OrderLists;
 
 export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   const all = [...ask.sourceChoices, ...ask.destChoices];
@@ -79,12 +80,20 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
    */
   const liftIdOf = new Map(all.map((c, i) => [c.key, cardIdOf.get(c.key) ?? -(i + 1)]));
   const keyOfLiftId = new Map([...liftIdOf].map(([key, id]) => [id, key]));
+  /** The source's fixed order, when its order is not part of the answer. */
+  const fixedSource = ask.rest === undefined ? all.map((c) => c.key) : undefined;
 
-  const [placed, setPlaced] = useState<string[]>(() => ask.destChoices.map((c) => c.key));
+  const [lists, setLists] = useState<OrderLists>(() => ({
+    source: ask.sourceChoices.map((c) => c.key),
+    dest: ask.destChoices.map((c) => c.key),
+  }));
   const [remember, setRemember] = useState(false);
 
-  const unplaced = all.map((c) => c.key).filter((k) => !placed.includes(k));
-  const reply = { ordered: placed, rememberDecision: ask.showRememberCheckbox && remember };
+  const reply = {
+    ordered: [...lists.dest],
+    rememberDecision: ask.showRememberCheckbox && remember,
+    ...(ask.rest !== undefined && { rest: [...lists.source] }),
+  };
   const problems = orderProblems(ask, reply);
 
   const submit = () => {
@@ -92,8 +101,16 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     onAnswer(checkedReply('order', reply));
   };
 
-  const place = (key: string) => setPlaced((p) => [...p, key]);
-  const unplace = (key: string) => setPlaced((p) => p.filter((k) => k !== key));
+  const sideOf = (key: string): Side => (lists.dest.includes(key) ? 'dest' : 'source');
+  const other = (side: Side): Side => (side === 'dest' ? 'source' : 'dest');
+  /** Move `key` to `to`, just before `before`; false when nothing would change. */
+  const move = (key: string, to: Side, before: string | null): boolean => {
+    const next = moveBetween(lists, key, to, before, fixedSource);
+    if (next.source.join() === lists.source.join() && next.dest.join() === lists.dest.join()) return false;
+    setLists(next);
+    return true;
+  };
+  const nudge = (side: Side, from: number, to: number) => setLists((l) => ({ ...l, [side]: moveItem(l[side], from, to) }));
 
   const lift = usePressDragLift({
     canLift: () => true,
@@ -102,46 +119,12 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
       if (key === undefined) return false;
       const overRowId = rowIdUnder(target);
       if (overRowId === liftId) return false; // dropped on itself: no change
-
       const overKey = overRowId !== null ? keyOfLiftId.get(overRowId) : undefined;
-      if (overKey !== undefined) {
-        const destIndex = placed.indexOf(overKey);
-        if (destIndex !== -1) {
-          // Dropped on a PLACED row: land just before it.
-          if (placed.includes(key)) {
-            const from = placed.indexOf(key);
-            setPlaced((p) => moveItem(p, p.indexOf(key), dropBeforeIndex(from, destIndex)));
-          } else {
-            setPlaced((p) => {
-              const to = p.indexOf(overKey);
-              return [...p.slice(0, to), key, ...p.slice(to)];
-            });
-          }
-          return true;
-        }
-        // Dropped on an UNPLACED row: unplace the dragged one (a no-op if it already is).
-        if (!placed.includes(key)) return false;
-        unplace(key);
-        return true;
-      }
-
-      // No specific row — which list, if either, is the release over?
-      const list = testIdUnder(target, LIST_TESTIDS);
-      if (list === 'order-dest') {
-        if (!placed.includes(key)) {
-          place(key);
-          return true;
-        }
-        if (placed[placed.length - 1] === key) return false;
-        setPlaced((p) => moveItem(p, p.indexOf(key), p.length - 1));
-        return true;
-      }
-      if (list === 'order-source') {
-        if (!placed.includes(key)) return false;
-        unplace(key);
-        return true;
-      }
-      return false;
+      // Over a row: just before it, in its list. Over a list's own space: that list's end.
+      if (overKey !== undefined) return move(key, sideOf(overKey), overKey);
+      const list = testIdUnder(target, Object.values(LIST_TESTID));
+      if (list === null) return false;
+      return move(key, list === LIST_TESTID.dest ? 'dest' : 'source', null);
     },
   });
 
@@ -156,53 +139,31 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   /** One item's face: the tile when the item is a card, the words otherwise (T5). */
   const face = (key: string) => cardOrWordsFace(lookup, cardIdOf.get(key), labelOf.get(key));
 
-  return (
-    <PromptShell method="order" title={ask.title} problems={problems} onSubmit={submit}>
-      {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
-      <div className="prompt__dual">
-        <section aria-label="Unplaced">
-          <h4 className="prompt__col-head">
-            Unplaced <span className="zone__count">{unplaced.length}</span>
-          </h4>
-          <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid="order-source" onClickCapture={lift.onListClickCapture}>
-            {unplaced.map((key) => (
-              <li
-                key={key}
-                data-key={key}
-                data-card-id={liftIdOf.get(key)}
-                role="button"
-                tabIndex={0}
-                aria-label={`place ${labelOf.get(key)}`}
-                data-dragging={lift.liftedId === liftIdOf.get(key) || undefined}
-                onPointerDown={lift.onRowPointerDown(liftIdOf.get(key)!)}
-                onClick={() => place(key)}
-                onKeyDown={onKey(() => place(key))}
-              >
-                {face(key)}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section aria-label={ask.top}>
-          <h4 className="prompt__col-head">
-            {ask.top} <span className="zone__count">{placed.length}</span>
-          </h4>
-          <ol className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid="order-dest" onClickCapture={lift.onListClickCapture}>
-            {placed.map((key, i) => (
-              <li
-                key={key}
-                data-key={key}
-                data-card-id={liftIdOf.get(key)}
-                role="button"
-                tabIndex={0}
-                aria-label={`unplace ${labelOf.get(key)}`}
-                data-dragging={lift.liftedId === liftIdOf.get(key) || undefined}
-                onPointerDown={lift.onRowPointerDown(liftIdOf.get(key)!)}
-                onClick={() => unplace(key)}
-                onKeyDown={onKey(() => unplace(key))}
-              >
-                {face(key)}
+  /** One list: its heading, its rows and — where its order is part of the answer — each row's arrows. */
+  const group = (side: Side, heading: string, ordered: boolean) => {
+    const keys = lists[side];
+    const Tag = ordered ? 'ol' : 'ul';
+    return (
+      <section aria-label={heading}>
+        <h4 className="prompt__col-head">
+          {heading} <span className="zone__count">{keys.length}</span>
+        </h4>
+        <Tag className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={LIST_TESTID[side]} onClickCapture={lift.onListClickCapture}>
+          {keys.map((key, i) => (
+            <li
+              key={key}
+              data-key={key}
+              data-card-id={liftIdOf.get(key)}
+              role="button"
+              tabIndex={0}
+              aria-label={`${side === 'source' ? 'place' : 'unplace'} ${labelOf.get(key)}`}
+              data-dragging={lift.liftedId === liftIdOf.get(key) || undefined}
+              onPointerDown={lift.onRowPointerDown(liftIdOf.get(key)!)}
+              onClick={() => move(key, other(side), null)}
+              onKeyDown={onKey(() => move(key, other(side), null))}
+            >
+              {face(key)}
+              {ordered && (
                 <span className="prompt__card-order">
                   <button
                     type="button"
@@ -210,7 +171,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
                     disabled={i === 0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setPlaced((p) => moveItem(p, i, i - 1));
+                      nudge(side, i, i - 1);
                     }}
                   >
                     ↑
@@ -218,19 +179,29 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
                   <button
                     type="button"
                     aria-label={`move ${labelOf.get(key)} down`}
-                    disabled={i === placed.length - 1}
+                    disabled={i === keys.length - 1}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setPlaced((p) => moveItem(p, i, i + 1));
+                      nudge(side, i, i + 1);
                     }}
                   >
                     ↓
                   </button>
                 </span>
-              </li>
-            ))}
-          </ol>
-        </section>
+              )}
+            </li>
+          ))}
+        </Tag>
+      </section>
+    );
+  };
+
+  return (
+    <PromptShell method="order" title={ask.title} problems={problems} onSubmit={submit}>
+      {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
+      <div className="prompt__dual">
+        {group('source', ask.rest ?? 'Unplaced', ask.rest !== undefined)}
+        {group('dest', ask.top, true)}
       </div>
       {ask.showRememberCheckbox && (
         <label className="prompt__hint">

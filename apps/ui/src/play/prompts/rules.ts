@@ -503,14 +503,38 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
  * "Land just before `before`" as the index `moveItem` wants, given the
  * dragged item's own current index `from`: removing it first shifts
  * everything after it back by one, so a target at or past `from` moves down
- * by one too. `OrderPrompt`'s placed-list drop and `ManipulateCardListPrompt`'s
- * `dropBefore` both did this arithmetic by hand (T5) — one copy here.
+ * by one too. `ManipulateCardListPrompt`'s `dropBefore` uses it (`OrderPrompt`
+ * moves between its two lists with `moveBetween`).
  */
 export function dropBeforeIndex(from: number, before: number): number {
   return from < before ? before - 1 : before;
 }
 
 /* ── Ordering ────────────────────────────────────────────────────────── */
+
+/** `order`'s two lists: what is left (`source`) and the answer (`dest`), as keys. */
+export interface OrderLists {
+  source: readonly string[];
+  dest: readonly string[];
+}
+
+/**
+ * Move `key` into list `to`, just before `before` when that is in `to`, at the
+ * end otherwise. `keepSourceIn` is the source's fixed order when its order is
+ * not part of the answer (everything but a scry): a key returning there goes
+ * back to its own place in it, wherever it was dropped.
+ */
+export function moveBetween(lists: OrderLists, key: string, to: keyof OrderLists, before: string | null, keepSourceIn?: readonly string[]): OrderLists {
+  const next = { source: lists.source.filter((k) => k !== key), dest: lists.dest.filter((k) => k !== key) };
+  if (to === 'source' && keepSourceIn !== undefined) {
+    const kept = new Set([...next.source, key]);
+    next.source = keepSourceIn.filter((k) => kept.has(k));
+    return next;
+  }
+  const at = before === null || before === key ? -1 : next[to].indexOf(before);
+  next[to] = at === -1 ? [...next[to], key] : [...next[to].slice(0, at), key, ...next[to].slice(at)];
+  return next;
+}
 
 /**
  * `DualListBox` (DualListBox.java:481-493): OK is enabled while the SOURCE list

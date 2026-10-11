@@ -240,3 +240,76 @@ describe('order over cards Forge pre-rendered', () => {
     fireEvent.pointerUp(card, { clientX: 0, clientY: PAST_SLOP });
   });
 });
+
+/*
+ * A scry: the server names the group left behind (`rest`), so it is ordered
+ * too, and one reply answers both of Forge's questions
+ * (`apps/server/src/play/arrange.ts`).
+ */
+describe('a scry: cards on top and cards on bottom, one prompt', () => {
+  const scryAsk = () => ({
+    ...askFor('order'),
+    title: 'Select cards to be put on the bottom of your library',
+    top: 'Cards on bottom',
+    rest: 'Cards on top',
+    remainingObjectsMin: -1,
+    remainingObjectsMax: -1,
+    showRememberCheckbox: false,
+    sourceChoices: POOL.map((_, i) => ({
+      key: `s${i}`,
+      label: forgeCardLabel(POOL[i]!.name, POOL_ID_BASE + i),
+      ref: { kind: 'card' as const, id: POOL_ID_BASE + i },
+    })),
+    destChoices: [],
+  });
+  const scry = () => {
+    const utils = mountPrompt('order', scryAsk(), poolLookup);
+    const top = () => utils.getByTestId('order-source');
+    const bottom = () => utils.getByTestId('order-dest');
+    const rowsOf = (list: HTMLElement) => [...list.querySelectorAll<HTMLElement>(':scope > li')];
+    const dragTo = (row: Element, target: Element) => {
+      fireEvent.pointerDown(row, { button: 0, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(target, { clientX: 0, clientY: PAST_SLOP });
+      fireEvent.pointerUp(target, { clientX: 0, clientY: PAST_SLOP });
+    };
+    return { ...utils, top, bottom, rowsOf, dragTo };
+  };
+
+  it('names both groups, every card starts on top in Forge’s order, and OK is ready', () => {
+    const { top, bottom, submit, container } = scry();
+    expect([...container.querySelectorAll('.prompt__col-head')].map((h) => h.textContent)).toEqual(['Cards on top 3', 'Cards on bottom 0']);
+    expect(container.textContent).not.toContain('Unplaced');
+    expect(keysIn(top())).toEqual(['s0', 's1', 's2']);
+    expect(keysIn(bottom())).toEqual([]);
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('reorders the top by drag and by its arrows, sends one to the bottom, and answers both in one reply', () => {
+    const { top, bottom, rowsOf, dragTo, submit, answers } = scry();
+    fireEvent.click(rowsOf(top())[0]!.querySelector<HTMLElement>('button[aria-label$=" down"]')!);
+    expect(keysIn(top())).toEqual(['s1', 's0', 's2']);
+    dragTo(rowsOf(top())[2]!, rowsOf(top())[0]!);
+    expect(keysIn(top())).toEqual(['s2', 's1', 's0']);
+    dragTo(rowsOf(top())[1]!, bottom());
+    expect(keysIn(top())).toEqual(['s2', 's0']);
+    expect(keysIn(bottom())).toEqual(['s1']);
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ ordered: ['s1'], rememberDecision: false, rest: ['s2', 's0'] }]);
+    expectWireReply('order', answers[0]);
+  });
+
+  it('a click moves a card to the other group; back on top it goes last', () => {
+    const { top, bottom, rowsOf } = scry();
+    fireEvent.click(rowsOf(top())[0]!);
+    expect(keysIn(bottom())).toEqual(['s0']);
+    fireEvent.click(rowsOf(bottom())[0]!);
+    expect(keysIn(top())).toEqual(['s1', 's2', 's0']);
+  });
+
+  it('a bottom card dropped on a top card lands just before it', () => {
+    const { top, bottom, rowsOf, dragTo } = scry();
+    fireEvent.click(rowsOf(top())[2]!);
+    dragTo(rowsOf(bottom())[0]!, rowsOf(top())[0]!);
+    expect(keysIn(top())).toEqual(['s2', 's0', 's1']);
+  });
+});

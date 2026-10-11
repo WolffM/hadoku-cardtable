@@ -129,6 +129,7 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
+import { answerRest, arrangeAsk, restOrder } from './arrange.js';
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
@@ -484,6 +485,12 @@ export interface SeatState {
 	 * choice) a single browser reply must resolve. See {@link Match.onFrame}.
 	 */
 	mergedChoice: Map<string, { chooseCallId: string; keyByRef: Map<string, string> }>;
+	/**
+	 * The card ids a scry's (or surveil's) one prompt left on top, in the
+	 * player's order, until Forge's own second question about them arrives
+	 * and is answered with it (`./arrange.ts`). Cleared by the next ask either way.
+	 */
+	restOnTop: number[] | null;
 	/**
 	 * Half of a window a decider can answer, held until the other half
 	 * arrives so the window is decided before either reaches the wire. A
@@ -1002,6 +1009,7 @@ export class Match {
 			clicked: null,
 			pendingReveal: null,
 			mergedChoice: new Map(),
+			restOnTop: null,
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
@@ -1573,6 +1581,16 @@ export class Match {
 					const abilityId = (frame.result as { id: number }).id;
 					s.lastAbilityToPlay = { hostCard, abilityId };
 					s.chosenAbility = s.lastAbilityToPlay;
+				}
+				// A scry's one prompt: Forge is sent its first question's answer, and
+				// the top's order waits for its second (`./arrange.ts`).
+				if (frame.method === 'order' && ask.frame.kind === 'ask' && ask.frame.method === 'order' && ask.frame.rest !== undefined) {
+					const reply = frame.result as { ordered: string[]; rememberDecision: boolean; rest?: string[] };
+					const rest = restOrder(ask.frame, reply);
+					s.restOnTop = rest.length > 1 ? rest : null;
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, rest });
+					this.command({ t: 'reply', seat, callId: frame.callId, result: { ordered: reply.ordered, rememberDecision: reply.rememberDecision } });
+					return { ok: true };
 				}
 				// Wave 35 §S, R4 — a real (unmerged) discard choice answered plainly:
 				// its own later echo to the discarder still needs no confirmation.
@@ -2827,7 +2845,23 @@ export class Match {
 	 * it here is complete, not a partial duplicate.
 	 */
 	private openAsk(s: SeatState, offered: Extract<ServerFrame, { kind: 'ask' }>): void {
-		const frame = this.narrowNames(s, offered);
+		const rest = s.restOnTop;
+		s.restOnTop = null;
+		const restAnswer = rest === null ? null : answerRest(offered, rest);
+		if (restAnswer !== null) {
+			s.autoAnswered += 1;
+			this.deps.log({
+				evt: 'ask-auto-answered',
+				matchId: this.id,
+				seat: s.seat,
+				callId: offered.callId,
+				method: offered.method,
+				why: 'the top order the scry prompt already gave',
+			});
+			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: restAnswer });
+			return;
+		}
+		const frame = arrangeAsk(offered) ?? this.narrowNames(s, offered);
 		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
 		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : onlyAnswer(frame, s.policy));
