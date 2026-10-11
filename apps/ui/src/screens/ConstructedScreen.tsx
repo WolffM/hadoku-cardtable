@@ -191,11 +191,13 @@ import {
   type LegalSweep,
   type RoomPlayer,
   type RoomTable,
+  type DeckLine,
   type TableDeck,
   type TableFormat,
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { DeckPeek, PEEK_DELAY_MS, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
@@ -251,6 +253,17 @@ interface DeckOption {
    * when nothing in the list could be resolved. See {@link deckArtId}.
    */
   artId?: string | undefined;
+  /** The list a second's hover shows beside the tile (`DeckPeek.tsx`). */
+  list?: PeekList;
+}
+
+/** A library deck's lines, costed from the same committed slice the colours fold. */
+function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
+  const line = ({ name, count }: DeckLine): PeekLine => {
+    const cost = LIBRARY_CARD_COSTS[name] ?? '';
+    return { name, count, cost: manaTokensOf(cost), manaValue: manaValueOf(cost) };
+  };
+  return { main: main.map(line), sideboard: sideboard.map(line) };
 }
 
 /** Converted mana cost of one Scryfall cost token — `'3'` → 3, `'2/W'` → 2, `'X'` → 0. */
@@ -737,6 +750,41 @@ function DeckChooser({
   const [focus, setFocus] = useState<number | null>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  /** The tile whose list is open, and where it and the screen were when it opened. */
+  const [peek, setPeek] = useState<{ index: number; anchor: DOMRect; bounds: DOMRect } | null>(null);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** The tile the timer is running for, so a pointer moving within it does not restart it. */
+  const peekPending = useRef<number | null>(null);
+  const closePeek = (): void => {
+    clearTimeout(peekTimer.current);
+    peekPending.current = null;
+    setPeek(null);
+  };
+  useEffect(() => () => clearTimeout(peekTimer.current), []);
+  const openPeekSoon = (index: number): void => {
+    if (peekPending.current === index || peek?.index === index) return;
+    clearTimeout(peekTimer.current);
+    peekPending.current = index;
+    peekTimer.current = setTimeout(() => {
+      peekPending.current = null;
+      const tile = refs.current[index];
+      if (tile === null || tile === undefined) return;
+      const screen = tile.closest('[data-testid="constructed"]') ?? document.documentElement;
+      setPeek({ index, anchor: tile.getBoundingClientRect(), bounds: screen.getBoundingClientRect() });
+    }, PEEK_DELAY_MS);
+  };
+  const peeked = peek === null ? undefined : options[peek.index];
+  /** Where the pointer last was over the grid, so a scroll can find the tile now under it. */
+  const pointerAt = useRef<{ x: number; y: number } | null>(null);
+  const onGridScroll = (): void => {
+    closePeek();
+    const at = pointerAt.current;
+    if (at === null) return;
+    const tile = document.elementFromPoint(at.x, at.y)?.closest<HTMLElement>('[data-deck-id]');
+    const index = tile === null || tile === undefined ? -1 : refs.current.indexOf(tile as HTMLButtonElement);
+    if (index >= 0 && options[index]?.list !== undefined) openPeekSoon(index);
+  };
+
   const chosen = options.findIndex((o) => o.value === value);
   const stop = focus ?? (chosen >= 0 ? chosen : 0);
 
@@ -780,6 +828,13 @@ function DeckChooser({
       aria-disabled={disabled ? 'true' : undefined}
       data-chosen={value}
       onKeyDown={disabled ? undefined : onKeyDown}
+      onScroll={onGridScroll}
+      onPointerMove={(event) => {
+        if (event.pointerType !== 'touch') pointerAt.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerLeave={() => {
+        pointerAt.current = null;
+      }}
     >
       {options.map((option, index) => (
         <button
@@ -798,6 +853,11 @@ function DeckChooser({
           }}
           onFocus={() => setFocus(index)}
           onClick={() => onChoose(option.value)}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
+          }}
+          onPointerLeave={closePeek}
+          aria-describedby={peek?.index === index ? 'deck-peek' : undefined}
         >
           <DeckArt artId={option.artId} />
           <span className="deckpick__name" title={option.label}>
@@ -816,6 +876,16 @@ function DeckChooser({
           )}
         </button>
       ))}
+      {peek !== null && peeked?.list !== undefined && (
+        <DeckPeek
+          id="deck-peek"
+          label={peeked.label}
+          colors={peeked.colors}
+          list={peeked.list}
+          anchor={peek.anchor}
+          bounds={peek.bounds}
+        />
+      )}
     </div>
   );
 }
@@ -1313,6 +1383,16 @@ function RoomTableScreen({
         {
           value: DRAFTED_DECK,
           label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`,
+          list: {
+            main: [...draftedDeck.main, ...draftedDeck.basics].map((entry) => {
+              const card = byName.get(entry.card.name);
+              return { name: entry.card.name, count: entry.count, cost: card?.manaCost ?? [], manaValue: card?.manaValue ?? 0 };
+            }),
+            sideboard: draftedDeck.sideboard.map((entry) => {
+              const card = byName.get(entry.card.name);
+              return { name: entry.card.name, count: entry.count, cost: card?.manaCost ?? [], manaValue: card?.manaValue ?? 0 };
+            }),
+          },
           colors: mainDeckColors(draftedDeck, cardIndex(myPool ?? [])),
           artId: deckArtId(
             draftedDeck.main.flatMap((entry) => {
@@ -1336,6 +1416,7 @@ function RoomTableScreen({
       : byWinRate(offered.map((d) => ({
           value: d.id,
           label: d.name,
+          list: libraryPeekList(d.main, d.sideboard),
           colors: deckColorsByName(
             d.main.map((line) => line.name),
             LIBRARY_CARD_COSTS,
@@ -1361,6 +1442,34 @@ function RoomTableScreen({
   }, [pod, podAnswered, draftedDeck, myPool, offered, deckRecords]);
 
   /**
+   * On Free pick the whole library is on offer, and each player browses it by
+   * format for themselves — the operator, 2026-10-10: *"when free-pick is
+   * enabled, instead of showing all decks in one list can we expose the
+   * Standard/Modern/Legacy to the other player?"* This moves nothing in the
+   * room: it filters what THIS screen shows. `deckOptions` stays the whole
+   * offer, so a deck you hold is still yours while you look at another tab.
+   */
+  const [browse, setBrowse] = useState<{ family: FormatFamily; era: string }>({ family: 'standard', era: '' });
+  /** A library deck's era, joined on the name and date the catalogue gives both. */
+  const eraOfDeck = useMemo(() => {
+    const out = new Map<string, TableFormat>();
+    if (loaded === null) return out;
+    const eras = loaded.formats.filter(isEra);
+    for (const d of loaded.decks) {
+      const era = eras.find((f) => f.name === d.format && f.effective === d.date);
+      if (era !== undefined) out.set(d.id, era);
+    }
+    return out;
+  }, [loaded]);
+  const shownOptions = useMemo(() => {
+    if (deckOptions === null || !freePick) return deckOptions;
+    return deckOptions.filter((o) => {
+      const era = eraOfDeck.get(o.value);
+      return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
+    });
+  }, [deckOptions, freePick, eraOfDeck, browse]);
+
+  /**
    * Every art URL this room has already asked the browser to warm, and the
    * `Image` object doing it — kept for as long as this screen stays mounted,
    * so the warm cannot be garbage-collected mid-load. A ref rather than
@@ -1380,14 +1489,14 @@ function RoomTableScreen({
   // is silent and changes nothing: `DeckArt`'s `onError` still draws the
   // placeholder band the same as a cold 404 would.
   useEffect(() => {
-    if (deckOptions === null) return;
-    const urls = deckOptions.flatMap((o) => {
+    if (shownOptions === null) return;
+    const urls = shownOptions.flatMap((o) => {
       if (o.artId === undefined) return [];
       const url = cardImageUrl(o.artId);
       return url === null ? [] : [url];
     });
     prefetchCardImages(urls, prefetchedArt.current);
-  }, [deckOptions]);
+  }, [shownOptions]);
 
   // A deck the new pool does not offer is no longer chosen. The `PUT` under the
   // new rules has already gone (the re-send below), so its verdict is on the
@@ -1542,7 +1651,7 @@ function RoomTableScreen({
    * what the dropdown then reads.
    */
   const chooseDeck = (value: string): void => {
-    const chosen = value === RANDOM_DECK ? pickRandom(deckOptions ?? [], rand)?.value : value;
+    const chosen = value === RANDOM_DECK ? pickRandom(shownOptions ?? [], rand)?.value : value;
     if (chosen === undefined || chosen === '') return;
     const ref = deckRefOf(chosen);
     if (ref === null) return;
@@ -1853,9 +1962,14 @@ function RoomTableScreen({
                         explained: a mark and a name, not a sentence. */}
                     {iAmLeader ? (
                       <>
-                        <label className="lobby__field" htmlFor="format">
-                          {poolFieldLabel(pod)}
-                        </label>
+                        {/* On Free pick the leader's switch says so and the browse tabs
+                            name themselves; the label would only push the switch onto
+                            a second line, and that line comes off the deck grid. */}
+                        {!freePick && (
+                          <label className="lobby__field" htmlFor="format">
+                            {poolFieldLabel(pod)}
+                          </label>
+                        )}
                         {/* The format tab selector (wave 48 §U), replacing the single
                             "Matched Standard" optgroup: Standard, Modern, Legacy, plus
                             a "Drafted pool" tab when the room has one (the CALLER's own
@@ -1864,62 +1978,45 @@ function RoomTableScreen({
                             on the table's own era and only browses which eras the
                             select below offers; nothing moves the room until an option
                             in it is chosen. No prose: the tabs are the explanation. */}
-                        <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
-                          {FORMAT_TABS.map((tab) => (
-                            <button
-                              key={tab.id}
-                              type="button"
-                              role="tab"
-                              aria-selected={!freePick && formatTab === tab.id}
-                              data-testid={`format-tab-${tab.id}`}
-                              disabled={busy || underway}
-                              onClick={() => {
-                                setFormatTab(tab.id);
-                                // A tab whose eras do not include the room's pool chooses its first era
-                                // (newest, the list's order) at once, rather than showing nothing chosen
-                                // until the leader picks (the operator, 2026-10-07: "selecting modern
-                                // should default the year selection to the first available").
-                                if (loaded !== null && (freePick || !poolIsOnTab(loaded.formats, tab.id, poolId, pod))) {
-                                  const first = erasOf(loaded.formats, tab.id)[0];
-                                  if (first !== undefined) choosePool(first.id);
-                                }
-                              }}
-                            >
-                              {tab.label}
-                            </button>
-                          ))}
-                          {loaded.formats.some((f) => f.source === 'draft') && (
-                            <button
-                              type="button"
-                              role="tab"
-                              aria-selected={!freePick && formatTab === 'draft'}
-                              data-testid="format-tab-draft"
-                              disabled={busy || underway}
-                              onClick={() => setFormatTab('draft')}
-                            >
-                              Drafted pool
-                            </button>
-                          )}
-                          {/* Free pick: any deck against any deck. Off goes back to the
-                              browsed tab's newest era — Standard's from a drafted pool. */}
-                          <button
-                            type="button"
-                            className="lobby__free-pick"
-                            aria-pressed={freePick}
-                            data-testid="free-pick"
-                            disabled={busy || underway}
-                            onClick={() => {
-                              if (!freePick) {
-                                choosePool(FREE_PICK);
-                                return;
-                              }
-                              const era = erasOf(loaded.formats, formatTab === 'draft' ? 'standard' : formatTab)[0];
-                              choosePool(era?.id ?? newestFormat(loaded.formats));
-                            }}
-                          >
-                            Free pick
-                          </button>
-                        </div>
+                        {!freePick && (
+                          <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
+                            {FORMAT_TABS.map((tab) => (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={formatTab === tab.id}
+                                data-testid={`format-tab-${tab.id}`}
+                                disabled={busy || underway}
+                                onClick={() => {
+                                  setFormatTab(tab.id);
+                                  // A tab whose eras do not include the room's pool chooses its first era
+                                  // (newest, the list's order) at once, rather than showing nothing chosen
+                                  // until the leader picks (the operator, 2026-10-07: "selecting modern
+                                  // should default the year selection to the first available").
+                                  if (loaded !== null && !poolIsOnTab(loaded.formats, tab.id, poolId, pod)) {
+                                    const first = erasOf(loaded.formats, tab.id)[0];
+                                    if (first !== undefined) choosePool(first.id);
+                                  }
+                                }}
+                              >
+                                {tab.label}
+                              </button>
+                            ))}
+                            {loaded.formats.some((f) => f.source === 'draft') && (
+                              <button
+                                type="button"
+                                role="tab"
+                                aria-selected={formatTab === 'draft'}
+                                data-testid="format-tab-draft"
+                                disabled={busy || underway}
+                                onClick={() => setFormatTab('draft')}
+                              >
+                                Drafted pool
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {/* The era the room is ACTUALLY on is not always one this
                             tab offers (you are browsing Modern while the room
                             sits on a Standard era), and a native `<select>`
@@ -1965,7 +2062,65 @@ function RoomTableScreen({
                         </span>
                       </>
                     )}
+                    {/* On Free pick, everybody's own browse — see `shownOptions`. */}
+                    {freePick && (
+                      <>
+                        <div className="lobby__format-tabs" role="tablist" data-testid="browse-tabs">
+                          {FORMAT_TABS.map((tab) => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={browse.family === tab.id}
+                              data-testid={`browse-tab-${tab.id}`}
+                              onClick={() => setBrowse({ family: tab.id, era: '' })}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+                        <select
+                          data-testid="browse-era"
+                          aria-label={`${browse.family} year`}
+                          value={browse.era}
+                          onChange={(e) => setBrowse({ family: browse.family, era: e.target.value })}
+                        >
+                          <option value="">All years</option>
+                          {/* A format has one era a year, so the year names it, and a
+                              short option keeps this row one line high. */}
+                          {erasOf(loaded.formats, browse.family).map((f) => (
+                            <option key={f.id} value={f.id} title={f.name}>
+                              {f.effective.slice(0, 4)}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                     <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
+                    {/* Free pick is a switch of its own, not a fourth tab: on, the
+                        whole library is the pool and everyone browses it by format
+                        on this row; off, the leader's tabs pick the room's era again. Off
+                        lands on the era being browsed, else that format's newest. */}
+                    {iAmLeader && (
+                      <button
+                        type="button"
+                        className="lobby__free-pick"
+                        aria-pressed={freePick}
+                        data-testid="free-pick"
+                        disabled={busy || underway}
+                        onClick={() => {
+                          if (!freePick) {
+                            setBrowse({ family: formatTab === 'draft' ? 'standard' : formatTab, era: '' });
+                            choosePool(FREE_PICK);
+                            return;
+                          }
+                          const era = browse.era || erasOf(loaded.formats, browse.family)[0]?.id;
+                          choosePool(era ?? newestFormat(loaded.formats));
+                        }}
+                      >
+                        Free pick
+                      </button>
+                    )}
                   </div>
                   {/* The sets the chosen era is made of, as symbols — the operator's
                       own ask, for a Standard era. A drafted pool has none and draws none; an
@@ -1987,7 +2142,7 @@ function RoomTableScreen({
                     You play
                   </span>
                   <DeckChooser
-                    options={deckOptions ?? []}
+                    options={shownOptions ?? []}
                     value={deckId}
                     disabled={deckOptions === null || underway}
                     onChoose={chooseDeck}

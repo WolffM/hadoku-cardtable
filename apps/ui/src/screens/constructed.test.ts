@@ -1070,6 +1070,25 @@ describe('the deck picker', () => {
     await waitFor(() => expect(offered()).toEqual([SECOND_DECK, UG_POLYMORPH]));
   });
 
+  // The operator, 2026-10-10: "i need a way to peek into the deck maybe can we show a
+  // decklist when hovering for at least 1s?"
+  it('shows a deck’s list beside its tile after a second’s hover, and not before', async () => {
+    await mountRoom({ players: [opponent()], matchId: null });
+    await deckPicker();
+    const tile = screen.getByTestId('deck-mine').querySelector<HTMLElement>(`[data-deck-id="${SECOND_DECK}"]`)!;
+    fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(screen.queryByTestId('deck-peek')).toBeNull();
+    const peek = await screen.findByTestId('deck-peek', {}, { timeout: 2000 });
+    expect(peek.textContent).toContain('Jund (Emanuele Giusti)');
+    expect(peek.textContent).toContain('Main 60');
+    expect(peek.textContent).toContain('Island');
+    expect(peek.textContent).toContain('Sideboard 15');
+    expect(tile.getAttribute('aria-describedby')).toBe('deck-peek');
+    fireEvent.pointerLeave(tile);
+    expect(screen.queryByTestId('deck-peek')).toBeNull();
+  });
+
   it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate once per pool', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     // The pool the room opens on is legal for both, so both are on offer.
@@ -1320,7 +1339,9 @@ describe('the table’s pool', () => {
     // Every deck, whatever its era — the deck 2011 bans included — and no era to choose.
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
     expect(screen.queryByTestId('format')).toBeNull();
-    expect(screen.getByTestId('format-tab-standard').getAttribute('aria-selected')).toBe('false');
+    // The room's own tabs give way to the browse row: a switch, not a fourth tab.
+    expect(screen.queryByTestId('format-tabs')).toBeNull();
+    expect(screen.getByTestId('browse-tab-standard').getAttribute('aria-selected')).toBe('true');
 
     await act(async () => {
       fireEvent.click(toggle);
@@ -1329,6 +1350,35 @@ describe('the table’s pool', () => {
     // Back on the browsed tab's newest era.
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ format: 'free' }, { format: '2011-07-15' }]);
     expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15');
+  });
+
+  // The operator, 2026-10-10: "when free-pick is enabled, instead of showing all decks in one
+  // list can we expose the Standard/Modern/Legacy to the other player?"
+  it('Free pick: every player browses the library by format, and browsing moves nothing in the room', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null, leader: false, format: 'free' });
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
+    expect(screen.getByTestId('browse-tab-standard').getAttribute('aria-selected')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('browse-tab-modern'));
+    await waitFor(() => expect(offered()).toEqual([]));
+
+    fireEvent.click(screen.getByTestId('browse-tab-standard'));
+    fireEvent.change(screen.getByTestId('browse-era'), { target: { value: '2010-07-16' } });
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
+    fireEvent.change(screen.getByTestId('browse-era'), { target: { value: '2011-07-15' } });
+    await waitFor(() => expect(offered()).toEqual([]));
+    expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
+  });
+
+  it('Free pick: a deck you hold stays yours while you browse another format', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, leader: false, format: 'free' });
+    await pick(SECOND_DECK);
+    await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId('browse-tab-legacy'));
+    await waitFor(() => expect(offered()).toEqual([]));
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByTestId('browse-tab-standard'));
+    await waitFor(() => expect(chosen()).toBe(SECOND_DECK));
   });
 
   it('Free pick reads as its name to a non-leader, who gets no toggle', async () => {

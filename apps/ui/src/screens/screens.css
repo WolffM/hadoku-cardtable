@@ -219,7 +219,8 @@
   margin-bottom: 6px;
 }
 
-.lobby__format-tabs button {
+.lobby__format-tabs button,
+.lobby__free-pick {
   padding: 0.35rem 0.75rem;
   background: var(--color-bg-alt);
   color: var(--color-text-secondary);
@@ -236,18 +237,19 @@
   border-color: var(--color-primary);
 }
 
-/* Free pick is a switch, not a fourth format: pushed to the row's far end. */
-.lobby__format-tabs .lobby__free-pick {
+/* Free pick is a switch of its own, not a fourth format: the row's far end. */
+.lobby__deckformat > .lobby__free-pick {
   margin-left: auto;
 }
 
-.lobby__format-tabs button[aria-pressed='true'] {
+.lobby__free-pick[aria-pressed='true'] {
   background: var(--color-primary);
   color: var(--color-on-primary);
   border-color: var(--color-primary);
 }
 
-.lobby__format-tabs button:disabled {
+.lobby__format-tabs button:disabled,
+.lobby__free-pick:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -1063,13 +1065,6 @@
   margin-bottom: 0;
 }
 
-/* Beside the era tabs rather than across the card from them: the row wraps,
-   and an `auto` margin would strand the select and the leader on a line of
-   their own. */
-.lobby__deckformat .lobby__free-pick {
-  margin-left: 8px;
-}
-
 /* A label that names the deck grid for assistive tech and is not drawn: the
    grid of decks says what it is. */
 .lobby__field--hidden {
@@ -1246,4 +1241,96 @@
   border-style: solid;
   border-color: var(--color-primary);
   color: var(--color-text);
+}
+
+/* ── a deck's list, beside its tile after a second's hover (DeckPeek.tsx) ── */
+
+/* Fixed, so the deck grid's own scroll box does not clip it; placed inside the
+   room screen's box by the component, so it never covers the chat. */
+.peek {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  box-shadow: var(--hdk-shadow-lg);
+  font-size: 12px;
+}
+
+.peek__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.peek__title {
+  font-weight: var(--font-weight-bold);
+  font-size: 13px;
+}
+
+.peek__body {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.peek__col {
+  width: 220px;
+}
+
+.peek__col--side {
+  padding-left: 14px;
+  border-left: 1px solid var(--color-border-light);
+}
+
+.peek__h {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.peek__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.peek__line {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+}
+
+.peek__n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.peek__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peek__line .cost {
+  font-size: 11px;
+}
+
+.peek__rule {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border-light);
 }
