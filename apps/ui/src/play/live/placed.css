@@ -151,6 +151,10 @@
 .placed__tile {
   width: 100%;
 }
+/* A face-down spell of theirs (`HiddenCard`): a card's proportion at the stack card's width, never the text tile's `--card-h`. */
+.placed__tile > .card-back {
+  height: auto;
+}
 
 /* AE29: an ability on the stack is an effect of its card — the chip, not a second card (half a card tall, no frame). */
 .placed__chip {

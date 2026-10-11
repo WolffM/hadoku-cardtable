@@ -134,8 +134,10 @@ test(titled('a face-down spell on the stack is the caster’s own card on her sc
     expect(theirs.back, 'bob: the face-down spell is a card back').toBe(true);
     expect(theirs.backIsCard, 'bob: the hidden card’s own back (a card), not a placeholder').toBe(true);
     expect(theirs.backLabel, 'bob: named Hidden card').toBe(HIDDEN);
-    const width = (s: string) => Number(s.split('×')[0]);
-    expect(Math.abs(width(theirs.size) - width(theirs.card)), `bob: at a battlefield card’s width (${theirs.size} vs ${theirs.card})`).toBeLessThanOrEqual(2);
+    const [w, h] = theirs.size.split('×').map(Number) as [number, number];
+    const [ownW, ownH] = mine.size.split('×').map(Number) as [number, number];
+    expect(Math.abs(w - ownW), `bob: at a stack card’s width (${theirs.size}; alice's ${mine.size})`).toBeLessThanOrEqual(2);
+    expect(Math.abs(h - ownH), `bob: and a card’s height, the size alice’s screen draws it (${theirs.size}; alice's ${mine.size})`).toBeLessThanOrEqual(2);
 
     // Hovering it opens the one inspector on that back.
     const box = (await bob.page.locator(`[data-placed-card="${id!}"]`).boundingBox())!;
