@@ -830,10 +830,26 @@ describe('receiving', () => {
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(gap);
     return gap;
   }
-  const frame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
+  /*
+   * These run on a fake clock: a frame and the 300 ms glide are advanced, never waited out on the
+   * wall clock, where a full check's load made two of them flake (green alone, red in land.sh's
+   * check at 14:02Z on 2026-10-11).
+   */
+  const fakeClock = (): void => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+  };
+  const frame = async (): Promise<void> => {
+    vi.advanceTimersToNextFrame();
+    await Promise.resolve();
+  };
+  const glide = async (): Promise<void> => {
+    vi.advanceTimersByTime(GLIDE_MS);
+    await Promise.resolve();
+  };
 
   it('a creature placed to a column but held on the STACK, put there while its back is still gliding into the gap, is handed over to the placed card when the glide ends, at the gap — never short of it (AE26; w67-shaman: 16 px, then a hop)', async () => {
     const { canvas } = board();
+    fakeClock();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
     let theirs: number[] = [];
@@ -855,7 +871,7 @@ describe('receiving', () => {
     expect(placedMod.placeSpell, 'not mid-glide').not.toHaveBeenCalled();
     expect(placedMod.holdSpell, 'its stack card held hidden meanwhile, never at the default spot').toHaveBeenCalledWith(121);
     expect(back.isConnected, 'the back finishes its glide').toBe(true);
-    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    await glide();
     expect(placedMod.placeSpell, 'handed over where the glide ends: the gap the card lands in').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');
     expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
     expect(canvas.querySelector('.presence__back'), 'one object: the back is gone').toBeNull();
@@ -865,6 +881,7 @@ describe('receiving', () => {
 
   it('a creature on the stack before the board has even drawn its gap waits for the gap, and the glide, before it is handed over', async () => {
     const { canvas } = board();
+    fakeClock();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
     let theirs: number[] = [];
@@ -883,7 +900,7 @@ describe('receiving', () => {
     reservedGap(canvas);
     await frame();
     expect(placedMod.placeSpell, 'not as the glide starts').not.toHaveBeenCalled();
-    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    await glide();
     expect(placedMod.placeSpell, 'at the gap, once there').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');
     handle.dispose();
     forgetPendingPlacements();
@@ -891,6 +908,7 @@ describe('receiving', () => {
 
   it('a creature that resolves into its column before the glide ends is never handed to the stack layer: its copy finishes the trip', async () => {
     const { canvas } = board();
+    fakeClock();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
     let theirs: number[] = [];
@@ -919,7 +937,7 @@ describe('receiving', () => {
     forgetPendingPlacements();
     wake!();
     await frame();
-    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    await glide();
     expect(placedMod.placeSpell, 'the stack layer never drew it').not.toHaveBeenCalled();
     expect(canvas.querySelector('.presence__back'), 'the back handed over to the card').toBeNull();
     handle.dispose();
@@ -928,6 +946,7 @@ describe('receiving', () => {
 
   it('a creature that resolves while its back is still gliding is hidden under its flying copy on the commit that draws it — never a painted frame in its slot first (w67-shaman bears)', async () => {
     const { canvas } = board();
+    fakeClock();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
     let theirs: number[] = [];
@@ -968,6 +987,7 @@ describe('receiving', () => {
 
   it('telemetry: their creature’s hand-over to the stack card and its landing are each reported once, as the receiver, from the back’s drawn box', async () => {
     const { canvas } = board();
+    fakeClock();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
     const report = vi.fn();
@@ -978,7 +998,6 @@ describe('receiving', () => {
       canvas,
       host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => onStack, theirPlayerId: () => 1, motion: () => true, report },
     });
-    const frame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
     t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
     const gap = document.createElement('li');
@@ -994,7 +1013,7 @@ describe('receiving', () => {
     wake!();
     await frame();
     await frame();
-    await new Promise((r) => setTimeout(r, GLIDE_MS));
+    await glide();
     await frame();
     const handover = report.mock.calls.filter(([kind]) => kind === 'handover');
     expect(handover, 'one hand-over').toHaveLength(1);
