@@ -1,0 +1,18 @@
+# Foresee ({3}{U} sorcery, "Scry 4, then draw two cards.") — seat 0 holds it
+# and four untapped Islands, an uncontested turn-1 Main Phase 1. Four
+# different basics on top of the library, so every card the scry looks at
+# can be told apart, and the two Foresee draws show which order stuck.
+# `e2e/scry-one-prompt.spec.ts` drives it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Foresee
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Plains;Forest;Swamp;Mountain;Wastes;Wastes;Wastes
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
