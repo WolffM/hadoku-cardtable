@@ -1,0 +1,19 @@
+# A card-name ask across a departure. Seat 0's turn-1 Main Phase 1: Cabal
+# Therapy and a Swamp. Its "Choose a nonland card name" is a getChoices of
+# every card name (`ChooseCardNameEffect.resolve`), and an abort answers it
+# with a null that `ChooseCardNameEffect.java:118` does not check — prod
+# m-dd37bda1c441 lost its game thread that way when the seat's tab froze and
+# the server aborted the ask after the disconnect grace.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Cabal Therapy
+humanbattlefield=Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=Elvish Mystic;Goblin Guide;Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

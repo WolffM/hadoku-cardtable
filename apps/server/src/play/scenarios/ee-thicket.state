@@ -1,0 +1,21 @@
+# A filter land's mana combination. Seat 0's own turn-1 Main Phase 1 with
+# Fire-Lit Thicket and a Forest. The Thicket's "{R/G}, {T}: Add {R}{R},
+# {R}{G}, or {G}{G}" (`Produced$ Combo R G | Amount$ 2`) asks the seat which of
+# the three it wants (`PlayerControllerHuman.specifyManaCombo` →
+# `assignGenericAmount`, keyed by `MagicColor.Color`). The Forest pays
+# the {R/G} (in prod it was an Overgrown Tomb, whose own "pay 2 life?" on
+# entering would stop the scenario before the mulligan settles). Prod
+# m-24f69e2e0b7e (2026-10-10) froze on exactly this question.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Fire-Lit Thicket;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -305,6 +305,16 @@ export interface ScenarioOptions {
 	 * `keepHands`/`passUntil` answer it exactly as they do for any other match.
 	 */
 	scenario?: string;
+	/**
+	 * TEST-only: what reaches the match of each bridge line — the line, a
+	 * changed one, or `null` to lose it on the way, as a frame lost between the
+	 * bridge and the server is lost. `lines` still records what the bridge said.
+	 */
+	mapLine?: (line: BridgeLine) => BridgeLine | null;
+	/** Asks `answerAsks` leaves open, for the test to answer itself. */
+	hold?: (frame: ServerFrame & Record<string, unknown>) => boolean;
+	/** `MatchDeps.actSilenceMs`, so a lost-ask suite need not wait out production's. */
+	actSilenceMs?: number;
 }
 
 export async function startScenario(config: JvmHostConfig, options: ScenarioOptions): Promise<Scenario> {
@@ -321,12 +331,14 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 				...events,
 				line: (l) => {
 					lines.push({ ...(l as BridgeLine & { t: string }), hostT: performance.now() });
-					events.line(l);
+					const kept = options.mapLine === undefined ? l : options.mapLine(l);
+					if (kept !== null) events.line(kept);
 				},
 			}),
 		log: (e) => logs.push(e),
 		askTimeoutMs: 120_000,
 		overGraceMs: 60_000,
+		...(options.actSilenceMs === undefined ? {} : { actSilenceMs: options.actSilenceMs }),
 		...(options.policy === undefined ? {} : { stopPolicy: options.policy }),
 		emit: (_m, seat, envelope) => sent.push({ seat, envelope, t: performance.now() }),
 	});
@@ -412,7 +424,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			const now: ServerFrame[] = [];
 			for (const { seat, envelope } of sent) {
 				const f = envelope.frame as ServerFrame & Record<string, unknown>;
-				if (f.kind !== 'ask' || answered.has(f.callId as string)) continue;
+				if (f.kind !== 'ask' || answered.has(f.callId as string) || options.hold?.(f) === true) continue;
 				const callId = f.callId as string;
 				answered.add(callId);
 				asks.push(f);
