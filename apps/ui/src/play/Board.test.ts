@@ -3319,7 +3319,7 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
     const columns = declarationIn(GRID, 'grid-auto-columns')!;
     expect(columns, 'a column is never narrower than a card whose name can be read').toContain('var(--card-min)');
     expect(columns, 'nor wider than one card').toContain('var(--card-w)');
-    expect(columns, 'and the floor gives way to the lane’s own share rather than overflowing it').toContain('100cqw');
+    expect(columns, 'and the floor gives way to the lane’s own share rather than overflowing it').toContain('var(--zone-w)');
     expect(columns, 'the wave-26 rule let it go on shrinking to nothing').not.toContain('minmax(0,');
     // A lane asks for the COLUMNS it draws, `ceil(--cols / --rows)`. Wave 26 grew
     // it by its piles, so a lane on two rows starved the lane beside it.
@@ -3743,10 +3743,10 @@ describe('§A.9 — a pile’s cards expand to fit their box', () => {
      */
     expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile {');
     expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards {');
-    expect(declarationIn('.board .seat .zone--exile', 'container-type'), 'the pile is a size container').toBe(
-      'inline-size',
+    expect(declarationIn('.board .seat .zone--exile', 'contain'), 'the pile is a measured box its card never resizes').toBe(
+      'inline-size style',
     );
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--pile-card-w')).toBe('100cqw');
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--pile-card-w')).toBe('var(--zone-w)');
     expect(declarationIn('.board .seat .zone--exile .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
     expect(declarationIn('.board .seat .zone--exile .zone__cards', 'justify-content'), 'and it fills it').toBe(
       'stretch',
@@ -4008,9 +4008,9 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     // `--card-w` is derived from the zone's height the way the hand's is, not a fixed 4rem, and not capped.
     const w = declarationIn(theirs, '--card-w')!;
     expect(w, 'T6: no cap left to read').not.toContain('var(--card-max)');
-    expect(w).toContain('100cqh');
+    expect(w).toContain('var(--zone-h)');
     expect(w).not.toContain('4rem');
-    expect(declarationIn(theirs, 'container')).toBe('row-zone / size');
+    expect(declarationIn(theirs, 'contain')).toBe('size style');
     // A back is a whole column of that grid, and the grid shrinks to the width down to the same floor.
     expect(declarationIn('.seat:not([data-viewer]) > .zone--hand > .card-backs', '--card-back-w')).toBe('100%');
     expect(declarationIn('.seat:not([data-viewer]) > .zone--hand > .card-backs', 'grid-auto-columns')).toContain(
@@ -5046,7 +5046,7 @@ describe('wave 36 §B — T6: a hand card is as tall as its row allows', () => {
     ] as const) {
       const w = declarationIn(selector, '--card-w')!;
       expect(w, `${label}: no ceiling left to read`).not.toContain('var(--card-max)');
-      expect(w, `${label}: still driven by the row’s own height`).toContain('100cqh');
+      expect(w, `${label}: still driven by the row’s own height`).toContain('var(--zone-h)');
     }
   });
 });

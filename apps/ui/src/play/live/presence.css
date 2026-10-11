@@ -152,10 +152,10 @@
  */
 .zone--hand[data-zone='hand'][data-owner='them'][data-presence-rows='2'] > .card-backs {
   --rows: 2;
-  --card-w: calc((100cqh - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
+  --card-w: calc((var(--zone-h) - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
 
   grid-template-rows: repeat(var(--rows), auto);
-  grid-auto-columns: minmax(min(var(--card-min), calc(100cqw / round(up, var(--cols, 99) / var(--rows), 1))), var(--card-w));
+  grid-auto-columns: minmax(min(var(--card-min), calc(var(--zone-w) / round(up, var(--cols, 99) / var(--rows), 1))), var(--card-w));
 }
 
 @media (prefers-reduced-motion: reduce) {

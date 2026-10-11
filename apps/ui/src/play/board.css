@@ -54,9 +54,14 @@
  *     below the fold — but never past the width at which the card's own NAME
  *     stops being readable (`--card-min`, wave 27 §A.1). Past that the row takes
  *     another row rather than going on crushing.
- *   - **`--card-w` comes from the zone's height.** Those zones are size
- *     containers, so `100cqh` is the zone's own height and a card is sized so
- *     that `--rows` rows of it fit (a card is 488 × 680, `card.css`).
+ *   - **`--card-w` comes from the zone's height.** `zone-box.ts` writes each
+ *     zone's content box as `--zone-w`/`--zone-h` (px), so `--zone-h` is the
+ *     zone's own height and a card is sized so that `--rows` rows of it fit (a
+ *     card is 488 × 680, `card.css`). Not container queries: a size container
+ *     made every layout anywhere on the board lay all of it out again — 8–25 ms
+ *     a frame on a claw while a card is dragged, against 0.4 ms measured with
+ *     the same sizes written as px (the operator, 2026-10-10: "this needs to be
+ *     buttery smooth").
  *   - **More rows once one row would be too thin.** `--rows` steps from 1 to 2
  *     to 3 by card count (`--cols`, which `Board.tsx` writes), at thresholds that
  *     depend on the zone's shape; the derivation is beside the rules. On a
@@ -98,7 +103,7 @@
  * holding nothing shrinks to `--group-empty-w`, its label and no more. Inside
  * a lane, the `--rows` stepping above still applies — a crowded lane goes to
  * two rows of smaller cards rather than a thinner single row — and each lane
- * is its own size container, so `100cqh` there is the lane's height, which is
+ * is its own measured box, so `--zone-h` there is the lane's height, which is
  * the whole slot's.
  *
  * A lane clips: a hover lift or a selectable card's ring may not spill into the
@@ -831,7 +836,13 @@
 .seat[data-viewer] > .zone--hand {
   --rows: 1;
 
-  container: row-zone / size;
+  /*
+   * What `container: … / size` applied, without the query: the zone's size is its track's, never
+   * its cards' (`zone-box.ts` relies on it). Not `layout`: that would make the zone the containing
+   * block of a lifted card's `position: fixed`, and the card would scroll the zone instead of
+   * following the pointer.
+   */
+  contain: size style;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
@@ -879,8 +890,8 @@
 }
 
 /*
- * The four groups, as lanes across the slot. Each lane is its own size
- * container, so the `--card-w` rule below reads the LANE's height — which is the
+ * The four groups, as lanes across the slot. Each lane is its own measured
+ * box, so the `--card-w` rule below reads the LANE's height — which is the
  * whole slot's, because the zone's label takes a column and no height at all —
  * and from which `--card-slack` then subtracts the lane's own label strip.
  *
@@ -914,7 +925,7 @@
 }
 
 .zone__row {
-  container: row-zone / size;
+  contain: size style;
   flex: 0 1 var(--group-overhead);
   /* The columns it draws, not the piles it holds. `round(up, …)` because CSS has
      no `ceil()` in this engine — checked, `minmax(… ceil(16 / 2) …)` is refused
@@ -996,7 +1007,7 @@
 .seat > .zone--battlefield .zone__tiers > .zone__cards,
 .seat[data-viewer] > .zone--hand > .zone__cards {
   /*
-   * Tall enough for `--rows` rows in the container's own height (`100cqh` — the
+   * Tall enough for `--rows` rows in the container's own height (`--zone-h` — the
    * LANE's height on a battlefield, the whole zone's in your hand, and on a
    * battlefield those are nearly the same because the lanes divide the width —
    * less the gaps and `--card-slack`), and never wider than `--card-max`. The
@@ -1010,7 +1021,7 @@
    */
   --card-w: min(
     var(--card-max),
-    calc((100cqh - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall))
+    calc((var(--zone-h) - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall))
   );
 
   display: grid;
@@ -1023,14 +1034,14 @@
    *
    * The floor gives way to the lane's own equal share when even that will not
    * fit, because the alternative is a lane that overflows, and a card clipped out
-   * of sight is a worse bug than a card that is hard to read. `100cqw` is this
+   * of sight is a worse bug than a card that is hard to read. `--zone-w` is this
    * container's content WIDTH — the lane's on a battlefield, the hand zone's in
    * your hand, and in both it already has `--right-gutter` taken out of it,
    * because a size container's query box is its content box and the reservation
    * is padding on the zone.
    */
   grid-auto-columns: minmax(
-    min(var(--card-min), calc(100cqw / round(up, var(--cols, 99) / var(--rows), 1))),
+    min(var(--card-min), calc(var(--zone-w) / round(up, var(--cols, 99) / var(--rows), 1))),
     var(--card-w)
   );
   gap: var(--cards-gap);
@@ -1081,7 +1092,7 @@
 .seat[data-viewer] > .zone--hand > .zone__cards {
   --card-slack: 8px;
   --card-pad: 4px 3px;
-  --card-w: calc((100cqh - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
+  --card-w: calc((var(--zone-h) - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
 }
 
 /* A lane's container is the lane, which is the whole height of the slot; what
@@ -1114,7 +1125,7 @@
  * and not one grid with a row count (an empty row is a box to snap to).
  *
  * Both tiers are sized as ONE card: `--rows: 2` is the height arithmetic (two
- * tiers of cards in the zone's own height, `100cqh`), and each list is a single
+ * tiers of cards in the zone's own height, `--zone-h`), and each list is a single
  * grid row whose columns are the busier tier's (`--cols`, written by
  * `Board.tsx`), so a land under a creature is the same width and the two rows
  * line up. The viewer's front tier is the upper one — towards the centre line —
@@ -1136,7 +1147,7 @@
   --card-pad: 2px;
 
   grid-template-rows: auto;
-  grid-auto-columns: minmax(min(var(--card-min), calc(100cqw / var(--cols, 99))), var(--card-w));
+  grid-auto-columns: minmax(min(var(--card-min), calc(var(--zone-w) / var(--cols, 99))), var(--card-w));
   align-content: center;
   min-height: 0;
   /* A tier is the box a card is snapped into: it shows the slot while it is empty. */
@@ -1149,7 +1160,8 @@
  * With the zone W wide and H tall, one row of N cards is min(0.718·H, W/N) wide
  * and two rows are min(0.359·H, 2W/N), so a second row gives bigger cards once
  * N > 2.79·W/H and a third beats two once N > 8.37·W/H. The shape W/H is the
- * container query and each band of shapes uses its midpoint's thresholds; N is
+ * zone's `data-zone-aspect` (the band `zone-box.ts` measured: 3, 4, 5, 6, 8 or
+ * 10 and wider) and each band of shapes uses its midpoint's thresholds; N is
  * `--cols`, which `Board.tsx` writes.
  *
  * **Per battlefield, not per lane** (wave 27 §A.1). Wave 26 let each lane choose
@@ -1172,59 +1184,35 @@
   --rows: calc(1 + clamp(0, var(--cols, 0) - 6, 1) + clamp(0, var(--cols, 0) - 20, 1));
 }
 
-@container row-zone (aspect-ratio >= 3) {
-  .zone__rows,
-  .zone--hand > .zone__cards,
-  .seat > .zone--battlefield > .zone__cards {
-    --rows: calc(1 + clamp(0, var(--cols, 0) - 9, 1) + clamp(0, var(--cols, 0) - 29, 1));
-  }
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='3'] > :is(.zone__rows, .zone__cards) {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 9, 1) + clamp(0, var(--cols, 0) - 29, 1));
 }
 
-@container row-zone (aspect-ratio >= 4) {
-  .zone__rows,
-  .zone--hand > .zone__cards,
-  .seat > .zone--battlefield > .zone__cards {
-    --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 37, 1));
-  }
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='4'] > :is(.zone__rows, .zone__cards) {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 37, 1));
 }
 
-@container row-zone (aspect-ratio >= 5) {
-  .zone__rows,
-  .zone--hand > .zone__cards,
-  .seat > .zone--battlefield > .zone__cards {
-    --rows: calc(1 + clamp(0, var(--cols, 0) - 15, 1) + clamp(0, var(--cols, 0) - 46, 1));
-  }
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='5'] > :is(.zone__rows, .zone__cards) {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 15, 1) + clamp(0, var(--cols, 0) - 46, 1));
 }
 
-@container row-zone (aspect-ratio >= 6) {
-  .zone__rows,
-  .zone--hand > .zone__cards,
-  .seat > .zone--battlefield > .zone__cards {
-    --rows: calc(1 + clamp(0, var(--cols, 0) - 19, 1) + clamp(0, var(--cols, 0) - 58, 1));
-  }
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='6'] > :is(.zone__rows, .zone__cards) {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 19, 1) + clamp(0, var(--cols, 0) - 58, 1));
 }
 
-@container row-zone (aspect-ratio >= 8) {
-  .zone__rows,
-  .zone--hand > .zone__cards,
-  .seat > .zone--battlefield > .zone__cards {
-    --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 75, 1));
-  }
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='8'] > :is(.zone__rows, .zone__cards) {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 75, 1));
 }
 
-@container row-zone (aspect-ratio >= 10) {
-  .zone__rows,
-  .zone--hand > .zone__cards,
-  .seat > .zone--battlefield > .zone__cards {
-    --rows: calc(1 + clamp(0, var(--cols, 0) - 30, 1) + clamp(0, var(--cols, 0) - 92, 1));
-  }
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='10'] > :is(.zone__rows, .zone__cards) {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 30, 1) + clamp(0, var(--cols, 0) - 92, 1));
 }
 
 /*
  * The opponent's hand is backs, and they are the SAME SIZE as yours (wave 32 Q2:
  * the operator wanted the opponent's hand drawn at the card size of their own,
  * mirrored to the top of the table). So it reads the same tokens the viewer's
- * hand does — `--card-slack`, the `100cqh`-derived `--card-w` and the grid's
+ * hand does — `--card-slack`, the `--zone-h`-derived `--card-w` and the grid's
  * `--card-min` floor — rather than a size of its own, and it is a size
  * container for the same reason: the card is sized from the BOX. The row is an
  * `fr` like yours (2.6 against the battlefield's 4), so their first draw moves
@@ -1238,9 +1226,9 @@
 .seat:not([data-viewer]) > .zone--hand {
   --card-slack: 8px;
   --card-pad: 4px 3px;
-  --card-w: calc((100cqh - var(--card-slack)) / var(--card-tall));
+  --card-w: calc((var(--zone-h) - var(--card-slack)) / var(--card-tall));
 
-  container: row-zone / size;
+  contain: size style;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
@@ -1263,7 +1251,7 @@
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: auto;
-  grid-auto-columns: minmax(min(var(--card-min), calc(100cqw / var(--cols, 99))), var(--card-w));
+  grid-auto-columns: minmax(min(var(--card-min), calc(var(--zone-w) / var(--cols, 99))), var(--card-w));
   gap: var(--cards-gap);
   align-content: start;
   justify-content: start;
@@ -1289,14 +1277,14 @@
 .board .seat .zone--graveyard,
 .board .seat .zone--exile {
   /*
-   * A size container, so the card inside can be sized from the BOX rather than
+   * A measured box (`--zone-w`), so the card inside can be sized from the BOX rather than
    * from a fixed 2rem — item 9, and the whole of it: *"the graveyard is
    * unecessarily small, i think the cards can expand to fit the width of that
    * box."* The box is one of the two columns of `.seat__piles`, which is the
    * `--who-w` cell divided in two; a pile used to draw a 2rem card inside
    * it and leave the rest as air.
    */
-  container-type: inline-size;
+  contain: inline-size style;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1307,12 +1295,12 @@
 .board .seat .zone--graveyard .zone__cards,
 .board .seat .zone--exile .zone__cards {
   /*
-   * The card IS the column. `100cqw` is the pile's own content width, so a card
+   * The card IS the column. `--zone-w` is the pile's own content width, so a card
    * expands to fit its box and follows it if the box ever changes — and every
    * length below is still derived from one number, which is what keeps the
    * reserved room under the last card exact.
    */
-  --pile-card-w: 100cqw;
+  --pile-card-w: var(--zone-w);
   --card-w: var(--pile-card-w);
   /* The strip each buried card shows, in proportion to the card rather than a
      fixed 1.15rem: a wider card deserves a taller name strip, and at the

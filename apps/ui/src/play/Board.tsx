@@ -403,6 +403,7 @@ import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
+import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS } from './motion.ts';
 import './board.css';
 import './card.css';
@@ -3094,6 +3095,22 @@ function PlayerArea({
  * Nothing is sent to Forge. Everything it draws is removed again on every exit.
  */
 
+/** Every box `board.css` sizes cards from, measured (`zone-box.ts`) — the boxes a render added, from that render's own commit. */
+function useZoneBoxes(root: { readonly current: HTMLElement | null }): void {
+  const boxes = useRef<ZoneBoxes | null | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (boxes.current === undefined) boxes.current = observeZoneBoxes();
+    if (root.current !== null) boxes.current?.sync(root.current);
+  });
+  useEffect(
+    () => () => {
+      boxes.current?.disconnect();
+      boxes.current = undefined;
+    },
+    [],
+  );
+}
+
 function useArrangeDrag(
   root: { readonly current: HTMLElement | null },
   enabled: boolean,
@@ -3515,6 +3532,7 @@ export function Board({
     redraw();
   };
   useArrangeDrag(root, viewer !== undefined, commit);
+  useZoneBoxes(root);
 
   /*
    * Fold in any PENDING placement (`notePlayedTo`, above) for a card the
