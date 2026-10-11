@@ -346,13 +346,13 @@ const PRIORITY_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nS
 const THEIR_STOP_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: Declare Blockers Step\nStack: Empty';
 const MY_STOP_MESSAGE = 'Priority: A\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: Empty';
 
-function prompt(message: string, playerId = 1): ServerFrame {
+function prompt(message: string, playerId = 1, card: number | null = null): ServerFrame {
 	return parseServerFrame({
 		kind: 'notify',
 		method: 'showPromptMessage',
 		player: { kind: 'player', id: playerId },
 		message,
-		card: null,
+		card: card === null ? null : { kind: 'card', id: card },
 	});
 }
 
@@ -695,6 +695,35 @@ function oneAbilityAsk(callId: string): Record<string, unknown> {
 		abilities: [{ kind: 'spellAbility', id: 9001 }],
 		triggerEvent: null,
 	};
+}
+
+/** The card {@link castOwn} casts, which its payment prompt names. */
+const OWN_CARD = 67;
+
+/**
+ * The seat's own cast: Forge offers card {@link OWN_CARD}'s abilities and the
+ * seat's browser answers. A payment that names the card after this is the
+ * seat's own.
+ */
+function castOwn(h: Harness, seat: number): void {
+	const before = frames(h, seat).length;
+	push(h, seat, {
+		kind: 'ask',
+		callId: `cast-${seat}`,
+		method: 'getAbilityToPlay',
+		hostCard: { kind: 'card', id: OWN_CARD },
+		abilities: [
+			{ kind: 'spellAbility', id: 9001 },
+			{ kind: 'spellAbility', id: 9002 },
+		],
+		triggerEvent: null,
+	});
+	const ask = frames(h, seat)
+		.slice(before)
+		.find((f) => f.kind === 'ask' && f.method === 'getAbilityToPlay');
+	if (ask === undefined || ask.kind !== 'ask') throw new Error('the ability ask never reached the seat');
+	const reply = ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9001 } });
+	expect(h.match.fromClient(seat, reply)).toEqual({ ok: true });
 }
 
 /** A `getChoices` where every option must be taken: exactly one legal reply. */
@@ -1054,15 +1083,16 @@ describe('a Match with the shortcuts on (the default)', () => {
 	it('presses Forge’s Auto for a one-source payment, exactly once for that cost', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
+		castOwn(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
 		push(h, 0, autoBar(true, me));
-		push(h, 0, prompt('Preordain - A scribes 2.\n\nPay Mana Cost: {U}', me));
+		push(h, 0, prompt('Preordain - A scribes 2.\n\nPay Mana Cost: {U}', me, OWN_CARD));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
 			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
 		]);
 		// Forge re-shows the payment prompt after every tap; a second press would
 		// answer whatever it asks next.
-		push(h, 0, prompt('Preordain - A scribes 2.\n\nPay Mana Cost: {U}', me));
+		push(h, 0, prompt('Preordain - A scribes 2.\n\nPay Mana Cost: {U}', me, OWN_CARD));
 		push(h, 0, autoBar(true, me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toHaveLength(1);
@@ -1071,12 +1101,67 @@ describe('a Match with the shortcuts on (the default)', () => {
 	it('presses Auto when Forge offered two sources to tap — the default is Forge’s plan now', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
+		castOwn(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
 		push(h, 0, autoBar(true, me));
-		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
+		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me, OWN_CARD));
 		// One act, and it is the Auto press. Which land Forge taps is Forge's;
 		// `decidePay`'s own tests keep the strict semantics under STRICT_PAYMENT_POLICY.
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+	});
+
+	/*
+	 * The operator, 2026-10-11: *"i just had an izzet charm played against me and
+	 * it auto-payed for it. i never said it should auto pay for it, that decision
+	 * should have been surfaced to me."* A payment the seat did not open by
+	 * choosing an ability is its decision: pay, or decline with Forge's Cancel.
+	 */
+	it('shows an unless-cost another player’s spell puts on the seat’s, with its pay and Cancel — never pays it', () => {
+		const IZZET_CHARM = 99;
+		const h = harness();
+		const me = playerOf(h, 0);
+		castOwn(h, 0);
+		// The cast is over: the seat held priority since.
+		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
+		push(h, 0, buttons(true, me));
+		const passed = h.host.commands.filter((c) => c.t === 'act').length;
+		const before = frames(h, 0).length;
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Izzet Charm - Counter target noncreature spell unless its controller pays {2}.\n\nPay Mana Cost: {2}', me, IZZET_CHARM));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(passed);
+		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toEqual([]);
+		const shown = frames(h, 0).slice(before);
+		expect(shown.filter((f) => f.method === 'showPromptMessage')).toHaveLength(1);
+		expect(shown.filter((f) => f.method === 'updateButtons').at(-1)).toMatchObject({ label1: 'Auto', enable1: true, label2: 'Cancel', enable2: true });
+
+		// A land the seat taps by hand inside it is the seat paying, not a cast of its own:
+		// what is left is still the seat's to pay or decline.
+		const land = 68;
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: land }, otherCardViewsToSelect: [], triggerEvent: null }));
+		const offered = frames(h, 0).length;
+		push(h, 0, { kind: 'ask', callId: 'land-1', method: 'getAbilityToPlay', hostCard: { kind: 'card', id: land }, abilities: [{ kind: 'spellAbility', id: 7001 }], triggerEvent: null });
+		const ask = frames(h, 0)
+			.slice(offered)
+			.find((f) => f.kind === 'ask');
+		if (ask === undefined || ask.kind !== 'ask') throw new Error('the land’s mana ability was not offered to the seat');
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 7001 } }));
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Izzet Charm - Counter target noncreature spell unless its controller pays {2}.\n\nPay Mana Cost: {1}', me, IZZET_CHARM));
+		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toEqual([]);
+	});
+
+	it('shows the payment for an ability the server played for the seat (a trigger’s “you may pay”) — the seat never chose it', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		// One ability, no click of the seat's opened it: answered by the server.
+		push(h, 0, oneAbilityAsk('trig-1'));
+		expect(h.logs.filter((l) => l.evt === 'ask-auto-answered')).toHaveLength(1);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 68 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {1}', me, 67));
+		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'prompt-forwarded' && l.kind === 'payment')).toHaveLength(1);
 	});
 
 	it('says what a cast paid, naming the lands that tapped, once the payment prompt ends', () => {
@@ -1266,9 +1351,10 @@ describe('a seat owns its stop policy', () => {
 		// Which of the two to tap is a choice the wire cannot prove away.
 		for (const seat of [0, 1]) {
 			const me = playerOf(h, seat);
+			castOwn(h, seat);
 			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
 			push(h, seat, autoBar(true, me));
-			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me));
+			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me, OWN_CARD));
 		}
 		// The strict seat was not paid for; the default seat was, once.
 		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([]);
@@ -1284,9 +1370,10 @@ describe('a seat owns its stop policy', () => {
 		const h = harness();
 		h.match.setStopPolicy(0, STRICT_PAYMENT_POLICY);
 		const me = playerOf(h, 0);
+		castOwn(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
 		push(h, 0, autoBar(true, me));
-		push(h, 0, prompt('Pay Mana Cost: {U}', me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me, OWN_CARD));
 		// This is step 1 of `board-play.jvm.test.ts` against a real jar: one
 		// Mountain, one way to pay, settled with no click.
 		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([
@@ -1400,9 +1487,10 @@ describe('a stop policy can be named from outside', () => {
 
 		for (const seat of [0, 1]) {
 			const me = playerOf(h, seat);
+			castOwn(h, seat);
 			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
 			push(h, seat, autoBar(true, me));
-			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me));
+			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me, OWN_CARD));
 		}
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toEqual([]);
@@ -1424,9 +1512,10 @@ describe('a stop policy can be named from outside', () => {
 		// which is the behaviour §B could not screenshot and must stay the default.
 		for (const seat of [0, 1]) {
 			const me = playerOf(h, seat);
+			castOwn(h, seat);
 			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
 			push(h, seat, autoBar(true, me));
-			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me));
+			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me, OWN_CARD));
 		}
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
 			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },

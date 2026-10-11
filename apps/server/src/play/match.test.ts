@@ -79,6 +79,35 @@ function envelopesFor(h: Harness, seat: number): ServerEnvelope[] {
 	return h.sent.filter((s) => s.seat === seat).map((s) => s.envelope);
 }
 
+/** The card {@link castOwn} casts; a payment prompt naming it after the cast is the seat's own. */
+const OWN_CARD = 67;
+
+/** The seat's own cast of {@link OWN_CARD}: Forge offers its two abilities and the seat's browser picks one. */
+function castOwn(h: Harness, seat: number): void {
+	const before = envelopesFor(h, seat).length;
+	h.host.push({
+		t: 'frame',
+		seat,
+		frame: {
+			kind: 'ask',
+			callId: `cast-${seat}`,
+			method: 'getAbilityToPlay',
+			hostCard: { kind: 'card', id: OWN_CARD },
+			abilities: [
+				{ kind: 'spellAbility', id: 9001 },
+				{ kind: 'spellAbility', id: 9002 },
+			],
+			triggerEvent: null,
+		},
+	} as never);
+	const ask = envelopesFor(h, seat)
+		.slice(before)
+		.map((e) => e.frame)
+		.find((f) => f.kind === 'ask');
+	if (ask === undefined || ask.kind !== 'ask') throw new Error('the ability ask never reached the seat');
+	expect(h.match.fromClient(seat, ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9001 } }))).toEqual({ ok: true });
+}
+
 function reply(callId: string, result: unknown): ClientFrame {
 	return ClientFrameSchema.parse({ kind: 'reply', callId, method: 'showConfirmDialog', result });
 }
@@ -2089,8 +2118,14 @@ describe('hold-decide-forward', () => {
 		h.match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
 	}
 
-	function promptFrame(playerId: number, message: string) {
-		return { kind: 'notify' as const, method: 'showPromptMessage' as const, player: { kind: 'player' as const, id: playerId }, message, card: null };
+	function promptFrame(playerId: number, message: string, card: number | null = null) {
+		return {
+			kind: 'notify' as const,
+			method: 'showPromptMessage' as const,
+			player: { kind: 'player' as const, id: playerId },
+			message,
+			card: card === null ? null : { kind: 'card' as const, id: card },
+		};
 	}
 
 	function buttonsFrame(
@@ -2115,16 +2150,17 @@ describe('hold-decide-forward', () => {
 			.map((e) => e.frame.method);
 	}
 
-	it('a payment Forge auto-pays (DEFAULT_STOP_POLICY is forgeAuto): nothing sent', () => {
+	it('a payment for the seat’s own cast, which Forge auto-pays (DEFAULT_STOP_POLICY is forgeAuto): nothing sent', () => {
 		const h = openedHarness();
 		closeDanglingBar(h, SEAT1_ID);
+		castOwn(h, SEAT1_ID);
 		const before = envelopesFor(h, SEAT1_ID).length;
 		const logsBefore = h.logs.length;
 		// `InputPayMana`'s order: a disabled Auto bar, the enabled one, then the prompt.
 		h.host.push(
 			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: false, enable2: true }) },
 			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true, enable2: true }) },
-			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}', OWN_CARD) },
 		);
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
 		const since = h.logs.slice(logsBefore);
@@ -2220,6 +2256,7 @@ describe('hold-decide-forward', () => {
 	it('setWeaklySelectable and a state frame, interleaved between the two halves, do not flush them — the pair still completes', () => {
 		const h = openedHarness();
 		closeDanglingBar(h, SEAT1_ID);
+		castOwn(h, SEAT1_ID);
 		const before = envelopesFor(h, SEAT1_ID).length;
 		h.host.push(
 			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
@@ -2228,7 +2265,7 @@ describe('hold-decide-forward', () => {
 		// `setWeaklySelectable` is never held — it is sent at once, same as
 		// always — but it does NOT flush the parked buttons half.
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
-		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') });
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}', OWN_CARD) });
 		// Still nothing MORE: the pair completed and the single-source payment was auto-paid.
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
 	});
@@ -2672,9 +2709,10 @@ describe('telemetry (match-frames)', () => {
 	it('logs the ring once, on match end — both decisions, each seat', () => {
 		const h = harness();
 		h.host.push(...OPENING);
+		castOwn(h, 1);
 		h.host.push(
 			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 1 }, label1: 'Auto', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
-			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Pay Mana Cost: {U}', card: null } },
+			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Pay Mana Cost: {U}', card: { kind: 'card', id: OWN_CARD } } },
 			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: PRIORITY_MAIN, card: null } },
 			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
 		);

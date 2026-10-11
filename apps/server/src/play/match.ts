@@ -456,10 +456,12 @@ export interface SeatState {
 	 */
 	lastAbilityToPlay: { hostCard: number; abilityId: number } | null;
 	/**
-	 * Wave 52 §S B — the ability this seat chose from `getAbilityToPlay` since its
-	 * last `Priority:` prompt, or null. A cost confirm for exactly this ability is
-	 * answered Yes (`auto.ts`'s `chosenCostConfirm`), once; a priority prompt
-	 * means the activation is over, so it is cleared there.
+	 * The ability this seat chose from `getAbilityToPlay` since its last
+	 * `Priority:` prompt, or null — the seat's own answer (its browser's), never
+	 * one the server gave for it. A cost confirm for exactly this ability is
+	 * answered Yes (`auto.ts`'s `chosenCostConfirm`), once, and a payment for its
+	 * card is the seat's own (`Payment.own`) and may be auto-paid; a priority
+	 * prompt means the activation is over, so it is cleared there.
 	 */
 	chosenAbility: { hostCard: number; abilityId: number } | null;
 	/**
@@ -2029,7 +2031,7 @@ export class Match {
 			// The payment this prompt opens or closes is on record before anything
 			// decides on it (Z4: `maybeCancelUnpayable` must see the payment it is
 			// cancelling) — independent of whether this half is held or sent.
-			this.trackPayment(s, frame.message);
+			this.trackPayment(s, frame.message, frame.card?.id ?? null);
 			this.holdPromptWindow(s, frame);
 			return;
 		} else if (frame.method === 'updateButtons') {
@@ -2634,6 +2636,11 @@ export class Match {
 	 * extra: `trackPayment` already says what was paid and what tapped, which is
 	 * the whole record either way (#8).
 	 *
+	 * Only for a payment that follows this seat's own cast or activation
+	 * (`Payment.own`): an "unless pays" cost another player's spell puts on it, a
+	 * trigger's "you may pay" or a ward cost is shown to the seat with Forge's own
+	 * pay and Cancel, never paid for it (`auto.ts`'s `decidePay`).
+	 *
 	 * The payment that CANNOT be made is the same shape and is answered here too,
 	 * with the other button (item 7).
 	 */
@@ -2642,7 +2649,7 @@ export class Match {
 		const gate = this.autoGateFacts(s);
 		if (gate === null) return false;
 		const { facts } = gate;
-		const cost = decidePay(facts, s.policy);
+		const cost = s.payment?.own === true ? decidePay(facts, s.policy) : null;
 		if (cost === null) {
 			this.maybeCancelUnpayable(s, facts);
 			// The payment ended (or never started); the next one earns its press.
@@ -2719,11 +2726,14 @@ export class Match {
 	 * the opponent's copy is attributed, because an unattributed line in a table's
 	 * log reads as your own.
 	 */
-	private trackPayment(s: SeatState, message: string): void {
+	private trackPayment(s: SeatState, message: string, card: number | null): void {
 		const cost = paymentCost(message);
 		if (cost !== null) {
 			if (s.payment === null || s.payment.cost !== cost) {
-				s.payment = { cost, tapped: [] };
+				// Whose decision the payment is, settled once as it opens: the seat's own when it pays
+				// for the card whose ability this seat chose (`Payment.own`).
+				const own = s.payment?.own ?? (s.chosenAbility !== null && s.chosenAbility.hostCard === card);
+				s.payment = { cost, tapped: [], own };
 				s.paymentCancelled = false;
 				this.checkWaitingOn();
 			}
@@ -2960,10 +2970,9 @@ export class Match {
 				method: auto.method,
 				why: auto.why,
 			});
-			if (frame.method === 'getAbilityToPlay') {
-				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
-				s.chosenAbility = s.lastAbilityToPlay;
-			}
+			// Not `chosenAbility`: an ability the server played (a trigger, an effect's cast) is not
+			// one the seat chose, and Forge's re-ask of one it did choose is that choice already.
+			if (frame.method === 'getAbilityToPlay') s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
 			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
 			if (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);

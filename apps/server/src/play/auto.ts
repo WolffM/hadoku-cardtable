@@ -1186,6 +1186,16 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
  * is Forge's actionable HIGHLIGHT set, not the cards that can pay this cost. That
  * is item 6's whole story, and `'forgeAuto'` is the value that stops asking about
  * it; {@link StopPolicy.unambiguousPayment} carries the evidence.
+ *
+ * **Asked only of a payment for the seat's own cast or activation**
+ * ({@link Payment.own}): choosing the spell was choosing to pay for it. Every
+ * other payment is a decision in itself and is the player's whatever the
+ * policy says — a cost another player's spell puts on theirs (Izzet Charm,
+ * Mana Leak, Daze: pay, or let it be countered), a trigger's "you may pay", a
+ * ward cost. The operator, 2026-10-11, of an Izzet Charm the server paid: *"i
+ * never said it should auto pay for it, that decision should have been
+ * surfaced to me."* Such a payment is still cancelled for them when Forge says
+ * it cannot be paid at all ({@link decideCancel}): that leaves no decision.
  */
 export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null {
 	if (facts.openAsks > 0) return null;
@@ -1318,6 +1328,13 @@ export function paymentCost(message: string): string | null {
 /** One payment, while it is being made. */
 export interface Payment {
 	cost: string;
+	/**
+	 * The payment follows this seat's own cast or activation: the seat chose the
+	 * ability it pays for, so it already chose to pay, and Forge's Auto may be
+	 * pressed for it ({@link decidePay}). Fixed when the payment opens — a land
+	 * the seat taps by hand inside it is a choice of its own and changes nothing.
+	 */
+	own: boolean;
 	/** Cards that tapped while the payment prompt was up, in the order they tapped. */
 	tapped: { id: number; name: string }[];
 }
@@ -1340,7 +1357,7 @@ export interface Payment {
  * payer's own copy is left unattributed — their own log does not need to tell
  * them who they are.
  */
-export function paymentLine(payment: Payment, actor?: string): string {
+export function paymentLine(payment: Pick<Payment, 'cost' | 'tapped'>, actor?: string): string {
 	const cost = plainCost(payment.cost);
 	const who = actor === undefined || actor === '' ? '' : `${actor} `;
 	if (payment.tapped.length === 0) return `${who}paid ${cost}`;
