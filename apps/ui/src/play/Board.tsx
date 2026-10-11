@@ -2379,6 +2379,7 @@ function Zone({
       zone={zone}
       label={label}
       count={cards.length}
+      canAct={zone !== 'hand' && cards.some((c) => interaction?.actionable?.has(c.id) === true)}
       onClick={
         onOpen === undefined || cards.length === 0
           ? undefined
@@ -2442,6 +2443,7 @@ function ZoneShell({
   zone,
   label,
   count,
+  canAct = false,
   onClick,
   children,
 }: {
@@ -2451,6 +2453,11 @@ function ZoneShell({
   /** Not drawn — the zone's accessible name. See above. */
   label: string;
   count: number;
+  /**
+   * A pile holding a card Forge offers to be played from it (flashback, a library top under
+   * Courser): the pile carries the card's own glow, so a card buried in it is never missed.
+   */
+  canAct?: boolean;
   /** A pile's opener — see `Zone`'s `onOpen`. */
   onClick?: (event: MouseEvent<HTMLElement>) => void;
   children: ReactNode;
@@ -2463,6 +2470,7 @@ function ZoneShell({
       data-zone={zone}
       data-owner={ownerSide}
       data-count={count}
+      data-can-act={canAct || undefined}
     >
       {children}
     </section>
@@ -3669,7 +3677,11 @@ export function Board({
             count={pileCards.length}
             onClose={closePile}
           >
-            {[...pileCards].reverse().map((c) => (
+            {/* Newest first — and before them every card Forge offers from the pile, however deep it lies. */}
+            {[...pileCards]
+              .reverse()
+              .sort((a, b) => Number(interaction?.actionable?.has(b.id) === true) - Number(interaction?.actionable?.has(a.id) === true))
+              .map((c) => (
               <CardOnBoard key={c.id} entry={c} interaction={pileInteraction} inExile={shownPile.zone === 'exile'} />
             ))}
           </PileView>

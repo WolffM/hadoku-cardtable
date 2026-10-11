@@ -1349,6 +1349,17 @@
   min-height: 0;
 }
 
+/*
+ * A pile holding a card Forge offers to be played from it — however deep it is buried — wears the
+ * offered card's own marks on its box: the accent ring and the warm can-act glow (`card.css`), drawn
+ * inset because the seat column clips anything outside it.
+ */
+.board .seat :is(.zone--graveyard, .zone--exile, .zone--library)[data-can-act] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
 /* A pile with cards in it opens as a `PileView` on a click. */
 .board .seat :is(.zone--graveyard, .zone--exile):has(.zone__cards > li) {
   cursor: pointer;

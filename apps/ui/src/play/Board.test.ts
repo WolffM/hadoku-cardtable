@@ -1645,6 +1645,28 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(zone(0, 'exile').dataset.count).toBe(String(view.players.find((p) => p.isViewer)!.exile.length));
   });
 
+  it('marks a pile that holds a card Forge offers, however deep, and opens it with that card first', () => {
+    // The operator, 2026-10-11, on Snapcaster Mage: "lets make sure that works smoothly even if the graveyard is very large."
+    const viewer = view.players.find((p) => p.isViewer)!;
+    const seed = viewer.battlefield[0]!;
+    const yard = Array.from({ length: 60 }, (_, i) => ({ ...seed, id: 7000 + i }));
+    const buried = 7020;
+    const deep = { ...view, players: view.players.map((p) => (p.isViewer ? { ...p, graveyard: yard } : p)) };
+    const idle = renderBoard(deep, spyInteraction([buried]).interaction);
+    expect(idle.zone(viewer.id, 'graveyard').hasAttribute('data-can-act'), 'a selection naming it is not an offer to play').toBe(false);
+    idle.unmount();
+    const { zone, container } = renderBoard(deep, spyInteraction([buried], [], false, [buried]).interaction);
+    const pile = zone(viewer.id, 'graveyard');
+    expect(pile.hasAttribute('data-can-act')).toBe(true);
+    expect(zone(viewer.id, 'exile').hasAttribute('data-can-act')).toBe(false);
+    expect(declarationIn('.board .seat :is(.zone--graveyard, .zone--exile, .zone--library)[data-can-act]', 'outline')).toBe('2px solid var(--accent)');
+    fireEvent.click(pile.querySelector(`[data-board-card="${7059}"]`)!);
+    const opened = [...container.querySelectorAll('[data-testid="pile-view"] [data-board-card]')].map((el) => Number(el.getAttribute('data-board-card')));
+    expect(opened.length).toBe(60);
+    expect(opened[0], 'the offered card first').toBe(buried);
+    expect(opened[1], 'then newest first').toBe(7059);
+  });
+
   it("draws a library's top card in its own pile only while the seat may see it, and no pile otherwise", () => {
     expect(declarationIn('.seat__piles:has(> .zone--library)', 'grid-template-rows')).toBe('auto minmax(0, 1fr) auto');
     expect(declarationIn('.seat:not([data-viewer]) .seat__piles > .zone--library', 'grid-row'), 'against the counts in the mirror').toBe('3');
