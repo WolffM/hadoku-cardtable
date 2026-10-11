@@ -149,8 +149,8 @@ importers:
         specifier: 6.1.1
         version: 6.1.1(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.13))
       '@wolffm/catalogue':
-        specifier: ^1.0.3
-        version: 1.0.3
+        specifier: ^1.0.4
+        version: 1.0.4
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.13)
@@ -978,8 +978,8 @@ packages:
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
 
-  '@wolffm/catalogue@1.0.3':
-    resolution: {integrity: sha512-zCmHIuobQE80C7cVQYDVqwFWWo2hFVWVcD7YnWP8MwPtWU7qGVMTuoobBP/+uA+OzfW6IebLtKY9cHkLZQXcYA==, tarball: https://npm.pkg.github.com/download/@wolffm/catalogue/1.0.3/80d5210e0b797c3a4e994527afad7b59113f473c}
+  '@wolffm/catalogue@1.0.4':
+    resolution: {integrity: sha512-fN/P+0DHPnf2wnI8je+DoEGEYO1+zH4k4JkyiT2pwuSU5w/yry5gUt1mYVTbSuF58/l2C4KUUzAy3OimIQ7OOQ==, tarball: https://npm.pkg.github.com/download/@wolffm/catalogue/1.0.4/827b40751bc8325e2d7049ee367333579ebb5652}
     engines: {node: '>=18'}
 
   '@wolffm/cdn-client@2.0.0':
@@ -2697,7 +2697,7 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@wolffm/catalogue@1.0.3': {}
+  '@wolffm/catalogue@1.0.4': {}
 
   '@wolffm/cdn-client@2.0.0(react@19.2.8)':
     dependencies:
