@@ -23,7 +23,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
 import { foldStream } from './play/isolation.ts';
-import { castByDrag, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { dragHandCard, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -219,8 +219,11 @@ test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the 
     expect(before?.selectable, 'Serum Visions is not playable before Snapcaster').toBe(false);
 
     const to = centre((await alice.page.locator(field).boundingBox())!);
-    await castByDrag(alice.page, stack, snapcaster!, to);
-    await grindPriority([alice.page, bob.page], async () => (await landsOn(alice.page, 'Snapcaster Mage')) === 1 && (await stackCount(alice.page)) === 0, {
+    // Watched by where it lands, not by the stack: a creature nobody answers may never be drawn there.
+    expect(await dragHandCard(alice.page, snapcaster!, to), 'Snapcaster Mage is picked up and let go over her battlefield').toBe(true);
+    const resolved = async (): Promise<boolean> =>
+      (await landsOn(alice.page, 'Snapcaster Mage')) === 1 && (await stackCount(alice.page)) === 0 && (await offeredNamed(alice.page, 'Serum Visions')) !== undefined;
+    await grindPriority([alice.page, bob.page], resolved, {
       timeoutMs: 60_000,
       press: async (page) => {
         await pressPaymentAuto(page);
@@ -230,7 +233,7 @@ test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the 
         }
         await passOverStack(page);
       },
-    });
+    }).catch(() => undefined); // judged by the offer below, with its own message
     await expect
       .poll(() => offeredNamed(alice.page, 'Serum Visions'), { timeout: 15_000, message: 'Forge offers Serum Visions from her graveyard once Snapcaster gave it flashback' })
       .toBe(visions);
