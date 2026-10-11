@@ -314,7 +314,7 @@ import { SettingsPanel } from './SettingsPanel.tsx';
 import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
 import './live.css';
-import { CoinToss } from './CoinToss.tsx';
+import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
 
 /* ── Where the match is: six states, one line ─────────────────────────── */
 
@@ -1906,6 +1906,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * only for a fresh toss, so a reload or a rejoin mid-game does not replay it.
    */
   const tossAt = coinToss?.at ?? null;
+  // The winner's Play/Draw question waits for the coin to land (the operator, 2026-10-11:
+  // "can we make it so the cointoss finishes before showing the prompt of who goes first?").
+  const coinFlipping = useCoinFlipping(tossAt);
   const tossTurn = match.view?.turn ?? 0;
   useEffect(() => {
     if (spectator || !tossSounds(tossAt, tossTurn, Date.now())) return;
@@ -2749,12 +2752,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {playOrDraw && (
         <div className="live__prompt" data-testid="live-play-or-draw-host">
           {coinToss !== null && <CoinToss {...coinToss} />}
-          <ConfirmPrompt
-            testId="live-play-or-draw"
-            message={promptText(match.prompt ?? '')}
-            button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressWithSound(match, 'ok') }}
-            button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressWithSound(match, 'cancel') }}
-          />
+          {!coinFlipping && (
+            <ConfirmPrompt
+              testId="live-play-or-draw"
+              message={promptText(match.prompt ?? '')}
+              button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressWithSound(match, 'ok') }}
+              button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressWithSound(match, 'cancel') }}
+            />
+          )}
         </div>
       )}
       {/*

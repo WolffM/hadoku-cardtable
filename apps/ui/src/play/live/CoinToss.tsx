@@ -20,6 +20,31 @@ import './coin-toss.css';
 /** The flip's length — `coin-toss.css` reads it as `--flip-ms` and spends it on six half-turns (the operator, 2026-10-09: "too fast and flips too many times"). */
 export const FLIP_MS = 2400;
 
+/**
+ * Whether the toss stamped `at` is still flipping — `FLIP_MS` old or more is
+ * landed. Measured from the server's own stamp, so both screens land together
+ * even when one got the fact later; the coin and the winner's Play/Draw
+ * question read this one clock.
+ */
+export function useCoinFlipping(at: number | null): boolean {
+  const [flipping, setFlipping] = useState(() => at !== null && Date.now() - at < FLIP_MS);
+  useEffect(() => {
+    if (at === null) {
+      setFlipping(false);
+      return;
+    }
+    const left = FLIP_MS - (Date.now() - at);
+    if (left <= 0) {
+      setFlipping(false);
+      return;
+    }
+    setFlipping(true);
+    const timer = setTimeout(() => setFlipping(false), left);
+    return () => clearTimeout(timer);
+  }, [at]);
+  return flipping;
+}
+
 /** One side of the coin: a player's avatar, or the silhouette when they have none. */
 function CoinFace({ avatarId, side }: { avatarId: string | undefined; side: 'front' | 'back' }) {
   const avatar = avatarId === undefined ? null : avatarSquareUrl(avatarId);
@@ -53,20 +78,9 @@ export function CoinToss({
   /** This screen waits on the winner's play-or-draw choice (the seat that lost, or a spectator). */
   waiting?: boolean;
 }) {
-  // Flipping until the toss is `FLIP_MS` old — measured from the server's own
-  // stamp, so both screens land together even when one got the fact later.
-  const [flipping, setFlipping] = useState(() => Date.now() - at < FLIP_MS);
+  const flipping = useCoinFlipping(at);
   // How far into the flip this screen arrived, fixed at mount — a later render must not move the animation.
   const [joinedAt] = useState(() => Math.max(0, Date.now() - at));
-  useEffect(() => {
-    const left = FLIP_MS - (Date.now() - at);
-    if (left <= 0) {
-      setFlipping(false);
-      return;
-    }
-    const timer = setTimeout(() => setFlipping(false), left);
-    return () => clearTimeout(timer);
-  }, [at]);
   return (
     <section
       className="coin-toss"

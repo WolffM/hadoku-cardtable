@@ -69,6 +69,7 @@ import {
   type LiveMatch,
   type MatchTransport,
 } from './match.ts';
+import { FLIP_MS } from './CoinToss.tsx';
 import type { PlayPrefs } from './prefs.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
@@ -3593,8 +3594,9 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(tossSounds(now - 60_000, 0, now), 'a rejoin finds an old toss').toBe(false);
   });
 
-  it('the coin toss: the WINNER draws the coin beside their own Play/Draw question', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+  it('the coin toss: the WINNER sees the coin flip first, and their Play/Draw question once it lands', async () => {
+    // The operator, 2026-10-11: "can we make it so the cointoss finishes before showing the prompt of who goes first?"
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(
       parseServerFrame({
         kind: 'notify',
@@ -3612,7 +3614,30 @@ describe('T2 — a calm "waiting for the other player"', () => {
     await waitFor(() => expect(m.coinToss?.winner).toBe(0));
     const host = await waitFor(() => getByTestId('live-play-or-draw-host'));
     expect(host.querySelector('[data-testid="coin-toss"]')?.getAttribute('data-winner')).toBe('0');
-    expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
+    expect(queryByTestId('live-play-or-draw-play'), 'no question while the coin is in the air').toBeNull();
+    await waitFor(() => expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play'), { timeout: FLIP_MS + 2_000 });
+    expect(host.querySelector('[data-testid="coin-toss"]'), 'the landed coin stays beside the question').not.toBeNull();
+  }, FLIP_MS + 10_000);
+
+  it('the coin toss: a toss already landed (a reload, a late joiner) shows the Play/Draw question at once', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: 'Seat 1, you have won the coin toss.\n\nPlay or draw?',
+        card: null,
+      }),
+    );
+    s.send(updateButtons(true, 'Play', 'Draw'));
+    const at = Date.now() - FLIP_MS - 1_000;
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 0, at } },
+      { seat: 1, claimed: true, playerId: null, coinToss: { winner: 0, at } },
+    ]);
+    await waitFor(() => expect(m.coinToss?.winner).toBe(0));
+    expect((await waitFor(() => getByTestId('live-play-or-draw-play'))).textContent).toBe('Play');
   });
 
   it('`priority` over an EMPTY stack — the other seat merely holds priority — draws NO pop-out: it is for an effect being resolved, never a wait', async () => {
