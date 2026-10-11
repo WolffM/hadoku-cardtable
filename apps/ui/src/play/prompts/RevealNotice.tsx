@@ -15,7 +15,14 @@
  * does the board's (one expanded card view), and nothing that gates on an
  * open question sees it. Its cards scroll inside it; the box never runs off
  * the table.
+ *
+ * Its cards are drawn as they were when it was shown. The lookup can lose a
+ * revealed card while the notice is up, and a tile rebuilt from it then lost
+ * its printing: the art turned into another printing's under the seat's eyes
+ * (prompts.jvm's reveal, a TRK Forest redrawn as SOI's).
  */
+
+import { useState } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
@@ -25,13 +32,20 @@ import { RulesText } from './RulesText.tsx';
 import type { AskOf } from './types.ts';
 
 export function RevealNotice({ reveal, lookup, onDone }: { reveal: AskOf<'getChoices'>; lookup: PromptLookup; onDone: () => void }) {
+  const [rows] = useState(() =>
+    reveal.choices.map((c) => ({
+      key: c.key,
+      label: c.label,
+      card: c.ref?.kind === 'card' ? { id: c.ref.id, tile: promptTileFor(lookup, c.ref.id, nameFromForgeLabel(c.label, c.ref.id)) } : null,
+    })),
+  );
   return (
     <div className="reveal-notice" data-testid="live-reveal" data-call-id={reveal.callId} role="status">
       <ul className="reveal-notice__cards">
-        {reveal.choices.map((c) =>
-          c.ref?.kind === 'card' ? (
-            <li key={c.key} data-card-id={c.ref.id}>
-              <CardTile card={promptTileFor(lookup, c.ref.id, nameFromForgeLabel(c.label, c.ref.id))} />
+        {rows.map((c) =>
+          c.card !== null ? (
+            <li key={c.key} data-card-id={c.card.id}>
+              <CardTile card={c.card.tile} />
             </li>
           ) : (
             <li key={c.key}>

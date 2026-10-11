@@ -95,9 +95,10 @@ import type { ChoiceOption } from '@hadoku/forge-wire';
 import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
 import { leaked, rawStatesOf, secretsFor } from '../../../../server/src/play/fixtures/transcript.ts';
 import { nightly } from '../../../../server/src/play/scenario.ts';
+import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
-import { nameFromForgeLabel, promptTileFor } from '../prompts/PromptShell.tsx';
+import { nameFromForgeLabel } from '../prompts/PromptShell.tsx';
 import { createDriver, drive, type Plan } from './game-driver.ts';
 import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness } from './jvm-harness.ts';
 import { startMatch, type LiveAsk, type LiveMatch, type MatchTransport } from './match.ts';
@@ -247,10 +248,17 @@ function preRenderedOptions(ask: LiveAsk): readonly ChoiceOption[] | null {
 /** Forge's own `(id)` suffix, the shape `CardView.toString()` ends in. */
 const FORGE_ID_SUFFIX = /\(\d+\)$/;
 
+/** The art id a revealed card's facts name — the name inside its label when the lookup had none. */
+function revealArtId(r: LabelProbe): string | undefined {
+  return scryfallIdFor(KNOWN_ART_IDS, r.facts?.name ?? nameFromForgeLabel(r.label, r.id), r.facts?.setCode ?? '');
+}
+
 interface LabelProbeRun {
   probes: LabelProbe[];
   /** Every distinct name a card TILE showed, in either seat, over the whole run. */
   tileNames: Set<string>;
+  /** Every art URL the reveal notice drew for a card, by `<seat>:<card id>`, over the whole run. */
+  revealArt: Map<string, Set<string>>;
   stop(): void;
 }
 
@@ -262,11 +270,24 @@ interface LabelProbeRun {
  * The tile names accumulate rather than being read once, because a React render
  * lands a tick after the fold and a single read would race it. The set is the
  * operator's own complaint, mechanised: no tile in a real match may be named
- * `<something> (130)`.
+ * `<something> (130)`. The reveal notice's art is read on every commit (a
+ * `MutationObserver`), so a tile whose art changes while it is up is caught.
  */
 function probeLabels(h: LiveHarness, roots: readonly HTMLElement[]): LabelProbeRun {
   const probes: LabelProbe[] = [];
   const tileNames = new Set<string>();
+  const revealArt = new Map<string, Set<string>>();
+  const readRevealArt = () => {
+    roots.forEach((root, seat) => {
+      for (const img of root.querySelectorAll('[data-testid="live-reveal"] li[data-card-id] img.card__art')) {
+        const key = `${seat}:${img.closest('li[data-card-id]')?.getAttribute('data-card-id') ?? '?'}`;
+        const src = img.getAttribute('src') ?? '';
+        revealArt.set(key, (revealArt.get(key) ?? new Set()).add(src));
+      }
+    });
+  };
+  const artWatch = new MutationObserver(readRevealArt);
+  for (const root of roots) artWatch.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
   const seen = new Set<string>();
   const sample = () => {
     for (const s of h.seats) {
@@ -295,9 +316,12 @@ function probeLabels(h: LiveHarness, roots: readonly HTMLElement[]): LabelProbeR
   return {
     probes,
     tileNames,
+    revealArt,
     stop: () => {
       sample();
+      readRevealArt();
       clearInterval(timer);
+      artWatch.disconnect();
     },
   };
 }
@@ -551,6 +575,12 @@ describe.skipIf(!available.ok)(title, () => {
           150_000,
           () => status(h),
         );
+        // The notice draws a commit after the fold the probe saw.
+        await waitUntil(
+          () => probe.probes.every((r) => r.method !== 'getChoices' || revealArtId(r) === undefined || probe.revealArt.has(`${r.seat}:${r.id}`)),
+          'the reveal notice to draw its cards',
+          5_000,
+        );
       } finally {
         probe.stop();
       }
@@ -576,22 +606,23 @@ describe.skipIf(!available.ok)(title, () => {
         if (r.facts?.name !== null && r.facts?.name !== undefined) expect(shown).toBe(r.facts.name);
         expect([...probe.tileNames], `the tile said ${shown}`).toContain(shown);
         /*
-         * And where the art-id table knows the revealed printing, the tile §F
-         * builds carries that art id — from the card's facts, never the label. Conditional because which card a library reveals is up
+         * And where the art-id table knows the revealed printing, the notice
+         * draws that art — from the card's facts, never the label. Conditional because which card a library reveals is up
          * to the shuffle: measured runs have revealed `Forest (89)` (in the
          * table, `Forest|TRK`) and `Merfolk Branchwalker (2)` (not in it, and
          * the manifest is empty — the tracker's own watch).
          */
-        const byFacts = scryfallIdFor(KNOWN_ART_IDS, r.facts?.name ?? shown, r.facts?.setCode ?? '');
+        const byFacts = revealArtId(r);
+        const drawn = [...(probe.revealArt.get(`${r.seat}:${r.id}`) ?? [])];
         console.log(
           `[prompts.jvm] §F reveal ${JSON.stringify(r.label)} -> art id ${String(byFacts)} ` +
-            `(from ${JSON.stringify(r.facts?.name)}|${r.facts?.setCode ?? ''})`,
+            `(from ${JSON.stringify(r.facts?.name)}|${r.facts?.setCode ?? ''}); the notice drew ${JSON.stringify(drawn)}`,
         );
-        if (byFacts !== undefined) {
-          const tile = promptTileFor(lookupFromState(h.seats[r.seat]!.live.state), r.id, shown);
-          expect(tile.scryfallId, 'the tile resolved art through the facts, not the label').toBe(byFacts);
-          expect(tile.name, 'and says the card name').toBe(shown);
-        }
+        // Only that art, for as long as the notice is up: the lookup can lose
+        // the card while it is (run 38137515569: `Forest|TRK` when the reveal
+        // arrived, no name by the end), and the tile must not turn into
+        // another printing then.
+        if (byFacts !== undefined) expect(drawn, 'the notice drew the art the facts name, and only that').toEqual([cardImageUrl(byFacts)]);
       }
       expectCleanBridge(h);
       await expectNoDesync(h);

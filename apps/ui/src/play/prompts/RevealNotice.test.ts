@@ -9,7 +9,7 @@ import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 
-import { EMPTY_LOOKUP } from './lookup.ts';
+import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import { RevealNotice } from './RevealNotice.tsx';
 import type { AskOf } from './types.ts';
 
@@ -64,5 +64,19 @@ describe('RevealNotice', () => {
     expect(onDone).not.toHaveBeenCalled();
     fireEvent.click(getByTestId('live-reveal-ok'));
     expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the printing it was shown with after the card is hidden again', () => {
+    const forest: AskOf<'getChoices'> = { ...REVEAL, choices: [{ key: 'c0', label: 'Forest (89)', ref: { kind: 'card', id: 89 } }] };
+    const known: PromptLookup = {
+      ...EMPTY_LOOKUP,
+      card: (id) => (id === 89 ? { name: 'Forest', setCode: 'TRK', lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false } : undefined),
+    };
+    const props = { reveal: forest, onDone: () => undefined };
+    const { getByTestId, rerender } = render(createElement(RevealNotice, { ...props, lookup: known }));
+    const art = () => getByTestId('live-reveal').querySelector('[data-card-id="89"] img.card__art')?.getAttribute('src');
+    expect(art(), "TRK's Forest").toContain('dce15387-4114-4b3e-91aa-5b42b45c44ac');
+    rerender(createElement(RevealNotice, { ...props, lookup: EMPTY_LOOKUP }));
+    expect(art(), 'still TRK’s Forest once the lookup no longer holds the card').toContain('dce15387-4114-4b3e-91aa-5b42b45c44ac');
   });
 });
