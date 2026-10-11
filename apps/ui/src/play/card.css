@@ -1044,10 +1044,26 @@ button.face__hit:hover .face__art {
   translate: 0 -2px;
 }
 
+/*
+ * Keyboard focus rings the MARK, on `.seat__ring`'s own circle — never the
+ * button. In a seat's bar the button is a column of the mark and the life number
+ * under it, so an outline on it was a tall box around both, and the face read
+ * as a square (the operator, 2026-10-10). Your own face keeps focus after the
+ * press that closes the settings, so the next key anyone pressed drew that box
+ * (`e2e/w69-avatar.spec.ts`). On your turn the ring is lit, so focus steps
+ * outside it.
+ */
 button.face__hit:focus-visible {
+  outline: none;
+}
+
+button.face__hit:focus-visible .seat__ring {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
-  border-radius: 999px;
+}
+
+.seat[data-active] button.face__hit:focus-visible .seat__ring {
+  outline-offset: 8px;
 }
 
 /*
