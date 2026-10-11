@@ -1027,16 +1027,27 @@ describe('a lost ask: an input act that gets nothing back', () => {
 		expect(h.logs.find((l) => l.evt === 'act-unanswered')).toMatchObject({ seat: 0 });
 	});
 
-	it('stays quiet when any frame comes back for the seat, and is not armed by the other seat\'s frames', () => {
+	it('stays quiet once the seat is shown its next window, and is not disarmed by the other seat\'s frames', () => {
 		vi.useFakeTimers();
 		const h = harness();
 		h.host.push(...OPENING);
 		h.match.fromClient(0, ok);
 		h.match.fromClient(1, ok);
-		const seat0 = OPENING.find((l) => l.t === 'frame' && l.seat === 0)!;
-		h.host.push(seat0);
+		const prompt = OPENING.find((l) => l.t === 'frame' && l.seat === 0 && (l.frame as { method: string }).method === 'showPromptMessage')!;
+		h.host.push(prompt);
 		vi.advanceTimersByTime(ACT_SILENCE_MS);
 		expect(resends(h)).toEqual([{ t: 'resend-pending', seat: 1 }]);
+	});
+
+	it('is not disarmed by a state delta alone: a card click applies one before Forge asks which ability (pin 09aeb164)', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.fromClient(0, ok);
+		const delta = OPENING.find((l) => l.t === 'frame' && l.seat === 0 && (l.frame as { method: string }).method === 'applyDelta')!;
+		h.host.push(delta);
+		vi.advanceTimersByTime(ACT_SILENCE_MS);
+		expect(resends(h)).toEqual([{ t: 'resend-pending', seat: 0 }]);
 	});
 
 	it('is not armed by an act that is not a game input', () => {

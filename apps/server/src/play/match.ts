@@ -601,6 +601,15 @@ const ABORT_SAFE: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptio
  * The acts that are a game input — a click Forge's game thread must take and
  * answer with something. A yield preference, a concede and a resync are not.
  */
+/**
+ * A bridge frame that tells the seat what it may do next — an ask, a prompt,
+ * a bar or a selection — as opposed to state that changed on the way there.
+ */
+function answersAnInput(frame: unknown): boolean {
+	const f = frame as { kind?: unknown; method?: unknown } | null;
+	return f?.kind === 'ask' || f?.method === 'showPromptMessage' || f?.method === 'updateButtons' || f?.method === 'setSelectables';
+}
+
 const INPUT_ACTS: ReadonlySet<string> = new Set(['selectButtonOk', 'selectButtonCancel', 'selectCard', 'selectPlayer', 'selectAbility', 'useMana']);
 
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
@@ -1112,10 +1121,12 @@ export class Match {
 	 * a question nobody was shown, and every later click queues behind it on
 	 * the fork's act gate — silent, which is exactly what this watches for.
 	 *
-	 * Any frame for the seat disarms it ({@link Match.onLine}), so a click that
-	 * Forge answered — a priority pass that moves the game on, a payment that
-	 * shows a bar — never fires it, and nothing is armed while the seat is only
-	 * waiting on the other player. A false fire costs one bridge line: a seat
+	 * A frame that shows the seat its next window disarms it ({@link answersAnInput}),
+	 * so a click that Forge answered — a priority pass that moves the game on, a
+	 * payment that shows a bar — never fires it, and nothing is armed while the
+	 * seat is only waiting on the other player. A state delta does not: the
+	 * click on a card applies one BEFORE Forge asks which ability (measured on
+	 * pin 09aeb164), and the ask after it is the frame that can be lost. A false fire costs one bridge line: a seat
 	 * with nothing pending is re-sent nothing, and a callId already seen is
 	 * dropped in {@link Match.onFrame}.
 	 */
@@ -1740,7 +1751,7 @@ export class Match {
 				return;
 			case 'frame':
 				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
-				this.disarmActWatch(line.seat);
+				if (answersAnInput(line.frame)) this.disarmActWatch(line.seat);
 				this.onFrame(line.seat, line.frame);
 				return;
 			case 'resent':
