@@ -91,9 +91,16 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
  * trigger was declined, the stack is empty and nothing is being asked, read
  * off the board.
  */
+const DECLINE_SETTLE_MS = 1_000;
+
 async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatch: RegExp): Promise<void> {
   await clickHandCard(page, cardId);
-  let declined = false;
+  /*
+   * When the declined offer is the FIRST of the two triggers, the second one's offer is still on
+   * its way when the decline's own tick reads the board: nothing open, stack 0. Settled means
+   * that stayed true a full round trip after the decline.
+   */
+  let declinedAt: number | null = null;
   await expect
     .poll(
       async () => {
@@ -104,7 +111,7 @@ async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatc
             const text = (await choice.first().innerText()) ?? '';
             if (declineTextMatch.test(text)) {
               await sheet.getByTestId('prompt-cancel').click();
-              declined = true;
+              declinedAt = Date.now();
             } else await choice.first().click();
           } else {
             await sheet.getByTestId('prompt-cancel').click();
@@ -116,7 +123,8 @@ async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatc
         const text = await says(page);
         if (/Pay Mana Cost/i.test(text) || (/^Priority:/.test(text) && !/Stack: Empty/.test(text))) await pressOkIfEnabled(page);
         // Between the two triggers the stack can read 0 while the next one's offer is still open.
-        return declined && (await stackCount(page)) === 0 && (await page.getByTestId('live-prompt').count()) === 0;
+        if ((await page.getByTestId('live-prompt').count()) > 0 || (await stackCount(page)) !== 0) return false;
+        return declinedAt !== null && Date.now() - declinedAt >= DECLINE_SETTLE_MS;
       },
       { timeout: 30_000, intervals: [150] },
     )
