@@ -200,6 +200,43 @@ const yardCard = (page: Page, owner: 'you' | 'them', name: string): Promise<numb
     )
     .then((ids) => ids[0] ?? null);
 
+/**
+ * Alice casts Snapcaster Mage by dragging it to her battlefield and both pass over it until Forge offers
+ * Serum Visions from her graveyard — the trigger's one legal target. Returns Serum Visions' id.
+ */
+async function snapcasterGivesFlashback(alice: Page, bob: Page): Promise<number> {
+  let snapcaster: number | undefined;
+  await expect
+    .poll(async () => (snapcaster = await handCardNamed(alice, 'Snapcaster Mage')), { timeout: 60_000, message: 'Snapcaster Mage is in her hand' })
+    .not.toBeUndefined();
+  await expect.poll(() => offeredNamed(alice, 'Snapcaster Mage'), { timeout: 60_000, message: 'alice has priority at her main phase' }).toBe(snapcaster);
+  const visions = (await yardCard(alice, 'you', 'Serum Visions'))!;
+  const before = await markOf(alice, YARD, visions);
+  console.log(`[pp-snap] before Snapcaster: Serum Visions #${visions} in alice's graveyard ${JSON.stringify(before)}`);
+  expect(before?.selectable, 'Serum Visions is not playable before Snapcaster').toBe(false);
+
+  const to = centre((await alice.locator(field).boundingBox())!);
+  // Watched by where it lands, not by the stack: a creature nobody answers may never be drawn there.
+  expect(await dragHandCard(alice, snapcaster!, to), 'Snapcaster Mage is picked up and let go over her battlefield').toBe(true);
+  const resolved = async (): Promise<boolean> =>
+    (await landsOn(alice, 'Snapcaster Mage')) === 1 && (await stackCount(alice)) === 0 && (await offeredNamed(alice, 'Serum Visions')) !== undefined;
+  await grindPriority([alice, bob], resolved, {
+    timeoutMs: 60_000,
+    press: async (page) => {
+      await pressPaymentAuto(page);
+      if (/target/i.test(await says(page))) {
+        const target = page.locator(`${YARD} [data-board-card="${visions}"][data-selectable] > .board-card__face`);
+        if ((await target.count()) > 0) await target.click({ position: { x: 8, y: 6 }, timeout: 1_000 }).catch(() => undefined);
+      }
+      await passOverStack(page);
+    },
+  }).catch(() => undefined); // judged by the offer below, with its own message
+  await expect
+    .poll(() => offeredNamed(alice, 'Serum Visions'), { timeout: 15_000, message: 'Forge offers Serum Visions from her graveyard once Snapcaster gave it flashback' })
+    .toBe(visions);
+  return visions;
+}
+
 test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the graveyard while Forge offers it, and is cast from there'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -208,35 +245,8 @@ test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the 
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-snapcaster');
     for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
-    let snapcaster: number | undefined;
-    await expect
-      .poll(async () => (snapcaster = await handCardNamed(alice.page, 'Snapcaster Mage')), { timeout: 60_000, message: 'Snapcaster Mage is in her hand' })
-      .not.toBeUndefined();
-    await expect.poll(() => offeredNamed(alice.page, 'Snapcaster Mage'), { timeout: 60_000, message: 'alice has priority at her main phase' }).toBe(snapcaster);
-    const visions = (await yardCard(alice.page, 'you', 'Serum Visions'))!;
-    const before = await markOf(alice.page, YARD, visions);
-    console.log(`[pp-snap] before Snapcaster: Serum Visions #${visions} in alice's graveyard ${JSON.stringify(before)}`);
-    expect(before?.selectable, 'Serum Visions is not playable before Snapcaster').toBe(false);
-
+    const visions = await snapcasterGivesFlashback(alice.page, bob.page);
     const to = centre((await alice.page.locator(field).boundingBox())!);
-    // Watched by where it lands, not by the stack: a creature nobody answers may never be drawn there.
-    expect(await dragHandCard(alice.page, snapcaster!, to), 'Snapcaster Mage is picked up and let go over her battlefield').toBe(true);
-    const resolved = async (): Promise<boolean> =>
-      (await landsOn(alice.page, 'Snapcaster Mage')) === 1 && (await stackCount(alice.page)) === 0 && (await offeredNamed(alice.page, 'Serum Visions')) !== undefined;
-    await grindPriority([alice.page, bob.page], resolved, {
-      timeoutMs: 60_000,
-      press: async (page) => {
-        await pressPaymentAuto(page);
-        if (/target/i.test(await says(page))) {
-          const target = page.locator(`${YARD} [data-board-card="${visions}"][data-selectable] > .board-card__face`);
-          if ((await target.count()) > 0) await target.click({ position: { x: 8, y: 6 }, timeout: 1_000 }).catch(() => undefined);
-        }
-        await passOverStack(page);
-      },
-    }).catch(() => undefined); // judged by the offer below, with its own message
-    await expect
-      .poll(() => offeredNamed(alice.page, 'Serum Visions'), { timeout: 15_000, message: 'Forge offers Serum Visions from her graveyard once Snapcaster gave it flashback' })
-      .toBe(visions);
     const board = await markOf(alice.page, YARD, visions);
     const onBob = await markOf(bob.page, '.seat [data-zone="graveyard"][data-owner="them"]', visions);
     console.log(
@@ -274,6 +284,96 @@ test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the 
     console.log(`[pp-snap] cast from the graveyard (data-cast-lift=${lifted}): alice's exile [${(await exiled()).join(', ')}], still offered=${after}`);
     expect(lifted, 'picked up like a hand card').toBe('lifted');
     expect(after, 'once cast it is offered no more').toBeUndefined();
+  } finally {
+    await stack.stop();
+  }
+});
+
+/** Start counting long tasks and frame gaps on `page`. */
+const watchFrames = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __pp: { long: number[]; gaps: number[] } };
+    w.__pp = { long: [], gaps: [] };
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) w.__pp.long.push(Math.round(e.duration));
+    }).observe({ type: 'longtask', buffered: false });
+    let last = performance.now();
+    const tick = (now: number): void => {
+      w.__pp.gaps.push(now - last);
+      last = now;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+/** The long tasks and frame gaps counted so far. */
+const framesSoFar = (page: Page) =>
+  page.evaluate(() => {
+    const { long, gaps } = (window as unknown as { __pp: { long: number[]; gaps: number[] } }).__pp;
+    const sorted = [...gaps].sort((a, b) => a - b);
+    return { longTasks: long, frames: gaps.length, p95: Math.round(sorted[Math.floor(sorted.length * 0.95)] ?? 0), worst: Math.round(sorted[sorted.length - 1] ?? 0) };
+  });
+
+test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, its view opens it first, and it is cast from there'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-snapcaster-deep');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    const visions = await snapcasterGivesFlashback(alice.page, bob.page);
+    const to = centre((await alice.page.locator(field).boundingBox())!);
+    const pile = alice.page.locator(YARD);
+    const glow = {
+      alice: await pile.getAttribute('data-can-act'),
+      bob: await bob.page.locator('.seat [data-zone="graveyard"][data-owner="them"]').getAttribute('data-can-act'),
+      count: await pile.getAttribute('data-count'),
+    };
+    console.log(`[pp-deep] Serum Visions #${visions} buried in a ${glow.count}-card graveyard: pile data-can-act on alice's screen=${glow.alice}, on bob's=${glow.bob}`);
+    expect(glow.alice, 'her graveyard pile glows while a card in it is offered').toBe('');
+    expect(glow.bob, "never on bob's screen").toBeNull();
+
+    await watchFrames(alice.page);
+    const top = (await pile.locator('li[data-card-id]').last().boundingBox())!;
+    await alice.page.mouse.click(top.x + top.width / 2, top.y + top.height - 6);
+    const view = alice.page.getByTestId('pile-view');
+    await expect(view, 'clicking her graveyard opens its pile view').toHaveCount(1, { timeout: 5_000 });
+    const opened = await framesSoFar(alice.page);
+    const first = await view.locator('[data-board-card]').first().getAttribute('data-board-card');
+    const mark = await markOf(alice.page, '[data-testid="pile-view"]', visions);
+    const box = await view.locator(`[data-board-card="${visions}"]`).boundingBox();
+    const viewBox = (await view.boundingBox())!;
+    console.log(
+      `[pp-deep] pile view open: ${await view.locator('[data-board-card]').count()} cards, first #${first}, Serum Visions ${JSON.stringify(mark)} at ${box === null ? 'none' : `${Math.round(box.x)},${Math.round(box.y)}`} in a view at ${Math.round(viewBox.x)},${Math.round(viewBox.y)} ${Math.round(viewBox.width)}×${Math.round(viewBox.height)}; opening: ${JSON.stringify(opened)}`,
+    );
+    expect(Number(first), 'the offered card is the first card of the view').toBe(visions);
+    expect(mark?.selectable, 'with the same ring').toBe(true);
+
+    await alice.page.mouse.move(viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2);
+    for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, 240);
+    for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, -240);
+    const scrolled = await framesSoFar(alice.page);
+    console.log(`[pp-deep] opened and scrolled the view to its end and back: ${JSON.stringify(scrolled)}`);
+    expect(Math.max(0, ...scrolled.longTasks), 'no main-thread task a player would see as a stall while the view opens and scrolls').toBeLessThan(250);
+
+    const at = centre((await view.locator(`[data-board-card="${visions}"]`).boundingBox())!);
+    await alice.page.mouse.move(at.x, at.y, { steps: 4 });
+    await alice.page.mouse.down();
+    await alice.page.mouse.move(to.x, to.y, { steps: 10 });
+    const lifted = { lift: await alice.page.locator(`[data-board-card="${visions}"]`).getAttribute('data-cast-lift').catch(() => null), view: await view.count() };
+    await alice.page.mouse.up();
+    const exiled = () => alice.page.locator('.seat[data-viewer] [data-zone="exile"] .card__name').allTextContents();
+    await grindPriority([alice.page, bob.page], async () => (await exiled()).includes('Serum Visions') && (await stackCount(alice.page)) === 0, {
+      timeoutMs: 60_000,
+      press: async (page) => {
+        await pressPaymentAuto(page);
+        await passOverStack(page);
+      },
+    });
+    const after = { glow: await pile.getAttribute('data-can-act'), count: await pile.getAttribute('data-count'), frames: await framesSoFar(alice.page) };
+    console.log(`[pp-deep] lifted from the view ${JSON.stringify(lifted)} and cast: exile [${(await exiled()).join(', ')}], graveyard ${after.count}, pile glow ${after.glow}, frames ${JSON.stringify(after.frames)}`);
+    expect(lifted, 'picked up out of the view like a hand card, the view giving way').toEqual({ lift: 'lifted', view: 0 });
+    expect(after.glow, 'the pile stops glowing once nothing in it is offered').toBeNull();
   } finally {
     await stack.stop();
   }
