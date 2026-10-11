@@ -9,6 +9,7 @@
  *   GET   /api/rooms            → 200 { rooms: RoomView[] }
  *   POST  /api/rooms            { name, gameType?, clientMode?, password? } → 201 RoomView
  *   GET   /api/rooms/:id        → 200 RoomView | 404
+ *   GET   /api/rooms/of-match/:matchId → 200 RoomView (the room that started it, members only) | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
@@ -389,7 +390,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// One `you` per room: the front page says which rooms you lead and which
 		// you have already readied in, without a second request per room.
 		const me = callerOf(req).id;
-		// `offered`, not `list`: a room nobody has touched or polled for
+		// `offered`, not `list`: a room nobody has touched for
 		// `ROOM_STALE_MS` is a dead table and is not advertised (wave 31).
 		res.json({ rooms: lobby.offered().map((room) => roomBody(room, me)) });
 	});
@@ -422,12 +423,24 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		res.json(roomBody(result.room, caller.id));
 	});
 
+	// The room a match was started from, for its own members: a match screen's
+	// route carries only the match, and its result screen readies at the room's
+	// table for a Rematch. A finished or restarted-over match still answers
+	// (`Lobby.roomOfMatch`). Anyone else is the same 404 as a room that is not there.
+	rooms.get('/of-match/:matchId', (req: Request, res: Response) => {
+		const matchId = String(req.params.matchId);
+		const room = ROOM_ID_RE.test(matchId) ? lobby.roomOfMatch(matchId) : undefined;
+		const me = callerOf(req).id;
+		if (room === undefined || !lobby.isMember(room.id, me)) return noMatch(res);
+		res.json(roomBody(room, me));
+	});
+
 	rooms.get('/:id', (req: Request, res: Response) => {
 		const id = String(req.params.id);
 		const room = ROOM_ID_RE.test(id) ? lobby.get(id) : undefined;
 		if (room === undefined) return noMatch(res);
 		const me = callerOf(req).id;
-		// The room screen polls this; a member's poll is what keeps a room offered.
+		// The room screen reads this; a member's read (or open watch, `room/feed.ts`) keeps a room offered.
 		lobby.touch(id, me);
 		res.json(roomBody(room, me));
 	});

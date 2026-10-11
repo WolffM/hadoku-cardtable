@@ -78,6 +78,7 @@ import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
+import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, roomFormatNames, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
@@ -393,6 +394,9 @@ const draftRooms = poolLoad.ok
 		})
 	: null;
 attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier });
+// Every room write, pushed to the screens that have the room (or the list) open,
+// so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
+attachRoomFeed(io, { lobby });
 
 // ── Rooms are not immortal ───────────────────────────────────────────────────
 // `create` had no opposite for its whole life: no leave, no close, no expiry,

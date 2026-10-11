@@ -22,12 +22,12 @@
  *
  * Every member ready is the gate, and either browser may ask the server to deal
  * — the same shape constructed's start already has, guarded by the same kind of
- * ref so a poll cannot ask twice.
+ * ref so a re-read cannot ask twice.
  *
  * **A draft room does not touch the tables API.** `http/routes.ts` answers 409
  * to `PUT …/deck`, `POST …/ready` and the room start for anything that is not
  * `constructed-1v1`, so none of them is called and the formats, decks and
- * legality sweep are not loaded either. The table POLL still runs, because its
+ * legality sweep are not loaded either. The table READ still runs, because its
  * join-on-refusal (below) is what turns following an invite link into
  * membership, and a draft room needs that as much as a constructed one —
  * `GET /api/tables/rooms/:roomId` is the one table route that is not gated.
@@ -101,10 +101,9 @@
  *
  * ## Waiting for the other person is the job
  *
- * Both players' state — chosen, legal, ready — is polled from the room
- * (`pollMs`, 1.5 s). No second socket: `RoomChrome` already holds one for the
- * room's chat and roster, and a second one would share and then tear down its
- * connection. When both are ready either browser asks the server to start; the
+ * Both players' state — chosen, legal, ready — is read from the room again
+ * whenever the server says it changed (`../rooms/feed.ts`): no timer reads it.
+ * When both are ready either browser asks the server to start; the
  * server answers one match to both, and `matchId` appearing on the table is
  * what sends each player to `#/match/<id>` — including a player who never
  * pressed anything.
@@ -117,11 +116,11 @@
  * and never again, so this screen reads it and renders one of two bodies; it
  * offers no switch, because there is nothing to switch to mid-room.
  *
- * The mode comes from `GET /api/rooms/:id`, polled beside the table, and is
+ * The mode comes from `GET /api/rooms/:id`, read beside the table, and is
  * latched the first time it is read: a later answer cannot turn a room someone
  * is sitting in into the other kind. A read that fails leaves the mode unknown
  * and this renders the builtin table — the same direction `parseRoomView`
- * defaults in, and the same outage the table poll is already reporting in
+ * defaults in, and the same outage the table read is already reporting in
  * words a few lines below.
  *
  * ## Without a room
@@ -201,14 +200,15 @@ import { DeckPeek, PEEK_DELAY_MS, type PeekLine, type PeekList } from './DeckPee
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
+import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
 
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
   client?: TablesClient;
   /** The room whose table this is. `App` threads it from `#/room/<id>`. */
   roomId?: string;
-  /** How often the room's table is re-read. Tests pass something small. */
-  pollMs?: number;
+  /** What says the room changed. Tests pass their own; production passes nothing. */
+  feed?: RoomFeed;
   /** Tests pass a rooms client so the join-on-entry can be driven. Production passes nothing. */
   rooms?: RoomsClient;
   /** Tests pass the stream probe's `fetch`. Production passes nothing. */
@@ -893,7 +893,7 @@ function DeckChooser({
 export function ConstructedScreen({
   client: given,
   roomId,
-  pollMs = 1500,
+  feed = roomFeed(),
   rooms,
   streamFetch,
   rand = secureRandom,
@@ -907,7 +907,7 @@ export function ConstructedScreen({
     <RoomTableScreen
       client={client}
       roomId={roomId}
-      pollMs={pollMs}
+      feed={feed}
       rooms={rooms}
       streamFetch={streamFetch}
       rand={rand}
@@ -920,7 +920,7 @@ export function ConstructedScreen({
 function RoomTableScreen({
   client,
   roomId,
-  pollMs,
+  feed,
   rooms: givenRooms,
   streamFetch,
   rand,
@@ -929,7 +929,7 @@ function RoomTableScreen({
 }: {
   client: TablesClient;
   roomId: string;
-  pollMs: number;
+  feed: RoomFeed;
   rooms?: RoomsClient;
   streamFetch?: Fetch;
   rand: () => number;
@@ -960,7 +960,7 @@ function RoomTableScreen({
    */
   const seenPool = useRef<string | null>(null);
   const [startRefusal, setStartRefusal] = useState<string | null>(null);
-  /** A start is in flight, or has been refused: not asked again on every poll. */
+  /** A start is in flight, or has been refused: not asked again on every read. */
   const asked = useRef(false);
   /** The picker is set from the server's copy of your choice exactly once. */
   const restored = useRef(false);
@@ -986,7 +986,7 @@ function RoomTableScreen({
    * not a second round trip after it.
    */
   const [view, setView] = useState<RoomView | null>(warm?.view ?? null);
-  /** Bumped when a write of this screen's own resolves; a poll that overlapped one is dropped. */
+  /** Bumped when a write of this screen's own resolves; a read that overlapped one is read again. */
   const writes = useRef(0);
   const [resolved, setResolved] = useState(warm !== undefined);
   /** Latched on the first read. A room does not change mode under its players. */
@@ -994,7 +994,7 @@ function RoomTableScreen({
   /** A refusal from `ready` or `start`, in the server's own words. */
   const [draftError, setDraftError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);
-  /** A deal is in flight or was refused: not asked again on every poll. */
+  /** A deal is in flight or was refused: not asked again on every read. */
   const askedDeal = useRef(false);
   /** Bumped by Try again, which is the only thing that re-asks by hand. */
   const [dealAttempt, setDealAttempt] = useState(0);
@@ -1109,7 +1109,8 @@ function RoomTableScreen({
     };
   }, [client, draftRoom]);
 
-  // The room's table, polled. One read now, then one every `pollMs`.
+  // The room's table: read now, and again whenever the feed says the room
+  // changed (`../rooms/feed.ts` — never on a fast timer).
   //
   // ## Entering a room joins it
   //
@@ -1118,18 +1119,18 @@ function RoomTableScreen({
   // non-member. The server answers a non-member exactly as it answers a
   // missing room (`routes.ts` `tableFor`, deliberately: a different answer
   // would tell an outsider which rooms exist), so the screen said "this room
-  // is not there" about a room that was, and polled that 404 forever.
+  // is not there" about a room that was, and read that 404 forever.
   //
   // Observed live 2026-09-19 on `r-8eb2a7cd614c`: the leader read it fine, the
-  // second person got 404 on every poll, and the room file on disk held
+  // second person got 404 on every read, and the room file on disk held
   // exactly one member. So a read that is refused tries to JOIN once, then
   // reads again.
   //
   // Only once, and only for a refusal. A locked room refuses the join too, and
-  // retrying that on a 1.5 s timer is a rate-limit trip and a password
-  // guessing loop nobody asked for.
+  // retrying that on every read is a rate-limit trip and a password guessing
+  // loop nobody asked for.
   //
-  // **A draft room runs this too**, and that is the whole reason the poll is not
+  // **A draft room runs this too**, and that is the whole reason the read is not
   // switched off for one: the join-on-refusal here is what makes an invite link
   // a membership, and a draft room's invite link is the only link there is. The
   // table it reads back is empty for a draft room — nobody loads a deck — but
@@ -1150,7 +1151,7 @@ function RoomTableScreen({
         }
         if (joined) {
           // The join went through, so this refusal is something else — a room
-          // that has since gone, or a read that raced the write. Keep polling:
+          // that has since gone, or a read that raced the write. Keep following:
           // stopping here would strand a member who is genuinely in the room.
           setTableError(outcome.error);
           return;
@@ -1178,49 +1179,52 @@ function RoomTableScreen({
         setTableError(join.message ?? outcome.error);
       });
     };
-    read();
-    const timer = setInterval(read, pollMs);
+    const stopFollowing = feed.follow({ room: roomId }, read);
     return () => {
       live = false;
-      clearInterval(timer);
+      stopFollowing();
     };
-  }, [client, rooms, roomId, pollMs, attempt]);
+  }, [client, rooms, roomId, feed, attempt]);
 
-  // The room record, polled on the same beat as the table. The mode is latched
-  // on the first read; the membership keeps moving, because a streamed room's
-  // seats appear as people arrive.
+  // The room record, read beside the table on the same feed. The mode is
+  // latched on the first read; the membership keeps moving, because a streamed
+  // room's seats appear as people arrive.
   useEffect(() => {
     let live = true;
     const read = (): void => {
-      // A poll answered before one of this screen's own writes (a format change, a ready) resolved
+      // A read answered before one of this screen's own writes (a format change, a ready) resolved
       // can land after it and put the older room back — the deck picker then showed nothing chosen
-      // for a beat (w48's spec, CI 2026-10-08). A read that overlapped a write is dropped; the next
-      // beat reads the room as the write left it.
+      // for a beat (w48's spec, CI 2026-10-08). A read that overlapped a write is dropped and asked
+      // again, so it reads the room as the write left it — and a change somebody else made while the
+      // write was in flight is not left waiting for the next ping.
       const issuedAfterWrite = writes.current;
       rooms.get(roomId).then(
         (room) => {
           if (!live) return;
           setResolved(true);
-          if (room === null || issuedAfterWrite !== writes.current) return;
+          if (room === null) return;
+          if (issuedAfterWrite !== writes.current) {
+            read();
+            return;
+          }
           modeRef.current ??= room.clientMode;
           setView(room);
         },
         () => {
-          // The room could not be read. That is the same server the table poll
-          // is reading, and `tableError` below already says so in words; adding
+          // The room could not be read. That is the same server the table read
+          // is asking, and `tableError` below already says so in words; adding
           // a second sentence about it would say it twice. What this must not
           // do is stay silent AND keep the body hidden, so the gate opens.
           if (live) setResolved(true);
         },
       );
     };
-    read();
-    const timer = setInterval(read, pollMs);
+    const stopFollowing = feed.follow({ room: roomId }, read);
     return () => {
       live = false;
-      clearInterval(timer);
+      stopFollowing();
     };
-  }, [rooms, roomId, pollMs]);
+  }, [rooms, roomId, feed]);
 
   /*
    * The pod's socket, for a room on a DRAFTED pool — and it is not only how the
@@ -1559,7 +1563,7 @@ function RoomTableScreen({
    *
    * Either browser may ask and the server deals once — `startDraft` is
    * idempotent, so a room whose draft has already started answers with its view
-   * rather than an error. The ref is what stops the 1.5 s poll asking again
+   * rather than an error. The ref is what stops every re-read asking again
    * while one ask is in flight or has been refused; losing unanimity clears it,
    * so the next time everyone is ready the draft is asked for again rather than
    * the room sitting on a stale refusal for ever.
@@ -1664,7 +1668,7 @@ function RoomTableScreen({
    *
    * A write to the room, not to this screen's state: the room is the authority
    * on its own pool, so the answer replaces the room record and every other
-   * browser picks the change up on its poll. A refusal — a non-leader, a room
+   * browser reads the change when the feed says the room moved. A refusal — a non-leader, a room
    * that is drafting — is shown in the server's own words, and nothing local
    * has moved, so the screen still reads what the table is actually on.
    */
@@ -2273,7 +2277,7 @@ function DraftLobby({
         <div className="lobby__error" role="alert" data-testid="draft-error">
           <p>{error}</p>
           {/* Only while everyone still is ready: a refusal because somebody
-              stood down between polls fixes itself when they ready again, and
+              stood down in the meantime fixes itself when they ready again, and
               the deal is asked for on its own then. */}
           {allReady && (
             <button type="button" data-testid="draft-retry" onClick={onRetry}>

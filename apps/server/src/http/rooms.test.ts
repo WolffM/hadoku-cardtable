@@ -1504,3 +1504,34 @@ describe('POST /api/rooms/watchparty', () => {
 		expect((await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'b' } })).status).toBe(429);
 	});
 });
+
+/*
+ * A match screen's way to its room. The route carries only the match, and the
+ * result screen readies at the room's table for a Rematch: the operator's
+ * r-cae3103a30ac rematch stranded one screen whose room lookup (the room list)
+ * no longer listed the finished match.
+ */
+describe('GET /api/rooms/of-match/:matchId', () => {
+	it("answers the room a match was started from — to its members, during and after the match — and 404 to anyone else", async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob', body: {} });
+		h.lobby.setMatch(room.id, 'm-3f3db8ae2945');
+
+		const during = await call(h, 'GET', '/api/rooms/of-match/m-3f3db8ae2945', { as: 'bob' });
+		expect(during.status).toBe(200);
+		expect((during.json() as { id: string }).id).toBe(room.id);
+
+		h.lobby.releaseMatch(room.id);
+		const after = await call(h, 'GET', '/api/rooms/of-match/m-3f3db8ae2945', { as: 'alice' });
+		expect(after.status, 'the match is over and the room let go of it').toBe(200);
+		expect((after.json() as { id: string }).id).toBe(room.id);
+
+		const outsider = await call(h, 'GET', '/api/rooms/of-match/m-3f3db8ae2945', { as: 'carol' });
+		expect(outsider.status).toBe(404);
+		expect(outsider.json()).toEqual(roomsMod.NO_MATCH);
+		expect((await call(h, 'GET', '/api/rooms/of-match/m-000000000000', { as: 'alice' })).status).toBe(404);
+		expect((await call(h, 'GET', '/api/rooms/of-match/NOT_AN_ID', { as: 'alice' })).status).toBe(404);
+	});
+});

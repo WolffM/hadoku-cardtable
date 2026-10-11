@@ -213,3 +213,12 @@ export {
   type WireIssue as MatchWireIssue,
   type MatchWireParse,
 } from './match-wire.ts';
+
+export {
+  ROOM_FEED_CHANNEL,
+  ROOM_WATCH_MAX,
+  RoomWatchSchema,
+  RoomChangedSchema,
+  type RoomWatch,
+  type RoomChanged,
+} from './room-feed.ts';

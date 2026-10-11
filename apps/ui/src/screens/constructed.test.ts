@@ -66,6 +66,7 @@ import { loadFixtures } from '../draft/fixtures.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
+import type { RoomFeed } from '../rooms/feed.ts';
 import {
   RANDOM_DECK,
   apiBase,
@@ -218,7 +219,7 @@ interface Table {
   checkFails?: boolean;
   /** `PUT …/deck` refuses, so a hold made under an earlier era is left standing. */
   deckFails?: boolean;
-  /** A start the server refuses — e.g. the other player un-readied between polls. */
+  /** A start the server refuses — e.g. the other player un-readied between reads. */
   refuseStart?: { status: number; error: string };
   /** A start that answers only once this settles — Forge coming up. */
   holdStart?: Promise<void>;
@@ -495,14 +496,29 @@ function stubServer(table: Table) {
   };
 }
 
-async function mountRoom(table: Table, rand?: () => number, pollMs = 10) {
+/**
+ * A feed that says "changed" every `ms`: the stub server here has no socket, and
+ * these tests are about what the screen does with each read, not about when the
+ * server pings (`../rooms/feed.test.ts` is).
+ */
+function everyMs(ms: number): RoomFeed {
+  return {
+    follow(_target, refresh) {
+      refresh();
+      const timer = setInterval(refresh, ms);
+      return () => clearInterval(timer);
+    },
+  };
+}
+
+async function mountRoom(table: Table, rand?: () => number, feed: RoomFeed = everyMs(10)) {
   const server = stubServer(table);
   render(
     createElement(ConstructedScreen, {
       client: server.client, deckRecords: server.deckRecords,
       rooms: server.rooms,
       roomId: ROOM,
-      pollMs,
+      feed,
       ...(rand === undefined ? {} : { rand }),
     }),
   );
@@ -640,7 +656,7 @@ describe('a room the list read before navigating (rooms/warm.ts)', () => {
     const asked = sweeps(server);
     expect(asked, 'the pool was swept while the list was still showing').toEqual([FORMATS[0].id]);
 
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, pollMs: 10_000 }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, feed: everyMs(10_000) }));
     // No await between the render and these: the first paint is the whole page.
     expect(screen.getByTestId('room-name').textContent).toBe('Friday night');
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
@@ -832,7 +848,7 @@ describe('a room’s table', () => {
 
   it('follows the match the OTHER player started, having pressed nothing', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
-    // The other browser started it; this one learns from the poll.
+    // The other browser started it; this one learns from a re-read.
     server.table.matchId = MATCH;
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
@@ -908,7 +924,7 @@ describe('a room’s table', () => {
   it('joins the room it was opened on, so an invite link works without the room list', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('ok');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
     await waitFor(() => expect(rooms.joins).toEqual([ROOM]));
     // The read that followed the join is the one that matters: the screen
     // recovers rather than sitting on the refusal it started with.
@@ -922,7 +938,7 @@ describe('a room’s table', () => {
     // list". The link IS the way in; the screen has to ask.
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
     expect((await screen.findByTestId('room-locked')).textContent).toContain('needs a password');
     expect(screen.queryByTestId('room-missing')).toBeNull();
   });
@@ -930,7 +946,7 @@ describe('a room’s table', () => {
   it('retries with the password typed in, and gets in', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     // The room becomes readable BECAUSE the join succeeded — setting it
@@ -948,7 +964,7 @@ describe('a room’s table', () => {
   it('says the password was wrong rather than repeating "needs a password"', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     fireEvent.change(screen.getByTestId('room-password'), { target: { value: 'wrong' } });
@@ -960,12 +976,12 @@ describe('a room’s table', () => {
   it('stops after ONE refused join instead of re-asking on the timer', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     const readsWhenRefused = server.calls.length;
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 120)); // twelve poll intervals
+      await new Promise((r) => setTimeout(r, 120)); // twelve re-reads
     });
     expect(rooms.joins).toEqual([ROOM]);
     expect(server.calls.length).toBe(readsWhenRefused);
@@ -974,7 +990,7 @@ describe('a room’s table', () => {
   it('says to wait rather than retrying when the join is rate-limited', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('rate-limited');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
     expect((await screen.findByTestId('room-locked')).textContent).toContain('Too many attempts');
     expect(rooms.joins).toEqual([ROOM]);
   });
@@ -1000,7 +1016,7 @@ describe('a room’s table', () => {
     const refused = await screen.findByTestId('start-refused');
     expect(refused.textContent).toContain('user-bob is not ready yet');
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
-    // One attempt, not one per poll.
+    // One attempt, not one per re-read.
     const attempts = () => server.calls.filter((c) => c.url.endsWith('/play/matches')).length;
     const once = attempts();
     await new Promise((r) => setTimeout(r, 60));
@@ -1062,7 +1078,7 @@ describe('the deck picker', () => {
         deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
-        pollMs: 10,
+        feed: everyMs(10),
       }),
     );
     await screen.findByTestId('room-players');
@@ -1241,7 +1257,7 @@ describe('the deck picker', () => {
     const server = await mountRoom({ players: [opponent(), held], matchId: null });
     // The picker opens on the deck the server holds…
     await waitFor(() => expect(chosen()).toBe(SECOND_DECK));
-    // …and over a dozen polls it never writes one.
+    // …and over a dozen re-reads it never writes one.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 120));
     });
@@ -1393,7 +1409,7 @@ describe('the table’s pool', () => {
     await pick(UG_POLYMORPH);
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
 
-    // The leader's browser moved it; this one learns it from the room poll.
+    // The leader's browser moved it; this one learns it from a room re-read.
     server.table.format = '2011-07-15';
 
     // The held deck is re-sent — this seat's verdict was cleared by the change
@@ -1484,7 +1500,7 @@ describe('a draft room', () => {
         client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
-        pollMs: 10,
+        feed: everyMs(10),
         makeTransport: stubTransport,
       }),
     );
@@ -1594,23 +1610,23 @@ describe('a draft room', () => {
   });
 
   it('starts the draft exactly once when every member is ready, and only then', async () => {
-    // One member still not ready: nothing is asked for, however long it polls.
+    // One member still not ready: nothing is asked for, however often it re-reads.
     const server = await mountDraft({ members: members(true, false) });
     await screen.findByTestId('draft-lobby');
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 80)); // eight poll intervals
+      await new Promise((r) => setTimeout(r, 80)); // eight re-reads
     });
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(0);
     expect(screen.queryByTestId('pod')).toBeNull();
 
-    // The other browser readies up; this one learns it from the poll and deals.
+    // The other browser readies up; this one learns it from a re-read and deals.
     server.table.members = members(true, true);
     await waitFor(() => expect(screen.queryByTestId('pod')).not.toBeNull());
     const starts = server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`));
     expect(starts).toHaveLength(1);
     expect(starts[0]).toEqual({ url: `/cardtable/api/rooms/${ROOM}/start`, method: 'POST', body: {} });
 
-    // And the poll does not ask again now that it has started.
+    // And a re-read does not ask again now that it has started.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 80));
     });
@@ -1643,7 +1659,7 @@ describe('a draft room', () => {
     expect(refused.textContent).toContain('this room plays constructed-1v1, not draft');
     expect(screen.queryByTestId('pod')).toBeNull();
 
-    // One attempt, not one per poll.
+    // One attempt, not one per re-read.
     const attempts = () => server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`)).length;
     const once = attempts();
     expect(once).toBe(1);
@@ -1661,10 +1677,10 @@ describe('a draft room', () => {
   });
 
   it('still joins the room it was opened on, so a draft invite link works', async () => {
-    // The table poll is what joins you (`routes.ts` answers a non-member the
+    // The table read is what joins you (`routes.ts` answers a non-member the
     // same 404 as a missing room), and a draft room needs that as much as a
     // constructed one: the invite link is the only way a friend gets in. This
-    // is why the table poll is NOT switched off for a draft room.
+    // is why the table read is NOT switched off for a draft room.
     const server = await mountDraft({ missing: true });
     await waitFor(() =>
       expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/join`))).toHaveLength(1),
@@ -1687,7 +1703,7 @@ describe('a streamed room', () => {
         client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
-        pollMs: 10,
+        feed: everyMs(10),
         streamFetch: stream,
       }),
     );
@@ -1808,7 +1824,7 @@ describe('a builtin room is what it has always been', () => {
 
   it('still renders when the room record cannot be read at all', async () => {
     // The room read failing must not hide the table: it is the same server the
-    // table poll is reading, and that poll reports the outage in words.
+    // table read is asking, and that read reports the outage in words.
     await mountRoom({ players: [opponent()], matchId: null, roomUnreadable: true });
     expect(screen.getByTestId('deck-mine')).toBeTruthy();
     expect(screen.queryByTestId('room-streams')).toBeNull();
@@ -1835,16 +1851,16 @@ describe('a builtin room is what it has always been', () => {
  */
 describe('a room read that overlapped the leader’s own write', () => {
   it('cannot put the older room back: the era the leader just chose stays chosen', async () => {
-    // CI 2026-10-08 (w48's spec): the poll answered before a format PATCH landed after it and the
-    // picker showed nothing chosen for a beat. A read issued before a write resolved is dropped.
+    // CI 2026-10-08 (w48's spec): a read answered before a format PATCH landed after it and the
+    // picker showed nothing chosen for a beat. A read issued before a write resolved is dropped and read again.
     // A slow beat, so the stale answer is not papered over by the next read before this test looks.
-    const server = await mountRoom({ players: [opponent()], matchId: null }, undefined, 400);
+    const server = await mountRoom({ players: [opponent()], matchId: null }, undefined, everyMs(400));
     const select = screen.getByTestId('format') as HTMLSelectElement;
     expect(select.value).toBe(FORMATS[0].id);
     const reads = () => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(`/api/rooms/${ROOM}`)).length;
     const before = reads();
     const release = server.holdNextRoomRead();
-    // The poll's next beat parks a read holding the OLD record.
+    // The next read parks holding the OLD record.
     await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 2_000 });
     fireEvent.change(select, { target: { value: '2011-07-15' } });
     await waitFor(() => expect(select.value).toBe('2011-07-15'));
@@ -2108,7 +2124,7 @@ describe('a room on a drafted pool', () => {
         client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
-        pollMs: 10,
+        feed: everyMs(10),
         makeTransport: socket.make,
       }),
     );

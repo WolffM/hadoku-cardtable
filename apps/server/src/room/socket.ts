@@ -240,7 +240,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	 * Why this `join` may not be dealt a pod, or null to admit it.
 	 *
 	 * Membership is deliberately NOT checked. A friend who opens an invite link
-	 * after the draft started is joined to the room by the room screen's own poll
+	 * after the draft started is joined to the room by the room screen's own read
 	 * and then connects here; requiring membership first would make the seat they
 	 * take depend on two requests landing in order. What the gate protects is the
 	 * DEALING of a draft, and the lobby has already decided that.

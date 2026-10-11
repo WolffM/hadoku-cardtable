@@ -12,10 +12,18 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStatsCache } from '@wolffm/game-stats-ui';
 
-import { createGameStatsClient, type BreakdownRow, type LeaderboardRow, type MatchView, type ProfileView } from '@wolffm/prefs-client/games';
+import {
+  createGameStatsClient,
+  GameStatsError,
+  type BreakdownRow,
+  type LeaderboardRow,
+  type MatchView,
+  type ProfileView,
+} from '@wolffm/prefs-client/games';
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
-import { prefsBaseUrl, type StatsSource } from './StatsPopout.tsx';
+import type { RoomFeed } from '../rooms/feed.ts';
+import { prefsBaseUrl, signedInStatsClient, type StatsSource } from './StatsPopout.tsx';
 
 afterEach(() => {
   cleanup();
@@ -98,10 +106,17 @@ function stub() {
 }
 
 const NO_ROOMS = { list: async () => [] } as never;
+/** The room list reads once and is never told anything changed: no socket here. */
+const QUIET: RoomFeed = {
+  follow: (_target, refresh) => {
+    refresh();
+    return () => undefined;
+  },
+};
 
 /** The lobby, with the popout open for `player` when `open`. */
 const lobby = (source: StatsSource, open?: { player?: string }) =>
-  createElement(LobbyScreen, { rooms: NO_ROOMS, statsSource: source, stats: open });
+  createElement(LobbyScreen, { rooms: NO_ROOMS, feed: QUIET, statsSource: source, stats: open });
 
 describe('the stats popout', () => {
   it('draws colours as pips, decks on each seat, turns, and names as links to their page, all in the constructed pool', async () => {
@@ -178,6 +193,58 @@ describe('the way in', () => {
     const button = screen.getByTestId('lobby-stats');
     expect(button.getAttribute('href')).toBe('#/stats');
     expect(button.getAttribute('aria-label')).toBe('Stats');
+  });
+});
+
+describe('a viewer the store will refuse', () => {
+  /** The store's reads behind the page's guard, every one answered `status`. */
+  function refusing(status: number, signedIn: boolean) {
+    const asked: URL[] = [];
+    const fetch = (async (input: RequestInfo | URL) => {
+      asked.push(new URL(String(input)));
+      return new Response(JSON.stringify({ message: 'no' }), { status, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof globalThis.fetch;
+    const source: StatsSource = {
+      client: signedInStatsClient(createGameStatsClient({ gameId: 'cardtable', baseUrl: 'https://hadoku.me/prefs', fetch }), async () => signedIn),
+      cache: createStatsCache(),
+    };
+    return { source, asked };
+  }
+
+  it('signed out: nothing is asked of the store — not on the lobby, not on hover, not when opened — and the popout says to sign in', async () => {
+    const { source, asked } = refusing(401, false);
+    const { rerender } = render(lobby(source));
+    fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
+    rerender(lobby(source, {}));
+    await waitFor(() => expect(screen.getByTestId('stats').textContent).toContain('Sign in to see stats.'));
+    fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(asked.map((u) => u.pathname)).toEqual([]);
+  });
+
+  it('a 401 is final: each read is asked once, and neither hovering nor opening asks again', async () => {
+    const { source, asked } = refusing(401, true);
+    const { rerender } = render(lobby(source));
+    await waitFor(() => expect(asked).toHaveLength(6));
+    expect(new Set(asked.map((u) => `${u.pathname}${u.search}`)).size, 'six different reads, each once').toBe(6);
+
+    fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
+    rerender(lobby(source, {}));
+    await waitFor(() => expect(screen.getByTestId('stats').textContent).toContain('Sign in to see stats.'));
+    fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(asked, 'nothing asked after the refusal').toHaveLength(6);
+  });
+
+  it('a refusal of another kind is not final: the next read asks again', async () => {
+    const { source, asked } = refusing(503, true);
+    await expect(source.client.profile()).rejects.toBeInstanceOf(GameStatsError);
+    await expect(source.client.profile()).rejects.toBeInstanceOf(GameStatsError);
+    expect(asked).toHaveLength(2);
   });
 });
 

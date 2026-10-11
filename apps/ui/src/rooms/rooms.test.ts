@@ -33,10 +33,10 @@ import {
   type Fetch,
   type RoomView,
 } from './api.ts';
+import type { FeedTarget, RoomFeed } from './feed.ts';
 
 afterEach(() => {
   cleanup();
-  vi.useRealTimers();
   globalThis.location.hash = '';
 });
 
@@ -115,6 +115,36 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
   return { calls, client: roomsClient(fetchImpl, '/cardtable/api/') };
 }
 
+/*
+ * No socket in a unit test: the page's own feed reads once and never pings.
+ * `manualFeed` is the one a test drives by hand. `./feed.test.ts` tests the real one.
+ */
+vi.mock('./feed.ts', async (importOriginal) => {
+  // One object, as the page's own is: a new feed per render would re-follow on every render.
+  const quiet: RoomFeed = {
+    follow: (_target, refresh) => {
+      refresh();
+      return () => undefined;
+    },
+  };
+  return { ...(await importOriginal<typeof import('./feed.ts')>()), roomFeed: () => quiet };
+});
+
+function manualFeed(): RoomFeed & { ping(): void; targets(): FeedTarget[] } {
+  const following = new Map<() => void, FeedTarget>();
+  return {
+    follow(target, refresh) {
+      refresh();
+      following.set(refresh, target);
+      return () => following.delete(refresh);
+    },
+    ping: () => {
+      for (const refresh of [...following.keys()]) refresh();
+    },
+    targets: () => [...following.values()],
+  };
+}
+
 const mount = (client: ReturnType<typeof roomsClient>) => render(createElement(LobbyScreen, { rooms: client }));
 
 /** Open the create dialog from its button at the foot of the list. */
@@ -181,26 +211,30 @@ describe('the list', () => {
     expect(screen.queryByTestId('rooms-error')).toBeNull();
   });
 
-  it('polls, and keeps the list when a later poll fails', async () => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  it('reads again when the server says the list changed, and keeps the list when a later read fails', async () => {
     let rooms: RoomView[] = [OPEN];
     let fail = false;
     const fetchImpl: Fetch = async () => (fail ? json(503, {}) : json(200, { rooms }));
-    mount(roomsClient(fetchImpl, '/cardtable/api/'));
+    const feed = manualFeed();
+    render(createElement(LobbyScreen, { rooms: roomsClient(fetchImpl, '/cardtable/api/'), feed }));
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
+    expect(feed.targets(), 'the lobby follows the list').toEqual(['list']);
 
     rooms = [OPEN, LOCKED];
     await act(async () => {
-      vi.advanceTimersByTime(5000);
+      feed.ping();
     });
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
 
     fail = true;
     await act(async () => {
-      vi.advanceTimersByTime(5000);
+      feed.ping();
     });
     await screen.findByTestId('rooms-stale');
     expect(screen.getAllByTestId('room-row')).toHaveLength(2);
+
+    cleanup();
+    expect(feed.targets(), 'leaving the lobby stops following').toEqual([]);
   });
 
   it('drops a malformed room rather than rendering undefined', () => {

@@ -69,19 +69,22 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
     return () => closeMatch(handle);
   }, [matchId, makeTransport]);
 
-  // The room that started this match, for the board's "Back to the room" link.
-  // The route carries only the match id, so ask the room list which room holds
-  // it (a room with a match is always offered). Unknown is a legitimate answer
-  // (a match link from elsewhere, a list that would not load): the board then
-  // says "Back to the lobby", which is where that viewer belongs.
+  // The room that started this match: the board's way back, and the table its
+  // result screen readies at for a Rematch. The route carries only the match
+  // id, so the server is asked which room started it — and it remembers that
+  // after the match is over and across a restart, which the room list never did
+  // (a reload on the result screen used to find no room and grey Rematch out).
+  // Unknown is a legitimate answer (a match link from elsewhere, a server that
+  // would not answer): the board then says "Back to the lobby", which is where
+  // that viewer belongs.
   const [roomId, setRoomId] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     roomsClient()
-      .list()
+      .roomOfMatch(matchId)
       .then(
-        (rooms) => {
-          if (live) setRoomId(rooms.find((r) => r.matchId === matchId)?.id ?? null);
+        (room) => {
+          if (live) setRoomId(room?.id ?? null);
         },
         () => undefined,
       );

@@ -29,11 +29,12 @@
  *
  * ## Freshness
  *
- * Polled every five seconds while the tab is visible, and refreshed the
- * moment it becomes visible again. A friend's new room shows up without a
- * reload, and a backgrounded tab costs the server nothing. A poll that fails
- * after the list has loaded keeps the list and says it is stale, rather than
- * throwing away rooms a person may be about to click.
+ * Read again whenever the server says a room changed (`./feed.ts`), and once
+ * when the tab is shown again. A friend's new room shows up without a reload,
+ * and nobody's open lobby reads the list on a timer — a backgrounded one reads
+ * nothing at all. A read that fails after the list has loaded keeps the list
+ * and says it is stale, rather than throwing away rooms a person may be about
+ * to click.
  *
  * This does not mount a `RoomChrome`: `App` mounts exactly one, and a second
  * would share and then tear down the first's socket.
@@ -50,6 +51,7 @@ import { Icon } from '@wolffm/themes';
 
 import { navigate } from '../screens/route.ts';
 import { warmRoom } from './warm.ts';
+import { roomFeed, type RoomFeed } from './feed.ts';
 import { playRole } from '../sound/index.ts';
 import {
   clientModeLabel,
@@ -63,8 +65,6 @@ import {
 import { avatarSquareUrl } from '../room/avatar.ts';
 import './rooms.css';
 
-export const POLL_MS = 5000;
-
 type ListState =
   | { kind: 'loading' }
   | { kind: 'failed'; message: string }
@@ -73,9 +73,11 @@ type ListState =
 export interface RoomListProps {
   /** Tests pass a client over a stubbed fetch. Production passes nothing. */
   client?: RoomsClient;
+  /** What says the list changed. Tests pass their own; production passes nothing. */
+  feed?: RoomFeed;
 }
 
-export function RoomList({ client: given }: RoomListProps) {
+export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
   const client = useRef(given ?? roomsClient()).current;
   const [state, setState] = useState<ListState>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);
@@ -92,23 +94,14 @@ export function RoomList({ client: given }: RoomListProps) {
 
   useEffect(() => {
     let live = true;
-    const tick = (): void => {
+    const stopFollowing = feed.follow('list', () => {
       if (live) void refresh();
-    };
-    tick();
-    const timer = setInterval(() => {
-      if (globalThis.document?.visibilityState !== 'hidden') tick();
-    }, POLL_MS);
-    const onVisible = (): void => {
-      if (globalThis.document?.visibilityState === 'visible') tick();
-    };
-    globalThis.document?.addEventListener('visibilitychange', onVisible);
+    });
     return () => {
       live = false;
-      clearInterval(timer);
-      globalThis.document?.removeEventListener('visibilitychange', onVisible);
+      stopFollowing();
     };
-  }, [refresh]);
+  }, [refresh, feed]);
 
   const retry = (): void => {
     playRole('ui.select');

@@ -89,6 +89,26 @@ vi.mock('../../rooms/api.ts', () => ({
 }));
 
 /*
+ * The room feed (`../../rooms/feed.ts`), as the server drives it: the result
+ * screen reads the table once when it starts following, then only when a test
+ * says the room changed (`roomPing()`) — standing in for the other player's
+ * screen writing the room and the server pushing that.
+ */
+const feedState = vi.hoisted(() => ({ followers: new Set<() => void>() }));
+vi.mock('../../rooms/feed.ts', () => ({
+  roomFeed: () => ({
+    follow: (_target: unknown, refresh: () => void) => {
+      refresh();
+      feedState.followers.add(refresh);
+      return () => feedState.followers.delete(refresh);
+    },
+  }),
+}));
+const roomPing = (): void => {
+  for (const refresh of [...feedState.followers]) refresh();
+};
+
+/*
  * The room's table, as the result screen's Rematch reads and writes it: a fake
  * `tablesClient` over one table each test sets up. `ready` writes the caller's
  * own row, as the server's `POST …/ready` does; `other` is the other player's
@@ -3444,7 +3464,8 @@ describe('R16 — the result screen, drawn over the board', () => {
     fireEvent.click(rematch());
     await waitFor(() => expect(check(true)).not.toBeNull());
     tableState.matchId = 'm-theirs000000';
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-theirs000000'), { timeout: 4_000 });
+    roomPing();
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-theirs000000'));
   });
 
   it('the other player leaves: their check and my highlight go, and Rematch has nobody to agree with', async () => {
@@ -3452,7 +3473,8 @@ describe('R16 — the result screen, drawn over the board', () => {
     const { rematch, check } = await victoryInRoom();
     await waitFor(() => expect(check(false)).not.toBeNull());
     tableState.other = { ready: false, present: false };
-    await waitFor(() => expect(check(false), 'their check is gone').toBeNull(), { timeout: 4_000 });
+    roomPing();
+    await waitFor(() => expect(check(false), 'their check is gone').toBeNull());
     expect(rematch().hasAttribute('data-highlight')).toBe(false);
     expect(rematch().disabled).toBe(true);
   });

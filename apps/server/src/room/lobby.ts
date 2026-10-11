@@ -422,17 +422,17 @@ export type LeaveResult =
 export const ROOM_IDLE_MS = 12 * 60 * 60_000;
 
 /**
- * How long a room may go without a touch or a poll before the front page stops
+ * How long a room may go without a touch before the front page stops
  * OFFERING it (wave 31). The room is not deleted (`ROOM_IDLE_MS` does that, much
  * later); it just stops advertising itself.
  *
  * The operator: *"why are 'hi there' and 'hi there2' still showing up?"* Rooms
  * restore on boot and live twelve hours, and the list prints a room's STORED
  * members, not who is connected, so a dead table looked alive with an Enter
- * button. A room someone is in is polled every 1.5 s by its own screen (the
- * table read, and `GET /api/rooms/:id`), so "nobody touched or polled it for
- * thirty minutes" means nobody is there. A room with a match or a draft under
- * way is exempt: its players are on another screen and do not poll the room.
+ * button. A room someone has open is touched by its screen's reads and, for as
+ * long as the screen stays open, by the room feed (`room/feed.ts`), so "nobody
+ * touched it for thirty minutes" means nobody is there. A room with a match or
+ * a draft under way is exempt: its players are on another screen.
  */
 export const ROOM_STALE_MS = 30 * 60_000;
 
@@ -445,17 +445,31 @@ export interface AvatarChange {
 
 export type AvatarChangeListener = (change: AvatarChange) => void;
 
+/** A room was written, created or forgotten. The id only: what changed is the room's to say when it is read. */
+export type RoomChangeListener = (roomId: string) => void;
+
+/** How many of a room's matches it remembers, newest last, for `roomOfMatch`. */
+export const ROOM_MATCHES_KEPT = 8;
+
 export interface Lobby {
 	list(): RoomView[];
 	/**
 	 * The rooms the front page offers: `list()` minus the rooms nobody has touched
-	 * or polled for `staleMs` (`ROOM_STALE_MS`). A room with a match or a draft in
+	 * for `staleMs` (`ROOM_STALE_MS`). A room with a match or a draft in
 	 * progress is always offered. Same order as `list()`.
 	 */
 	offered(staleMs?: number): RoomView[];
-	/** Record that `memberId` is polling `roomId` now. A non-member or unknown room is ignored. */
+	/** Record that `memberId` has `roomId` open now. A non-member or unknown room is ignored. */
 	touch(roomId: string, memberId: string): void;
-	/** The room whose match is `matchId`, or undefined. A match id is never a room id. */
+	/**
+	 * The room that started `matchId`, or undefined. A match id is never a room id.
+	 *
+	 * Not only the room's CURRENT match: a finished match is let go of
+	 * (`releaseMatch`) as soon as anybody reads the room, and a restart does not
+	 * restore `matchId` at all — while the match itself carries on across that
+	 * restart and its result screen still needs its room for a Rematch. So the
+	 * room remembers its last `ROOM_MATCHES_KEPT` matches, on disk.
+	 */
 	roomOfMatch(matchId: string): RoomView | undefined;
 	get(roomId: string): RoomView | undefined;
 	/** Whether `memberId` is a member of `roomId`. False when there is no such room. */
@@ -490,6 +504,13 @@ export interface Lobby {
 	 * hears the change. Returns the unsubscribe.
 	 */
 	onAvatarChange(listener: AvatarChangeListener): () => void;
+	/**
+	 * Be told every time a room is written, created or forgotten. Every mutation
+	 * goes through one persist, so this is every change a read could see and
+	 * nothing else: a read (`touch`, `get`, `list`) never fires it. The room feed
+	 * pushes from here (`room/feed.ts`). Returns the unsubscribe.
+	 */
+	onChange(listener: RoomChangeListener): () => void;
 	/**
 	 * Deal the room's draft: the point at which a draft room stops being a lobby.
 	 *
@@ -660,6 +681,8 @@ interface RoomRecord {
 	format: FormatId;
 	clientMode: ClientMode;
 	matchId: string | null;
+	/** Every match this room started, newest last, at most `ROOM_MATCHES_KEPT`. See `roomOfMatch`. */
+	matches: string[];
 	/** ms since epoch once the draft was dealt; null in the lobby phase. */
 	draftStartedAt: number | null;
 	createdAt: number;
@@ -684,6 +707,8 @@ interface StoredApp {
 	format: FormatId | null;
 	clientMode: ClientMode;
 	matchId: string | null;
+	/** Restored, unlike `matchId`: a match outlives a restart, and its result screen asks which room it was. */
+	matches: string[];
 	/**
 	 * Written, and deliberately read back as null (see `openLobby`). It is here
 	 * so a snapshot on disk says whether that room was mid-draft when the
@@ -749,6 +774,10 @@ const appCodec: AppCodec<StoredApp> = {
 		// build never writes.
 		if (a.format !== undefined && !isFormatId(a.format)) throw new Error('app.format is not a format id');
 		if (a.matchId !== null && typeof a.matchId !== 'string') throw new Error('app.matchId is invalid');
+		// Absent is a room written before the field, which remembers no match.
+		if (a.matches !== undefined && !(Array.isArray(a.matches) && a.matches.every((m) => typeof m === 'string'))) {
+			throw new Error('app.matches is not a list of match ids');
+		}
 		// Absent is a room written before wave 23, which is every room that
 		// existed then and no room that was mid-draft. Present and not a number
 		// is a record this build does not understand.
@@ -764,6 +793,7 @@ const appCodec: AppCodec<StoredApp> = {
 			format: a.format === undefined ? null : (a.format as FormatId),
 			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
 			matchId: a.matchId as string | null,
+			matches: a.matches === undefined ? [] : [...(a.matches as string[])],
 			draftStartedAt: a.draftStartedAt === undefined ? null : (a.draftStartedAt as number | null),
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
@@ -844,6 +874,7 @@ class FileLobby implements Lobby {
 	#now: () => number;
 	#log: LobbyLog;
 	readonly #avatarListeners = new Set<AvatarChangeListener>();
+	readonly #changeListeners = new Set<RoomChangeListener>();
 	#rooms = new Map<string, RoomRecord>();
 	/**
 	 * The newest `createdAt` minted or restored so far.
@@ -915,6 +946,7 @@ class FileLobby implements Lobby {
 			format: room.format,
 			clientMode: room.clientMode,
 			matchId: room.matchId,
+			matches: [...room.matches],
 			draftStartedAt: room.draftStartedAt,
 			secret: this.#secrets.get(room.id) ?? null,
 		};
@@ -933,6 +965,25 @@ class FileLobby implements Lobby {
 			appVersion: APP_VERSION,
 		};
 		this.#store.saveSync(snapshot);
+		this.#changed(room.id);
+	}
+
+	#changed(roomId: string): void {
+		for (const listener of [...this.#changeListeners]) {
+			try {
+				listener(roomId);
+			} catch (err) {
+				// A broken subscriber must not undo a change that is already stored.
+				this.#log({ event: 'room-change-listener-failed', roomId, error: (err as Error).message });
+			}
+		}
+	}
+
+	onChange(listener: RoomChangeListener): () => void {
+		this.#changeListeners.add(listener);
+		return () => {
+			this.#changeListeners.delete(listener);
+		};
 	}
 
 	list(): RoomView[] {
@@ -941,11 +992,11 @@ class FileLobby implements Lobby {
 			.map((r) => this.#view(r));
 	}
 
-	/** In memory only: a poll is not a mutation and must not write a file every 1.5 s. */
-	#polledAt = new Map<string, number>();
+	/** In memory only: a read is not a mutation and must not write a file. */
+	#touchedAt = new Map<string, number>();
 
 	touch(roomId: string, memberId: string): void {
-		if (this.isMember(roomId, memberId)) this.#polledAt.set(roomId, this.#now());
+		if (this.isMember(roomId, memberId)) this.#touchedAt.set(roomId, this.#now());
 	}
 
 	offered(staleMs: number = ROOM_STALE_MS): RoomView[] {
@@ -953,20 +1004,22 @@ class FileLobby implements Lobby {
 		return [...this.#rooms.values()]
 			.filter(
 				(r) =>
-					// An empty room is hidden AT ONCE (R16) — there is nobody left to poll
+					// An empty room is hidden AT ONCE (R16) — there is nobody left to read
 					// it, so waiting out `staleMs` would advertise it, untouched, for up to
 					// thirty more minutes after its last member walked out.
 					r.members.length > 0 &&
 					(r.matchId !== null ||
 						r.draftStartedAt !== null ||
-						Math.max(r.updatedAt, this.#polledAt.get(r.id) ?? 0) > cutoff),
+						Math.max(r.updatedAt, this.#touchedAt.get(r.id) ?? 0) > cutoff),
 			)
 			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
 			.map((r) => this.#view(r));
 	}
 
 	roomOfMatch(matchId: string): RoomView | undefined {
-		for (const room of this.#rooms.values()) if (room.matchId === matchId) return this.#view(room);
+		for (const room of this.#rooms.values()) {
+			if (room.matchId === matchId || room.matches.includes(matchId)) return this.#view(room);
+		}
 		return undefined;
 	}
 
@@ -997,6 +1050,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return false;
 		room.matchId = matchId;
+		if (matchId !== null && !room.matches.includes(matchId)) room.matches = [...room.matches, matchId].slice(-ROOM_MATCHES_KEPT);
 		this.#persist(room);
 		return true;
 	}
@@ -1062,6 +1116,7 @@ class FileLobby implements Lobby {
 			format: this.#defaultFormat,
 			clientMode: input.clientMode,
 			matchId: null,
+			matches: [],
 			draftStartedAt: null,
 			createdAt: now,
 			updatedAt: now,
@@ -1222,7 +1277,7 @@ class FileLobby implements Lobby {
 			if (room.draftStartedAt !== null) continue;
 			this.#rooms.delete(id);
 			this.#secrets.delete(id);
-			this.#polledAt.delete(id);
+			this.#touchedAt.delete(id);
 			dropped.push(id);
 			// The room is gone from the list the moment it leaves the map; the
 			// disk write is best-effort and logged, because a store that cannot
@@ -1231,6 +1286,7 @@ class FileLobby implements Lobby {
 				this.#log({ event: 'room-forget-failed', roomId: id, err: String(err) });
 			});
 			this.#log({ event: 'room-forgotten', roomId: id, idleMs });
+			this.#changed(id);
 		}
 		return dropped;
 	}
@@ -1315,6 +1371,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// `matchId` advertised "playing" for ever, pointing at a game
 					// that died days earlier — which is what the operator found.
 					matchId: null,
+					matches: app.matches,
 					// **Never restored either, and for the same reason.** A draft
 					// lives in `room/draftRooms.ts`'s in-memory registry, which
 					// this process did not inherit — `open` would deal a brand new

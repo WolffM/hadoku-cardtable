@@ -34,6 +34,7 @@ import {
 	NO_FORMAT,
 	openLobby,
 	ROOM_IDLE_MS,
+	ROOM_MATCHES_KEPT,
 	ROOM_STALE_MS,
 	type ClientMode,
 	type Lobby,
@@ -1070,5 +1071,94 @@ describe('Lobby.offered', () => {
 		expect(lobby.roomOfMatch('m-1')).toBeUndefined();
 		lobby.setMatch(made.room.id, 'm-1');
 		expect(lobby.roomOfMatch('m-1')?.id).toBe(made.room.id);
+	});
+
+	it('still resolves a match after the room let go of it, after a rematch, and after a restart', async () => {
+		// The operator's rematch (r-cae3103a30ac): one result screen asked which room its match was in
+		// after the other screen's read had released it, found none, and greyed Rematch out.
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		lobby.setMatch(made.room.id, 'm-first0000001');
+		lobby.releaseMatch(made.room.id);
+		expect(lobby.get(made.room.id)?.matchId).toBeNull();
+		expect(lobby.roomOfMatch('m-first0000001')?.id, 'released').toBe(made.room.id);
+		lobby.setMatch(made.room.id, 'm-second000001');
+		expect(lobby.roomOfMatch('m-first0000001')?.id, 'after the rematch started').toBe(made.room.id);
+
+		const rebooted = await openLobby({ dir });
+		expect(rebooted.get(made.room.id)?.matchId, 'a restart still restores no match').toBeNull();
+		expect(rebooted.roomOfMatch('m-first0000001')?.id, 'after a restart').toBe(made.room.id);
+		expect(rebooted.roomOfMatch('m-second000001')?.id).toBe(made.room.id);
+	});
+
+	it(`remembers a room's last ${ROOM_MATCHES_KEPT} matches, and no more`, async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		for (let i = 0; i <= ROOM_MATCHES_KEPT; i += 1) lobby.setMatch(made.room.id, `m-${String(i).padStart(12, '0')}`);
+		expect(lobby.roomOfMatch(`m-${'0'.repeat(12)}`), 'the oldest is forgotten').toBeUndefined();
+		expect(lobby.roomOfMatch(`m-${String(1).padStart(12, '0')}`)?.id).toBe(made.room.id);
+	});
+});
+
+/* ── what the room feed pushes from ──────────────────────────────────── */
+
+describe('Lobby.onChange', () => {
+	it('names the room on every write — create, join, ready, deck, match, release, leave — and never on a read', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const heard: string[] = [];
+		const stop = lobby.onChange((id) => heard.push(id));
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(heard).toEqual([id]);
+
+		lobby.join(id, BOB);
+		lobby.setReady(id, BOB.id, true);
+		lobby.setPlayerState(id, ALICE.id, { deck: 'x' });
+		lobby.setMatch(id, 'm-000000000001');
+		lobby.releaseMatch(id);
+		lobby.leave(id, BOB.id);
+		expect(heard).toHaveLength(7);
+		expect(new Set(heard)).toEqual(new Set([id]));
+
+		lobby.get(id);
+		lobby.list();
+		lobby.offered();
+		lobby.touch(id, ALICE.id);
+		lobby.roomOfMatch('m-000000000001');
+		lobby.releaseMatch(id);
+		expect(heard, 'reads, and a release with nothing to release, are not changes').toHaveLength(7);
+
+		stop();
+		lobby.setReady(id, ALICE.id, true);
+		expect(heard, 'unsubscribed').toHaveLength(7);
+	});
+
+	it('names a room the sweep forgets', async () => {
+		let clock = 4_000_000_000_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const heard: string[] = [];
+		lobby.onChange((id) => heard.push(id));
+		clock += ROOM_IDLE_MS + 1;
+		expect(lobby.sweep()).toEqual([made.room.id]);
+		expect(heard).toEqual([made.room.id]);
+	});
+
+	it('a listener that throws does not undo the write or stop the next listener', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const heard: string[] = [];
+		lobby.onChange(() => {
+			throw new Error('broken subscriber');
+		});
+		lobby.onChange((id) => heard.push(id));
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(heard).toEqual([made.room.id]);
+		expect(lobby.get(made.room.id)?.name).toBe('tonight');
 	});
 });

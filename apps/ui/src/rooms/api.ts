@@ -384,6 +384,17 @@ export interface RoomBindClient {
 }
 
 /**
+ * The match screen's one room call: which room started this match. Its route
+ * carries only the match id, and the result screen readies at that room's
+ * table for a Rematch. The server remembers a room's recent matches past their
+ * end and past a restart, so a reload on a finished match still finds it;
+ * `null` is the server's 404 (not a room match, or not your room).
+ */
+export interface RoomOfMatchClient {
+  roomOfMatch(matchId: string): Promise<RoomView | null>;
+}
+
+/**
  * The room's identity write, deliberately NOT on `RoomsClient`.
  *
  * `RoomsClient` is what a SCREEN does to a room: list it, enter it, ready up,
@@ -434,7 +445,7 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
   base: string = defaultApiBase(),
-): RoomsClient & RoomIdentityClient & RoomBindClient {
+): RoomsClient & RoomIdentityClient & RoomBindClient & RoomOfMatchClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
   /**
@@ -469,6 +480,22 @@ export function roomsClient(
     return { ok: true, room };
   };
 
+  /** One room's view: `null` on the server's usual 404, a thrown sentence for anything else. */
+  const read = async (path: string): Promise<RoomView | null> => {
+    let res: Response;
+    try {
+      res = await fetchImpl(url(path), { credentials: 'same-origin' });
+    } catch {
+      throw new Error('Could not reach the server.');
+    }
+    if (res.status === 404) return null;
+    const body = await bodyOf(res);
+    if (!res.ok) throw new Error(`Could not load the room: ${serverMessage(body, res.status)}.`);
+    const room = parseRoomView(body);
+    if (room === null) throw new Error('The server sent something that is not a room.');
+    return room;
+  };
+
   return {
     async list() {
       let res: Response;
@@ -485,19 +512,12 @@ export function roomsClient(
       return body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null);
     },
 
-    async get(roomId) {
-      let res: Response;
-      try {
-        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}`), { credentials: 'same-origin' });
-      } catch {
-        throw new Error('Could not reach the server.');
-      }
-      if (res.status === 404) return null;
-      const body = await bodyOf(res);
-      if (!res.ok) throw new Error(`Could not load the room: ${serverMessage(body, res.status)}.`);
-      const room = parseRoomView(body);
-      if (room === null) throw new Error('The server sent something that is not a room.');
-      return room;
+    get(roomId) {
+      return read(`/${encodeURIComponent(roomId)}`);
+    },
+
+    roomOfMatch(matchId) {
+      return read(`/of-match/${encodeURIComponent(matchId)}`);
     },
 
     async create(req) {

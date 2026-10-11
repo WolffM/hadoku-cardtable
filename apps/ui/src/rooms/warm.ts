@@ -11,7 +11,7 @@
  *
  * So the list reads all of that BEFORE it navigates (`warmRoom`), and the room
  * screen takes it as its initial state (`takeWarmRoom`). The screen still runs
- * every one of its own reads and polls exactly as before: a warm only means
+ * every one of its own reads exactly as before: a warm only means
  * the first paint is the finished page, never that a read is skipped for good.
  *
  * One room, taken once. A warm for another room, or one already taken, is

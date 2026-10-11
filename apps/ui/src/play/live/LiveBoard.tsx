@@ -259,6 +259,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient } from '../../rooms/api.ts';
+import { roomFeed } from '../../rooms/feed.ts';
 import { tablesClient, type RoomTable, type StartOutcome } from '../../screens/tables.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
@@ -1579,9 +1580,6 @@ function ResultFace({ player, rematch }: { player: BoardPlayer; rematch: boolean
   );
 }
 
-/** How often the result screen reads the room's table: the room screen's own poll. */
-const REMATCH_POLL_MS = 1_500;
-
 /** Who has pressed Rematch, and what pressing it can do now. */
 export interface Rematch {
   /** I have pressed it. */
@@ -1628,8 +1626,9 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * when both players have rematch clicked should it launch into a new game"*).
  * Pressing it readies you at the room's table — the same Ready the room screen
  * starts a match on, with the decks both players still hold there — and
- * pressing it again stands you down. This screen polls the table, draws a
- * check over each face whose player is ready, and highlights the button of the
+ * pressing it again stands you down. This screen reads the table whenever the
+ * room changes (`rooms/feed.ts`), draws a check over each face whose player is
+ * ready, and highlights the button of the
  * player the other is waiting on. Once both are ready either screen asks for
  * the match (`startRoom`; the server answers one match to both), and a screen
  * that did not ask follows the room's new `matchId`. In a game played alone
@@ -1640,12 +1639,13 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * THEN goes to the lobby — in that order, `finally`, so a leave that fails
  * still lands the player somewhere rather than stranding them on a result
  * screen for a room that may already be gone. Leaving takes your seat at the
- * table with you, so the other screen's next poll loses your check and its
+ * table with you, so the other screen's next read loses your check and its
  * highlight, and its Rematch has nobody left to agree with.
  *
  * Without a known room (`roomId === null` — a `#/match/<id>` link from
- * elsewhere, or a room list that failed to load; see `MatchScreen.tsx`'s own
- * comment on the same fact), there is no table to ready at: Rematch is
+ * elsewhere, a match no room started, or a server that could not be reached;
+ * see `MatchScreen.tsx`'s own comment on the same fact), there is no table to
+ * ready at: Rematch is
  * disabled and Main menu goes straight to the lobby.
  */
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
@@ -1661,29 +1661,27 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const [table, setTable] = useState<RoomTable | null>(null);
   const [alone, setAlone] = useState<boolean | null>(null);
   const [tables] = useState(tablesClient);
-  /** A start is in flight: not asked again on every poll. */
+  /** A start is in flight: not asked again on every read. */
   const asked = useRef(false);
   const rematch = rematchOf(table, alone === true);
 
   useEffect(() => {
     if (roomId === null) return;
     let live = true;
-    const read = (): void => {
+    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
       tables.table(roomId).then(
         (answer) => {
           if (!live || !answer.ok) return;
           setTable(answer.table);
           setAlone((was) => was ?? answer.table.players.length === 1);
         },
-        // Unreachable for a moment: the last answer stays on screen and the next poll asks again.
+        // Unreachable for a moment: the last answer stays on screen and the next read asks again.
         () => undefined,
       );
-    };
-    read();
-    const timer = setInterval(read, REMATCH_POLL_MS);
+    });
     return () => {
       live = false;
-      clearInterval(timer);
+      stopFollowing();
     };
   }, [roomId, tables]);
 

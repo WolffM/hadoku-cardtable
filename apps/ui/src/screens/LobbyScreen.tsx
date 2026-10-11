@@ -22,7 +22,7 @@
  *
  * The join box accepted a pasted invite link or a bare id. The room list
  * answers that need: an invite link is `#/room/<id>`, and entering a room joins
- * it — `ConstructedScreen`'s table poll joins once on a refused read (its
+ * it — `ConstructedScreen`'s table read joins once on a refused read (its
  * "Entering a room joins it" comment has the live incident that put it there).
  * So a friend with a link clicks it, and a friend without one finds the room in
  * the list.
@@ -30,6 +30,7 @@
 
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
+import type { RoomFeed } from '../rooms/feed.ts';
 import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
@@ -37,13 +38,15 @@ import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
   rooms?: RoomsClient;
+  /** Tests pass their own room feed. Production passes nothing. */
+  feed?: RoomFeed;
   /** `#/stats[/<name>]`: the stats popout is open over the lobby, for this player (absent, the viewer). */
   stats?: { player?: string };
   /** Tests pass a stats client over a stubbed fetch. Production passes nothing. */
   statsSource?: StatsSource;
 }
 
-export function LobbyScreen({ rooms, stats, statsSource }: LobbyScreenProps) {
+export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProps) {
   return (
     <div className="shell shell--fit" data-testid="lobby">
       {/* No title here. The fleet's AppHeader already says "Card Table" at the
@@ -56,7 +59,7 @@ export function LobbyScreen({ rooms, stats, statsSource }: LobbyScreenProps) {
         <SettingsGear />
       </nav>
       <main className="front">
-        <RoomList client={rooms} />
+        <RoomList client={rooms} feed={feed} />
       </main>
       {stats !== undefined && <StatsPopout player={stats.player} source={statsSource} />}
 

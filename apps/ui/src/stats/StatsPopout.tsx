@@ -12,7 +12,9 @@
  *     theirs, and a stats link still works from anywhere.
  *   - **Prefetched.** The button warms every read the popout makes when the
  *     lobby mounts and again on hover, into one cache, so opening draws at once
- *     and refreshes behind what it shows (`@wolffm/game-stats-ui`'s cache).
+ *     and refreshes behind what it shows (`@wolffm/game-stats-ui`'s cache) —
+ *     for a signed-in viewer only, and never again after a refusal
+ *     (`signedInStatsClient`).
  *   - **A fixed, wide panel**, not a page in the flow: the old screen was a
  *     centred flex child with no width of its own, so it shrank to one column.
  *
@@ -37,7 +39,8 @@ import {
   type StatsCache,
 } from '@wolffm/game-stats-ui';
 import '@wolffm/game-stats-ui/style.css';
-import { createGameStatsClient, type GameStatsClient } from '@wolffm/prefs-client/games';
+import { whoami } from '@wolffm/prefs-client';
+import { createGameStatsClient, GameStatsError, type GameStatsClient } from '@wolffm/prefs-client/games';
 
 import { ManaPip } from '../components/ManaPip.tsx';
 import type { DeckRecords } from './deckOrder.ts';
@@ -91,11 +94,56 @@ export function prefsBaseUrl(): string | undefined {
   return typeof base === 'string' && base !== '' ? base : undefined;
 }
 
+/** Whether the viewer has a session the stats store will answer: the fleet's `whoami`, shared per page. */
+async function viewerSignedIn(): Promise<boolean> {
+  return (await whoami()).userType !== 'public';
+}
+
+/**
+ * The stats reads, kept off the network for a viewer the store will refuse.
+ *
+ * hadoku_site's request log (2026-10-10) had a signed-out viewer
+ * reading all four stats endpoints ~6.5 times a minute for six hours, every
+ * answer a 401: the cache keeps no failure, so every prefetch and every open
+ * of the popout asked again. So:
+ *
+ *   - a viewer `whoami` calls public is never sent to the store at all; each
+ *     read fails at once with the store's own 401, which the screen already
+ *     draws as its signed-out state ("Sign in to see stats.");
+ *   - a 401 or 403 from the store is final for the page: every later read
+ *     answers it without asking. A session does not appear mid-page — signing
+ *     in is a reload.
+ */
+export function signedInStatsClient(client: GameStatsClient, signedIn: () => Promise<boolean>): GameStatsClient {
+  let refused: GameStatsError | null = null;
+  let checked: Promise<boolean> | null = null;
+  const guard =
+    <A extends unknown[], R>(read: (...args: A) => Promise<R>) =>
+    async (...args: A): Promise<R> => {
+      checked ??= signedIn();
+      if (refused === null && !(await checked)) refused = new GameStatsError(401, 'signed out');
+      if (refused !== null) throw refused;
+      try {
+        return await read(...args);
+      } catch (err) {
+        if (err instanceof GameStatsError && (err.status === 401 || err.status === 403)) refused = err;
+        throw err;
+      }
+    };
+  return {
+    profile: guard(client.profile),
+    matches: guard(client.matches),
+    match: guard(client.match),
+    leaderboard: guard(client.leaderboard),
+    breakdown: guard(client.breakdown),
+  };
+}
+
 /** The page's one stats client and the cache its reads are kept in. */
 function sharedSource(): StatsSource {
   const baseUrl = prefsBaseUrl();
   shared ??= {
-    client: createGameStatsClient({ gameId: 'cardtable', ...(baseUrl === undefined ? {} : { baseUrl }) }),
+    client: signedInStatsClient(createGameStatsClient({ gameId: 'cardtable', ...(baseUrl === undefined ? {} : { baseUrl }) }), viewerSignedIn),
     cache: createStatsCache(),
   };
   return shared;
