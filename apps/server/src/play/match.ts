@@ -2365,7 +2365,6 @@ export class Match {
 			openAsks: s.asks.size,
 			creatures: s.projector.creatureCount(),
 			stackTopActivator: s.projector.stackTopActivator(),
-			ownBattlefieldLandIds: s.projector.ownBattlefieldLandIds(),
 			// The bridge's facts about the set `actionable` holds (wave 52 §S).
 			...(s.actionable !== null && s.weakly?.method === 'setWeaklySelectable'
 				? {

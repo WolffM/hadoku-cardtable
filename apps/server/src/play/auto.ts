@@ -768,28 +768,12 @@ export interface SeatNotes {
 	/** The player id that activated the top stack item, or null (`SeatProjector.stackTopActivator`). */
 	stackTopActivator?: number | null;
 	/**
-	 * The ids among `actionable` that are LANDS on this seat's OWN battlefield
-	 * (`SeatProjector.ownBattlefieldLandIds`) — wave 35's follow-up to lane F's
-	 * land-tapping fix (R15): every untapped land with a mana ability is now in
-	 * `actionable` at ordinary priority, so "the actionable set is empty" almost
-	 * never holds any more on a normal turn. Used ONLY to compute
-	 * {@link PromptFacts.nonManaSources}, which only `decideStop`'s "nothing to
-	 * do" check reads — {@link PromptFacts.sources}, `noWayToPay` and
-	 * `plannedSources` all stay based on the RAW actionable set, because a land
-	 * IS a legitimate payment source and payment decisions must still see it.
-	 * Optional, same reason `creatures`/`stackTopActivator` are: a caller with no
-	 * board (the unit suites) says nothing, which costs nothing — an undefined
-	 * set is treated as empty, so `nonManaSources` falls back to the unfiltered
-	 * `sources` and behaves exactly as before this field existed.
-	 */
-	ownBattlefieldLandIds?: ReadonlySet<number>;
-	/**
 	 * The ids among `actionable` that Forge offers ONLY for a mana ability — the
-	 * bridge's `setWeaklySelectable.manaOnly`, read off Forge's abilities (wave 52
-	 * §S). Since w52's fork commit a Signet (`{1},{T}`) is offered at priority, and
-	 * a Signet is not a land, so the lands alone no longer covered "tapping for mana
-	 * is not a reason to hold priority". Undefined (an older frame, or the bridge
-	 * could not read it) filters nothing more, which keeps the stop.
+	 * bridge's `setWeaklySelectable.manaOnly`, read off each card's playable
+	 * abilities, never its type: a Forest or a Signet is in it, a Ghost Quarter or
+	 * a fetchland is not (its sacrifice ability is a real play). The ONE fact
+	 * {@link PromptFacts.nonManaSources} filters by. Undefined (an older frame,
+	 * or the bridge could not read it) filters nothing, which keeps the stop.
 	 */
 	manaOnlyIds?: ReadonlySet<number>;
 	/**
@@ -864,24 +848,17 @@ export interface PromptFacts {
 	 */
 	readonly sources: readonly number[] | null;
 	/**
-	 * {@link sources}, minus every MANA SOURCE: an id that is a land on this seat's
-	 * own battlefield (`SeatNotes.ownBattlefieldLandIds`), or one Forge offers only
-	 * for a mana ability (`SeatNotes.manaOnlyIds`, wave 52 §S — a Signet). Wave
-	 * 35's follow-up to lane F's land-tapping fix (R15) began it with lands; w52's
-	 * fork commit offers a Signet at priority too. `decideStop`'s "nothing left to do, pass"
-	 * check reads THIS, never `sources`: F's fix makes Forge offer every
-	 * untapped land with a mana ability through the SAME actionable set at
-	 * ordinary priority, so "the set is non-empty" stopped meaning "there is a
-	 * real decision" the moment that landed — on a normal turn with any land
-	 * left untapped, `sources` is now almost never empty, and the "pass when
-	 * nothing to do" shortcut this field exists to protect could no longer ever
-	 * fire (measured: `play.spec.ts`'s "a spell resolves unattended" failed 5 of
-	 * 5 real-Forge runs). Tapping a land or a mana rock is never, by itself, a reason
-	 * to hold priority — the same judgment the UI's own `nothingToDecide`
-	 * (`apps/ui/src/play/live/match.ts`) already makes, and this is its
-	 * server-side twin. `sources` itself, `noWayToPay` and `plannedSources` are
-	 * all left on the RAW set: a land IS a legitimate payment source, and a
-	 * payment decision must still see it.
+	 * {@link sources}, minus every MANA SOURCE: an id Forge offers only for a mana
+	 * ability (`SeatNotes.manaOnlyIds`). Decided per ABILITY, never per card type:
+	 * a land with a playable non-mana ability (Ghost Quarter, Rishadan Port, a
+	 * man-land, a fetchland) stays in, exactly as an instant in hand would.
+	 * `decideStop`'s "nothing left to do, pass" check reads THIS, never `sources`:
+	 * Forge offers every untapped land and mana rock through the SAME actionable
+	 * set at ordinary priority, so "the set is non-empty" does not mean "there is a
+	 * real decision" — on a normal turn with any land untapped, `sources` is almost
+	 * never empty. Tapping for mana is never, by itself, a reason to hold priority.
+	 * `sources` itself, `noWayToPay` and `plannedSources` all stay on the RAW set:
+	 * a land IS a legitimate payment source, and a payment decision must still see it.
 	 */
 	readonly nonManaSources: readonly number[] | null;
 	/**
@@ -1054,7 +1031,6 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		cost !== null && buttons.label1 === AUTO_BUTTON ? 'payment' : priority !== undefined ? 'priority' : 'other';
 
 	const all = notes.actionable;
-	const ownLands = notes.ownBattlefieldLandIds;
 	const manaOnly = notes.manaOnlyIds;
 	return {
 		window,
@@ -1068,8 +1044,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		alternativePayment: LIFE_INSTEAD.test(message),
 		noWayToPay: window === 'payment' && buttons.enable1 !== true && all !== null && all.length === 0,
 		sources: all === null ? null : [...new Set(all)],
-		nonManaSources:
-			all === null ? null : [...new Set(all)].filter((id) => !(ownLands?.has(id) ?? false) && !(manaOnly?.has(id) ?? false)),
+		nonManaSources: all === null ? null : [...new Set(all)].filter((id) => !(manaOnly?.has(id) ?? false)),
 		phaseRestricted: notes.phaseRestrictedIds ?? [],
 		plannedSources: all === null ? [] : repeated(all),
 		openAsks: notes.openAsks,
@@ -1187,9 +1162,9 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
 	if (!policy.passWhenNothingToDo) return null;
 	// Forge has not answered "what can this seat do" — never pass on silence. An
 	// EMPTY set is Forge saying "nothing"; `clearWeaklySelectable` is "no answer".
-	// `nonManaSources`, not `sources`: Forge offers every untapped land (R15) and
-	// mana rock (w52) in the SAME actionable set at ordinary priority, and tapping
-	// one for mana is never, by itself, a reason to hold priority — see the field.
+	// `nonManaSources`, not `sources`: Forge offers every untapped land and mana
+	// rock in the SAME actionable set at ordinary priority, and tapping one for
+	// mana is never, by itself, a reason to hold priority — see the field.
 	if (facts.nonManaSources === null || facts.nonManaSources.length > 0) return null;
 	return facts.phaseLabel ?? 'priority';
 }

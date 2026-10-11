@@ -1317,10 +1317,11 @@ public final class PlayBridge {
          *
          * <ul>
          * <li>{@code manaOnly}: the offered cards whose every playable ability is a mana
-         * ability. Since w52's fork commit Forge offers a Signet ({@code {1},{T}}) at
-         * priority, and a Signet is not a land, so the server's "nothing but lands is
-         * actionable" pass would have become a stop for every seat holding one. Tapping
-         * for mana is never by itself a reason to hold priority, land or not.</li>
+         * ability — a Forest, a dual, a Signet ({@code {1},{T}}). The server's "nothing
+         * left to do, pass" reads this and nothing else: tapping for mana is never by
+         * itself a reason to hold priority, but a land with a playable non-mana ability
+         * (Ghost Quarter, a fetchland, a man-land) is not in it, so it holds the window
+         * the way an instant in hand does.</li>
          * <li>{@code phaseRestricted}: the offered permanents this seat controls with a
          * playable non-mana ability whose {@code ActivationPhases} restriction
          * ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases}) is

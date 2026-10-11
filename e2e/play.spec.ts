@@ -1314,25 +1314,29 @@ test(LIVE_TITLE, async ({ browser }) => {
      * What this test's own driver lacked was a way to decline an option
      * nobody intends to take — before this wave, land noise dominated
      * `facts.sources` regardless, so the premise held by coincidence, for
-     * the wrong reason. Checked and clicked only when bob's own OFFERED set
-     * actually holds a non-land card (never a blind "OK is enabled" click,
-     * which could just as easily be alice's own Pay Mana Cost reaching
-     * bob's page) — a deliberate decline, recorded, not a silent one.
+     * the wrong reason. A land with a playable non-mana ability (a
+     * fetchland, a man-land, Wasteland) holds the window too, exactly as an
+     * instant in hand does. Clicked only while bob's OWN prompt names a
+     * spell on the stack and Forge offers him something on his side of the
+     * table (never a blind "OK is enabled" click, which could just as easily
+     * be alice's own Pay Mana Cost reaching bob's page) — a deliberate
+     * decline, recorded, not a silent one.
      */
     const bobDeclines: string[] = [];
     const declineBobsRealOffer = async (): Promise<boolean> => {
-      const bobOffered = await offeredIn(bob!, 'hand');
-      const nonLand = bobOffered.filter((c) => !/Land/.test(c.type));
-      if (nonLand.length === 0) return false;
+      const line = (await bob!.page.getByTestId('live-says').textContent()) ?? '';
+      if (!/Stack: \d+ to Resolve/i.test(line)) return false;
+      const bobOffered = [...(await offeredIn(bob!, 'hand')), ...(await offeredIn(bob!, 'battlefield'))];
+      if (bobOffered.length === 0) return false;
       const ok = enabledOk(bob!.page);
       if ((await ok.count()) === 0) return false;
       await ok.first().click({ timeout: 2_000 }).catch(() => {});
-      bobDeclines.push(...nonLand.map((c) => c.name));
+      bobDeclines.push(...bobOffered.map((c) => c.name));
       return true;
     };
 
-    let unattended: { card: string; ms: number; instant: boolean; pressedSinceTheClick: string[]; bobDeclinedNonLand: string[] } | null = null;
-    const casts: { card: string; left: boolean; arrived: boolean; pressed: string[]; aliceOwnPresses: string[]; bobDeclinedNonLand: string[] }[] = [];
+    let unattended: { card: string; ms: number; instant: boolean; pressedSinceTheClick: string[]; bobDeclined: string[] } | null = null;
+    const casts: { card: string; left: boolean; arrived: boolean; pressed: string[]; aliceOwnPresses: string[]; bobDeclined: string[] }[] = [];
     const wontAnnounce = new Set<number>();
     /** Consecutive passes with nothing offered — see the press rule below. */
     let empty = 0;
@@ -1401,7 +1405,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         const cancel = enabledCancel(alice.page);
         if ((await cancel.count()) > 0) await cancel.first().click({ timeout: 2_000 }).catch(() => {});
         wontAnnounce.add(spell.id);
-        casts.push({ card: spell.name, left: false, arrived: false, pressed: [], aliceOwnPresses: [], bobDeclinedNonLand: [] });
+        casts.push({ card: spell.name, left: false, arrived: false, pressed: [], aliceOwnPresses: [], bobDeclined: [] });
         continue;
       }
 
@@ -1467,9 +1471,9 @@ test(LIVE_TITLE, async ({ browser }) => {
       const castDeclines = bobDeclines.slice(declinesBefore);
       const pressed = pressesSince(t0);
       const aliceOwnPresses = pressed.filter((p) => p.startsWith(`${alice!.name}:`));
-      casts.push({ card: spell.name, left: true, arrived: landed, pressed, aliceOwnPresses, bobDeclinedNonLand: castDeclines });
+      casts.push({ card: spell.name, left: true, arrived: landed, pressed, aliceOwnPresses, bobDeclined: castDeclines });
       if (landed && aliceOwnPresses.length === 0) {
-        unattended = { card: spell.name, ms: Date.now() - t0, instant, pressedSinceTheClick: pressesSince(clickedAt), bobDeclinedNonLand: castDeclines };
+        unattended = { card: spell.name, ms: Date.now() - t0, instant, pressedSinceTheClick: pressesSince(clickedAt), bobDeclined: castDeclines };
       } else await pressOk();
     }
     summary.resolvedUnattended = { found: unattended, casts, passes, everOffered: [...everOffered] };
@@ -1522,8 +1526,8 @@ test(LIVE_TITLE, async ({ browser }) => {
       // flash option is supposed to hold a window open. What IS guaranteed,
       // and what this now asserts, is narrower and still real: the CASTER
       // is never bothered for a cast she has nothing left to do for.
-      // `declineBobsRealOffer` (above) presses bob's OK ONLY when his own
-      // offered set holds a non-land card — a deliberate, recorded decline
+      // `declineBobsRealOffer` (above) presses bob's OK ONLY in his own window on
+      // the stack with something offered to him — a deliberate, recorded decline
       // of an option nobody intends to take — and `unattended` now requires
       // `aliceOwnPresses.length === 0`, not that neither seat ever pressed
       // anything.

@@ -1510,9 +1510,9 @@ function firstOwnCard(h: Harness, seat: number): { id: number; key: number; name
  */
 function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnType<typeof readPromptFacts> {
 	// `nonManaSources` defaults to whatever `sources` ends up being: none of
-	// these fixtures' ids are meant to represent a land (wave 35's land
-	// exclusion is tested on its own, below), so the two fields agree unless a
-	// case overrides `nonManaSources` itself.
+	// these fixtures' ids are meant to represent a mana source (that exclusion
+	// is tested on its own, below), so the two fields agree unless a case
+	// overrides `nonManaSources` itself.
 	const sources = over.sources ?? [];
 	return {
 		window: 'priority',
@@ -1537,13 +1537,8 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 }
 
 /** Notes for a seat sitting in one window, for the adapter's own tests. */
-function notesFor(
-	message: string,
-	bar: ServerFrame,
-	actionable: readonly number[] | null = null,
-	ownBattlefieldLandIds?: ReadonlySet<number>,
-): SeatNotes {
-	return { playerId: 1, prompt: prompt(message, 1), buttons: bar, actionable, openAsks: 0, ownBattlefieldLandIds };
+function notesFor(message: string, bar: ServerFrame, actionable: readonly number[] | null = null, manaOnlyIds?: ReadonlySet<number>): SeatNotes {
+	return { playerId: 1, prompt: prompt(message, 1), buttons: bar, actionable, openAsks: 0, manaOnlyIds };
 }
 
 describe('the adapter is the ONLY prose reader, and it is named', () => {
@@ -1890,23 +1885,23 @@ describe('NEVER shortcut (1): a stop with a legal action and something at stake'
  * check (every other read above, and all of `decidePay`'s, are untouched and
  * still use the raw `sources` — a land IS a legitimate payment source).
  */
-describe('wave 35 §S follow-up — the viewer’s own battlefield lands do not count as "something to do"', () => {
+describe('mana sources do not count as "something to do"', () => {
 	// Phase `null` (Forge's own spelling the adapter did not recognise) is what
 	// reaches `decideStop`'s FINAL "nothing to do" check in this file's own
 	// existing convention (see `unknown`, above): the default `facts()` phase,
 	// `COMBAT_DECLARE_BLOCKERS` on the opponent's turn, is itself a mandatory
 	// stop under `DEFAULT_STOP_POLICY.stopOnTheirTurn` and returns null before
-	// `sources`/`nonManaSources` are ever read — the land exclusion needs a
+	// `sources`/`nonManaSources` are ever read — the mana exclusion needs a
 	// phase that is NOT already decided by an earlier branch.
 	const unclassified = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
 		facts({ phase: null, phaseLabel: 'Fourth main phase', myTurn: true, ...over });
 
-	it('passes when the actionable set names ONLY the seat’s own battlefield land(s)', () => {
+	it('passes when the actionable set names ONLY mana sources', () => {
 		expect(decideStop(unclassified({ sources: [67], nonManaSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 		expect(decideStop(unclassified({ sources: [67, 68], nonManaSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
-	it('is still NOT passed when anything else is also actionable — a land does not hide a real decision', () => {
+	it('is still NOT passed when anything else is also actionable — a mana source does not hide a real decision', () => {
 		expect(decideStop(unclassified({ sources: [67, 90], nonManaSources: [90] }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
@@ -1919,13 +1914,13 @@ describe('wave 35 §S follow-up — the viewer’s own battlefield lands do not 
 		expect(decidePay(payment, DEFAULT_STOP_POLICY)).toBe('{R}');
 	});
 
-	it('readPromptFacts itself: nonManaSources is sources minus SeatNotes.ownBattlefieldLandIds, sources untouched', () => {
+	it('readPromptFacts itself: nonManaSources is sources minus SeatNotes.manaOnlyIds, sources untouched', () => {
 		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 90], new Set([67])));
 		expect(read.sources).toEqual([67, 90]);
 		expect(read.nonManaSources).toEqual([90]);
 	});
 
-	it('readPromptFacts: no `ownBattlefieldLandIds` at all (the unit suites’ own callers) leaves nonManaSources equal to sources', () => {
+	it('readPromptFacts: no `manaOnlyIds` at all (a frame the bridge did not describe) leaves nonManaSources equal to sources', () => {
 		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 90]));
 		expect(read.nonManaSources).toEqual(read.sources);
 	});
@@ -2349,9 +2344,10 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen cost', () => {
 	const card = (id: number) => ({ kind: 'card' as const, id });
 	/** Seat 0 watching seat 1's spell on the stack — a window only "nothing to do" can pass. */
-	function stackWindow(cards: number[], manaOnly?: number[]): Harness {
+	function stackWindow(cards: number[], manaOnly?: number[], land?: number): Harness {
 		const h = harness();
 		const me = playerOf(h, 0);
+		if (land !== undefined) putCreature(h, 0, land, ['Land']);
 		putOnStack(h, 0, 5, playerOf(h, 1));
 		push(h, 0, {
 			kind: 'notify',
@@ -2381,10 +2377,18 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(passed(stackWindow([94]))).toBe(0);
 	});
 
-	it('readPromptFacts: nonManaSources drops own lands AND manaOnly ids, sources untouched', () => {
-		const read = readPromptFacts({ ...notesFor(PRIORITY_MESSAGE, buttons(true), [67, 94, 90], new Set([67])), manaOnlyIds: new Set([94]) });
+	it('readPromptFacts: nonManaSources drops the manaOnly ids, sources untouched', () => {
+		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 94, 90], new Set([67, 94])));
 		expect(read.sources).toEqual([67, 94, 90]);
 		expect(read.nonManaSources).toEqual([90]);
+	});
+
+	it('a land of the seat’s own offered for a non-mana ability (a Ghost Quarter) stops like an instant in hand', () => {
+		expect(passed(stackWindow([67, 80], [67], 80))).toBe(0);
+	});
+
+	it('the same land offered only for its mana is passed', () => {
+		expect(passed(stackWindow([67, 80], [67, 80], 80))).toBe(1);
 	});
 
 	const UPKEEP = 'Priority: A\nTurn: 4 (A)\nPhase: Upkeep step\nStack: Empty';

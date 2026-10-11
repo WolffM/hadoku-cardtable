@@ -9,7 +9,7 @@
  * ordinary priority, so a seat holding even one untapped land is never
  * "empty" by the old measure — the "nothing to do, pass" shortcut almost
  * never fires on an ordinary turn. The fix reads `facts.nonManaSources`
- * (the actionable set minus the seat's own battlefield lands) at that one
+ * (the actionable set minus the cards the bridge names `manaOnly` — a Mountain is one) at that one
  * branch instead of raw `facts.sources`.
  *
  * `auto.jvm.test.ts`'s existing suite DOES fail when this fix is reverted,
