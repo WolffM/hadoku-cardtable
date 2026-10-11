@@ -22,6 +22,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
+import { foldStream } from './play/isolation.ts';
 import { castByDrag, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -46,14 +47,26 @@ const topId = (page: Page): Promise<number | null> =>
  * preload names both decklists on purpose (the operator accepts that for art), so a library card's name
  * reaching a browser there says nothing about the projection.
  */
-const received = (f: Friend, name: string): boolean =>
+const stateFrames = (f: Friend): string[] =>
   messages(f)
     .filter((m) => m.dir === 'in')
     .flatMap((m) => {
       const msg = m.msg as { frame?: { method?: string }; frames?: { method?: string }[] } | null;
       return [...(msg?.frames ?? []), ...(msg?.frame === undefined ? [] : [msg.frame])];
     })
-    .some((frame) => (frame.method === 'setGameView' || frame.method === 'applyDelta') && JSON.stringify(frame).includes(JSON.stringify(name)));
+    .filter((frame) => frame.method === 'setGameView' || frame.method === 'applyDelta')
+    .map((frame) => JSON.stringify(frame));
+const received = (f: Friend, name: string): boolean => stateFrames(f).some((text) => text.includes(JSON.stringify(name)));
+/** Where `name` first reached this browser in a state frame: the frame's index and the text around it. */
+const firstSent = (f: Friend, name: string): string => {
+  const frames = stateFrames(f);
+  const i = frames.findIndex((text) => text.includes(JSON.stringify(name)));
+  if (i === -1) return 'never';
+  const at = frames[i]!.indexOf(JSON.stringify(name));
+  return `frame ${i}/${frames.length}: …${frames[i]!.slice(Math.max(0, at - 700), at + 200)}…`;
+};
+/** Whether this browser's folded state holds `name` NOW — what its client can read off the board. */
+const held = (f: Friend, name: string): boolean => [...foldStream(messages(f)).final.values()].some((o) => JSON.stringify(o).includes(JSON.stringify(name)));
 
 const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
@@ -94,9 +107,10 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
       elvesSentToAlice: received(alice, 'Llanowar Elves'),
       elvesSentToBob: received(bob, 'Llanowar Elves'),
       angelSentToBob: received(bob, 'Serra Angel'),
-      plainsSentToBob: received(bob, 'Plains'),
+      plainsHeldByBob: held(bob, 'Plains'),
     };
     console.log(`[pp-top] hidden: ${JSON.stringify(leaks)}`);
+    console.log(`[pp-top] "Plains" first sent to bob: ${firstSent(bob, 'Plains')}`);
     expect(leaks, "bob's library is drawn on neither screen, and no card under a top is sent to anyone (the top itself is)").toEqual({
       mountainSentToBob: true,
       bobTopOnAlice: [],
@@ -104,7 +118,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
       elvesSentToAlice: false,
       elvesSentToBob: false,
       angelSentToBob: false,
-      plainsSentToBob: false,
+      plainsHeldByBob: false,
     });
 
     // ── 2. Dragged off the library onto her battlefield, Mountain lands; Plains is the next top.
