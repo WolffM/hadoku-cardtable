@@ -47,7 +47,8 @@ const measureBar = (done: Locator): Promise<BarFacts> =>
   done.evaluate((button) => {
     const r = button.getBoundingClientRect();
     const covered: string[] = [];
-    const inset = 2;
+    // Clear of the button's rounded corners, which take no hits.
+    const inset = 8;
     const points: [string, number, number][] = [
       ['centre', (r.left + r.right) / 2, (r.top + r.bottom) / 2],
       ['top-left', r.left + inset, r.top + inset],
@@ -157,6 +158,7 @@ test(
         console.log(`[prompt-bar] ${size.width}x${size.height} ${JSON.stringify(facts)}`);
         expect(facts!.scroller, `the grid scrolls at ${size.width}×${size.height}`).not.toBeNull();
         expect(facts!.scroller!.holdsOk, `the scrolling box does not hold OK at ${size.width}×${size.height}`).toBe(false);
+        if (size.height >= 800) expect(facts!.scroller!.client, 'the grid gets a real window, not a sliver under the title').toBeGreaterThanOrEqual(120);
         expect(facts!.sheet[1], `the sheet itself does not scroll at ${size.width}×${size.height}`).toBeLessThanOrEqual(facts!.sheet[0] + 1);
       }
 
