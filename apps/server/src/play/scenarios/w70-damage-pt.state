@@ -1,0 +1,22 @@
+# The operator, 2026-10-11: "tarmogoyf is a 4/5 and it was dealt 3 damage.
+# now the chip is showing: 2(red) 4/(down arrow red 3). i think it would be
+# simpler to just show 4/2(red)". Alice (seat 0) holds two Lightning Bolts and
+# two untapped Mountains on her own turn-1 Main Phase 1, with Tarmogoyf on her
+# battlefield. The graveyards already hold a land, a creature, an instant and
+# a sorcery, so Tarmogoyf is a 4/5 before, during and after a Bolt (a Bolt
+# adds no new type). Bob (seat 1) has Griselbrand, a creature whose printed
+# 7/7 our card data knows, for the numeric case. Both libraries hold lands so
+# the turn can pass through cleanup safely.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt;Lightning Bolt
+humanbattlefield=Mountain;Mountain;Tarmogoyf
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Grizzly Bears;Shock
+aihand=
+aibattlefield=Griselbrand
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Mountain;Divination
