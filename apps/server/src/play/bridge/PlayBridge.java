@@ -585,7 +585,8 @@ public final class PlayBridge {
      * additive to the envelope (`packages/forge-wire/src/tier-c.ts`'s
      * {@code StackTargetSpellsSchema}), not to {@code STATE_PROPERTIES}.
      *
-     * <p>One pair per stack item that targets exactly one OTHER stack item:
+     * <p>One pair per stack item that targets another stack item, from the
+     * item's own targets or any sub-instance's ({@link #stackTargetOf}):
      * Forge's own stack-target ask ({@code TargetSelection.chooseCardFromStack})
      * offers one choice at a time, so a real game never has a second one to
      * lose by keeping only the first match.
@@ -598,20 +599,33 @@ public final class PlayBridge {
             owner.put(si.getSpellAbility(), si.getId());
         }
         for (final SpellAbilityStackInstance si : game.getStack()) {
-            final TargetChoices tc = si.getTargetChoices();
-            if (tc == null) { continue; }
-            for (final SpellAbility targetSa : tc.getTargetSpells()) {
-                final Integer toId = owner.get(targetSa);
-                if (toId != null) {
-                    final JsonArray pair = new JsonArray();
-                    pair.add(si.getId());
-                    pair.add(toId);
-                    out.add(pair);
-                    break;
-                }
+            final Integer toId = stackTargetOf(si, owner);
+            if (toId != null) {
+                final JsonArray pair = new JsonArray();
+                pair.add(si.getId());
+                pair.add(toId);
+                out.add(pair);
             }
         }
         return out;
+    }
+
+    /**
+     * The first other stack item {@code si} targets, read down its whole
+     * sub-instance chain: a charm's or a Command's chosen mode is a
+     * sub-ability ({@code CharmEffect.chainAbilities}), so its targets sit on
+     * {@code si.getSubInstance()}, never on {@code si} itself.
+     */
+    private static Integer stackTargetOf(final SpellAbilityStackInstance si, final Map<SpellAbility, Integer> owner) {
+        for (SpellAbilityStackInstance at = si; at != null; at = at.getSubInstance()) {
+            final TargetChoices tc = at.getTargetChoices();
+            if (tc == null) { continue; }
+            for (final SpellAbility targetSa : tc.getTargetSpells()) {
+                final Integer toId = owner.get(targetSa);
+                if (toId != null) { return toId; }
+            }
+        }
+        return null;
     }
 
     /**

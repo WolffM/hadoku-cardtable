@@ -40,7 +40,7 @@ import {
 } from './adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
-import { cardStateKey, deltaKey, WireType, type WireObject } from './wire.ts';
+import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
 
 const fixture = PLAY_FIXTURES[0]!;
 const MANIFEST = artManifest.entries;
@@ -243,6 +243,30 @@ describe('targetStackItemId (wave 49 §A)', () => {
   it('is null for every item when no map is supplied at all', () => {
     const view = adapt(baseState());
     for (const item of view.stack) expect(item.targetStackItemId).toBeNull();
+  });
+});
+
+describe('a modal spell’s targets', () => {
+  /*
+   * A charm's or a Command's chosen modes are sub-abilities: the stack item Forge publishes targets
+   * nothing itself, and each mode's targets sit one `SubInstance` down (`StackItemView.updateSubInstance`).
+   */
+  it('reads every target down the SubInstance chain onto the item, each once, and the chain adds no stack entry', () => {
+    const state = baseState();
+    const before = adapt(state).stack;
+    const sid = before[0]!.id;
+    const mountain = cardIdNamed(state, 'Mountain');
+    const ids = (...v: number[]): Tagged => ({ t: 'list', v: v.map((id) => ({ t: 'int', v: id })) });
+    const key = deltaKey(WireType.StackItem, sid);
+    state.set(key, { ...state.get(key)!, TargetCards: ids(), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9001 } });
+    state.set(deltaKey(WireType.StackItem, 9001), { _type: WireType.StackItem, _id: 9001, TargetCards: ids(mountain), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9002 } });
+    state.set(deltaKey(WireType.StackItem, 9002), { _type: WireType.StackItem, _id: 9002, TargetCards: ids(mountain), TargetPlayers: ids(fixture.viewerPlayerId) });
+
+    const view = adapt(state);
+    const entry = view.stack.find((e) => e.id === sid)!;
+    expect(entry.targetCardIds).toEqual([mountain]);
+    expect(entry.targetPlayerIds).toEqual([fixture.viewerPlayerId]);
+    expect(view.stack.map((e) => e.id)).toEqual(before.map((e) => e.id));
   });
 });
 

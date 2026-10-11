@@ -459,7 +459,9 @@ export interface StackEntry {
    * Wave 33 agreed shape 2: this item's targets, from `StackItemView`'s own
    * `TargetCards` / `TargetPlayers` (`TrackableProperty.java:225-226`, both set
    * from `SpellAbilityStackInstance.getTargetChoices()` — `StackItemView.java`,
-   * `updateTargetCards`/`updateTargetPlayers`). Both cross as the same
+   * `updateTargetCards`/`updateTargetPlayers`) and from every `SubInstance`
+   * under it (`subInstanceChain`): a modal spell's chosen modes target from
+   * there, never from the item itself. Each id once; both cross as the same
    * `list`-of-`int` shape every other entity collection does (`readIds`),
    * empty when the item targets nothing of that kind — never missing.
    *
@@ -848,6 +850,22 @@ function readIds(obj: WireObject | undefined, name: string): number[] {
     if (item.t === 'int' && typeof item.v === 'number' && item.v !== -1) ids.push(item.v);
   }
   return ids;
+}
+
+/**
+ * A stack item and every `SubInstance` under it, in chain order. A charm's or a Command's chosen
+ * modes, and any "…, then" clause, are sub-abilities: the item Forge publishes keeps only the
+ * root's targets, and each further one is a `StackItemView` one link down
+ * (`StackItemView.updateSubInstance`) — the chain Forge's own desktop arrows walk
+ * (`TargetingOverlay.java`).
+ */
+function subInstanceChain(state: WireState, item: WireObject | undefined): WireObject[] {
+  const chain: WireObject[] = [];
+  for (let at = item; at !== undefined && !chain.includes(at); ) {
+    chain.push(at);
+    at = prop(at, 'SubInstance') === undefined ? undefined : state.get(deltaKey(WireType.StackItem, readInt(at, 'SubInstance')));
+  }
+  return chain;
 }
 
 // ── card faces ──────────────────────────────────────────────────────────────
@@ -1277,8 +1295,9 @@ export function toBoardView(
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
     const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT, false, printedType) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
-    const targetCardIds = readIds(item, 'TargetCards');
-    const targetPlayerIds = readIds(item, 'TargetPlayers');
+    const chain = subInstanceChain(state, item);
+    const targetCardIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetCards')))];
+    const targetPlayerIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetPlayers')))];
     // T8: resolved NAMES, never ids — a card by the same resolver every other
     // card on the board goes through, a player by the board's own name.
     const targetNames = [

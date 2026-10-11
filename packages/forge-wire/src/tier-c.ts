@@ -687,8 +687,10 @@ export type DeltaPacket = z.infer<typeof DeltaPacketSchema>;
  * frame's own payload — additive to the envelope, not to `STATE_PROPERTIES`.
  *
  * `[fromStackItemId, toStackItemId]` pairs, one per stack item that targets
- * exactly one other stack item (Forge's own stack-target ask offers one
- * choice at a time, so a real game never has a second target to carry here).
+ * another stack item, whether the target is the item's own or a
+ * sub-instance's (a charm's chosen mode, `PlayBridge.java`'s
+ * `stackTargetOf`). Forge's own stack-target ask offers one choice at a
+ * time, so a real game never has a second target to carry here.
  * Optional on the payload: a historical capture or fixture predating this
  * addition parses exactly as it did before — "additive and strict" (see
  * `AGENTS.md`'s Settled note) does not mean every past frame grows the key,
