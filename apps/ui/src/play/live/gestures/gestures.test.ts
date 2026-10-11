@@ -2620,6 +2620,51 @@ describe('a card Forge offers from the graveyard is picked up like a hand card',
 });
 
 /*
+ * The operator, 2026-10-11: "Courser of Kruphix should have something where both people can see the
+ * top card of the library at all times. and i should be able to click it if its a land."
+ */
+describe('the top card of the library, offered while the board draws it, is picked up like a hand card', () => {
+  /** A card of the viewer's hand put on top of their library, its face known, and offered there at priority. */
+  async function onLibrary() {
+    const board = await gestureBoard();
+    const { s, m, canvas } = board;
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const card = hand[0]!;
+    s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Library: { t: 'list', v: [{ t: 'int', v: card }] } } }));
+    s.send(handDelta(hand.slice(1)));
+    for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
+    await waitFor(() => expect(canvas.querySelector(`[data-zone="library"][data-owner="you"] [data-board-card="${card}"]`)).not.toBeNull());
+    await waitFor(() => expect(m.weaklySelectable?.has(card)).toBe(true));
+    const pile = canvas.querySelector<HTMLElement>('[data-zone="library"][data-owner="you"]')!;
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    return { ...board, card, pile, myBattlefield };
+  }
+
+  it('a click lifts it and a click on the table plays it', async () => {
+    const { s, canvas, card, myBattlefield } = await onLibrary();
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
+    expect(s.clientFrames(), 'nothing sent while it is carried').toHaveLength(0);
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 400, clientY: 300 });
+    fireEvent.pointerUp(myBattlefield, { button: 0, clientX: 400, clientY: 300 });
+    await waitFor(() => expect(sent(s)).toEqual([['selectCard', card]]));
+  });
+
+  it('let go back over its library, it goes home and nothing is sent', async () => {
+    const { s, canvas, card, pile, myBattlefield } = await onLibrary();
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(pile, { clientX: 20, clientY: 20 });
+    expect(pile.hasAttribute('data-cancel-hint'), 'the cancel cue is on its own library').toBe(true);
+    fireEvent.pointerUp(pile, { clientX: 20, clientY: 20 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+});
+
+/*
  * Forge can open a SELECTION that itself NAMES a hand card —
  * `InputSelectEntitiesFromList`'s "reveal a Faerie?", a discard-from-hand
  * choice, any `InputSelectEntitiesFromList`/`InputSelectTargets` over the

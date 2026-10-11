@@ -29,9 +29,11 @@ import type { Point } from './types.ts';
  * The viewer's own zones a card is lifted out of to be cast. Forge offers a
  * card outside the hand from its `ZoneType.Flashback` scan — the graveyard,
  * exile, library and command zone (`Player.getCardsActivatableInExternalZones`,
- * read by `AvailableActions.collectActionable`) — and the board draws two of them.
+ * read by `AvailableActions.collectActionable`) — and the board draws three of
+ * them: the library only as its top card, while the viewer may look at it
+ * (Courser of Kruphix's lands, Future Sight's spells).
  */
-export type CastZone = 'hand' | 'graveyard' | 'exile';
+export type CastZone = 'hand' | 'graveyard' | 'exile' | 'library';
 
 /** The viewer's own zone the card is in right now, when it is one a cast lifts it out of. */
 export function castZoneOf(match: LiveMatch, id: number): CastZone | null {
@@ -40,6 +42,7 @@ export function castZoneOf(match: LiveMatch, id: number): CastZone | null {
   if (mine.hand?.some((c) => c.id === id) === true) return 'hand';
   if (mine.graveyard.some((c) => c.id === id)) return 'graveyard';
   if (mine.exile.some((c) => c.id === id)) return 'exile';
+  if (mine.libraryTop?.id === id) return 'library';
   return null;
 }
 
@@ -51,7 +54,7 @@ export function isHandCard(match: LiveMatch, id: number): boolean {
 /** The current type line of a card in one of the viewer's cast zones, or null — it may have left already. */
 export function castCardTypeLine(match: LiveMatch, id: number): string | null {
   const mine = match.view?.players.find((p) => p.isViewer);
-  const card = [...(mine?.hand ?? []), ...(mine?.graveyard ?? []), ...(mine?.exile ?? [])].find((c) => c.id === id);
+  const card = [...(mine?.hand ?? []), ...(mine?.graveyard ?? []), ...(mine?.exile ?? []), ...(mine?.libraryTop === undefined ? [] : [mine.libraryTop])].find((c) => c.id === id);
   return card?.card.typeLine ?? null;
 }
 

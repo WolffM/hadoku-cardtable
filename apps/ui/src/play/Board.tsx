@@ -3010,9 +3010,14 @@ function PlayerArea({
          * the counts, with everything they leave (wave 32 Q9). The opponent's column
          * is the vertical mirror (`board.css`, `column-reverse`): exile strip,
          * graveyard, counts, avatar nearest the centre. Graveyard first: it is the
-         * one that fills up, and the one that gets the space.
+         * one that fills up, and the one that gets the space. Above it, against the
+         * counts, the library's top card while this seat may see it (Courser of
+         * Kruphix, Future Sight): one face, drawn and offered like any card.
          */}
         <div className="seat__piles">
+          {player.libraryTop !== undefined && (
+            <Zone owner={player.name} ownerSide={side} zone="library" label="Library" cards={[player.libraryTop]} interaction={interaction} />
+          )}
           <Zone
             owner={player.name}
             ownerSide={side}

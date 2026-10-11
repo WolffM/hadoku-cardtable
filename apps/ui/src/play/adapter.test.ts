@@ -714,6 +714,27 @@ describe('hidden information is untouched by any of this', () => {
     expect(JSON.stringify(card)).not.toMatch(/card \d+/i);
   });
 
+  /** Put `cardId` on top of the viewer's library list. */
+  function onLibraryTop(state: Map<string, WireObject>, cardId: number): number {
+    const viewer = adapt(state).players.find((p) => p.isViewer)!.id;
+    const key = deltaKey(WireType.Player, viewer);
+    const player = state.get(key)!;
+    const library = player.Library as { t: string; v: { t: string; v: number }[] } | undefined;
+    state.set(key, { ...player, Library: { t: 'list', v: [{ t: 'int', v: cardId }, ...(library?.v ?? [])] } } as WireObject);
+    return viewer;
+  }
+
+  it("draws a library's top card only when the seat was sent its name — Courser of Kruphix", () => {
+    const state = baseState();
+    const id = cardIdNamed(state, 'Mountain');
+    const viewer = onLibraryTop(state, id);
+    const shown = adapt(state).players.find((p) => p.id === viewer)!;
+    expect(shown.libraryTop?.id).toBe(id);
+    expect(shown.libraryTop?.card.name).toBe('Mountain');
+    redact(state, id);
+    expect(adapt(state).players.find((p) => p.id === viewer)!.libraryTop, 'a library card the seat may not see is never drawn').toBeUndefined();
+  });
+
   it('treats a blank name as no name', () => {
     const state = baseState();
     const id = cardIdNamed(state, 'Mountain');

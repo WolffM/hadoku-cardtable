@@ -368,13 +368,20 @@ export interface BoardPlayer {
   handCount: number;
   libraryCount: number;
   /**
-   * The library's card ids, top first — ids only, never a face: the projection
-   * hides every library card. Read so a reorder can be heard as a shuffle
+   * The library's card ids, top first — ids only: the projection hides every
+   * library card but a top one the seat may look at (`libraryTop`). Read so a reorder can be heard as a shuffle
    * (`live/sound-events.ts`); Forge re-sends the list on every shuffle
    * (`Zone.shuffle` → `onChanged` → `updateZoneForView`). Optional, like the
    * other late fields, for hand-typed players in other suites.
    */
   libraryIds?: readonly number[];
+  /**
+   * The library's top card, when this seat may see it: Forge puts the seat in that card's
+   * `PlayerMayLook` (Courser of Kruphix and Future Sight for everyone, Vizier of the Menagerie for
+   * its controller only) and the server's projection then sends its face. Absent otherwise — the
+   * projection sends a library card it may not see as existence only, never a name.
+   */
+  libraryTop?: BoardCard;
   battlefield: BoardCard[];
   graveyard: BoardCard[];
   exile: BoardCard[];
@@ -1252,6 +1259,8 @@ export function toBoardView(
     const p = state.get(deltaKey(WireType.Player, pid));
     const isViewer = pid === viewerPlayerId;
     const handIds = readIds(p, 'Hand');
+    const libraryIds = readIds(p, 'Library');
+    const top = libraryIds[0] === undefined ? null : toBoardCard(state, libraryIds[0], artIds, printedPT, false, printedType);
     const avatarId = avatarByPlayerId?.get(pid);
     const seatName = nameByPlayerId?.get(pid);
     return {
@@ -1268,8 +1277,9 @@ export function toBoardView(
       hasLost: readBool(p, 'HasLost'),
       hand: isViewer ? cardsIn(handIds) : null,
       handCount: handIds.length,
-      libraryCount: readIds(p, 'Library').length,
-      libraryIds: readIds(p, 'Library'),
+      libraryCount: libraryIds.length,
+      libraryIds,
+      ...(top === null || top.hidden === true ? {} : { libraryTop: top }),
       battlefield: cardsIn(readIds(p, 'Battlefield'), true),
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),

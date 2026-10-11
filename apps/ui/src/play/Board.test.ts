@@ -1645,6 +1645,19 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(zone(0, 'exile').dataset.count).toBe(String(view.players.find((p) => p.isViewer)!.exile.length));
   });
 
+  it("draws a library's top card in its own pile only while the seat may see it, and no pile otherwise", () => {
+    expect(declarationIn('.seat__piles:has(> .zone--library)', 'grid-template-rows')).toBe('auto minmax(0, 1fr) auto');
+    expect(declarationIn('.seat:not([data-viewer]) .seat__piles > .zone--library', 'grid-row'), 'against the counts in the mirror').toBe('3');
+    const hidden = renderBoard(view);
+    expect(hidden.container.querySelector('[data-zone="library"]')).toBeNull();
+    hidden.unmount();
+    const top = view.players[1]!.battlefield[0]!;
+    const shown = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: top } : p)) });
+    const pile = shown.zone(1, 'library');
+    expect(pile.dataset.count).toBe('1');
+    expect(pile.querySelector(`[data-board-card="${top.id}"] .card__name`)?.textContent).toBe(top.card.name);
+  });
+
   it('tells ours from theirs: no visible (you); the seat says data-viewer and its accessible name says (you)', () => {
     const { container, seat } = renderBoard(view);
     const board = container.querySelector<HTMLElement>('.board')!;
@@ -3736,19 +3749,20 @@ describe('§A.9 — a pile’s cards expand to fit their box', () => {
     // *"the graveyard is unecessarily small, i think the cards can expand to fit
     // the width of that box"*.
     /*
-     * Both piles share one rule, so it is addressed by its LAST selector line —
-     * which is how `declarationIn` reads a multi-selector rule, and the two lines
-     * are asserted to be together so "the graveyard's rule" cannot drift from
-     * "exile's rule" without this failing.
+     * All three piles (graveyard, exile, a library's visible top card) share one
+     * rule, so it is addressed by its LAST selector line — which is how
+     * `declarationIn` reads a multi-selector rule, and the lines are asserted to
+     * be together so "the graveyard's rule" cannot drift from the others'
+     * without this failing.
      */
-    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile {');
-    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards {');
-    expect(declarationIn('.board .seat .zone--exile', 'contain'), 'the pile is a measured box its card never resizes').toBe(
+    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile,\n.board .seat .zone--library {');
+    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards,\n.board .seat .zone--library .zone__cards {');
+    expect(declarationIn('.board .seat .zone--library', 'contain'), 'the pile is a measured box its card never resizes').toBe(
       'inline-size style',
     );
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--pile-card-w')).toBe('var(--zone-w)');
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', 'justify-content'), 'and it fills it').toBe(
+    expect(declarationIn('.board .seat .zone--library .zone__cards', '--pile-card-w')).toBe('var(--zone-w)');
+    expect(declarationIn('.board .seat .zone--library .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
+    expect(declarationIn('.board .seat .zone--library .zone__cards', 'justify-content'), 'and it fills it').toBe(
       'stretch',
     );
     // The fixed width it replaced is gone outright, not merely unused.

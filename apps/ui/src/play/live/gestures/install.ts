@@ -93,7 +93,8 @@
  * lifted from the press exactly as a hand card is, on the board's pile or in
  * its opened `PileView` (which gives way to it), and everything below holds
  * for it with its own zone in the hand's place: a release back over that
- * zone sends nothing and the card goes home.
+ * zone sends nothing and the card goes home. So is the top card of the
+ * viewer's library while the board draws it (Courser of Kruphix's land).
  *
  * ### Everything a lift decides happens at the release
  *

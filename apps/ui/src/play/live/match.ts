@@ -1405,6 +1405,7 @@ function cardIdsInView(view: BoardView): Set<number> {
   const ids = new Set<number>();
   for (const p of view.players) {
     for (const zone of [p.hand ?? [], p.battlefield, p.graveyard, p.exile]) for (const c of zone) ids.add(c.id);
+    if (p.libraryTop !== undefined) ids.add(p.libraryTop.id);
   }
   for (const item of view.stack) if (item.sourceCardId !== null) ids.add(item.sourceCardId);
   return ids;

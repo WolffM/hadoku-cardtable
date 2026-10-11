@@ -365,6 +365,85 @@ describe('a face-down permanent (real battlefield card, turned face down)', () =
 });
 
 /*
+ * The operator, 2026-10-11: "Courser of Kruphix should have something where both people can see the
+ * top card of the library at all times." Forge says who may see a library's top card the way it says
+ * it for any card: `PlayerMayLook` (Courser's `MayLookAt$ Player` names every player, Vizier of the
+ * Menagerie's `MayLookAt$ You` its controller only), and the projection follows it both ways.
+ */
+describe("a library's top card that Forge lets players look at", () => {
+	const mayLook = (ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
+	const idsIn = (raw: Map<string, WireObj>, owner: number, zone: string): number[] =>
+		(raw.get(keyOf(TYPE.player, owner))?.[zone] as { v: { v: number }[] }).v.map((x) => x.v);
+	/**
+	 * The fixture's state with one of player 1's hand cards (a card the capture carries whole, with its
+	 * faces) put on top of their library — the capture names no library card. Returns its id and the next.
+	 */
+	function onTop(): { raw: Map<string, WireObj>; top: number; next: number } {
+		const raw = fold(fixtureFrames());
+		const [top, ...hand] = idsIn(raw, 1, 'Hand') as [number, ...number[]];
+		const library = idsIn(raw, 1, 'Library');
+		const player = raw.get(keyOf(TYPE.player, 1)) as WireObj;
+		raw.set(keyOf(TYPE.player, 1), { ...player, Hand: mayLook(hand), Library: mayLook([top, ...library]) });
+		raw.set(keyOf(TYPE.card, top), { ...(raw.get(keyOf(TYPE.card, top)) as WireObj), Zone: { t: 'enum', v: 'Library' } });
+		return { raw, top, next: library[0]! };
+	}
+	function delta(objectDeltas: Record<string, WireObj>): StateFrame {
+		return { kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 99, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } } };
+	}
+	const names = (table: Record<string, WireObj>, cardId: number): unknown[] =>
+		Object.values(table)
+			.filter((o) => (o._type === TYPE.card && o._id === cardId) || (o._type === TYPE.cardState && csvCardId(o._id) === cardId))
+			.map((o) => o.Name)
+			.filter((n) => n !== undefined && n !== null);
+
+	it('is sent whole to every seat Forge names, and to no other; the card under it stays hidden', () => {
+		const { raw, top, next } = onTop();
+		const card = raw.get(keyOf(TYPE.card, top)) as WireObj;
+		const table = (who: number[]) => ({ ...Object.fromEntries(raw), [keyOf(TYPE.card, top)]: { ...card, PlayerMayLook: mayLook(who) } });
+		const frame = (who: number[]): StateFrame => ({ kind: 'notify', method: 'setGameView', payload: { gameView: table(who), sequenceNumber: 1 } });
+		const out = (viewer: number, who: number[]) => {
+			const p = createProjector(viewer);
+			const gameView = (p.project(frame(who)) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+			return { p, gameView };
+		};
+
+		// Courser: every player.
+		for (const viewer of PLAYERS) {
+			const { p, gameView } = out(viewer, [0, 1]);
+			expect(p.visibilityOf(top), `seat ${viewer} may see the top`).toBe('full');
+			expect(names(gameView, top).length, `seat ${viewer} is sent its name`).toBeGreaterThan(0);
+			expect(p.visibilityOf(next), `seat ${viewer} may not see the card under it`).toBe('hidden');
+			expect(names(gameView, next), `seat ${viewer} is sent nothing that names the card under it`).toEqual([]);
+		}
+		// Vizier of the Menagerie: its controller only.
+		const own = out(1, [1]);
+		expect(own.p.visibilityOf(top)).toBe('full');
+		const opp = out(0, [1]);
+		expect(opp.p.visibilityOf(top), 'the opponent may not see it').toBe('hidden');
+		expect(names(opp.gameView, top), 'and is sent nothing that names it').toEqual([]);
+	});
+
+	it('is sent when Forge lets the seat look, and taken back when it stops', () => {
+		const { raw, top } = onTop();
+		const key = keyOf(TYPE.card, top);
+		const p = createProjector(0);
+		p.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
+		expect(p.visibilityOf(top)).toBe('hidden');
+
+		const shown = (p.project(delta({ [key]: { _type: TYPE.card, _id: top, PlayerMayLook: mayLook([0, 1]) } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(p.visibilityOf(top)).toBe('full');
+		expect(names(shown.newObjects, top).length, 'the card and its face are re-sent whole').toBeGreaterThan(0);
+
+		const gone = (p.project(delta({ [key]: { _type: TYPE.card, _id: top, PlayerMayLook: null } as unknown as WireObj })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(p.visibilityOf(top)).toBe('hidden');
+		expect((gone.newObjects[key] as WireObj).Name, 'the card is re-sent as existence only').toBeUndefined();
+		const wiped = Object.values(gone.newObjects).filter((o) => o._type === TYPE.cardState && csvCardId(o._id) === top);
+		expect(wiped.length, 'its face is wiped').toBeGreaterThan(0);
+		for (const face of wiped) expect(face.Name).toBeNull();
+	});
+});
+
+/*
  * Wave 32, Q10 — `creatureCount`, the fact behind *"no creatures, no block"*
  * (`auto.ts` `skipEmptyBlockStop`). Over the REAL stream, packet by packet, against
  * a count taken independently off the folded raw state.
