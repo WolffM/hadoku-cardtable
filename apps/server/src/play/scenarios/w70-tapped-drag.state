@@ -1,0 +1,18 @@
+# The operator, 2026-10-11: "when dragging cards i notice tapped cards shift down slightly. seems
+# like there is something that happens that moves them when i touch cards." Seat 0 (human), an
+# uncontested turn-1 Main Phase 1: the front tier is two TAPPED creatures and nothing else, the
+# back tier three tapped Plains and one untapped. `w70-tapped-drag.spec.ts` presses and drags a
+# card and measures every tapped card's box at each step.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite|Tapped;Ornithopter|Tapped;Plains|Tapped;Plains|Tapped;Plains|Tapped;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
