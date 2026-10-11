@@ -62,15 +62,15 @@ describe('PromptShell — OK and Clear sit outside the scroll, always visible', 
     expect(container.querySelector('.prompt__body')).not.toBeNull();
   });
 
-  it('.prompt__body is the only child allowed to shrink below its content, and the one that scrolls, in CSS', () => {
+  it('.prompt__body shrinks and scrolls, and the buttons never shrink, in CSS', () => {
     const rule = /\.prompt__body \{([^}]*)\}/.exec(PROMPTS_CSS);
     expect(rule, '.prompt__body has its own rule').not.toBeNull();
     expect(rule![1]).toMatch(/min-height:\s*0/);
     expect(rule![1]).toMatch(/flex:\s*1 1 auto/);
     expect(rule![1]).toMatch(/overflow-y:\s*auto/);
-    const rest = /\.prompt > :not\(\.prompt__body\) \{([^}]*)\}/.exec(PROMPTS_CSS);
-    expect(rest, 'every other child of the sheet has a rule').not.toBeNull();
-    expect(rest![1]).toMatch(/flex-shrink:\s*0/);
+    const foot = /\.prompt__actions,\s*\.prompt__problems \{([^}]*)\}/.exec(PROMPTS_CSS);
+    expect(foot, 'the buttons and the problems list have a rule').not.toBeNull();
+    expect(foot![1]).toMatch(/flex-shrink:\s*0/);
   });
 
   it('the selection sheet draws in the same shell: its grid in the body, its OK and Cancel outside it', () => {

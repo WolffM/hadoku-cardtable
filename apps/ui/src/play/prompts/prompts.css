@@ -50,15 +50,25 @@
  * bottom of this panel and not impacted by the scrolling land box?"*
  *
  * The sheet is a flex column of a bounded height (`.live__prompt > .prompt`,
- * `../live/live.css`). The body is its ONE shrinkable child — `min-height: 0`
- * lets it shrink below its content and `overflow-y: auto` scrolls what no
- * longer fits — and everything else (title, message, problems, actions) keeps
- * its full size with `flex-shrink: 0`. So a tall card grid scrolls inside its
- * own box and can never draw over the buttons under it, and a sheet that fits
- * shrinks nothing, so no scrollbar appears for a list with nothing to scroll.
+ * `../live/live.css`). The buttons and the problems list never shrink
+ * (`flex-shrink: 0`): they are always whole, at the foot. The body shrinks
+ * below its content (`min-height: 0`) and scrolls what no longer fits, so a
+ * tall card grid scrolls inside its own box and can never draw over the
+ * buttons. The title and message shrink and scroll the same way, in
+ * proportion to their size: Scapeshift's title is its whole oracle text, and
+ * in the narrow column a title that kept its full height left the ten lands a
+ * 33px window. A sheet that fits shrinks nothing, so no scrollbar appears for
+ * a list with nothing to scroll.
  */
-.prompt > :not(.prompt__body) {
+.prompt__actions,
+.prompt__problems {
   flex-shrink: 0;
+}
+
+.prompt__title,
+.prompt__message {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .prompt__body {
