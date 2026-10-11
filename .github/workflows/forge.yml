@@ -363,7 +363,6 @@ jobs:
           # Empty means every Forge-gated spec runs; an entry is a known red
           # with its reason, never a quiet way to drop a spec.
           excluded=$(cat <<'NONE'
-          w63-yield.spec.ts  # AE24: red 4/4 in full runs, green alone — the engine-silence shape (the fork's encode error, no trace until the pin logs {exception}); back the day the trace is read
           NONE
           )
           specs=$(grep -lE 'forge\.ok|startPlayStack|startScenarioMatch' e2e/*.spec.ts | xargs -n1 basename | sort)
