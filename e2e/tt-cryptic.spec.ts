@@ -208,7 +208,8 @@ test(
 
       const mine = await frames(page);
       const his = await frames(bob.page);
-      const drawnInHand = mine.filter((f) => f.hand === 'in-row' || f.hand === 'returning');
+      const parkedAt = mine.findIndex((f) => f.hand === 'parked');
+      const drawnInHand = mine.slice(Math.max(0, parkedAt)).filter((f) => f.hand === 'in-row' || f.hand === 'returning');
       console.log(`[tt] alice frames ${mine.length}: hand ${runs(mine, (f) => f.hand ?? 'none')} | ghost ${runs(mine, (f) => String(f.ghost))}`);
       console.log(`[tt] bob frames ${his.length}: back ${runs(his, (f) => String(f.back))}`);
       const after = serverLog(stack).slice(fromCast);
