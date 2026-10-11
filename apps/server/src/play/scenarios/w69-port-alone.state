@@ -1,0 +1,19 @@
+# The operator, 2026-10-11 (match m-70cba9014f79): "i was able to tap rishadan
+# port for the 1 cost ability, but had no way to pay it and then it untapped."
+# Seat 0's own turn-1 Main Phase 1 with Rishadan Port and nothing else: the
+# Port is its own only mana, so "{1},{T}: Tap target land" cannot be paid
+# ({T} is the Port's own tap). A click on the Port taps it for {C}.
+# `e2e/w69-offers.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Rishadan Port
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

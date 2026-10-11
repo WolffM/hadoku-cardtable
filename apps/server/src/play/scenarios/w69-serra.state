@@ -1,0 +1,20 @@
+# The operator, 2026-10-11 (match m-70cba9014f79): "Serra Avenger should not be
+# playable if it's not playable … i tried playing the card and then it went back
+# to my hand." Seat 0's own turn-1 Main Phase 1, Serra Avenger in hand ("You
+# can't cast this spell during your first, second, or third turns of the game")
+# and two Plains. Forge counts a player's own turns from the game's real start,
+# so seat 0 has had one turn here if it won the coin toss and none if not; it
+# may cast the Avenger from its fourth. `e2e/w69-offers.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Serra Avenger
+humanbattlefield=Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

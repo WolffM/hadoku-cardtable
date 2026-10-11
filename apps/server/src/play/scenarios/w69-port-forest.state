@@ -1,0 +1,16 @@
+# `w69-port-alone.state` with a Forest beside the Port: now the Forest pays the
+# Port's {1}, so a click on the Port offers both of its abilities and "{1},{T}:
+# Tap target land" taps seat 1's Mountain. `e2e/w69-offers.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Rishadan Port;Forest
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
