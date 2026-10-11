@@ -1,0 +1,18 @@
+# A Command's two chosen modes each target something. Seat 0 (human) holds
+# Kolaghan's Command and {1}{B}{R}; seat 1 (ai) has Grizzly Bears to take the
+# 2 damage and two cards in hand to discard. With no creature card in seat 0's
+# graveyard and no artifact anywhere, the two legal modes are "target player
+# discards a card" and "2 damage to any target".
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Kolaghan's Command
+humanbattlefield=Mountain;Swamp;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Mountain;Mountain
+aibattlefield=Grizzly Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

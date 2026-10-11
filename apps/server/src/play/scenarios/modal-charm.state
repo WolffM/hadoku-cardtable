@@ -1,0 +1,17 @@
+# A charm's chosen mode targets a spell on the stack. Seat 0 (human) casts
+# Ponder off its one Island; seat 1 (ai) answers with Izzet Charm's "counter
+# target noncreature spell" mode, paid off an Island and a Mountain. The mode's
+# target lives on the charm's sub-instance, not on its own stack item.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Ponder
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Izzet Charm
+aibattlefield=Island;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
