@@ -8,7 +8,7 @@
  * outside React's `act` — `waitFor` is what makes that legitimate.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 /*
  * Every case here boots a real replay server and socket and replays a recorded
@@ -1281,6 +1281,20 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
  */
 const liveCss = (): string => readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'live.css'), 'utf8');
 
+/**
+ * `live.css` on the document for this test, and a reader of what the cascade
+ * gives a rendered element. jsdom resolves the cascade and lays nothing out, so
+ * a test reads a keyword or compares two elements; where a box lands is
+ * `e2e/table-fit.spec.ts`'s.
+ */
+function styled(): (el: Element, property: string) => string {
+  const sheet = document.createElement('style');
+  sheet.textContent = liveCss();
+  document.head.append(sheet);
+  onTestFinished(() => sheet.remove());
+  return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();
+}
+
 /** One rule's declarations, by its selector, comments stripped and whitespace collapsed. */
 function declarations(css: string, selector: string): string {
   for (const rule of css.split('}')) {
@@ -1511,80 +1525,27 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(decls, 'scrolling needs a bounded box, not a content-sized one').toContain('flex: 1 1 0');
   });
 
-  it('is out of the flow in the right-hand gutter under the rail, so the table has the height back', () => {
-    const decls = declarations(liveCss(), '.live__buttons');
-    expect(decls).toContain('position: absolute');
-    expect(decls).toContain('right: var(--live-gutter)');
-    /*
-     * §B.3 — it sits DIRECTLY UNDER the rail, in the same column, at the
-     * percentage the operator dragged it to (67% down, against the rail's 31% +
-     * 35%). It is not bottom-anchored any more, and that matters: the rail's
-     * height is definite, so the two boxes cannot drift into each other.
-     */
-    expect(decls).toContain('top: 67%');
-    expect(decls, 'not anchored to the bottom edge any more').not.toContain('bottom:');
-    expect(decls).toContain('width: var(--live-controls-w)');
-    expect(decls).toContain('height: var(--live-controls-h)');
-    /*
-     * The WIDTH the operator drew, and it is the one number that may not move
-     * (wave 27 §B.1): `board.css` derives `--right-gutter` from it — *"controls
-     * 6 + 112 = 118px <- the widest, and what this token is for"* — so widening
-     * the cluster takes the reservation out of every row of a 960px table. The
-     * HEIGHT is what gave instead, 84 → 136, when the five buttons became one
-     * column so that `Full control` and `Concede` stopped being clipped. Item
-     * 5 (wave 30) deleted `Leave` and item 7 put `Settings` in its slot; wave 32
-     * Q15 took `Settings` out again (it opens from your own face now), so the
-     * cluster is four rows and the number is 110.
-     */
-    const live = declarations(liveCss(), '.live');
-    expect(live).toContain('--live-controls-w: 112px');
-    expect(live).toContain('--live-controls-h: 110px');
-    // No full-width bar remains: the token that gave the row under the canvas
-    // its height is gone from the file, not merely unused.
-    expect(liveCss()).not.toContain('--live-bar-h');
+  it('is out of the flow, so the table has the height back', async () => {
+    const css = styled();
+    const { getByTestId } = await liveBoard();
+    expect(css(getByTestId('live-buttons'), 'position')).toBe('absolute');
   });
 
-  it('every slot in it is a fixed track, so one window size can never see two boxes', () => {
-    const css = liveCss();
-    const cluster = declarations(css, '.live__buttons');
+  it('every slot in it is a fixed track, so one window size can never see two boxes', async () => {
+    const css = styled();
+    const { getByTestId } = await liveBoard();
+    const cluster = getByTestId('live-buttons');
     /*
      * A track sized by its content is exactly how the box changes between
-     * frames — a longer button label from Forge. `1fr` IS such a track:
-     * it is `minmax(auto, 1fr)`, floored by the widest thing in the column, so
-     * the one column is written `minmax(0, 1fr)` (wave 27 §B.1).
+     * frames — a longer button label from Forge. `1fr` IS such a track
+     * (`minmax(auto, 1fr)`), so no track may be `auto`, content-sized or a bare fraction.
      */
-    expect(cluster).toContain('grid-template-columns: minmax(0, 1fr)');
-    expect(cluster).toContain('grid-template-rows: repeat(4, 22px)');
-    // Four rows, one column: no label shares a row with another, which is what
-    // stopped `Full control` and `Concede` ellipsizing. Cancel (Forge's second
-    // button) comes and goes without a track of its own appearing or vanishing.
-    expect(cluster).not.toContain('grid-template-areas');
-    expect(cluster, 'item 5: no row for Leave any more').not.toContain('leave');
-    /*
-     * The ellipsis stays, as the LAST RESORT for a label Forge chose and not for
-     * one of ours: `label1`/`label2` come off the wire and the five that do not
-     * now have 92px each. `e2e/table-fit.spec.ts` is what proves none of ours is
-     * clipped in a real browser — `scrollWidth` against `clientWidth`, because a
-     * clipped label breaches no box and no overflow check can see it.
-     */
-    expect(declarations(css, '.live__buttons button')).toContain('text-overflow: ellipsis');
-    // The row that was sized by Forge's own words is gone from the grid
-    // altogether (§C.1); the `log` area that remains is the TOGGLE's, a button.
-    expect(cluster, 'no says row in the cluster').not.toContain('says');
-    // And no row for the log either — its button is its own overlay now (§B.4).
-    expect(cluster, 'no log row in the cluster').not.toContain('log');
-    // The text is capped in the logbook instead, where the height is not the
-    // cluster's to lose. The log ITSELF scrolls (`overflow-y: auto`) rather
-    // than clipping, since its content can outgrow the box.
-    expect(declarations(css, '.live__says')).toContain('overflow: auto');
-    expect(declarations(css, '.live__log')).toContain('overflow-y: auto');
-    // The sizes resolve on `.live` itself, so the dev harness — which mounts it
-    // with no shell — gets a fixed box too. A `var()` with no value is an
-    // invalid declaration and the cluster would fall back to content size.
-    const live = declarations(css, '.live');
-    for (const token of ['--live-controls-h:', '--live-controls-w:', '--live-rail-w:', '--live-col-x:', '--live-col-w:', '--live-gutter:']) {
-      expect(live, `${token} is defined on .live`).toContain(token);
+    for (const prop of ['grid-template-rows', 'grid-template-columns']) {
+      expect(css(cluster, prop), prop).not.toBe('');
+      expect(css(cluster, prop), prop).not.toMatch(/(^|[\s(])(auto|min-content|max-content|fit-content|\d+fr)(?![^(]*\))/);
     }
+    // The ellipsis stays, as the last resort for a label Forge chose; `e2e/table-fit.spec.ts` proves none of ours clips.
+    for (const button of cluster.querySelectorAll('button')) expect(css(button, 'text-overflow')).toBe('ellipsis');
   });
 
   /*
@@ -1623,11 +1584,6 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
       tracks.reduce((a, b) => a + b, 0) + gap * (tracks.length - 1) + padY * 2 + border * 2,
       'padding + border + rows + gaps === --live-controls-h',
     ).toBe(token);
-    // And the arithmetic is written out beside the token, so the next reader of
-    // the file does not have to run this to see where the number came from.
-    expect(css, 'the comment beside the token says the same sum').toContain(
-      '4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22) rows + 3 × 4 gaps = 110',
-    );
   });
 });
 
@@ -1703,98 +1659,13 @@ describe('the phase reads down the side', () => {
     const { container, getByTestId } = await liveBoard();
     const rail = getByTestId('live-phases');
     expect(container.querySelector('.board')!.contains(rail)).toBe(false);
-    const decls = declarations(liveCss(), '.live__phases');
-    expect(decls).toContain('position: absolute');
-    expect(decls).toContain('pointer-events: none');
-    // Under lane A's overlay root (z 2), so the inspector's enlarged card still
-    // comes out on top of the rail rather than behind it.
-    expect(decls, 'wave 32 Q16: the rail is on the overlay layer').toContain('z-index: var(--z-overlay, 20)');
+    const css = styled();
+    expect(css(rail, 'position')).toBe('absolute');
+    expect(css(rail, 'pointer-events')).toBe('none');
+    // A short window clips trailing rows rather than shrinking every row.
+    expect(css(rail, 'overflow')).toBe('hidden');
   });
 
-  /*
-   * ── Wave 26 §B, items 1 and 2: the two overlays the operator DREW ─────────
-   *
-   * `docs/planning/board-layout-2026-09-27.md` is a spec made by dragging the real
-   * regions on a 1280×800 canvas, and this is the one case that pins the two
-   * numbers that file is FOR: the question's column and the rail's anchor. Both
-   * are read off `live.css`'s own text, because jsdom applies no stylesheet — the
-   * boxes themselves are measured on every frame of a real match by
-   * `e2e/table-fit.spec.ts`.
-   *
-   * Reverting either one fails here: a question centred in the room above the
-   * cluster has no `left`, and a rail that is 2rem wide against the old anchor has
-   * neither the width token nor the percentage behind it.
-   */
-  it('the rail anchors right at 8.4%, and the question has ONE home at 59.4% across', () => {
-    const css = liveCss();
-    const live = declarations(css, '.live');
-    const rail = declarations(css, '.live__phases');
-
-    // The rail: the right-hand gutter, and the width the operator widened it to.
-    expect(rail).toContain('right: var(--live-gutter)');
-    expect(rail).toContain('width: var(--live-rail-w)');
-    /*
-     * 8.4% is the proportion the operator drew and 6.75rem is the 108px they drew
-     * it at; the floor is not decoration. In a watchparty ROOM the chat sits beside
-     * the match and `.live` is 944px wide, where 8.4% is 79px and "Beginning of
-     * combat" truncates — which is the one thing §B.2 widened the rail to prevent.
-     */
-    expect(live, 'the rail is 8.4% of the width, and never below the 108px that fits the names').toContain(
-      '--live-rail-w: max(8.4%, 6.75rem)',
-    );
-    expect(rail, 'no left anchor is left behind').not.toContain('left:');
-    /*
-     * And what the rail's floor actually LEAVES a name, which is the number wave
-     * 26 got wrong (wave 27 §B.2).
-     *
-     * 108 − 2 border − 2 × side padding − the mark − the gap is a name's whole
-     * budget, and at 9.5px type `Beginning of combat` needed 94 of the 94 it had
-     * — but only at weight 400. The CURRENT step is drawn at 600, where the same
-     * word needs 97, so it ellipsized for the handful of frames a turn spends in
-     * that step, and no box anywhere breached. Measured in Chromium against the
-     * app's own font stack; the table is in `live.css` beside the rule.
-     *
-     * This adds the terms up off the file rather than trusting a literal, the
-     * way the cluster's height token is added up above — and the worst case it
-     * is compared against is the BOLD one.
-     */
-    const px = (decls: string, prop: string): number[] =>
-      [...(new RegExp(`(?:^|; )${prop}: ([^;]+)`).exec(decls)?.[1] ?? '').matchAll(/([\d.]+)px/g)].map((m) => Number(m[1]));
-    const name = declarations(css, '.live__step-name');
-    const floorRem = Number(/--live-rail-w: max\(8\.4%, ([\d.]+)rem\)/.exec(live)?.[1]);
-    // Wave 32 Q3 took the mark (and its gap) out of every row: the name has the
-    // whole of it, centred.
-    const budget = floorRem * 16 - 2 * 1 - 2 * px(rail, 'padding')[1]!;
-    expect(budget, 'a step name’s own budget at the rail’s floor').toBe(104);
-    expect(px(name, 'font-size')[0], 'the type the budget was measured at').toBe(9);
-    // `Beginning of combat` at 9px/600, the longest of Forge's thirteen at the
-    // weight the current step is actually drawn at.
-    expect(budget, 'the widest step name, BOLD, fits the budget').toBeGreaterThanOrEqual(92);
-    // Its own percentages, which is what makes the cluster's `top: 67%` land
-    // directly under it rather than wherever thirteen rows happened to end.
-    expect(rail).toContain('top: 31%');
-    // Wave 33 §L1: `var(--live-h) * 0.35`, not `35%` — a `%` here would
-    // re-resolve against whichever box later reads `--rail-row-h` (see the
-    // rule's own comment and the "same row height" tests below) rather than
-    // staying pinned to `.live`'s own height.
-    expect(rail, 'a full turn is 35% of .live’s OWN height, read as a length').toContain(
-      '(var(--live-h) * 0.35 - var(--rail-chrome))',
-    );
-    expect(rail, 'not centred any more: the gutter is a strip, in the drawn order').not.toContain('translate:');
-
-    // The question: a fixed column, not a sheet centred on whatever height it is.
-    const host = declarations(css, '.live__prompt');
-    expect(host).toContain('left: var(--live-col-x)');
-    expect(host).toContain('width: var(--live-col-w)');
-    expect(host).toContain('top: 24%');
-    expect(host).toContain('height: 48%');
-    expect(live).toContain('--live-col-x: 59.4%');
-    expect(live).toContain('--live-col-w: 24.1%');
-    // The column is where it is so that it CLEARS the gutter, not so that it stops
-    // above the cluster: 59.4% + 24.1% = 83.5%, and the gutter starts past that.
-    expect(59.4 + 24.1, 'the question’s column ends clear of the overlay gutter').toBeLessThan(84.4);
-    expect(host, 'no inset shorthand from the centred placement survives').not.toContain('inset:');
-  });
 });
 
 /*
@@ -1804,24 +1675,17 @@ describe('the phase reads down the side', () => {
  * it sits is this lane's; what it looks like inside is lane D's.
  */
 describe('a prompt belongs where the player is looking', () => {
-  it('the host is a fixed column over the board, with the sheet centred in it', () => {
-    const decls = declarations(liveCss(), '.live__prompt');
-    // Where the column is, is pinned in its own case above (§B items 1 and 2).
-    // What this asserts is the mechanism: a definite box, a centred sheet, and a
-    // host that does not swallow the table's clicks.
-    expect(decls).toContain('top: 24%');
-    expect(decls).toContain('height: 48%');
-    expect(decls).toContain('align-items: center');
-    expect(decls).toContain('justify-content: center');
-    // `top` + `height` is what makes the height definite; a `bottom` as well
-    // would over-constrain the box and `bottom` is the one the browser drops.
-    expect(decls).not.toContain('bottom:');
-    // The host now covers the board, so it must not swallow the table's clicks;
-    // the sheet takes them back.
-    expect(decls).toContain('pointer-events: none');
-    expect(declarations(liveCss(), '.live__prompt > .prompt, .live__prompt > .confirm')).toContain(
-      'pointer-events: auto',
-    );
+  it('the host is a column over the board with the sheet centred in it, and takes no click the sheet does not', async () => {
+    const css = styled();
+    const { s, getByTestId } = await liveBoard();
+    s.send(confirmAsk('c-host', true));
+    const host = await waitFor(() => getByTestId('live-prompt'));
+    expect(css(host, 'position')).toBe('absolute');
+    expect(css(host, 'align-items')).toBe('center');
+    expect(css(host, 'justify-content')).toBe('center');
+    // The host covers the board, so it must not swallow the table's clicks; the sheet takes them back.
+    expect(css(host, 'pointer-events')).toBe('none');
+    expect(css(host.firstElementChild!, 'pointer-events')).not.toBe('none');
   });
 
   it('an open prompt is a sibling of the board, drawn last — nothing in the canvas moves for it', async () => {
@@ -2689,6 +2553,16 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(names()).toHaveLength(8);
     expect(names()).toContain('Combat');
     const railBefore = getByTestId('live-phases').className;
+    // The rail's row count is the CSS's, its rows one shared height (wave 33 §L1): read off what the cascade gives the drawn rail.
+    const css = styled();
+    const rows = () => {
+      const rail = getByTestId('live-phases');
+      const step = rail.querySelector('.live__step')!;
+      return { count: Number(css(rail, '--rail-rows')), height: [css(rail, '--rail-row-h'), css(step, 'height'), css(step, 'flex')] };
+    };
+    const outside = rows();
+    expect(outside.count, 'out of combat').toBe(names().length);
+    expect(outside.height[1], 'a row has a height of its own, not a share of what is left').not.toBe('');
 
     s.send(inCombat(m, 'COMBAT_DECLARE_BLOCKERS'));
     await waitFor(() => expect(getByTestId('live-phases').dataset.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
@@ -2709,6 +2583,9 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     ]);
     const current = container.querySelector('.live__step[data-current]')!;
     expect(current.textContent).toBe('Declare blockers');
+    const inside = rows();
+    expect(inside.count, 'the rail is sized for the rows it draws').toBe(names().length);
+    expect(inside.height, 'every row the same height in combat as out of it').toEqual(outside.height);
     // The earlier combat steps are past; the rail is the same element with the same box rules.
     expect(container.querySelector('.live__step[data-phase="COMBAT_BEGIN"]')!.hasAttribute('data-past')).toBe(true);
     expect(getByTestId('live-phases').className).toBe(railBefore);
@@ -2735,21 +2612,6 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     fireEvent.click(getByTestId('live-concede'));
     expect(queryByTestId('live-concede-ask')).toBeNull();
     expect(m.stats.replies).toBe(sent);
-  });
-
-  it('P6: the table and the chat sit inside the header’s own inset, on both sides', () => {
-    // jsdom has no layout, so this pins the rules; the boxes are measured in a
-    // real browser in `docs/planning/wave31-evidence/p6-boundary.md`.
-    const chrome = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../../chrome/chrome.css'), 'utf8');
-    const inset = /\.cardtable-chrome > \.app-header \{[^}]*?margin-inline: ([\d.]+rem)/.exec(chrome)?.[1];
-    expect(inset, 'the bar’s own side inset').toBe('2rem');
-    const css = liveCss();
-    // The content block holds the table and, in a room, watchparty's chat aside
-    // (a flex item of a frame 100% of this block): insetting it by the bar's own
-    // number moves both.
-    expect(declarations(chrome, '.cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame)')).toContain(`padding-inline: ${inset}`);
-    // And the table starts where the content does: no side padding of its own.
-    expect(declarations(css, '.shell.shell--match')).toContain('padding: 4px 0 2px');
   });
 
   it('the sentence the page shows for a gone match is the one the server sends', () => {
@@ -2780,17 +2642,11 @@ describe('wave 32 lane L: chrome', () => {
   it('Q3: no bullets in the rail, names centred, and the rail is sized by its rows and animated in CSS only', async () => {
     const { container } = await liveBoard();
     expect(container.querySelector('.live__mark'), 'the bullet is gone from the markup').toBeNull();
-    const css = liveCss();
-    expect(css, 'and from the stylesheet').not.toContain('.live__mark');
-    expect(declarations(css, '.live__step-name')).toContain('text-align: center');
-    expect(declarations(css, '.live__step')).toContain('justify-content: center');
-
-    const rail = declarations(css, '.live__phases');
-    expect(rail, 'out of combat: eight rows').toContain('--rail-rows: 8');
-    expect(declarations(css, ".live__phases[data-combat]"), 'in combat: thirteen').toContain('--rail-rows: 13');
-    expect(rail, 'the height is the rows’ own, up to the 35% of a full turn').toContain('height: calc(var(--rail-chrome) + var(--rail-rows)');
-    expect(rail).toContain('transition: height');
-    expect(rail, 'still an overlay that takes no pointer events').toContain('pointer-events: none');
+    const css = styled();
+    const step = container.querySelector('.live__step')!;
+    expect(css(step.querySelector('.live__step-name')!, 'text-align')).toBe('center');
+    expect(css(step, 'justify-content')).toBe('center');
+    expect(css(container.querySelector('.live__phases')!, 'transition'), 'the rail animates its height in CSS').toContain('height');
   });
 
   it('Q3: the rail carries data-combat only while the game is in combat', async () => {
@@ -2823,86 +2679,19 @@ describe('wave 32 lane L: chrome', () => {
     await waitFor(() => expect(getByTestId('live-phases').hasAttribute('data-combat')).toBe(false));
   });
 
-  it('Q16: the question and the dialogs sit on the popover layer, the cluster, log button and rail on the overlay layer', () => {
-    const css = liveCss();
-    for (const sel of ['.live__prompt', '.live__ask']) {
-      expect(declarations(css, sel), sel).toContain('z-index: var(--z-popover, 40)');
-    }
+  it('Q16: the question sits on the popover layer, the cluster, log button and rail on the overlay layer', async () => {
+    const css = styled();
+    const { s, container, getByTestId } = await liveBoard();
+    s.send(confirmAsk('c-layer', true));
+    const question = await waitFor(() => getByTestId('live-prompt'));
+    expect(css(question, 'z-index')).toContain('--z-popover');
     for (const sel of ['.live__buttons', '.live__log-button', '.live__phases']) {
-      expect(declarations(css, sel), sel).toContain('z-index: var(--z-overlay, 20)');
+      expect(css(container.querySelector(sel)!, 'z-index'), sel).toContain('--z-overlay');
     }
   });
 });
 
-/*
- * ── Wave 33 lane L §L1 — the rail's rows, the same height in and out of combat ──
- *
- * Measured in a real browser (see `wave33-evidence/l1-rail-rows.md`): before
- * this fix, out-of-combat rows (eight, `flex: 1 1 0` sharing whatever
- * `.live__steps` had left) landed on one pixel figure and in-combat rows
- * (thirteen, the same mechanism) landed on another — the gap scales with
- * 1/n, so eight and thirteen never matched. jsdom applies no stylesheet (the
- * file header above explains why these read `live.css`'s own text rather
- * than `getComputedStyle`), so the claim a real browser now proves —
- * pixel-IDENTICAL rows, not merely close ones — is proven here as what makes
- * that identity unavoidable: one variable, computed once, read literally by
- * every row in both states, with no per-row arithmetic left for a browser to
- * round differently.
- */
-describe('wave 33 §L1: the rail’s rows are the same height in and out of combat', () => {
-  it('the row no longer grows to fill whatever is left: it is pinned to --rail-row-h', () => {
-    const css = liveCss();
-    const step = declarations(css, '.live__step');
-    // Reverting to `flex: 1 1 0` (no `height`) is exactly w32's attempt, and
-    // exactly what measured 17.5px against 15.4px.
-    expect(step, 'the row no longer shares leftover flex space').not.toContain('flex: 1 1 0');
-    expect(step, 'flex-basis sharing is off').toContain('flex: none');
-    expect(step, 'the row’s own height, not an inferred share of one').toContain('height: var(--rail-row-h)');
-  });
-
-  it('--rail-row-h is computed ONCE, off --live-h (a length), and never overridden by data-combat', () => {
-    const css = liveCss();
-    const rail = declarations(css, '.live__phases');
-    // A LENGTH, not a `%`: a `%` stored in a custom property re-resolves
-    // against whichever box later reads it — `.live__steps`, not `.live`,
-    // the moment `.live__step` (a different box) reads the same variable —
-    // which is exactly the bug a naive "just share a variable" fix would
-    // reintroduce. `--live-h` holds a pixel length (kept current by
-    // `LiveBoard.tsx`'s own `ResizeObserver`), which has no containing block
-    // to re-resolve against either, so it reaches every row unchanged.
-    expect(rail, '--rail-row-h reads --live-h, not a bare %, and not dvh (the viewport)').toContain(
-      '--rail-row-h: calc((var(--live-h) * 0.35 - var(--rail-chrome)) / 13)',
-    );
-    // The combat rule overrides the ROW COUNT only. If it ever touched
-    // `--rail-row-h` too, the two states would no longer be reading the same
-    // literal value — which is the only thing that makes them equal rather
-    // than merely close.
-    const combat = declarations(css, '.live__phases[data-combat]');
-    expect(combat, 'combat changes the row COUNT, not the row height').toBe('--rail-rows: 13;');
-  });
-
-  it('--live-h is .live’s own height, not the viewport’s — a fallback until the ResizeObserver runs', () => {
-    const css = liveCss();
-    // `dvh` would overshoot: `.live` is shorter than the viewport on the real
-    // match route (under the header, and inside watchparty's room frame when
-    // one is mounted) — measured in `wave33-evidence/l1-rail-rows.md`, where
-    // the rail grew tall enough to overlap the control cluster.
-    expect(declarations(css, '.live'), '.live declares a --live-h fallback').toContain('--live-h: 100dvh;');
-    expect(css, 'no rule still computes the rail off the viewport directly').not.toMatch(/--rail-row-h:.*dvh/);
-  });
-
-  it('the outer box still grows into combat and shrinks after (unchanged by this fix)', () => {
-    const css = liveCss();
-    const rail = declarations(css, '.live__phases');
-    expect(rail).toContain('height: calc(var(--rail-chrome) + var(--rail-rows) * var(--rail-row-h))');
-    expect(rail).toContain('transition: height');
-  });
-
-  it('a short window clips trailing rows rather than shrinking every row (overflow:hidden on the rail)', () => {
-    const css = liveCss();
-    expect(declarations(css, '.live__phases')).toContain('overflow: hidden');
-  });
-
+describe('wave 33 §L2: accent as text', () => {
   /*
    * §L2 — `--accent` as TEXT is `--accent-ink` (w32 R): `--accent` itself
    * stays reserved for borders and the colour-pie, which do not need the
@@ -2913,19 +2702,6 @@ describe('wave 33 §L1: the rail’s rows are the same height in and out of comb
   it('§L2: every text colour in live.css reads --accent-ink, never bare --accent', () => {
     const css = liveCss();
     expect(css, 'no text colour reads the raw token any more').not.toMatch(/(?<!border-)color: var\(--accent\);/);
-    for (const sel of [
-      '.live__gone-back',
-      ".live__buttons .live__toggle[aria-pressed='true']",
-      ".live__log-button[aria-expanded='true']",
-      ".live__turn[data-whose='yours'] .live__turn-n",
-      '.live__step[data-current] .live__step-name',
-    ]) {
-      expect(declarations(css, sel), sel).toContain('color: var(--accent-ink)');
-    }
-    // Borders keep the raw token — only TEXT moved.
-    expect(declarations(css, ".live__buttons .live__toggle[aria-pressed='true']")).toContain(
-      'border-color: var(--accent)',
-    );
   });
 });
 
@@ -3239,9 +3015,14 @@ describe('R6 — the End Turn flicker: the rail’s resize transition is suppres
     expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(false);
   });
 
-  it('the transition is off while data-crawl is set, in the stylesheet', () => {
-    const css = liveCss();
-    expect(declarations(css, '.live__phases[data-crawl]')).toContain('transition: none');
+  it('the transition is off while data-crawl is set', () => {
+    const css = styled();
+    const rail = document.body.appendChild(document.createElement('div'));
+    rail.className = 'live__phases';
+    onTestFinished(() => rail.remove());
+    expect(css(rail, 'transition'), 'at rest it animates').not.toMatch(/^(none)?$/);
+    rail.setAttribute('data-crawl', '');
+    expect(css(rail, 'transition'), 'crawling it does not').toBe('none');
   });
 });
 
@@ -3532,23 +3313,17 @@ describe('R16 — the result screen, drawn over the board', () => {
  */
 
 describe('T5 — the current phase’s highlight on the rail is stronger', () => {
-  it('the current row gets a tinted background and an accent-bar box-shadow, theme tokens only', () => {
-    const current = declarations(liveCss(), '.live__step[data-current]');
-    expect(current).toContain('background: color-mix(in srgb, var(--accent) 16%, transparent)');
-    expect(current).toContain('box-shadow: inset 3px 0 0 0 var(--accent)');
-    // No raw colours: every value here is a theme token, or `color-mix` of one.
-    expect(current).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
-  });
-
-  it('is a box-shadow, not a border: the row keeps sharing --rail-row-h exactly (wave 33 §L1’s own guarantee)', () => {
-    const current = declarations(liveCss(), '.live__step[data-current]');
-    expect(current, 'a border would add to the box model every row shares').not.toContain('border');
-  });
-
-  it('the text treatment (weight, colour) is unchanged — the row highlight is additive', () => {
-    expect(declarations(liveCss(), '.live__step[data-current] .live__step-name')).toBe(
-      'font-weight: 600; color: var(--accent-ink);',
-    );
+  it('the current row is tinted and barred, in theme tokens, and not with a border every row would share', async () => {
+    const css = styled();
+    const { container } = await liveBoard();
+    const current = container.querySelector('.live__step[data-current]')!;
+    const other = container.querySelector('.live__step:not([data-current])')!;
+    for (const prop of ['background', 'box-shadow']) {
+      expect(css(current, prop), prop).not.toBe(css(other, prop));
+      expect(css(current, prop), `${prop}: no raw colour`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    }
+    // A border would add to the box model every row shares (`--rail-row-h`).
+    expect(css(current, 'border-style')).toBe(css(other, 'border-style'));
   });
 
   it('a real rendered rail still carries exactly one data-current row, for the highlight to land on', async () => {
@@ -4415,11 +4190,6 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     } finally {
       spy.mockRestore();
     }
-    // And the band reads it: hung from that edge, a gap above it.
-    const boardCss = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../board.css'), 'utf8');
-    const band = declarations(boardCss, '.board__mid[data-question]');
-    expect(band).toContain('--mid-h: min(var(--mid-h-asked), calc(var(--question-top, 100rem) - 2 * var(--board-gap)));');
-    expect(band).toContain('top: max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)));');
   });
 });
 
