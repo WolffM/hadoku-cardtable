@@ -17,6 +17,7 @@ import { expect, test } from '@playwright/test';
 import { clickHandCard, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { recordSurface } from './play/surface.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -30,18 +31,7 @@ test(titled('a bounceland played as the only land returns at once; the other sea
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w62-bounce');
 
     // Everything bob's pop-out ever says, from before the play — a poll can miss a flash.
-    await bob.page.evaluate(() => {
-      const seen: string[] = [];
-      const w = window as unknown as { __waitingSeen: string[] };
-      w.__waitingSeen = seen;
-      const read = () => {
-        const el = document.querySelector('[data-testid="live-waiting-pop"]');
-        const text = el?.textContent?.trim() ?? '';
-        if (seen[seen.length - 1] !== text) seen.push(text);
-      };
-      new MutationObserver(read).observe(document.body, { childList: true, subtree: true, characterData: true });
-      read();
-    });
+    const pop = await recordSurface(bob.page, '[data-testid="live-waiting-pop"]');
 
     const land = await handCardNamed(alice.page, 'Selesnya Sanctuary');
     expect(land, 'alice holds the Sanctuary').toBeDefined();
@@ -56,7 +46,7 @@ test(titled('a bounceland played as the only land returns at once; the other sea
 
     // Let the server decide her next window, then read the record.
     await bob.page.waitForTimeout(1500);
-    const seen = await bob.page.evaluate(() => (window as unknown as { __waitingSeen: string[] }).__waitingSeen);
+    const seen = (await pop.rows()).map((r) => r.text);
     console.log(`[w62-bounce] bob's pop-out said: ${JSON.stringify(seen)}; alice says: ${JSON.stringify(await says(alice.page))}`);
     const asks = serverLog(stack).filter((r) => r.seat === 0 && r.method === 'getAbilityToPlay' && (r.evt === 'ask-answered' || r.evt === 'ask-auto-answered'));
     console.log(`[w62-bounce] alice's getAbilityToPlay: ${asks.map((r) => (r.evt === 'ask-answered' ? `browser ${String(r.ms)} ms` : `server (${String(r.why)})`)).join(', ')}`);

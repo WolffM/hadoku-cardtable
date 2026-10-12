@@ -12,8 +12,8 @@
  * ask shapes the wave file guessed, `confirm`/`manipulateCardList`, are
  * wrong — see it for what each actually is).
  *
- * This is the CLIENT half: two real browsers, polled every 50 ms through
- * the window Condescend resolves, for the one thing a sequential wire still
+ * This is the CLIENT half: two real browsers, every change to their screens
+ * recorded through the window Condescend resolves, for the one thing a sequential wire still
  * cannot promise on its own — that the UI renders what it is told in the
  * same order, with no stale frame drawing two decisions together. Full
  * control is ON for bob only (`live-full-control`), so his own payment
@@ -29,6 +29,7 @@ import { castCard, clickOnce, makeTitled, says, stackCount } from './play/board.
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { overlaps, recordSurface, spans } from './play/surface.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -50,7 +51,7 @@ async function handCardNamed(page: Page, name: string): Promise<number | undefin
  * own header), then drain whatever Forge asks next — `getAbilityToPlay`
  * (the spell's own one ability), the X announce (a `getChoices` slider,
  * `GetChoicesPrompt`'s own shape once `numericChoiceRange` sees it — set to
- * `x`, not `answerPrompt`'s generic default of the minimum), and "Pay Mana
+ * `x` by `answerPrompt`'s own `x`, never its default minimum), and "Pay Mana
  * Cost". Alice's own single-legal-target choice is never drawn here at all:
  * she is not on full control, so the server's own `onlyAnswer` shortcut
  * answers it before it ever reaches her wire (`match.ts`'s `openAsk`).
@@ -66,18 +67,7 @@ async function castCondescend(page: Page, cardId: number, x: number): Promise<vo
   await expect
     .poll(
       async () => {
-        const slider = page.getByTestId('prompt-slider');
-        if ((await slider.count()) > 0) {
-          await slider.evaluate((el: HTMLInputElement, m) => {
-            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
-            setter.call(el, String(m));
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-          }, x);
-          await page.getByTestId('prompt-submit').click();
-        } else {
-          await answerPrompt(page);
-        }
+        await answerPrompt(page, { x });
         const text = await says(page);
         if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
         return stackCount(page);
@@ -121,6 +111,14 @@ test(titled('bob’s pay-or-decline and alice’s scry never draw at once, acros
     if (condescendId === undefined) throw new Error('no Condescend in alice’s hand');
     await castCondescend(alice.page, condescendId, 1);
 
+    // Everything both screens draw from here until both of Condescend's windows are
+    // answered: bob's real payment window, alice's scry sheet, and alice's waiting pop-out
+    // (naming bob) — recorded on every DOM change, so a window shorter than a poll is in it.
+    const SCRY = '[data-testid="live-prompt"][data-method="order"]';
+    const bobPayRec = await recordSurface(bob.page, '[data-testid="live-payment"]');
+    const aliceScryRec = await recordSurface(alice.page, SCRY);
+    const aliceWaitingRec = await recordSurface(alice.page, '[data-testid="live-waiting-pop"]');
+
     // Both seats pass priority so Condescend resolves. Alice (not on full
     // control, and with nothing else to do) auto-passes on the server's own
     // say — her own "Stack: 2 to Resolve" window is never actually offered
@@ -137,51 +135,31 @@ test(titled('bob’s pay-or-decline and alice’s scry never draw at once, acros
       )
       .toBe(true);
 
-    // The measurement: poll both pages every 50 ms, from the moment
-    // Condescend starts resolving to the moment both its own windows are
-    // answered, recording every tick whether bob's real payment window and
-    // alice's scry sheet are open — and, on alice's own single page,
-    // whether her waiting pop-out (naming bob) and her own scry sheet are
-    // ever BOTH drawn.
+    // Driving, not measuring: bob declines his payment once it is up and alice answers her
+    // scry. What was on screen is the record above, not what these reads happened to see.
     const bobPayLive = () => bob.page.getByTestId('live-payment').isVisible().catch(() => false);
-    const aliceScryLive = () =>
-      alice.page
-        .locator('[data-testid="live-prompt"][data-method="order"]')
-        .first()
-        .isVisible()
-        .catch(() => false);
-    const aliceWaitingLive = () => alice.page.getByTestId('live-waiting-pop').isVisible().catch(() => false);
-
-    // `bobDeclinedAt`: before this test clicks bob's own Cancel, his payment
-    // window being visible is a genuine, unanswered decision; after, the
-    // SAME element can keep rendering for a tick or two while his own click
-    // round-trips to the server — that lag is not the sequencing claim, so a
-    // tick is only counted against the "never both open" rule while bob's
-    // decision is still actually pending (the index his decline landed on,
-    // recorded BEFORE that tick's own read, never after).
-    const ticks: { t: number; bobPay: boolean; aliceScry: boolean; aliceWaiting: boolean; bobPending: boolean }[] = [];
-    const t0 = Date.now();
+    const aliceScryLive = () => alice.page.locator(SCRY).first().isVisible().catch(() => false);
+    // Bob's payment counts against "never both open" only while his decision is still pending:
+    // after his Cancel the same element can render a moment longer while the click round-trips.
+    let bobDeclinedAt = Infinity;
     let bobPaySeen = false;
-    let bobDeclined = false;
     let aliceAnswered = false;
-    for (let i = 0; i < 400 && !(bobDeclined && aliceAnswered); i++) {
-      const bobPendingThisTick = !bobDeclined;
-      const [bobPay, aliceScry, aliceWaiting] = await Promise.all([bobPayLive(), aliceScryLive(), aliceWaitingLive()]);
-      ticks.push({ t: Date.now() - t0, bobPay, aliceScry, aliceWaiting, bobPending: bobPendingThisTick });
+    for (let i = 0; i < 400 && !(bobDeclinedAt !== Infinity && aliceAnswered); i++) {
+      const [bobPay, aliceScry] = await Promise.all([bobPayLive(), aliceScryLive()]);
       if (bobPay) bobPaySeen = true;
 
       // Resolve each exactly once, deterministically: bob declines (the
       // spell still counters Grizzly Bears and still scries either way —
       // `w62-condescend.jvm.test.ts`'s own note); alice's scry is answered
       // through the ordinary prompt driver.
-      if (bobPay && !bobDeclined) {
+      if (bobPay && bobDeclinedAt === Infinity) {
         const cancel = bob.page.getByTestId('live-payment-cancel');
         if ((await cancel.count()) > 0 && (await cancel.isEnabled())) {
+          bobDeclinedAt = Date.now();
           await cancel.click();
-          bobDeclined = true;
         }
-      } else if (bobPaySeen && !bobPay) {
-        bobDeclined = true; // it opened, and is gone now — Forge moved on
+      } else if (bobPaySeen && !bobPay && bobDeclinedAt === Infinity) {
+        bobDeclinedAt = Date.now(); // it opened, and is gone now — Forge moved on
       }
       if (aliceScry && !aliceAnswered) {
         const answered = await answerPrompt(alice.page);
@@ -191,15 +169,17 @@ test(titled('bob’s pay-or-decline and alice’s scry never draw at once, acros
       await alice.page.waitForTimeout(50);
     }
 
-    expect(ticks.some((t) => t.bobPay), 'bob’s own payment window was observed at least once').toBe(true);
-    expect(ticks.some((t) => t.aliceScry), 'alice’s own scry sheet was observed at least once').toBe(true);
+    const bobPay = spans(await bobPayRec.rows());
+    const aliceScry = spans(await aliceScryRec.rows());
+    const aliceWaiting = spans(await aliceWaitingRec.rows());
+    expect(bobPay.length, 'bob’s own payment window was drawn at least once').toBeGreaterThan(0);
+    expect(aliceScry.length, 'alice’s own scry sheet was drawn at least once').toBeGreaterThan(0);
 
-    const bothOpenAcrossSeats = ticks.filter((t) => t.bobPay && t.bobPending && t.aliceScry);
-    const bothOpenOnAlice = ticks.filter((t) => t.aliceWaiting && t.aliceScry);
+    const bobPending = bobPay.map((p) => ({ from: p.from, to: Math.min(p.to, bobDeclinedAt) })).filter((p) => p.from < p.to);
+    const bothOpenAcrossSeats = overlaps(bobPending, aliceScry);
+    const bothOpenOnAlice = overlaps(aliceWaiting, aliceScry);
     if (bothOpenAcrossSeats.length > 0 || bothOpenOnAlice.length > 0) {
-      console.log(
-        `[w62-condescend-e2e] ticks:\n${ticks.map((t) => `+${t.t}ms bobPay=${t.bobPay}(pending=${t.bobPending}) aliceScry=${t.aliceScry} aliceWaiting=${t.aliceWaiting}`).join('\n')}`,
-      );
+      console.log(`[w62-condescend-e2e] shown (wall ms): bobPay ${JSON.stringify(bobPay)} declined ${bobDeclinedAt}; aliceScry ${JSON.stringify(aliceScry)}; aliceWaiting ${JSON.stringify(aliceWaiting)}`);
     }
     expect(bothOpenAcrossSeats, 'alice’s scry sheet never draws while bob’s payment is still a genuinely pending, unanswered decision').toEqual([]);
     expect(bothOpenOnAlice, 'alice’s own waiting pop-out and her own scry sheet are never both drawn at once').toEqual([]);

@@ -22,10 +22,16 @@ export { SELF_ANSWERING };
  * caller asked to `leave` open. `leave` is decided from the same read the
  * answer is scoped to, so an ask that opens between a caller's own check and
  * this call can never be answered by mistake.
+ *
+ * `x` is the number a "choose X" slider is set to (default: its minimum). It
+ * belongs here, not in a caller's own "is there a slider? else answerPrompt"
+ * branch: the X ask can open between those two reads, and the generic default
+ * then answers X = 0 (w62-condescend, run 38234802880: Condescend resolved
+ * with "(X=0)", so bob was never asked to pay).
  */
 export async function answerPrompt(
   page: Page,
-  opts: { leave?: readonly string[] } = {},
+  opts: { leave?: readonly string[]; x?: number } = {},
 ): Promise<{ method: string; callId: string } | null> {
   // Read both attributes in one step: a self-answering prompt can vanish
   // between two separate reads.
@@ -63,6 +69,18 @@ export async function answerPrompt(
       break;
     }
     case 'tick-until-submittable': {
+      const slider = sheet.getByTestId('prompt-slider');
+      if (opts.x !== undefined && (await slider.count()) > 0) {
+        // React tracks a range input's value itself, so set it through the native setter and
+        // tell it with the events a drag sends.
+        await slider.evaluate((el: HTMLInputElement, x) => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, String(x));
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, opts.x);
+        await submit.click();
+        break;
+      }
       const choices = sheet.locator(`input[data-testid="${ANSWER_TESTID.choice}"]`);
       const count = await choices.count();
       // The file's own header: "the default, the first option" — not

@@ -34,6 +34,7 @@ import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { enterMatch, grindPriority, makeTitled, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
+import { recordSurface, type Surface } from './play/surface.ts';
 import { turnNumber } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -59,28 +60,25 @@ interface PhaseEntry {
   t: number;
   phase: string;
   whose: string;
-  turn: string;
 }
 
-/** Timestamp every change of the rail's phase, in the page, so a gap is the page's own. */
+/** Each page's record of its rail (`recordSurface`), timestamped in the page, so a gap is the page's own. */
+const rails = new Map<Page, Surface>();
 async function watchPhases(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as { __phases?: PhaseEntry[] };
-    w.__phases = [];
-    const rail = document.querySelector<HTMLElement>('[data-testid="live-phases"]');
-    if (rail === null) throw new Error('no phase rail to watch');
-    let last = rail.dataset.phase ?? '';
-    new MutationObserver(() => {
-      const phase = rail.dataset.phase ?? '';
-      if (phase === last) return;
-      last = phase;
-      w.__phases!.push({ t: performance.now(), phase, whose: rail.dataset.whose ?? '', turn: document.querySelector('[data-testid="live-turn-n"]')?.textContent ?? '' });
-    }).observe(rail, { attributes: true, attributeFilter: ['data-phase'] });
-  });
+  rails.set(page, await recordSurface(page, '[data-testid="live-phases"]', { attrs: ['data-phase', 'data-whose'], shown: 'present' }));
 }
 
-const phasesOf = (page: Page): Promise<PhaseEntry[]> =>
-  page.evaluate(() => [...((window as unknown as { __phases?: PhaseEntry[] }).__phases ?? [])]);
+/** Every change of the rail's phase since it was watched, with whose it was then. */
+async function phasesOf(page: Page): Promise<PhaseEntry[]> {
+  const rail = rails.get(page);
+  if (rail === undefined) throw new Error('the rail is not being watched');
+  const out: PhaseEntry[] = [];
+  for (const r of await rail.rows()) {
+    const phase = r.attrs['data-phase'] ?? '';
+    if ((out.at(-1)?.phase ?? null) !== phase) out.push({ t: r.t, phase, whose: r.attrs['data-whose'] ?? '' });
+  }
+  return out;
+}
 const mark = (page: Page): Promise<number> => page.evaluate(() => performance.now());
 
 const gaps = (entries: PhaseEntry[]): number[] => entries.slice(1).map((e, i) => Math.round(e.t - entries[i]!.t));
