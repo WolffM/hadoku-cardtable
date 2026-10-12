@@ -94,13 +94,24 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       return found.id;
     };
 
-    /** Tap `id` by one click; resolves once it is tapped on both screens and nothing is asking. */
+    /**
+     * Tap `id` by one click, answering what Forge asks on the way (the painland's ability, then its
+     * colour, which Forge asks after it has tapped the land); resolves once it is tapped on both
+     * screens, its mana is in the pool and nothing is asking.
+     */
     const tapByClick = async (id: number, what: string): Promise<void> => {
+      const poolBefore = (await manaPool(a)).total;
       expect(await clickPermanent(a, id), `${what} is offered in a live window`).toBe(true);
-      await answerAsks(a);
-      await expect.poll(() => isTapped(a, id), { timeout: 10_000, message: `${what} tapped on one click — the server's clicks on it: ${clickRecords(stack, id)}` }).toBe(true);
+      await expect
+        .poll(
+          async () => {
+            await answerAsks(a);
+            return (await isTapped(a, id)) && (await manaPool(a)).total > poolBefore;
+          },
+          { timeout: 15_000, message: `${what} tapped for mana on one click — the server's clicks on it: ${clickRecords(stack, id)}` },
+        )
+        .toBe(true);
       await expect.poll(() => isTapped(b, id), { timeout: 10_000, message: `bob sees ${what} tapped` }).toBe(true);
-      await answerAsks(a);
       await expect(a.getByTestId('live-prompt'), `nothing is left asking after ${what} tapped`).toHaveCount(0, { timeout: 10_000 });
     };
 
