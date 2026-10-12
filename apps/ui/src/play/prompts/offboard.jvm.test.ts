@@ -77,11 +77,9 @@ const PAY_X_LABEL = /you may pay \{X\}/;
  * decision): that one is answered `null` (decline) when `decideX ===
  * 'decline'`, or with the ability itself (play it) otherwise — exactly what
  * a click on `GetAbilityToPlayPrompt`'s own "None" button, or on the
- * ability, would send. Auto-pays any live mana window (Kozilek's Return's
- * `{2}{R}`, then `TrigReturn`'s `{B}` — the scenario's Swamp is there for
- * exactly this). A trigger's one-ability offer reaches a seat only with the
- * one-answer shortcut off (in the product: full control), so the match runs
- * with it off.
+ * ability, would send. A trigger's one-ability offer reaches a seat only
+ * with the one-answer shortcut off (in the product: full control), so the
+ * match runs with it off.
  */
 async function castAndDecideX(seed: number, decideX: 'play' | 'decline'): Promise<Scenario> {
   if (!available.ok) throw new Error(available.reason);
@@ -115,14 +113,25 @@ async function castAndDecideX(seed: number, decideX: 'play' | 'decline'): Promis
   return s;
 }
 
+/**
+ * Answer the default asks and press Auto on any live mana window, as the
+ * seat would: Kozilek's Return's `{2}{R}`, `TrigReturn`'s `{B}` (the
+ * scenario's Swamp is there for exactly this) and `TrigChange`'s `{X}`. The
+ * two trigger payments are "you may pay" costs the server shows the seat
+ * rather than paying for it, so the driver pays them.
+ */
+function answerAndPay(s: Scenario): void {
+  s.answerAsks();
+  const bar = s.buttons(0);
+  if (bar?.label1 === 'Auto' && bar.enable1) s.ok(0);
+}
+
 /** Drive `s` (already casting) until the second trigger's own target selection opens — two graveyard cards. */
 async function reachTheGraveyardSelection(s: Scenario): Promise<OpenSelection> {
   let selection: OpenSelection | null = null;
   await waitUntil(
     () => {
-      s.answerAsks();
-      const bar = s.buttons(0);
-      if (bar?.label1 === 'Auto' && bar.enable1) s.ok(0);
+      answerAndPay(s);
       const last = [...s.sent].reverse().find((x) => x.seat === 0 && x.envelope.frame.method === 'setSelectables');
       if (last !== undefined) {
         const f = last.envelope.frame as unknown as { cards: { id: number }[]; min: number; max: number };
@@ -147,9 +156,7 @@ describe.skipIf(!available.ok)(title, () => {
       try {
         await waitUntil(
           () => {
-            s.answerAsks();
-            const bar = s.buttons(0);
-            if (bar?.label1 === 'Auto' && bar.enable1) s.ok(0);
+            answerAndPay(s);
             return /Stack: Empty/.test(s.prompt(0));
           },
           'the stack to resolve empty after declining the optional trigger',
@@ -212,7 +219,7 @@ describe.skipIf(!available.ok)(title, () => {
         s.select(0, chosen);
         await waitUntil(
           () => {
-            s.answerAsks();
+            answerAndPay(s);
             return s.zone(0, 'Battlefield').some((c) => c.id === chosen);
           },
           'the chosen graveyard card to enter the battlefield',
