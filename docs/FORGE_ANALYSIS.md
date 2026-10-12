@@ -620,3 +620,26 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   is written. One consequence is visible: Unsummon's resolution reads "Return a
   card to its owner's hand" to the caster, because the Elves are already in the
   opponent's hand when the line is written.
+- **VERIFIED (read)** — the events those actions do fire, all on the game's
+  event bus (`Game.subscribeToEvents`): `GameEventCardChangeZone(card, from, to)`
+  for every move, from `GameAction.changeZone` (`GameAction.java:582`; a
+  token's arrival has `from == null`); a draw is that move, which
+  `Player.doDraw` follows with `setDrawnThisTurn(true)` — there is no draw
+  event. `GameEventCardTapped(card, tapped)` from `Card.tap`/`untap`
+  (`Card.java:4669`, `:4706`) and for a tapped card leaving the battlefield
+  (`GameAction.java:537`). `GameEventCardCounters(card, type, old, new)` from
+  `Card.java:1788`, `:1917`. `GameEventTokenCreated()` carries no card at all.
+  `GameEventSpellResolved` fires AFTER the effect has run
+  (`MagicStack.java:660`), so a resolution's own log line comes after the moves
+  it made. A mana ability's `MANA` entry is `source + " - " + sp`
+  (`MagicStack.java:321`), one per ability, for a human's clicks and the Auto
+  payment alike (`ComputerUtilMana.java:776` adds through the same `MagicStack`).
+- **VERIFIED (measured, `e2e/lg-gamelog.spec.ts` on the claws)** — the bridge's
+  `GameLogForward` writes those actions into the same stream, held until the
+  next entry Forge writes: one line per draw, payment ("Alice taps Island for
+  {U}", replacing the per-ability `MANA` lines), untap step, token batch,
+  counter change, and move between library, hand, battlefield, graveyard and
+  exile. A held line whose cards the next entry names is dropped; one made
+  during a resolution goes only to players it names a card to, and a token
+  only if the resolution's line (outside reminder text) does not already name
+  its kind.

@@ -500,13 +500,14 @@ describe.skipIf(!available.ok)(title, () => {
 
 			/*
 			 * #8 — a cast is never free: Forge's own log says each mana ability that
-			 * paid (`MagicStack.add`, a `MANA` entry per activation), and names its card
+			 * paid (`MagicStack.add`, a `MANA` entry per activation), and the bridge
+			 * sends one payment's entries as one line that names its cards and the mana
 			 * — a name, never an id, on the payer's log and the opponent's alike.
 			 */
 			expect(paid.length).toBeGreaterThanOrEqual(2);
 			for (const line of paid) {
 				expect(line.message, line.message).not.toMatch(/\(\d+\)|card #\d+/);
-				expect(line.message, line.message).toMatch(/\S - \S/);
+				expect(line.message, line.message).toMatch(/^[AB] taps \S.* for \{[WUBRGC]\}/);
 			}
 			expect(says.filter((x) => x.type === 'MANA' && x.seat === 1).map((x) => x.message), 'the opponent is told the same payments').toEqual(paid.map((x) => x.message));
 
