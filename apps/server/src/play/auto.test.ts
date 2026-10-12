@@ -1552,40 +1552,31 @@ function notesFor(message: string, bar: ServerFrame, actionable: readonly number
 	return { playerId: 1, prompt: prompt(message, 1), buttons: bar, actionable, openAsks: 0, manaOnlyIds };
 }
 
-describe('the adapter is the ONLY prose reader, and it is named', () => {
-	const SOURCE = readFileSync(new URL('./auto.ts', import.meta.url), 'utf8');
-	const ADAPTER_START = SOURCE.indexOf('/* ── THE ONE ADAPTER ');
-	const ADAPTER_END = SOURCE.indexOf('/* ── The decisions: pure over facts');
-
-	it('has an adapter section, and the decisions come after it', () => {
-		expect(ADAPTER_START).toBeGreaterThan(0);
-		expect(ADAPTER_END).toBeGreaterThan(ADAPTER_START);
-	});
-
+describe('the adapter is the ONLY prose reader', () => {
 	/*
-	 * The guard §0b asks for, mechanically: every ANCHORED pattern — the shape
-	 * that reads one of Forge's prompt lines — lives inside the adapter. A lane
-	 * that adds "one more case" to a decision has to add it where this test can
-	 * see it.
+	 * The guard §0b asks for, as behaviour: the decisions are functions of the
+	 * facts alone. `phaseLabel` is the one piece of Forge's prose a fact carries
+	 * (for display); scrambling it, in every window, phase, turn and stack state,
+	 * must not change whether any decision acts, under any named policy.
 	 */
-	it('every anchored pattern in the file is inside the adapter', () => {
-		// `PRIORITY`/`PAY_MANA` are exported for `match.ts`: still inside the adapter, still one copy.
-		const anchored = [...SOURCE.matchAll(/^(?:export )?const (\w+) = \/\^/gm)];
-		expect(anchored.length).toBeGreaterThan(0);
-		const outside = anchored.filter((m) => m.index! < ADAPTER_START || m.index! > ADAPTER_END).map((m) => m[1]);
-		expect(outside, `anchored patterns outside the adapter: ${JSON.stringify(outside)}`).toEqual([]);
-		// And the names, so a rename is a deliberate edit to this list.
-		expect(anchored.map((m) => m[1])).toEqual(['PRIORITY', 'TURN_OWNER', 'STACK_EMPTY', 'PHASE_LINE', 'PAY_MANA', 'LIFE_INSTEAD']);
-	});
-
-	it('the decision layer contains no pattern literal at all', () => {
-		const decisions = SOURCE.slice(ADAPTER_END, SOURCE.indexOf('/* ── What a cast paid'));
-		expect(decisions.length).toBeGreaterThan(500);
-		expect(decisions).not.toMatch(/\/\^/);
-		expect(decisions).not.toMatch(/RegExp/);
-		// Nor a phase SPELLING, nor Forge's button word: those are the adapter's.
-		expect(decisions).not.toContain('Main phase');
-		expect(decisions).not.toContain("'Auto'");
+	it('no decision reads the prose a fact was read from', () => {
+		let checked = 0;
+		for (const window of ['priority', 'payment', 'other'] as const)
+			for (const phase of [...PHASE_TYPES, null])
+				for (const myTurn of [true, false])
+					for (const stackEmpty of [true, false]) {
+						const read = facts({ window, phase, myTurn, stackEmpty, cost: window === 'payment' ? '{U}' : null, sources: [67] });
+						const scrambled = { ...read, phaseLabel: 'Main phase, precombat — Auto' };
+						for (const name of STOP_POLICY_NAMES) {
+							const policy = namedStopPolicy(name);
+							for (const decide of [decideStop, decidePay, decideCancel]) {
+								// Whether it acts; the reason it returns may quote the label back for display.
+								expect(decide(scrambled, policy) === null, `${decide.name} ${window} ${phase} ${name}`).toBe(decide(read, policy) === null);
+								checked += 1;
+							}
+						}
+					}
+		expect(checked).toBeGreaterThan(500);
 	});
 
 	it('maps all thirteen of Forge’s PhaseTypes out of their UI spellings, and only those', () => {
