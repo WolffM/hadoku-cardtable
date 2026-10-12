@@ -33,7 +33,7 @@
 
 import { CLIENT_EVENT } from '@hadoku/shared';
 import { createServer, type Server as HttpServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -136,6 +136,12 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
   const matchId = options.matchId ?? 'match-replay-1';
   const playerId = options.playerId ?? 0;
   const http = createServer();
+  // Every TCP connection, so `close` can end them without the client's say-so.
+  const connections = new Set<Socket>();
+  http.on('connection', (socket) => {
+    connections.add(socket);
+    socket.once('close', () => connections.delete(socket));
+  });
   const io = new Server(http);
   const joined = new Set<IoSocket>();
 
@@ -195,10 +201,16 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       input.highlighted.clear();
       input.weakly = null;
     },
+    // `http.close` only calls back once every connection has ended, and a
+    // websocket's end waits on its peer (ws gives a silent one 30 s). This
+    // close was the only await in gestures.test's afterEach when that hook
+    // timed out at 30 s on 8620c5f (2026-10-12). Destroying the connections
+    // makes the close the server's alone.
     close: () =>
       new Promise<void>((done) => {
-        io.close();
         http.close(() => done());
+        io.close();
+        for (const socket of connections) socket.destroy();
       }),
   };
 
