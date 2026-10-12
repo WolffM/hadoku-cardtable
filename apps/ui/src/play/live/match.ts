@@ -1814,7 +1814,9 @@ export function genuinelyAsked(
   open: { ownDecisionOpen: boolean; waitingForOpponent: boolean },
 ): boolean {
   const yielding = YIELDING.test(match.prompt ?? '');
-  const bar = match.buttons;
+  // The pressable bar, not Forge's raw one: a press closes this seat's window at once, not when
+  // the server's next bar arrives — and a lapsed hold reopens it.
+  const bar = liveBar(match);
   const viewerOpen = open.ownDecisionOpen || (!yielding && bar !== null && (bar.enable1 || bar.enable2));
   return seat === 'you' ? viewerOpen : open.waitingForOpponent && !viewerOpen;
 }
