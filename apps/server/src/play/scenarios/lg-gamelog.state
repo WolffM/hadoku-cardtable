@@ -1,0 +1,34 @@
+# The game log, with as many of Forge's log entry kinds as one short turn holds.
+#
+# Seat 0 (alice) lands at her own Declare Attackers Step with Grizzly Bears
+# attacking (Forge fires the attack declaration itself) and six spells of hers
+# already on the stack, bottom first:
+#   Lightning Bolt -> bob                cast with a target, non-combat damage, life
+#   Doom Blade -> Doomed Traveler        battlefield -> graveyard; bob's dies trigger, a token
+#   Swords to Plowshares -> Savannah     battlefield -> exile; bob gains life
+#   Hymn to Tourach -> bob               discards bob's whole hand: the Elves
+#   Unsummon -> Llanowar Elves           a bounce (Forge logs its resolution)
+#   Thought Scour -> bob                 bob mills two Forests; alice draws a Brainstorm
+# Nobody can respond, so the stack resolves on its own; then bob blocks
+# nothing, the Bears deal combat damage, and in Main Phase 2 alice plays a
+# Mountain and casts Opt with her Island (mana, scry 1).
+#
+# bob's hand starts empty: the harness checks a scripted hand is still there
+# once the board is up, and this one is discarded before it looks.
+#
+# Hidden from bob for the whole match: alice's Counterspell (never cast) and
+# the Brainstorms in her library and hand.
+turn=1
+activeplayer=human
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=Counterspell;Mountain;Opt
+humanbattlefield=Grizzly Bears|Attacking;Island
+humanlibrary=Brainstorm;Brainstorm;Brainstorm;Brainstorm;Brainstorm;Brainstorm
+humangraveyard=
+humanputonstack=Lightning Bolt->ai;Doom Blade->201;Swords to Plowshares->202;Hymn to Tourach->ai;Unsummon->203;Thought Scour->ai
+aihand=
+aibattlefield=Doomed Traveler|Id:201;Savannah Lions|Id:202;Llanowar Elves|Id:203;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
