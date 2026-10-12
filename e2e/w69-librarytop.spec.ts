@@ -327,6 +327,28 @@ test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the 
   }
 });
 
+/**
+ * Each time the pile view's card list is inserted on its own, and into what. Measured first, the
+ * view is in the document before its cards, so the list is inserted into it once (`PileView`'s fit).
+ * A list drawn with a view still being measured arrives inside the view's own insertion — no record
+ * of its own — and lays all of its cards out once at the wrong width and again at the right one.
+ */
+const watchCardList = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __list: string[] };
+    w.__list = [];
+    new MutationObserver((records) => {
+      for (const r of records) {
+        for (const n of Array.from(r.addedNodes)) {
+          if (!(n instanceof Element) || !n.matches('.pile-view__cards')) continue;
+          const into = r.target instanceof Element ? r.target : null;
+          w.__list.push(into?.getAttribute('data-testid') === 'pile-view' ? 'into the measured view' : `into ${into?.className ?? 'nothing'}`);
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+const cardListEntries = (page: Page) => page.evaluate(() => (window as unknown as { __list: string[] }).__list);
+
 /** Start counting long tasks and frame gaps on `page`. */
 const watchFrames = (page: Page) =>
   page.evaluate(() => {
@@ -374,6 +396,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
 
     // The claw's own frame floor first: the board idle, the view closed.
     await watchFrames(alice.page);
+    await watchCardList(alice.page);
     await alice.page.waitForTimeout(1000);
     const idle = await restartFrames(alice.page);
     // The strip of the pile's bottom card (an Island, not offered): a sixty-card pile is squeezed, its top clipped.
@@ -392,6 +415,13 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     );
     expect(Number(first), 'the offered card is the first card of the view').toBe(visions);
     expect(mark?.selectable, 'with the same ring').toBe(true);
+    // Opening a sixty-card view is laid out once, and only each card's art and name: what a long task
+    // opening it was made of (a claw's frame floor is 33–50 ms, so its milliseconds are printed, not gated).
+    const entries = await cardListEntries(alice.page);
+    const drawnText = await view.evaluate((el) => Array.from(el.querySelectorAll('.card__type, .card__rules, .card__foot')).filter((e) => e.getClientRects().length > 0).length);
+    console.log(`[pp-deep] the card list was inserted ${JSON.stringify(entries)} (none: it came with the view itself); type lines, rules and print lines laid out in the view: ${drawnText}`);
+    expect(entries, 'the cards are inserted once, into the view once it is measured: laid out once, at the width they are drawn at').toEqual(['into the measured view']);
+    expect(drawnText, 'a card in the view lays out its art and name only').toBe(0);
 
     await alice.page.mouse.move(viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2);
     for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, 240);
@@ -402,9 +432,6 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
       Array.from(el.querySelectorAll('*')).filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight).length,
     );
     console.log(`[pp-deep] wheeled over the open view to its end and back: ${JSON.stringify(scrolled)}; boxes in it that scroll: ${scrollers}`);
-    // A long task is one of 50 ms or more: opening the view is none, and wheeling over it is none.
-    expect(opened.longTasks, 'opening the view takes no long task').toEqual([]);
-    expect(scrolled.longTasks, 'wheeling over it takes none').toEqual([]);
     expect(scrollers, 'nothing in the view scrolls under a wheel').toBe(0);
 
     const at = centre((await view.locator(`[data-board-card="${visions}"]`).boundingBox())!);
