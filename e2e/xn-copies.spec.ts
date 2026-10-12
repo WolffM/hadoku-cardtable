@@ -82,16 +82,19 @@ test(titled('a pile of copies wears ×N on both screens; it follows a card leavi
       .locator('[data-tier="front"] > li.board-card')
       .evaluateAll((els) => els.map((e) => [e.getAttribute('data-card-id'), ...Array.from(e.querySelectorAll(':scope > ul > li.board-card'), (m) => m.getAttribute('data-card-id'))].join('+')));
     console.log(`[xn] front tier after the lift: ${columns.join(' | ')}`);
-    await expect(card(a, 'you', g2), 'two Goblins left in the pile').toHaveAttribute('data-pile-size', '2');
-    await expect.poll(() => countOn(a, 'you', g2), { message: 'alice’s pile says ×2' }).toBe('×2');
-    await expect.poll(() => countOn(bob.page, 'them', g2), { timeout: 10_000, message: 'bob sees ×2' }).toBe('×2');
+    // The pile's new base is whichever Goblin was stacked straight on the one that left.
+    const rest = (await field(a, 'you').locator('[data-tier="front"] > li.board-card[data-pile-size]').getAttribute('data-card-id'))!;
+    expect([g2, g3], 'the pile left behind is the other two Goblins').toContain(rest);
+    await expect(card(a, 'you', rest), 'two Goblins left in the pile').toHaveAttribute('data-pile-size', '2');
+    await expect.poll(() => countOn(a, 'you', rest), { message: 'alice’s pile says ×2' }).toBe('×2');
+    await expect.poll(() => countOn(bob.page, 'them', rest), { timeout: 10_000, message: 'bob sees ×2' }).toBe('×2');
     expect(await countOn(a, 'you', g1), 'the Goblin that left is a lone card').toBe('');
-    console.log(`[xn] after one left: alice "${await countOn(a, 'you', g2)}", bob "${await countOn(bob.page, 'them', g2)}"`);
+    console.log(`[xn] after one left: alice "${await countOn(a, 'you', rest)}", bob "${await countOn(bob.page, 'them', rest)}"`);
 
     // The Bears on the pile: mixed, so no count on either screen.
-    await pointerDrag(a, card(a, 'you', bears), onTopPoint(await boxOf(card(a, 'you', g2))));
-    await expect(card(a, 'you', g2), 'two Goblins and the Bears in one pile').toHaveAttribute('data-pile-size', '3');
-    await expect(card(bob.page, 'them', g2), 'bob sees the mixed pile').toHaveAttribute('data-pile-size', '3', { timeout: 10_000 });
+    await pointerDrag(a, card(a, 'you', bears), onTopPoint(await boxOf(card(a, 'you', rest))));
+    await expect(card(a, 'you', rest), 'two Goblins and the Bears in one pile').toHaveAttribute('data-pile-size', '3');
+    await expect(card(bob.page, 'them', rest), 'bob sees the mixed pile').toHaveAttribute('data-pile-size', '3', { timeout: 10_000 });
     await expect(field(a, 'you').locator('.board-card__copies'), 'a mixed pile wears no count').toHaveCount(0);
     await expect(field(bob.page, 'them').locator('.board-card__copies'), 'nor on bob’s screen').toHaveCount(0);
     console.log('[xn] mixed pile (2 Goblins + Bears): no count on either screen');
