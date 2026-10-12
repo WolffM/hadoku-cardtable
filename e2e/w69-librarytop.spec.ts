@@ -343,12 +343,13 @@ const watchFrames = (page: Page) =>
     };
     requestAnimationFrame(tick);
   });
-/** The long tasks and frame gaps counted so far. */
-const framesSoFar = (page: Page) =>
+/** The long tasks and frame gaps counted so far — and the count starts again from now. */
+const restartFrames = (page: Page) =>
   page.evaluate(() => {
-    const { long, gaps } = (window as unknown as { __pp: { long: number[]; gaps: number[] } }).__pp;
-    const sorted = [...gaps].sort((a, b) => a - b);
-    return { longTasks: long, frames: gaps.length, p95: Math.round(sorted[Math.floor(sorted.length * 0.95)] ?? 0), worst: Math.round(sorted[sorted.length - 1] ?? 0) };
+    const pp = (window as unknown as { __pp: { long: number[]; gaps: number[] } }).__pp;
+    const long = pp.long.splice(0);
+    const sorted = pp.gaps.splice(0).sort((a, b) => a - b);
+    return { longTasks: long, frames: sorted.length, p95: Math.round(sorted[Math.floor(sorted.length * 0.95)] ?? 0), worst: Math.round(sorted[sorted.length - 1] ?? 0) };
   });
 
 test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, its view opens it first, and it is cast from there'), async ({ browser }) => {
@@ -371,19 +372,23 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     expect(glow.alice, 'her graveyard pile glows while a card in it is offered').not.toBeNull();
     expect(glow.bob, "never on bob's screen").toBeNull();
 
+    // The claw's own frame floor first: the board idle, the view closed.
     await watchFrames(alice.page);
+    await alice.page.waitForTimeout(1000);
+    const idle = await restartFrames(alice.page);
     // The strip of the pile's bottom card (an Island, not offered): a sixty-card pile is squeezed, its top clipped.
     const bottom = (await pile.locator('li[data-card-id]').first().boundingBox())!;
     await alice.page.mouse.click(bottom.x + bottom.width / 2, bottom.y + 3);
     const view = alice.page.getByTestId('pile-view');
     await expect(view, 'clicking her graveyard opens its pile view').toHaveCount(1, { timeout: 5_000 });
-    const opened = await framesSoFar(alice.page);
+    await alice.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const opened = await restartFrames(alice.page);
     const first = await view.locator('[data-board-card]').first().getAttribute('data-board-card');
     const mark = await markOf(alice.page, '[data-testid="pile-view"]', visions);
     const box = await view.locator(`[data-board-card="${visions}"]`).boundingBox();
     const viewBox = (await view.boundingBox())!;
     console.log(
-      `[pp-deep] pile view open: ${await view.locator('[data-board-card]').count()} cards, first #${first}, Serum Visions ${JSON.stringify(mark)} at ${box === null ? 'none' : `${Math.round(box.x)},${Math.round(box.y)}`} in a view at ${Math.round(viewBox.x)},${Math.round(viewBox.y)} ${Math.round(viewBox.width)}×${Math.round(viewBox.height)}; opening: ${JSON.stringify(opened)}`,
+      `[pp-deep] pile view open: ${await view.locator('[data-board-card]').count()} cards, first #${first}, Serum Visions ${JSON.stringify(mark)} at ${box === null ? 'none' : `${Math.round(box.x)},${Math.round(box.y)}`} in a view at ${Math.round(viewBox.x)},${Math.round(viewBox.y)} ${Math.round(viewBox.width)}×${Math.round(viewBox.height)}; idle before: ${JSON.stringify(idle)}; opening: ${JSON.stringify(opened)}`,
     );
     expect(Number(first), 'the offered card is the first card of the view').toBe(visions);
     expect(mark?.selectable, 'with the same ring').toBe(true);
@@ -391,9 +396,16 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     await alice.page.mouse.move(viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2);
     for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, 240);
     for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, -240);
-    const scrolled = await framesSoFar(alice.page);
-    console.log(`[pp-deep] opened and scrolled the view to its end and back: ${JSON.stringify(scrolled)}`);
-    expect(Math.max(0, ...scrolled.longTasks), 'no main-thread task a player would see as a stall while the view opens and scrolls').toBeLessThan(250);
+    const scrolled = await restartFrames(alice.page);
+    // A frame gap on a claw is its software compositor's floor (`idle before`), not this view's work: what a wheel can cost here is a box inside the view that scrolls.
+    const scrollers = await view.evaluate((el) =>
+      Array.from(el.querySelectorAll('*')).filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight).length,
+    );
+    console.log(`[pp-deep] wheeled over the open view to its end and back: ${JSON.stringify(scrolled)}; boxes in it that scroll: ${scrollers}`);
+    // A long task is one of 50 ms or more: opening the view is none, and wheeling over it is none.
+    expect(opened.longTasks, 'opening the view takes no long task').toEqual([]);
+    expect(scrolled.longTasks, 'wheeling over it takes none').toEqual([]);
+    expect(scrollers, 'nothing in the view scrolls under a wheel').toBe(0);
 
     const at = centre((await view.locator(`[data-board-card="${visions}"]`).boundingBox())!);
     await alice.page.mouse.move(at.x, at.y, { steps: 4 });
@@ -409,7 +421,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
         await passOverStack(page);
       },
     });
-    const after = { glow: await pile.getAttribute('data-can-act'), count: await pile.getAttribute('data-count'), frames: await framesSoFar(alice.page) };
+    const after = { glow: await pile.getAttribute('data-can-act'), count: await pile.getAttribute('data-count'), frames: await restartFrames(alice.page) };
     console.log(`[pp-deep] lifted from the view ${JSON.stringify(lifted)} and cast: exile [${(await exiled()).join(', ')}], graveyard ${after.count}, pile glow ${after.glow}, frames ${JSON.stringify(after.frames)}`);
     expect(lifted, 'picked up out of the view like a hand card, the view giving way').toEqual({ lift: 'lifted', view: 0 });
     expect(after.glow, 'the pile stops glowing once nothing in it is offered').toBeNull();
