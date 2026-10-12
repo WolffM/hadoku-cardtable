@@ -2973,6 +2973,47 @@ describe('a scry is one prompt', () => {
 	});
 });
 
+describe('cards entering the battlefield together, every one the same card, are not a question', () => {
+	/** `orderMoveToZoneList`'s battlefield ask as the bridge sends it (Splendid Reclamation returning six Mountains). */
+	const entryAsk = (callId: string, names: string[], title = 'Choose order of cards to put onto the battlefield') => ({
+		kind: 'ask' as const,
+		callId,
+		method: 'order' as const,
+		title,
+		top: 'Put first',
+		remainingObjectsMin: 0,
+		remainingObjectsMax: 0,
+		sourceChoices: names.map((name, i) => ({ key: `s${i}`, label: `${name} (${128 + i})`, ref: { kind: 'card' as const, id: 128 + i } })),
+		destChoices: [],
+		referenceCard: null,
+		sideboardingMode: false,
+		showRememberCheckbox: false,
+	});
+	const shown = (h: Harness, callId: string) =>
+		h.sent.filter((s) => s.seat === 0 && s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+	const MOUNTAINS = Array.from({ length: 6 }, () => 'Mountain');
+
+	it("six Mountains: Forge's own order, logged, never shown", () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-entry-1', MOUNTAINS) });
+		expect(shown(h, 'x-entry-1')).toEqual([]);
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-entry-1', result: { ordered: ['s0', 's1', 's2', 's3', 's4', 's5'], rememberDecision: false } }]);
+		expect(h.logs.find((l) => l.evt === 'ask-auto-answered' && l.callId === 'x-entry-1')).toMatchObject({ method: 'order', why: 'every card the same' });
+	});
+
+	it('two different cards, a library order of the same card, and full control are still asked', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-entry-2', ['Mountain', 'Forest', 'Mountain']) });
+		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-library', ['Island', 'Island'], 'Choose order of cards to put into the library') });
+		h.match.setFullControl(0, true);
+		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-entry-3', MOUNTAINS) });
+		for (const callId of ['x-entry-2', 'x-library', 'x-entry-3']) expect(shown(h, callId), callId).toHaveLength(1);
+		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([]);
+	});
+});
+
 describe("a modal spell's modes are one prompt", () => {
 	const MODES = ['Counter target spell.', "Return target permanent to its owner's hand.", 'Tap all creatures your opponents control.', 'Draw a card.'];
 	const message = 'Alice activated Cryptic Command - Choose a mode';

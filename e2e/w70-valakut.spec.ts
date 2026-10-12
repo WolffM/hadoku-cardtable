@@ -14,7 +14,9 @@
  * triggers six times. At her first target question both screens already draw all six chips, the one
  * being asked about marked, scattered round Valakut inside the board. She ticks "same target for all"
  * and clicks bob once: that covers all six. Nothing asks "Do you want to deal 3 damage" afterwards, and
- * bob ends at 2. No `order` question reaches alice's wire or her screen on the way.
+ * bob ends at 2. No `order` question reaches alice's wire or her screen on the way: the one she was
+ * shown was Forge's order of the six identical Mountains entering (`orderMoveToZoneList`); the
+ * triggers' own order was already Forge's.
  */
 import { expect, test, type Page } from '@playwright/test';
 

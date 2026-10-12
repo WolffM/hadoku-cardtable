@@ -129,7 +129,7 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
-import { answerRest, arrangeAsk, restOrder } from './arrange.js';
+import { answerRest, arrangeAsk, restOrder, sameCardsOrder } from './arrange.js';
 import { firstMode, modesAsk, nextMode, type ModesLeft } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
@@ -3081,7 +3081,7 @@ export class Match {
 		const frame = arrangeAsk(offered) ?? modesAsk(offered) ?? this.narrowNames(s, offered);
 		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
-		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : onlyAnswer(frame, s.policy));
+		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : (onlyAnswer(frame, s.policy) ?? sameCardsOrder(frame)));
 		if (auto !== null) {
 			s.autoAnswered += 1;
 			this.deps.log({

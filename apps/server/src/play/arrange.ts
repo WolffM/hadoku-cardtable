@@ -27,6 +27,8 @@
 
 import type { ChoiceOption, ServerFrame } from '@hadoku/forge-wire';
 
+import type { AutoAnswer } from './auto.js';
+
 type OrderAsk = Extract<ServerFrame, { kind: 'ask'; method: 'order' }>;
 
 /** Forge's caption for the first question → the two groups the seat sees. */
@@ -86,4 +88,29 @@ export function answerRest(frame: Extract<ServerFrame, { kind: 'ask' }>, rest: r
 	}
 	if (!rest.every((id) => keyOf.has(id))) return null;
 	return { ordered: rest.map((id) => keyOf.get(id)!), rememberDecision: false };
+}
+
+/**
+ * Cards entering the battlefield together, every one the same card: their
+ * order is no choice. Forge asks the controller to order any two or more
+ * permanents one effect puts onto the battlefield
+ * (`GameActionUtil.orderCardsByTheirOwners` → `PlayerControllerHuman.
+ * orderMoveToZoneList`, `PlayerControllerHuman.java:1137`), so the six
+ * Mountains Splendid Reclamation returns are six identical items to arrange.
+ * Every arrangement of them is the same one: Forge's own order answers it.
+ *
+ * Read off the ask's own items — each a card, each labelled with the same name
+ * once its instance id (`Mountain (128)`) is set aside. Only the battlefield's
+ * caption opens this: a library, graveyard or damage order is still the
+ * seat's, and so is a battlefield order of two different cards.
+ */
+export function sameCardsOrder(frame: Extract<ServerFrame, { kind: 'ask' }>): AutoAnswer | null {
+	if (frame.method !== 'order' || frame.title !== 'Choose order of cards to put onto the battlefield') return null;
+	if (frame.remainingObjectsMax !== 0 || frame.destChoices.length !== 0 || frame.showRememberCheckbox || frame.sideboardingMode) return null;
+	const items = frame.sourceChoices;
+	if (items.length < 2 || !items.every((c) => cardIdOf(c) !== null)) return null;
+	const name = (c: ChoiceOption): string => c.label.replace(/ \(\d+\)$/, '');
+	const first = name(items[0]!);
+	if (!items.every((c) => name(c) === first)) return null;
+	return { callId: frame.callId, method: frame.method, result: { ordered: items.map((c) => c.key), rememberDecision: false }, why: 'every card the same' };
 }
