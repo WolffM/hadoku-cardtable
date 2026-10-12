@@ -1,0 +1,20 @@
+# prompts.jvm's targets row: alice (seat 0) casts Arc Lightning ("3 damage
+# divided as you choose among one, two or three targets") off three untapped
+# Volcanic Islands at her own Main Phase 1. Bob's Memnite and bob himself are
+# the two targets, so Forge's target selection opens the battlefield
+# (`openZones`) and the division is a real choice (`assignGenericAmount`).
+# Shivan Dragon and Serra Angel are never cast: they are each seat's secret
+# for the leak oracle.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Arc Lightning;Shivan Dragon
+humanbattlefield=Volcanic Island;Volcanic Island;Volcanic Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Serra Angel
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

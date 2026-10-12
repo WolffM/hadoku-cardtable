@@ -663,8 +663,6 @@ jobs:
           LIST
           )
           known_failing=$(pinned <<'LIST'
-          # Stalls after seat 1 answers its first confirm, every run, on main too. docs/planning/wave38-evidence/U-prompts-jvm-red.md
-          the fifteen prompts against a real Forge match [nightly] choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect
           LIST
           )
           known_flaky=$(pinned <<'LIST'

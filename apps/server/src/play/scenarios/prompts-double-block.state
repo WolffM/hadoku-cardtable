@@ -1,0 +1,21 @@
+# prompts.jvm's combat-damage row, and combat-drag.jvm's whole game: alice
+# (seat 0) holds one untapped, non-sick Memnite at her own Main Phase 1 and
+# bob (seat 1) two. Nothing is pre-declared (see `attackers-declared.state`
+# for why a scripted attack skips Forge's live InputAttack): the driver passes
+# priority, alice declares her Memnite, bob blocks it with both of his, and
+# Forge asks alice to divide her one damage between two blockers
+# (`assignCombatDamage`). Shivan Dragon and Serra Angel are never cast: they
+# are each seat's secret for the leak oracle.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Shivan Dragon
+humanbattlefield=Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Serra Angel
+aibattlefield=Memnite;Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

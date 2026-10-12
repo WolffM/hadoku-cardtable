@@ -57,13 +57,13 @@
  *
  * ## Setup is not the subject
  *
- * Getting to combat needs lands kept, priority passed and creatures cast. Those
- * go through the harness's own act channel (`SeatClient.act`), exactly as
- * `game-driver.ts` does, and they are deliberately NOT visible in the wire this
- * test asserts on: `s.act` emits on the harness's transport closure, while the
- * board emits through `match.transport`, which is the object tapped below. So
- * everything in `wire` came from a gesture, and nothing else could have put it
- * there.
+ * The game STARTS where combat does: `prompts-double-block.state` puts alice
+ * at her own Main Phase 1 with one non-sick Memnite and bob with two, so the
+ * first combat of the match is the one dragged. Until 2026-10-12 this was a
+ * seeded game of lands and Memnites played until both seats happened to reach
+ * an attack and a block: 8 of 119 runs ended with no block dragged at all
+ * (docs/planning/test-audit-2026-10-12.md M1). Passing priority to get there
+ * goes through the board's own OK, and nothing else is set up.
  *
  * ## This suite PINS `EVERY_PRIORITY_POLICY`, and here is why that is honest
  *
@@ -99,7 +99,7 @@
  * are about it.**
  *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, like the
- * server's `jvm.test.ts`.
+ * server's `match.jvm.test.ts`.
  */
 
 import { createElement } from 'react';
@@ -109,7 +109,7 @@ import type { ClientFrame } from '@hadoku/forge-wire';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
-import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
+import { forgeAvailability, liveJvmCount, startLiveScenario, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
 import { LiveBoard } from './LiveBoard.tsx';
 import { boardInteraction, currentAsk } from './match.ts';
 import { answerOpenPrompt } from './prompt-driver.ts';
@@ -119,19 +119,6 @@ const available = forgeAvailability();
 const title = available.ok
   ? 'an attack and a block, declared by dragging on a real Forge match'
   : `an attack and a block, declared by dragging on a real Forge match — SKIPPED: ${available.reason}`;
-
-/**
- * Thirty lands and thirty Memnites. Memnite costs nothing, so both seats have
- * creatures from their first main phase without a mana cost being paid, a
- * payment prompt being answered or a target being chosen — combat is the only
- * thing this game does. Both decks are the same on purpose: nothing here is
- * about hidden information (`./prompts.jvm.test.ts` and the server's
- * `jvm.test.ts` carry the leak oracle), and a symmetric game reaches an attack
- * and a block whichever seat wins the toss.
- */
-function deck(name: string): string {
-  return `[metadata]\nName=${name}\n[main]\n30 Volcanic Island\n30 Memnite\n`;
-}
 
 type Act = Extract<ClientFrame, { kind: 'act' }>;
 
@@ -248,13 +235,7 @@ describe.skipIf(!available.ok)(title, () => {
   it(
     'an attack and a block go on the wire as one selectCard each, and Forge puts both creatures in combat',
     async () => {
-      const h = await startLiveMatch({
-        seed: 7,
-        seats: [
-          { name: 'A', ai: false, deck: deck('Drag A') },
-          { name: 'B', ai: false, deck: deck('Drag B') },
-        ],
-      });
+      const h = await startLiveScenario('prompts-double-block');
       running.push(h);
       /*
        * The stop policy this driver was written in — see "This suite PINS
@@ -346,8 +327,6 @@ describe.skipIf(!available.ok)(title, () => {
            * the game went nowhere. The message is the seat's own instruction; it
            * cannot disagree with itself.
            */
-          const mainPhase = /Phase: Main phase, precombat/.test(msg);
-          const stackEmpty = /Stack: Empty/.test(msg);
           const myTurn = new RegExp(`Turn: \\d+ \\(${me.name}\\)`).test(msg);
           driven.log.push(
             `seat ${s.seat} t${v.turn} ${v.phase ?? '-'}${myTurn ? ' MINE' : ''} ok=${String(s.notes.buttons?.enable1 === true)} ` +
@@ -430,20 +409,8 @@ describe.skipIf(!available.ok)(title, () => {
             continue;
           }
 
-          /* ── setup: a land, a free creature, then pass ── */
+          /* ── every priority window: pass ── */
           if (msg.startsWith('Priority')) {
-            if (myTurn && mainPhase && stackEmpty) {
-              const land = me.hand?.find((c) => c.card.name === 'Volcanic Island');
-              if (land !== undefined && first(`land-t${v.turn}`)) {
-                s.act({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: land.id }, otherCardViewsToSelect: [], triggerEvent: null });
-                continue;
-              }
-              const memnite = me.hand?.find((c) => c.card.name === 'Memnite');
-              if (memnite !== undefined && first(`memnite-${memnite.id}`)) {
-                s.act({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: memnite.id }, otherCardViewsToSelect: [], triggerEvent: null });
-                continue;
-              }
-            }
             if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
             continue;
           }
@@ -474,7 +441,7 @@ describe.skipIf(!available.ok)(title, () => {
 
       /* ── drive until one attack and one block have been dragged, and Forge has ruled on both ── */
       const done = (): boolean => sawAttacking.size === 2 && driven.blocks.some(([seat]) => sawBlocking.has(seat));
-      const deadline = Date.now() + 240_000;
+      const deadline = Date.now() + 90_000;
       let ticks = 0;
       while (!done()) {
         if (Date.now() > deadline) {
@@ -587,6 +554,6 @@ describe.skipIf(!available.ok)(title, () => {
         expect(sent, `seat ${t.seat}'s face-drag (defender already current: ${t.alreadyCurrent})`).toEqual(expected);
       }
     },
-    300_000,
+    150_000,
   );
 });

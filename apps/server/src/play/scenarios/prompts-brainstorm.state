@@ -1,0 +1,19 @@
+# prompts.jvm's pick-and-order row: alice (seat 0) casts Brainstorm off an
+# untapped Island at her own Main Phase 1, draws Forest, Plains and Swamp, and
+# puts two of the three back: Forge shows her hand for the pick
+# (`tempShowZones`, beside a `setSelectables`) and then asks the order of the
+# two (`order`). Three DIFFERENT names on top, so neither question collapses
+# to the server's one-option shortcut.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Brainstorm
+humanbattlefield=Island
+humanlibrary=Forest;Plains;Swamp;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

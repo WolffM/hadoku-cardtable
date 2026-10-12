@@ -2,31 +2,49 @@
 /*
  * Every prompt this client can be asked, against a REAL Forge match.
  *
- * Two real matches in real child JVMs (`./jvm-harness.ts`), two seats each,
- * each seat a `LiveBoard` driven by `./game-driver.ts`. Custom decks steer the
- * engine into asking: Arc Lightning divides damage (`openZones`,
- * `assignGenericAmount`), a double block makes the attacker assign damage
- * (`assignCombatDamage`), Serum Powder is usable at the mulligan (`confirm`),
- * Brainstorm picks and orders cards (`tempShowZones`, `order`), Blaze announces
- * X past the list of numbers (`getChoices` → "Other..." → `showInputDialog`),
- * and Impetuous Lootmonger heists (`chooseSingleEntityForEffect`).
- * `showConfirmDialog` is Forge's server-side probe, answered AGAINST its
- * default.
+ * One real match in a real child JVM per row of `ROWS` (`./jvm-harness.ts`),
+ * two seats each, each seat a `LiveBoard` driven by `./game-driver.ts`. Each
+ * row STARTS where Forge asks its question: a scenario
+ * (`apps/server/src/play/scenarios/<name>.state`) puts alice at her own main
+ * phase holding the card that makes Forge ask, and the driver plays it.
  *
- * A third match, added by wave 25 §F, is the one ask the other two never
- * produced: a real `reveal`. Merfolk Branchwalker explores on entry, which
- * shows both seats the top card of a library, and that is the path where Forge
- * labels an option with `CardView.toString()` rather than a display function.
- * It is how §F.2's premise — "the card's own facts are already in the browser
- * when the ask renders" — is measured rather than read off the source.
+ * - Arc Lightning divides damage: target selection opens the battlefield
+ *   (`openZones`) and the division is `assignGenericAmount`. Forge's server
+ *   side also asks seat 0 a real `showConfirmDialog` there, answered AGAINST
+ *   its default.
+ * - A double block makes the attacker assign damage (`assignCombatDamage`).
+ * - Serum Powder is usable at the mulligan (`confirm`) — the one ask that
+ *   comes BEFORE a scenario applies, so that row's deck is Serum Powder.
+ * - Brainstorm picks two of three cards (`tempShowZones`) and orders them
+ *   (`order`).
+ * - Fireball announces X (`getAbilityToPlay`, then `getChoices`, drawn as a
+ *   slider). Forge's "Other..." entry past the list, and the `showInputDialog`
+ *   behind it, is the one way a game reaches that dialog — and the slider
+ *   draws no "Other..." (the operator, 2026-10-08), so no player can be asked
+ *   it and no row here asks it either.
+ * - Thoughtseize takes a card from a revealed hand
+ *   (`chooseSingleEntityForEffect`).
+ *
+ * Until 2026-10-12 these were three seeded random games played until Forge
+ * HAPPENED to ask: the combat one was the biggest red on main (24 of 129 runs
+ * timed out short of `assignCombatDamage`) and the choices one never once
+ * reached `order` (53 of 53, pinned `known_failing`) —
+ * docs/planning/test-audit-2026-10-12.md M1. A scenario reaches its ask
+ * every run, in one turn.
+ *
+ * A last row is the one ask the others never produce: a real `reveal`. Dark
+ * Confidant reveals the top card of a library at its controller's upkeep,
+ * and that is the path where Forge labels an option with
+ * `CardView.toString()` rather than a display function. It is how §F.2's
+ * premise — "the card's own facts are already in the browser when the ask
+ * renders" — is measured rather than read off the source.
  *
  * Temple of Mystery used to scry through `manipulateCardList` — until Wave 19
  * lane C closed the Preordain finding at the ORIGIN: each run directory writes
  * Forge's preferences with `UI_SELECT_FROM_CARD_DISPLAYS=false`, so a scry now
  * asks about the scried cards by name through the same `order` / `confirm`
- * prompts a desktop player gets. `arrangeForScry` was `manipulateCardList`'s
- * only production caller, so nothing asks it any more and no scenario here
- * waits on it.
+ * prompts a desktop player gets. Nothing asks `manipulateCardList` any more,
+ * and every row holds that.
  *
  * Each answer is given by clicking the component, and goes back through
  * `answerAsk` → `forge:c2s` → `Match.fromClient` → the bridge → Forge. A method
@@ -50,8 +68,8 @@
  *
  * Hidden information is checked on the way: the server's leak oracle
  * (`apps/server/src/play/fixtures/transcript.ts`) over every envelope each seat
- * was sent. Each seat's deck carries four cards the other deck does not, never
- * cast, so there are secrets to leak.
+ * was sent. In the targets and combat rows each seat holds a card in hand the
+ * other never sees and nobody casts, so there are secrets to leak.
  *
  * ## These scenarios PIN `EVERY_PRIORITY_POLICY`, and here is why that is honest
  *
@@ -84,7 +102,7 @@
  * product's real default is exercised, by the suites that are about it.**
  *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, like the
- * server's `jvm.test.ts`.
+ * server's `match.jvm.test.ts`.
  */
 
 import { afterAll, describe, expect, it } from 'vitest';
@@ -93,24 +111,19 @@ import { cleanup } from '@testing-library/react';
 import type { ChoiceOption } from '@hadoku/forge-wire';
 
 import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
-import { leaked, rawStatesOf, secretsFor } from '../../../../server/src/play/fixtures/transcript.ts';
-import { nightly } from '../../../../server/src/play/scenario.ts';
+import { leaked, rawStatesOf, secretsFor, shownByAsks } from '../../../../server/src/play/fixtures/transcript.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
 import { nameFromForgeLabel } from '../prompts/PromptShell.tsx';
 import { createDriver, drive, type Plan } from './game-driver.ts';
-import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness } from './jvm-harness.ts';
+import { forgeAvailability, liveJvmCount, startLiveScenario, waitUntil, type LiveHarness } from './jvm-harness.ts';
 import { startMatch, type LiveAsk, type LiveMatch, type MatchTransport } from './match.ts';
 
 const available = forgeAvailability();
 const title = available.ok
   ? 'the fifteen prompts against a real Forge match'
   : `the fifteen prompts against a real Forge match — SKIPPED: ${available.reason}`;
-
-function deck(name: string, lines: readonly string[]): string {
-  return `[metadata]\nName=${name}\n[main]\n${lines.join('\n')}\n`;
-}
 
 /** A late joiner: a fresh client whose whole board comes from the server's snapshot of `seat`. */
 async function freshFold(h: LiveHarness, seat: number): Promise<LiveMatch> {
@@ -169,26 +182,25 @@ async function expectNoDesync(h: LiveHarness): Promise<void> {
  * look for.
  *
  * The non-vacuity guard — "the oracle had something to look for" — is asked for
- * PER SCENARIO, because it is a property of the decks, not of the projection.
+ * PER ROW, because it is a property of the scenario, not of the projection.
  *
  * A seat's secrets are the cards that were only ever hidden AND whose names
- * never appeared in a shown zone. `combat`'s decks hold four cards apiece that
- * the other does not and that the plan never casts, so it always has some, and
- * it is the scenario that carries the guard. `choices` deals seven distinct
- * names over 54 cards, nearly the same list on both sides, and plays most of
- * them out: measured across wave 20's runs it ended with 0, 4 and 0 secrets on
- * the two seats — not a leak, but a hand with nothing left to hide. Demanding a
- * number there fails the suite for the decks rather than for the code.
+ * never appeared in a shown zone. The targets and combat scenarios give each
+ * seat a hand card nobody casts (Shivan Dragon, Serra Angel), so they always
+ * have some, and they carry the guard. The other rows script a hand that is
+ * played out or shown by the very ask under test — not a leak, a hand with
+ * nothing left to hide — and demanding a number there would fail the row for
+ * its scenario rather than for the code.
  *
- * What both scenarios always assert is the leak itself, and that every secret
- * really was in Forge's unprojected stream — so a projection that started
- * leaking is caught by `combat` (and by `apps/server/src/play/match.jvm.test.ts`,
+ * What every row asserts is the leak itself, and that every secret really was
+ * in Forge's unprojected stream — so a projection that started leaking is
+ * caught by the guarded rows (and by `apps/server/src/play/match.jvm.test.ts`,
  * which counts secrets in the hundreds) on the same run.
  */
 function expectNoLeak(h: LiveHarness, mustHaveSecrets = true): void {
   let total = 0;
   for (const seat of [0, 1]) {
-    const { secrets } = secretsFor(rawStatesOf(h.raw, seat), seat);
+    const { secrets } = secretsFor(rawStatesOf(h.raw, seat), seat, shownByAsks(h.raw, seat));
     const rawText = h.raw.filter((l) => l.t === 'frame' && l.seat === seat).map((l) => JSON.stringify(l)).join('\n');
     const emitted = h.emitted.filter((e) => e.seat === seat).map((e) => JSON.stringify(e.envelope)).join('\n');
     console.log(
@@ -395,6 +407,68 @@ function summary(label: string, h: LiveHarness): void {
   );
 }
 
+/** One question Forge asks, and the scenario that puts the game where it asks it. */
+interface AskRow {
+  /** The `it` title: what is asked, then the methods it is asked through. */
+  title: string;
+  scenario: string;
+  /** Seat 0's deck, then seat 1's, when the ask comes before the scenario applies (the mulligan). */
+  decks?: [string, string];
+  plan: Plan;
+  /** Every one of these is answered, accepted, and the game moves on. */
+  methods: readonly string[];
+  /** Forge's server side asks seat 0 a `showConfirmDialog` while the row plays. */
+  probe?: boolean;
+  /** The scenario leaves each seat a secret, so the leak check must have some to look for. */
+  secrets?: boolean;
+}
+
+const ROWS: readonly AskRow[] = [
+  {
+    title: 'targets: openZones, assignGenericAmount, showConfirmDialog',
+    scenario: 'prompts-arc-lightning',
+    plan: { land: /Volcanic Island/, casts: [{ name: 'Arc Lightning', mana: 3 }], targetCard: 'Memnite', prompts: { confirmAgainstDefault: true } },
+    methods: ['openZones', 'assignGenericAmount', 'showConfirmDialog'],
+    probe: true,
+    secrets: true,
+  },
+  {
+    title: 'a double block: assignCombatDamage',
+    scenario: 'prompts-double-block',
+    plan: { land: /Mountain/, casts: [], attack: { name: 'Memnite', fromTurn: 1 }, block: { name: 'Memnite', count: 2 } },
+    methods: ['assignCombatDamage'],
+    secrets: true,
+  },
+  {
+    title: 'Serum Powder at the mulligan: confirm',
+    scenario: 'own-spell',
+    decks: ['40 Serum Powder', '40 Mountain'],
+    plan: { land: /Mountain/, casts: [], mulliganWith: 'Serum Powder' },
+    methods: ['confirm'],
+  },
+  {
+    title: 'Brainstorm: tempShowZones, order',
+    scenario: 'prompts-brainstorm',
+    plan: { land: /Island/, casts: [{ name: 'Brainstorm', mana: 1 }] },
+    methods: ['tempShowZones', 'order'],
+  },
+  {
+    title: "Fireball's X: getAbilityToPlay, getChoices",
+    scenario: 'choose-x',
+    plan: { land: /Mountain/, casts: [{ name: 'Fireball', mana: 1 }] },
+    methods: ['getAbilityToPlay', 'getChoices'],
+  },
+  {
+    title: 'a card from a revealed hand: chooseSingleEntityForEffect',
+    scenario: 'thoughtseize',
+    plan: { land: /Swamp/, casts: [{ name: 'Thoughtseize', mana: 1 }] },
+    methods: ['chooseSingleEntityForEffect'],
+  },
+];
+
+/** Long enough for a loaded claw; each row reaches its ask in one turn. */
+const ROW_MS = 90_000;
+
 describe.skipIf(!available.ok)(title, () => {
   const running: LiveHarness[] = [];
 
@@ -405,145 +479,62 @@ describe.skipIf(!available.ok)(title, () => {
     expect(liveJvmCount()).toBe(0);
   }, 60_000);
 
-  it(
-    'combat and targets: showConfirmDialog, openZones, assignGenericAmount, assignCombatDamage, getAbilityToPlay',
-    async () => {
-      const h = await startLiveMatch({
-        seed: 7,
-        seats: [
-          { name: 'A', ai: false, deck: deck('Combat A', ['22 Volcanic Island', '22 Memnite', '12 Arc Lightning', '4 Shivan Dragon']) },
-          { name: 'B', ai: false, deck: deck('Combat B', ['22 Volcanic Island', '22 Memnite', '12 Arc Lightning', '4 Serra Angel']) },
-        ],
-      });
-      running.push(h);
-      // The stop policy these scenarios were written in — see "These scenarios
-      // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
-      for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
+  for (const row of ROWS) {
+    it(
+      row.title,
+      async () => {
+        const h = await startLiveScenario(row.scenario, row.decks);
+        running.push(h);
+        // The stop policy these scenarios were written in — see "These scenarios
+        // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
+        for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
+        // Its default is No, and the driver presses the other button, so a
+        // `true` can only have come from the click.
+        const probe = row.probe === true ? h.match.probe(0, 'Answer me', 60_000) : null;
+        const driver = createDriver(h, row.plan);
+        const labels = probeLabels(h, driver.roots);
+        try {
+          await drive(driver, () => row.methods.every((m) => answered(h, m).length > 0), ROW_MS, () => status(h));
+        } finally {
+          labels.stop();
+        }
+        if (probe !== null) expect(await probe).toMatchObject({ answer: true });
 
-      // Forge's server side asks seat 0 a real showConfirmDialog. Its default
-      // is No, and the driver presses the other button, so a `true` can only
-      // have come from the click.
-      const probe = h.match.probe(0, 'Answer me', 60_000);
-      const plan: Plan = {
-        land: /Volcanic Island/,
-        casts: [{ name: 'Arc Lightning', mana: 3 }],
-        zeroDrops: ['Memnite'],
-        attack: { name: 'Memnite', fromTurn: 3 },
-        block: { name: 'Memnite', count: 2 },
-        targetCard: 'Memnite',
-        prompts: { confirmAgainstDefault: true },
-      };
-      const driver = createDriver(h, plan);
-      await drive(
-        driver,
-        () => ['openZones', 'assignGenericAmount', 'assignCombatDamage', 'showConfirmDialog'].every((m) => answered(h, m).length > 0),
-        150_000,
-        () => status(h),
-      );
-      expect(await probe).toMatchObject({ answer: true });
+        summary(row.scenario, h);
+        console.log(driver.log.filter((l) => / answers /.test(l)).slice(0, 8).join('\n'));
+        reportLabelProbe(labels);
+        for (const m of row.methods) expect(answered(h, m).length, m).toBeGreaterThan(0);
+        // Lane C's origin fix, held: a scry must not arrive as the library-sized
+        // list any more, so nothing of that shape was asked on the way here.
+        expect(answered(h, 'manipulateCardList').length).toBe(0);
 
-      summary('combat', h);
-      console.log(driver.log.filter((l) => / answers (showConfirmDialog|assignCombatDamage|assignGenericAmount|getAbilityToPlay) /.test(l)).slice(0, 8).join('\n'));
-      for (const m of ['getAbilityToPlay', 'openZones', 'assignGenericAmount', 'assignCombatDamage', 'showConfirmDialog']) {
-        expect(answered(h, m).length, m).toBeGreaterThan(0);
-      }
+        // Wave 19 lane B, against the real jar: every ability Forge offered
+        // carried its label — the picker never has to say "ability #id".
+        const labelled = h.asks.flatMap((a) => (a.ask.method === 'getAbilityToPlay' ? a.ask.abilities : []));
+        for (const ab of labelled) {
+          expect(typeof ab.label === 'string' && ab.label.length > 0, `ability ${ab.id} carried a label`).toBe(true);
+        }
+        console.log(`[prompts.jvm] ability labels over the wire: ${JSON.stringify(labelled.map((ab) => ab.label).slice(0, 4))}`);
 
-      // Wave 19 lane B, against the real jar: every ability Forge offered
-      // carried its label — the picker never has to say "ability #id".
-      const abilityAsks = h.asks.filter((a) => a.method === 'getAbilityToPlay');
-      const labelled = abilityAsks.flatMap((a) => (a.ask as Extract<typeof a.ask, { method: 'getAbilityToPlay' }>).abilities);
-      expect(labelled.length, 'abilities were offered').toBeGreaterThan(0);
-      for (const ab of labelled) {
-        expect(typeof ab.label === 'string' && ab.label.length > 0, `ability ${ab.id} carried a label`).toBe(true);
-      }
-      console.log(`[prompts.jvm] ability labels over the wire: ${JSON.stringify(labelled.map((ab) => ab.label).slice(0, 4))}`);
-
-      // And the says reached the browser (§C.2's observability, client side):
-      // what was auto-passed and what was paid, held by the live handle.
-      for (const seat of h.seats) {
-        expect(seat.live.says.length, `seat ${seat.seat} holds says`).toBeGreaterThan(0);
-      }
-      console.log(`[prompts.jvm] says held: ${JSON.stringify(h.seats.map((s) => s.live.says.slice(-3)))}`);
-      expectCleanBridge(h);
-      await expectNoDesync(h);
-      expectNoLeak(h);
-      h.stop();
-    },
-    240_000,
-  );
-
-  // Nightly only while it is pinned `known_failing` in ci.yml: the driver stalls after
-  // seat 1's first confirm and the case then burns its whole 180 s budget, every run
-  // (docs/planning/wave38-evidence/U-prompts-jvm-red.md). Drop the gate with the pin.
-  it.skipIf(!nightly)(
-    '[nightly] choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect',
-    async () => {
-      const h = await startLiveMatch({
-        seed: 7,
-        seats: [
-          {
-            name: 'A',
-            ai: false,
-            deck: deck('Choices A', ['14 Volcanic Island', '8 Temple of Mystery', '10 Serum Powder', '8 Impetuous Lootmonger', '8 Blaze', '8 Brainstorm', '4 Shivan Dragon']),
-          },
-          {
-            name: 'B',
-            ai: false,
-            deck: deck('Choices B', ['14 Volcanic Island', '8 Temple of Mystery', '10 Serum Powder', '8 Impetuous Lootmonger', '8 Blaze', '8 Brainstorm', '4 Serra Angel']),
-          },
-        ],
-      });
-      running.push(h);
-      // The stop policy these scenarios were written in — see "These scenarios
-      // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
-      for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
-      const plan: Plan = {
-        land: /Volcanic Island|Temple of Mystery/,
-        casts: [
-          { name: 'Brainstorm', mana: 1 },
-          { name: 'Impetuous Lootmonger', mana: 2 },
-          { name: 'Blaze', mana: 1 },
-        ],
-        mulliganWith: 'Serum Powder',
-        // Blaze's X: take "Other..." past the list of numbers, then type 0.
-        prompts: { choice: (label) => label === 'Other...', input: '0' },
-      };
-      const want = ['confirm', 'order', 'tempShowZones', 'getChoices', 'showInputDialog', 'chooseSingleEntityForEffect'];
-      const driver = createDriver(h, plan);
-      const probe = probeLabels(h, driver.roots);
-      try {
-        await drive(driver, () => want.every((m) => answered(h, m).length > 0), 180_000, () => status(h));
-      } finally {
-        probe.stop();
-      }
-
-      summary('choices', h);
-      reportLabelProbe(probe);
-      console.log(driver.log.filter((l) => / answers (chooseSingleEntityForEffect|order|confirm|getChoices|showInputDialog|tempShowZones) /.test(l)).join('\n'));
-      for (const m of want) expect(answered(h, m).length, m).toBeGreaterThan(0);
-      // Lane C's origin fix, held: a scry must not arrive as the library-sized
-      // list any more, so nothing of that shape was asked on the way here.
-      expect(answered(h, 'manipulateCardList').length).toBe(0);
-      expectCleanBridge(h);
-      await expectNoDesync(h);
-      expectNoLeak(h, false);
-      h.stop();
-    },
-    240_000,
-  );
+        expectCleanBridge(h);
+        await expectNoDesync(h);
+        expectNoLeak(h, row.secrets === true);
+        h.stop();
+      },
+      ROW_MS + 60_000,
+    );
+  }
 
   /*
    * Wave 25 §F — a real reveal, which is the ask the operator was looking at.
    *
-   * Merfolk Branchwalker explores when it enters: `ExploreEffect.java:78` calls
-   * `GameAction.reveal(top, pl, false, …)` with `dontRevealToOwner` false, so
-   * BOTH seats are shown the top card of the controller's library. That lands
-   * as `PlayerControllerHuman.reveal` → `tempShowCards` →
+   * Dark Confidant's upkeep trigger reveals the top card of its controller's
+   * library to BOTH seats (`w67-reveal.state`: Genju of the Spires on top).
+   * That lands as `PlayerControllerHuman.reveal` → `tempShowCards` →
    * `AbstractGuiGame.reveal` → `getChoices(message, -1, -1, items)` with no
    * display function, which is the one path in Forge that labels a card option
-   * `CardView.toString()`. Nothing else in this file produced such an ask: the
-   * `getChoices` of the `choices` scenario is Blaze's X (numbers, no refs) and
-   * its `order` arrived with both lists empty.
+   * `CardView.toString()`. No row above produces such an ask: Fireball's
+   * `getChoices` is numbers, with no refs.
    *
    * Since the reveal became a notice the server answers for, Forge's
    * `tempShowCards` is over before the notice arrives, so the revealing seat's
@@ -554,25 +545,19 @@ describe.skipIf(!available.ok)(title, () => {
   it(
     'a reveal: the label carries Forge\'s "(id)", and the notice names the card without it',
     async () => {
-      const h = await startLiveMatch({
-        seed: 7,
-        seats: [
-          { name: 'A', ai: false, deck: deck('Explore A', ['32 Forest', '28 Merfolk Branchwalker']) },
-          { name: 'B', ai: false, deck: deck('Explore B', ['32 Forest', '28 Merfolk Branchwalker']) },
-        ],
-      });
+      const h = await startLiveScenario('w67-reveal');
       running.push(h);
       // The stop policy these scenarios were written in — see "These scenarios
       // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
       for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
-      const plan: Plan = { land: /Forest/, casts: [{ name: 'Merfolk Branchwalker', mana: 2 }] };
-      const driver = createDriver(h, plan);
+      // Nothing to cast: bob passes his turn, and alice's upkeep reveals.
+      const driver = createDriver(h, { land: /Mountain|Forest/, casts: [] });
       const probe = probeLabels(h, driver.roots);
       try {
         await drive(
           driver,
           () => probe.probes.some((x) => x.method === 'getChoices'),
-          150_000,
+          ROW_MS,
           () => status(h),
         );
         // The notice draws a commit after the fold the probe saw.
@@ -585,7 +570,7 @@ describe.skipIf(!available.ok)(title, () => {
         probe.stop();
       }
 
-      summary('explore', h);
+      summary('reveal', h);
       reportLabelProbe(probe);
 
       const reveals = probe.probes.filter((x) => x.method === 'getChoices');
@@ -605,14 +590,11 @@ describe.skipIf(!available.ok)(title, () => {
         expect(shown, r.label).not.toMatch(FORGE_ID_SUFFIX);
         if (r.facts?.name !== null && r.facts?.name !== undefined) expect(shown).toBe(r.facts.name);
         expect([...probe.tileNames], `the tile said ${shown}`).toContain(shown);
-        /*
-         * And where the art-id table knows the revealed printing, the notice
-         * draws that art — from the card's facts, never the label. Conditional because which card a library reveals is up
-         * to the shuffle: measured runs have revealed `Forest (89)` (in the
-         * table, `Forest|TRK`) and `Merfolk Branchwalker (2)` (not in it, and
-         * the manifest is empty — the tracker's own watch).
-         */
+        // And the notice draws the revealed card's art — from the card's facts,
+        // never the label. The scenario puts Genju of the Spires on top, which
+        // the art table knows.
         const byFacts = revealArtId(r);
+        expect(byFacts, `${r.label} has an art id`).toBeDefined();
         const drawn = [...(probe.revealArt.get(`${r.seat}:${r.id}`) ?? [])];
         console.log(
           `[prompts.jvm] §F reveal ${JSON.stringify(r.label)} -> art id ${String(byFacts)} ` +
@@ -622,13 +604,13 @@ describe.skipIf(!available.ok)(title, () => {
         // the card while it is (run 38137515569: `Forest|TRK` when the reveal
         // arrived, no name by the end), and the tile must not turn into
         // another printing then.
-        if (byFacts !== undefined) expect(drawn, 'the notice drew the art the facts name, and only that').toEqual([cardImageUrl(byFacts)]);
+        expect(drawn, 'the notice drew the art the facts name, and only that').toEqual([cardImageUrl(byFacts!)]);
       }
       expectCleanBridge(h);
       await expectNoDesync(h);
       expectNoLeak(h, false);
       h.stop();
     },
-    240_000,
+    ROW_MS + 60_000,
   );
 });
