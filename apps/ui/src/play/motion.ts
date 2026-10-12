@@ -4,6 +4,9 @@
  * the stack layer's record of the release point (`live/placed.ts`) are one
  * fact, so one clock: none of them may give up while another still holds. A
  * cast that never resolves (countered, cancelled, a land) just ages out.
+ * On the other seat's screen it runs from the LAST word that their card is
+ * still parked (`presence.ts` restates a parked card), not from the release:
+ * a target or a payment may take a player as long as they like.
  */
 export const PLACEMENT_WAIT_MS = 15_000;
 

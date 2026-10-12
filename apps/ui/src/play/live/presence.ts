@@ -81,7 +81,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 } from '@hadoku/shared';
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
-import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
+import { expectPlacement, pendingPlacementFor, renewPlacement } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
@@ -93,6 +93,12 @@ import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */
 export const PRESENCE_STALE_MS = 6000;
+/**
+ * How often a card still parked on this screen is said again (`armRestate`): the other screen's wait
+ * for it starts its clock over on each (`renewWait`), so a long target or payment is never taken
+ * for a lost message — and inside `PRESENCE_STALE_MS`, so their cursor stays up meanwhile too.
+ */
+export const PARKED_RESTATE_MS = PRESENCE_STALE_MS / 2;
 /** A point wait's remaining life once the sender says its card is no longer parked and Forge has not yet said where it went. Started once, never pushed back by later messages. */
 export const CLEARED_GRACE_MS = 1500;
 /**
@@ -444,6 +450,25 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let sendTimer: ReturnType<typeof setTimeout> | null = null;
   let lastPointer: Point | null = null;
   let lastMessage: string | null = null;
+  let restateTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * A card parked on this screen is a play still being decided — a target, a payment — and is said
+   * again every `PARKED_RESTATE_MS` for as long as it stands, read fresh off the DOM like any send.
+   * A pointer at rest sends nothing, so without this the other screen heard nothing for as long as
+   * the decision took, and its wait's clock took the back down mid-decision (w35's Thoughtseize: the
+   * target ask open for over fifteen seconds, the back gone before the spell reached the stack).
+   */
+  function armRestate(parked: boolean): void {
+    if (restateTimer !== null) clearTimeout(restateTimer);
+    restateTimer = !parked
+      ? null
+      : setTimeout(() => {
+          restateTimer = null;
+          lastMessage = null;
+          send(lastPointer);
+        }, PARKED_RESTATE_MS);
+  }
 
   function send(pointer: Point | null): void {
     if (!live || host.seat === null) return;
@@ -468,6 +493,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     lastMessage = key;
     lastSent = Date.now();
     host.transport.emit(PRESENCE_EVENT, message);
+    armRestate(message.placing !== null);
   }
 
   /**
@@ -550,6 +576,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     lastMessage = JSON.stringify(message);
     lastSent = Date.now();
     host.transport.emit(PRESENCE_EVENT, message);
+    armRestate(message.placing !== null);
   }
 
   /** Throttled: at most one message per `PRESENCE_SEND_MS`, the latest position winning. */
@@ -605,6 +632,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     lastPointer = { x: point.x, y: point.y };
     lastSent = Date.now();
     host.transport.emit(PRESENCE_EVENT, message);
+    armRestate(message.placing !== null);
   }
 
   /**
@@ -699,6 +727,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * painted frame (w67-shaman's bears, a spell resolving before the glide ended).
    */
   let stackBound: MutationObserver | null = null;
+  /** How long `stackBound` watches — `PLACEMENT_WAIT_MS` on, pushed back while their card is still parked (`renewWait`). */
+  let boundUntil = 0;
   /**
    * A play of theirs begins with a lift: a `placing` opens a wait only if their
    * card has been lifted (`held`) since the last wait ended. Every message sent
@@ -755,6 +785,21 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       host.report?.('stand-in', data);
     }
     stopWaiting(how);
+  }
+
+  /**
+   * Their card is still parked (`placing` on the wire — every message while it stands, and
+   * `armRestate`'s while their pointer rests): the play is still being decided, so its wait's
+   * clock, the column it reserved and the watch for its arrival all start over. Only a sender
+   * gone silent lets the clock run out; a play's own end is its card's fate.
+   */
+  function renewWait(): void {
+    if (waiting === null || waiting.cleared) return;
+    clearTimeout(waiting.timer);
+    waiting.timer = setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS);
+    if (stackBound !== null) boundUntil = Date.now() + PLACEMENT_WAIT_MS;
+    const theirs = host.theirPlayerId?.() ?? null;
+    if (waiting.forBattlefield && waiting.card !== null && theirs !== null) renewPlacement(theirs, waiting.card);
   }
 
   function stopWaiting(why: string): void {
@@ -920,6 +965,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const box = root.getBoundingClientRect();
     drawArranging(root, box, echo.arranging);
     glideHandMove(root, box, echo.handMove);
+    if (echo.placing !== null) renewWait();
     // Anchored to the twin of what their pointer is in (`anchorOf`) — the board fraction drifts off
     // a card the moment the two screens size a row differently; it is the fallback outside every zone.
     const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor) ?? placeSpot(canvas, echo.pointer);
@@ -1095,12 +1141,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    */
   function flyWhenDrawn(card: number, from: () => Point | null): void {
     stackBound?.disconnect();
-    const until = Date.now() + PLACEMENT_WAIT_MS;
+    boundUntil = Date.now() + PLACEMENT_WAIT_MS;
     const watch = new MutationObserver(() => {
-      if (Date.now() < until && !onTheirBattlefield(card)) return;
+      if (Date.now() < boundUntil && !onTheirBattlefield(card)) return;
       watch.disconnect();
       if (stackBound === watch) stackBound = null;
-      const at = Date.now() < until ? from() : null;
+      const at = Date.now() < boundUntil ? from() : null;
       if (at !== null) flyTile(card, at);
     });
     watch.observe(canvas, { childList: true, subtree: true });
@@ -1420,6 +1466,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       liftWatch.disconnect();
       if (sendTimer !== null) clearTimeout(sendTimer);
       sendTimer = null;
+      armRestate(false);
       if (placedTimer !== null) clearTimeout(placedTimer);
       placedTimer = null;
       takeDown();

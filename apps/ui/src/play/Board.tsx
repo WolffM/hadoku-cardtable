@@ -1494,6 +1494,12 @@ export function expectPlacement(playerId: number, slot: string, target: DropTarg
   for (const wake of MOUNTED_BOARDS) wake();
 }
 
+/** Their card `cardId` is still parked on their screen (a target, a payment): its column keeps waiting — see `PLACEMENT_WAIT_MS`. */
+export function renewPlacement(playerId: number, cardId: number): void {
+  const p = PENDING_PLACEMENTS.get(playerId);
+  if (p !== undefined && p.cardId === cardId && p.expiresAt >= Date.now()) PENDING_PLACEMENTS.set(playerId, { ...p, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
+}
+
 /** The placement waiting for a player, if one is (tests, and the stand-ins' clean-up). */
 export function pendingPlacementFor(playerId: number): { cardId: number | null; slot: BoardRow; target: DropTarget } | null {
   const p = PENDING_PLACEMENTS.get(playerId);

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
-import { GLIDE_MS } from '../motion.ts';
+import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 
 /*
  * `placed.ts` (lane S) is the seam this module calls into for the stack
@@ -38,7 +38,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS } from './presence.ts';
+import { forgetPendingPlaced, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS, PARKED_RESTATE_MS } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -338,6 +338,33 @@ describe('sending', () => {
     expect(second.pointer.x).toBe(0.8);
     expect(second.held).toBe(false);
     expect(second.placing, 'the same stand, pointer or no pointer').toEqual({ at: { zone: 'battlefield', x: 0.3, y: 0.515 } });
+    handle.dispose();
+  });
+
+  it('a parked card with the pointer at rest is said again every PARKED_RESTATE_MS, and no more once it is gone', () => {
+    // w35's Thoughtseize: the target ask stayed open for over fifteen seconds with her pointer still,
+    // nothing was sent, and the other screen's clock took the back down before the spell was cast.
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t), aiming: () => false } });
+    const parked = document.createElement('li');
+    parked.setAttribute('data-cast-lift', 'parked');
+    parked.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 });
+    canvas.querySelector('.board')!.append(parked);
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    expect(t.sent).toHaveLength(1);
+    vi.advanceTimersByTime(PARKED_RESTATE_MS * 3);
+    expect(t.sent, 'said again on the restate clock, the same message each time').toHaveLength(4);
+    for (const m of t.sent) expect(m.payload).toEqual(t.sent[0]!.payload);
+    parked.remove();
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 310, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    const n = t.sent.length;
+    expect((t.sent[n - 1]!.payload as { placing: unknown }).placing, 'gone: said once').toBeNull();
+    vi.advanceTimersByTime(PARKED_RESTATE_MS * 3);
+    expect(t.sent, 'nothing parked, nothing restated').toHaveLength(n);
     handle.dispose();
   });
 
@@ -805,6 +832,41 @@ describe('receiving', () => {
     expect(placedMod.placeSpell, 'placed at the exact point the back was waiting at, for THEIR side').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
     expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(48);
     expect(canvas.querySelector('.presence__back'), 'the stand-in is gone — the placed-cards layer draws it now').toBeNull();
+    handle.dispose();
+  });
+
+  it('a point wait outlives the safety clock while their card is still parked, and still hands over to the spell — the clock runs only from the last word', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const report = vi.fn();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({ canvas, host: { ...host(t), report, watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs } });
+    const at = { zone: 'battlefield' as const, x: 0.4, y: 0.6 };
+    const parked = { matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null, placing: { at } };
+    t.receive(parked);
+    // A target ask open for twice the clock, their pointer at rest: their screen restates the park.
+    for (let elapsed = 0; elapsed < 2 * PLACEMENT_WAIT_MS; elapsed += PARKED_RESTATE_MS) {
+      vi.advanceTimersByTime(PARKED_RESTATE_MS);
+      t.receive(parked);
+    }
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still their play: the back stands').not.toBeNull();
+    theirs = [48];
+    wake!();
+    expect(placedMod.placeSpell, 'handed over where it stood').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(canvas.querySelector('.presence__back'), 'its card took it down').toBeNull();
+    // A sender gone silent mid-park is the one thing the clock is for: PLACEMENT_WAIT_MS after the last word.
+    t.receive({ ...parked, held: true, placing: null });
+    t.receive(parked);
+    vi.advanceTimersByTime(PARKED_RESTATE_MS);
+    t.receive(parked);
+    vi.advanceTimersByTime(PLACEMENT_WAIT_MS - 1);
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'counted from the last word, not the release').not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(canvas.querySelector('.presence__back')).toBeNull();
+    expect(report.mock.calls.filter(([k]) => k === 'stand-in'), 'only the silent one was the clock').toEqual([['stand-in', expect.objectContaining({ how: 'timeout', ms: PARKED_RESTATE_MS + PLACEMENT_WAIT_MS })]]);
     handle.dispose();
   });
 
