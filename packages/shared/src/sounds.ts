@@ -173,9 +173,10 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		id: 'battlefield',
 		name: 'On the battlefield',
 		roles: [
-			game('g.land', 'Play a land', 'A land is put onto the battlefield. The colour layer is its land cell.'),
+			game('g.land', 'Play a land', 'You play a land from your hand. Its colour cell (its land, or its basic) plays on top.'),
 			game('g.creature', 'Creature voice', "A creature resolves. The colour layer is the colour's creature cell."),
-			game('g.enter', 'Lands on the table', 'A permanent hits the battlefield.'),
+			// Not lands: a played land is `g.land` alone. "Lands on the table" read as the card type (the operator, 2026-10-11).
+			game('g.enter', 'Hits the table', 'Any other permanent arrives: the thud after a creature’s voice, an artifact, an enchantment.'),
 			game('g.token', 'Token appears', 'A token is created.'),
 			game('g.tap', 'Tap', 'A permanent turns sideways.'),
 			game('g.untap', 'Untap', 'A single permanent untaps.'),
@@ -216,6 +217,8 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		id: 'turn',
 		name: 'Turn and game',
 		roles: [
+			game('g.match-start', 'Game start', 'Both players are ready and the room starts the match, before the coin toss.', true),
+			// The id predates `g.match-start`; it stays so the operator's placements keep their cell.
 			game('g.game-start', 'Coin toss', 'The coin flips to settle who goes first, on both screens.'),
 			game('g.mulligan', 'Mulligan', 'A hand goes back.'),
 			game('g.turn-mine', 'Your turn', 'Your turn begins.', true),

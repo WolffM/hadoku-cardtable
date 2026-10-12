@@ -1,0 +1,318 @@
+{
+ "note": "Round 6 (2026-10-11), written from what the operator placed: real-world field recordings were kept 8 of 9 times and rich specific scenes 39%, while the round 4/5 \"one single hit, dry, close-mic\" template was kept 6%, ethereal swells 1 of 90 and anything with a bell or chime 4 of 100. So: one concrete place per identity (Bant is a harbour), a different real source in every cell, the plain recording suffix, and bells, chimes and gongs refused. Written by make-round6.py.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, field recording.",
+ "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing",
+ "seconds": 3.0,
+ "sounds": {
+  "w.creature": {
+   "group": "White",
+   "name": "White creature",
+   "prompts": [
+    "Horse neighing and hooves stamping on packed earth",
+    "Eagle crying overhead with a beat of wide wings",
+    "Armoured knight kneeling, chain mail and plate shifting"
+   ]
+  },
+  "u.spell": {
+   "group": "Blue",
+   "name": "Blue spell",
+   "prompts": [
+    "A big ocean wave drawing back over pebbles and crashing",
+    "A water drop falling into a deep cave pool, hollow plunk",
+    "Strong sea wind gust, a sail snapping taut"
+   ]
+  },
+  "u.creature": {
+   "group": "Blue",
+   "name": "Blue creature",
+   "prompts": [
+    "Dolphin clicks and a splash at the surface",
+    "Heron croaking and wings flapping off the water",
+    "Whale blowing air through its blowhole, a deep spray"
+   ]
+  },
+  "b.land": {
+   "group": "Lands",
+   "name": "Black land",
+   "prompts": [
+    "Rusty iron cemetery gate creaking open",
+    "Crows cawing over a graveyard",
+    "Water dripping in a stone crypt"
+   ]
+  },
+  "r.creature": {
+   "group": "Red",
+   "name": "Red creature",
+   "prompts": [
+    "Ogre grunting with a heavy footstep on gravel",
+    "A burst of roaring flame from a fire breather",
+    "Mountain goat bleating with pebbles falling down a cliff"
+   ]
+  },
+  "wu.land": {
+   "group": "Lands",
+   "name": "Azorius land",
+   "prompts": [
+    "Heavy stone courthouse door closing in a marble hall",
+    "Fountain splashing in a stone city plaza",
+    "Pigeons fluttering off a high stone balcony in the wind"
+   ]
+  },
+  "ub.land": {
+   "group": "Lands",
+   "name": "Dimir land",
+   "prompts": [
+    "Water dripping in a stone sewer tunnel",
+    "Rats squeaking and scurrying through a tunnel",
+    "Heavy iron grate dragged across wet stone"
+   ]
+  },
+  "br.creature": {
+   "group": "Rakdos",
+   "name": "Rakdos creature",
+   "prompts": [
+    "Hyena laughing",
+    "A demon growl over crackling fire",
+    "Heavy chains rattling and a large beast snorting"
+   ]
+  },
+  "rg.creature": {
+   "group": "Gruul",
+   "name": "Gruul creature",
+   "prompts": [
+    "Elephant trumpeting",
+    "Rhinoceros snorting and charging, heavy stomps",
+    "Wild boar grunting and rooting in the dirt"
+   ]
+  },
+  "gw.spell": {
+   "group": "Selesnya",
+   "name": "Selesnya spell",
+   "prompts": [
+    "Wind sweeping through a wheat field",
+    "A flock of birds taking off from a tree all at once",
+    "Tree branches creaking and leaves rushing in the wind"
+   ]
+  },
+  "gw.land": {
+   "group": "Lands",
+   "name": "Selesnya land",
+   "prompts": [
+    "A gentle brook over pebbles in a meadow",
+    "Bees buzzing around flowers in a garden",
+    "Tall grass brushed aside by footsteps"
+   ]
+  },
+  "wb.spell": {
+   "group": "Orzhov",
+   "name": "Orzhov spell",
+   "prompts": [
+    "Coins poured onto a stone table",
+    "A heavy vault door lock turning and clunking",
+    "A quill scratching on parchment then a wax seal pressed"
+   ]
+  },
+  "wb.land": {
+   "group": "Lands",
+   "name": "Orzhov land",
+   "prompts": [
+    "A large cathedral door creaking open",
+    "Footsteps echoing in a marble crypt",
+    "Coins dropped into a wooden collection box"
+   ]
+  },
+  "rw.creature": {
+   "group": "Boros",
+   "name": "Boros creature",
+   "prompts": [
+    "Soldiers marching in step on stone",
+    "Horse rearing and neighing",
+    "Griffin screech with heavy wing beats"
+   ]
+  },
+  "gwu.spell": {
+   "group": "Bant",
+   "name": "Bant spell",
+   "prompts": [
+    "A ship sail catching the wind and snapping taut",
+    "A foghorn across a harbour",
+    "A wave slapping against a wooden pier"
+   ]
+  },
+  "gwu.creature": {
+   "group": "Bant",
+   "name": "Bant creature",
+   "prompts": [
+    "Seagulls crying over a harbour",
+    "A seal barking on a dock",
+    "Horse hooves on wooden dock planks"
+   ]
+  },
+  "gwu.land": {
+   "group": "Lands",
+   "name": "Bant land",
+   "prompts": [
+    "Water lapping against a stone harbour wall, mooring ropes creaking",
+    "A wooden ship hull creaking at anchor",
+    "A mooring rope thrown and pulled tight around a dock post"
+   ]
+  },
+  "rgw.land": {
+   "group": "Lands",
+   "name": "Naya land",
+   "prompts": [
+    "Jungle ambience, exotic birds calling and insects",
+    "A waterfall pouring into a jungle pool",
+    "Giant footsteps shaking the ground in a jungle"
+   ]
+  },
+  "wbg.creature": {
+   "group": "Abzan",
+   "name": "Abzan creature",
+   "prompts": [
+    "Camel groaning",
+    "A large lizard hissing",
+    "Armoured footsteps on sand, scale mail rattling"
+   ]
+  },
+  "urw.creature": {
+   "group": "Jeskai",
+   "name": "Jeskai creature",
+   "prompts": [
+    "A hawk diving with a sharp cry",
+    "A wooden staff spun fast through the air",
+    "A crane flapping its wings and calling"
+   ]
+  },
+  "urw.land": {
+   "group": "Lands",
+   "name": "Jeskai land",
+   "prompts": [
+    "Wind over a mountain monastery, prayer flags flapping",
+    "A waterfall down a mountain cliff",
+    "A wooden temple door sliding shut"
+   ]
+  },
+  "rwb.land": {
+   "group": "Lands",
+   "name": "Mardu land",
+   "prompts": [
+    "A campfire crackling with distant war drums",
+    "Tent canvas flapping in a strong wind",
+    "A blacksmith hammering on an anvil"
+   ]
+  },
+  "wubrg.creature": {
+   "group": "Five colours",
+   "name": "Five colours creature",
+   "prompts": [
+    "A huge mythical beast roaring with wings beating",
+    "Many animals at once, birds, wolves and a lion",
+    "A dragon landing heavily, wings folding"
+   ]
+  },
+  "wubrg.land": {
+   "group": "Lands",
+   "name": "Five colours land",
+   "prompts": [
+    "An earthquake rumble with crackling fire and rushing water",
+    "Wind, rain and thunder over open land",
+    "Rocks splitting and a geyser of water bursting up"
+   ]
+  },
+  "g.lifegain": {
+   "group": "Combat and life",
+   "name": "Life gain",
+   "prompts": [
+    "A deep relieved breath in and out",
+    "A slow strong heartbeat, two beats",
+    "Spring water bubbling up out of the ground",
+    "A campfire flaring up warmly, a soft whoosh",
+    "A cork popped and a liquid gulp",
+    "Leaves unfurling and a plant growing, soft rustle"
+   ]
+  },
+  "g.turn-theirs": {
+   "group": "Turn and game",
+   "name": "Their turn",
+   "prompts": [
+    "An hourglass flipped over on a wooden table, sand starting to pour",
+    "A distant war horn, low and far away",
+    "A heavy wooden door closing softly in another room"
+   ]
+  },
+  "g.match-start": {
+   "group": "Turn and game",
+   "name": "Game start",
+   "prompts": [
+    "A war horn blown, long and rising",
+    "Heavy wooden castle gates swinging open",
+    "A deck of cards cut, riffled and squared on a table",
+    "A big war drum roll building up"
+   ]
+  },
+  "g.cast.sorcery": {
+   "group": "Casting and the stack",
+   "name": "Cast a sorcery",
+   "prompts": [
+    "Pages of a heavy book flipping fast then slammed shut",
+    "A torch whooshing to life",
+    "Parchment torn in half"
+   ]
+  },
+  "g.cast.planeswalker": {
+   "group": "Casting and the stack",
+   "name": "Cast a planeswalker",
+   "prompts": [
+    "A thunderclap with a big gust of wind",
+    "A huge stone slab dropped, deep ground boom",
+    "A cape swept through a strong wind"
+   ]
+  },
+  "g.land": {
+   "group": "On the battlefield",
+   "name": "Play a land",
+   "prompts": [
+    "A boot stepping onto gravel",
+    "A stone slab set down on stone",
+    "A handful of dirt dropped on the ground"
+   ]
+  },
+  "g.transform": {
+   "group": "On the battlefield",
+   "name": "Transform",
+   "prompts": [
+    "A wolf growl with bones cracking",
+    "A heavy cloak swept around fast",
+    "Stone cracking open and crumbling"
+   ]
+  },
+  "g.mana": {
+   "group": "On the battlefield",
+   "name": "Mana",
+   "prompts": [
+    "A small electric spark crackle",
+    "A water droplet into a still pool",
+    "An ember flaring from a fire"
+   ]
+  },
+  "g.destroy": {
+   "group": "Cards moving",
+   "name": "Destroyed",
+   "prompts": [
+    "A wooden crate smashed apart",
+    "A glass bottle breaking on stone",
+    "A stone pillar crumbling"
+   ]
+  },
+  "g.mill": {
+   "group": "Cards moving",
+   "name": "Mill",
+   "prompts": [
+    "Several cards sliding off a deck onto a pile",
+    "Sand poured onto stone",
+    "Pages ripped out of a book quickly"
+   ]
+  }
+ }
+}

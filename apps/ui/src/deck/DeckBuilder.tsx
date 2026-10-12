@@ -70,7 +70,7 @@ import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
 import { deckFromPool } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
-import { navigate } from '../screens/route.ts';
+import { openNewMatch } from '../play/live/matchStart.ts';
 import type { TableDeck, TableFormat, TablesClient, Verdict } from '../screens/tables.ts';
 import { cardIndex, draftedSeat, librarySeat, mainSummary, sortPile } from './build.ts';
 
@@ -157,7 +157,7 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
       .start('ai', [seat, librarySeat(opponentChoice, library.formats)])
       .then((outcome) => {
         if (outcome.ok) {
-          navigate({ kind: 'match', matchId: outcome.matchId });
+          openNewMatch(outcome.matchId);
           return;
         }
         setRefusal({ error: outcome.error, seats: outcome.seats });

@@ -157,6 +157,7 @@ import {
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { navigate } from './route.ts';
+import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
@@ -1511,9 +1512,15 @@ function RoomTableScreen({
     if (!deckOptions.some((o) => o.value === deckId)) setDeckId('');
   }, [deckOptions, deckId]);
 
-  // The match the server started — for whoever pressed nothing, too.
+  // The match the server started — for whoever pressed nothing, too. Only one
+  // this screen saw begin is new: a table that already had a match when it
+  // first loaded is a match under way, and opens without the start sound.
+  const sawNoMatch = useRef(false);
+  if (table !== null && matchId === null) sawNoMatch.current = true;
   useEffect(() => {
-    if (matchId !== null) navigate({ kind: 'match', matchId });
+    if (matchId === null) return;
+    if (sawNoMatch.current) openNewMatch(matchId);
+    else navigate({ kind: 'match', matchId });
   }, [matchId]);
 
   const startVsBot = (): void => {
@@ -1523,7 +1530,7 @@ function RoomTableScreen({
       .startVsBot(roomId)
       .then((outcome) => {
         if (outcome.ok) {
-          navigate({ kind: 'match', matchId: outcome.matchId });
+          openNewMatch(outcome.matchId);
           return;
         }
         setStartRefusal(outcome.error);
@@ -1546,7 +1553,7 @@ function RoomTableScreen({
       .startRoom(roomId)
       .then((outcome) => {
         if (outcome.ok) {
-          navigate({ kind: 'match', matchId: outcome.matchId });
+          openNewMatch(outcome.matchId);
           return;
         }
         setStartRefusal(outcome.error);

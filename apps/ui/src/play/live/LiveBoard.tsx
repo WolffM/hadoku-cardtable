@@ -278,6 +278,7 @@ import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
 import { deriveSoundEvents } from './sound-events.ts';
+import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { isMuted, playRole, playSoundEvents, setMatchMusic, type DelayedSoundEvent } from '../../sound/index.ts';
 import {
   abortAsk,
@@ -439,11 +440,11 @@ function listField(items: readonly string[]): string {
  * What the table raised to play, and why, into the match's log: `view` for a
  * board change (the roles, their colour cells, the view's turn and seq),
  * `decision` for a decision window's chime, `press` for a bar button, `toss`
- * for the coin toss. Raised,
+ * for the coin toss, `start` for the room's hand-off into a new match. Raised,
  * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
  * `muted` says the last.
  */
-function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press' | 'toss', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
+function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
   if (events.length === 0) return;
   reportClient(match.transport, match.matchId, 'sound', {
     why,
@@ -1704,7 +1705,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   // The room's next match, whichever screen asked for it.
   const next = table?.room.matchId ?? null;
   useEffect(() => {
-    if (next !== null && next !== match.matchId) navigate({ kind: 'match', matchId: next });
+    if (next !== null && next !== match.matchId) openNewMatch(next);
   }, [next, match.matchId]);
 
   const refused = (error: string): void => {
@@ -1713,7 +1714,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     setRefusal(error);
   };
   const started = (answer: StartOutcome): void => {
-    if (answer.ok) navigate({ kind: 'match', matchId: answer.matchId });
+    if (answer.ok) openNewMatch(answer.matchId);
     else refused(answer.error);
   };
   const unreachable = (err: unknown): void => refused(err instanceof Error ? err.message : String(err));
@@ -1940,6 +1941,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * raised it; the chime they heard was the decision's). Only in the pregame and
    * only for a fresh toss, so a reload or a rejoin mid-game does not replay it.
    */
+  // The room's hand-off sounded `g.match-start` before this screen existed; the log hears of it once the match is reachable.
+  useEffect(() => {
+    if (!spectator && matchStartSounded(match.matchId)) reportSound(match, 'start', [{ role: 'g.match-start' }]);
+  }, [match.matchId]);
   const tossAt = coinToss?.at ?? null;
   // The winner's Play/Draw question waits for the coin to land (the operator, 2026-10-11:
   // "can we make it so the cointoss finishes before showing the prompt of who goes first?").

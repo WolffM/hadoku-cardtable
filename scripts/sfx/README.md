@@ -11,7 +11,7 @@ and the picked files go to `cdn.hadoku.me` with a row in `apps/ui/src/sound/cue-
 D=~/.local/opt/stable-audio
 uv venv --python 3.12 $D/.venv
 uv pip install --python $D/.venv/bin/python --index-url https://download.pytorch.org/whl/cu128 torch torchaudio
-uv pip install --python $D/.venv/bin/python diffusers transformers accelerate sentencepiece soundfile huggingface_hub protobuf torchsde
+uv pip install --python $D/.venv/bin/python diffusers transformers accelerate sentencepiece soundfile huggingface_hub protobuf torchsde pyloudnorm
 ```
 
 The model is gated on Hugging Face (accept the terms once, logged in), so downloads need a read token:
@@ -127,3 +127,35 @@ python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r5 --
 `--min-seed` finishes only this round's files; `--add` appends them and keeps every entry already in the
 catalogue (`--merge` replaces whole folders, which would drop placed takes and their renames).
 
+
+## Round 6: what the keepers say (2026-10-11)
+
+The operator on round 5: *"a lot of the new sounds are useless and mostly sound the same as other sounds"*, *"in
+most cases bells sound bad"*, *"the bant creature sounds are just maxing out my speakers"*. Measured over every take
+ever offered (the catalogue plus `retired.jsonl`), what was placed:
+
+| Prompt style | Placed |
+| --- | --- |
+| a real-world field recording (frog, wolf, owl, thunder, waves, rockslide) | 8 of 9 |
+| a rich, specific scene (rounds 1–3: "a detuned calliope", "a snake hiss over dark water") | 39% |
+| literal foley (a sword drawn, a buckle, a key in a lock, knuckle knocks) | 11%, but most of the role picks |
+| the round 4/5 template "one single hit, dry, close-mic, no reverb" | 6% |
+| round 5b's ethereal swells | 1 of 90 |
+| anything with a bell or a chime | 4 of 100 |
+
+Round 5 also gave each identity one theme phrase and reused it in every cell, so a colour's spell, creature and
+land were the same sound three times. Round 6 (`make-round6.py`): one concrete place per identity (the operator:
+*"bant: harbour sounds"*), a different real source in every cell, the plain recording suffix, and bells, chimes
+and gongs in the negative prompt. Re-run the table before the next round:
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round6.json --takes 3 --seed 8000 --offload model
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 8000 --out finished-r6
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r6 --to apps/server/data/sounds --add
+```
+
+## Loudness
+
+`finish.py` levels by perceived loudness (BS.1770 momentary max) with a target per kind of sound: moments −20,
+game −23, interface −28, hovers −34 LUFS, before the mono downmix. RMS levelling had left a 17 dB spread
+(p5 −31.9, p95 −14.6); after a `--into` re-cut, every game take is within about a dB of the others.

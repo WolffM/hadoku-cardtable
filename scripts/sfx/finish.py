@@ -4,8 +4,11 @@ Reads ~/.local/share/cardtable-sfx/generated/<id>/take-<seed>.wav (generate.py) 
 ~/.local/share/cardtable-sfx/finished/<id>/take-<seed>.ogg plus finished/manifest.json, which
 lists every take with its prompt and measurements. Outside the repo, like every audio byte.
 
-Level matching is by the RMS of the part that sounds, not the peak: a short sparkle and a long
-roar should feel equally loud. The gain is then capped so the peak stays at or under -1 dBFS.
+Level matching is by perceived loudness: the loudest 400 ms of the take, K-weighted as in ITU-R
+BS.1770 (momentary loudness, LUFS). Plain RMS left a 17 dB spread between takes that measured "equal"
+(the operator, 2026-10-11: "the bant creature sounds are just maxing out my speakers"), because a dense
+low roar and a thin sparkle with the same RMS do not sound the same. Each kind of sound has its own
+target, and the gain is then capped so the peak stays at or under -1 dBFS.
 """
 import argparse
 import glob
@@ -15,10 +18,14 @@ import subprocess
 import tempfile
 
 import numpy as np
+import pyloudnorm
 import soundfile as sf
 
 ROOT = os.path.expanduser('~/.local/share/cardtable-sfx')
-TARGET_RMS_DB = -20.0
+# Momentary-max loudness per kind of sound, in LUFS. Moments a player should notice sit highest; a hover,
+# which fires constantly, sits far under everything.
+LOUDNESS = {'moment': -20.0, 'game': -23.0, 'ui': -28.0, 'hover': -34.0}
+MOMENT_ROLES = ('g.turn-mine', 'g.turn-theirs', 'g.win', 'g.lose', 'g.game-start', 'g.match-start')
 PEAK_CEILING_DB = -1.0
 GATE_DB = -45.0          # relative to the take's own peak: quieter than this is silence
 FADE_IN_S, FADE_OUT_S = 0.004, 0.04
@@ -45,11 +52,34 @@ def cap_for(folder):
     return GAME_CAP
 
 
+def loudness_for(folder):
+    if folder.split('.')[0] in MOMENT_CAP or folder in MOMENT_ROLES:
+        return LOUDNESS['moment']
+    if folder.startswith('ui.hover'):
+        return LOUDNESS['hover']
+    if folder.startswith('ui.'):
+        return LOUDNESS['ui']
+    return LOUDNESS['game']
+
+
+def momentary_max(audio, rate):
+    """The loudest 400 ms window, K-weighted (BS.1770), in LUFS. A take shorter than a window counts as one."""
+    weighted = audio
+    for stage in pyloudnorm.Meter(rate)._filters.values():
+        weighted = stage.apply_filter(weighted)
+    power = (weighted ** 2).sum(axis=1)
+    window = int(0.4 * rate)
+    if len(power) < window:
+        power = np.pad(power, (0, window - len(power)))
+    means = np.convolve(power, np.ones(window) / window, 'valid')[::int(0.05 * rate)]
+    return -0.691 + 10 * np.log10(max(means.max(), 1e-12))
+
+
 def db(x):
     return 20 * np.log10(max(x, 1e-9))
 
 
-def finish(path, cap):
+def finish(path, cap, target):
     audio, rate = sf.read(path, always_2d=True)
     mono = np.abs(audio).max(axis=1)
     peak = mono.max()
@@ -60,9 +90,7 @@ def finish(path, cap):
     end = min(len(audio), sounding[-1] + int(TAIL_PAD_S * rate), start + int(cap * rate))
     capped = end == start + int(cap * rate)
     clip = audio[start:end].copy()
-    active = clip[np.abs(clip).max(axis=1) > peak * 10 ** (-30 / 20)]
-    rms = np.sqrt((active ** 2).mean()) if len(active) else np.sqrt((clip ** 2).mean())
-    gain = 10 ** ((TARGET_RMS_DB - db(rms)) / 20)
+    gain = 10 ** ((target - momentary_max(clip, rate)) / 20)
     gain = min(gain, 10 ** (PEAK_CEILING_DB / 20) / np.abs(clip).max())
     clip *= gain
     # a capped take fades over its last 30%, so the cut reads as a decay, not a chop
@@ -74,7 +102,7 @@ def finish(path, cap):
         'seconds': round(len(clip) / rate, 3),
         'gainDb': round(db(gain), 1),
         'peakDb': round(db(np.abs(clip).max()), 1),
-        'rmsDb': round(db(np.sqrt((clip ** 2).mean())), 1),
+        'loudness': round(momentary_max(clip, rate), 1),
         'capped': bool(capped),
     }
 
@@ -101,7 +129,7 @@ def main():
         if args.min_seed is not None and int(stem.rsplit('-', 1)[-1]) < args.min_seed:
             continue
         meta = json.load(open(wav[:-4] + '.json'))
-        done = finish(wav, cap_for(sid))
+        done = finish(wav, cap_for(sid), loudness_for(sid))
         if done is None:
             continue
         clip, rate, measured = done
@@ -130,7 +158,7 @@ def recut_in_place(sounds_dir):
             skipped += 1
             continue
         wav, sid = source
-        result = finish(wav, cap_for(sid))
+        result = finish(wav, cap_for(sid), loudness_for(sid))
         if result is None:
             skipped += 1
             continue
