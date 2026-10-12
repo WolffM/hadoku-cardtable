@@ -88,7 +88,7 @@ import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
 
-export type PaceClass = 'input' | 'cast' | 'unseen' | 'resolve' | 'phase' | 'draw' | 'default';
+export type PaceClass = 'input' | 'cast' | 'unseen' | 'log' | 'resolve' | 'phase' | 'draw' | 'default';
 
 /**
  * Starting values (wave file §P step 2) — the operator's to tune by feel
@@ -102,13 +102,18 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
   cast: 0,
   /** A delta that changes only what the board never draws ({@link UNDRAWN_PROPERTIES}): there is nothing to show, so nothing to wait for. */
   unseen: 0,
+  /**
+   * A `message` notify — a line of Forge's game log. It draws nothing on the board, and Forge writes one for
+   * every mana ability and cast inside a cast's own burst, so a gap here would pull the cast apart again.
+   */
+  log: 0,
   /** The stack shrinking or changing in place — something resolving or leaving. */
   resolve: 600,
   /** `GameView.Phase` changed. */
   phase: 250,
   /** A card arrived in a hand (its `Zone` is `Hand`) — a draw, most often. */
   draw: 200,
-  /** Everything else on the state channel, and every `message` log line. */
+  /** Everything else on the state channel. */
   default: 150,
 };
 
@@ -181,6 +186,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   if (f.kind !== 'notify') return 'default';
   const method = f.method;
   if (typeof method === 'string' && INPUT_NOTIFY_METHODS.has(method)) return 'input';
+  if (method === 'message') return 'log';
   if (method !== 'applyDelta') return 'default';
   const packetPayload = f.payload;
   const packet =

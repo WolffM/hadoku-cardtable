@@ -18,7 +18,7 @@ import { classify, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type P
 
 const ASK = { frame: { kind: 'ask', callId: 'c1', method: 'showConfirmDialog' } };
 const INPUT_NOTIFY = { frame: { kind: 'notify', method: 'setWeaklySelectable', cards: [] } };
-const MESSAGE = { frame: { kind: 'notify', method: 'message', message: 'auto-passed Upkeep step' } };
+const MESSAGE = { frame: { kind: 'notify', method: 'message', message: 'Alice cast Lightning Bolt targeting Bob', title: '', log: { type: 'STACK_ADD', cards: [{ id: 3, name: 'Lightning Bolt' }] } } };
 
 function deltaOf(objects: Record<string, Record<string, unknown>>, newObjects: Record<string, Record<string, unknown>> = {}): unknown {
   return { frame: { kind: 'notify', method: 'applyDelta', payload: { packet: { newObjects, objectDeltas: objects } } } };
@@ -75,7 +75,10 @@ describe('classify', () => {
     expect(classify(ON_STACK)).toBe('cast');
     expect(classify(deltaOf({ g: stackOf([3]) }))).toBe('resolve');
   });
-  it('a message notify is default', () => expect(classify(MESSAGE)).toBe('default'));
+  it('a message notify — a game log line — is log, and waits on nothing', () => {
+    expect(classify(MESSAGE)).toBe('log');
+    expect(PACE_DELAYS_MS.log).toBe(0);
+  });
   it('garbage is default, never a throw', () => {
     expect(classify(null)).toBe('default');
     expect(classify(42)).toBe('default');
@@ -200,6 +203,15 @@ describe('pacedMatchTransport', () => {
     expect(received).toHaveLength(7);
     vi.advanceTimersByTime(PACE_DELAYS_MS.resolve);
     expect(received.at(-1)).toBe(RESOLVED);
+  });
+
+  it("the game log's lines inside a cast — the mana that paid, the cast itself — do not pull it apart", () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(PHASE);
+    for (const frame of [HAND_OUT, MESSAGE, TAPS, MESSAGE, ON_STACK]) inner.deliver(frame);
+    expect(received).toEqual([PHASE, HAND_OUT, MESSAGE, TAPS, MESSAGE, ON_STACK]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('an input frame is never held, even mid-burst: its own delay is zero, so it is due the instant it is next', () => {
