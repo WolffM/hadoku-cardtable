@@ -2646,7 +2646,11 @@ describe('wave 32 lane L: chrome', () => {
     const step = container.querySelector('.live__step')!;
     expect(css(step.querySelector('.live__step-name')!, 'text-align')).toBe('center');
     expect(css(step, 'justify-content')).toBe('center');
-    expect(css(container.querySelector('.live__phases')!, 'transition'), 'the rail animates its height in CSS').toContain('height');
+    // The replayed phases can land in two renders under 80 ms apart on a loaded worker, which arms
+    // `useCrawlGuard`'s snap for its cooldown; the rule this pins is the rail's at rest.
+    const rail = container.querySelector<HTMLElement>('.live__phases')!;
+    await waitFor(() => expect(rail.hasAttribute('data-crawl')).toBe(false));
+    expect(css(rail, 'transition'), 'the rail animates its height in CSS').toContain('height');
   });
 
   it('Q3: the rail carries data-combat only while the game is in combat', async () => {
