@@ -32,6 +32,7 @@ import {
   chooseSingleProblems,
   getChoicesProblems,
   numericChoiceRange,
+  revealCaption,
   searchRows,
   type NumericChoiceRange,
   type SearchRow,
@@ -446,15 +447,10 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
 }
 
 /**
- * `DelayedReveal`: the CAPTION of a search — Forge's own words for what the
- * seat is looking at, and whose zone it came from.
- *
- * It used to draw the revealed cards as a second grid of its own, above the
- * options, so a fetchland showed the whole library once un-pickable and then
- * its Islands and Mountains again below — the operator's *"library search"*
- * complaint (#3) was exactly that shape. The cards now live in the ONE grid the
- * prompt draws, choosable first (`rules.ts` `searchRows`), so this is the line
- * that names the pile and nothing more.
+ * `DelayedReveal`: the CAPTION of a search — one sentence, one style, naming
+ * the source and whose zone the seat is looking at (`rules.ts` `revealCaption`).
+ * The cards live in the ONE grid the prompt draws (`rules.ts` `searchRows`), so
+ * this is the line that names the pile and nothing more.
  */
 function DelayedRevealNote({
   reveal,
@@ -466,10 +462,7 @@ function DelayedRevealNote({
   if (reveal === null) return null;
   return (
     <p className="prompt__reveal" data-testid="prompt-reveal">
-      {reveal.messagePrefix}{' '}
-      <span className="prompt__tag">
-        from {refName(lookup, reveal.owner)}&rsquo;s {reveal.zones.join(', ')}
-      </span>
+      {revealCaption(reveal, refName(lookup, reveal.owner))}
     </p>
   );
 }

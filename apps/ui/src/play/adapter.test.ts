@@ -757,6 +757,19 @@ describe('hidden information is untouched by any of this', () => {
     expect(adapt(state).players.find((p) => p.id === viewer)!.libraryTop, 'a library card the seat may not see is never drawn').toBeUndefined();
   });
 
+  it('draws no library top while the seat may also see the card under it — a search or a scry, not Courser', () => {
+    const state = baseState();
+    const top = cardIdNamed(state, 'Mountain');
+    const under = [...cardsById(adapt(state)).values()].find((c) => c.hidden !== true && c.id !== top)!.id;
+    onLibraryTop(state, under);
+    const viewer = onLibraryTop(state, top);
+    const seat = () => adapt(state).players.find((p) => p.id === viewer)!;
+    expect(seat().libraryIds?.slice(0, 2)).toEqual([top, under]);
+    expect(seat().libraryTop, 'a look at more than the top is a prompt’s, never a standing reveal').toBeUndefined();
+    redact(state, under);
+    expect(seat().libraryTop?.id, 'the top alone is a standing reveal').toBe(top);
+  });
+
   it('treats a blank name as no name', () => {
     const state = baseState();
     const id = cardIdNamed(state, 'Mountain');

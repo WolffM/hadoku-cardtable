@@ -20,7 +20,7 @@
  *     (`:1047-1052`), captioned "<source> - Looking at cards in …" (`:1062`).
  *
  * That pair is Forge's own answer to "which of these is choosable", and it is
- * what `rules.ts`' `searchRows` sorts by. This test proves the pair is really
+ * what `rules.ts`' `searchRows` draws from. This test proves the pair is really
  * there, that the reveal really is a superset, and — the #9 question — records
  * whether the tiles the seat draws while the ask is open carry art.
  *
@@ -128,17 +128,13 @@ describe.skipIf(!available.ok)(title, () => {
       expect(ask.delayedReveal).not.toBeNull();
       const reveal = ask.delayedReveal!;
       expect(reveal.zones).toContain('Library');
-      // The reveal is the whole library, so it is strictly larger than the
-      // filtered fetch list — that is what makes "choosable first, rest
-      // present but not selectable" expressible at all.
+      // The reveal is the whole library, strictly larger than the filtered
+      // fetch list; the rows are the fetch list alone, in Forge's order.
       expect(reveal.cards.length).toBeGreaterThan(ask.optionList.length);
 
       const rows = searchRows(ask);
-      // One row per distinct entity, options first, in Forge's order.
-      expect(rows.filter((r) => r.choosable).map((r) => r.ref)).toEqual([...ask.optionList]);
-      expect(rows.length).toBe(reveal.cards.length);
-      expect(rows.slice(0, ask.optionList.length).every((r) => r.choosable)).toBe(true);
-      expect(rows.slice(ask.optionList.length).every((r) => !r.choosable)).toBe(true);
+      expect(rows.map((r) => r.ref)).toEqual([...ask.optionList]);
+      expect(rows.every((r) => r.choosable)).toBe(true);
 
       const drawn = seen.filter((s) => s.tiles.length > 0);
       const anyArt = drawn.some((s) => s.tiles.some((t) => t.art !== null));

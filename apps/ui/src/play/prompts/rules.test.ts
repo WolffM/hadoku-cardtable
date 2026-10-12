@@ -29,6 +29,7 @@ import {
   numericChoiceRange,
   optionDialogProblems,
   orderProblems,
+  revealCaption,
   searchRows,
   sideboardProblems,
   zoneReplyProblems,
@@ -327,15 +328,24 @@ describe('autoAnswer', () => {
  */
 describe('searchRows', () => {
   const base = askFor('chooseSingleEntityForEffect');
-  const searchAsk = (options: readonly number[], revealed: readonly number[]) => ({
+  /** An opponent's hand revealed beside the options (Thoughtseize's shape); `zone` 'Library' is a search. */
+  const searchAsk = (options: readonly number[], revealed: readonly number[], zone: 'Hand' | 'Library' = 'Hand') => ({
     ...base,
     optionList: options.map((id) => card(id)),
     delayedReveal: {
       cards: revealed.map((id) => card(id)),
-      zones: ['Library' as const],
-      owner: player(0),
-      messagePrefix: 'Looking at cards in',
+      zones: [zone],
+      owner: player(1),
+      messagePrefix: 'Thoughtseize - Looking at cards in ',
     },
+  });
+
+  it('is only the options in a library search — no row for a card that cannot be chosen', () => {
+    const rows = searchRows(searchAsk([67, 99], [21, 67, 99, 2], 'Library'));
+    expect(rows.map((r) => [r.ref.id, r.choosable, r.option])).toEqual([
+      [67, true, 0],
+      [99, true, 1],
+    ]);
   });
 
   it('puts the options first, in Forge’s order, then what was only revealed', () => {
@@ -380,6 +390,21 @@ describe('searchRows', () => {
       ['card', 67, true],
       ['card', 99, false],
     ]);
+  });
+});
+
+describe('revealCaption', () => {
+  it('is one sentence: the source from Forge’s prefix, then whose library is searched', () => {
+    expect(revealCaption({ zones: ['Library'], messagePrefix: 'Nissa, Vastwood Seer - Looking at cards in ' }, 'Bella')).toBe(
+      'Nissa, Vastwood Seer: searching Bella’s library',
+    );
+  });
+  it('looks at a hand, and names both zones Forge concatenated', () => {
+    expect(revealCaption({ zones: ['Hand'], messagePrefix: 'Thoughtseize - Looking at cards in ' }, 'bob')).toBe('Thoughtseize: looking at bob’s hand');
+    expect(revealCaption({ zones: ['Library', 'Hand'], messagePrefix: 'X - Y' }, 'bob')).toBe('X: searching bob’s library and hand');
+  });
+  it('says the act alone when Forge’s prefix names no source', () => {
+    expect(revealCaption({ zones: ['Library'], messagePrefix: 'Revealed: ' }, 'Bella')).toBe('Searching Bella’s library');
   });
 });
 

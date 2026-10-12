@@ -224,7 +224,7 @@ describe('chooseEntitiesForEffect', () => {
     // The reveal is now the CAPTION only (§D.2): Forge's words for the pile,
     // and no second grid of its own.
     const reveal = getByTestId('prompt-reveal');
-    expect(reveal.textContent).toContain('Looking at:');
+    expect(reveal.textContent).toMatch(/^Looking at .+’s graveyard$/);
     expect(reveal.querySelectorAll('.card')).toHaveLength(0);
     // Match on the VALUE, not the attribute: `CardTile` stamps its own
     // `data-card-id` in the `w<forge id>` namespace (`Board.tsx`, `adapter.ts`'s `toBoardCard`),
@@ -301,14 +301,15 @@ describe('getAbilityToPlay', () => {
  *
  * Forge sends one ask carrying two lists: `optionList`, the cards that may be
  * chosen (already filtered by the ability's `ChangeType`,
- * `ChangeZoneEffect.java:1096-1099`), and `delayedReveal.cards`, the whole pile
- * it is showing (`:1047-1052`). These hold that the prompt sorts and greys by
- * THAT and nothing else, and that it never draws a card the ask did not carry.
+ * `ChangeZoneEffect.java:1096-1099`), and `delayedReveal.cards`, the whole
+ * library (`:1047-1052`). Only the first is drawn — the operator, 2026-10-11:
+ * *"i dont need to see 'not offered' text in this list"* — and the prompt never
+ * draws a card the ask did not offer.
  *
  * The same ask, against the real jar, is `./search.jvm.test.ts`.
  */
 describe('a library search', () => {
-  /** Two of the pool cards choosable, one revealed-only: Forge's own two lists. */
+  /** Two of the pool cards choosable, a third only in the library: Forge's own two lists. */
   const searchAsk = () => ({
     ...askFor('chooseSingleEntityForEffect'),
     optionList: [
@@ -327,25 +328,21 @@ describe('a library search', () => {
     },
   });
 
-  it("puts what Forge offered first and draws the rest present but not selectable", () => {
+  it('draws only what Forge offered, in its order — no row, and no "not offered", for the rest of the library', () => {
     const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
-    const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
-    // Choosable first, in Forge's order; the revealed-only card last.
-    expect(tiles.map((li) => li.dataset.cardId)).toEqual([
-      String(POOL_ID_BASE + 1),
-      String(POOL_ID_BASE + 2),
-      String(POOL_ID_BASE),
-    ]);
-    expect(tiles.map((li) => li.dataset.choosable)).toEqual([undefined, undefined, 'false']);
-    // Present — a tile, named — and with no control at all to click.
-    const last = tiles[2]!;
-    expect(last.querySelector('.card')).not.toBeNull();
-    expect(last.textContent).toContain(POOL[0]!.name);
-    expect(last.querySelector('input')).toBeNull();
-    // The non-colour signal, so greying is never the only thing said.
-    expect(last.textContent).toContain('not offered');
-    // Exactly one tick per OFFERED row, and no more.
-    expect(getByTestId('prompt-cards').querySelectorAll('input[data-testid="prompt-choice"]')).toHaveLength(2);
+    const grid = getByTestId('prompt-cards');
+    const tiles = [...grid.querySelectorAll<HTMLElement>(':scope > li')];
+    expect(tiles.map((li) => li.dataset.cardId)).toEqual([String(POOL_ID_BASE + 1), String(POOL_ID_BASE + 2)]);
+    expect(tiles.map((li) => li.dataset.choosable)).toEqual([undefined, undefined]);
+    expect(grid.textContent).not.toContain('not offered');
+    expect(grid.querySelectorAll('input[data-testid="prompt-choice"]')).toHaveLength(2);
+  });
+
+  it('captions the search in one sentence and one style', () => {
+    const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
+    const caption = getByTestId('prompt-reveal');
+    expect(caption.textContent).toMatch(/^Scalding Tarn: searching .+’s library$/);
+    expect(caption.children).toHaveLength(0);
   });
 
   it('answers only an offered ref — the revealed-only card can never be sent', () => {
@@ -358,10 +355,10 @@ describe('a library search', () => {
     expectWireReply('chooseSingleEntityForEffect', answers[0]);
   });
 
-  it('draws EXACTLY the ids the ask carried — never one the lookup happens to know', () => {
+  it('draws EXACTLY the ids the ask offered — never one the lookup happens to know', () => {
     const ask = searchAsk();
     const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', ask, poolLookup);
-    const carried = new Set([...ask.optionList, ...ask.delayedReveal.cards].map((r) => String(r.id)));
+    const carried = new Set(ask.optionList.map((r) => String(r.id)));
     const drawn = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')].map(
       (li) => li.dataset.cardId!,
     );
@@ -374,27 +371,13 @@ describe('a library search', () => {
   it('resolves art through the same Name|SET key the board uses', () => {
     const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
     const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
-    const order = [POOL[1]!, POOL[2]!, POOL[0]!];
+    const order = [POOL[1]!, POOL[2]!];
     for (const [i, li] of tiles.entries()) {
       const img = li.querySelector<HTMLImageElement>('img.card__art');
       expect(img, order[i]!.name).not.toBeNull();
       expect(img!.getAttribute('src')).toBe(cardImageUrl(order[i]!.scryfallId));
-      // Including the revealed-only row: what Forge showed the seat, it can see.
       expect(scryfallIdFor(KNOWN_ART_IDS, order[i]!.name, order[i]!.setCode)).toBe(order[i]!.scryfallId);
     }
-  });
-
-  it('a reveal with no options at all is still drawn, every card, none of them pickable', () => {
-    const ask = { ...searchAsk(), optionList: [] as never[] };
-    const { container } = mountPrompt('chooseSingleEntityForEffect', ask, poolLookup);
-    const tiles = [...container.querySelectorAll<HTMLElement>('ul > li[data-card-id]')];
-    expect(tiles.map((li) => li.dataset.cardId)).toEqual([
-      String(POOL_ID_BASE),
-      String(POOL_ID_BASE + 1),
-      String(POOL_ID_BASE + 2),
-    ]);
-    expect(tiles.every((li) => li.dataset.choosable === 'false')).toBe(true);
-    expect(container.querySelectorAll('input')).toHaveLength(0);
   });
 });
 

@@ -237,8 +237,11 @@ export function abilityProblems(
  *
  * So "choosable" is never a rule of ours — it is membership in the list Forge
  * sent as the options. A revealed card that is not in it is drawn, in Forge's
- * own order, and cannot be picked. Nothing is invented and nothing is hidden:
- * every row is an id this seat was sent in this ask.
+ * own order, and cannot be picked — but only from an opponent's hand, which the
+ * seat sees nowhere else. A library reveal draws no rows of its own: the
+ * operator, 2026-10-11, searching with Nissa, Vastwood Seer, *"i dont need to
+ * see 'not offered' text in this list, it makes the list much longer than it
+ * needs to be"*. Every row is an id this seat was sent in this ask.
  *
  * `option` is the index into `optionList`, so a component answers with
  * `ask.optionList[option]` and the reply is byte-identical to what it was
@@ -256,8 +259,10 @@ export function searchRows(
   ask: AskOf<'chooseSingleEntityForEffect'> | AskOf<'chooseEntitiesForEffect'>,
 ): SearchRow[] {
   const rows: SearchRow[] = ask.optionList.map((ref, option) => ({ ref, option, choosable: true }));
+  const reveal = ask.delayedReveal;
+  if (reveal === null || reveal.zones.includes('Library')) return rows;
   const drawn = new Set(ask.optionList.map(refKey));
-  for (const ref of ask.delayedReveal?.cards ?? []) {
+  for (const ref of reveal.cards) {
     const key = refKey(ref);
     // A reveal can name a card the options already hold, and Forge's own
     // `toReveal` can repeat one (two zones concatenated). Each entity draws once.
@@ -266,6 +271,25 @@ export function searchRows(
     rows.push({ ref, option: null, choosable: false });
   }
   return rows;
+}
+
+/**
+ * The caption of a search: one sentence, `"<source>: searching <owner>'s library"`.
+ *
+ * Forge's own `messagePrefix` is `"<source> - Looking at cards in "`
+ * (`ChangeZoneEffect.java:1062`, `lblLookingCardIn`), written to be followed by
+ * a zone its desktop draws elsewhere; joined to the owner and zone it read
+ * *"Nissa, Vastwood Seer - Looking at cards in from Bella's Library"* (the
+ * operator, 2026-10-11: *"this is a bit ugly"*). Only the source is taken from
+ * it — the text before Forge's own `" - "` — and the rest is said from the
+ * reveal's facts: whose zones, and which.
+ */
+export function revealCaption(reveal: { zones: readonly string[]; messagePrefix: string }, ownerName: string): string {
+  const cut = reveal.messagePrefix.indexOf(' - ');
+  const source = cut > 0 ? reveal.messagePrefix.slice(0, cut).trim() : '';
+  const zones = reveal.zones.map((z) => z.toLowerCase()).join(' and ');
+  const act = `${reveal.zones.includes('Library') ? 'searching' : 'looking at'} ${ownerName}’s ${zones}`;
+  return source === '' ? act.charAt(0).toUpperCase() + act.slice(1) : `${source}: ${act}`;
 }
 
 /* ── Zones ───────────────────────────────────────────────────────────── */
