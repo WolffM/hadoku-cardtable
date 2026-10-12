@@ -17,10 +17,23 @@ interface ArtistTable {
 }
 
 let table: ArtistTable | null = null;
-let loading: Promise<ArtistTable> | null = null;
+let loading: Promise<ArtistTable | null> | null = null;
 
-function load(): Promise<ArtistTable> {
-  loading ??= import('./art-artists.json').then((m) => (table = m.default as ArtistTable));
+/**
+ * The table, or `null` if this attempt failed. Never rejects: a failure is one
+ * outcome shared by every credit waiting on it, and it is not kept — the next
+ * credit to ask loads again, so a chunk that failed once (a deploy swapping
+ * hashes, a dropped request) does not hide every credit for the session.
+ */
+function load(): Promise<ArtistTable | null> {
+  loading ??= import('./art-artists.json').then(
+    (m) => (table = m.default as ArtistTable),
+    (err: unknown) => {
+      loading = null;
+      console.warn('[cardtable] the artist table did not load; credited art stays hidden until it does', err);
+      return null;
+    },
+  );
   return loading;
 }
 
@@ -35,8 +48,8 @@ export function useArtist(artId: string | null): string | null | undefined {
   useEffect(() => {
     if (table !== null || artId === null) return;
     let live = true;
-    void load().then(() => {
-      if (live) setLoaded(true);
+    void load().then((loaded) => {
+      if (live && loaded !== null) setLoaded(true);
     });
     return () => {
       live = false;
