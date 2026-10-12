@@ -1,0 +1,18 @@
+# The operator's frozen match (m-34ad8755db4d, 2026-10-11): seat 0 holds Nykthos, Shrine to Nyx and a
+# card it cannot pay for, a Forest on the battlefield, Main Phase 1. Playing Nykthos used to kill the
+# game thread: the actionable sweep (`AvailableActions.canAffordWithManaRocks`) read Nykthos's
+# "{2},{T}: Choose a color …" ability as a mana ability with a mana cost, and its mana part is null
+# (the Mana effect is its sub-ability), so `getManaPart().isComboMana()` threw and Forge never spoke again.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Nykthos, Shrine to Nyx;Arbor Colossus
+humanbattlefield=Forest
+humanlibrary=Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

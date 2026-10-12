@@ -1,0 +1,15 @@
+# The same crash from the other side: Nykthos already on the battlefield and a card seat 0 cannot pay for
+# in hand. The very first priority window's actionable sweep walked Nykthos's colour ability and threw.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Arbor Colossus
+humanbattlefield=Nykthos, Shrine to Nyx;Forest
+humanlibrary=Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
