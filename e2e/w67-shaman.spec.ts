@@ -1,5 +1,5 @@
 /**
- * w67-shaman — measurement, not a gate (playtest report, 2026-10-09):
+ * w67-shaman — the playtest report, 2026-10-09:
  *
  *   "playing Viridian shaman with no available targets creates an awkward lag situation … i'm
  *   curious why this situation creates 2s~ of lag … when the card is released then my cursor can
@@ -17,7 +17,14 @@
  * Three runs: the Shaman as reported; Grizzly Bears (a vanilla 2/2, no trigger) as the baseline the
  * Shaman's extra cost is read against; and the Shaman with bob holding priority for 2 s while it is
  * on the stack — a long wait like the reported one, for anything that drifts toward the pointer
- * meanwhile. The one assertion is the end state: the creature stands on both boards.
+ * meanwhile.
+ *
+ * What it gates is order and place, never time: the creature stands on both boards; each screen's
+ * own hand-over telemetry (`handover-report.ts`) draws the stack card where its stand-in stood; and
+ * across the recorded frames no back of hers stands up again after the hand-over, the stack card is
+ * never drawn back at the release point, bob's card is not shown in its slot before its flight
+ * starts, no frame draws the stack card and the battlefield card both, and no landing flight goes
+ * from the gap to the gap. Where the time goes (`[shaman]`, `[w67-hand]`) is printed, not gated.
  *
  * A fourth run makes the race the operator hit (w67, 2026-10-10) happen every time instead of one
  * run in three: bob's socket holds what the server sends him from alice's release until Forge has
