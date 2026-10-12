@@ -4200,7 +4200,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   });
 
   it('Q13: power/toughness sits in the card’s BOTTOM-right corner, clear of the counters and the marks', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom'), 'to the FACE: the pile box hangs --pile-fan below it').toBe('calc(var(--credit-strip) + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom'), 'to the FACE: the pile box hangs --pile-fan below it').toBe('calc(var(--credit-strip) + var(--pile-fan) - 3px)');
     expect(declarationInCss(CARD_CSS, '.board-card__pt', 'top'), 'it no longer hangs off the top').toBeUndefined();
     expect(declarationInCss(CARD_CSS, '.board-card__pt', 'right')).toContain('--pile-fan');
     // The other two corners it must not collide with.
@@ -4268,7 +4268,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   it('a card’s bottom badges keep to its FACE, not the pile box that hangs --pile-fan below it', () => {
     // table-fit 2026-10-07: a piled creature's P/T drew 6 px (the fan) below its own card, because the badge
     // was anchored to the pile's box; the top-right badges already carried the fan on `right`.
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan) - 3px)');
     expect(declarationInCss(CARD_CSS, '.board-card__counters', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
     // And above the face's printed artist and copyright line, which Scryfall's image guidelines say never to cover.
     expect(declarationInCss(CARD_CSS, '.board-card__relations', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');

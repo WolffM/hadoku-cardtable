@@ -206,7 +206,7 @@
    * it), so the badge keeps to the FACE's bottom, not the box's — a piled
    * creature's P/T drew exactly the fan below its card (table-fit, 2026-10-07).
    */
-  bottom: calc(var(--credit-strip) + var(--pile-fan));
+  bottom: calc(var(--credit-strip) + var(--pile-fan) - 3px);
   right: calc(2px + var(--pile-fan));
   z-index: var(--z-card-badge, 1);
   display: flex;
@@ -226,10 +226,11 @@
   pointer-events: none;
 }
 
-/* A planeswalker's loyalty sits a little further in than a creature's P/T
-   (the operator, 2026-10-10: "shift that left … 1% or 2% of the card width"). */
+/* A planeswalker's loyalty sits over the printed loyalty shield, a little further in than a
+   creature's P/T (the operator, 2026-10-10: "1% or 2%" left; 2026-10-12: "left a few px"). Both
+   badges sit 3px lower than the face's credit strip line (2026-10-12: "down a few px"). */
 .board-card__pt[data-pt='loyalty'] {
-  right: calc(2px + 2% + var(--pile-fan));
+  right: calc(5px + 2% + var(--pile-fan));
 }
 
 /* A planeswalker that is a creature too wears both: its loyalty sits on top of its P/T. */
@@ -396,20 +397,6 @@
 
 .board-card__mark[data-mark='blocking'] {
   color: var(--ink);
-}
-
-/*
- * A token (item 14): *"wolf-token has no art."*
- *
- * It has no art because it has no row in `art-ids.json`, which is not this lane's
- * file — so what this lane can do is make the artless tile read as DELIBERATE.
- * A token wears the spark mark and a dashed edge, which together say "the game
- * made this" rather than "the picture failed". The day a token gets an id, the
- * art arrives under the same mark and nothing here changes.
- */
-.board-card[data-token] > .board-card__face > .card {
-  border-style: dashed;
-  border-color: var(--ink-faint);
 }
 
 /*
