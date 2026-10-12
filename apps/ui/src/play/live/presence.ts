@@ -156,6 +156,20 @@ export interface PresenceHandle {
 
 type Point = { x: number; y: number };
 
+/** A wait's telemetry context, reported only if a clock ends it (`expire`). */
+interface WaitDiag {
+  hand0: number;
+  grave0: number;
+  echoes: number;
+  lastEcho: string;
+  seen: string;
+  prevEnd: number;
+  prevHow: string;
+  liftAgo: number;
+  freshAgo: number;
+  fresh: string;
+}
+
 const ZONES = ['hand', 'battlefield', 'graveyard', 'exile', 'stack'] as const;
 type Zone = (typeof ZONES)[number];
 const isZone = (v: string | null): v is Zone => v !== null && (ZONES as readonly string[]).includes(v);
@@ -642,7 +656,17 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * `cleared`: the sender has said the card is no longer parked, and the
    * short grace is running.
    */
-  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean; since: number } | null = null;
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean; since: number; diag: WaitDiag } | null = null;
+  /** Telemetry: how the previous wait ended and when, and when their card was last held — a timed-out wait's context. */
+  let lastEnd: { at: number; how: string } | null = null;
+  let heldAt: number | null = null;
+  let lastFresh: { at: number; ids: string } | null = null;
+  function newDiag(): WaitDiag {
+    return { hand0: theirHandBacks().length, grave0: theirGraveCount(), echoes: 0, lastEcho: '-', seen: '-', prevEnd: lastEnd === null ? -1 : Date.now() - lastEnd.at, prevHow: lastEnd?.how ?? '-', liftAgo: heldAt === null ? -1 : Date.now() - heldAt, freshAgo: lastFresh === null ? -1 : Date.now() - lastFresh.at, fresh: lastFresh?.ids ?? '-' };
+  }
+  function theirGraveCount(): number {
+    return Number(canvas.querySelector('[data-zone="graveyard"][data-owner="them"]')?.getAttribute('data-count') ?? -1);
+  }
   /** Where the back stands, or — on its glide into a placement's gap — where it is heading. */
   let backAt: Point | null = null;
   /** Telemetry for the play in hand (`./handover-report.ts`): when its release reached this screen, its glide began, its spell was seen on the stack. */
@@ -721,14 +745,19 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** A wait its card never ended — a clock did: said, with how long the back stood, then taken down. */
   function expire(how: 'grace' | 'timeout'): void {
     if (waiting !== null) {
-      const data: Record<string, string | number | boolean> = { how, ms: Date.now() - waiting.since, forBattlefield: waiting.forBattlefield };
+      const d = waiting.diag;
+      const data: Record<string, string | number | boolean> = {
+        how, ms: Date.now() - waiting.since, forBattlefield: waiting.forBattlefield,
+        hand: theirHandBacks().length - d.hand0, grave: theirGraveCount() - d.grave0, stack: (host.theirStackCards?.() ?? []).length,
+        echoes: d.echoes, lastEcho: d.lastEcho, seen: d.seen, prevEnd: d.prevEnd, prevHow: d.prevHow, liftAgo: d.liftAgo, freshAgo: d.freshAgo, fresh: d.fresh,
+      };
       if (waiting.card !== null) data.card = waiting.card;
       host.report?.('stand-in', data);
     }
-    stopWaiting();
+    stopWaiting(how);
   }
 
-  function stopWaiting(): void {
+  function stopWaiting(why: string): void {
     lifted = false;
     if (handTimer !== null) clearTimeout(handTimer);
     handTimer = null;
@@ -737,6 +766,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (heldSpell !== null) releaseSpell(heldSpell);
     heldSpell = null;
     if (waiting === null) return;
+    lastEnd = { at: Date.now(), how: why };
     clearTimeout(waiting.timer);
     waiting = null;
     back?.remove();
@@ -916,6 +946,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // one (the placement's gap, or this very point), which only its own ending takes down
     // (`onPlacement`'s reservation, `handoff`'s id, or the timeout). Four days of a phantom
     // attached to the cursor came from inferring the first state from the second.
+    if (waiting !== null) {
+      waiting.diag.echoes++;
+      waiting.diag.lastEcho = echo.placing !== null ? 'placing' : echo.held ? 'held' : 'none';
+    }
     if (echo.placing !== null) {
       const placingAt = placeSpot(canvas, echo.placing.at);
       // A play already handed over (no lift since): this echo was true when it was SENT, and is
@@ -926,7 +960,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
         play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
-        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false, since: Date.now() };
+        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
         // the one object, in place — never a back beside a face until a timer ends it.
@@ -939,6 +973,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // A wait already holds the back — the placement's gap, or this point: it stays put.
     } else if (echo.held) {
       lifted = true;
+      heldAt = Date.now();
       // Lifted: the back follows the pointer. A wait pending (a card of theirs still arriving)
       // keeps its stand-in; their new lift is drawn once that wait ends.
       if (waiting === null) standBack(root, box, at);
@@ -1020,7 +1055,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     } else {
       commitSpell(id);
     }
-    stopWaiting();
+    stopWaiting('spell');
     return at;
   }
 
@@ -1041,7 +1076,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const from = back?.getBoundingClientRect() ?? null;
     const backs = theirHandBacks();
     const slot = backs[backs.length - 1];
-    stopWaiting();
+    stopWaiting('home');
     if (from === null || from.width === 0 || slot === undefined || host.motion?.() !== true) return;
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
@@ -1077,6 +1112,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const cards = host.theirCards?.() ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
+    if (fresh.length > 0) {
+      const ids = fresh.map((id) => `${id}${onTheirStack(id) ? 's' : 'b'}`).join(',');
+      lastFresh = { at: Date.now(), ids };
+      if (waiting !== null) waiting.diag.seen = ids;
+    }
     if (waiting === null) {
       // AE26: a spell arriving with no wait to hand it to is remembered for the point wait that
       // may be a message behind it (Forge's frame beat presence here). A permanent's arrival is
@@ -1210,21 +1250,24 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (already !== null) {
       // The frame came first: the reservation moves the card on the next commit; its tile flies
       // from the release point to wherever it settles.
-      stopWaiting();
+      stopWaiting('placement');
       requestAnimationFrame(() => flyTile(card, from));
       return;
     }
     // The back this play already drew — following their pointer, or waiting at the release point —
     // is the stand-in from here, at a hand card's size; taking it down and making a new one drew the
     // stylesheet's fallback size, twice a battlefield card (the Viridian Shaman recording).
-    if (waiting !== null) clearTimeout(waiting.timer);
+    if (waiting !== null) {
+      clearTimeout(waiting.timer);
+      lastEnd = { at: Date.now(), how: 'placement' };
+    }
     waiting = null;
     lifted = false;
     standBack(root, root.getBoundingClientRect(), from);
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
     standIn.setAttribute(PRESENCE_CARD_ATTR, String(card));
-    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false, since: Date.now() };
+    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
     waiting = wait;
     // The card reaching its column while the stand-in still waits — straight from the hand, or a
     // spell resolving before the glide let it hand over to the stack — finishes the stand-in's
@@ -1235,7 +1278,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     flyWhenDrawn(card, () => {
       if (waiting !== wait || back !== standIn) return null;
       const at = drawnCentre(standIn) ?? backAt;
-      stopWaiting();
+      stopWaiting('drawn');
       return at;
     });
     // The board draws the reserved gap on its next commit — usually before the next frame, not
@@ -1363,7 +1406,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   return {
     dispose() {
-      stopWaiting();
+      stopWaiting('dispose');
       stackBound?.disconnect();
       live = false;
       unwatch?.();

@@ -1372,7 +1372,7 @@ describe('receiving', () => {
       t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { ...at, x: 0.3 + i * 0.05 }, held: false, from: null, handRows: 1, arranging: null });
     }
     expect(canvas.querySelector('.presence__back'), 'gone one grace after the cancel, however they moved').toBeNull();
-    expect(report.mock.calls, 'the clock, not its card, took it down — said once').toEqual([['stand-in', { how: 'grace', ms: CLEARED_GRACE_MS, forBattlefield: false }]]);
+    expect(report.mock.calls, 'the clock, not its card, took it down — said once').toEqual([['stand-in', expect.objectContaining({ how: 'grace', ms: CLEARED_GRACE_MS, forBattlefield: false, lastEcho: 'none' })]]);
     handle.dispose();
   });
 
