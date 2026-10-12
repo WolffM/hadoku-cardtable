@@ -3092,9 +3092,13 @@ export class Match {
 				method: auto.method,
 				why: auto.why,
 			});
-			// Not `chosenAbility`: an ability the server played (a trigger, an effect's cast) is not
-			// one the seat chose, and Forge's re-ask of one it did choose is that choice already.
-			if (frame.method === 'getAbilityToPlay') s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
+			// `chosenAbility` only for an offer the seat's own click opened (the same ability it chose
+			// on its last click of this card): an ability the server played (a trigger, an effect's
+			// cast) is not one the seat chose, and Forge's re-ask inside one activation is that choice already.
+			if (frame.method === 'getAbilityToPlay') {
+				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
+				if (clicked) s.chosenAbility = s.lastAbilityToPlay;
+			}
 			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
 			if (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);

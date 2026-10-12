@@ -2170,6 +2170,48 @@ describe('hold-decide-forward', () => {
 		expect(since.some((l) => l.evt === 'prompt-forwarded')).toBe(false);
 	});
 
+	it('a second click of the same mana source, whose one ability the server answers from the first, is still the seat’s own payment: auto-paid', () => {
+		const SIGNET = 71;
+		const PRIORITY_MAIN = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty';
+		const offer = (callId: string) => ({
+			kind: 'ask' as const,
+			callId,
+			method: 'getAbilityToPlay' as const,
+			hostCard: { kind: 'card' as const, id: SIGNET },
+			abilities: [{ kind: 'spellAbility' as const, id: 9100 }],
+			triggerEvent: null,
+		});
+		const click = (h: Harness) =>
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: SIGNET }, otherCardViewsToSelect: [], triggerEvent: null }));
+		const payment = (h: Harness) =>
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true, enable2: true }) },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {1}', SIGNET) },
+			);
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		// The first click: the browser answers the offer its click opened, and the payment is auto-paid.
+		click(h);
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: offer('s1-1') });
+		expect(h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'reply', callId: 's1-1', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9100 } }))).toEqual({ ok: true });
+		payment(h);
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, PRIORITY_MAIN) },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn' }) },
+		);
+		// The second click, in a later priority window: the server answers the same one ability.
+		const logsBefore = h.logs.length;
+		click(h);
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: offer('s1-2') });
+		expect(h.logs.slice(logsBefore)).toContainEqual(
+			expect.objectContaining({ evt: 'ask-auto-answered', callId: 's1-2', why: 'forge re-asked its own already-answered getAbilityToPlay' }),
+		);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		payment(h);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-paid')).toEqual([{ evt: 'auto-paid', matchId: h.match.id, seat: SEAT1_ID, cost: '{1}' }]);
+	});
+
 	it('a priority window outside the stop set is auto-passed: nothing sent', () => {
 		const h = openedHarness();
 		closeDanglingBar(h, SEAT1_ID);
