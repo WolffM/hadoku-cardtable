@@ -424,7 +424,16 @@ function doubledHandovers(rows: readonly LogRow[]): string[] {
  * for seconds is the evidence for a back left on the board.
  */
 function printExpiredStandIns(rows: readonly LogRow[]): void {
-  for (const r of rows) if (r.evt === 'client' && r.kind === 'stand-in') console.log(`[stand-in] ${JSON.stringify(r)}`);
+  for (const r of rows) {
+    if (r.evt !== 'client' || r.kind !== 'stand-in') continue;
+    console.log(`[stand-in] ${JSON.stringify(r)}`);
+    const end = Date.parse(String(r.t));
+    const start = end - Number(r.ms) - 1000;
+    for (const o of rows) {
+      const t = Date.parse(String(o.t));
+      if (o !== r && o.matchId === r.matchId && t >= start && t <= end) console.log(`[stand-in]   +${t - start - 1000}ms ${JSON.stringify(o).slice(0, 300)}`);
+    }
+  }
 }
 
 /** What every spec's stack checks at `stop()`, whatever the spec was about. */
