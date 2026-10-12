@@ -351,7 +351,7 @@ export interface StopPolicy {
 	 * let it go, regardless of what the seat could do there. A defender with
 	 * nothing castable still had to press OK a second time for no reason —
 	 * confirmed against a real Forge match holding nothing (`w46-block-stop.
-	 * jvm.test.ts`'s idle variant).
+	 * match.jvm.test.ts`'s idle variant).
 	 *
 	 * With this on, the DECLARATION ITSELF is untouched and is never passed —
 	 * it is a `getChoices`-style `other` window, not a `Priority:` one, so

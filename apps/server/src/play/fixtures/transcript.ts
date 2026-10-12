@@ -35,7 +35,7 @@ export const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 
 export const TRANSCRIPT_MATCH = 'm-transcript01';
 
 /**
- * `bridge-flying-seat1.ndjson` — the red `jvm.test.ts` run the manager hit, captured
+ * `bridge-flying-seat1.ndjson` — the red `match.jvm.test.ts` run the manager hit, captured
  * by that test's `CARDTABLE_PLAY_DUMP` hook on 2026-09-18: "Spirit Flames" v
  * "Decay", seat 1's lines only (every `frame` for seat 1, plus `ready` and the
  * probe result), re-stamped `m-flying01`. Unedited otherwise.

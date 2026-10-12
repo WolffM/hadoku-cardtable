@@ -182,7 +182,7 @@ async function expectNoDesync(h: LiveHarness): Promise<void> {
  *
  * What both scenarios always assert is the leak itself, and that every secret
  * really was in Forge's unprojected stream — so a projection that started
- * leaking is caught by `combat` (and by `apps/server/src/play/jvm.test.ts`,
+ * leaking is caught by `combat` (and by `apps/server/src/play/match.jvm.test.ts`,
  * which counts secrets in the hundreds) on the same run.
  */
 function expectNoLeak(h: LiveHarness, mustHaveSecrets = true): void {

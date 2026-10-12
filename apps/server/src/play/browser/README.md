@@ -24,7 +24,7 @@ CheerpJ page ──browser WebSocket──►  index.ts
 | `fanout.ts` | the live connections, and the one call `../socket.ts` has to make |
 | `browser.test.ts` | end to end against the recorded real transcript. Runs in CI |
 | `mounted.test.ts` | the bridge **as `src/index.ts` mounts it** — `src/index.ts` spawned as a real process, a real upgrade driven at it. Runs in CI |
-| `browser-jvm.test.ts` | the same against a real Forge in a child JVM. Skips without one |
+| `browser.jvm.test.ts` | the same against a real Forge in a child JVM. Skips without one |
 
 ## Mounted — and the one line that is still missing
 

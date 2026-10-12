@@ -435,7 +435,7 @@ const scry = {
 
 /**
  * `CARDTABLE_PLAY_DUMP=<dir>` keeps every envelope both runs emitted, the same
- * hook `apps/server/src/play/jvm.test.ts` has. It is how
+ * hook `apps/server/src/play/match.jvm.test.ts` has. It is how
  * `apps/server/src/play/fixtures/w20-turn-flow.json` was cut: the committed
  * fixture is real frames off this run, and re-cutting it is one command.
  */

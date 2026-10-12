@@ -25,7 +25,7 @@
  *    manipulable; see `host.ts`'s `FORGE_PREFERENCES`.
  *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, like
- * `jvm.test.ts` — and **`CARDTABLE_PLAY_WORK_DIR` must point at scratch**, or
+ * `match.jvm.test.ts` — and **`CARDTABLE_PLAY_WORK_DIR` must point at scratch**, or
  * the run sweeps production's run directories.
  *
  * The deck is all-Preordain/Galvanic Blast over duals so both a scry and a cast

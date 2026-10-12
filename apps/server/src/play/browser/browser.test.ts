@@ -7,7 +7,7 @@
  *
  * ## The assertion that matters
  *
- * `jvm.test.ts` measured, against a real Forge, every identifying string of
+ * `match.jvm.test.ts` measured, against a real Forge, every identifying string of
  * every card hidden from a seat, found all of them in Forge's raw stream and
  * **none** in what reached that seat. This suite makes the same measurement
  * over the BYTES a browser received off the WebSocket, for the same recorded

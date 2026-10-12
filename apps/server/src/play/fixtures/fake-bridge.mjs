@@ -2,7 +2,7 @@
 // `warm`, `start`, `ready`, `stop`, and `match` on every line both ways — so
 // `host.test.ts` can exercise the JVM pool (spare, addressing, ceiling, a spare
 // that dies) in CI, where there is no Java. It plays no Magic. The real bridge
-// is exercised by `jvm.test.ts`.
+// is exercised by `match.jvm.test.ts`.
 //
 // FAKE_BRIDGE_MODE=die exits at once, like a JVM that cannot boot.
 import { readFileSync } from 'node:fs';

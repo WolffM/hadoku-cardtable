@@ -1,6 +1,6 @@
 /**
  * The browser bridge against a REAL Forge, in a real child JVM, through the
- * real `bridge/PlayBridge.java` — the same thing `jvm.test.ts` does for the
+ * real `bridge/PlayBridge.java` — the same thing `../match.jvm.test.ts` does for the
  * socket.io path, with a browser `WebSocket` in place of a socket.io client.
  *
  * `browser.test.ts` proves the bridge against a recorded real transcript, which
@@ -16,7 +16,7 @@
  *
  *   export CARDTABLE_FORGE_JAR=~/.local/share/cardtable/forge.jar
  *   export CARDTABLE_FORGE_RES=/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
- *   pnpm exec vitest run apps/server/src/play/browser/browser-jvm.test.ts
+ *   pnpm exec vitest run apps/server/src/play/browser/browser.jvm.test.ts
  *
  * ## The work directory is this suite's own, always
  *

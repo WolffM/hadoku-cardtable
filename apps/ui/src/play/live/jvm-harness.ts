@@ -4,7 +4,7 @@
  *
  * `./replay-server.ts` replays a captured match; this runs one. It starts a
  * match through the server's own exported API (`createMatchRegistry` over
- * `jvmHostFactory`, exactly as `apps/server/src/play/jvm.test.ts` does), and
+ * `jvmHostFactory`, exactly as `apps/server/src/play/match.jvm.test.ts` does), and
  * connects one `LiveMatch` per seat to it. Everything on the client side is
  * the product path: `ingest`, the fold, `LiveBoard`, the prompt components,
  * `answerAsk`. Every answer a component gives travels `answerAsk` →

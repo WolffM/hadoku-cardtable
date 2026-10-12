@@ -1,7 +1,7 @@
 /**
  * The isolation check for a match, over what each browser actually received.
  *
- * The server's leak control (`apps/server/src/play/jvm.test.ts`, oracle in
+ * The server's leak control (`apps/server/src/play/match.jvm.test.ts`, oracle in
  * `apps/server/src/play/fixtures/transcript.ts`) builds its secrets from
  * Forge's RAW stream, which only the server has. A browser does not. So this
  * builds them from the OTHER browser: each seat legitimately sees its own hand,

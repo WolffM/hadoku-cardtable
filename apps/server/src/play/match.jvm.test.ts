@@ -7,7 +7,7 @@
  *
  *   CARDTABLE_FORGE_JAR=~/.cache/cardtable-w8/forge-build/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
  *   CARDTABLE_FORGE_RES=~/.cache/cardtable-w8/forge-build/forge-gui/res \
- *   pnpm exec vitest run apps/server/src/play/jvm.test.ts
+ *   pnpm exec vitest run apps/server/src/play/match.jvm.test.ts
  *
  * What it proves that the replayed transcript cannot: that the bridge still
  * starts a match against the Forge build on this machine, that every frame it

@@ -285,7 +285,7 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | `auto.test.ts` (144) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
 | `seed.jvm.test.ts` (1) | one seed, one deal: two cold matches on seed 20260918 put both libraries in the same order — the seed reaching Forge's `MyRandom`, measured rather than read off the source; **skips visibly** without a jar | live |
-| `jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
+| `match.jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
 
 Every count above is the number of tests the suite RUNS, not the `it(` blocks
 in its source — `auto.test.ts` has two `it.each` tables, so it reads 121 blocks
@@ -327,7 +327,7 @@ it on a hand-run server (`pnpm --filter @hadoku/server exec tsx src/index.ts`).
 
 ### The red JVM run the manager hit: an oracle false positive, not a leak
 
-`jvm.test.ts` failed once in two manager runs with `expected [ 'Flying' ] to
+`match.jvm.test.ts` failed once in two manager runs with `expected [ 'Flying' ] to
 deeply equal []`. The run was captured with the test's `CARDTABLE_PLAY_DUMP`
 hook (red on the 4th of a loop; decks "Spirit Flames" v "Decay") and diagnosed
 from the frames:
@@ -385,7 +385,7 @@ ten real matches (the fixed pair five times, plus five variety seeds: 715852730,
 715881046, 715909616, 715937879, 715966380). There were no leak dumps and no JVM
 left afterwards.
 
-Without the variables: `↓ apps/server/src/play/jvm.test.ts (2 tests | 2 skipped)`, and the
+Without the variables: `↓ apps/server/src/play/match.jvm.test.ts (2 tests | 2 skipped)`, and the
 suite's name carries the reason (`… — SKIPPED: CARDTABLE_FORGE_JAR is not set`).
 After the run, `liveJvmCount()` is 0 (asserted) and `ps` shows no bridge JVM.
 
@@ -394,7 +394,7 @@ After the run, `liveJvmCount()` is 0 (asserted) and `ps` shows no bridge JVM.
 ```console
 $ CARDTABLE_FORGE_JAR=/home/hadoku/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
   CARDTABLE_FORGE_RES=/home/hadoku/.cache/w7b-forge/forge-gui/res \
-  pnpm vitest run apps/server/src/play/jvm.test.ts ; echo $?
+  pnpm vitest run apps/server/src/play/match.jvm.test.ts ; echo $?
 [jvm] fixed: Spirit Flames v Decay, seed 20260918, cold: running after 4679 ms (JVM up 4533 ms, match start 3924 ms); decks: Spirit Flames v Decay
 [jvm] seat 0: 14 envelopes, 144 secrets, 144 in Forge's raw stream, 0 in what was emitted
 [jvm] seat 1: 15 envelopes, 142 secrets, 142 in Forge's raw stream, 0 in what was emitted
@@ -411,7 +411,7 @@ The ready line's `bootMs` is now from the JVM's own start (for a spare, includin
 its idle wait) and `startMs` from the moment the match was handed over.
 
 Mutations, each reverted → failing, restored (`cmp`-identical) → passing, over
-`match.test.ts`, `socket.test.ts` and `jvm.test.ts` with the JVM configured:
+`match.test.ts`, `socket.test.ts` and `match.jvm.test.ts` with the JVM configured:
 
 | mutation | failed | restored |
 | --- | --- | --- |
@@ -433,7 +433,7 @@ Forge's raw frame instead of the projection.
 $ <JVM env as above> pnpm exec vitest run apps/server/src/play ; echo $?     # mutated
    × per-recipient emission, over whole serialised payloads > seat 0's envelopes carry none of the other seat's hidden cards
    × per-recipient emission, over whole serialised payloads > seat 1's envelopes carry none of the other seat's hidden cards
-   × regression: the red jvm.test.ts run ('Flying'), from its captured frames > puts none of seat 1's secrets in what seat 1 is sent …
+   × regression: the red match.jvm.test.ts run ('Flying'), from its captured frames > puts none of seat 1's secrets in what seat 1 is sent …
    × the cursor > folds the seat's own history into the state that seat should hold
    × two seats over the socket > never puts one byte of the other seat's hidden cards in what either peer received
    × a real Forge match in a child JVM > fixed: Spirit Flames v Decay, seed 20260918 — …
@@ -547,7 +547,7 @@ A warm run is measured the way production meets it: adopting the spare spawns
 its replacement at once, so the match starts beside a booting JVM. An idle spare
 holds ~600–640 MB of RSS; that is the price.
 
-`jvm.test.ts` shows the same from the other side on every gated run: the cold
+`match.jvm.test.ts` shows the same from the other side on every gated run: the cold
 fixed run reaches running in 4,737 ms, the warm variety run in 484 ms.
 
 ### The ceiling: 2 concurrent matches, spare included
