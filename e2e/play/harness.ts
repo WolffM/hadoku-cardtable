@@ -408,22 +408,20 @@ function unreadAsks(rows: readonly LogRow[]): string[] {
 }
 
 /**
- * A hand-over or landing that left two copies of the card drawn (`handover-report.ts`
- * `doubled`). Printed, not asserted: 11 of 584 such rows in those same 422 logs were
- * doubled, so as a gate it would red about one spec in forty on a product fault no spec of
- * its own is about. The rows are the evidence for whoever takes that fault on.
+ * A hand-over or landing that left two copies of the card drawn on the frame after it
+ * (`handover-report.ts`'s `doubled`, with `copies` naming what was drawn): a hand-over is a
+ * swap, so any one of them is the spec's red.
  */
-function printDoubled(rows: readonly LogRow[]): void {
-  for (const r of rows) {
-    if (r.evt === 'client' && (r.kind === 'handover' || r.kind === 'landing') && r.doubled === true) console.log(`[handover-doubled] ${JSON.stringify(r)}`);
-  }
+function doubledHandovers(rows: readonly LogRow[]): string[] {
+  const doubled = rows.filter((r) => r.evt === 'client' && (r.kind === 'handover' || r.kind === 'landing') && r.doubled === true);
+  for (const r of doubled) console.log(`[handover-doubled] ${JSON.stringify(r)}`);
+  return doubled.length === 0 ? [] : [`${doubled.length} hand-over(s) left two copies of a card drawn: ${doubled.map((r) => JSON.stringify(r)).join(' ; ')}`];
 }
 
 /** What every spec's stack checks at `stop()`, whatever the spec was about. */
 function assertStackInvariants(serverLogFile: string): void {
   const rows = logRows(serverLogFile);
-  printDoubled(rows);
-  const broken = [...deadBars(rows), ...unreadAsks(rows)];
+  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows)];
   if (broken.length > 0) throw new Error(broken.join('\n'));
 }
 
