@@ -89,6 +89,9 @@ TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
 if [ -z "$GONE" ] && ! grep -qE '^(packages/|vitest\.config\.ts$|tsconfig[^/]*\.json$|(apps/[^/]+/)?package\.json$|pnpm-(lock|workspace)\.yaml$|apps/[^/]+/tsconfig[^/]*\.json$|apps/ui/src/test-setup\.ts$)' <<<"$CHANGED"; then
   mapfile -t RELATED < <(grep -E '\.(tsx?|css|json)$' <<<"$CHANGED" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
+  # Suites that read the tree from disk, not through an import: `related` cannot reach them.
+  # A scenario, a deck, a cube or the art table changing runs the art table's coverage suite.
+  grep -qE '^(apps/server/src/play/scenarios/|decks/|cubes/|apps/ui/src/draft/(art-ids|pool)\.json$)' <<<"$CHANGED" && RELATED+=(scripts/art/build-art-ids.test.ts)
   if [ ${#RELATED[@]} = 0 ]; then
     TESTS="echo 'land: no source file changed — no unit suite to run'"
   else
