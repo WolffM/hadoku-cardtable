@@ -12,14 +12,17 @@
  *
  * Scenario `w68-untap`: alice's turn-1 Main 1 with Forest, Island, the Tron
  * set, River of Tears, Izzet Signet, Llanowar Elves and Adarkar Wastes, and
- * an empty hand. For each source: tap it by a click (bob sees it
+ * only an Island in hand. For each source: tap it by a click (bob sees it
  * tapped) and click it again (it was tapped last); then tap it, tap a basic
  * after it, and click the FIRST (out of order). Every row ends with the pool,
  * the life and the board as they were before it, and the source offered
  * again. The painland's tap costs 1 life and its untap gives it back (AC7).
- * Rows are soft so one run reports every kind that fails, with a tagged line
- * per row. A second test, on `river-of-tears`, plays a land first: River's {B}
- * sub-ability, which Forge once refused to undo (AB8).
+ * Last, alice plays the Island and the River row runs again: its {B}
+ * sub-ability, after the River's {U} was already tapped and untapped in this
+ * game. Rows are soft so one run reports every kind that fails, with a tagged
+ * line per row. A second test, on `river-of-tears`, plays a land first on a
+ * River never tapped before: River's {B} sub-ability, which Forge once refused
+ * to undo (AB8).
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -204,6 +207,13 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       );
       await settle(base.tapped);
     }
+
+    // River of Tears adds {B} instead once a land was played — after its {U} rows above.
+    const island = await handCardNamed(a, 'Island');
+    if (island === undefined) throw new Error('alice holds no Island to play');
+    await clickHandCard(a, island);
+    await expect.poll(async () => (await ownBoard(a)).length, { timeout: 20_000, message: 'the Island is played' }).toBe(10);
+    await lastTapped('River of Tears after a land drop', { name: 'River of Tears', adds: 'B' });
 
     console.log(`[w68-untap] summary: ${results.filter((l) => l.includes(' ok ')).length}/${results.length} rows ok`);
   } finally {
