@@ -202,6 +202,8 @@ function opponent(over: Partial<RoomPlayer> = {}): RoomPlayer {
 interface Table {
   players: RoomPlayer[];
   matchId: string | null;
+  /** `room.locked`: both ready or a match live — the server refuses a stand-up (2026-10-12). */
+  locked?: boolean;
   /**
    * The pool the ROOM is on. Absent ⇒ the oldest of the two above, which keeps
    * both decks legal for the suites that are about something else.
@@ -276,7 +278,7 @@ function stubServer(table: Table) {
   table.format ??= FORMATS[0].id;
   const iAmLeader = () => table.leader !== false;
   const view = () => ({
-    room: { id: ROOM, name: 'Friday night', gameType, matchId: table.matchId, seats: 2 },
+    room: { id: ROOM, name: 'Friday night', gameType, matchId: table.matchId, seats: 2, locked: table.locked === true || table.matchId !== null },
     you: { player: table.players.some((p) => p.you), leader: iAmLeader() },
     players: table.players.map((p, seat) => ({ ...p, seat })),
   });
@@ -483,9 +485,28 @@ function stubServer(table: Table) {
       else table.players[at] = mine;
       return json(200, view());
     }
+    /*
+     * Sitting is its own act (2026-10-12): a seat with no deck yet, and the
+     * stand-up the server refuses once the table is locked.
+     */
+    if (url.endsWith(`/tables/rooms/${ROOM}/sit`)) {
+      if (table.players.some((p) => p.you)) return json(200, view());
+      if (table.matchId !== null) return json(409, { error: 'the match has already started' });
+      if (table.players.length >= 2) return json(409, { error: 'this table already has two players' });
+      table.players.push({ seat: table.players.length, name: 'user-alice', you: true, deckName: null, rulesName: null, legal: false, issueCount: 0, ready: false, choice: null });
+      return json(200, view());
+    }
+    if (url.endsWith(`/tables/rooms/${ROOM}/stand`)) {
+      const at = table.players.findIndex((p) => p.you);
+      if (at === -1) return json(200, view());
+      if (table.matchId !== null) return json(409, { error: 'the match has already started' });
+      if (table.locked === true) return json(409, { error: 'both players are ready — the table is locked' });
+      table.players.splice(at, 1);
+      return json(200, view());
+    }
     if (url.endsWith(`/tables/rooms/${ROOM}/ready`)) {
       const mine = table.players.find((p) => p.you);
-      if (mine === undefined) return json(409, { error: 'load a deck before you ready up' });
+      if (mine === undefined || mine.deckName === null) return json(409, { error: 'load a deck before you ready up' });
       const want = (body as { ready: boolean }).ready;
       if (want && !mine.legal) return json(422, { error: REFUSAL });
       mine.ready = want;
@@ -748,6 +769,58 @@ describe('a room’s table', () => {
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
     expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
     expect(screen.getByTestId('start-state').textContent).toContain('Waiting for a second player');
+  });
+
+  /*
+   * Sitting is its own act (the operator, 2026-10-12): an empty seat offers
+   * Sit here, a seat without a deck is drawn as one, and the deck picker is
+   * for the seated only.
+   */
+  it('an empty seat offers Sit here; sitting draws a seat with no deck yet, and the picker stays (choosing a deck still seats you)', async () => {
+    const server = await mountRoom({ players: [], matchId: null });
+    expect(screen.getAllByTestId('seat-sit')).toHaveLength(2);
+    expect(screen.getByTestId('deck-mine'), 'a free seat: choosing a deck is still the one-click way in').toBeTruthy();
+    expect(screen.queryByTestId('seat-stand')).toBeNull();
+    fireEvent.click(screen.getAllByTestId('seat-sit')[0]!);
+    await screen.findByTestId('seat-stand');
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
+    expect(screen.getByTestId('room-seat-0').textContent).toContain('user-alice (you)');
+    expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('no deck');
+    expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
+    await screen.findByTestId('deck-mine');
+    expect(screen.getAllByTestId('seat-sit'), 'the other seat stays on offer').toHaveLength(1);
+    expect((screen.getByTestId('seat-sit') as HTMLButtonElement).disabled, 'but not to someone already seated').toBe(true);
+    expect(screen.queryByTestId('play-vs-bot'), 'the only one seated may play the AI').not.toBeNull();
+  });
+
+  it('Stand up gives the seat back', async () => {
+    const server = await mountRoom({ players: [opponent({ you: true, name: 'user-alice' })], matchId: null });
+    const stand = screen.getByTestId('seat-stand') as HTMLButtonElement;
+    expect(stand.disabled).toBe(false);
+    fireEvent.click(stand);
+    await waitFor(() => expect(screen.queryByTestId('seat-stand')).toBeNull());
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/stand`)?.method).toBe('POST');
+    expect(screen.getAllByTestId('seat-sit')).toHaveLength(2);
+    expect(screen.getByTestId('deck-mine'), 'stood up with a seat free: the picker stays').toBeTruthy();
+  });
+
+  it('Stand up and Sit here are dead once the table is locked (both ready, or a match live)', async () => {
+    await mountRoom({ players: [opponent({ you: true, name: 'user-alice', ready: true })], matchId: null, locked: true });
+    expect((screen.getByTestId('seat-stand') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('seat-sit') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the bot button is gated on the seat, not the room: a second member who has not sat down leaves it', async () => {
+    await mountRoom({
+      players: [opponent({ you: true, name: 'user-alice' })],
+      matchId: null,
+      members: [
+        { id: 'p-alice', name: 'user-alice' },
+        { id: 'p-bob', name: 'user-bob' },
+      ],
+    });
+    expect(screen.getByTestId('play-vs-bot')).toBeTruthy();
+    expect(screen.getByTestId('constructed').getAttribute('data-members')).toBe('2');
   });
 
   /*

@@ -58,7 +58,8 @@ test('a seat is taken and given back on purpose; the third person with the table
     // Carol sits: her row holds the seat, she may stand, nobody may sit in it.
     await seatSit(carol.page).first().click();
     await expect(seatStand(carol.page), 'carol holds a seat').toBeVisible({ timeout: 15_000 });
-    await expect(seatSit(carol.page), 'a seated player is not offered another seat').toHaveCount(0);
+    await expect(seatSit(carol.page), 'the other seat is drawn, and a seated player cannot take it').toHaveCount(1);
+    await expect(seatSit(carol.page)).toBeDisabled();
     await expect(seatSit(alice.page), 'one seat left for alice').toHaveCount(1, { timeout: 15_000 });
     await expect(carol.page.getByTestId('deck-mine'), 'the deck picker appears once seated').toBeVisible();
 

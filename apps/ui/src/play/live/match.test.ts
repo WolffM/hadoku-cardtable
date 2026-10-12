@@ -45,6 +45,7 @@ import {
   REFUSED_MS,
   liveBar,
   selectCard,
+  flipPerspective,
   selectPlayer,
   setAutoYield,
   setFullControl,
@@ -2666,6 +2667,30 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     s.sendRole('player');
     await until('player', () => !m.spectator);
     expect(m.stats.snapshots).toBe(snapshots);
+  });
+
+  it('forge:role watcher: a spectator with no seat, both hands as counts, a perspective of its own — and a promotion puts the table back (2026-10-12)', async () => {
+    const { s, m } = await fullGame();
+    const bottom = m.view!.players.find((p) => p.isViewer)!.id;
+    expect(m.view!.players.find((p) => p.isViewer)!.hand, 'a seat sees its own hand').not.toBeNull();
+    expect(flipPerspective(m), 'a seat’s own window cannot turn the table').toBe(false);
+    s.sendRole('watcher');
+    await until('the flag', () => m.watcher);
+    expect(m.spectator, 'a watcher is also a spectator: every gate holds').toBe(true);
+    expect(m.view!.players.every((p) => p.hand === null), 'both hands are counts').toBe(true);
+    expect(m.view!.players.find((p) => p.isViewer)!.id, 'the snapshot’s side is the default').toBe(bottom);
+    const before = m.revision;
+    expect(flipPerspective(m)).toBe(true);
+    expect(m.view!.players.find((p) => p.isViewer)!.id).not.toBe(bottom);
+    expect(m.perspective).not.toBeNull();
+    expect(m.revision, 'subscribers are told').toBeGreaterThan(before);
+    expect(m.view!.players.every((p) => p.hand === null), 'still counts, from the other side').toBe(true);
+    s.sendRole('player');
+    await until('the promotion', () => !m.watcher);
+    expect(m.spectator).toBe(false);
+    expect(m.perspective).toBeNull();
+    expect(m.view!.players.find((p) => p.isViewer)!.id).toBe(bottom);
+    expect(m.view!.players.find((p) => p.isViewer)!.hand).not.toBeNull();
   });
 
   it('a malformed or foreign forge:role changes nothing and is recorded', async () => {

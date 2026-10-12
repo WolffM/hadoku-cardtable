@@ -463,6 +463,44 @@
   border-style: dashed;
 }
 
+/* A seat's name cell holds its one action too (2026-10-12): Sit here on an
+   empty seat, Stand up on your own. The name keeps its ellipsis; the button
+   never shrinks. */
+.tables__who--seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  overflow: visible;
+}
+
+.tables__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tables__sit,
+.tables__stand {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.85em;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  cursor: pointer;
+}
+
+.tables__sit:disabled,
+.tables__stand:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .tables__who {
   grid-area: who;
   min-width: 0;

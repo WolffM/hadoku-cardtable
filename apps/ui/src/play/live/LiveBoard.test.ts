@@ -2470,7 +2470,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
       enable2: true,
       focus1: true,
     });
-  const flag = (m: LiveMatch, patch: { spectator?: boolean; over?: boolean }, rerender: (ui: ReturnType<typeof createElement>) => void) => {
+  const flag = (m: LiveMatch, patch: { spectator?: boolean; watcher?: boolean; over?: boolean }, rerender: (ui: ReturnType<typeof createElement>) => void) => {
     Object.assign(m, patch);
     rerender(createElement(LiveBoard, { match: m }));
   };
@@ -2521,6 +2521,36 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(false);
     expect((getByTestId('live-full-control') as HTMLButtonElement).disabled).toBe(false);
     expect(fireEvent.dragStart(card)).toBe(true);
+  });
+
+  it('watcher (2026-10-12): no control box at all, a Watching line with a flip, and the flip turns the table around', async () => {
+    const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
+    s.send(buttons());
+    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    const bottom = m.view!.players.find((p) => p.isViewer)!.id;
+    const frames = s.clientFrames().length;
+
+    flag(m, { spectator: true, watcher: true }, rerender);
+    expect(queryByTestId('live-buttons'), 'nothing to grey: the box is not drawn').toBeNull();
+    expect(queryByTestId('live-spectator'), 'the wave-31 banner is a seat’s').toBeNull();
+    expect(getByTestId('watcher-status').getAttribute('data-role')).toBe('watcher');
+    expect(getByTestId('watcher-status').textContent).toContain('Watching');
+    expect(document.querySelector('.live')?.getAttribute('data-role')).toBe('watcher');
+    expect(queryByTestId('live-prompt'), 'a watcher is asked nothing').toBeNull();
+    expect(queryByTestId('live-decision')).toBeNull();
+    expect(getByTestId('live-log-toggle'), 'reading stays').toBeTruthy();
+
+    fireEvent.click(getByTestId('perspective-flip'));
+    expect(m.view!.players.find((p) => p.isViewer)!.id, 'the other player is at the bottom now').not.toBe(bottom);
+    expect(m.view!.players.every((p) => p.hand === null), 'both hands are backs').toBe(true);
+    rerender(createElement(LiveBoard, { match: m }));
+    expect(document.querySelectorAll('.board .card-backs').length, 'two backs strips, no hand rail').toBeGreaterThanOrEqual(2);
+    expect(s.clientFrames(), 'the flip is the client’s alone').toHaveLength(frames);
+
+    // Promotion to a seat: the box is back and the table is the seat’s way round.
+    flag(m, { spectator: false, watcher: false }, rerender);
+    expect(getByTestId('live-buttons')).toBeTruthy();
+    expect(queryByTestId('watcher-status')).toBeNull();
   });
 
   it('spectator: a click on a card Forge offered sends nothing — and does, for the seat’s own window', async () => {

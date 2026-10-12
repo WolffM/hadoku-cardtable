@@ -308,6 +308,7 @@ import {
   selectPlayer,
   sendStopPreference,
   setAutoYield,
+  flipPerspective,
   setFullControl,
   setPhaseStop,
   setSameTarget,
@@ -371,6 +372,15 @@ export const MATCH_GONE_SENTENCE =
  */
 function isSpectator(match: LiveMatch): boolean {
   return (match as { spectator?: boolean }).spectator === true;
+}
+
+/**
+ * This socket holds NO seat (`LiveMatch.watcher`, `forge:role` `watcher`,
+ * 2026-10-12): the public projection, both hands as backs, no controls drawn
+ * at all, and a perspective of its own choosing. Always also a spectator.
+ */
+function isWatcher(match: LiveMatch): boolean {
+  return (match as { watcher?: boolean }).watcher === true;
 }
 
 /** The server's `ended` frame has arrived (`LiveMatch.over`, shape 4). */
@@ -1896,6 +1906,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * render, so a promotion lifts all of it without a reload.
    */
   const spectator = isSpectator(match);
+  const watcher = isWatcher(match);
   const over = isOver(match);
   const pending = currentAsk(match);
   /*
@@ -1913,7 +1924,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (soundView === null) return;
     const prev = lastSoundView.current;
     lastSoundView.current = soundView;
-    if (spectator) return;
+    if (spectator && !watcher) return;
     try {
       const ending = stillEndingTurn(match, soundView);
       const events = deriveSoundEvents(prev, soundView).filter((e) => !(ending && e.role === 'g.phase'));
@@ -1923,7 +1934,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       // Sound must never take the board down; say so in the console instead.
       console.error('[cardtable] sound events for this view failed', err);
     }
-  }, [soundView, spectator, match]);
+  }, [soundView, spectator, watcher, match]);
   /*
    * One answer is no question (§B, items 4 and 9). `@hadoku/shared`'s `selfAnswer`
    * is the only place that decides it — the server reads the same rule for the other seat's banner; here it is sent, and the prompt that
@@ -2006,7 +2017,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const coinFlipping = useCoinFlipping(tossAt);
   const tossTurn = match.view?.turn ?? 0;
   useEffect(() => {
-    if (spectator || !tossSounds(tossAt, tossTurn, Date.now())) return;
+    if ((spectator && !watcher) || !tossSounds(tossAt, tossTurn, Date.now())) return;
     playRole('g.game-start');
     reportSound(match, 'toss', [{ role: 'g.game-start' }]);
     // Once per toss: the turn moving on later must not sound it again.
@@ -2661,13 +2672,40 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       className="live"
       ref={rootRef}
       data-spectator={spectator ? '' : undefined}
+      data-role={watcher ? 'watcher' : undefined}
       // The board's own arranging drag is HTML5 and is lane A's; a watcher's
       // window refuses it here, at the root, rather than teaching the board.
       onDragStartCapture={spectator ? (event) => event.preventDefault() : undefined}
     >
-      {spectator && (
+      {spectator && !watcher && (
         <p className="live__spectator" role="status" data-testid="live-spectator">
           Watching: this seat is being played in another window
+        </p>
+      )}
+      {/*
+       * No seat (2026-10-12): the one word, and the one control a watcher has —
+       * turning the table around. `flipPerspective` is client-only; the public
+       * projection holds nothing hidden, so which side is at the bottom is the
+       * watcher's to choose. Same perch as the wave-31 banner, which it replaces
+       * for this role.
+       */}
+      {watcher && (
+        <p className="live__spectator live__spectator--watcher" role="status" data-testid="watcher-status" data-role="watcher">
+          <span>Watching</span>
+          <button
+            type="button"
+            className="live__flip"
+            data-testid="perspective-flip"
+            aria-label="Switch sides"
+            title="Switch sides"
+            disabled={match.view === null}
+            onClick={() => flipPerspective(match)}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M3 5.5h7.2L8.6 3.9 9.7 2.8 13.2 6.3 9.7 9.8 8.6 8.7l1.6-1.6H3Z" />
+              <path d="M13 10.5H5.8l1.6 1.6-1.1 1.1L2.8 9.7 6.3 6.2l1.1 1.1-1.6 1.6H13Z" />
+            </svg>
+          </button>
         </p>
       )}
       {/*
@@ -2818,6 +2856,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * drawn, so the tab order and the reading order are one order; in two
        * columns they were not.
        */}
+      {/* A watcher has no seat, so no control box at all: not greyed, absent (2026-10-12). */}
+      {!watcher && (
       <div className="live__buttons" data-testid="live-buttons">
         {/*
          * Wave 51: the same four buttons every frame, in this order — `Next
@@ -2879,6 +2919,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           Concede
         </button>
       </div>
+      )}
       {ask !== null && (
         <div className="live__prompt" data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
           <PromptBoundary

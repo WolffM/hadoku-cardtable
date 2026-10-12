@@ -122,7 +122,7 @@ export interface ReplayServer {
   /** Deliver `{ matchId, phase }` on `forge:phase-stop`, as the real server does after a join and a change. */
   sendPhaseStop(phase: unknown): void;
   /** The role every join and resync is answered with. `'player'` unless a test says otherwise. */
-  role: 'player' | 'spectator';
+  role: 'player' | 'spectator' | 'watcher';
   /** The envelope `send` produced for a given seq, for replaying it. */
   sent(seq: number): ServerEnvelope;
   /** A new process: new epoch, cursor from 0, no history, no open asks. */

@@ -766,6 +766,23 @@ export interface LiveMatch {
    */
   spectator: boolean;
   /**
+   * This connection holds NO seat: it was sent the public projection
+   * (`forge:role` `watcher`, 2026-10-12). Every hand and library on its wire
+   * is a count, no prompt ever arrives, and nothing it does is sent. A watcher
+   * is also a `spectator` (every gate that keeps a spectator's hands off the
+   * table holds for it); this flag is what the board reads for the
+   * differences — the controls are not drawn at all, both hands are backs, and
+   * the perspective can be flipped.
+   */
+  watcher: boolean;
+  /**
+   * The Forge player id drawn at the BOTTOM when it is not the snapshot's own
+   * (`flipPerspective`). A watcher's choice, kept on the client only: the
+   * public projection holds nothing hidden, so which side is "me" changes
+   * nothing on the wire. `null` is the snapshot's `playerId`.
+   */
+  perspective: number | null;
+  /**
    * The match has ended: the server's `ended` notice (`showErrorDialog`
    * titled `Match ended`) has arrived, or Forge's own view says `GameOver`.
    * Sticky until a snapshot replaces the board, which re-sends the notice.
@@ -899,6 +916,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     waitingOn: null,
     coinToss: null,
     spectator: false,
+    watcher: false,
+    perspective: null,
     over: false,
     finished: false,
     fullControl: false,
@@ -1271,10 +1290,42 @@ function adoptRole(match: LiveMatch, payload: unknown): void {
     notify(match);
     return;
   }
-  const spectator = parsed.value.role === 'spectator';
-  if (match.spectator === spectator) return;
+  const spectator = parsed.value.role !== 'player';
+  const watcher = parsed.value.role === 'watcher';
+  if (match.spectator === spectator && match.watcher === watcher) return;
   match.spectator = spectator;
+  match.watcher = watcher;
+  // A seat's own window never carries a flipped perspective: its hand is its own.
+  if (!watcher) match.perspective = null;
+  // The role lands AFTER the snapshot's frames drew a view: a watcher's bottom
+  // hand is re-drawn as backs now, and a promoted seat's as cards.
+  redraw(match);
   notify(match);
+}
+
+/**
+ * The Forge player id the board is drawn FROM: the snapshot's, unless a
+ * watcher chose the other side (`flipPerspective`).
+ */
+export function viewerPlayerIdOf(match: LiveMatch): number | null {
+  return match.perspective ?? match.playerId;
+}
+
+/**
+ * A watcher turns the table around: the OTHER player is drawn at the bottom.
+ * Client-only — nothing is sent, and nothing hidden can change hands, because
+ * a watcher's wire holds no hidden card to begin with. A seat's own window is
+ * refused (its hand is its own and belongs at the bottom). `false` when there
+ * is nothing to flip to yet (no view, or a view that names one player).
+ */
+export function flipPerspective(match: LiveMatch): boolean {
+  if (!match.watcher || match.view === null) return false;
+  const other = match.view.players.find((p) => !p.isViewer);
+  if (other === undefined) return false;
+  match.perspective = other.id;
+  redraw(match);
+  notify(match);
+  return true;
 }
 
 const NOTHING = { selectable: new Set<number>(), selectablePlayers: new Set<number>() };
@@ -2455,11 +2506,12 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
 }
 
 function redraw(match: LiveMatch): void {
+  const viewerPlayerId = viewerPlayerIdOf(match);
   match.view =
-    match.playerId === null || match.state.size === 0
+    viewerPlayerId === null || match.state.size === 0
       ? null
       : toBoardView(match.state, match.forgeSeq, {
-          viewerPlayerId: match.playerId,
+          viewerPlayerId,
           // `null` (seats never arrived) and an empty `Map` (they arrived, and
           // named no avatars) both mean "pass nothing" to the adapter — see the
           // field's own note on why the two are still kept apart in STATE.
@@ -2469,6 +2521,12 @@ function redraw(match: LiveMatch): void {
           pendingTriggers: match.pendingTriggers,
           promptCard: match.promptCard,
         });
+  // A watcher's wire carries the bottom player's hand as hidden cards (the
+  // public projection, `apps/server/src/play/visibility.ts`): drawn as the
+  // backs strip every opponent's hand already is, never as blank faces.
+  if (match.watcher && match.view !== null) {
+    match.view = { ...match.view, players: match.view.players.map((p) => (p.hand === null ? p : { ...p, hand: null })) };
+  }
   if (match.view?.gameOver === true) match.over = true;
 }
 

@@ -46,7 +46,9 @@
  *                    Yield / Cancel Yield toggle. Client → server only, no ack.
  *   server → client  `forge:s2c`     `{ matchId, cursor, frame: ServerFrame }`
  *   server → client  `forge:seats`   one entry per seat — see `SeatIdentitySchema`.
- *   server → client  `forge:role`    `{ matchId, role: 'player' | 'spectator' }`.
+ *   server → client  `forge:role`    `{ matchId, role: 'player' | 'spectator' | 'watcher' }`.
+ *                    `watcher` (2026-10-12): a socket with NO seat, sent the
+ *                    public projection — every hand and library a count.
  *
  * `POST <base>/api/play/matches` starts a match; its body is the server's,
  * and nothing in this client needs it.
@@ -205,10 +207,10 @@ export type MatchSeats = Output<typeof MatchSeatsSchema>;
 
 /** `forge:role` — see {@link MATCH_EVENTS}. */
 export const MatchRoleSchema = borrowed.emptyObject
-  .extend({ matchId: borrowed.nonEmptyString, role: borrowed.nonEmptyString.refine((r) => r === 'player' || r === 'spectator', 'role is player or spectator') })
+  .extend({ matchId: borrowed.nonEmptyString, role: borrowed.nonEmptyString.refine((r) => r === 'player' || r === 'spectator' || r === 'watcher', 'role is player, spectator or watcher') })
   .strict();
 
-export type MatchRole = { matchId: string; role: 'player' | 'spectator' };
+export type MatchRole = { matchId: string; role: 'player' | 'spectator' | 'watcher' };
 
 export const MatchAckSchema = MatchSnapshotSchema.or(MatchErrorSchema);
 

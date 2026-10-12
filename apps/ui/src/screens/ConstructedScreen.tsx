@@ -1250,7 +1250,11 @@ function RoomTableScreen({
   const mine = players.find((p) => p.you) ?? null;
   const matchId = table?.room.matchId ?? null;
   const full = players.length >= (table?.room.seats ?? 2);
-  const spectating = table !== null && !table.you.player && full;
+  /** I hold a seat (with or without a deck): sitting is its own act (2026-10-12). */
+  const seated = table?.you.player === true;
+  const spectating = table !== null && !seated && full;
+  /** Nobody stands up: a match is live, or both players are ready (the operator's ruling, 2026-10-12). */
+  const tableLocked = table?.room.locked === true || (table?.room.matchId ?? null) !== null;
   const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
   /** A start asked for or a match running: the table is no longer anyone's to change. */
   const underway = starting || matchId !== null;
@@ -1713,6 +1717,36 @@ function RoomTableScreen({
   };
 
   /**
+   * Taking a seat, and giving it back (2026-10-12). Sitting is its own act
+   * now: Sit here holds a seat before any deck is chosen, and Stand up gives
+   * it back. Choosing a deck while unseated still seats you when a seat is
+   * free (the server's `PUT …/deck` auto-sits), so the one-click Random → Ready
+   * path every spec and the watchparty production run drive is unchanged; the
+   * picker is withheld only from someone the table has no seat for. The
+   * server refuses a stand-up once both players are ready or the match is
+   * live (`room.locked`), and the refusal is shown in its own words where a
+   * deck or ready refusal is.
+   */
+  const sitDown = (): void => {
+    setBusy(true);
+    setActionError(null);
+    client
+      .sit(roomId)
+      .then(apply)
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+  const standUp = (): void => {
+    setBusy(true);
+    setActionError(null);
+    client
+      .stand(roomId)
+      .then(apply)
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+
+  /**
    * Readiness in a DRAFT room, which is the room's own and not the table's.
    *
    * `POST /api/rooms/:id/ready`, not `POST /api/tables/rooms/:id/ready` — the
@@ -1754,7 +1788,7 @@ function RoomTableScreen({
   }
 
   return (
-    <div className="shell shell--fit" data-testid="constructed">
+    <div className="shell shell--fit" data-testid="constructed" data-members={view?.members.length ?? undefined}>
       <header className="shell__head">
         <h1 className="shell__title" data-testid="room-name">
           {streamed ? (view?.name ?? roomId) : (table?.room.name ?? roomId)}
@@ -1855,10 +1889,29 @@ function RoomTableScreen({
                   const player = players[seat];
                   return player === undefined ? (
                     <li key={seat} className="tables__row tables__row--empty" data-testid={`room-seat-${seat}-empty`}>
-                      Waiting for someone to load a deck.
+                      <span className="tables__who tables__who--seat">
+                        <span className="tables__name">Empty seat</span>
+                      {/* Sitting is its own act (2026-10-12): one button per free seat, dead
+                          once I hold one, once the table is locked, or once a match is under way. */}
+                      <button
+                        type="button"
+                        className="tables__sit"
+                        data-testid="seat-sit"
+                        data-seat={seat}
+                        disabled={busy || seated || tableLocked || underway}
+                        onClick={sitDown}
+                      >
+                        Sit here
+                      </button>
+                      </span>
                     </li>
                   ) : (
-                    <PlayerRow key={seat} seat={seat} player={player} />
+                    <PlayerRow
+                      key={seat}
+                      seat={seat}
+                      player={player}
+                      {...(player.you ? { onStand: standUp, standDisabled: busy || tableLocked || underway } : {})}
+                    />
                   );
                 })}
               </ul>
@@ -1925,11 +1978,13 @@ function RoomTableScreen({
                         Random
                       </button>
                       {/*
-                       * Alone in the room: play Forge's AI instead of waiting for
+                       * The only one SEATED: play Forge's AI instead of waiting for
                        * someone (the operator, 2026-10-02). The bot plays a random
                        * library deck legal in this room's pool; the server picks it.
+                       * Since 2026-10-12 the gate is the seat and not the room —
+                       * a room full of watchers can see one friend play the AI.
                        */}
-                      {(view?.members.length ?? 0) === 1 && (
+                      {players.length === 1 && mine !== null && (
                         <button
                           type="button"
                           className="deckpick__random"
@@ -2491,23 +2546,42 @@ function LeaderMark({ name, you }: { name: string | null; you: boolean }) {
  * matches `e2e-alice (you)`, and cells in a grid put no whitespace between
  * themselves.
  */
-function PlayerRow({ seat, player }: { seat: number; player: RoomPlayer }) {
+function PlayerRow({
+  seat,
+  player,
+  onStand,
+  standDisabled = false,
+}: {
+  seat: number;
+  player: RoomPlayer;
+  /** My own row only: give the seat back (2026-10-12). */
+  onStand?: () => void;
+  standDisabled?: boolean;
+}) {
+  const noDeck = player.deckName === null;
   return (
-    <li className="tables__row" data-testid={`room-seat-${seat}`}>
-      <strong className="tables__who">{player.you ? `${player.name} (you)` : player.name}</strong>
+    <li className="tables__row" data-testid={`room-seat-${seat}`} data-no-deck={noDeck ? '' : undefined}>
+      <span className="tables__who tables__who--seat">
+        <strong className="tables__name">{player.you ? `${player.name} (you)` : player.name}</strong>
+        {onStand !== undefined && (
+          <button type="button" className="tables__stand" data-testid="seat-stand" disabled={standDisabled} onClick={onStand}>
+            Stand up
+          </button>
+        )}
+      </span>
       <span className="tables__deck" data-testid={`room-seat-${seat}-deck`}>
-        {player.deckName}
+        {player.deckName ?? '—'}
       </span>
       <span className="tables__rules" data-testid={`room-seat-${seat}-rules`}>
-        {player.rulesName}
+        {player.rulesName ?? '—'}
       </span>
       <StatusPill
         kind="legal"
         testId={`room-seat-${seat}-legal`}
         state={player.legal ? 'yes' : 'no'}
-        mark={player.legal ? 'tick' : 'cross'}
-        label={player.legal ? 'legal' : 'illegal'}
-        {...(player.legal ? {} : { count: player.issueCount })}
+        mark={player.legal ? 'tick' : noDeck ? 'ring' : 'cross'}
+        label={player.legal ? 'legal' : noDeck ? 'no deck' : 'illegal'}
+        {...(player.legal || noDeck ? {} : { count: player.issueCount })}
       />
       <StatusPill
         kind="ready"

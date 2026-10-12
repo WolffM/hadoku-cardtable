@@ -133,8 +133,9 @@ export interface RoomPlayer {
   seat: number;
   name: string;
   you: boolean;
-  deckName: string;
-  rulesName: string;
+  /** `null` while the seat is taken but no deck is loaded yet (2026-10-12: sitting is its own act). */
+  deckName: string | null;
+  rulesName: string | null;
   legal: boolean;
   issueCount: number;
   ready: boolean;
@@ -154,7 +155,8 @@ export interface RoomTableYou {
 }
 
 export interface RoomTable {
-  room: { id: string; name: string; gameType: string; matchId: string | null; seats: number };
+  /** `locked`: a match is live, or both players are ready — nobody stands up (the operator's ruling, 2026-10-12). */
+  room: { id: string; name: string; gameType: string; matchId: string | null; seats: number; locked?: boolean };
   you: RoomTableYou;
   players: RoomPlayer[];
 }
@@ -192,6 +194,10 @@ export interface TablesClient {
    */
   loadDeck(roomId: string, deck: DeckRef): Promise<TableOutcome>;
   ready(roomId: string, ready: boolean): Promise<TableOutcome>;
+  /** `POST …/sit`: take a free seat, before choosing a deck. 409 when the table is full or locked. */
+  sit(roomId: string): Promise<TableOutcome>;
+  /** `POST …/stand`: give the seat back. 409 once both are ready or the match is live. */
+  stand(roomId: string): Promise<TableOutcome>;
   /** Start the room's match. Either player may; the server answers one match. */
   startRoom(roomId: string): Promise<StartOutcome>;
   /**
@@ -279,6 +285,8 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
     },
     loadDeck: async (roomId, deck) => table(await send('PUT', `tables/rooms/${encodeURIComponent(roomId)}/deck`, { deck })),
     ready: async (roomId, ready) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/ready`, { ready })),
+    sit: async (roomId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/sit`, {})),
+    stand: async (roomId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/stand`, {})),
     startRoom: async (roomId) => {
       // 201 started it; 200 is the match the other player already started.
       const { status, body } = await post('play/matches', { room: roomId });

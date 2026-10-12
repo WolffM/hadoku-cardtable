@@ -198,7 +198,9 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     await mount(b);
     await expect(b.getByTestId('cardtable-embed')).toHaveAttribute('data-bound-room', roomId!);
     await expect(b.getByTestId('constructed')).toBeVisible();
-    await expect(a.getByTestId('play-vs-bot'), 'alice sees bob join').toHaveCount(0, { timeout: 30_000 });
+    // Since 2026-10-12 the bot button is gated on the SEAT, not the room, so
+    // bob arriving does not take it away; the room's member count says he came.
+    await expect(a.getByTestId('constructed'), 'alice sees bob join').toHaveAttribute('data-members', '2', { timeout: 30_000 });
 
     // An in-table hash link routes the TABLE, never the host page — and a
     // route that is not a table (here the stats popout, which the standalone

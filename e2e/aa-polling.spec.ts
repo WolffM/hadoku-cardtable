@@ -128,7 +128,9 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     await bobInRoom.goto(roomUrl);
     await joined;
     const joinedAt = Date.now();
-    const joinMs = await arrival(joinedAt, () => expect(room.getByTestId('play-vs-bot'), 'alice sees bob arrive').toHaveCount(0, { timeout: 10_000 }));
+    // The member count, not the bot button: since 2026-10-12 that button is
+    // gated on the seat, and a second member in the room does not take it away.
+    const joinMs = await arrival(joinedAt, () => expect(room.getByTestId('constructed'), 'alice sees bob arrive').toHaveAttribute('data-members', '2', { timeout: 10_000 }));
     console.log(`[aa-poll] bob joined: alice's screen showed it after ${joinMs}ms, reads since=${since(roomLog, roomBefore)}`);
     expect.soft(joinMs, 'the join reaches alice within about a second').toBeLessThanOrEqual(PUSH_MS);
 
