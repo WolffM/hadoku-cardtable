@@ -246,10 +246,11 @@ What the code does now:
 
 | where | testid / attribute | meaning |
 | --- | --- | --- |
-| lobby | `seat-sit` | one per empty seat; absent for a seated player |
+| lobby | `seat-sit` | one per empty seat (`data-seat`); drawn disabled for someone already seated |
 | lobby | `seat-stand` | on your own row; disabled when `room.locked` |
 | lobby | `room-spectator` | unseated with the table full |
 | match | `[data-role="watcher"]` on the board root | this client is a watcher |
 | match | `watcher-status` | the "Watching" status line |
 | match | `perspective-flip` | swaps which player is at the bottom; watchers only |
-| match | `live-concede`, `live-button-end-turn` | **absent** for a watcher |
+| match | `live-concede`, `live-button-end-turn` | **absent** for a watcher (the whole `live-buttons` cluster is) |
+| lobby | `play-vs-bot` | drawn while nobody else is seated; the server also refuses a bot start with two seated |
