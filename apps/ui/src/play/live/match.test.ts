@@ -1090,6 +1090,16 @@ describe('genuinelyAsked: the fact the board’s priority flag gates on (T9)', (
     expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(false);
   });
 
+  it('"you": false on the press itself, before Forge sends the next bar, and live again if the hold lapses', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(false);
+    expect(genuinelyAsked(m, 'them', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(true);
+    await until('the hold to lapse', () => m.barHold === null, BAR_HOLD_MAX_MS + 2000);
+    expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(true);
+  });
+
   it('"them": the server\'s waitingForOpponent fact, but never while the viewer\'s own is also open', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [prompt('Priority'), bar(false)]);
