@@ -419,14 +419,17 @@ function doubledHandovers(rows: readonly LogRow[]): string[] {
 }
 
 /**
- * The other seat's back taken down by a clock rather than by its card (`presence.ts`'s `expire`):
- * printed, not asserted — a cancelled play ends that way by design (`how: 'grace'`); one that stood
- * for seconds is the evidence for a back left on the board.
+ * The other seat's back taken down by a clock rather than by its card (`presence.ts`'s `expire`).
+ * `how: 'grace'` is a cancelled play's designed end, printed only. `how: 'timeout'` means the play's
+ * safety clock ran out while nothing said it was still being decided — a back the other seat saw
+ * stand with no card behind it, or taken away mid-decision — and is the spec's red; the match's own
+ * server rows across the wait are printed with it, which is what tells the two apart.
  */
-function printExpiredStandIns(rows: readonly LogRow[]): void {
-  for (const r of rows) {
-    if (r.evt !== 'client' || r.kind !== 'stand-in') continue;
+function expiredStandIns(rows: readonly LogRow[]): string[] {
+  const expired = rows.filter((r) => r.evt === 'client' && r.kind === 'stand-in');
+  for (const r of expired) {
     console.log(`[stand-in] ${JSON.stringify(r)}`);
+    if (r.how !== 'timeout') continue;
     const end = Date.parse(String(r.t));
     const start = end - Number(r.ms) - 1000;
     for (const o of rows) {
@@ -434,13 +437,14 @@ function printExpiredStandIns(rows: readonly LogRow[]): void {
       if (o !== r && o.matchId === r.matchId && t >= start && t <= end) console.log(`[stand-in]   +${t - start - 1000}ms ${JSON.stringify(o).slice(0, 300)}`);
     }
   }
+  const timedOut = expired.filter((r) => r.how === 'timeout');
+  return timedOut.length === 0 ? [] : [`${timedOut.length} stand-in(s) taken down by the safety clock, not by their card: ${timedOut.map((r) => JSON.stringify(r)).join(' ; ')}`];
 }
 
 /** What every spec's stack checks at `stop()`, whatever the spec was about. */
 function assertStackInvariants(serverLogFile: string): void {
   const rows = logRows(serverLogFile);
-  printExpiredStandIns(rows);
-  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows)];
+  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows), ...expiredStandIns(rows)];
   if (broken.length > 0) throw new Error(broken.join('\n'));
 }
 
