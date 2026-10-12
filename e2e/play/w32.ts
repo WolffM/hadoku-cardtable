@@ -123,7 +123,7 @@ export async function pointerDrag(
   to: { x: number; y: number },
   hooks: { ghost: string; indicator: string; pickedUp: string } = DRAG_HOOKS,
 ): Promise<DragTrace> {
-  const from = centre(await boxOf(card));
+  const from = await pressPoint(card);
   await page.mouse.move(from.x, from.y);
   const before = await armState(page, from);
   await page.evaluate(watchPress);
@@ -157,6 +157,46 @@ export async function pointerDrag(
   }
   await page.mouse.up();
   return { midway };
+}
+
+/**
+ * Where a hand would press `card`: the point of it nearest its centre that the card itself
+ * takes a press at (`elementFromPoint` lands inside it), waiting while nothing of it can.
+ *
+ * Its bare centre is not enough. A drag that never armed (M3: 16 table-fit reds and 1
+ * w69-blocks red between 10-09 and 10-11) had pressed a placed stack card drawn over the
+ * land — `div.placed` was what the press met (the `[table-fit-arm]` dump, run 38105661039).
+ * The product half was fixed in c901a112 (a stack item's id no longer places it over the
+ * card of the same id); this half makes a drag press the card it names, or fail saying
+ * what covers it, instead of pressing whatever is on top and timing out on the arm.
+ */
+async function pressPoint(card: Locator): Promise<{ x: number; y: number }> {
+  const last: { at: { x: number; y: number } | null } = { at: null };
+  await expect
+    .poll(
+      async () => {
+        const seen = await card.evaluate((el) => {
+          const b = el.getBoundingClientRect();
+          // The centre first, then outward on a 5×5 grid inside a 10 % margin, nearest first.
+          const points: { x: number; y: number }[] = [];
+          for (const fx of [0.5, 0.3, 0.7, 0.1, 0.9]) for (const fy of [0.5, 0.3, 0.7, 0.1, 0.9]) points.push({ x: b.left + b.width * fx, y: b.top + b.height * fy });
+          points.sort((p, q) => Math.hypot(p.x - b.left - b.width / 2, p.y - b.top - b.height / 2) - Math.hypot(q.x - b.left - b.width / 2, q.y - b.top - b.height / 2));
+          const hit = points.find((p) => {
+            const top = document.elementFromPoint(p.x, p.y);
+            return top !== null && el.contains(top);
+          });
+          if (hit !== undefined) return { at: hit, cover: '' };
+          const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+          return { at: null, cover: top === null ? 'nothing (off screen)' : `${top.tagName.toLowerCase()}.${Array.from(top.classList).join('.')}` };
+        });
+        last.at = seen.at;
+        return seen.cover;
+      },
+      { message: `${String(card)} can be pressed: some part of it takes the pointer, not what is drawn over it` },
+    )
+    .toBe('');
+  if (last.at === null) throw new Error(`${String(card)}: no point to press`);
+  return last.at;
 }
 
 /**
@@ -220,7 +260,7 @@ function armState(page: Page, p: { x: number; y: number }): Promise<unknown> {
  * works"). Reports what was drawn halfway, like {@link pointerDrag}.
  */
 export async function touchDrag(page: Page, card: Locator, to: { x: number; y: number }): Promise<DragTrace> {
-  const from = centre(await boxOf(card));
+  const from = await pressPoint(card);
   const cdp = await page.context().newCDPSession(page);
   const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', p?: { x: number; y: number }) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p === undefined ? [] : [{ x: p.x, y: p.y }] });
