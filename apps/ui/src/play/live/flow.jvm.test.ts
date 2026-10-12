@@ -8,7 +8,7 @@
  * of them, over a scenario driven once in `beforeAll`.
  *
  *  - **#4 / #9** *"one choice shouldn't require this dialog at all"* — a card
- *    with one ability asks nothing. `rules.ts`'s `autoAnswer` answers the offer
+ *    with one ability asks nothing. `@hadoku/shared`'s `selfAnswer` answers the offer
  *    before `LiveBoard` would draw it.
  *  - **#6** *"Preordain asks how to tap lands with ONE land in play"* — a
  *    payment Forge can pay from one source is paid by pressing Forge's own Auto

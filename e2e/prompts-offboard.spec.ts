@@ -86,8 +86,8 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
  * Relentless Dead's own second trigger — see `offboard.jvm.test.ts`'s
  * header). Also auto-pays any live mana window and passes its own priority
  * while the stack is busy: the caller turns Full control on, because a
- * one-ability offer is otherwise answered by the board itself (`rules.ts`
- * `autoAnswer`) and there would be nothing to decline. Returns once the
+ * one-ability offer is otherwise answered by the board itself (`@hadoku/shared`
+ * `selfAnswer`) and there would be nothing to decline. Returns once the
  * trigger was declined, the stack is empty and nothing is being asked, read
  * off the board.
  */

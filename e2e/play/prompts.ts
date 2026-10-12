@@ -151,7 +151,7 @@ export async function answerPrompt(
 /**
  * Answer a lone `getAbilityToPlay` offer (`ChoicePrompts.tsx`'s
  * `GetAbilityToPlayPrompt`, one `[data-testid="prompt-choice"]` button) by
- * clicking it — the one ask `rules.ts`'s `autoAnswer` would otherwise settle
+ * clicking it — the one ask `@hadoku/shared`'s `selfAnswer` would otherwise settle
  * on its own, EXCEPT while full control is on (`LiveBoard.tsx`: `const auto
  * = pending === null || match.fullControl || spectator ? null :
  * autoAnswer(pending)` — full control suppresses every auto-answer, not only

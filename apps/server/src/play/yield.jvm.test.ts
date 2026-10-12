@@ -19,12 +19,10 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { selfAnswer } from '@hadoku/shared';
 import { available, deck, finishMulligan, forgeFrames, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 import { keyOf, TYPE } from './visibility.js';
 import { onlyAnswer } from './auto.js';
-// Cross-package relative import, the same device `apps/ui/src/play/live/*.jvm.test.ts`
-// already use in the other direction (importing `auto.ts` from this file's own package).
-import { autoAnswer } from '../../../ui/src/play/prompts/rules.ts';
 
 const title = available.ok
 	? 'Auto Yield hides a real response window, against real Forge'
@@ -213,8 +211,7 @@ describe.skipIf(!available.ok)(title, () => {
 });
 
 /*
- * S6, wave 64 — does the UI's `onlyStackTarget` (reached through `rules.ts`'s
- * exported `autoAnswer`) ever answer something the server's `onlyAnswer`
+ * S6, wave 64 — does the browser's `selfAnswer` (`@hadoku/shared`) ever answer something the server's `onlyAnswer`
  * would not? Against real Forge, not a hand-typed fixture: a Counterspell
  * targeting a real Memnite on the stack (`w49-a-counterspell-opponent.state`,
  * already a committed scenario — the same shape wave 32's own measurement
@@ -228,12 +225,12 @@ describe.skipIf(!available.ok)(title, () => {
  * what makes it safe to answer where the server's general rule must not.
  */
 const title6 = available.ok
-	? 'S6: onlyStackTarget answers the one case onlyAnswer must leave, against real Forge'
-	: `S6: onlyStackTarget answers the one case onlyAnswer must leave, against real Forge — SKIPPED: ${available.reason}`;
+	? 'S6: selfAnswer answers the one case onlyAnswer must leave, against real Forge'
+	: `S6: selfAnswer answers the one case onlyAnswer must leave, against real Forge — SKIPPED: ${available.reason}`;
 
 describe.skipIf(!available.ok)(title6, () => {
 	it(
-		"a real \"Select target spell\" ask is min 0 (onlyAnswer leaves it); onlyStackTarget answers it anyway",
+		"a real \"Select target spell\" ask is min 0 (onlyAnswer leaves it); selfAnswer answers it anyway",
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, {
@@ -285,10 +282,10 @@ describe.skipIf(!available.ok)(title6, () => {
 				expect(ask.min, 'a real cast’s own target question is optional — the caster can always cancel').toBe(0);
 				expect(onlyAnswer(ask as never)).toBeNull();
 
-				// The claim: `autoAnswer` (client-side; `rules.ts`'s `onlyStackTarget`)
+				// The claim: `selfAnswer` (the browser's rule, `@hadoku/shared`)
 				// answers it anyway — the one case this file's header describes.
-				const clientAnswer = autoAnswer(ask as never);
-				expect(clientAnswer, 'onlyStackTarget must answer a lone stack-item target').not.toBeNull();
+				const clientAnswer = selfAnswer(ask as never);
+				expect(clientAnswer, 'selfAnswer must answer a lone stack-item target').not.toBeNull();
 				expect(clientAnswer?.method).toBe('getChoices');
 				expect(clientAnswer?.reply).toEqual([ask.choices[0]?.key]);
 			} finally {

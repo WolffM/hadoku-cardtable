@@ -63,7 +63,7 @@ async function handCardNamed(page: Page, name: string): Promise<number | undefin
 /**
  * Answer a lone `getAbilityToPlay` offer (`ChoicePrompts.tsx`'s
  * `GetAbilityToPlayPrompt`, one `[data-testid="prompt-choice"]` button) by
- * clicking it — the ask `rules.ts`'s `autoAnswer` would otherwise settle on
+ * clicking it — the ask `@hadoku/shared`'s `selfAnswer` would otherwise settle on
  * its own, EXCEPT while full control is on (`LiveBoard.tsx`: full control
  * suppresses every auto-answer, not only the stack-target one —
  * `e2e/w49-counterspell.spec.ts`'s own `answerLoneAbility`, same shape,
@@ -139,7 +139,7 @@ test.describe(titled('Y18 — Venser’s own target ask reads as words, and its 
       const { alice, bob } = seated;
 
       // Full control so nothing on alice's own side auto-answers ahead of
-      // this test reading the prompt — `rules.ts`'s `onlyStackTarget` never
+      // this test reading the prompt — `selfAnswer`'s lone stack target never
       // fires here regardless (Venser's own ask always offers more than one
       // option, a permanent AND a spell), but every other spec in this
       // directory does this before inspecting a prompt by hand, and it costs

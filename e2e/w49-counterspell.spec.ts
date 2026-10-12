@@ -236,7 +236,7 @@ test.describe(titled('the counterspell arc'), () => {
       await expect(memniteAsk, 'Memnite is on the stack already (sanity check)').toHaveCount(1, { timeout: 10_000 });
 
       // Full control means NOTHING auto-answers (`LiveBoard.tsx`'s own gate on
-      // `autoAnswer`) — not only the stack-target ask, but the `getAbilityToPlay`
+      // `selfAnswer`) — not only the stack-target ask, but the `getAbilityToPlay`
       // ask Counterspell's own cast opens FIRST (one ability, "Counter target
       // spell."), before Forge ever asks for the target. Click through both,
       // in whichever order Forge is currently asking for.
@@ -327,7 +327,7 @@ test.describe(titled('the counterspell arc'), () => {
       // gesture (never `castCard`'s plain click, see that helper's own note)
       // — with NO full control and no click from this test for the target
       // itself: Forge's own single-legal-choice ask auto-answers it
-      // (`onlyStackTarget`), exactly the mechanism the test above relies on
+      // (`selfAnswer`), exactly the mechanism the test above relies on
       // for whichever seat has full control off.
       const counterspell = await handCardNamed(bob.page, 'Counterspell');
       expect(counterspell, 'Counterspell is in bob’s hand, as the mirror scenario scripts').not.toBeUndefined();

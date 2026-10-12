@@ -159,7 +159,7 @@ test(
 
       /* ── alice casts Remand on Hinder — TWO legal spell targets now (Hinder, Keiga), so this is a real choice, not an auto-answer ── */
       // Under full control, the release opens Forge's lone-ability `getAbilityToPlay` sheet first —
-      // "Choose ability to play / Remand / Counter target spell…" — which `rules.ts`'s `autoAnswer`
+      // "Choose ability to play / Remand / Counter target spell…" — which `@hadoku/shared`'s `selfAnswer`
       // leaves to the player on purpose (measured on a claw, run 37787781493: the cast went out as
       // `act selectCard`, the card parked, the sheet sat unanswered — the earlier reds, 37763694613
       // → 37765728857, were this driver gap, never the product). Then the stack-target ask, with TWO

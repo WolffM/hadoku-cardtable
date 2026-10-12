@@ -6,11 +6,11 @@
 
 import { describe, expect, it } from 'vitest';
 import { cardRequest } from '@hadoku/forge-wire';
+import { selfAnswer } from '@hadoku/shared';
 
 import { askFor, asksFor, fixtureLookup } from './fixtures.ts';
 import {
   abilityProblems,
-  autoAnswer,
   chooseEntitiesProblems,
   chooseSingleProblems,
   combatDamageProblems,
@@ -205,23 +205,23 @@ describe('getAbilityToPlay', () => {
 
 /* ── One answer is no question (wave 20 §B.1) ─────────────────────────── */
 
-describe('autoAnswer', () => {
+describe('selfAnswer', () => {
   const two = askFor('getAbilityToPlay');
   const one = { ...two, abilities: [two.abilities[0]!] };
 
   it('answers an offer of exactly one ability, with the ability itself', () => {
-    expect(autoAnswer(one)).toEqual({
+    expect(selfAnswer(one)).toEqual({
       method: 'getAbilityToPlay',
       reply: { kind: 'spellAbility', id: two.abilities[0]!.id },
     });
   });
 
   it('asks when there are two abilities: that is a real choice', () => {
-    expect(autoAnswer(two)).toBeNull();
+    expect(selfAnswer(two)).toBeNull();
   });
 
   it('asks when there are none — an empty offer is not an answer', () => {
-    expect(autoAnswer({ ...two, abilities: [] })).toBeNull();
+    expect(selfAnswer({ ...two, abilities: [] })).toBeNull();
   });
 
   it('answers only getAbilityToPlay and a lone stack target: everything else with one legal reply is the server’s', () => {
@@ -242,7 +242,7 @@ describe('autoAnswer', () => {
       askFor('showInputDialog'),
       askFor('assignGenericAmount'),
     ]) {
-      expect(autoAnswer(ask), ask.method).toBeNull();
+      expect(selfAnswer(ask), ask.method).toBeNull();
     }
   });
 
@@ -261,11 +261,11 @@ describe('autoAnswer', () => {
   it('never answers a reveal — a getChoices with max <= 0 keeps its OK', () => {
     const reveal = asksFor('getChoices').find((a) => a.max < 0)!;
     expect(reveal.min).toBeLessThan(0);
-    expect(autoAnswer(reveal)).toBeNull();
+    expect(selfAnswer(reveal)).toBeNull();
     // And the same ask with Forge's other display-only bound.
-    expect(autoAnswer({ ...reveal, min: 0, max: 0 })).toBeNull();
+    expect(selfAnswer({ ...reveal, min: 0, max: 0 })).toBeNull();
     // A one-card reveal is still a reveal, not a question with one answer.
-    expect(autoAnswer({ ...reveal, choices: [reveal.choices[0]!] })).toBeNull();
+    expect(selfAnswer({ ...reveal, choices: [reveal.choices[0]!] })).toBeNull();
   });
 
   /*
@@ -279,25 +279,25 @@ describe('autoAnswer', () => {
     const leak = { ...base, min: 1, max: 1, choices: [bolt], selected: [] };
 
     it('answers the one spell on the stack, and says which', () => {
-      expect(autoAnswer(leak)).toEqual({ method: 'getChoices', reply: ['si-7'] });
+      expect(selfAnswer(leak)).toEqual({ method: 'getChoices', reply: ['si-7'] });
     });
 
     it('asks when two spells are legal: that is a real choice', () => {
       const two = { ...leak, choices: [bolt, { ...bolt, key: 'si-8', ref: { kind: 'stackItem', id: 8 } } as const] };
-      expect(autoAnswer(two)).toBeNull();
+      expect(selfAnswer(two)).toBeNull();
     });
 
     it('answers the optional variant too — the operator’s own question was min 0, max 1', () => {
-      expect(autoAnswer({ ...leak, min: 0 })).toEqual({ method: 'getChoices', reply: ['si-7'] });
+      expect(selfAnswer({ ...leak, min: 0 })).toEqual({ method: 'getChoices', reply: ['si-7'] });
     });
 
     it('asks when the ask takes nothing — a display-only list is not a target', () => {
-      expect(autoAnswer({ ...leak, min: 0, max: 0 })).toBeNull();
+      expect(selfAnswer({ ...leak, min: 0, max: 0 })).toBeNull();
     });
 
     it('asks when the one option is not a stack item — that is the server’s rule, not this one', () => {
-      expect(autoAnswer({ ...leak, choices: [{ ...bolt, ref: { kind: 'card', id: 7 } }] })).toBeNull();
-      expect(autoAnswer({ ...leak, choices: [{ ...bolt, ref: null }] })).toBeNull();
+      expect(selfAnswer({ ...leak, choices: [{ ...bolt, ref: { kind: 'card', id: 7 } }] })).toBeNull();
+      expect(selfAnswer({ ...leak, choices: [{ ...bolt, ref: null }] })).toBeNull();
     });
   });
 
@@ -306,14 +306,14 @@ describe('autoAnswer', () => {
     // (`HumanCostDecision.java:1515-1535` → `InputConfirm`), and a "no" aborts
     // the activation (`visit(CostPayLife)`, `HumanCostDecision.java:733-740`).
     // That is a real decline, and nothing here answers it for the player.
-    expect(autoAnswer(askFor('confirm'))).toBeNull();
-    expect(autoAnswer(asksFor('confirm').find((a) => a.options.length === 1)!)).toBeNull();
+    expect(selfAnswer(askFor('confirm'))).toBeNull();
+    expect(selfAnswer(asksFor('confirm').find((a) => a.options.length === 1)!)).toBeNull();
   });
 
   it('never answers a manipulateCardList with one destination — a pile is information', () => {
     const ask = askFor('manipulateCardList');
-    expect(autoAnswer({ ...ask, toTop: false, toBottom: true })).toBeNull();
-    expect(autoAnswer({ ...ask, manipulable: [] })).toBeNull();
+    expect(selfAnswer({ ...ask, toTop: false, toBottom: true })).toBeNull();
+    expect(selfAnswer({ ...ask, manipulable: [] })).toBeNull();
   });
 });
 

@@ -23,7 +23,7 @@
  */
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
-import { REPLY_SCHEMAS, type BlockingMethod, type ZoneType } from '@hadoku/forge-wire';
+import type { BlockingMethod, ZoneType } from '@hadoku/forge-wire';
 
 import type { PromptLookup } from './lookup.ts';
 import type { AskOf, ReplyOf } from './types.ts';
@@ -653,74 +653,6 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
     .map((i) => i.message);
 }
 
-/* ── One answer is no question ───────────────────────────────────────── */
-
-/**
- * The single reply an ask admits, when it admits exactly one.
- *
- * This is the ONE place the browser decides "does this question answer
- * itself". `../live/LiveBoard.tsx` calls it before a prompt would render and
- * sends the reply instead; no component calls it, and no component embeds a
- * policy decision of its own.
- *
- * The rule it obeys is the server's (`apps/server/src/play/auto.ts`): a
- * shortcut may remove a question, never information, and it never decides
- * anything about the GAME — only that Forge left one possibility. The seat's
- * full-control toggle turns it off (`LiveBoard`), and then every stop comes
- * back.
- *
- * ## Why `getAbilityToPlay` and only `getAbilityToPlay`
- *
- * Everything else with one legal reply is already answered a hop earlier, by
- * `onlyAnswer` in the server's `auto.ts`, and duplicating those here would be
- * two statements of one policy. `getAbilityToPlay` is the exception on
- * purpose: the offer's LABEL is what makes the shortcut safe to report, and
- * labels are resolved on this side (`lookup.ts`'s `withAbilityLabels` over the
- * ask's own `label`), so the client is the only side that can name what it
- * played.
- *
- * Forge's own desktop client does the same thing, in exactly our case:
- * `CMatchUI.getAbilityToPlay` with a null `triggerEvent` returns the only
- * ability and never opens `GuiChoose.oneOrNone`
- * (`CMatchUI.java:1017-1023`) — and every act this client sends carries
- * `triggerEvent: null` (`../live/match.ts`'s `selectCard`). Our bridge opens an
- * ask regardless (`PlayBridge.java:1010-1013`), which is why a one-ability offer
- * reached the browser at all; answering it here restores Forge's behaviour
- * rather than inventing one. And a one-ability offer that reaches this side is always the
- * direct consequence of THIS seat's own click — `InputPassPriority` for a card in hand,
- * or `InputPayMana.onCardSelected` for a land, which plays a lone mana ability itself
- * and only asks for two or more (`InputPayMana.java:101-106`) — so the player has
- * already said what they want. Every other one-ability offer (a trigger, an effect
- * casting a card) is answered by the server and never reaches the wire
- * (`apps/server/src/play/match.ts`'s `openAsk`).
- *
- * ## Why a REVEAL is not answered here (wave 24 §D.5)
- *
- * A reveal is `getChoices` with `min === max === -1`
- * (`AbstractGuiGame.java:785-788`: `reveal(message, items)` IS
- * `getChoices(message, -1, -1, items)`), and its one legal reply is the empty
- * list. The SERVER gives Forge that reply the moment the reveal arrives
- * (`apps/server/src/play/match.ts`'s `onFrame`) and sends the reveal on marked
- * `displayOnly`, so it never reaches this client as an ask: `../live/match.ts`
- * holds it as `LiveMatch.reveal` and `RevealNotice.tsx` draws the cards — the
- * operator's *"shows both players at once and needs no OK"*: the game never
- * waits on the notice's own OK, which only closes it. Answering it here
- * as well would be a second answer to a question Forge no longer has. The
- * "both players" half needs nothing from us: `reveal` is called on each
- * player's own controller by the effect, so a seat is shown a reveal **only
- * when Forge revealed to it** — the UI never decides to share.
- */
-export type AutoAnswer =
-  | {
-      method: 'getAbilityToPlay';
-      reply: ReplyOf<'getAbilityToPlay'>;
-    }
-  | {
-      /** Wave 32 Q7: the one spell on the stack a counterspell can target. */
-      method: 'getChoices';
-      reply: ReplyOf<'getChoices'>;
-    };
-
 /**
  * The stack item a `getChoices` ask is choosing between, or null when it is not
  * that kind of ask.
@@ -729,9 +661,8 @@ export type AutoAnswer =
  * (`TargetSelection.java:299-343`), which calls `getGui().one(...)` — a
  * `getChoices` with `min = max = 1` (`oneOrNone` is `min 0, max 1`) — whose options are
  * `StackItemView`s, and which the bridge projects with `ref.kind === 'stackItem'`
- * (`PlayBridge.java:288`). `oneOrNone` is the optional variant (`min = 0`) and
- * stays a question: declining is the player's. Shared with `gestures/stack.ts`,
- * which draws the arrow to the same items.
+ * (`PlayBridge.java:288`). `gestures/stack.ts` draws the arrow to the same items;
+ * a lone one answers itself (`@hadoku/shared`'s `selfAnswer`).
  */
 export function stackItemChoices(ask: AskOf<BlockingMethod>): { key: string; stackItemId: number; label: string }[] | null {
   if (ask.method !== 'getChoices') return null;
@@ -740,37 +671,4 @@ export function stackItemChoices(ask: AskOf<BlockingMethod>): { key: string; sta
     if (choice.ref?.kind === 'stackItem') out.push({ key: choice.key, stackItemId: choice.ref.id, label: choice.label });
   }
   return out.length === 0 ? null : out;
-}
-
-export function autoAnswer(ask: AskOf<BlockingMethod>): AutoAnswer | null {
-  if (ask.method === 'getChoices') return onlyStackTarget(ask);
-  if (ask.method !== 'getAbilityToPlay') return null;
-  // Exactly one, and nothing else: two abilities are a real choice, and zero
-  // is Forge asking about nothing, which the picker shows as "None" only.
-  if (ask.abilities.length !== 1) return null;
-  const only = ask.abilities[0];
-  if (only === undefined) return null;
-  // A malformed auto-answer must never leave: it would be refused a hop later
-  // with no player to blame. Fall through to asking instead.
-  const parsed = REPLY_SCHEMAS.getAbilityToPlay.safeParse(only);
-  if (!parsed.success) return null;
-  return {
-    method: 'getAbilityToPlay',
-    reply: parsed.data as ReplyOf<'getAbilityToPlay'>,
-  };
-}
-
-/**
- * *"If there's only one spell on the stack then the target of Mana Leak is
- * obvious"* (operator, wave 32 Q7). Exactly one option, it is a stack item, and
- * the ask takes at least one. `min` may be 0: the operator's own question was the
- * OPTIONAL variant (`min 0, max 1`, Forge's `oneOrNone`, `q17-holding-priority.md`),
- * and the operator ruled that one spell is the obvious target either way. A rule, not a branch: the same `autoAnswer` that answers a lone
- * ability, off for full control and for a spectator by its one caller.
- */
-function onlyStackTarget(ask: AskOf<'getChoices'>): AutoAnswer | null {
-  if (ask.max < 1 || ask.choices.length !== 1) return null;
-  const only = stackItemChoices(ask)?.[0];
-  if (only === undefined || getChoicesProblems(ask, [only.key]).length > 0) return null;
-  return { method: 'getChoices', reply: [only.key] };
 }

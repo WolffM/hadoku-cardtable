@@ -415,6 +415,35 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			expect(h.told.slice(before).some((seats) => seats[0]?.waitingOn !== undefined), 'never told').toBe(false);
 		});
 
+		it('nor is a counterspell’s lone stack target — the same rule the browser answers it by', () => {
+			// Mana Leak's "Select target spell" is min 0 (`yield.jvm.test.ts` S6), so the server leaves it
+			// to the browser; the other seat read "Waiting for Alice to choose cards…" while it did.
+			vi.useFakeTimers();
+			const h = waitingHarness();
+			h.host.push(...OPENING);
+			h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+			vi.advanceTimersByTime(200);
+			const before = h.told.length;
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: {
+					kind: 'ask',
+					callId: 'leak-1',
+					method: 'getChoices',
+					message: 'Select target spell',
+					min: 0,
+					max: 1,
+					choices: [{ key: 'c0', label: 'Memnite', ref: { kind: 'stackItem', id: 7 } }],
+					selected: [],
+				},
+			});
+			expect(h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'leak-1'), 'the browser is asked').toBe(true);
+			vi.advanceTimersByTime(400);
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+			expect(h.told.slice(before).some((seats) => seats[0]?.waitingOn !== undefined), 'never told').toBe(false);
+		});
+
 		it('under full control it is the picker, a real decision: told after the grace', () => {
 			vi.useFakeTimers();
 			const h = waitingHarness();

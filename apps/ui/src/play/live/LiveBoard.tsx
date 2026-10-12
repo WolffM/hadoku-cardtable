@@ -27,9 +27,10 @@
  *
  * ### One answer is no question
  *
- * Before any of that, an ask goes past `../prompts/rules.ts`'s `autoAnswer` —
- * the ONE place the browser decides whether a question answers itself. Today
- * that is `getAbilityToPlay` with exactly one ability: the operator's *"one
+ * Before any of that, an ask goes past `@hadoku/shared`'s `selfAnswer` —
+ * the ONE place it is decided whether a question answers itself (the server
+ * reads it too, so the other seat is never told this one is deciding). One case
+ * is `getAbilityToPlay` with exactly one ability: the operator's *"one
  * choice shouldn't require this dialog at all"* (wave 20, item 4), and the
  * whole of their *"'choose ability' often needs the click TWICE"* (item 9),
  * because Forge asks that offer twice for one `selectCard` and both copies now
@@ -252,7 +253,7 @@
 
 import { Component, memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { CLIENT_EVENT, type ClientEvent, type DraftCard } from '@hadoku/shared';
+import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard } from '@hadoku/shared';
 import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
@@ -268,7 +269,6 @@ import { RulesText } from '../prompts/RulesText.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
 import { promptTileFor } from '../prompts/PromptShell.tsx';
-import { autoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
 import { stackAsk } from './gestures/stack.ts';
@@ -1925,12 +1925,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     }
   }, [soundView, spectator, match]);
   /*
-   * One answer is no question (§B, items 4 and 9). `rules.ts`'s `autoAnswer`
-   * is the only place that decides it; here it is sent, and the prompt that
+   * One answer is no question (§B, items 4 and 9). `@hadoku/shared`'s `selfAnswer`
+   * is the only place that decides it — the server reads the same rule for the other seat's banner; here it is sent, and the prompt that
    * would have asked is never drawn. Full control turns it off, and then the
    * picker comes back for one ability as it does for two.
    */
-  const auto = pending === null || match.fullControl || spectator ? null : autoAnswer(pending);
+  const auto = pending === null || match.fullControl || spectator ? null : selfAnswer(pending);
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
     if (autoCallId === null || auto === null || pending === null) return;

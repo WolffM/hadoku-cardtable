@@ -814,7 +814,7 @@ describe('the says, the toggle, and the ability label', () => {
 
   /*
    * Wave 20 §B.1, the operator's #4: *"one choice shouldn't require this dialog
-   * at all"*. The policy is `rules.ts`'s `autoAnswer`; this is the wiring.
+   * at all"*. The policy is `@hadoku/shared`'s `selfAnswer`; this is the wiring.
    */
   it('an offer with ONE ability is answered without drawing anything', async () => {
     const { s, m, queryByTestId } = await liveBoard();
