@@ -18,7 +18,7 @@ import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame }
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
+import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -776,7 +776,9 @@ describe('per-recipient emission, over whole serialised payloads', () => {
 		const expectedSeats = [...expected].sort();
 		expectedSeats.splice(expectedSeats.lastIndexOf(1), 1);
 		expectedSeats.splice(expectedSeats.lastIndexOf(1), 1);
-		expect(h.sent.map((s) => s.seat).sort()).toEqual(expectedSeats);
+		// The watcher channel is a third, DERIVED stream (one per match, off seat
+		// 0's state) and not a routing of any bridge frame, so it is set aside here.
+		expect(h.sent.filter((s) => s.seat !== WATCHER_SEAT).map((s) => s.seat).sort()).toEqual(expectedSeats);
 		for (const seat of [0, 1]) {
 			const bridgeMethods = TRANSCRIPT.filter((l) => l.t === 'frame' && l.seat === seat)
 				.map((l) => (l as { frame: { method: string } }).frame.method)
@@ -1692,8 +1694,10 @@ describe('a match that outlives its server', () => {
 
 		const mark = h.sent.length;
 		h.match.serverStopping('The server is restarting for a deploy.');
-		const notices = h.sent.slice(mark).map((s) => s.envelope.frame);
-		expect(notices).toHaveLength(2);
+		const told = h.sent.slice(mark);
+		// Both seats, and the watchers once (their channel is told the same ending).
+		expect(told.map((s) => s.seat)).toEqual([0, 1, WATCHER_SEAT]);
+		const notices = told.map((s) => s.envelope.frame);
 		for (const frame of notices) {
 			expect(frame).toMatchObject({
 				kind: 'notify',
@@ -1715,7 +1719,11 @@ describe('a match that outlives its server', () => {
 		const mark = h.sent.length;
 		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'finishGame' } });
 		const forwarded = h.sent.slice(mark).map((s) => ({ seat: s.seat, method: s.envelope.frame.method }));
-		expect(forwarded).toEqual([{ seat: 0, method: 'finishGame' }]);
+		// Seat 0's copy, and the watchers' (who won is on the table).
+		expect(forwarded).toEqual([
+			{ seat: 0, method: 'finishGame' },
+			{ seat: WATCHER_SEAT, method: 'finishGame' },
+		]);
 		h.match.resendAfterSnapshot(0);
 		expect(h.sent.at(-1)?.envelope.frame).toMatchObject({ kind: 'notify', method: 'finishGame' });
 		// The other seat never got one, so it is not re-sent to that seat either.
@@ -3306,5 +3314,71 @@ describe('telemetry (offered, click)', () => {
 		vi.advanceTimersByTime(ACT_SILENCE_MS);
 		expect(clicks(h)).toEqual([expect.objectContaining({ card: 42, outcome: 'next-act' }), expect.objectContaining({ card: 43, outcome: 'silence', ms: ACT_SILENCE_MS })]);
 		vi.useRealTimers();
+	});
+});
+
+/*
+ * 2026-10-12: the watcher channel (`docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`).
+ * One public projection for everyone with no seat, emitted on `WATCHER_SEAT`,
+ * built from the first human seat's stream with `createProjector(null)`.
+ */
+describe('the watcher channel: one public projection, on WATCHER_SEAT', () => {
+	const h = harness();
+	h.host.push(...TRANSCRIPT);
+	const watched = envelopesFor(h, WATCHER_SEAT);
+
+	it('exists, opens with openView, and runs its own cursor from 1 by exactly 1', () => {
+		expect(watched.length).toBeGreaterThan(5);
+		expect(watched[0]?.frame.method).toBe('openView');
+		expect(watched.map((e) => e.cursor.seq)).toEqual(watched.map((_, i) => i + 1));
+		expect(new Set(watched.map((e) => e.cursor.epoch))).toEqual(new Set([h.match.epoch]));
+	});
+
+	it("carries no hidden card of EITHER seat — both hands, both libraries — in its serialised payloads", () => {
+		const secrets = new Set<string>();
+		for (const seat of [0, 1]) for (const s of secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) secrets.add(s);
+		expect(secrets.size).toBeGreaterThan(0);
+		const emitted = watched.map((e) => JSON.stringify(e)).join('\n');
+		expect(leaked(secrets, emitted)).toEqual([]);
+		// Not vacuous: the seats' own channels DO carry their own hands.
+		expect(leaked(secrets, envelopesFor(h, 0).map((e) => JSON.stringify(e)).join('\n')).length).toBeGreaterThan(0);
+	});
+
+	it('is state and endings only: never an ask, a prompt, a bar or a selection', () => {
+		const kinds = new Set(watched.map((e) => e.frame.kind));
+		expect(kinds.has('ask')).toBe(false);
+		const methods = new Set<string>(watched.map((e) => e.frame.method));
+		for (const m of ['showPromptMessage', 'updateButtons', 'setSelectables', 'setHighlighted', 'setWeaklySelectable']) expect(methods.has(m), m).toBe(false);
+		for (const { envelope } of h.sent.filter((s) => s.seat === WATCHER_SEAT)) {
+			expect(ServerEnvelopeSchema.safeParse(envelope).success).toBe(true);
+			expect(safeParseServerFrame(envelope.frame).ok).toBe(true);
+		}
+	});
+
+	it('snapshots as the first human seat, with the channel so far and its cursor', () => {
+		const snapshot = h.match.watcherSnapshot() as MatchSnapshot;
+		expect(MatchSnapshotSchema.safeParse(snapshot).success).toBe(true);
+		expect(snapshot.seat).toBe(0);
+		expect(snapshot.playerId).toBe(h.match.seats[0]?.playerId);
+		expect(snapshot.frames.map((f) => f.method)).toEqual(watched.map((e) => e.frame.method));
+		expect(snapshot.cursor).toEqual({ epoch: h.match.epoch, seq: watched.length });
+	});
+
+	it('leaves both seats’ channels exactly as they were', () => {
+		for (const seat of [0, 1]) {
+			const bridgeMethods = TRANSCRIPT.filter((l) => l.t === 'frame' && l.seat === seat).map((l) => (l as { frame: { method: string } }).frame.method);
+			expect(envelopesFor(h, seat).length).toBeGreaterThanOrEqual(bridgeMethods.length - 2);
+		}
+	});
+
+	it('is told the ending exactly once, at its next cursor, with the same frame the seats get', () => {
+		const h2 = harness();
+		h2.host.push(...OPENING);
+		const before = envelopesFor(h2, WATCHER_SEAT).length;
+		h2.host.exit(KILLED);
+		const ended = envelopesFor(h2, WATCHER_SEAT).filter(isEndedNotice);
+		expect(ended).toHaveLength(1);
+		expect(ended[0]?.cursor).toEqual({ epoch: h2.match.epoch, seq: before + 1 });
+		expect(JSON.stringify(ended[0])).toContain('signal SIGKILL');
 	});
 });

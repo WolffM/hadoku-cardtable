@@ -684,6 +684,16 @@ function forgeAct(frame: ActFrame): ActFrame {
 export const MATCH_ENDED_TITLE = 'Match ended';
 
 /**
+ * The "seat" the watcher channel is emitted on (2026-10-12, the party request
+ * in `docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`). Not a seat: nobody
+ * holds it, nothing is read from it, and `fromClient` and every other
+ * seat-taking method refuse it as `no-such-seat`. It exists so the one
+ * `emit(seat, envelope)` dependency can carry the shared public projection to
+ * every socket that joined with no seat of its own, and `SKIP` the rest.
+ */
+export const WATCHER_SEAT = -1;
+
+/**
  * How many `message` lines a seat keeps for a re-send after a snapshot.
  *
  * This used to be 8 — a few turns at most — so a reconnect mid-game refilled
@@ -933,6 +943,24 @@ export class Match {
 	readonly seats: SeatState[];
 	/** Frames Forge sent that forge-wire refused. Dropped, counted, logged. */
 	invalidFrames = 0;
+	/**
+	 * The watcher channel: ONE public projection (`createProjector(null)`, so
+	 * `cardVisibility` shows the table and no hand) with its own cursor and
+	 * history, fed from the FIRST human seat's Tier C stream — Forge sends
+	 * every seat the whole state, so one seat's stream is the whole table —
+	 * and emitted on {@link WATCHER_SEAT}. State frames, that seat's
+	 * `openView` (so a client's "the snapshot seated me as a player openView
+	 * names" check holds for the perspective it is handed) and the two end
+	 * notices; never a prompt, a bar, an ask or a selection: a watcher is
+	 * asked nothing. Everyone who is not playing gets the same bytes, which is
+	 * what keeps a crowded room from multiplying the projection work.
+	 */
+	private readonly watcher: { readonly projector: SeatProjector; seq: number; history: ServerFrame[]; ended: boolean } = {
+		projector: createProjector(null),
+		seq: 0,
+		history: [],
+		ended: false,
+	};
 
 	private readonly deps: MatchDeps;
 	readonly spec: MatchSpec;
@@ -1895,6 +1923,39 @@ export class Match {
 		s.history.push(projected);
 		this.send(s, projected);
 		this.releaseLog(s, false);
+		if (s === this.watcherSource()) this.sendWatcher(this.watcher.projector.project(raw) as unknown as ServerFrame);
+	}
+
+	/** The seat whose raw stream feeds the watcher channel: the first human one. */
+	private watcherSource(): SeatState | undefined {
+		return this.seats.find((s) => !s.ai);
+	}
+
+	/** One frame to every watcher, on the watcher channel's own cursor, and kept for the next watcher's snapshot. */
+	private sendWatcher(frame: ServerFrame): void {
+		this.watcher.history.push(frame);
+		this.watcher.seq += 1;
+		const cursor: WireCursor = { epoch: this.epoch, seq: this.watcher.seq };
+		this.deps.emit(WATCHER_SEAT, { matchId: this.id, cursor, frame });
+	}
+
+	/**
+	 * The snapshot for a socket with no seat: the watcher channel so far, oriented
+	 * as the source seat (`seat`/`playerId` are that seat's, so the board draws it
+	 * at the bottom; the client may flip). `match-starting` until that seat's
+	 * `openView` has arrived, exactly as {@link Match.snapshot} says it.
+	 */
+	watcherSnapshot(): MatchSnapshot | { error: string } {
+		const source = this.watcherSource();
+		if (source === undefined) return { error: 'no-such-seat' };
+		if (source.playerId === null) return { error: this.status === 'failed' ? (this.failure ?? 'failed') : 'match-starting' };
+		return {
+			matchId: this.id,
+			seat: source.seat,
+			playerId: source.playerId,
+			cursor: this.watcher.seq === 0 ? null : { epoch: this.epoch, seq: this.watcher.seq },
+			frames: [...this.watcher.history],
+		};
 	}
 
 	private onLine(line: BridgeLine): void {
@@ -2140,6 +2201,8 @@ export class Match {
 			else s.endNotices[i] = { kind: 'finished', frame };
 		}
 		this.send(s, frame);
+		// Who won is on the table: the watchers hear `finishGame` from the source seat's copy, after it.
+		if (frame.method === 'finishGame' && s === this.watcherSource()) this.sendWatcher(frame);
 		// `setSelectables`/`clearSelectables` can open or close the
 		// other seat's `waitingOn` fact too — a selection is a live decision
 		// (`myMoveNow`'s own client-side rule, `apps/ui/src/play/live/
@@ -2930,6 +2993,7 @@ export class Match {
 		s.projector.setViewer(playerId);
 		s.history.push(frame as unknown as ServerFrame);
 		this.send(s, frame as unknown as ServerFrame);
+		if (s === this.watcherSource()) this.sendWatcher(frame as unknown as ServerFrame);
 		for (const early of s.early.splice(0)) this.sendState(s, early);
 		this.deps.log({ evt: 'seat-opened', matchId: this.id, seat: s.seat, playerId });
 
@@ -3187,6 +3251,11 @@ export class Match {
 			} as ServerFrame;
 			s.endNotices.push({ kind: 'ended', frame });
 			this.send(s, frame);
+		}
+		const source = this.watcherSource();
+		if (!this.watcher.ended && source !== undefined && source.playerId !== null) {
+			this.watcher.ended = true;
+			this.sendWatcher({ kind: 'notify', method: 'showErrorDialog', title: MATCH_ENDED_TITLE, message } as ServerFrame);
 		}
 	}
 

@@ -22,6 +22,7 @@ import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
 import { MAX_CONCURRENT_MATCHES, type BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
+import { WATCHER_SEAT } from './match.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -538,15 +539,18 @@ describe('two seats over the socket', () => {
 		await new Promise((r) => setTimeout(r, 80));
 		expect(bob.presences, 'a spectator’s pointer belongs to nobody').toHaveLength(5);
 	});
-	it('refuses a third person, and a join for a match that does not exist', async () => {
+	it('seats a third person as a watcher (2026-10-12), and refuses a join for a match that does not exist', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
 		const carol = await connect(h.port, edgeHeaders('carol'));
+		// Both seats held: carol WATCHES (see 'a third account watches a full match').
+		expect(await carol.request('forge:join', { matchId })).toMatchObject({ matchId, seat: 0 });
+		const dave = await connect(h.port, edgeHeaders('dave'));
+		// A resync before any join is still refused: there is nothing to resync.
+		expect(await dave.request('forge:resync', { matchId })).toEqual({ error: 'not-joined' });
 		// A generic refusal keeps the bare `{ error }` shape it always had — only
 		// `match-gone` carries the outcome and the words. See socket.ts's header.
-		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
-		expect(await carol.request('forge:resync', { matchId })).toEqual({ error: 'not-joined' });
 		expect(await carol.request('forge:join', { matchId: 'm-000000000000' })).toMatchObject({
 			error: 'unknown-match',
 			outcome: 'match-gone',
@@ -755,7 +759,7 @@ describe('forge:seats: item 4’s server half', () => {
 		}
 	});
 
-	it('a refused join is told nothing at all — there is no seat to name', async () => {
+	it('a watcher (no seat of its own) is told the roster too — a face is not hidden information', async () => {
 		const h = await boot();
 		const { body } = await startMatch(h);
 		const matchId = body.matchId as string;
@@ -764,9 +768,9 @@ describe('forge:seats: item 4’s server half', () => {
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
 		const carol = await connect(h.port, edgeHeaders('carol'));
-		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
-		await new Promise((r) => setTimeout(r, 200));
-		expect(carol.seatsEvents).toEqual([]);
+		expect(await carol.request('forge:join', { matchId })).toMatchObject({ matchId, seat: 0 });
+		await waitUntil(() => carol.seatsEvents.length > 0, 'the watcher’s roster');
+		expect(carol.seatsEvents).toHaveLength(1);
 	});
 });
 
@@ -882,7 +886,7 @@ describe('full control survives a refresh', () => {
 		}
 	});
 
-	it('a refused join is told nothing at all — there is no seat to have a preference', async () => {
+	it('a watcher (no seat of its own) is told no full-control state — there is no seat to have a preference', async () => {
 		const h = await boot();
 		const { body } = await startMatch(h);
 		const matchId = body.matchId as string;
@@ -891,8 +895,8 @@ describe('full control survives a refresh', () => {
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
 		const carol = await connect(h.port, edgeHeaders('carol'));
-		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
-		await new Promise((r) => setTimeout(r, 200));
+		expect(await carol.request('forge:join', { matchId })).toMatchObject({ matchId, seat: 0 });
+		await waitUntil(() => carol.roles.length > 0, 'the watcher’s role');
 		expect(carol.fullControls).toEqual([]);
 	});
 });
@@ -1464,5 +1468,77 @@ describe('parseStartBody: scenario (wave 33 §S, shape 1)', () => {
 
 	it('is still an unknown field alongside everything else parseStartBody refuses', () => {
 		expect(parseStartBody({ scenario: 'ok', bogus: 1 })).toEqual({ ok: false, error: 'unknown field bogus' });
+	});
+});
+
+/*
+ * 2026-10-12: the room's crowd. A third account joining a match whose two seats
+ * are held does not get `match-full` any more — it WATCHES: the public channel
+ * (`Match.watcherSnapshot`), the role `watcher`, and every input refused.
+ */
+describe('a third account watches a full match', () => {
+	async function crowd(): Promise<{ h: Harness; matchId: string; alice: Peer; bob: Peer; carol: Peer; host: ReplayHost }> {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		return { h, matchId, alice, bob, carol, host: h.hosts[0] as ReplayHost };
+	}
+
+	it('is given the public channel oriented as seat 0, told it is a watcher, and sent the roster and the art', async () => {
+		const { h, matchId, carol } = await crowd();
+		const joined = (await carol.request('forge:join', { matchId })) as { seat: number; playerId: number; frames: { method: string }[]; error?: string };
+		expect(joined.error).toBeUndefined();
+		expect(joined.seat).toBe(0);
+		expect(joined.playerId).toBe(h.handle.matches.get(matchId)?.seats[0]?.playerId);
+		expect(joined.frames[0]?.method).toBe('openView');
+		expect(joined.frames.some((f) => f.method === 'showPromptMessage' || f.method === 'updateButtons')).toBe(false);
+		await waitUntil(() => carol.roles.length > 0 && carol.seatsEvents.length > 0, 'the role and the roster');
+		expect(carol.roles).toEqual([{ matchId, role: 'watcher' }]);
+		expect(carol.fullControls, 'full control is a seat’s, not a watcher’s').toEqual([]);
+		expect(h.logs.find((l) => l.evt === 'joined' && l.participantId !== undefined && (l as { role?: string }).role === 'watcher')).toBeDefined();
+	});
+
+	it('never receives a card from either hand or library — on the payload, over the whole join and every later frame', async () => {
+		const { matchId, carol, host } = await crowd();
+		await carol.request('forge:join', { matchId });
+		const framesBefore = carol.frames.length;
+		host.push(PROBE_ASK, ...AFTER_PROBE);
+		await waitUntil(() => carol.frames.length > framesBefore, 'the later state frames');
+		await new Promise((r) => setTimeout(r, 100));
+		const secrets = new Set<string>();
+		for (const seat of [0, 1]) for (const s of secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) secrets.add(s);
+		expect(secrets.size).toBeGreaterThan(0);
+		expect(leaked(secrets, carol.transcript())).toEqual([]);
+		expect(carol.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask')).toBe(false);
+	});
+
+	it('has every input refused and logged as c2s-watcher, and the seats go on unaffected', async () => {
+		const { h, matchId, alice, bob, carol, host } = await crowd();
+		await carol.request('forge:join', { matchId });
+		host.push(PROBE_ASK);
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		await waitUntil(() => alice.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask'), 'alice’s ask');
+		const answer = { kind: 'reply', callId, method: 'showConfirmDialog', result: true };
+		carol.send({ matchId, frame: answer });
+		carol.setFullControl({ matchId, on: true });
+		carol.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
+		await waitUntil(() => h.logs.filter((l) => l.evt === 'c2s-watcher').length === 3, 'three refusals');
+		expect(h.logs.filter((l) => l.evt === 'c2s-watcher').map((l) => l.input)).toEqual(['c2s', 'full-control', 'stop-preference']);
+		expect(h.logs.filter((l) => l.evt === 'c2s-spectator')).toEqual([]);
+		expect(host.commands).toEqual([]);
+		alice.send({ matchId, frame: answer });
+		await waitUntil(() => host.commands.length > 0, 'alice’s reply');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+		expect(bob.roles).toEqual([{ matchId, role: 'player' }]);
+		// Leaving marks no seat gone and promotes nobody.
+		carol.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'left' && l.seat === WATCHER_SEAT), 'the watcher leaving');
+		expect(h.logs.filter((l) => l.evt === 'spectator-promoted')).toEqual([]);
+		expect(alice.roles).toEqual([{ matchId, role: 'player' }]);
 	});
 });

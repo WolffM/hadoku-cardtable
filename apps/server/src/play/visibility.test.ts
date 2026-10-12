@@ -40,6 +40,7 @@ import {
 	type StateFrame,
 	type WireObj,
 } from './visibility.js';
+import { leaked } from './fixtures/transcript.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = resolve(HERE, '../../../ui/src/play/fixtures/tierc-game1-seq1-27.json');
@@ -606,5 +607,77 @@ describe('phase', () => {
 			},
 		} as StateFrame);
 		expect(projector.phase()).toBe('END_OF_TURN');
+	});
+});
+
+/*
+ * 2026-10-12, the party request (`docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`):
+ * a viewer of `null` is the TABLE — what everyone who is not playing may see.
+ * Public zones whole, a face-down permanent as its face, and no hand or library
+ * at all. The watcher channel in `match.ts` is one of these.
+ */
+describe('a null viewer: the public table (the watcher channel)', () => {
+	const frames = fixtureFrames();
+	const raw = fold(frames);
+	const zoneIds = (playerId: number, zone: string): number[] => {
+		const list = raw.get(keyOf(TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
+		return list === undefined ? [] : list.v.map((x) => x.v);
+	};
+
+	it('shows every battlefield and graveyard card whole, and nothing from either hand or library', () => {
+		const projector = createProjector(null);
+		for (const frame of frames) projector.project(frame);
+		for (const playerId of PLAYERS) {
+			for (const id of zoneIds(playerId, 'Battlefield')) expect(projector.visibilityOf(id), `battlefield card ${id}`).toBe('full');
+			for (const id of zoneIds(playerId, 'Graveyard')) expect(projector.visibilityOf(id), `graveyard card ${id}`).toBe('full');
+			expect(zoneIds(playerId, 'Hand').length).toBeGreaterThan(0);
+			for (const id of zoneIds(playerId, 'Hand')) expect(projector.visibilityOf(id), `hand card ${id}`).toBe('hidden');
+			expect(zoneIds(playerId, 'Library').length).toBeGreaterThan(0);
+			for (const id of zoneIds(playerId, 'Library')) expect(projector.visibilityOf(id), `library card ${id}`).toBe('hidden');
+		}
+	});
+
+	it("puts no identifying string of ANY hand or library card into its serialised frames — the payload, not the screen", () => {
+		const projector = createProjector(null);
+		const emitted = frames.map((frame) => JSON.stringify(projector.project(frame))).join('\n');
+		const secret = new Set<string>();
+		for (const playerId of PLAYERS) {
+			for (const zone of ['Hand', 'Library']) for (const id of zoneIds(playerId, zone)) for (const s of identifyingStrings(raw, id)) secret.add(s);
+		}
+		// A name shared with a public card is not a secret of the hidden one.
+		for (const playerId of PLAYERS) {
+			for (const zone of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of zoneIds(playerId, zone)) for (const s of identifyingStrings(raw, id)) secret.delete(s);
+		}
+		expect(secret.size).toBeGreaterThan(20);
+		// Not vacuous: the raw stream names them all.
+		const rawText = frames.map((f) => JSON.stringify(f)).join('\n');
+		expect(leaked(secret, rawText).length).toBe(secret.size);
+		expect(leaked(secret, emitted)).toEqual([]);
+	});
+
+	it('still says how many cards each hand and library holds — the ids stay, the cards do not', () => {
+		const projector = createProjector(null);
+		const shown = fold(frames.map((frame) => projector.project(frame)));
+		for (const playerId of PLAYERS) {
+			for (const zone of ['Hand', 'Library']) {
+				const list = shown.get(keyOf(TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
+				expect(list?.v.map((x) => x.v), `${zone} of player ${playerId}`).toEqual(zoneIds(playerId, zone));
+			}
+			for (const id of zoneIds(playerId, 'Hand')) expect(shown.get(keyOf(TYPE.card, id))?.Name).toBeUndefined();
+		}
+	});
+
+	it('shows a face-down permanent as its face-down face and nothing underneath', () => {
+		const bf = zoneIds(1, 'Battlefield');
+		const cardId = bf[0] as number;
+		const card = raw.get(keyOf(TYPE.card, cardId)) as WireObj;
+		const table = { ...Object.fromEntries(raw), [keyOf(TYPE.card, cardId)]: { ...card, Facedown: { t: 'bool', v: true } } };
+		const frame: StateFrame = { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: 1 } };
+		const projector = createProjector(null);
+		const out = (projector.project(frame) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		expect(projector.visibilityOf(cardId)).toBe('faceOnly');
+		const seen = out[keyOf(TYPE.card, cardId)] as WireObj;
+		expect(seen.Name).toBeUndefined();
+		expect(seen.Facedown).toEqual({ t: 'bool', v: true });
 	});
 });

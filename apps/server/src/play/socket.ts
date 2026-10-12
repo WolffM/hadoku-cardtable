@@ -100,7 +100,7 @@ import { AVATAR_ID_MAX } from '../room/lobby.js';
 import { artOf } from './art.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
-import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
+import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import {
 	fullControlFrame,
 	MATCH_EVENTS,
@@ -704,10 +704,19 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const placed = new Map<string, PlacedEcho>();
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
 	const isController = (matchId: string, seat: number, socketId: string): boolean =>
-		connected.get(seatKey(matchId, seat))?.[0] === socketId;
-	const tellRole = (target: { emit: (event: string, payload: unknown) => unknown }, matchId: string, role: 'player' | 'spectator'): void => {
+		seat !== WATCHER_SEAT && connected.get(seatKey(matchId, seat))?.[0] === socketId;
+	/**
+	 * `'spectator'` is wave 31's: a second socket on a seat this account holds.
+	 * `'watcher'` (2026-10-12) is a socket with NO seat — the room's crowd —
+	 * on the shared public channel (`Match.watcherSnapshot`), refused every input.
+	 */
+	const tellRole = (target: { emit: (event: string, payload: unknown) => unknown }, matchId: string, role: 'player' | 'spectator' | 'watcher'): void => {
 		target.emit(MATCH_EVENTS.role, { matchId, role });
 	};
+	const roleOf = (matchId: string, seat: number, socketId: string): 'player' | 'spectator' | 'watcher' =>
+		seat === WATCHER_SEAT ? 'watcher' : isController(matchId, seat, socketId) ? 'player' : 'spectator';
+	/** The log line a refused input gets: a watcher's and a spectator's are told apart. */
+	const refusedInput = (seat: number): 'c2s-watcher' | 'c2s-spectator' => (seat === WATCHER_SEAT ? 'c2s-watcher' : 'c2s-spectator');
 
 	io.on('connection', (socket) => {
 		const participantId = identityOf(socket);
@@ -741,8 +750,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			if (seat === null) {
 				if (!isJoin) return { error: 'not-joined' };
 				const claim = match.claim(participantId);
-				if (!claim.ok) return { error: claim.error };
-				seat = claim.seat;
+				// Both seats held by other people: this socket WATCHES. The same
+				// room, so it hears the public events (seats, presence, placements);
+				// its own channel is the watcher one (`Match.watcherSnapshot`).
+				if (!claim.ok && claim.error !== 'match-full') return { error: claim.error };
+				seat = claim.ok ? claim.seat : WATCHER_SEAT;
 				const room = roomFor(match);
 				joinRoom<PlayApp, PlayClient>(room, socket.id, socket.id, participantId, () => ({ seat: seat as number }));
 				await socket.join(room.roomId);
@@ -751,7 +763,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				const sockets = connected.get(key) ?? [];
 				sockets.push(socket.id);
 				connected.set(key, sockets);
-				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.fresh, role: sockets[0] === socket.id ? 'player' : 'spectator' });
+				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.ok ? claim.fresh : false, role: roleOf(match.id, seat, socket.id) });
 				for (const [k, held] of arrangements) {
 					if (k.startsWith(`${match.id}#`) && k !== key) socket.emit(ARRANGEMENT_EVENT, held);
 				}
@@ -762,13 +774,13 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 					if (k.startsWith(`${match.id}#`)) socket.emit(PLACED_EVENT, held);
 				}
 				// A refresh: the old socket's close armed an abort of this seat's asks.
-				match.seatConnected(seat);
+				if (seat !== WATCHER_SEAT) match.seatConnected(seat);
 			}
 			if (match.status === 'starting') {
 				const running = await match.whenRunning(joinWaitMs);
 				if (!running.ok) return { error: running.error };
 			}
-			return match.snapshot(seat);
+			return seat === WATCHER_SEAT ? match.watcherSnapshot() : match.snapshot(seat);
 		}
 
 		function answer(event: 'join' | 'resync') {
@@ -782,6 +794,15 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 					if ('frames' in result) {
 						const match = matches.get(result.matchId);
 						if (match === undefined) return;
+						// A watcher's snapshot names the seat it is ORIENTED as, not one it
+						// holds: nothing of that seat's (its asks, its full control, its stop,
+						// its trigger answers) is sent, only what the whole table is told.
+						if (joined.get(result.matchId) === WATCHER_SEAT) {
+							socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
+							socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
+							tellRole(socket, result.matchId, 'watcher');
+							return;
+						}
 						// After the ack, so the client has adopted the snapshot's cursor
 						// before the next frame reaches it.
 						match.resendAfterSnapshot(result.seat);
@@ -848,7 +869,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {
-				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'c2s', kind: parsed.value.frame.kind });
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'c2s', kind: parsed.value.frame.kind });
 				return;
 			}
 			const outcome = match.fromClient(seat, parsed.value.frame);
@@ -887,7 +908,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {
-				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'full-control' });
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'full-control' });
 				return;
 			}
 			const outcome = match.setFullControl(seat, parsed.value.on);
@@ -909,7 +930,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {
-				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'auto-yield' });
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'auto-yield' });
 				return;
 			}
 			const outcome = match.setAutoYield(seat, parsed.value.on);
@@ -930,7 +951,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {
-				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'phase-stop' });
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'phase-stop' });
 				return;
 			}
 			const outcome = match.setPhaseStop(seat, parsed.value.phase);
@@ -952,7 +973,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {
-				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'trigger-decision' });
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'trigger-decision' });
 				return;
 			}
 			const outcome = match.setTriggerDecision(seat, parsed.value.key, parsed.value.decision);
@@ -982,7 +1003,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {
-				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'stop-preference' });
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'stop-preference' });
 				return;
 			}
 			const current = match.stopPolicy(seat);
@@ -1132,6 +1153,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				leaveRoom<PlayApp, PlayClient>(room, socket.id);
 				const stillHere = [...room.clients.values()].some((c) => c.app.seat === seat);
 				log({ evt: 'left', matchId, seat, participantId, reason, stillHere });
+				// A watcher holds nothing: no seat to mark gone, nobody to promote.
+				if (seat === WATCHER_SEAT) continue;
 				if (!stillHere) match.seatDisconnected(seat);
 				const next = remaining[0];
 				if (wasController && next !== undefined) {

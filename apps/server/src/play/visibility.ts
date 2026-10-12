@@ -303,8 +303,12 @@ function indexZones(state: ReadonlyMap<string, WireObj>): ZoneIndex {
 
 /**
  * `CardView.canBeShownTo` + `canFaceDownBeShownTo`, over wire state. `viewer`
- * is a Forge PlayerView id; `null` is nobody, who is shown what Forge shows a
- * null viewer — nothing that is not already public.
+ * is a Forge PlayerView id; `null` is nobody in particular — the TABLE itself.
+ * A null viewer is shown exactly what is public: every card in a public zone
+ * and every face-up card in exile, as the card shows it (a face-down permanent
+ * is its face-down face), and nothing from any hand, library or sideboard.
+ * That is what a watcher with no seat receives (`match.ts`'s watcher channel,
+ * 2026-10-12): the same projection for everyone who is not playing, built once.
  */
 export function cardVisibility(
 	state: ReadonlyMap<string, WireObj>,
@@ -313,10 +317,11 @@ export function cardVisibility(
 	viewer: number | null,
 ): Visibility {
 	const card = state.get(keyOf(TYPE.card, cardId));
-	if (card === undefined || viewer === null) return 'hidden';
+	if (card === undefined) return 'hidden';
 
 	const listed = zones.byCard.get(cardId);
 	const zone = listed?.zone ?? enumOf(card, 'Zone');
+	if (viewer === null) return publicVisibility(card, zone);
 	const controller = intOf(card, 'Controller') ?? listed?.holder ?? intOf(card, 'Owner');
 	const mayLook = idsOf(card, 'PlayerMayLook').includes(viewer);
 	const master = controller === null ? null : intOf(state.get(keyOf(TYPE.player, controller)), 'MindSlaveMaster');
@@ -346,6 +351,23 @@ export function cardVisibility(
 	if (!shown) return 'hidden';
 	const face = faceShownTo(viewer) || (viaMaster && controller !== null && faceShownTo(controller));
 	return face ? 'full' : 'faceOnly';
+}
+
+/**
+ * What the table shows to nobody in particular: `shownTo` with no `who` to be
+ * the controller of anything, so a hand, a library, a sideboard and a
+ * `PlayerMayLook` grant are all somebody else's. A face-down card in a public
+ * zone is its face-down face and nothing underneath (`canFaceDownBeShownTo`
+ * with no peek). Nothing a seat could not already see passes here.
+ */
+function publicVisibility(card: WireObj, zone: string | null): Visibility {
+	const shown =
+		zone === null || // "cards outside any zone are visible to all" (:627)
+		PUBLIC_ZONES.has(zone) ||
+		((zone === 'Exile' || zone === 'Merged') && !boolOf(card, 'Facedown')) ||
+		zone === 'SchemeDeck';
+	if (!shown) return 'hidden';
+	return boolOf(card, 'Facedown') ? 'faceOnly' : 'full';
 }
 
 function redactCard(obj: WireObj, vis: Visibility): WireObj | null {
