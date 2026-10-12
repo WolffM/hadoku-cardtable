@@ -2367,6 +2367,7 @@ function redraw(match: LiveMatch): void {
           nameByPlayerId: match.nameByPlayerId ?? undefined,
           stackTargetSpells: match.stackTargetSpells,
           pendingTriggers: match.pendingTriggers,
+          promptCard: match.promptCard,
         });
   if (match.view?.gameOver === true) match.over = true;
 }
@@ -2506,7 +2507,11 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.prompt = typeof frame.message === 'string' ? frame.message : null;
     // Overwritten by EVERY prompt, including with null. That is what makes it
     // fresh: see the field's note, and `payingMana`.
-    match.promptCard = frame.card === null ? null : frame.card.id;
+    const promptCard = frame.card === null ? null : frame.card.id;
+    const redrawBoard = promptCard !== match.promptCard;
+    match.promptCard = promptCard;
+    // The board's revealed library top depends on it (`adapter.ts` `revealedTop`).
+    if (redrawBoard) redraw(match);
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.sameTarget = false;

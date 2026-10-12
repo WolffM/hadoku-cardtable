@@ -104,7 +104,9 @@
  * a dialog that pre-answered would have failed it).
  */
 import { useId } from 'react';
+import type { DraftCard } from '@hadoku/shared';
 
+import { CardTile } from '../../components/CardTile.tsx';
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
 import '../live/live.css';
@@ -224,6 +226,11 @@ export interface ConfirmPromptProps {
    * Forge keeps giving), a trigger target's "Same target for all".
    */
   check?: { label: string; testId: string; checked: boolean; onChange: (checked: boolean) => void };
+  /**
+   * The card the question is about, drawn in the window, when the board has no face of it to point at —
+   * a scry 1's library card (the operator, 2026-10-11: *"we should have a proper decision card for this"*).
+   */
+  card?: { id: number; tile: DraftCard };
 }
 
 /**
@@ -234,7 +241,7 @@ export interface ConfirmPromptProps {
  * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this
  * component sends nothing itself.
  */
-export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, check }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, check, card }: ConfirmPromptProps) {
   const titleId = useId();
   const messageId = useId();
   return (
@@ -252,6 +259,11 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
         </h2>
       )}
       {coin === true && <span className="confirm__coin" aria-hidden="true" data-testid="live-play-or-draw-coin" />}
+      {card !== undefined && (
+        <div className="confirm__card" data-testid="confirm-card" data-card-id={card.id}>
+          <CardTile card={card.tile} />
+        </div>
+      )}
       <p className="confirm__message" id={messageId}>
         <RulesText text={message} />
       </p>

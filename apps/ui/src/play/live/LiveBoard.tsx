@@ -268,6 +268,7 @@ import { lookupFromState, plainRulesText, promptText, withAbilityLabels, type Pr
 import { RulesText } from '../prompts/RulesText.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
+import { promptTileFor } from '../prompts/PromptShell.tsx';
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
@@ -2049,6 +2050,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * true for the same bar.
    */
   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
+  /* A yes/no about a card still in a library (a scry 1's Top or Bottom): the board has no face of it, so the window draws it. */
+  const confirmCardId = confirmPrompt ? match.promptCard : null;
+  const confirmCard =
+    confirmCardId !== null && match.view?.players.some((p) => p.libraryIds?.includes(confirmCardId) === true) === true
+      ? { id: confirmCardId, tile: promptTileFor(lookupFromState(match.state), confirmCardId) }
+      : undefined;
   /* "Your move": a decision window opened for this seat — an ask, or a yes/no in the decision area. */
   const decisionKey = ask !== null ? `ask:${ask.callId}` : confirmPrompt || playOrDraw ? `bar:${bar?.label1 ?? ''}` : null;
   useEffect(() => {
@@ -2937,6 +2944,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') }}
             check={match.promptTrigger === null ? undefined : { label: 'Always', testId: 'live-confirm-always', checked: always, onChange: setAlways }}
+            card={confirmCard}
           />
         </div>
       )}

@@ -14,6 +14,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, offersEndTurn } from './ConfirmPrompt.tsx';
 import type { LiveButtons } from '../live/match.ts';
+import { promptCardTile } from './PromptShell.tsx';
 
 afterEach(cleanup);
 
@@ -194,6 +195,21 @@ describe('ConfirmPrompt — the bar-driven yes/no, as LiveBoard.tsx renders it',
     );
     expect(getByTestId('prompt-confirm-yes').textContent).toBe('Keep');
     expect(getByTestId('prompt-confirm-no').textContent).toBe('Mulligan');
+  });
+
+  it('draws the card a scry 1 asks about, as a tile the inspector can enlarge', () => {
+    const { getByTestId } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Put Serra Angel on the top or bottom of your library?',
+        button1: { label: 'Top', enabled: true, testId: 'prompt-confirm-yes', onClick: () => {} },
+        button2: { label: 'Bottom', enabled: true, testId: 'prompt-confirm-no', onClick: () => {} },
+        card: { id: 42, tile: promptCardTile(42, 'Serra Angel') },
+      }),
+    );
+    const card = getByTestId('confirm-card');
+    expect(card.getAttribute('data-card-id')).toBe('42');
+    expect(card.querySelector('.card')?.textContent).toContain('Serra Angel');
   });
 
   it('disables whichever button Forge has not enabled', () => {

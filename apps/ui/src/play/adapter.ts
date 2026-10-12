@@ -634,6 +634,12 @@ export interface AdaptOptions {
   stackTargetSpells?: ReadonlyMap<number, number>;
   /** `PlayBridge.java`'s `pendingTriggers` (`../fold.ts`), read onto `BoardView.pendingTriggers`. */
   pendingTriggers?: PendingTriggers;
+  /**
+   * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):
+   * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,
+   * :1089-1099), so that card is the decision's, never a revealed top on the board.
+   */
+  promptCard?: number | null;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -1335,7 +1341,8 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
  * as a revealed top, it put a library card on the board mid-search (the
  * operator, 2026-10-11: *"a hangerback walker appeared on my board suddenly …
  * i'm just searching my library"*). So the top is a standing reveal only when
- * the seat may see it and NOT the card under it.
+ * the seat may see it and NOT the card under it — and is not the one card a
+ * prompt is showing (a scry 1's Top or Bottom, `AdaptOptions.promptCard`).
  */
 function revealedTop(
   state: WireState,
@@ -1343,7 +1350,9 @@ function revealedTop(
   artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
   printedType: PrintedTypeLineIndex,
+  promptCard: number | null,
 ): BoardCard | null {
+  if (libraryIds[0] === promptCard) return null;
   const seen = (id: number | undefined): BoardCard | null => {
     if (id === undefined) return null;
     const card = toBoardCard(state, id, artIds, printedPT, false, printedType);
@@ -1365,6 +1374,7 @@ export function toBoardView(
     nameByPlayerId,
     stackTargetSpells,
     pendingTriggers,
+    promptCard = null,
   }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
@@ -1387,7 +1397,7 @@ export function toBoardView(
     const isViewer = pid === viewerPlayerId;
     const handIds = readIds(p, 'Hand');
     const libraryIds = readIds(p, 'Library');
-    const top = revealedTop(state, libraryIds, artIds, printedPT, printedType);
+    const top = revealedTop(state, libraryIds, artIds, printedPT, printedType, promptCard);
     const avatarId = avatarByPlayerId?.get(pid);
     const seatName = nameByPlayerId?.get(pid);
     return {

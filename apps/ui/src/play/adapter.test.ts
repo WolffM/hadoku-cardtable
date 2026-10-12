@@ -770,6 +770,16 @@ describe('hidden information is untouched by any of this', () => {
     expect(seat().libraryTop?.id, 'the top alone is a standing reveal').toBe(top);
   });
 
+  it('draws no library top while a prompt names it — a scry 1’s Top or Bottom', () => {
+    const state = baseState();
+    const top = cardIdNamed(state, 'Mountain');
+    const viewer = onLibraryTop(state, top);
+    const seat = (promptCard: number | null) =>
+      toBoardView(state, 1, { viewerPlayerId: fixture.viewerPlayerId, promptCard }).players.find((p) => p.id === viewer)!;
+    expect(seat(null).libraryTop?.id).toBe(top);
+    expect(seat(top).libraryTop, 'the prompt’s card is the decision’s, not the board’s').toBeUndefined();
+  });
+
   it('treats a blank name as no name', () => {
     const state = baseState();
     const id = cardIdNamed(state, 'Mountain');

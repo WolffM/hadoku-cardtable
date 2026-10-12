@@ -645,6 +645,19 @@
   height: auto;
 }
 
+/* The card a yes/no is about, when the board has none to point at (`ConfirmPrompt.tsx`'s `card`). */
+.confirm__card {
+  --card-w: 7rem;
+
+  align-self: center;
+  width: var(--card-w);
+}
+
+.confirm__card .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
 .reveal-notice > .prompt__submit {
   align-self: flex-end;
 }
