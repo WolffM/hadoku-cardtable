@@ -58,6 +58,8 @@ import {
 } from './ConstructedScreen.tsx';
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import ART_IDS from '../draft/art-ids.json';
+import DECK_ART_TRAITS from '../draft/deck-art-traits.json';
+import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckArt.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
@@ -2177,9 +2179,10 @@ describe('a room on a drafted pool', () => {
     expect(rowName(drafted)).toBe(`Your drafted pool — ${45 + DRAFTED_BASICS} cards`);
     expect(drafted.dataset['colors']).toBe('W');
     expect(within(drafted).getByTestId('deck-colors').dataset['colors']).toBe('W');
-    // A drafted card carries its own Scryfall id, so the art rule needs no lookup
-    // table here: the most expensive card in the 45 is what the row draws.
-    expect(drafted.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//);
+    // A drafted card carries its own Scryfall id, rarity and type line, so the
+    // art rule needs no lookup table here. The art waits for its credit, which
+    // is a lazy chunk.
+    await waitFor(() => expect(drafted.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//));
     // And the library sweep never ran: a drafted pool asks the gate nothing.
     expect(sweeps(server)).toEqual([]);
 
@@ -2330,6 +2333,8 @@ function realDeck(collectionId: string, file: string): TableDeck {
 
 const UW_DELVER = realDeck('power-summer-2012', '1-todd-anderson-uw-delver.dck');
 const MONO_GREEN = realDeck('power-summer-2012', '1-cj-steele-infect.dck');
+const NAYA_POD = realDeck('power-summer-2012', '1-caleb-durward-naya-pod.dck');
+const SOLAR_FLARE = realDeck('power-summer-2012', '1-jeremy-dombek-solar-flare.dck');
 
 /**
  * A name long enough to wrap past two lines — the case the clamp exists for.
@@ -2797,15 +2802,25 @@ describe('deck art is warmed ahead of the picker', () => {
     expect(deckRow(UW_DELVER.id).querySelector('.deckpick__art--none')).not.toBeNull();
     expect(deckRow(UW_DELVER.id).querySelector('img')).toBeNull();
   });
+
+  it('never shows the same card on two tiles: the lower deck takes its next card', async () => {
+    // Both decks' most iconic card is Elesh Norn.
+    await mountRoom({ players: [], matchId: null, decks: [NAYA_POD, SOLAR_FLARE] });
+    await deckPicker();
+    const ids = (ART_IDS as { ids: Record<string, string> }).ids;
+    const srcs = [NAYA_POD, SOLAR_FLARE].map((d) => deckRow(d.id).querySelector('img')?.getAttribute('src'));
+    expect(srcs).toContain(cardImageUrl(ids['Elesh Norn, Grand Cenobite']!));
+    expect(new Set(srcs).size).toBe(2);
+  });
 });
 
 /**
- * The art rule, on its own: the most expensive card the deck plays.
+ * The art rule, on its own (`deckArt.ts`): a deck's most iconic card first, and
+ * no card twice on one page.
  *
  * A deck has no art of its own, so the rule is a decision and the decision is
  * testable without a screen. Its consequence on real lists is what matters —
- * these are the cards the decks are NAMED after, which is the whole reason the
- * rule is "most expensive" and not "first non-land".
+ * these are the cards the decks are known by.
  */
 describe('which card’s art stands for a deck', () => {
   it('reads a Scryfall cost string the way Scryfall counts it', () => {
@@ -2821,19 +2836,51 @@ describe('which card’s art stands for a deck', () => {
     expect(manaValueOf('')).toBe(0);
   });
 
-  it('picks the card each real deck is named after', () => {
+  /** A real deck's ranking, from the same committed tables the screen reads. */
+  const rankingOf = (deck: TableDeck): string[] =>
+    rankDeckArt(
+      deck.main.flatMap((line) => {
+        const cost = LIBRARY_CARD_COSTS[line.name];
+        if (cost === undefined) return [];
+        return [
+          {
+            name: line.name,
+            count: line.count,
+            manaValue: manaValueOf(cost),
+            traits: (DECK_ART_TRAITS as { traits: Record<string, string> }).traits[line.name] ?? 'c',
+            scryfallId: (ART_IDS as { ids: Record<string, string> }).ids[line.name],
+          },
+        ];
+      }),
+    ).map((c) => c.name);
+
+  it('puts the card each real deck is known by first', () => {
     // `LIBRARY_CARD_COSTS` has no land in it, so the lands in these lists cannot
     // win — and every id resolves through the committed table the play board uses.
-    const pickFor = (deck: TableDeck): string => {
-      const best = deck.main
-        .flatMap((line) => {
-          const cost = LIBRARY_CARD_COSTS[line.name];
-          return cost === undefined ? [] : [{ name: line.name, count: line.count, value: manaValueOf(cost) }];
-        })
-        .sort((a, b) => b.value - a.value || b.count - a.count || (a.name < b.name ? -1 : 1))[0];
-      return best?.name ?? '';
-    };
-    expect(pickFor(UW_DELVER)).toBe('Geist of Saint Traft');
-    expect(pickFor(MONO_GREEN)).toBe('Wild Defiance');
+    expect(rankingOf(UW_DELVER)[0]).toBe('Geist of Saint Traft');
+    expect(rankingOf(NAYA_POD)[0]).toBe('Elesh Norn, Grand Cenobite');
+    expect(rankingOf(SOLAR_FLARE).slice(0, 2)).toEqual(['Elesh Norn, Grand Cenobite', 'Gideon Jura']);
+  });
+
+  it('scores a mythic legendary four-of creature over a bigger rare', () => {
+    const legend = { name: 'Legend', count: 4, manaValue: 3, traits: 'mLC', scryfallId: 'a' };
+    const fatty = { name: 'Fatty', count: 2, manaValue: 7, traits: 'rC', scryfallId: 'b' };
+    expect(artScore(legend)).toBeGreaterThan(artScore(fatty));
+    expect(rankDeckArt([fatty, legend]).map((c) => c.name)).toEqual(['Legend', 'Fatty']);
+  });
+
+  it('reads a drafted card’s rarity and front face as the same traits', () => {
+    expect(traitsOfDraftCard('mythic', 'Legendary Creature — Angel')).toBe('mLC');
+    expect(traitsOfDraftCard('mythic', 'Legendary Planeswalker — Jace')).toBe('mLP');
+    expect(traitsOfDraftCard('common', 'Creature — Human Wizard // Creature — Human Insect')).toBe('cC');
+    expect(traitsOfDraftCard('rare', 'Enchantment')).toBe('r');
+  });
+
+  it('gives a deck further down its next card when one above took its first', () => {
+    const a = [{ name: 'Norn', artId: 'n' }, { name: 'Wurm', artId: 'w' }];
+    const b = [{ name: 'Norn', artId: 'n' }, { name: 'Gideon', artId: 'g' }];
+    const c = [{ name: 'Norn', artId: 'n' }];
+    // c has nothing else, so it repeats rather than drawing a blank tile.
+    expect(assignDeckArt([a, b, c, []])).toEqual(['n', 'g', 'n', undefined]);
   });
 });

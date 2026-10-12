@@ -161,6 +161,8 @@ import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
+import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
+import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary } from '../deck/build.ts';
@@ -250,9 +252,12 @@ interface DeckOption {
   value: string;
   label: string;
   colors: readonly DeckColor[];
+  /** The deck's cards that could stand for it, best first (`deckArt.ts`). */
+  art?: readonly DeckArtChoice[];
   /**
-   * The Scryfall id of the card whose art represents this deck, or undefined
-   * when nothing in the list could be resolved. See {@link deckArtId}.
+   * The Scryfall id of the card whose art represents this deck on the page it is
+   * shown on — {@link assignDeckArt} over `art`, so no two tiles repeat a card —
+   * or undefined when nothing in the list could be resolved.
    */
   artId?: string | undefined;
   /** The list a second's hover shows beside the tile (`DeckPeek.tsx`). */
@@ -281,51 +286,6 @@ export function manaValueOf(cost: string): number {
   return manaTokensOf(cost).reduce((total, token) => total + tokenValue(token), 0);
 }
 
-/** A maindeck card the art rule may choose between. */
-interface ArtCandidate {
-  name: string;
-  count: number;
-  manaValue: number;
-  scryfallId?: string | undefined;
-}
-
-/**
- * The card whose art stands for a deck — **the most expensive card it plays**,
- * ties broken by how many copies, then by name.
- *
- * A deck has no art of its own, so a rule has to be chosen and written down.
- * This is the rule, and it is the most expensive card rather than the first
- * non-land because the expensive card is the one the deck is usually NAMED
- * after: it gives Primeval Titan for Kessig Titan, Geist of Saint Traft for UW
- * Delver, Tempered Steel for the archetype of the same name and Avenger of
- * Zendikar for Valakut Ramp. "First non-land" would give whatever the
- * transcription happened to list first, which for these files is alphabetical
- * inside the creature block.
- *
- * Copies before name because two six-drops is common and the four-of is the
- * deck's plan; name last so the answer is total and a re-render cannot flicker.
- *
- * **A card with no mana cost is not a candidate**, which is how a land is
- * excluded without a type line: the library arm learns costs from
- * `LIBRARY_CARD_COSTS`, where every land is simply absent, and the drafted arm
- * reads `DraftCard.manaCost`, which is empty for one. All 49 catalogued library
- * decks resolve under this rule — verified against
- * `apps/ui/src/draft/art-ids.json`, whose scope is *"every card in the committed
- * decks/ lists"* plus a bare-name fallback row.
- *
- * Undefined when nothing resolves; the row then draws its colours and no art,
- * which is a complete option on its own.
- */
-export function deckArtId(candidates: readonly ArtCandidate[]): string | undefined {
-  const best = [...candidates].sort(
-    (a, b) =>
-      b.manaValue - a.manaValue ||
-      b.count - a.count ||
-      (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-  )[0];
-  return best?.scryfallId;
-}
-
 /**
  * `Name|SET` and bare `Name` → Scryfall id, for every card the committed
  * constructed lists play.
@@ -342,6 +302,9 @@ export function deckArtId(candidates: readonly ArtCandidate[]): string | undefin
  * repointing a card stays a one-line edit in `art-manifest.json`.
  */
 const LIBRARY_ART_IDS: ArtIdIndex = artIdIndexFromTable(artIdsData as ArtIdTableFile);
+
+/** Rarity and card type of each library card, for the art rule (`scripts/art/build-deck-art-traits.ts`). */
+const LIBRARY_ART_TRAITS: Readonly<Record<string, string>> = deckArtTraits.traits;
 
 function poolLabel(formats: readonly TableFormat[], id: string): string {
   const found = formats.find((f) => f.id === id);
@@ -1407,7 +1370,7 @@ function RoomTableScreen({
             }),
           },
           colors: mainDeckColors(draftedDeck, cardIndex(myPool ?? [])),
-          artId: deckArtId(
+          art: rankDeckArt(
             draftedDeck.main.flatMap((entry) => {
               const card = byName.get(entry.card.name);
               if (card === undefined || card.manaCost.length === 0) return [];
@@ -1416,6 +1379,7 @@ function RoomTableScreen({
                   name: card.name,
                   count: entry.count,
                   manaValue: card.manaValue,
+                  traits: traitsOfDraftCard(card.rarity, card.typeLine),
                   scryfallId: card.scryfallId,
                 },
               ];
@@ -1437,7 +1401,7 @@ function RoomTableScreen({
           // A library deck is a list of NAMES on the wire, so both halves of the
           // art rule are lookups against committed data: the cost from the same
           // slice the colours come from, the id from the play board's own table.
-          artId: deckArtId(
+          art: rankDeckArt(
             d.main.flatMap((line) => {
               const cost = LIBRARY_CARD_COSTS[line.name];
               if (cost === undefined) return [];
@@ -1446,6 +1410,7 @@ function RoomTableScreen({
                   name: line.name,
                   count: line.count,
                   manaValue: manaValueOf(cost),
+                  traits: LIBRARY_ART_TRAITS[line.name] ?? 'c',
                   scryfallId: scryfallIdFor(LIBRARY_ART_IDS, line.name, ''),
                 },
               ];
@@ -1474,12 +1439,18 @@ function RoomTableScreen({
     }
     return out;
   }, [loaded]);
+  // The art is assigned here, on the list as shown, so a card one tile uses is
+  // not repeated further down — the operator, 2026-10-11.
   const shownOptions = useMemo(() => {
-    if (deckOptions === null || !freePick) return deckOptions;
-    return deckOptions.filter((o) => {
-      const era = eraOfDeck.get(o.value);
-      return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
-    });
+    if (deckOptions === null) return null;
+    const shown = !freePick
+      ? deckOptions
+      : deckOptions.filter((o) => {
+          const era = eraOfDeck.get(o.value);
+          return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
+        });
+    const artIds = assignDeckArt(shown.map((o) => o.art ?? []));
+    return shown.map((o, i) => ({ ...o, artId: artIds[i] }));
   }, [deckOptions, freePick, eraOfDeck, browse]);
 
   /**
