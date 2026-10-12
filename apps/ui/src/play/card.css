@@ -1265,7 +1265,7 @@ button.face__hit:hover .face__art {
  * under it, so an outline on it was a tall box around both, and the face read
  * as a square (the operator, 2026-10-10). Your own face keeps focus after the
  * press that closes the settings, so the next key anyone pressed drew that box
- * (`e2e/w69-avatar.spec.ts`). On your turn the ring is lit, so focus steps
+ * (`Board.test.ts`). On your turn the ring is lit, so focus steps
  * outside it.
  */
 button.face__hit:focus-visible {

@@ -4990,3 +4990,52 @@ describe('copiesIn: the ×N a pile of copies wears', () => {
     expect(copiesIn([copy(1, { tapped: true }), copy(2, { damage: 2 }), copy(3, { counters: [{ name: 'P1P1', count: 1 }] })])).toBe(3);
   });
 });
+
+/**
+ * Your own face stays a circle while it is the way into the settings — the operator, 2026-10-10:
+ * *"small bug, i notice that when clicking on my avatar to bring up the settings it causes it to
+ * become square instead of circular. why does the circle mask break?"*
+ *
+ * There is no mask: the circle is the turn ring (`.seat__ring`) around the mark. What drew the
+ * square was the face button's own focus outline — the press that closes the settings leaves focus
+ * on the face, and the next key makes it keyboard focus, which a browser outlines on the BUTTON: a
+ * column of the mark and the life under it. So the claim is the cascade on the real markup: with
+ * keyboard focus on your face the button overrides the browser's outline and the ring — a circle —
+ * carries it, with a character and with the drawn mark, on your turn (outside the lit ring) and off.
+ * jsdom draws no browser defaults, so an outline no rule mentions reads as empty here, not `none`.
+ */
+describe('your own face stays a circle when it is the way into the settings', () => {
+  for (const [who, avatarId] of [
+    ['a character', 'rogue'],
+    ['the drawn mark', undefined],
+  ] as const) {
+    it(`${who}: keyboard focus rings the mark, never the button, on your turn and off`, () => {
+      const css = styled();
+      const base = boardFromFixture(fixture);
+      const view = { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, avatarId } : p)) };
+      const { container } = render(createElement(Board, { view, onOpenSettings: () => undefined }));
+      const button = container.querySelector<HTMLElement>('[data-testid="seat-settings"]')!;
+      expect(button.querySelector(avatarId === undefined ? 'svg.face__art' : 'img.face__avatar'), `${who} is what the face draws`).not.toBeNull();
+      const seat = button.closest('[data-testid="player"]')!;
+      const ring = button.querySelector('.seat__ring')!;
+      // Keyboard focus: a key pressed, then focus on the face (a pointer press earlier in the file would make it pointer focus).
+      fireEvent.keyDown(document.body, { key: 'Tab' });
+      button.focus();
+      expect(button.matches(':focus-visible'), 'keyboard focus on the face').toBe(true);
+
+      const offsets: number[] = [];
+      for (const active of [false, true]) {
+        if (active) seat.setAttribute('data-active', '');
+        else seat.removeAttribute('data-active');
+        expect(css(button, 'outline'), 'the button (the mark and the life under it) draws no focus outline').toBe('none');
+        expect(css(ring, 'outline'), 'focus is drawn on the ring').toMatch(/\bsolid\b/);
+        expect(css(ring, 'border-radius'), 'and the ring is a circle').toBe('50%');
+        for (const el of button.querySelectorAll('*')) {
+          if (el !== ring) expect(css(el, 'outline'), `${el.getAttribute('class') ?? el.tagName} draws no outline of its own`).not.toMatch(/solid|dashed|dotted|double/);
+        }
+        offsets.push(Number.parseFloat(css(ring, 'outline-offset')));
+      }
+      expect(offsets[1], 'on your turn the focus ring steps outside the lit ring').toBeGreaterThan(offsets[0]!);
+    });
+  }
+});
