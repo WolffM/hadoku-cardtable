@@ -92,6 +92,16 @@ describe('EmbedApp', () => {
     expect(screen.queryByTestId('rooms')).toBeNull();
   });
 
+  it('sends the stats route back to the bound room, with no lobby under it', async () => {
+    render(createElement(EmbedApp, { ctx: ctx(), rooms: binder() }));
+    await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
+    act(() => navigate({ kind: 'stats', player: 'bob' }));
+    await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
+    expect(screen.queryByTestId('lobby')).toBeNull();
+    expect(screen.queryByTestId('rooms')).toBeNull();
+    expect(screen.queryByTestId('stats')).toBeNull();
+  });
+
   it('says why when the table cannot be opened', async () => {
     render(createElement(EmbedApp, { ctx: ctx(), rooms: binder({ ok: false, message: 'Could not open this room’s table: nope.' }) }));
     await waitFor(() => expect(screen.getByTestId('embed-error').textContent).toContain('nope'));

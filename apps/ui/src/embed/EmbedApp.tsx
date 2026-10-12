@@ -32,9 +32,10 @@
  * ## Routes
  *
  * In memory (`routeInMemory`, set up by `./index.tsx`), never the page's hash.
- * The routes that are not a table — the room list, the format picker, the
- * debug harness, the sound tools — go to the bound room instead: in a
- * watchparty room there is exactly one table, and "back to the lobby" means it.
+ * The routes that are not a table — the room list, the stats popout over it,
+ * the format picker, the debug harness, the sound tools — go to the bound room
+ * instead: in a watchparty room there is exactly one table, and "back to the
+ * lobby" means it.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -42,11 +43,11 @@ import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wol
 
 import { roomsClient, type RoomBindClient } from '../rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
-import { navigate, useRoute } from '../screens/route.ts';
+import { navigate, useRoute, type Route } from '../screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
 
-const NOT_A_TABLE = new Set(['lobby', 'play', 'debug', 'sounds', 'sounds-sandbox']);
+const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'play', 'debug', 'sounds', 'sounds-sandbox']);
 
 export interface EmbedAppProps {
   ctx: GameBundleContext;

@@ -21,7 +21,6 @@
  */
 import { expect, test, type Browser, type BrowserContext, type Page, type Request } from '@playwright/test';
 
-import { EMBED_HOST_PATH } from './edge.ts';
 import { EDGE_ORIGIN, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { enterMatch, makeTitled } from './play/board.ts';
@@ -216,7 +215,7 @@ test(titled('two result screens left open read nothing; one reloaded still remat
   }
 });
 
-/** The embed mounted the way watchparty mounts it, with the stats store answering 401. */
+/** The lobby, with the stats store answering 401. */
 async function statsUnder(browser: Browser, who: 'signed-out' | 'signed-in'): Promise<{ asked: string[]; page: Page; context: BrowserContext }> {
   const context = await friendContext(browser, 'alice');
   await context.route('**/session/whoami', (route) =>
@@ -229,35 +228,24 @@ async function statsUnder(browser: Browser, who: 'signed-out' | 'signed-in'): Pr
     return route.fulfill({ status: 401, json: { error: 'unauthorized' } });
   });
   const page = await context.newPage();
-  await page.goto(`${EDGE_ORIGIN}${EMBED_HOST_PATH}?roomKey=${encodeURIComponent(`aa-stats-${who}-${Date.now()}`)}&mount=manual#/host-route`);
-  await page.waitForFunction(() => 'embedHost' in window);
-  await page.evaluate(() => (window as unknown as { embedHost: { mount(): Promise<void> } }).embedHost.mount());
-  await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
-  // Open it, close it (the embed goes back to its table), three times over: each open mounts the
-  // lobby under the popout, which warms every read again. The way in is an in-table link to the stats.
+  await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
+  await expect(page.getByTestId('lobby')).toBeVisible({ timeout: 30_000 });
+  // Open it from the trophy, close it, three times over: each hover of the trophy warms every read
+  // again, and each open draws the popout's reads.
   for (let i = 0; i < 3; i += 1) {
-    await page.evaluate(() => {
-      const content = document.getElementById('slot')!.shadowRoot!.querySelector('.cardtable-chrome__content')!;
-      if (content.querySelector('[data-testid="probe-stats"]') !== null) return;
-      const link = document.createElement('a');
-      link.href = '#/stats';
-      link.textContent = 'stats';
-      link.dataset.testid = 'probe-stats';
-      content.append(link);
-    });
-    await page.getByTestId('probe-stats').click();
+    await page.getByTestId('lobby-stats').click();
     await expect(page.getByTestId('stats')).toBeVisible();
     await expect(page.getByTestId('stats')).toContainText('Sign in to see stats.', { timeout: 10_000 });
     await page.waitForTimeout(1_000);
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('stats')).toHaveCount(0);
-    await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 10_000 });
+    await page.mouse.move(0, 0);
   }
   await page.waitForTimeout(5_000);
   return { asked, page, context };
 }
 
-test('a signed-out embed never asks the stats store, and a 401 is never asked again', async ({ browser }) => {
+test('a signed-out viewer never asks the stats store, and a 401 is never asked again', async ({ browser }) => {
   test.setTimeout(3 * 60_000);
   const out = await statsUnder(browser, 'signed-out');
   try {
