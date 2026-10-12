@@ -1,0 +1,19 @@
+# The operator, 2026-10-11, casting Nissa, Vastwood Seer (ETB: search your library for a basic Forest):
+# "i dont need to see 'not offered' text in this list, it makes the list much longer than it needs to be",
+# "the text is showing: 'Nissa, Vastwood Seer - Looking at cards in from Bella's Library' this is a bit
+# ugly", and "a hangerback walker appeared on my board suddenly when i did this … i'm just searching my
+# library". Alice (seat 0) holds her main phase with Nissa in hand and three Forests to cast her; her
+# library has a creature (Serra Angel) on top and two Forests among five other cards.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Nissa, Vastwood Seer
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Serra Angel;Island;Forest;Swamp;Mountain;Forest;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
