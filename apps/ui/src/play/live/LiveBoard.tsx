@@ -279,7 +279,7 @@ import { isPacedTransport } from './pace.ts';
 import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
 import { deriveSoundEvents } from './sound-events.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
-import { isMuted, playRole, playSoundEvents, setMatchMusic, type DelayedSoundEvent } from '../../sound/index.ts';
+import { isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import {
   abortAsk,
   answerAsk,
@@ -412,6 +412,9 @@ const motionWanted = (): boolean => !(typeof matchMedia === 'function' && matchM
 function reportClient(transport: Pick<MatchTransport, 'emit'>, matchId: string, kind: ClientEvent['kind'], data: ClientEvent['data']): void {
   transport.emit(CLIENT_EVENT, { matchId, kind, data } satisfies ClientEvent);
 }
+
+/** How often the interface sound counts reach the match's log. */
+const UI_TALLY_EVERY_MS = 30_000;
 
 /** How old a coin toss may be and still sound: a fresh one, not one a reload or rejoin finds already decided. */
 const TOSS_SOUND_FRESH_MS = 15_000;
@@ -1956,6 +1959,21 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     reportSound(match, 'toss', [{ role: 'g.game-start' }]);
     // Once per toss: the turn moving on later must not sound it again.
   }, [tossAt]);
+  // The interface sounds this screen raised, folded into the log every half minute and when it closes (`takeUiTally`).
+  useEffect(() => {
+    takeUiTally(); // the lobby's clicks are not this match's
+    if (spectator) return;
+    const flush = (): void => {
+      const tally = takeUiTally();
+      if (Object.keys(tally).length === 0) return;
+      reportClient(match.transport, match.matchId, 'sound', { why: 'tally', ...tally, turn: match.view?.turn ?? -1, muted: isMuted() });
+    };
+    const timer = setInterval(flush, UI_TALLY_EVERY_MS);
+    return () => {
+      clearInterval(timer);
+      flush();
+    };
+  }, [match.matchId]);
   /*
    * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a
    * priority pass — the shockland's "pay 2 life?", the mulligan's

@@ -29,6 +29,7 @@ import {
   setMatchMusic,
   setRolePlayer,
   setScreenMusic,
+  takeUiTally,
 } from './index.ts';
 
 /** A player that records instead of sounding. The whole testing strategy. */
@@ -91,6 +92,21 @@ describe('playRole', () => {
   it('gives one stable listener per role, so a memoised tile stays memoised', () => {
     expect(roleHandler('ui.hover-card')).toBe(roleHandler('ui.hover-card'));
     expect(roleHandler('ui.hover-card')).not.toBe(roleHandler('ui.select'));
+  });
+});
+
+describe('the interface tally', () => {
+  it('counts each interface role raised, muted or not, and starts again once taken', () => {
+    recorder();
+    takeUiTally();
+    playRole('ui.hover-card');
+    playRole('ui.hover-card');
+    setMuted(true);
+    playRole('ui.lift');
+    playRole('g.tap');
+    playRole('ui.pass');
+    expect(takeUiTally()).toEqual({ 'ui.hover-card': 2, 'ui.lift': 1 });
+    expect(takeUiTally()).toEqual({});
   });
 });
 

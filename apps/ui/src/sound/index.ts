@@ -92,8 +92,27 @@ function player(): RolePlayer {
   return production;
 }
 
+/*
+ * Interface sounds raised since the last take, by role. A hover fires far too often to log one line each, so
+ * the match screen folds these counts into its log now and then (the operator, 2026-10-11, wanting "a graph of
+ * how often certain sounds are played"). `ui.pass` and `ui.prompt` are left out: each is already logged as it
+ * sounds.
+ */
+const LOGGED_ONE_BY_ONE = new Set(['ui.pass', 'ui.prompt']);
+const uiTally = new Map<string, number>();
+
+/** The interface sounds raised since the last call, and a fresh count from here. */
+export function takeUiTally(): Record<string, number> {
+  const out = Object.fromEntries(uiTally);
+  uiTally.clear();
+  return out;
+}
+
 /** Play one sound event. Silent when muted; never throws into the handler that asked. */
 export function playEvent(event: SoundEvent): void {
+  if (event.role.startsWith('ui.') && !LOGGED_ONE_BY_ONE.has(event.role)) {
+    uiTally.set(event.role, (uiTally.get(event.role) ?? 0) + 1);
+  }
   try {
     if (isMuted()) return;
     player().play(event);
