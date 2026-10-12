@@ -535,6 +535,10 @@ export interface SeatState {
 	seenAsks: Set<string>;
 	/** Armed by an input act or an ask answered under a disabled bar, disarmed by any frame for this seat; see {@link Match.armActWatch}. */
 	actWatch: NodeJS.Timeout | null;
+	/** The card of a `selectCard` the act watch is still out on, and when it went to Forge; logged as `click` when the watch ends ({@link Match.endClick}). */
+	click: { card: number; at: number } | null;
+	/** The offered set last logged for a forwarded window (`offered`), so an unchanged set is not logged again. */
+	offeredLogged: string | null;
 	/**
 	 * The live bar {@link Match.disableStaleButtons} took off this seat's screen, until Forge
 	 * shows the seat anything (`showPromptMessage`, `updateButtons`, `setSelectables`). Forge
@@ -1051,6 +1055,8 @@ export class Match {
 			unparsed: new Map(),
 			seenAsks: new Set(),
 			actWatch: null,
+			click: null,
+			offeredLogged: null,
 			staleBar: null,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
@@ -1165,7 +1171,11 @@ export class Match {
 		this.host.send(command);
 		if (command.t === 'act' && INPUT_ACTS.has(command.frame.method)) {
 			const s = this.seats[command.seat];
-			if (s !== undefined) this.armActWatch(s, 'act');
+			if (s !== undefined) {
+				this.endClick(s, 'next-act');
+				this.armActWatch(s, 'act');
+				if (command.frame.method === 'selectCard') s.click = { card: command.frame.card.id, at: this.now() };
+			}
 		}
 	}
 
@@ -1195,6 +1205,7 @@ export class Match {
 				if (this.status !== 'running') return;
 				if (s.staleBar !== null && s.asks.size === 0) this.resendWindow(s, after);
 				if (after === 'answer') return;
+				this.endClick(s, 'silence');
 				this.deps.log({ evt: 'act-unanswered', matchId: this.id, seat: s.seat, openAsks: s.asks.size });
 				this.command({ t: 'resend-pending', seat: s.seat });
 			},
@@ -1218,6 +1229,28 @@ export class Match {
 		this.send(s, bar);
 		this.deps.log({ evt: 'window-resent', matchId: this.id, seat: s.seat, after, label1: bar.label1, label2: bar.label2 });
 		this.checkWaitingOn();
+	}
+
+	/**
+	 * The `click` record: a `selectCard` this seat sent, and what came of it — `answered` when Forge
+	 * showed the seat a window or an ask for it (`ms` after the click, `by` the frame's method),
+	 * `silence` when the act watch ran out first, `next-act` when the seat acted again before either.
+	 * So "I clicked X and nothing happened" reads straight off the match log.
+	 */
+	private endClick(s: SeatState, outcome: 'answered' | 'silence' | 'next-act', frame?: unknown): void {
+		const click = s.click;
+		if (click === null) return;
+		s.click = null;
+		const by = (frame as { method?: unknown } | undefined)?.method;
+		this.deps.log({
+			evt: 'click',
+			matchId: this.id,
+			seat: s.seat,
+			card: click.card,
+			outcome,
+			ms: this.now() - click.at,
+			...(typeof by === 'string' ? { by } : {}),
+		});
 	}
 
 	private disarmActWatch(seat: number): void {
@@ -1853,7 +1886,11 @@ export class Match {
 				return;
 			case 'frame':
 				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
-				if (answersAnInput(line.frame)) this.disarmActWatch(line.seat);
+				if (answersAnInput(line.frame)) {
+					const answered = this.seats[line.seat];
+					if (answered !== undefined) this.endClick(answered, 'answered', line.frame);
+					this.disarmActWatch(line.seat);
+				}
 				if (showsAWindow(line.frame)) {
 					const shown = this.seats[line.seat];
 					if (shown !== undefined) shown.staleBar = null;
@@ -2198,12 +2235,27 @@ export class Match {
 			if (buttons !== null) this.send(s, buttons);
 		}
 		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why });
+		if (!answered) this.logOffered(s, kind);
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
 		// The one place a HELD buttons-first or prompt-first pair is finally
 		// sent (or disabled) — `wireButtonsLive` only reaches its real, final
 		// value once this runs, so this is where the other seat's own fact
 		// has to be re-checked too.
 		this.checkWaitingOn();
+	}
+
+	/**
+	 * The `offered` record: the cards Forge offers a seat (its last `setWeaklySelectable`, [] after a
+	 * clear) at a priority or payment window the seat is shown — logged only when the set differs
+	 * from the one last logged for that seat, so a quiet turn costs nothing.
+	 */
+	private logOffered(s: SeatState, kind: string): void {
+		if (kind !== 'priority' && kind !== 'payment') return;
+		const cards = [...(s.actionable ?? [])].sort((x, y) => x - y);
+		const key = cards.join(',');
+		if (key === s.offeredLogged) return;
+		s.offeredLogged = key;
+		this.deps.log({ evt: 'offered', matchId: this.id, seat: s.seat, kind, cards });
 	}
 
 	/** A held prompt pushed out by a newer frame before its bar came: forwarded undecided, never lost. */
@@ -2231,6 +2283,7 @@ export class Match {
 		if (buttons !== null) this.send(s, buttons);
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		this.deps.log({ evt: 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why: 'unpaired' });
+		this.logOffered(s, kind);
 		this.recordWindow(s, 'forwarded', kind, 'unpaired', prompt, buttons);
 		this.checkWaitingOn();
 	}
@@ -3069,6 +3122,7 @@ export class Match {
 		for (const s of this.seats) {
 			for (const callId of [...s.asks.keys()]) this.closeAsk(s, callId);
 			this.disarmActWatch(s.seat);
+			s.click = null;
 			if (s.departure !== null) clearTimeout(s.departure);
 			s.departure = null;
 		}

@@ -2951,3 +2951,57 @@ describe("a modal spell's modes are one prompt", () => {
 		expect(shown(h, 'x-mode-7')[0]?.envelope.frame).toMatchObject({ min: 1, max: 1 });
 	});
 });
+
+/**
+ * The two records that answer "X wasn't clickable" from the match log: what Forge offered at each
+ * window the seat was shown (`offered`, only when it changed), and what came of each card click
+ * (`click`, ended by the act watch's own events).
+ */
+describe('telemetry (offered, click)', () => {
+	const PRIORITY_MAIN = 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty';
+	const frameLine = (seat: number, frame: Record<string, unknown>): BridgeLine => ({ t: 'frame', seat, frame }) as BridgeLine;
+	const priorityWindow = (cards: number[]): BridgeLine[] => [
+		frameLine(0, { kind: 'notify', method: 'setWeaklySelectable', cards: cards.map((id) => ({ kind: 'card', id })) }),
+		frameLine(0, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: PRIORITY_MAIN, card: null }),
+		frameLine(0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'End Turn', enable1: true, enable2: true, focus1: true }),
+	];
+	const offered = (h: Harness) => h.logs.filter((l) => l.evt === 'offered');
+	const clicks = (h: Harness) => h.logs.filter((l) => l.evt === 'click');
+	const click = (card: number) => ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: card }, otherCardViewsToSelect: [], triggerEvent: null });
+
+	it('logs the offered cards of a forwarded priority window, sorted, and again only when the set changes', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const before = offered(h).length;
+		h.host.push(...priorityWindow([7, 3]));
+		expect(offered(h).slice(before)).toEqual([{ evt: 'offered', matchId: h.match.id, seat: 0, kind: 'priority', cards: [3, 7] }]);
+		h.host.push(...priorityWindow([3, 7]));
+		expect(offered(h).slice(before)).toHaveLength(1);
+		h.host.push(...priorityWindow([3]));
+		expect(offered(h).slice(before).map((l) => l.cards)).toEqual([[3, 7], [3]]);
+	});
+
+	it('a click Forge answers is logged with the frame that answered it and how long it took', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.fromClient(0, click(42));
+		expect(clicks(h)).toEqual([]);
+		h.host.push(frameLine(1, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: PRIORITY_MAIN, card: null }));
+		expect(clicks(h)).toEqual([]);
+		h.host.push(frameLine(0, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {2}', card: null }));
+		expect(clicks(h)).toEqual([expect.objectContaining({ seat: 0, card: 42, outcome: 'answered', by: 'showPromptMessage', ms: expect.any(Number) })]);
+	});
+
+	it('a click nothing answers is logged when the act watch runs out, and one followed by another act as `next-act`', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.fromClient(0, click(42));
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		expect(clicks(h)).toEqual([expect.objectContaining({ card: 42, outcome: 'next-act' })]);
+		h.match.fromClient(0, click(43));
+		vi.advanceTimersByTime(ACT_SILENCE_MS);
+		expect(clicks(h)).toEqual([expect.objectContaining({ card: 42, outcome: 'next-act' }), expect.objectContaining({ card: 43, outcome: 'silence', ms: ACT_SILENCE_MS })]);
+		vi.useRealTimers();
+	});
+});
