@@ -594,3 +594,29 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   `openJvmIo` in `apps/server/src/play/host.ts`. **This lane did not re-run
   either measurement** (lane Q owns no code and no suite); the numbers are lane
   E's, the mechanism is checked in the source.
+
+## Forge's game log — 2026-10-12 (lane LG)
+
+- **VERIFIED (read)** — `forge-game/.../game/GameLog.java` is an `Observable`;
+  `GameLogFormatter` (same package) subscribes to the game's event bus and
+  writes one `GameLogEntry(type, message, sourceCard)` per event it formats.
+  Entry types: `GameLogEntryType.java` (19). Forge's desktop default verbosity
+  is `MEDIUM` (`GameLogVerbosity.java`; `ForgePreferences.DEV_LOG_ENTRY_TYPE`),
+  which leaves out `PHASE`, `MANA`, `INFORMATION`, `PLAYER_CONTROL`,
+  `EFFECT_REPLACED`.
+- **VERIFIED (read)** — what Forge's log does NOT record at all: draws, tap /
+  untap, counters other than poison and rad, token creation (only the resolving
+  spell's own text says "create"), a bounce or a search as a zone change (only
+  the resolution text; `GameLogFormatter.visit(GameEventCardChangeZone)` logs
+  battlefield → graveyard / exile only), and a countered spell's move.
+- **VERIFIED (read)** — card names in log text are `CardView.toString()`,
+  `"Name (id)"` (`CardView.java:1215`), except a cast's object, which is
+  `getHostCard().getName()` with no id. A face-down card reads
+  `"Face-down card (H<hiddenId>)"`. Forge's log is written as a public record:
+  a morph cast says "Morph", a discard and a mill name their cards.
+- **VERIFIED (measured, `e2e/lg-gamelog.spec.ts` on the claws)** — the bridge's
+  `GameLogForward` observes the server's `GameLog` and rewords each entry per
+  player with `CardView.canBeShownTo` on the card as it stands when the entry
+  is written. One consequence is visible: Unsummon's resolution reads "Return a
+  card to its owner's hand" to the caster, because the Elves are already in the
+  opponent's hand when the line is written.

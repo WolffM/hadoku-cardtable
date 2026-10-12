@@ -33,6 +33,7 @@
 
 import { z } from 'zod';
 
+import { GameLogEntryTypeSchema } from './events/common.ts';
 import { JavaByteSchema, NextGameDecisionSchema, SkinPropSchema } from './refs.ts';
 
 /** The 16 Tier A method names, in `ProtocolMethod` declaration order per direction. */
@@ -106,12 +107,26 @@ export const FlashIncorrectActionSchema = z.strictObject({
   method: z.literal('flashIncorrectAction'),
 });
 
-/** `void message(String message, String title)` — IGuiGame.java:157. */
+/**
+ * A line of Forge's own game log (`forge-game/.../game/GameLog.java`), as one
+ * player may read it: its `GameLogEntryType`, and the cards it names that this
+ * player may see, by id, so a name can show that exact card. Ours, not Forge's:
+ * the server sends Forge's log through `message` (`apps/server/src/play/match.ts`'s
+ * `onGameLog`; the bridge's `GameLogForward` words it per player).
+ */
+export const GameLogLineSchema = z.strictObject({
+  type: GameLogEntryTypeSchema,
+  cards: z.array(z.strictObject({ id: z.number().int(), name: z.string() })),
+});
+export type GameLogLine = z.infer<typeof GameLogLineSchema>;
+
+/** `void message(String message, String title)` — IGuiGame.java:157. `log` is ours: see {@link GameLogLineSchema}. */
 export const MessageSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('message'),
   message: z.string(),
   title: z.string(),
+  log: GameLogLineSchema.optional(),
 });
 
 /** `void showErrorDialog(String message, String title)` — IGuiGame.java:162. */

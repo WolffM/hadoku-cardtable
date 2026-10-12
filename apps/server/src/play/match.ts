@@ -103,6 +103,7 @@ import {
 	safeParseServerFrame,
 	type ChoiceOption,
 	type ClientFrame,
+	type GameLogLine,
 	type ServerFrame,
 	type TriggerDecision,
 	YIELDING,
@@ -118,9 +119,7 @@ import {
 	onlyAnswer,
 	PAY_MANA,
 	paymentCost,
-	paymentLine,
 	PRIORITY,
-	triggerLine,
 	readPromptFacts,
 	repeatedAbilityToPlay,
 	type Payment,
@@ -417,29 +416,17 @@ export interface SeatState {
 	 * the press by ending the input, and a second one would answer the next.
 	 */
 	autoCancelled: string | null;
-	/**
-	 * This seat's open payment was CANCELLED rather than paid — by the player's own
-	 * press or by {@link Match.maybeCancelUnpayable}'s. A cancelled cast paid
-	 * nothing, so `trackPayment` owes it no `paid …` line (item 7).
-	 */
-	paymentCancelled: boolean;
 	/** How many asks were answered for this seat, and how many stops passed. */
 	autoAnswered: number;
 	autoPassed: number;
 	/** Times this seat pressed Mulligan on the opening Keep/Mulligan bar — read by the match stats. */
 	mulligans: number;
 	/**
-	 * The last few `message` lines this seat was sent — what a cast paid, and
-	 * whether full control is on. Re-sent after a snapshot so a refresh does not
-	 * lose the only record that a cost was paid.
-	 *
-	 * An auto-pass is NOT one of them any more (wave 25 §D, item 3): the phase it
-	 * named is on the turn bar and the phase rail already, and the line was ours
-	 * rather than Forge's.
+	 * The `message` lines this seat was sent — Forge's game log as this seat may
+	 * read it ({@link Match.onGameLog}), and whether full control is on. Re-sent
+	 * after a snapshot so a refresh does not lose the game's record.
 	 */
 	says: ServerFrame[];
-	/** Stack item ids this seat's stack has already shown, so each is looked at once ({@link Match.noteTriggers}). */
-	triggersSaid: Set<number>;
 	/**
 	 * Wave 34 §S4 — the host card + ability id of the last `getAbilityToPlay`
 	 * this seat was actually given an answer for, whether the browser answered
@@ -725,7 +712,7 @@ function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | nul
  * their own spell resolves — so a selection or an ask that opens mid-resolution
  * (Thirst for Knowledge's own discard, confirmed against the real jar: a
  * `setSelectables`, not an ask with a card) has no fresher signal to read.
- * `Game.Stack` lists top-first (`Match.noteTriggers`'s own note: reversing it
+ * `Game.Stack` lists top-first (reversing it
  * gives arrival order), so index 0 is the top.
  */
 function stackTopHostCardId(state: ReadonlyMap<string, WireObj>): number | null {
@@ -1002,8 +989,8 @@ export class Match {
 	private coinToss: { winner: number; at: number } | null = null;
 	/**
 	 * `Match.waitingOnFor`'s own cache: `foldFrames` is linear in a seat's
-	 * WHOLE history (`trackPayment`'s `sayToTable` callback and `noteTriggers`
-	 * already pay this once each), and `waitingOnFor` can run on every ask,
+	 * WHOLE history,
+	 * and `waitingOnFor` can run on every ask,
 	 * selection and answer-bar open or close over a long game. Re-folding a
 	 * seat whose history has not grown since the last call wastes exactly the
 	 * work this cache skips; keyed by seat, invalidated the instant that
@@ -1067,10 +1054,8 @@ export class Match {
 			highlighted: new Map(),
 			weakly: null,
 			payment: null,
-			triggersSaid: new Set(),
 			autoPaid: null,
 			autoCancelled: null,
-			paymentCancelled: false,
 			autoAnswered: 0,
 			autoPassed: 0,
 			mulligans: 0,
@@ -1647,10 +1632,6 @@ export class Match {
 		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
 		switch (frame.kind) {
 			case 'act':
-				// A Cancel under an open payment ABANDONS it, so the cost was never
-				// paid and `trackPayment` must not report one (item 7). The same note
-				// covers the player's own press and `maybeCancelUnpayable`'s.
-				if (frame.method === 'selectButtonCancel' && s.payment !== null) s.paymentCancelled = true;
 				if (frame.method === 'selectCard') s.clicked = frame.card.id;
 				if (frame.method === 'concede') this.concededBy = seat;
 				if (frame.method === 'selectButtonCancel' && s.buttons?.method === 'updateButtons' && s.buttons.label2 === 'Mulligan') s.mulligans += 1;
@@ -1908,9 +1889,7 @@ export class Match {
 	private sendState(s: SeatState, raw: StateFrame): void {
 		const projected = s.projector.project(raw) as unknown as ServerFrame;
 		s.history.push(projected);
-		this.notePaymentTaps(s, projected);
 		this.send(s, projected);
-		this.noteTriggers(s, projected);
 	}
 
 	private onLine(line: BridgeLine): void {
@@ -1958,6 +1937,9 @@ export class Match {
 				return;
 			case 'fatal':
 				this.fail(line.message);
+				return;
+			case 'log':
+				this.onGameLog(line);
 				return;
 			case 'rejected':
 			case 'stale':
@@ -2511,65 +2493,43 @@ export class Match {
 	}
 
 	/**
-	 * One observable line to a seat: what a cast paid, and whether full control is
-	 * on. **A synthesised Forge frame** — nothing downstream can tell it from one
-	 * Forge sent — so a line added here is a line every client folds. Wave 25 §D,
-	 * item 3 removed the only caller that did not earn that.
+	 * One observable line to a seat. **A synthesised Forge frame** — nothing
+	 * downstream can tell it from one Forge sent — so a line added here is a line
+	 * every client folds. `log` marks a line of Forge's own game log
+	 * ({@link Match.onGameLog}); the one line without it is the seat's own
+	 * `full control on`/`off`.
 	 */
-	private say(s: SeatState, message: string): void {
-		const frame = { kind: 'notify', method: 'message', message, title: '' } as unknown as ServerFrame;
+	private say(s: SeatState, message: string, log?: GameLogLine): void {
+		const frame = { kind: 'notify', method: 'message', message, title: '', ...(log === undefined ? {} : { log }) } as unknown as ServerFrame;
 		s.says.push(frame);
 		if (s.says.length > SAYS_KEPT) s.says.shift();
 		this.send(s, frame);
 	}
 
 	/**
-	 * One observable line to **every** seat — the table's log rather than a seat's.
+	 * One entry of Forge's own game log, to every seat, in the words the bridge
+	 * chose for that seat's player (`PlayBridge.GameLogForward`).
 	 *
-	 * Wave 28, item 11: *"log should show the whole game log not just what i've
-	 * done."* {@link Match.say} sends to one seat, and that is exactly why the
-	 * operator only ever saw their own actions. What a seat is TOLD is still
-	 * per-seat, and that is the point of the callback rather than a string: the
-	 * line is composed once per recipient, from **that recipient's own projected
-	 * history**, so a name the recipient may not know cannot ride along in it. A
-	 * broadcast built from the ACTOR's history would be a leak with a plausible
-	 * excuse, and `match.test.ts`'s `leaked(secrets, emitted)` is the oracle that
-	 * would catch it.
+	 * The operator, 2026-10-12: *"the log still sucks. there are tons of game
+	 * actions it still doesn't track."* The log was this repo's own lines — what a
+	 * payment tapped, a trigger arriving on the stack, a client-side `played …` —
+	 * re-derived from state, and nothing else. Forge already writes the whole
+	 * game's log (`GameLog`, the panel of its own desktop client); the bridge
+	 * forwards each entry as it is written.
 	 *
-	 * Not every line earns this. A seat's own preference (`full control on`) is
-	 * still {@link Match.say}: it is not something that happened in the game, and
-	 * telling the opponent when you switch it on is information about you that the
-	 * game did not create.
-	 *
-	 * ## Why this is our `say` channel and not Forge's own log
-	 *
-	 * Item 11 asks for "the whole game log", and Forge has one: `GameEventAddLog`,
-	 * which `packages/forge-wire/src/events/modelled.ts:66-71` already models with
-	 * its `GameLogEntryType` and its `sourceCard`. It does not reach us.
-	 * `bridge/PlayBridge.java:538` sends `"events": []` on **every** `applyDelta`,
-	 * deliberately — its own class comment (`:147-149`): *"events carry card names,
-	 * including the card an opponent just drew, and the Node side has no per-event
-	 * visibility rule yet."*
-	 *
-	 * So carrying Forge's log is a BRIDGE change plus a per-event visibility rule,
-	 * and neither is this lane's file. Ours is the half that can ship without one:
-	 * the events this repo synthesises itself, broadcast, with every name resolved
-	 * against the recipient. When the bridge does forward the events arm, an
-	 * `AddLog` line must be filtered by the same rule this method embodies — the
-	 * recipient's own view decides what a line may name — and `sourceCard` is
-	 * exactly the field that makes that filterable rather than a string scan.
+	 * **Hidden information is settled in the bridge, not here**: it holds the live
+	 * game, checks every card a line names against Forge's own `canBeShownTo` for
+	 * each player at the moment the line was written, and sends each player their
+	 * own wording (`text: null` when a line cannot be worded for them). This only
+	 * hands each seat the copy meant for its player.
 	 */
-	private sayToTable(line: (recipient: SeatState) => string | null): void {
+	private onGameLog(line: Extract<BridgeLine, { t: 'log' }>): void {
 		for (const s of this.seats) {
-			if (s.ai) continue;
-			const message = line(s);
-			if (message !== null) this.say(s, message);
+			if (s.ai || s.playerId === null) continue;
+			const mine = line.players.find((p) => p.player === s.playerId);
+			if (mine === undefined || mine.text === null || mine.text === '') continue;
+			this.say(s, mine.text, { type: line.type, cards: mine.cards });
 		}
-	}
-
-	/** This seat's Forge player name — shown to both seats, so never an identity. */
-	private seatName(seat: number): string {
-		return this.spec.seats[seat]?.name ?? `Seat ${seat + 1}`;
 	}
 
 	/** What this seat was last told, as the stop decisions read it (`auto.ts`). */
@@ -2888,7 +2848,6 @@ export class Match {
 		}
 		if (s.autoCancelled === cost) return;
 		s.autoCancelled = cost;
-		s.paymentCancelled = true;
 		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonCancel' } });
 		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is.
@@ -2896,24 +2855,9 @@ export class Match {
 	}
 
 	/**
-	 * A cast must never look free (#8). Forge's payment prompt names the cost
-	 * (`Pay Mana Cost: {U}`) and the lands tap under it; both vanish the moment
-	 * the spell is on the stack, so the pair is kept and said once.
-	 *
-	 * The one payment that leaves no line is one that was CANCELLED: the cast was
-	 * rolled back, nothing was paid, and the rule is "a cast must never look free",
-	 * not "every prompt must leave a line".
-	 *
-	 * **The line goes to the whole table since wave 28 (item 11).** What a
-	 * payment tapped is public: the cards are on the battlefield and their
-	 * `Tapped` flip is already in every seat's own projected delta, so the
-	 * opponent can watch the lands turn sideways whether or not a line says so.
-	 * What was NOT public before this is the pairing — which lands paid for which
-	 * cast — and that is the half the log exists to carry. Each recipient's copy
-	 * resolves the card names from **their own** folded history, so a card they
-	 * cannot name reads as `card #<id>` to them and as its name to the payer; and
-	 * the opponent's copy is attributed, because an unattributed line in a table's
-	 * log reads as your own.
+	 * The payment prompt this seat is shown, opened and closed: what the auto-pay and
+	 * auto-cancel decisions read. What a cast paid is in Forge's own game log (its
+	 * `MANA` entries, one per mana ability), which {@link Match.onGameLog} forwards.
 	 */
 	private trackPayment(s: SeatState, message: string, card: number | null): void {
 		const cost = paymentCost(message);
@@ -2922,111 +2866,14 @@ export class Match {
 				// Whose decision the payment is, settled once as it opens: the seat's own when it pays
 				// for the card whose ability this seat chose (`Payment.own`).
 				const own = s.payment?.own ?? (s.chosenAbility !== null && s.chosenAbility.hostCard === card);
-				s.payment = { cost, tapped: [], own };
-				s.paymentCancelled = false;
+				s.payment = { cost, own };
 				this.checkWaitingOn();
 			}
 			return;
 		}
-		const payment = s.payment;
+		if (s.payment === null) return;
 		s.payment = null;
 		this.checkWaitingOn();
-		if (payment === null) return;
-		// A cast that was CANCELLED paid nothing (item 7). Saying `paid 1U` for it
-		// would be the opposite of the rule this line exists for: it would make a
-		// cost that was never paid look like one that was.
-		if (s.paymentCancelled) {
-			s.paymentCancelled = false;
-			return;
-		}
-		this.sayToTable((recipient) => {
-			// The recipient's OWN state names the cards. Nothing the payer can see
-			// and the recipient cannot gets to cross over inside a string.
-			const state = foldFrames(recipient.history as unknown as StateFrame[]);
-			const tapped = payment.tapped.map((c) => ({ id: c.id, name: cardName(state, c.id) ?? c.name }));
-			return paymentLine({ cost: payment.cost, tapped }, recipient === s ? undefined : this.seatName(s.seat));
-		});
-	}
-
-	/**
-	 * A triggered ability went on the stack: say so, to the seat this delta went to.
-	 *
-	 * The operator, 2026-10-06, with Dark Confidant's upkeep trigger having just
-	 * cost a life and the log showing only lands and payments: *"the log doesn't
-	 * include triggers which is unfortunate. here i would want to see the dark
-	 * confidant triggered ability since it did happen."* Nobody presses anything
-	 * for a trigger, so none of the log's other writers ever sees one.
-	 *
-	 * Read off this seat's own projected state, which is why it needs no rule of
-	 * its own about who may know what: an id newly in `Game.Stack` whose
-	 * `StackItem` carries a real `SourceTrigger` (`StackItemView.isTrigger()` is
-	 * `> 0`; a spell or an activated ability carries -1). The line says the
-	 * item's own `Description` — the string the stack already draws for this
-	 * seat — and the card's name as this seat's folded state has it. Each seat
-	 * gets its line after the delta that put the item on its stack, so the log
-	 * never names a trigger the board has not been told about.
-	 *
-	 * `Game.Stack` and not "a new StackItem object": Forge builds stack item
-	 * views that never reach the stack (the first version of this read
-	 * `newObjects` and, against real Forge, said one Dark Confidant trigger
-	 * three times). Once per stack id per seat; ids are not reused in a game.
-	 */
-	private noteTriggers(s: SeatState, projected: ServerFrame): void {
-		if (s.ai || projected.method !== 'applyDelta') return;
-		const packet = (projected as unknown as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
-		// Only a delta that rewrites `Game.Stack` can have put anything on it.
-		let stack: number[] | null = null;
-		for (const table of [packet.newObjects, packet.objectDeltas]) {
-			for (const obj of Object.values(table)) {
-				if (obj._type !== TYPE.game) continue;
-				const list = obj.Stack as { t?: string; v?: unknown } | undefined;
-				if (list?.t !== 'list' || !Array.isArray(list.v)) continue;
-				stack = (list.v as { v?: unknown }[]).map((item) => item.v).filter((id): id is number => typeof id === 'number');
-			}
-		}
-		if (stack === null) return;
-		// Bottom of the stack first: the order they went on.
-		const arrived = stack.filter((id) => !s.triggersSaid.has(id)).reverse();
-		if (arrived.length === 0) return;
-		const state = foldFrames(s.history as unknown as StateFrame[]);
-		for (const id of arrived) {
-			// Looked at once, trigger or not.
-			s.triggersSaid.add(id);
-			const item = state.get(keyOf(TYPE.stackItem, id));
-			const read = (property: string): { t?: string; v?: unknown } | undefined => item?.[property] as { t?: string; v?: unknown } | undefined;
-			const trigger = read('SourceTrigger');
-			if (trigger?.t !== 'int' || typeof trigger.v !== 'number' || trigger.v <= 0) continue;
-			const source = read('SourceCard');
-			const description = read('Description');
-			const controller = read('ActivatingPlayer');
-			const theirs = this.seats.find((other) => other !== s && other.playerId !== null && other.playerId === controller?.v);
-			this.say(
-				s,
-				triggerLine(
-					{
-						source: source?.t === 'int' && typeof source.v === 'number' ? cardName(state, source.v) : null,
-						description: description?.t === 'str' && typeof description.v === 'string' ? description.v : '',
-					},
-					theirs === undefined ? undefined : this.seatName(theirs.seat),
-				),
-			);
-		}
-	}
-
-	/** Cards that tapped under an open payment prompt, from this seat's own projected delta. */
-	private notePaymentTaps(s: SeatState, projected: ServerFrame): void {
-		const payment = s.payment;
-		if (payment === null || projected.method !== 'applyDelta') return;
-		const packet = (projected as unknown as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
-		for (const table of [packet.newObjects, packet.objectDeltas]) {
-			for (const obj of Object.values(table)) {
-				if (obj._type !== 0) continue;
-				const tapped = obj.Tapped as { t?: string; v?: unknown } | undefined;
-				if (tapped?.t !== 'bool' || tapped.v !== true) continue;
-				if (payment.tapped.some((c) => c.id === obj._id)) continue;
-				payment.tapped.push({ id: obj._id, name: `card #${obj._id}` });
-			}
-		}
 	}
 
 	/**

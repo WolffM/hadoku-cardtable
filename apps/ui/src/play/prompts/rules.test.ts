@@ -213,13 +213,7 @@ describe('autoAnswer', () => {
     expect(autoAnswer(one)).toEqual({
       method: 'getAbilityToPlay',
       reply: { kind: 'spellAbility', id: two.abilities[0]!.id },
-      why: `ability #${two.abilities[0]!.id}`,
     });
-  });
-
-  it('names the offer’s own label when the bridge sent one — the shortcut can say what it played', () => {
-    const labelled = { ...one, abilities: [{ ...one.abilities[0]!, label: '{T}: Add {R}.' }] };
-    expect(autoAnswer(labelled)?.why).toBe('{T}: Add {R}.');
   });
 
   it('asks when there are two abilities: that is a real choice', () => {
@@ -285,7 +279,7 @@ describe('autoAnswer', () => {
     const leak = { ...base, min: 1, max: 1, choices: [bolt], selected: [] };
 
     it('answers the one spell on the stack, and says which', () => {
-      expect(autoAnswer(leak)).toEqual({ method: 'getChoices', reply: ['si-7'], why: 'Lightning Bolt' });
+      expect(autoAnswer(leak)).toEqual({ method: 'getChoices', reply: ['si-7'] });
     });
 
     it('asks when two spells are legal: that is a real choice', () => {
@@ -294,7 +288,7 @@ describe('autoAnswer', () => {
     });
 
     it('answers the optional variant too — the operator’s own question was min 0, max 1', () => {
-      expect(autoAnswer({ ...leak, min: 0 })).toEqual({ method: 'getChoices', reply: ['si-7'], why: 'Lightning Bolt' });
+      expect(autoAnswer({ ...leak, min: 0 })).toEqual({ method: 'getChoices', reply: ['si-7'] });
     });
 
     it('asks when the ask takes nothing — a display-only list is not a target', () => {

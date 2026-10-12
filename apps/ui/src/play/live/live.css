@@ -885,10 +885,9 @@
 }
 
 /*
- * Whose line it is. `sayToTable` attributes the copy it sends the OPPONENT and
- * leaves the actor's own copy unattributed, so an unattributed line in a table's
- * log reads as your own — and the marker is a leading rule rather than another
- * hue, so it stacks with the kind above instead of fighting it.
+ * Whose line it is: Forge's log opens a line with whoever did it, so a line that
+ * opens with the opponent's name is theirs — and the marker is a leading rule
+ * rather than another hue, so it stacks with the kind above instead of fighting it.
  */
 .live__log li[data-log-who='them'] {
   padding-left: 5px;

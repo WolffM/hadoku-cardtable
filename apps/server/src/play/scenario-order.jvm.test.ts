@@ -123,7 +123,7 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
-		'each upkeep trigger leaves a line in both seats’ logs: its controller’s plain, the opponent’s attributed',
+		'each upkeep trigger leaves Forge’s own log line in both seats’ logs, under its controller’s name',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 8, decks: DECKS, scenario: scenarioText('two-triggers') });
@@ -135,17 +135,12 @@ describe.skipIf(!available.ok)(title, () => {
 						.filter((x) => x.seat === seat && x.envelope.frame.method === 'message')
 						.map((x) => (x.envelope.frame as unknown as { message: string }).message)
 						.filter((m) => m.includes('triggered'));
-				// Its controller: unattributed, the card named, and Forge's own description after it.
-				const mine = said(0);
-				console.log(`[trigger-log] seat 0:\n  ${mine.join('\n  ')}\n[trigger-log] seat 1:\n  ${said(1).join('\n  ')}`);
-				expect(mine.filter((m) => m.startsWith('triggered Dark Confidant'))).toHaveLength(1);
-				expect(mine.filter((m) => m.startsWith('triggered Phyrexian Arena'))).toHaveLength(1);
-				expect(mine.find((m) => m.startsWith('triggered Dark Confidant'))).toMatch(/^triggered Dark Confidant — \S/);
-				expect(mine.join('\n'), 'the name is not said twice').not.toMatch(/Dark Confidant — Dark Confidant/);
-				// The other seat: the same two, under the controller's name.
-				const theirs = said(1);
-				expect(theirs.filter((m) => m.startsWith(`${s.names[0]} triggered Dark Confidant`))).toHaveLength(1);
-				expect(theirs.filter((m) => m.startsWith(`${s.names[0]} triggered Phyrexian Arena`))).toHaveLength(1);
+				console.log(`[trigger-log] seat 0:\n  ${said(0).join('\n  ')}\n[trigger-log] seat 1:\n  ${said(1).join('\n  ')}`);
+				// `GameLogFormatter`'s cast line for a trigger: "<controller> triggered <card>", the same words on both screens.
+				for (const seat of [0, 1]) {
+					expect(said(seat).filter((m) => m.startsWith(`${s.names[0]} triggered Dark Confidant`)), `seat ${seat}`).toHaveLength(1);
+					expect(said(seat).filter((m) => m.startsWith(`${s.names[0]} triggered Phyrexian Arena`)), `seat ${seat}`).toHaveLength(1);
+				}
 			} finally {
 				await s.stop();
 			}

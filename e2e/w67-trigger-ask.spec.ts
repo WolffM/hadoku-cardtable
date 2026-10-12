@@ -79,7 +79,7 @@ test(titled("Dark Confidant's trigger is played by the server: no getAbilityToPl
     const castWired = cast.filter((r) => r.evt === 'wire-frame' && isOffer(r));
     console.log(`[w67-trigger-ask] cast: ${castWired.length} getAbilityToPlay on alice's wire`);
     expect(castWired.length, "alice's own click on the Genju is still answered by her browser").toBeGreaterThan(0);
-    await expect(alice.page.getByTestId('live-log'), 'the log says what alice played').toContainText('played Genju of the Spires', { timeout: 10_000 });
+    await expect(alice.page.getByTestId('live-log'), 'the log says what alice played').toContainText('Alice cast Genju of the Spires', { timeout: 10_000 });
   } finally {
     await stack.stop();
   }

@@ -264,7 +264,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import type { AbortReasonSchema, ClientAction, SendYieldUpdate } from '@hadoku/forge-wire';
+import type { AbortReasonSchema, ClientAction, GameLogLine, SendYieldUpdate } from '@hadoku/forge-wire';
 
 /* ── What a host is ──────────────────────────────────────────────────── */
 
@@ -329,6 +329,12 @@ export type BridgeLine =
 	| { t: 'frame'; seat: number; frame: unknown }
 	| { t: 'probe'; probeId: string; seat: number; answer?: boolean; ms?: number; error?: string }
 	| { t: 'gameover'; winner: string | null }
+	/**
+	 * One entry of Forge's own game log (`PlayBridge.GameLogForward`), worded once
+	 * per player: `text` is null when the line names a card that player may not
+	 * see in a way the bridge could not reword; `cards` are the ones they may.
+	 */
+	| { t: 'log'; type: GameLogLine['type']; players: { player: number; text: string | null; cards: GameLogLine['cards'] }[] }
 	| { t: 'fatal'; message: string }
 	| { t: 'rejected'; message: string; command: string }
 	| { t: 'stale'; seat: number; callId: string }
@@ -442,7 +448,7 @@ export const SPARE_RETRY_MS = 5000;
 /** …and after this many such deaths in a row, not at all. */
 export const SPARE_MAX_FAILURES = 3;
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent']);
 
 /** A line from the bridge, or null for one that is not a protocol line. */
 export function parseBridgeLine(text: string): BridgeLine | null {

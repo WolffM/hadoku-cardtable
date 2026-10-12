@@ -5,9 +5,9 @@
  *
  * ## What the frames can and cannot answer
  *
- * The bridge sends `"events": []` on every delta and Forge's game log never
- * reaches us (`match.ts`, `noteTriggers`' header), so there is no "spell cast"
- * or "damage dealt" event to count. What there is: every player's and the
+ * The bridge sends `"events": []` on every delta, and Forge's game log reaches
+ * the server as worded text for the seats (`match.ts`'s `onGameLog`), not as
+ * events, so there is no "spell cast" or "damage dealt" event to count. What there is: every player's and the
  * game's tracked properties, delta by delta. So the per-game counts below are
  * folds over those properties' CHANGES —
  *

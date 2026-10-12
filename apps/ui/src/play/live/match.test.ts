@@ -1449,6 +1449,7 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
  * offered sets are affordances, and a say is not one of them.
  */
 describe('the says, and full control', () => {
+  const texts = (m: LiveMatch): string[] => m.says.map((say) => say.text);
   const says = (text: string) =>
     parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
 
@@ -1466,9 +1467,9 @@ describe('the says, and full control', () => {
       m,
       Array.from({ length: n }, (_, i) => says(`line ${i + 1}`)),
     );
-    expect(m.says).toHaveLength(n);
-    expect(m.says[0]).toBe('line 1');
-    expect(m.says.at(-1)).toBe(`line ${n}`);
+    expect(texts(m)).toHaveLength(n);
+    expect(texts(m)[0]).toBe('line 1');
+    expect(texts(m).at(-1)).toBe(`line ${n}`);
   });
 
   it('is still bounded, so a very long game cannot grow the log forever', async () => {
@@ -1478,32 +1479,42 @@ describe('the says, and full control', () => {
     // is 2000, and a per-line await would make this test absurdly slow.
     const filler = Array.from({ length: SAYS_KEPT - 1 }, (_, i) => says(`filler ${i}`));
     await sendAndApply(s, m, [says('before the cap'), ...filler]);
-    expect(m.says).toHaveLength(SAYS_KEPT);
-    expect(m.says[0]).toBe('before the cap');
+    expect(texts(m)).toHaveLength(SAYS_KEPT);
+    expect(texts(m)[0]).toBe('before the cap');
     // One more line past the cap: the oldest line is the one that goes.
     await sendAndApply(s, m, [says('one too many')]);
-    expect(m.says).toHaveLength(SAYS_KEPT);
-    expect(m.says).not.toContain('before the cap');
-    expect(m.says.at(-1)).toBe('one too many');
+    expect(texts(m)).toHaveLength(SAYS_KEPT);
+    expect(texts(m)).not.toContain('before the cap');
+    expect(texts(m).at(-1)).toBe('one too many');
   });
 
   it('a say with no text is not a line', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [says(''), says('auto-passed Upkeep step')]);
-    expect(m.says).toEqual(['auto-passed Upkeep step']);
+    expect(texts(m)).toEqual(['auto-passed Upkeep step']);
+  });
+
+  it("a line of Forge's game log keeps its entry type and the cards it names", async () => {
+    const { s, m } = await fullGame();
+    const log = { type: 'STACK_ADD' as const, cards: [{ id: 70, name: 'Opt' }] };
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'message', message: 'Alice cast Opt', title: '', log }), says('full control on')]);
+    expect(m.says).toEqual([
+      { text: 'Alice cast Opt', log },
+      { text: 'full control on', log: null },
+    ]);
   });
 
   it('a snapshot clears the log, and the lines that come after it refill it', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [says('auto-passed Upkeep step'), says('paid U — Volcanic Island')]);
-    expect(m.says).toHaveLength(2);
+    expect(texts(m)).toHaveLength(2);
 
     s.lose(says('lost')); // a gap: the client must resync, and the server re-sends its kept says
     s.send(says('after the gap'));
     await until('the resync', () => m.stats.snapshots === 2);
-    expect(m.says).toEqual([]);
+    expect(texts(m)).toEqual([]);
     await sendAndApply(s, m, [says('auto-passed Draw step')]);
-    expect(m.says).toEqual(['auto-passed Draw step']);
+    expect(texts(m)).toEqual(['auto-passed Draw step']);
   });
 
   it('a message frame offers nothing, answers nothing, and spends nothing — it is display only', async () => {
@@ -1516,7 +1527,7 @@ describe('the says, and full control', () => {
     expect(before.selectable.size).toBe(0); // mine[0] is spent; nothing else was offered
 
     await sendAndApply(s, m, [says('auto-passed Upkeep step')]);
-    expect(m.says).toEqual(['auto-passed Upkeep step']);
+    expect(texts(m)).toEqual(['auto-passed Upkeep step']);
     const after = boardInteraction(m);
     expect(after.selectable).toEqual(before.selectable);
     expect(after.selectablePlayers).toEqual(before.selectablePlayers);

@@ -169,14 +169,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p><b>Protocol.</b> Stdout carries JSON lines and nothing else — {@code System.out} is
  * pointed at stderr before Forge is touched, so Forge's own logging cannot interleave.
  * Lines out: {@code warm} (a spare only), {@code ready}, {@code frame} (a
- * {@code @hadoku/forge-wire} ServerFrame for one seat), {@code probe}, {@code gameover},
+ * {@code @hadoku/forge-wire} ServerFrame for one seat), {@code probe}, {@code gameover}, {@code log}
+ * (one entry of Forge's game log, worded per player: {@link BridgeGui.GameLogForward}),
  * {@code fatal}. Lines in: {@code start} (a spare's first line only), {@code reply},
  * {@code abort}, {@code act}, {@code probe}, {@code stop}. See {@link #main} for the
  * warm spare.
  *
  * <p><b>What is not forwarded.</b> The events arm of every {@code applyDelta} is left out:
  * events carry card names, including the card an opponent just drew, and the Node side
- * has no per-event visibility rule yet. {@code applyYieldUpdate} and the 20 protocol
+ * has no per-event visibility rule. What a player may read of the game's events is
+ * Forge's own game log, which {@code log} carries instead. {@code applyYieldUpdate} and the 20 protocol
  * methods outside the 38 a browser needs are not forwarded either. {@code sideboard} is
  * answered with {@code null} (keep the deck as it is) and reported — a one-game match
  * never asks it.
@@ -2306,6 +2308,7 @@ public final class PlayBridge {
             }
             hm.setStartGameHook(() -> {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
+                GameLogForward.install(hm.getGame());
                 ModeCounts.install(hm.getGame());
                 if (state == null) { return; }
                 state.applyToGame(hm.getGame());
@@ -2347,6 +2350,120 @@ public final class PlayBridge {
                         remote.getForwarder().flush();
                     }
                 }
+            }
+        }
+
+        /**
+         * Forge's own game log, one {@code log} line per entry, worded for each player.
+         *
+         * <p>{@code GameLog} is what Forge's desktop log panel draws: its
+         * {@code GameLogFormatter} turns the game's events into entries (a cast and its
+         * target, damage, life, combat, a land, a discard, a mill, a card put into a
+         * graveyard or exile from the battlefield, a scry, a turn) and a few effects add
+         * their own. It is an {@code Observable}, notified on the game thread as each entry
+         * is added, so this reads the game exactly as it stands when the entry was written.
+         *
+         * <p>Forge's log is written to be public, but its words carry card names the way
+         * {@code CardView.toString()} does, {@code "Name (id)"}. Each name is checked here
+         * against Forge's own visibility rule, {@code CardView.canBeShownTo}, for each player,
+         * on the card as it is NOW (a discarded card is already in the graveyard when its
+         * line is written): a card the player may see keeps its name and is listed with its
+         * id, so the browser can hand that exact card to the inspector; one they may not is
+         * "a card". A name this cannot place is never guessed at: a player who may not see
+         * that card gets no line at all ({@code text: null}).
+         *
+         * <p>{@code PHASE} entries are not sent: one per step, and the phase rail says it.
+         */
+        @SuppressWarnings("deprecation")
+        static final class GameLogForward implements java.util.Observer {
+            private static final java.util.regex.Pattern CARD_ID = java.util.regex.Pattern.compile(" \\((\\d+)\\)");
+            private final Game game;
+            private int sent;
+
+            private GameLogForward(final Game game) {
+                this.game = game;
+                this.sent = game.getGameLog().getLogEntries(null).size();
+            }
+
+            static void install(final Game game) {
+                game.getGameLog().addObserver(new GameLogForward(game));
+            }
+
+            @Override
+            public synchronized void update(final java.util.Observable o, final Object arg) {
+                // Newest first, as Forge returns it.
+                final List<forge.game.GameLogEntry> entries = game.getGameLog().getLogEntries(null);
+                for (int i = entries.size() - 1 - sent; i >= 0; i--) {
+                    forward(entries.get(i));
+                    sent++;
+                }
+            }
+
+            private void forward(final forge.game.GameLogEntry entry) {
+                if (entry.type() == forge.game.GameLogEntryType.PHASE) { return; }
+                final JsonObject o = line("log");
+                o.addProperty("type", entry.type().name());
+                final JsonArray players = new JsonArray();
+                for (final forge.game.player.Player p : game.getPlayers()) {
+                    players.add(worded(entry, p.getView()));
+                }
+                o.add("players", players);
+                emit(o);
+            }
+
+            private JsonObject worded(final forge.game.GameLogEntry entry, final PlayerView viewer) {
+                final JsonObject out = new JsonObject();
+                out.addProperty("player", viewer.getId());
+                final String message = entry.message() == null ? "" : entry.message();
+                final JsonArray cards = new JsonArray();
+                final StringBuilder text = new StringBuilder();
+                final java.util.regex.Matcher m = CARD_ID.matcher(message);
+                int at = 0;
+                while (m.find()) {
+                    final int id = Integer.parseInt(m.group(1));
+                    final forge.game.card.Card card = game.findById(id);
+                    final CardView view = card == null ? null : card.getView();
+                    final String before = message.substring(at, m.start());
+                    at = m.end();
+                    if (view == null) {
+                        // Gone from the game (a token that left the battlefield): it was public where it was.
+                        text.append(before);
+                        continue;
+                    }
+                    final String name = view.getName();
+                    final boolean placed = name != null && !name.isEmpty() && before.endsWith(name);
+                    final boolean shown = view.canBeShownTo(viewer);
+                    if (!placed && !shown) {
+                        out.add("text", JsonNull.INSTANCE);
+                        out.add("cards", new JsonArray());
+                        return out;
+                    }
+                    if (!shown) {
+                        text.append(before, 0, before.length() - name.length()).append("a card");
+                        continue;
+                    }
+                    text.append(before);
+                    if (placed) { cards.add(cardRef(id, name)); }
+                }
+                text.append(message.substring(at));
+                out.addProperty("text", text.toString());
+                final CardView source = entry.sourceCard();
+                final forge.game.card.Card host = source == null ? null : game.findById(source.getId());
+                if (host != null && host.getView().canBeShownTo(viewer)) {
+                    final String name = host.getView().getName();
+                    boolean listed = false;
+                    for (final JsonElement c : cards) { listed |= c.getAsJsonObject().get("id").getAsInt() == host.getId(); }
+                    if (!listed && name != null && !name.isEmpty() && text.indexOf(name) >= 0) { cards.add(cardRef(host.getId(), name)); }
+                }
+                out.add("cards", cards);
+                return out;
+            }
+
+            private static JsonObject cardRef(final int id, final String name) {
+                final JsonObject c = new JsonObject();
+                c.addProperty("id", id);
+                c.addProperty("name", name);
+                return c;
             }
         }
 

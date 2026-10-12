@@ -10,7 +10,7 @@
  *    Forge named something is never passed. (Wave 25 §D, item 3 stopped the pass
  *    also telling the seat in words; the log is what this run reads.)
  *  - **#8** *"i casted galvanic blast without even having mana?"* — every cast
- *    leaves a `paid …` line naming the cost and the lands that tapped for it.
+ *    leaves Forge's own `MANA` log lines, one per land that tapped for it.
  *  - **#11/#7** *"having the abilities numbered … is extremely ugly"* — the
  *    one-ability `getAbilityToPlay` asks (nine in a 3-turn run of this very
  *    scenario, each a one-item list reading `ability #243`) are the player's
@@ -211,7 +211,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
 			/** One row per priority window this seat was shown: was Forge's set empty, was it passed. */
 			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean }[] = [];
-			const says: { seat: number; message: string }[] = [];
+			const says: { seat: number; message: string; type: string | null }[] = [];
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) =>
@@ -276,7 +276,7 @@ describe.skipIf(!available.ok)(title, () => {
 					} else if (f.method === 'updateButtons') {
 						notes[seat]!.ok = f.enable1;
 					} else if (f.method === 'message') {
-						says.push({ seat, message: f.message });
+						says.push({ seat, message: f.message, type: f.log?.type ?? null });
 					}
 				},
 			});
@@ -383,7 +383,8 @@ describe.skipIf(!available.ok)(title, () => {
 
 			const names = ['A', 'B'];
 			const deadline = Date.now() + 200_000;
-			const paidSoFar = () => says.filter((x) => x.message.startsWith('paid')).length;
+			// Every seat is told every line; one seat's copy counts each payment once.
+			const paidSoFar = () => says.filter((x) => x.type === 'MANA' && x.seat === 0).length;
 			let casts = 0;
 			while (Date.now() < deadline && paidSoFar() < 2) {
 				answerAsks();
@@ -426,7 +427,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const asks = sent.filter((x) => x.envelope.frame.kind === 'ask').map((x) => x.envelope.frame);
 			// Item 3: the pass is silent, so it is counted off the log it still writes.
 			const passed = logs.filter((l) => l.evt === 'auto-passed');
-			const paid = says.filter((x) => x.message.startsWith('paid'));
+			const paid = says.filter((x) => x.type === 'MANA' && x.seat === 0);
 			console.log(
 				`[lane-c] ${casts} casts, ${stops.length} priority stops (${stops.filter((s) => s.idle).length} with nothing to do), ` +
 					`${passed.length} auto-passed, ${paid.length} payments, ${asks.length} asks reached a browser: ` +
@@ -498,37 +499,16 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(stops.filter((s) => !s.stackEmpty && s.idle && s.passed).length).toBeGreaterThan(0);
 
 			/*
-			 * #8 — a cast is never free: every payment names its cost, and the cards
-			 * that tapped for it when any did.
-			 *
-			 * Wave 21 §B. This used to demand the `— <lands>` half of EVERY line, and
-			 * a whole-suite run under load produced a bare `paid U`. That is not a
-			 * regression: it is `paymentLine`'s own documented output for a payment
-			 * nothing tapped for (`auto.ts` — "mana already in the pool, a free
-			 * spell"). Whether a payment in THIS scenario taps is thread timing's to
-			 * decide, and from the outside a bare line cannot be told apart from the
-			 * payment tracker missing the tap frames under load. So the shape that
-			 * covers both is asserted for every line, the naming rule is asserted for
-			 * every line, and which of the two occurred is REPORTED — it is not
-			 * turned into a red that means nothing.
+			 * #8 — a cast is never free: Forge's own log says each mana ability that
+			 * paid (`MagicStack.add`, a `MANA` entry per activation), and names its card
+			 * — a name, never an id, on the payer's log and the opponent's alike.
 			 */
 			expect(paid.length).toBeGreaterThanOrEqual(2);
 			for (const line of paid) {
-				// A cost, always. Lands after an em dash, or nothing at all.
-				expect(line.message, line.message).toMatch(/^paid [^ ]+( — .+)?$/);
-				// A name, not an id: the seat's own lands are named in its projection.
-				expect(line.message, line.message).not.toMatch(/card #\d+/);
+				expect(line.message, line.message).not.toMatch(/\(\d+\)|card #\d+/);
+				expect(line.message, line.message).toMatch(/\S - \S/);
 			}
-			const withLands = paid.filter((line) => / — /.test(line.message));
-			if (withLands.length === 0) {
-				console.warn(
-					`[lane-c] DID NOT HAPPEN: no payment in this run named a tapped card, so "the lands that paid are named" was not ` +
-						`exercised — every payment did name its cost. Lines: ${JSON.stringify(paid.map((x) => x.message))}. Either nothing ` +
-						`tapped (mana already in the pool) or the tracker missed the tap frames; this test cannot tell those apart.`,
-				);
-			} else {
-				console.log(`[lane-c] payments that named the cards that tapped: ${JSON.stringify(withLands.map((x) => x.message))}`);
-			}
+			expect(says.filter((x) => x.type === 'MANA' && x.seat === 1).map((x) => x.message), 'the opponent is told the same payments').toEqual(paid.map((x) => x.message));
 
 			// #11/#7 — the ability asks that reached a browser were the player's own
 			// clicks, and this driver answered each by hand through the same reply

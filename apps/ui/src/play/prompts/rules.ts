@@ -714,18 +714,11 @@ export type AutoAnswer =
   | {
       method: 'getAbilityToPlay';
       reply: ReplyOf<'getAbilityToPlay'>;
-      /**
-       * What was played, in Forge's own words: the offer's `label`. Said on the
-       * board (`../live/match.ts`'s `noteAutoAnswered`) — a shortcut nobody can see
-       * is indistinguishable from a board that swallowed the click.
-       */
-      why: string;
     }
   | {
       /** Wave 32 Q7: the one spell on the stack a counterspell can target. */
       method: 'getChoices';
       reply: ReplyOf<'getChoices'>;
-      why: string;
     };
 
 /**
@@ -764,7 +757,6 @@ export function autoAnswer(ask: AskOf<BlockingMethod>): AutoAnswer | null {
   return {
     method: 'getAbilityToPlay',
     reply: parsed.data as ReplyOf<'getAbilityToPlay'>,
-    why: only.label ?? `ability #${only.id}`,
   };
 }
 
@@ -780,5 +772,5 @@ function onlyStackTarget(ask: AskOf<'getChoices'>): AutoAnswer | null {
   if (ask.max < 1 || ask.choices.length !== 1) return null;
   const only = stackItemChoices(ask)?.[0];
   if (only === undefined || getChoicesProblems(ask, [only.key]).length > 0) return null;
-  return { method: 'getChoices', reply: [only.key], why: only.label };
+  return { method: 'getChoices', reply: [only.key] };
 }

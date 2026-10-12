@@ -1309,11 +1309,6 @@ export function isOwnMainPhaseEntry(message: string, policy: StopPolicy = DEFAUL
 
 /* ── What a cast paid ────────────────────────────────────────────────── */
 
-/** Forge's braces are a WotC symbol set; our own text says the letters (`lookup.ts` `plainRulesText`). */
-export function plainCost(cost: string): string {
-	return cost.replace(/\{T\}/g, 'Tap').replace(/\{Q\}/g, 'Untap').replace(/\{([^}]{1,5})\}/g, '$1');
-}
-
 /**
  * The cost this prompt is asking for, or null when it is not a payment prompt.
  *
@@ -1335,54 +1330,5 @@ export interface Payment {
 	 * the seat taps by hand inside it is a choice of its own and changes nothing.
 	 */
 	own: boolean;
-	/** Cards that tapped while the payment prompt was up, in the order they tapped. */
-	tapped: { id: number; name: string }[];
 }
 
-/**
- * The line a finished payment leaves behind: *"paid U — Volcanic Island"*, or
- * *"Seat 1 paid U — Volcanic Island"* once somebody other than the payer is
- * being told.
- *
- * A cast must never look free (`#8`). This is a state, not prose: the cost, and
- * the cards that paid it. A payment nothing tapped for (mana already in the
- * pool, a free spell) says only what was paid.
- *
- * `actor` is wave 28, item 11 — *"log should show the whole game log not just
- * what i've done"*. The line goes to both seats now (`match.ts`'s `sayToTable`),
- * and a table's log has to say WHO: unattributed, every seat reads the
- * opponent's payment as its own. It is the seat's Forge player name
- * (`SeatSpec.name`, *"shown to both seats, so never an identity"*), which is
- * also the name Forge's own prompts use, so the two halves of the log agree. The
- * payer's own copy is left unattributed — their own log does not need to tell
- * them who they are.
- */
-export function paymentLine(payment: Pick<Payment, 'cost' | 'tapped'>, actor?: string): string {
-	const cost = plainCost(payment.cost);
-	const who = actor === undefined || actor === '' ? '' : `${actor} `;
-	if (payment.tapped.length === 0) return `${who}paid ${cost}`;
-	return `${who}paid ${cost} — ${payment.tapped.map((c) => c.name).join(', ')}`;
-}
-
-/**
- * The line a triggered ability leaves when it goes on the stack: *"triggered
- * Dark Confidant — At the beginning of your upkeep, …"*, or *"Bella triggered
- * Dark Confidant — …"* once somebody other than its controller is being told
- * (the same attribution rule as {@link paymentLine}).
- *
- * `description` is Forge's own stack description for the item, the string the
- * stack already draws. It usually opens with the card's name
- * (`SpellAbility.getStackDescription`: `"<name> - <text>"`), which this line has
- * just said, so that opening is dropped rather than said twice.
- */
-export function triggerLine(trigger: { source: string | null; description: string }, actor?: string): string {
-	const who = actor === undefined || actor === '' ? '' : `${actor} `;
-	let text = plainCost(trigger.description).trim();
-	if (trigger.source !== null) {
-		for (const opening of [`${trigger.source} - `, `${trigger.source} — `]) {
-			if (text.startsWith(opening)) text = text.slice(opening.length).trim();
-		}
-	}
-	const what = trigger.source ?? 'an ability';
-	return text === '' ? `${who}triggered ${what}` : `${who}triggered ${what} — ${text}`;
-}

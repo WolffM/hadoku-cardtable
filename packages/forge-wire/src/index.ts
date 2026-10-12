@@ -100,6 +100,8 @@ export {
   ClearWeaklySelectableSchema,
   FlashIncorrectActionSchema,
   MessageSchema,
+  GameLogLineSchema,
+  type GameLogLine,
   ShowErrorDialogSchema,
   ShowConfirmDialogSchema,
   ShowConfirmDialogReplySchema,

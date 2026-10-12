@@ -242,6 +242,7 @@ import {
   safeParseServerFrame,
   type BlockingMethod,
   type ClientAbort,
+  type GameLogLine,
   type ServerFrame,
   YIELDING,
 } from '@hadoku/forge-wire';
@@ -356,6 +357,15 @@ export const DISCONNECT_GRACE_MS = 100;
  * whatever the server resends, which is unrelated to the number here.
  */
 export const SAYS_KEPT = 2000;
+
+/**
+ * One line of the log: its words, and — for a line of Forge's own game log —
+ * its entry type and the cards it names that this seat may see, by id.
+ */
+export interface Say {
+  text: string;
+  log: GameLogLine | null;
+}
 
 export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): MatchTransport {
   const path = options.path ?? defaultSocketPath();
@@ -543,11 +553,11 @@ export interface LiveMatch {
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
   /**
-   * The last few things SAID to this seat — `message` notifies: what was
-   * auto-passed, what a cast paid. Display only; see the module header.
-   * Newest last, capped at `SAYS_KEPT`.
+   * What was SAID to this seat — `message` notifies: Forge's own game log as
+   * this seat may read it, and whether full control is on. Display only; see
+   * the module header. Newest last, capped at `SAYS_KEPT`.
    */
-  says: string[];
+  says: Say[];
   /**
    * Forge's current actionable set, from `setWeaklySelectable` — what the
    * input that is live right now will do something with. Null: Forge has named
@@ -2217,22 +2227,6 @@ export function attackIntents(match: LiveMatch): ReadonlyMap<number, AttackInten
   return out;
 }
 
-/**
- * Say that a question answered itself — wave 20 §B, the client half of w19's
- * rule that no shortcut is silent.
- *
- * The line goes in the same log the server's own `message` notifies feed
- * (`says`, display only, capped at `SAYS_KEPT`), because to the player there is
- * no difference between "the server passed a stop for me" and "my click cast
- * the spell without asking which ability". It is not sent anywhere and does not
- * survive a snapshot; the frames that DO survive — `paid …` — are the server's.
- */
-export function noteAutoAnswered(match: LiveMatch, what: string): void {
-  match.says.push(`played ${what}`);
-  if (match.says.length > SAYS_KEPT) match.says.shift();
-  notify(match);
-}
-
 /** `showConfirmDialog`'s answer: `answerAsk` with the method filled in. */
 export function answerConfirm(match: LiveMatch, callId: string, yes: boolean): boolean {
   return answerAsk(match, callId, 'showConfirmDialog', yes);
@@ -2689,7 +2683,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // Display only — see the module header. Not an input frame, not an answer:
     // nothing below this line reads it back, on purpose.
     if (frame.message !== '') {
-      match.says.push(frame.message);
+      match.says.push({ text: frame.message, log: frame.log ?? null });
       if (match.says.length > SAYS_KEPT) match.says.shift();
     }
   } else if (frame.kind === 'notify' && frame.method === 'flashIncorrectAction') {

@@ -33,9 +33,6 @@ import {
 	isStopPhase,
 	onlyAnswer,
 	paymentCost,
-	paymentLine,
-	triggerLine,
-	plainCost,
 	readPromptFacts,
 	type SeatNotes,
 	type StopPolicy,
@@ -43,7 +40,7 @@ import {
 import { FORGE_PREFERENCES } from './host.js';
 import { createMatchRegistry, type Match } from './match.js';
 import type { ServerEnvelope } from './transport.js';
-import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
+import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
 
 /* ── The real prompt fixtures ────────────────────────────────────────── */
 
@@ -588,42 +585,10 @@ describe('decidePay, through readPromptFacts (formerly autoPayReason)', () => {
 
 /* ── What a cast paid ────────────────────────────────────────────────── */
 
-describe('the payment line', () => {
+describe('the payment prompt', () => {
 	it('reads Forge’s own payment prompt, and nothing else', () => {
 		expect(paymentCost('Preordain (70) - B scribes 2. B draws a card.\n\nPay Mana Cost: {U}')).toBe('{U}');
 		expect(paymentCost(PRIORITY_MESSAGE)).toBeNull();
-	});
-
-	it('says the cost in letters, never in WotC’s symbols', () => {
-		expect(plainCost('{2}{U}{R}')).toBe('2UR');
-		expect(plainCost('{T}: Add {R}')).toBe('Tap: Add R');
-	});
-
-	it('names the cards that paid, and says only the cost when nothing tapped', () => {
-		expect(paymentLine({ cost: '{U}', tapped: [{ id: 113, name: 'Volcanic Island' }] })).toBe('paid U — Volcanic Island');
-		expect(
-			paymentLine({
-				cost: '{1}{R}',
-				tapped: [
-					{ id: 1, name: 'Mountain' },
-					{ id: 2, name: 'Steam Vents' },
-				],
-			}),
-		).toBe('paid 1R — Mountain, Steam Vents');
-		expect(paymentLine({ cost: '{0}', tapped: [] })).toBe('paid 0');
-	});
-
-	it('says a trigger by its card and Forge’s own description, without the name twice', () => {
-		const text = 'At the beginning of your upkeep, reveal the top card of your library and put that card into your hand.';
-		expect(triggerLine({ source: 'Dark Confidant', description: `Dark Confidant - ${text}` })).toBe(`triggered Dark Confidant — ${text}`);
-		expect(triggerLine({ source: 'Dark Confidant', description: text }, 'Bella'), 'attributed for everyone but its controller').toBe(
-			`Bella triggered Dark Confidant — ${text}`,
-		);
-		expect(triggerLine({ source: 'Prodigal Pyromancer', description: 'Prodigal Pyromancer - {T}: deals 1 damage' }), 'letters, never symbols').toBe(
-			'triggered Prodigal Pyromancer — Tap: deals 1 damage',
-		);
-		expect(triggerLine({ source: 'Dark Confidant', description: '' })).toBe('triggered Dark Confidant');
-		expect(triggerLine({ source: null, description: 'Draw a card.' }), 'a card this seat cannot name').toBe('triggered an ability — Draw a card.');
 	});
 });
 
@@ -1164,94 +1129,44 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.logs.filter((l) => l.evt === 'prompt-forwarded' && l.kind === 'payment')).toHaveLength(1);
 	});
 
-	it('says what a cast paid, naming the lands that tapped, once the payment prompt ends', () => {
-		const h = harness();
-		// The rest of the real transcript, so the seat holds named cards of its own.
-		h.host.push(...TRANSCRIPT.slice(OPENING.length));
-		const me = playerOf(h, 0);
-		// A card this seat already holds, from the real transcript's own state.
-		const tapped = firstOwnCard(h, 0);
-		push(h, 0, prompt('Preordain - scribes 2.\n\nPay Mana Cost: {U}', me));
-		push(h, 0, {
-			kind: 'notify',
-			method: 'applyDelta',
-			payload: {
-				packet: {
-					seq: 9001,
-					checksum: 0,
-					checksumProperties: [],
-					newObjects: {},
-					objectDeltas: { [String(tapped.key)]: { _type: 0, _id: tapped.id, Tapped: { t: 'bool', v: true } } },
-					events: [],
-				},
-			},
-		});
-		expect(says(h, 0).filter((l) => l.startsWith('paid'))).toEqual([]);
-		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
-		expect(says(h, 0).filter((l) => l.startsWith('paid'))).toEqual([`paid U — ${tapped.name}`]);
-	});
-
 	/*
-	 * Item 11, wave 28, the server half: *"log should show the whole game log not
-	 * just what i've done."* `say` sends to ONE seat, which is exactly why the
-	 * operator only ever saw their own actions. The payment line is the one event
-	 * this repo synthesises, so it is the one that could be made the table's.
-	 *
-	 * The mutation target is `sayToTable` in `match.ts`: put the payment line back
-	 * on `say` and seat 1's assertions here go red.
+	 * The log is Forge's own game log: the bridge words each entry once per player
+	 * (`PlayBridge.GameLogForward`, which settles what each may see) and the match
+	 * hands each seat the copy for its own player, nothing else.
 	 */
-	it('item 11 — a payment line reaches the WHOLE table, attributed, and names only what the recipient can see', () => {
+	it("hands each seat Forge's log line in its own player's words, with the cards it may see", () => {
 		const h = harness();
-		h.host.push(...TRANSCRIPT.slice(OPENING.length));
-		const me = playerOf(h, 0);
-		const tapped = firstOwnCard(h, 0);
-		push(h, 0, prompt('Preordain - scribes 2.\n\nPay Mana Cost: {U}', me));
-		push(h, 0, {
-			kind: 'notify',
-			method: 'applyDelta',
-			payload: {
-				packet: {
-					seq: 9101,
-					checksum: 0,
-					checksumProperties: [],
-					newObjects: {},
-					objectDeltas: { [String(tapped.key)]: { _type: 0, _id: tapped.id, Tapped: { t: 'bool', v: true } } },
-					events: [],
-				},
-			},
-		});
-		push(h, 0, prompt(MY_STOP_MESSAGE, me));
-
-		// The payer's own copy is unattributed — their own log need not tell them
-		// who they are — and names the card, because they can see it.
-		expect(says(h, 0).filter((l) => l.includes('paid'))).toEqual([`paid U — ${tapped.name}`]);
-
-		// The opponent gets the same EVENT, which is the whole of item 11's server
-		// half, and it says who: an unattributed line in a table's log reads as
-		// your own.
-		const theirs = says(h, 1).filter((l) => l.includes('paid'));
-		expect(theirs).toHaveLength(1);
-		expect(theirs[0]?.startsWith('Seat 1 paid U — ')).toBe(true);
-
-		// And the leak rule, which is what makes the broadcast shippable: the line
-		// is composed from the RECIPIENT's own folded history, so a card seat 1
-		// never saw reads as `card #<id>` to them while reading as its name to seat
-		// 0. Nothing crosses over inside a string.
-		expect(theirs[0]).toBe(`Seat 1 paid U — card #${tapped.id}`);
-		expect(theirs[0]?.includes(tapped.name)).toBe(false);
-		// The oracle agrees, over everything seat 1 was actually sent.
-		const { secrets } = secretsFor(rawStatesOf(TRANSCRIPT, 1), 1);
-		expect(leaked(secrets, JSON.stringify(frames(h, 1)))).toEqual([]);
+		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
+		h.host.push({
+			t: 'log',
+			type: 'STACK_ADD',
+			players: [
+				{ player: p0, text: 'Seat 1 cast Opt', cards: [{ id: 70, name: 'Opt' }] },
+				{ player: p1, text: 'Seat 1 cast Opt', cards: [{ id: 70, name: 'Opt' }] },
+			],
+		} as never);
+		h.host.push({
+			t: 'log',
+			type: 'DISCARD',
+			players: [
+				{ player: p0, text: 'Seat 1 discards Island.', cards: [{ id: 71, name: 'Island' }] },
+				{ player: p1, text: null, cards: [] },
+			],
+		} as never);
+		expect(says(h, 0)).toEqual(['Seat 1 cast Opt', 'Seat 1 discards Island.']);
+		expect(says(h, 1), 'a line the bridge could not word for this player is not sent').toEqual(['Seat 1 cast Opt']);
+		const sent = frames(h, 0).filter((f) => f.method === 'message');
+		expect(sent.map((f) => (f as { log?: unknown }).log)).toEqual([
+			{ type: 'STACK_ADD', cards: [{ id: 70, name: 'Opt' }] },
+			{ type: 'DISCARD', cards: [{ id: 71, name: 'Island' }] },
+		]);
 	});
 
-	it('keeps its lines across a refresh: a snapshot re-sends them before the prompt', () => {
+	it('keeps its lines across a refresh: a snapshot re-sends them', () => {
 		const h = harness();
-		const me = playerOf(h, 0);
-		// The payment line is the one that MUST survive a refresh — it is the only
-		// record that a cost was paid (#8). The auto-pass no longer says anything.
-		push(h, 0, prompt('Preordain.\n\nPay Mana Cost: {U}', me));
-		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
-		expect(says(h, 0)).toEqual(['paid U']);
+		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
+		h.host.push({ t: 'log', type: 'TURN', players: [p0, p1].map((player) => ({ player, text: 'Turn 2 (Seat 2)', cards: [] })) } as never);
+		expect(says(h, 0)).toEqual(['Turn 2 (Seat 2)']);
 		const before = frames(h, 0).length;
 		h.match.resendAfterSnapshot(0);
 		expect(frames(h, 0).slice(before).filter((f) => f.method === 'message')).toHaveLength(1);
@@ -1549,30 +1464,6 @@ describe('the per-run Forge preferences', () => {
 	});
 });
 
-/** A card the seat's own projected state names — so the payment line can name it too. */
-function firstOwnCard(h: Harness, seat: number): { id: number; key: number; name: string } {
-	const snapshot = h.match.snapshot(seat);
-	if (!('frames' in snapshot)) throw new Error(snapshot.error);
-	for (const frame of snapshot.frames) {
-		const tables =
-			frame.method === 'setGameView'
-				? [frame.payload.gameView]
-				: frame.method === 'applyDelta'
-					? [frame.payload.packet.newObjects, frame.payload.packet.objectDeltas]
-					: [];
-		for (const table of tables) {
-			for (const [, obj] of Object.entries(table as Record<string, Record<string, unknown>>)) {
-				if (obj._type !== 4) continue;
-				const name = obj.Name as { t?: string; v?: unknown } | undefined;
-				if (name?.t !== 'str' || typeof name.v !== 'string' || name.v === '') continue;
-				const cardId = Math.floor((obj._id as number) / 16);
-				return { id: cardId, key: ((0 << 28) | (cardId & 0x0fffffff)) >>> 0, name: name.v };
-			}
-		}
-	}
-	throw new Error(`seat ${seat} was sent no named card`);
-}
-
 /* ── Wave 24 §E: the model, and the three things it must never shortcut ── */
 
 /*
@@ -1644,8 +1535,7 @@ describe('the adapter is the ONLY prose reader, and it is named', () => {
 	 * The guard §0b asks for, mechanically: every ANCHORED pattern — the shape
 	 * that reads one of Forge's prompt lines — lives inside the adapter. A lane
 	 * that adds "one more case" to a decision has to add it where this test can
-	 * see it. `plainCost`'s three patterns are not anchored and are not
-	 * decisions: they rewrite WotC's braces for a line the seat is shown.
+	 * see it.
 	 */
 	it('every anchored pattern in the file is inside the adapter', () => {
 		// `PRIORITY`/`PAY_MANA` are exported for `match.ts`: still inside the adapter, still one copy.
@@ -2386,40 +2276,6 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
 			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonCancel' } },
 		]);
-	});
-
-	/*
-	 * A cancelled cast paid nothing, and `paid 1U` for it would be the exact
-	 * opposite of the rule that line exists for (#8: a cast must never look free).
-	 */
-	it('leaves no "paid" line behind: a rollback is not a payment', () => {
-		const h = harness();
-		unpayable(h, 0);
-		// Forge rolls the cast back and the seat is at priority again.
-		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), playerOf(h, 0)));
-		expect(says(h, 0)).toEqual([]);
-	});
-
-	it('and the same for the player’s OWN Cancel, which is the same rollback', () => {
-		const h = harness();
-		const me = playerOf(h, 0);
-		const cancel = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' });
-		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
-		push(h, 0, autoBar(true, me));
-		push(h, 0, prompt('Mana Leak.\n\nPay Mana Cost: {1}{U}', me));
-		expect(h.match.fromClient(0, cancel)).toEqual({ ok: true });
-		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
-		expect(says(h, 0)).toEqual([]);
-	});
-
-	it('still says what a payment that FINISHED paid', () => {
-		const h = harness();
-		const me = playerOf(h, 0);
-		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
-		push(h, 0, autoBar(true, me));
-		push(h, 0, prompt('Preordain.\n\nPay Mana Cost: {U}', me));
-		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
-		expect(says(h, 0)).toEqual(['paid U']);
 	});
 });
 

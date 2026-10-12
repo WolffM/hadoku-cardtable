@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { parseServerFrame } from '@hadoku/forge-wire';
+import { parseServerFrame, type GameLogLine } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
 import { setRolePlayer } from '../../sound/index.ts';
 import type { SoundEvent } from '../../sound/mix.ts';
@@ -819,7 +819,6 @@ describe('the says, the toggle, and the ability label', () => {
   it('an offer with ONE ability is answered without drawing anything', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const hostName = m.view!.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === mine[0])!.card.name;
     s.send(
       parseServerFrame({
         kind: 'ask',
@@ -838,38 +837,8 @@ describe('the says, the toggle, and the ability label', () => {
     // Nothing was ever drawn for it, and nothing is left open.
     expect(queryByTestId('live-prompt')).toBeNull();
     expect(m.asks).toEqual([]);
-    // The card's name leads, with its short ability label beside it — not the
-    // ability text alone. The braces are said in words at the draw
-    // (`plainRulesText`), as every other says line is.
-    expect(m.says).toContain(`played ${hostName} — {T}: Add {R}.`);
-  });
-
-  /*
-   * A modal spell's offered ability carries its whole mode menu as the label
-   * (Forge's own "cost then description"), which is too long to read as a
-   * caption next to the card's name — so the log keeps the name and drops the
-   * mode text rather than letting it crowd the name out.
-   */
-  it('a modal spell’s auto-answer logs the card’s name, never its whole mode text', async () => {
-    const { s, m, queryByTestId } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const hostName = m.view!.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === mine[0])!.card.name;
-    const modeText =
-      'Choose two — • Prevent all damage that would be dealt to you this turn. • Target player discards a card.';
-    s.send(
-      parseServerFrame({
-        kind: 'ask',
-        callId: 'fx-modal',
-        method: 'getAbilityToPlay',
-        hostCard: { kind: 'card', id: mine[0]! },
-        abilities: [{ kind: 'spellAbility', id: 9003, label: modeText }],
-        triggerEvent: null,
-      }),
-    );
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(queryByTestId('live-prompt')).toBeNull();
-    expect(m.says).toContain(`played ${hostName}`);
-    expect(m.says.some((line) => line.includes(modeText))).toBe(false);
+    // The browser writes nothing to the log itself: what was played is Forge's own log line.
+    expect(m.says).toEqual([]);
   });
 
   it('full control makes that same one-ability offer a question again', async () => {
@@ -2371,30 +2340,34 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
 /* ── §A.11 — the log, as something you can read ──────────────────────── */
 
 /**
- * The render half of item 11. Lane B shipped the server half at `2cb7293`:
- * `sayToTable` composes each line once per recipient from that recipient's own
- * folded history, so the whole table's events reach both seats and a name the
- * recipient may not know cannot ride along. This is what the result LOOKS like.
+ * The render half of the log. The lines are Forge's own game log, worded per
+ * player by the bridge (`PlayBridge.GameLogForward`); this is what they LOOK like.
  */
 describe('§A.11 — the log is coloured by what happened, and its card names reveal the card', () => {
   const says = (text: string) => parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
+  /** A line of Forge's own game log, as the server sends it. */
+  const logged = (text: string, type: GameLogLine['type'], cards: GameLogLine['cards'] = []) =>
+    parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '', log: { type, cards } });
   const lines = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-testid="live-log"] li')];
 
-  it('marks each line with its kind, and each kind has an ink of its own', async () => {
+  it('marks each line with its kind, from Forge’s own entry type, and each kind has an ink of its own', async () => {
     const { s, container } = await liveBoard();
     for (const f of [
-      says('paid U — Volcanic Island'),
-      says('Fire Urchin deals 2 damage to Goblin Replica'),
+      logged('Volcanic Island - Add U.', 'MANA'),
+      logged('Fire Urchin deals 2 damage to Goblin Replica.', 'DAMAGE'),
       says('full control on'),
-      says('played Island'),
+      logged('Alice played Island', 'LAND'),
+      logged('Alice cast Opt', 'STACK_ADD'),
       says('nothing in particular'),
-      says('triggered Dark Confidant — You lose life equal to its mana value.'),
-      says('Bob triggered Fire Urchin — deals 1 damage to you'),
+      logged('Bob triggered Fire Urchin', 'STACK_ADD'),
+      logged('Life: Bob 20 > 17', 'LIFE'),
+      logged('Bob discards Island.', 'DISCARD'),
     ]) {
       s.send(f);
     }
-    await waitFor(() => expect(lines(container)).toHaveLength(7));
-    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['payment', 'damage', 'control', 'play', 'said', 'trigger', 'trigger']);
+    await waitFor(() => expect(lines(container)).toHaveLength(9));
+    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['payment', 'damage', 'control', 'play', 'play', 'said', 'trigger', 'life', 'said']);
+    expect(lines(container).map((li) => li.dataset.logType ?? null)).toEqual(['MANA', 'DAMAGE', null, 'LAND', 'STACK_ADD', null, 'STACK_ADD', 'LIFE', 'DISCARD']);
     /*
      * Colour is never the only signal — the words are, and always were. These are
      * tints on the text rather than badges, so a log read with no colour at all
@@ -2407,15 +2380,30 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     }
   });
 
-  it('tells the table’s lines from your own, by the attribution the server already puts on them', async () => {
+  it('tells the table’s lines from your own, by the player Forge’s line opens with', async () => {
     const { s, m, container } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
     const them = m.view!.players.find((p) => !p.isViewer)!;
-    s.send(says('paid U — Volcanic Island'));
-    s.send(says(`${them.name} paid R — Mountain`));
+    s.send(logged(`${me.name} played Island`, 'LAND'));
+    s.send(logged(`${them.name} played Mountain`, 'LAND'));
     await waitFor(() => expect(lines(container)).toHaveLength(2));
-    // `sayToTable` attributes the OPPONENT's copy and leaves the actor's own
-    // unattributed, so an unattributed line is by construction your own doing.
     expect(lines(container).map((li) => li.dataset.logWho)).toEqual(['you', 'them']);
+  });
+
+  it('a card a Forge log line names is a hover target for THAT card, by its own id', async () => {
+    const { s, m, container } = await liveBoard();
+    const islands = m.view!.players.flatMap((p) => [...(p.hand ?? []), ...p.battlefield]).filter((c) => c.card.name === 'Island').map((c) => c.id);
+    expect(islands.length).toBeGreaterThan(0);
+    const named = islands.at(-1)!;
+    s.send(logged('Island - Add U.', 'MANA', [{ id: named, name: 'Island' }]));
+    await waitFor(() => expect(lines(container)).toHaveLength(1));
+    const name = lines(container)[0]!.querySelector<HTMLElement>('.live__log-card')!;
+    expect(name.dataset.logCard).toBe('Island');
+    expect(Number(name.dataset.inspectIds!.split(',')[0]), 'the named card first, for the inspector').toBe(named);
+    // A name Forge's line did not list is plain text, even when the board holds a card of that name.
+    s.send(logged('Bob discards Island.', 'DISCARD', []));
+    await waitFor(() => expect(lines(container)).toHaveLength(2));
+    expect(lines(container)[1]!.querySelectorAll('.live__log-card')).toHaveLength(0);
   });
 
   it('a card name the viewer’s own board holds is a tab stop, and hovering it draws the card through the inspector', async () => {

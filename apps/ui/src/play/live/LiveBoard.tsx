@@ -33,9 +33,9 @@
  * choice shouldn't require this dialog at all"* (wave 20, item 4), and the
  * whole of their *"'choose ability' often needs the click TWICE"* (item 9),
  * because Forge asks that offer twice for one `selectCard` and both copies now
- * answer themselves. The reply goes through `answerAsk` like any other and the
- * board SAYS what it played (`noteAutoAnswered`), so the shortcut is visible;
- * nothing is drawn for it, not even for a frame. `match.fullControl` turns it
+ * answer themselves. The reply goes through `answerAsk` like any other, and what
+ * it played is in Forge's own game log like any cast, so the shortcut is
+ * visible; nothing is drawn for it, not even for a frame. `match.fullControl` turns it
  * off and the picker comes back.
  *
  * ## Clicks on the board
@@ -79,14 +79,13 @@
  *
  * ## The says
  *
- * Lane C's server says a thing to the seat when it acts for it —
- * "auto-passed Upkeep step", "paid U — Volcanic Island" — because an
- * auto-pass nobody can see is indistinguishable from a board that froze
- * (§C.2), and a cast that shows no payment looks free (#8). Those arrive as
- * Tier-A `message` notifies; `match.says` holds the last few (`SAYS_KEPT`) and
- * the logbook draws all of them — the cluster's fixed two-line slot was the
- * only reason it ever drew fewer. A say is a state, not prose — it is rendered
- * exactly as sent, braces said in words like every other rules text.
+ * The log is Forge's own game log: every entry Forge writes (a cast and its
+ * target, a trigger, damage, life, combat, a land, a discard, a mill, a card
+ * dying or exiled, a scry, the mana that paid, a turn), worded for this seat by
+ * the bridge (`PlayBridge.GameLogForward`, which keeps a card this seat may not
+ * see out of it). They arrive as Tier-A `message` notifies carrying a `log`
+ * (`GameLogLineSchema`); `match.says` holds them (`SAYS_KEPT`) and the logbook
+ * draws all of them, braces said in words like every other rules text.
  *
  * ## The overlays have a blocking, and it is the operator's own (wave 26 §B)
  *
@@ -254,7 +253,7 @@
 import { Component, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, type ClientEvent, type DraftCard } from '@hadoku/shared';
-import { YIELDING } from '@hadoku/forge-wire';
+import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { navigate, routeHash } from '../../screens/route.ts';
@@ -264,12 +263,12 @@ import { tablesClient, type RoomTable, type StartOutcome } from '../../screens/t
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
-import { lookupFromState, plainRulesText, promptText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
+import { lookupFromState, plainRulesText, promptText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
 import { promptTileFor } from '../prompts/PromptShell.tsx';
-import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
+import { autoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
 import { stackAsk } from './gestures/stack.ts';
@@ -298,7 +297,6 @@ import {
   isAutoYieldOn,
   liveBar,
   nothingToDecide,
-  noteAutoAnswered,
   choosingMulligan,
   clickCard,
   payingMana,
@@ -319,6 +317,7 @@ import {
   type LiveClickables,
   type LiveMatch,
   type MatchTransport,
+  type Say,
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { StopPhaseSchema, type StopPhase } from './transport.ts';
@@ -809,36 +808,6 @@ function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
 }
 
 /**
- * How long `AutoAnswer.why` may be before the logged line keeps it beside the
- * card's name rather than in place of it.
- *
- * `why` is Forge's own `SpellAbilityView.toString()` (`tier-b.ts`'s
- * `OfferedAbilitySchema` note: "cost then description"). For an ordinary mana
- * ability that is a few words ("Tap: Add R."); for a MODAL spell it is the
- * whole mode menu ("Choose two — • Prevent all damage… • …"). The cutoff is
- * chosen so the first survives beside the name and the second does not.
- */
-const AUTO_ABILITY_LOG_MAX = 40;
-
-/**
- * What `noteAutoAnswered` logs for an auto-answered ask — the host card's
- * NAME, from the prompt lookup, with the ability's own label beside it only
- * when that label is short enough to read as a caption rather than take over
- * the line. Never the ability text alone: a modal spell's `why` is its whole
- * mode text and the card's name is what belongs in a one-line log.
- *
- * `getChoices` (the lone-stack-target auto-answer, `onlyStackTarget` in
- * `rules.ts`) is untouched: its `why` is already a stack item's own label — a
- * spell's name — so there is no ability text to crowd it out.
- */
-function autoAnsweredLine(ask: LiveAsk, auto: AutoAnswer, lookup: PromptLookup): string {
-  if (ask.method !== 'getAbilityToPlay' || auto.method !== 'getAbilityToPlay') return auto.why;
-  const name = lookup.card(ask.hostCard.id)?.name;
-  if (name === null || name === undefined || name === '') return auto.why;
-  return auto.why.length <= AUTO_ABILITY_LOG_MAX ? `${name} — ${auto.why}` : name;
-}
-
-/**
  * How many of the held says the logbook draws: all of them.
  *
  * It was 2 while the log lived in the control cluster, because the cluster's box
@@ -852,33 +821,14 @@ const SAYS_SHOWN = SAYS_KEPT;
 /* ── the log, as something you can read (wave 28 §A.11, render half) ──── */
 
 /**
- * What KIND of thing a log line reports.
+ * What KIND of thing a log line reports, which `live.css` colours.
  *
- * The operator, 2026-09-28: *"log should show the whole game log not just what
- * i've done … properly color things based on what happened like damage taken …
- * any cardnames should be hoverable and show what card it is."* Lane B shipped
- * the first clause — `match.ts`'s `sayToTable` composes a line once per
- * recipient, from that recipient's own folded history, so the whole table's
- * events reach both seats without a name crossing that the recipient may not
- * know. This is the rest of it.
- *
- * **The vocabulary is small and it is ours, which is why classifying it by its
- * words is honest here and would not be in general.** Every line on this channel
- * is a `message` notify, and there are five writers of them in the whole repo:
- * `paid …` and `<seat> paid …` (`auto.ts`'s `paymentLine`), `triggered …` and
- * `<seat> triggered …` (`auto.ts`'s `triggerLine`), `full control
- * on`/`off` (`match.ts`'s own `say`), `played …` (this client's
- * `noteAutoAnswered`), and whatever Forge itself sends through `showMessage`.
- * Only the last is out of our hands, and it falls to `said`, which is the
- * default and is styled as plain text.
- *
- * **Forge's own game log cannot reach us today**, so there is no richer source
- * to classify: `GameEventAddLog` is modelled in `packages/forge-wire` and
- * `bridge/PlayBridge.java:538` sends `"events": []` on every delta on purpose,
- * because per-event visibility rules do not exist yet. When they do, an
- * `AddLog` arrives with a `GameLogEntryType` and a `sourceCard` — a KIND and a
- * card id, structured — and this function is the thing it replaces rather than
- * something it has to be bent into.
+ * The operator, 2026-09-28: *"properly color things based on what happened like
+ * damage taken … any cardnames should be hoverable and show what card it is."*
+ * A line of Forge's own log carries its `GameLogEntryType`, so the kind is read
+ * off that and never off the words. The one line that is not Forge's is the
+ * seat's own `full control on`/`off` (`control`); anything else Forge says
+ * through `message` falls to `said`.
  */
 type LogKind = 'payment' | 'trigger' | 'damage' | 'life' | 'play' | 'control' | 'said';
 
@@ -929,15 +879,19 @@ function offersSecondButton(match: LiveMatch): boolean {
 
 
 
-function logKind(line: string): LogKind {
-  if (/^full control (on|off)$/.test(line)) return 'control';
-  // Ahead of the rest: a trigger's own text may say "damage" or "life", and the line is still the trigger's.
-  if (/^(?:.+ )?triggered /.test(line)) return 'trigger';
-  if (/\bpaid\b/.test(line)) return 'payment';
-  if (/\bdamage\b|\bdeals?\b/i.test(line)) return 'damage';
-  if (/\blife\b|\bgains?\b|\bloses\b/i.test(line)) return 'life';
-  if (/\b(played|casts?|plays)\b/i.test(line)) return 'play';
-  return 'said';
+const KIND_BY_TYPE: Partial<Record<GameLogLine['type'], LogKind>> = {
+  DAMAGE: 'damage',
+  LIFE: 'life',
+  MANA: 'payment',
+  LAND: 'play',
+  STACK_ADD: 'play',
+};
+
+function logKind(say: Say): LogKind {
+  if (say.log === null) return /^full control (on|off)$/.test(say.text) ? 'control' : 'said';
+  // A trigger is Forge's cast line too ("<player> triggered <card>"): the one STACK_ADD told apart by its verb.
+  if (say.log.type === 'STACK_ADD' && /^\S+ triggered /.test(say.text)) return 'trigger';
+  return KIND_BY_TYPE[say.log.type] ?? 'said';
 }
 
 /**
@@ -1071,15 +1025,15 @@ function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (str
  *
  *  - `data-log-kind`, which `live.css` colours. Damage is the one the operator
  *    named; it is not the only one that is worth telling apart at a glance.
- *  - `data-log-who`, `them` when the line opens with the OTHER seat's name.
- *    `sayToTable` attributes the copy it sends the opponent and leaves the
- *    actor's own copy unattributed, so a line that starts with a seat name is by
- *    construction someone else's doing — and an unattributed line in a table's
- *    log reads as your own, which is the thing this marks.
+ *  - `data-log-type`, Forge's own `GameLogEntryType` for a line of its log.
+ *  - `data-log-who`, `them` when the line opens with the OTHER seat's name:
+ *    Forge's log names who did a thing first, so a line that opens with the
+ *    opponent's name is their doing.
  *  - a card name is HOVERABLE and shows the card — THROUGH THE INSPECTOR, not a
  *    surface of its own (wave 31 P12: *"we shouldn't even create a separate hover
- *    display just use the existing one"*). The name carries `data-inspect-ids`,
- *    the forge ids of every card of that name in the view, and
+ *    display just use the existing one"*). The name carries `data-inspect-ids`:
+ *    for a line of Forge's log, the id of the very card it names first; then
+ *    the forge ids of every card of that name in the view; and
  *    `../inspect/index.ts` — which listens on the document — enlarges the tile the
  *    board already drew for the first of them. A name whose cards have no tile
  *    on the page (a zone the board draws as a count, a card hidden from this
@@ -1088,21 +1042,29 @@ function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (str
  *    inspector answers focus as it answers hover.
  */
 function LogLine({
-  line,
+  say,
   cards,
   ids,
   theirName,
 }: {
-  line: string;
+  say: Say;
   cards: ReadonlyMap<string, DraftCard>;
   ids: ReadonlyMap<string, readonly number[]>;
   theirName: string | null;
 }) {
-  const text = plainRulesText(line);
+  const text = plainRulesText(say.text);
   const mine = theirName === null || !text.startsWith(`${theirName} `);
+  // A line of Forge's log names its cards by id: those, and only those, are the hover targets.
+  const named = say.log === null ? null : new Map(say.log.cards.map((c) => [c.name.toLowerCase(), c]));
+  const own = named === null ? cards : new Map([...named.values()].map((c) => [c.name.toLowerCase(), { name: c.name } as DraftCard]));
+  const idsOf = (name: string): readonly number[] => {
+    const key = name.toLowerCase();
+    const ref = named?.get(key);
+    return ref === undefined ? (ids.get(key) ?? []) : [ref.id, ...(ids.get(key) ?? []).filter((id) => id !== ref.id)];
+  };
   return (
-    <li data-log-kind={logKind(text)} data-log-who={mine ? 'you' : 'them'}>
-      {splitLogLine(text, cards).map((piece, i) =>
+    <li data-log-kind={logKind(say)} data-log-type={say.log?.type} data-log-who={mine ? 'you' : 'them'}>
+      {splitLogLine(text, own).map((piece, i) =>
         typeof piece === 'string' ? (
           <span key={i}>{piece}</span>
         ) : (
@@ -1110,7 +1072,7 @@ function LogLine({
             key={i}
             className="live__log-card"
             data-log-card={piece.name}
-            data-inspect-ids={(ids.get(piece.name.toLowerCase()) ?? []).join(',')}
+            data-inspect-ids={idsOf(piece.name).join(',')}
             tabIndex={0}
           >
             {piece.name}
@@ -1958,9 +1920,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (autoCallId === null || auto === null || pending === null) return;
     // `answerAsk` refuses a callId that is no longer open, so a re-render
     // between the reply and the frame that closes it cannot answer twice.
-    if (answerAsk(match, autoCallId, auto.method, auto.reply)) {
-      noteAutoAnswered(match, autoAnsweredLine(pending, auto, lookupFromState(match.state)));
-    }
+    answerAsk(match, autoCallId, auto.method, auto.reply);
   }, [match, autoCallId, auto, pending]);
   /* Nothing renders for an ask that answers itself — not even for a frame. */
   const ask = auto === null && !spectator ? pending : null;
@@ -2784,8 +2744,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
          * this long.
          */}
         <ul className="live__log" data-testid="live-log" aria-label="Said" ref={logListRef}>
-          {match.says.slice(-SAYS_SHOWN).map((line, i) => (
-            <LogLine key={i} line={line} cards={logCards} ids={logIds} theirName={theirName} />
+          {match.says.slice(-SAYS_SHOWN).map((say, i) => (
+            <LogLine key={i} say={say} cards={logCards} ids={logIds} theirName={theirName} />
           ))}
         </ul>
       </div>
