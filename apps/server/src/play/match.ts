@@ -428,6 +428,13 @@ export interface SeatState {
 	 */
 	says: ServerFrame[];
 	/**
+	 * Lines of Forge's game log waiting for this seat's board to show the cards
+	 * they name ({@link Match.onGameLog}), oldest first, and the timer that sends
+	 * them anyway ({@link LOG_HOLD_MAX_MS}).
+	 */
+	heldLog: { text: string; log: GameLogLine }[];
+	heldLogTimer: NodeJS.Timeout | null;
+	/**
 	 * Wave 34 §S4 — the host card + ability id of the last `getAbilityToPlay`
 	 * this seat was actually given an answer for, whether the browser answered
 	 * it or {@link onFrame}'s own repeat-collapse did.
@@ -685,6 +692,14 @@ export const MATCH_ENDED_TITLE = 'Match ended';
  * bound.
  */
 const SAYS_KEPT = 2000;
+
+/**
+ * The longest a game log line waits for the delta that shows its cards
+ * ({@link Match.onGameLog}). The wait is about order, not secrecy — the bridge
+ * already decided the seat may read the line — so a line whose card never
+ * becomes visible on this seat's board still goes, this late.
+ */
+const LOG_HOLD_MAX_MS = 1000;
 
 /**
  * The name this seat is entitled to see for a card, off its own projected
@@ -1060,6 +1075,8 @@ export class Match {
 			autoPassed: 0,
 			mulligans: 0,
 			says: [],
+			heldLog: [],
+			heldLogTimer: null,
 			lastAbilityToPlay: null,
 			chosenAbility: null,
 			sameTarget: null,
@@ -1890,6 +1907,7 @@ export class Match {
 		const projected = s.projector.project(raw) as unknown as ServerFrame;
 		s.history.push(projected);
 		this.send(s, projected);
+		this.releaseLog(s, false);
 	}
 
 	private onLine(line: BridgeLine): void {
@@ -2528,7 +2546,39 @@ export class Match {
 			if (s.ai || s.playerId === null) continue;
 			const mine = line.players.find((p) => p.player === s.playerId);
 			if (mine === undefined || mine.text === null || mine.text === '') continue;
-			this.say(s, mine.text, { type: line.type, cards: mine.cards });
+			s.heldLog.push({ text: mine.text, log: { type: line.type, cards: mine.cards } });
+			this.releaseLog(s, false);
+			if (s.heldLog.length > 0 && s.heldLogTimer === null) {
+				const timer = setTimeout(() => {
+					s.heldLogTimer = null;
+					if (this.status === 'running' || this.status === 'over') this.releaseLog(s, true);
+				}, LOG_HOLD_MAX_MS);
+				timer.unref();
+				s.heldLogTimer = timer;
+			}
+		}
+	}
+
+	/**
+	 * Send this seat's held log lines, oldest first, up to the first that names a
+	 * card its board does not show yet (all of them when `all`).
+	 *
+	 * Forge writes a log entry while it acts, and the delta that shows the act is
+	 * sent after: a cast's `STACK_ADD` is written as the spell joins the stack,
+	 * and the delta that puts it there reaches the other seat only once
+	 * `playAbility` has committed (`cast-hidden.jvm.test.ts`). Sent as it came,
+	 * the line named the card on the opponent's screen before its board did.
+	 */
+	private releaseLog(s: SeatState, all: boolean): void {
+		while (s.heldLog.length > 0) {
+			const next = s.heldLog[0]!;
+			if (!all && next.log.cards.some((c) => s.projector.visibilityOf(c.id) === 'hidden')) break;
+			s.heldLog.shift();
+			this.say(s, next.text, next.log);
+		}
+		if (s.heldLog.length === 0 && s.heldLogTimer !== null) {
+			clearTimeout(s.heldLogTimer);
+			s.heldLogTimer = null;
 		}
 	}
 

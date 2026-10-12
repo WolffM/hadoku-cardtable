@@ -14,7 +14,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, PHASE_TYPES, REPLY_SCHEMAS, parseServerFrame, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
 
 import {
@@ -1137,19 +1137,21 @@ describe('a Match with the shortcuts on (the default)', () => {
 	it("hands each seat Forge's log line in its own player's words, with the cards it may see", () => {
 		const h = harness();
 		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
+		for (const seat of [0, 1]) putCreature(h, seat, 4070);
+		putCreature(h, 0, 4071);
 		h.host.push({
 			t: 'log',
 			type: 'STACK_ADD',
 			players: [
-				{ player: p0, text: 'Seat 1 cast Opt', cards: [{ id: 70, name: 'Opt' }] },
-				{ player: p1, text: 'Seat 1 cast Opt', cards: [{ id: 70, name: 'Opt' }] },
+				{ player: p0, text: 'Seat 1 cast Opt', cards: [{ id: 4070, name: 'Opt' }] },
+				{ player: p1, text: 'Seat 1 cast Opt', cards: [{ id: 4070, name: 'Opt' }] },
 			],
 		} as never);
 		h.host.push({
 			t: 'log',
 			type: 'DISCARD',
 			players: [
-				{ player: p0, text: 'Seat 1 discards Island.', cards: [{ id: 71, name: 'Island' }] },
+				{ player: p0, text: 'Seat 1 discards Island.', cards: [{ id: 4071, name: 'Island' }] },
 				{ player: p1, text: null, cards: [] },
 			],
 		} as never);
@@ -1157,9 +1159,38 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(says(h, 1), 'a line the bridge could not word for this player is not sent').toEqual(['Seat 1 cast Opt']);
 		const sent = frames(h, 0).filter((f) => f.method === 'message');
 		expect(sent.map((f) => (f as { log?: unknown }).log)).toEqual([
-			{ type: 'STACK_ADD', cards: [{ id: 70, name: 'Opt' }] },
-			{ type: 'DISCARD', cards: [{ id: 71, name: 'Island' }] },
+			{ type: 'STACK_ADD', cards: [{ id: 4070, name: 'Opt' }] },
+			{ type: 'DISCARD', cards: [{ id: 4071, name: 'Island' }] },
 		]);
+	});
+
+	it("holds a line until this seat's board shows the card it names: the cast is never named before the delta that puts it on the stack", () => {
+		const h = harness();
+		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
+		// Forge writes the cast's entry as the spell joins the stack; the delta that shows it comes after.
+		h.host.push({ t: 'log', type: 'STACK_ADD', players: [p0, p1].map((player) => ({ player, text: 'Seat 1 cast Lightning Bolt', cards: [{ id: 4072, name: 'Lightning Bolt' }] })) } as never);
+		h.host.push({ t: 'log', type: 'TURN', players: [p0, p1].map((player) => ({ player, text: 'Turn 2 (Seat 2)', cards: [] })) } as never);
+		expect(says(h, 1), 'nothing after a held line overtakes it').toEqual([]);
+		const before = frames(h, 1).length;
+		putCreature(h, 1, 4072);
+		const after = frames(h, 1).slice(before);
+		expect(after.map((f) => f.method)).toEqual(['applyDelta', 'message', 'message']);
+		expect(says(h, 1)).toEqual(['Seat 1 cast Lightning Bolt', 'Turn 2 (Seat 2)']);
+		expect(says(h, 0), "the other seat's copy waits on its own board").toEqual([]);
+	});
+
+	it('sends a held line anyway once it has waited long enough: the wait is about order, the bridge already settled who may read it', () => {
+		vi.useFakeTimers();
+		try {
+			const h = harness();
+			const p1 = playerOf(h, 1);
+			h.host.push({ t: 'log', type: 'REVEAL', players: [{ player: p1, text: 'Seat 1 reveals Opt', cards: [{ id: 4073, name: 'Opt' }] }] } as never);
+			expect(says(h, 1)).toEqual([]);
+			vi.advanceTimersByTime(1000);
+			expect(says(h, 1)).toEqual(['Seat 1 reveals Opt']);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('keeps its lines across a refresh: a snapshot re-sends them', () => {
