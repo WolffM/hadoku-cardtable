@@ -3,6 +3,10 @@
 # Seat 0 (alice) lands at her own Declare Attackers Step with Grizzly Bears
 # attacking (Forge fires the attack declaration itself) and six spells of hers
 # already on the stack, bottom first:
+#   Hurkyl's Recall -> bob               bob's Ornithopter back to his hand (a move
+#                                        Forge's log does not name)
+#   Rampant Growth                       alice searches out her Forest, onto the battlefield
+#   Relentless Advance                   amass: alice's Zombie Army token and its counters
 #   Lightning Bolt -> bob                cast with a target, non-combat damage, life
 #   Doom Blade -> Doomed Traveler        battlefield -> graveyard; bob's dies trigger, a token
 #   Swords to Plowshares -> Savannah     battlefield -> exile; bob gains life
@@ -11,13 +15,15 @@
 #   Thought Scour -> bob                 bob mills two Forests; alice draws a Brainstorm
 # Nobody can respond, so the stack resolves on its own; then bob blocks
 # nothing, the Bears deal combat damage, and in Main Phase 2 alice plays a
-# Mountain and casts Opt with her Island (mana, scry 1).
+# Mountain and casts Opt with her Island (one payment, scry 1). End Turn
+# starts bob's turn: his tapped Forest untaps and he draws a Forest.
 #
 # bob's hand starts empty: the harness checks a scripted hand is still there
 # once the board is up, and this one is discarded before it looks.
 #
 # Hidden from bob for the whole match: alice's Counterspell (never cast) and
-# the Brainstorms in her library and hand.
+# the Brainstorms in her library and hand (the one Thought Scour draws, and
+# Opt's).
 turn=1
 activeplayer=human
 activephase=COMBAT_DECLARE_ATTACKERS
@@ -25,10 +31,10 @@ humanlife=20
 ailife=20
 humanhand=Counterspell;Mountain;Opt
 humanbattlefield=Grizzly Bears|Attacking;Island
-humanlibrary=Brainstorm;Brainstorm;Brainstorm;Brainstorm;Brainstorm;Brainstorm
+humanlibrary=Brainstorm;Brainstorm;Brainstorm;Brainstorm;Brainstorm;Brainstorm;Forest
 humangraveyard=
-humanputonstack=Lightning Bolt->ai;Doom Blade->201;Swords to Plowshares->202;Hymn to Tourach->ai;Unsummon->203;Thought Scour->ai
+humanputonstack=Hurkyl's Recall->ai;Rampant Growth;Relentless Advance;Lightning Bolt->ai;Doom Blade->201;Swords to Plowshares->202;Hymn to Tourach->ai;Unsummon->203;Thought Scour->ai
 aihand=
-aibattlefield=Doomed Traveler|Id:201;Savannah Lions|Id:202;Llanowar Elves|Id:203;Forest
+aibattlefield=Doomed Traveler|Id:201;Savannah Lions|Id:202;Llanowar Elves|Id:203;Forest|Tapped;Ornithopter
 ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
 aigraveyard=

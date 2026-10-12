@@ -13,6 +13,14 @@
  *
  * Every class must show on BOTH screens, and nothing alice holds unseen (her Counterspell, the
  * Brainstorm she draws) may appear on bob's.
+ *
+ * The operator, 2026-10-12: *"yes, add the draw/tap/counter/token log entries next"*. Forge's log has
+ * no entry for a draw, a tap or untap, a counter, a token, or a card moved between hand, library and
+ * battlefield; the bridge writes them from Forge's events into the same stream. Below the stack also
+ * holds Relentless Advance (an amassed token and its counters), Rampant Growth (a search onto the
+ * battlefield) and Hurkyl's Recall (bob's Ornithopter bounced, by a resolution that does not name it),
+ * Opt is one payment, and bob's turn untaps his tapped Forest and draws him a Forest. Each of those
+ * shows exactly once on both screens; a draw names its card only to the drawer.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -44,11 +52,23 @@ const CLASSES: [string, RegExp][] = [
   ['block', /^Bob didn't block Grizzly Bears/],
   ['combat damage', /^Grizzly Bears deals 2 combat damage to Bob/],
   ['land', /^Alice played Mountain$/],
-  ['mana', /^Island\b.*\bAdd\b/],
   ['cast', /^Alice cast Opt$/],
   ['scry', /^Alice scried 1 card/],
   ['turn', /^Turn 2 \(Bob\)$/],
 ];
+
+/** The actions Forge's log does not record, each exactly once on both screens. */
+const WRITTEN: [string, RegExp][] = [
+  ['payment', /^Alice taps Island for U\.$/],
+  ['token', /^Alice creates a 0\/0 Zombie Army Token\.$/],
+  ['counter', /^Zombie Army Token gets three \+1\/\+1 counters\.$/],
+  ['search (library to battlefield)', /^Forest was put into Battlefield from Library\.$/],
+  ['bounce (battlefield to hand)', /^Ornithopter was put into Hand from Battlefield\.$/],
+  ['untap step', /^Bob untaps their permanents\.$/],
+];
+
+/** Bob's draw step, as each seat may read it: the card's name to bob alone. */
+const BOB_DRAWS: Record<'alice' | 'bob', RegExp> = { alice: /^Bob draws a card\.$/, bob: /^Bob draws Forest\.$/ };
 
 /** Names bob is never shown: alice's uncast Counterspell, and the Brainstorms in her library and hand. */
 const HIDDEN_FROM_BOB = ['Counterspell', 'Brainstorm'];
@@ -136,7 +156,17 @@ test(titled("the log shows Forge's own game log on both screens, every action cl
       const missing = CLASSES.filter(([, re]) => !lines.some((l) => re.test(l))).map(([name]) => name);
       console.log(`[lg-gamelog] ${who} covers ${CLASSES.length - missing.length}/${CLASSES.length}; missing: ${missing.join(', ') || 'none'}`);
       expect(missing, `${who}'s log has a line for every action class`).toEqual([]);
+      const counts = [...WRITTEN, ['draw step', BOB_DRAWS[who]] as [string, RegExp]].map(
+        ([name, re]) => `${name}=${lines.filter((l) => re.test(l)).length}`,
+      );
+      console.log(`[lg-gamelog] ${who} written: ${counts.join(', ')}`);
+      expect(counts, `${who}'s log says each action Forge does not log exactly once`).toEqual(
+        [...WRITTEN.map(([name]) => name), 'draw step'].map((name) => `${name}=1`),
+      );
     }
+    // Alice's own draws (Thought Scour's, Opt's) name the Brainstorm to her; bob reads only Forge's "Alice draws a card".
+    expect((await logLines(alice.page)).filter((l) => /^Alice draws Brainstorm\.$/.test(l)), "alice's log names her draws").toHaveLength(2);
+    expect((await logLines(bob.page)).filter((l) => /^Alice draws\b/.test(l)), "bob's log has no line of alice's draws of its own").toEqual([]);
     const bobText = (await logLines(bob.page)).join('\n');
     const leaked = HIDDEN_FROM_BOB.filter((name) => bobText.includes(name));
     console.log(`[lg-gamelog] hidden names on bob's log: ${leaked.join(', ') || 'none'}`);
