@@ -137,19 +137,19 @@ export const GUARDS: Guard[] = [
     name: 'the engine',
     paths: /^(forge|apps\/server\/src\/play\/bridge\/.*)$/,
     specs: ['play.spec.ts', 'w68-untap.spec.ts', 'modal-arrows.spec.ts', 'w70-valakut.spec.ts', 'tt-cryptic.spec.ts', 'ee-thicket.spec.ts'],
-    jvm: ['apps/server/src/play/match-frames.jvm.test.ts', 'apps/server/src/play/w52-s-signet.jvm.test.ts'],
+    jvm: ['apps/server/src/play/match-frames.jvm.test.ts', 'apps/server/src/play/mana-sources.jvm.test.ts'],
   },
   {
     name: 'the server match',
     paths: /^apps\/server\/src\/play\/match\.ts$/,
     specs: ['w68-untap.spec.ts', 'dead-bar.spec.ts', 'waiting.spec.ts', 'lg-gamelog.spec.ts', 'w62-bounce.spec.ts', 'played-card.spec.ts'],
-    jvm: ['apps/server/src/play/w52-s-signet.jvm.test.ts', 'apps/server/src/play/priority.jvm.test.ts'],
+    jvm: ['apps/server/src/play/mana-sources.jvm.test.ts', 'apps/server/src/play/priority.jvm.test.ts'],
   },
   {
     name: 'auto-pass and auto-pay',
     paths: /^apps\/server\/src\/play\/auto\.ts$/,
     specs: ['w68-untap.spec.ts', 'w52-mana.spec.ts', 'unless-cost.spec.ts', 'w67-trigger-ask.spec.ts', 'land-abilities.spec.ts'],
-    jvm: ['apps/server/src/play/auto.jvm.test.ts', 'apps/server/src/play/auto-pass-land.jvm.test.ts', 'apps/server/src/play/w52-s-signet.jvm.test.ts'],
+    jvm: ['apps/server/src/play/auto.jvm.test.ts', 'apps/server/src/play/auto-pass-land.jvm.test.ts', 'apps/server/src/play/mana-sources.jvm.test.ts'],
   },
   {
     name: 'pacing',

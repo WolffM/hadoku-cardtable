@@ -421,7 +421,7 @@ describe('historical misses, replayed as a push', () => {
   });
 
   it('the Signet regression also runs the jvm suites that pin auto-pay', () => {
-    expect(replay('44497be5').jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/w52-s-signet.jvm.test.ts', 'apps/server/src/play/auto.jvm.test.ts']));
+    expect(replay('44497be5').jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/mana-sources.jvm.test.ts', 'apps/server/src/play/auto.jvm.test.ts']));
   });
 
   it("the engine pin runs the new scenario's suite and the engine's guard suites, and leaves the rest to the full run", () => {
