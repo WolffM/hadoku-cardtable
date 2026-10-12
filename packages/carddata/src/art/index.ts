@@ -3,10 +3,8 @@
  *
  * ## The point of this module
  *
- * The operator expects to re-source card art later: *"there's a good chance i
- * source the art from somewhere else in the future… just make sure that it's
- * easy to simply hook up a link to a new image in the cdn whenever that
- * happens."* So the deliverable is deliberately NOT a list of URLs. It is one
+ * Card art is a placeholder the operator expects to re-source, so repointing
+ * one card to a new image must stay a data edit. So the deliverable is deliberately NOT a list of URLs. It is one
  * level of indirection:
  *
  *   manifest row  →  { source, key }  →  resolveArtUrl  →  a URL

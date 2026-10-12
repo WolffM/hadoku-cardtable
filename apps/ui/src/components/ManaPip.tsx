@@ -5,8 +5,8 @@
  *
  * It used to. Under D13 every pip here was a plain disc with an alphanumeric
  * label and the Phyrexian mark was a dashed ring, because "no WotC trademarks in
- * the UI" was absolute. **D20 (operator, 2026-09-27) superseded that:** *"naw
- * we're not drawing our own"*. Mana symbols, the tap symbol and set symbols now
+ * the UI" was absolute. **D20 (2026-09-27) superseded that** in favour
+ * of third-party symbol fonts rather than drawing our own. Mana symbols, the tap symbol and set symbols now
  * ship from two third-party icon fonts, vendored at `../symbols/` and imported
  * from `styles.css`:
  *

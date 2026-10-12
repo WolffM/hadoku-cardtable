@@ -3480,7 +3480,7 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
     const { container } = renderBoard(lopsided(16, 0, 4, 0));
     const got = draws(container);
     expect(got.rows, 'twenty columns on a zone this shape is two rows').toBe(2);
-    // The committed screenshot `docs/planning/wave26-question-panel-1280x800.png`
+    // A wave 26 screenshot (since removed)
     // is this row: the creatures lane came out at 27px, where "Izzet Guildgate"
     // is seven lines of one letter. Measured in chromium at 960×705 after the
     // fix: 56px in the lands lane and 57px in the creatures lane.
@@ -5072,7 +5072,7 @@ describe('wave 33 §B', () => {
 /*
  * ── wave 34 §B — the energy line no longer clips, and the graveyard stays put ──
  *
- * w33 B's own screenshot (`wave33-evidence/b-poison-and-ability.png`) shows
+ * w33 B's own screenshot (since removed) showed
  * the THIRD line of `.seat__counts` cut off under the opponent's column: with
  * poison and energy both non-zero the box (`--counts-h`, fixed, `overflow:
  * hidden`) had room for barely two lines, and `poison.state` (lane S) carries
@@ -5094,7 +5094,7 @@ describe('wave 33 §B', () => {
  *
  * jsdom cannot lay the box out — whether three abbreviations truly share one
  * line at `--who-w`'s width is a real-browser claim, measured against the
- * real stylesheet in `wave34-evidence/b-poison-live-*.png` and the scratch
+ * real stylesheet in w34's screenshots (since removed) and the scratch
  * repro that produced them, not asserted here. What IS asserted here,
  * structurally: the three known counters abbreviate to three DIFFERENT
  * glyphs (so nothing in `PLAYER_COUNTER_ABBREV` can silently collide and

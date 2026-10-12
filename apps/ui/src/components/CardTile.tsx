@@ -11,8 +11,8 @@ import { memo, useMemo } from 'react';
  * text, and a stat badge. Colour identity shows as a stripe down the leading
  * edge, which is ours.
  *
- * **Symbols are the fonts' now.** D20 (operator, 2026-09-27) — *"naw we're not
- * drawing our own"* — so the cost, the inline `{T}` in rules text and the set
+ * **Symbols are the fonts' now.** D20 (2026-09-27) chose third-party symbol
+ * fonts over drawing our own, so the cost, the inline `{T}` in rules text and the set
  * symbol in the print line all come from Mana and Keyrune through `ManaPip.tsx`.
  * See `docs/LICENSING.md` §3.2; the two packs are not the same position.
  *

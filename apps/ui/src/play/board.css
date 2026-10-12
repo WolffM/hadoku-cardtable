@@ -268,7 +268,7 @@
    * A board tile's name is 11px with `overflow-wrap: anywhere`, inside 14px of
    * horizontal padding (`.board .card`). At 27px of column the name box is 11px
    * wide and "Izzet Guildgate" comes out as SEVEN lines of one or two letters —
-   * which is what `docs/planning/wave26-question-panel-1280x800.png` shows on the
+   * which is what a wave 26 screenshot (since removed) showed on the
    * viewer's creatures lane, and what the operator reported. At 2.75rem the same
    * name is 41px wide and two lines. Measured in a browser at 960 and at 1046,
    * over the four lane splits a real game produces.
@@ -909,7 +909,7 @@
  * measured at 960 with sixteen lands and four creatures, the lands lane drew
  * 56px cards out of 478px while the creatures lane beside it drew **27px** cards
  * out of 124px, which is the unreadable row in
- * `docs/planning/wave26-question-panel-1280x800.png`. With the share taken from
+ * a wave 26 screenshot (since removed). With the share taken from
  * the columns both lanes come out at 56–57px. The same split with the lanes
  * evenly loaded (9/2/8/1, `e2e/table-fit.spec.ts`'s own crowd) went 59/33/61/35
  * and comes out 60/61/60/61.

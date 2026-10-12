@@ -61,7 +61,7 @@ before planning cross-game work.
 ## Layout
 
 ```
-forge/           vendored Forge fork — gitignored until WolffM/forge exists
+forge/           Forge, a git submodule of the public fork WolffM/forge
 apps/server/     Node room + draft server
 apps/ui/         React SPA
 packages/shared/ Zod wire schemas
@@ -89,8 +89,8 @@ Paths under `forge/`, all verified:
 | Ability dispatch (202 constants naming 199 effect classes) | `forge-game/src/main/java/forge/game/ability/ApiType.java` |
 | The whole product UI (libGDX, 103k lines) | `forge-gui-mobile/src/forge/screens/`, `FDeckEditor.java` |
 
-`forge/` is gitignored until the fork exists, so these commands only run in a
-checkout that has it. Every count in the table above comes from one of them —
+`forge/` is a submodule, so these commands only run in a checkout that has
+it initialised. Every count in the table above comes from one of them —
 run from the repo root:
 
 ```sh

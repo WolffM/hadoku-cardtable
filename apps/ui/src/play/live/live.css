@@ -62,7 +62,7 @@
  * The arrangement survives that intact — it is proportional — but the cluster's
  * two PIXEL numbers did not, and at 112 × 84 in two columns a slot is 49px wide
  * and `Full control` and `Concede` both ellipsized. The operator saw them as
- * `Full c…` and `Conc…` in `docs/planning/wave26-question-panel-1280x800.png`.
+ * `Full c…` and `Conc…` in a wave 26 screenshot (since removed).
  *
  * The width is the one number that cannot move: `board.css`'s `--right-gutter`
  * is derived from it (`controls 6 + 112 = 118px  <- the widest`), and widening
