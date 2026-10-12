@@ -17,14 +17,9 @@
  *      leaves `result` as `unknown` because its type depends on `method`;
  *      `safeParseClientFrame`'s second pass closes that, and a `confirm`
  *      answered with a string has to fail.
- *   4. **Nothing imports from `forge/`.** Asserted by reading this package's
- *      own sources, so it stays true after the next file lands rather than only
- *      on the day somebody ran the grep.
+ *   4. **Nothing imports from `forge/`.** An eslint rule on this package's
+ *      sources (`eslint.config.js`), so it holds for the next file too.
  */
-
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -45,8 +40,6 @@ import { CLIENT_FRAME_EXAMPLES, REPLY_EXAMPLES, SERVER_FRAME_EXAMPLES } from './
 import { TIER_A_METHODS } from './tier-a.ts';
 import { TIER_B_METHODS } from './tier-b.ts';
 import { TIER_C_METHODS } from './tier-c.ts';
-
-const SRC_DIR = dirname(fileURLToPath(import.meta.url));
 
 describe('the census — 16 + 23 + 3 = 42', () => {
   it('matches Wave 6 lane F’s tiering plus the methods added since, method for method', () => {
@@ -249,50 +242,5 @@ describe('the transport itself', () => {
   it('a client cannot send a server frame, or the reverse', () => {
     expect(safeParseClientFrame(SERVER_FRAME_EXAMPLES.message).ok).toBe(false);
     expect(safeParseServerFrame(CLIENT_FRAME_EXAMPLES.concede).ok).toBe(false);
-  });
-});
-
-describe('nothing in this package reaches into the vendored Forge tree', () => {
-  const sources = readdirSync(SRC_DIR).filter((f) => f.endsWith('.ts'));
-
-  // Assembled rather than written, so this file does not trip its own check.
-  const VENDORED = 'forge'.concat('/');
-
-  /** Drop block and line comments, so a Forge citation in prose is not code. */
-  function code(text: string): string {
-    return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-  }
-
-  it('reads a non-empty set of sources, so the check cannot pass vacuously', () => {
-    expect(sources.length).toBeGreaterThanOrEqual(9);
-    // And the comment stripper must not be eating the code it is scanning.
-    expect(code(readFileSync(join(SRC_DIR, 'envelope.ts'), 'utf8'))).toContain("from './tier-c.ts'");
-    expect(VENDORED).toBe(['forge', ''].join('/'));
-  });
-
-  it.each(sources)('%s imports only zod, @hadoku/*, node: and its own siblings', (file) => {
-    const specifiers = [
-      ...code(readFileSync(join(SRC_DIR, file), 'utf8')).matchAll(/from\s*'([^']+)'/g),
-    ].map((m) => m[1]);
-
-    for (const specifier of specifiers) {
-      const allowed =
-        specifier === 'zod' ||
-        specifier === 'vitest' ||
-        specifier.startsWith('@hadoku/') ||
-        specifier.startsWith('node:') ||
-        /^\.\.?\/[\w./-]+\.ts$/.test(specifier);
-      expect([file, specifier, allowed]).toEqual([file, specifier, true]);
-    }
-  });
-
-  it.each(sources)('%s never names the vendored tree in code', (file) => {
-    // Comments cite Forge files by BASENAME (`ProtocolMethod.java:35`) on
-    // purpose. A vendored-tree path in the CODE means somebody started
-    // reaching into the submodule — which CI does not even fetch.
-    expect([file, code(readFileSync(join(SRC_DIR, file), 'utf8')).includes(VENDORED)]).toEqual([
-      file,
-      false,
-    ]);
   });
 });

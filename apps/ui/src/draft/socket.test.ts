@@ -534,15 +534,3 @@ describe('the same surface as the in-process source', () => {
     expect(seen).toEqual([1, 2, 3]);
   });
 });
-
-/* ── The other two sources are untouched ─────────────────────────────── */
-
-describe('the socket source is a THIRD source, not a replacement', () => {
-  it('does not import the in-process engine', async () => {
-    const source = await import('node:fs').then((fs) =>
-      fs.readFileSync(new URL('./socket.ts', import.meta.url), 'utf8'),
-    );
-    expect(source).not.toMatch(/from '@hadoku\/draft'/);
-    expect(source).not.toMatch(/from '\.\/live\.ts'/);
-  });
-});

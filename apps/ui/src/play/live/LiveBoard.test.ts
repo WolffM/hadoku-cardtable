@@ -2072,27 +2072,6 @@ describe('Concede asks first', () => {
 });
 
 /*
- * The pointer layer's handover (wave 24, lanes B and C).
- *
- * The drag, the slop, the arrow and every test that asserted what they sent are
- * lane B's now, in `./gestures/`. What is left here is the install, and this is
- * the proof it is all that is left — a component that grew a pointer handler
- * back would pass every other test in this file.
- */
-describe('the frame installs the gesture layer and owns none of it', () => {
-  it('one effect, and nothing about a drag in the component', () => {
-    const src = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'LiveBoard.tsx'), 'utf8');
-    expect(src).toContain('installGestures({ canvas, match, motion: motionWanted, report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) })');
-    // Motion is the person's reduced-motion setting, never Fast Mode (2026-10-08).
-    expect(src).not.toMatch(/motion: \(\) => !fastMode/);
-    expect(src).toContain('handle.dispose()');
-    for (const gone of ['commitDrag', 'DRAG_SLOP_PX', 'onPointerDown', 'pointermove', 'pointerup', 'createPortal']) {
-      expect(src, `${gone} is ./gestures/'s now`).not.toContain(gone);
-    }
-  });
-});
-
-/*
  * The two fields lane A reads off `BoardInteraction`, and why this component is
  * where they are filled.
  *

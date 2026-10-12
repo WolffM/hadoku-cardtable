@@ -140,5 +140,102 @@ export default [
     },
   },
 
+  // ── Architecture rules, checked on the source rather than by tests that grep it ──
+  {
+    files: ['packages/forge-wire/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?!zod$|vitest$|@hadoku/|node:|\\.\\.?/)',
+              message: 'forge-wire imports only zod, @hadoku/*, node: and its own siblings.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/(^|\\/)forge\\//]',
+          message: 'Nothing in forge-wire reaches into the vendored Forge tree; CI does not even fetch it.',
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/ui/src/draft/socket.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: ['@hadoku/draft'],
+          patterns: [{ regex: '^\\./live(\\.ts)?$', message: 'The socket source is a third source, not a wrapper of the in-process one.' }],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/ui/src/play/live/LiveBoard.tsx'],
+    rules: {
+      'no-restricted-imports': ['error', { paths: [{ name: 'react-dom', importNames: ['createPortal'] }] }],
+      'no-restricted-syntax': [
+        'error',
+        { selector: 'JSXAttribute[name.name=/^onPointer(Down|Move|Up)$/]', message: "Pointer handling is ./gestures/'s; LiveBoard only installs it." },
+        {
+          selector: "CallExpression[callee.property.name='addEventListener'][arguments.0.value=/^pointer(move|up)$/]",
+          message: "Pointer handling is ./gestures/'s; LiveBoard only installs it.",
+        },
+        {
+          selector: "Property[key.name='motion'] Identifier[name='fastMode']",
+          message: 'Motion is the reduced-motion setting, never Fast Mode.',
+        },
+      ],
+    },
+  },
+
+  // ── Unit tests: wait on state, assert behaviour ──────────────────────
+  {
+    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
+    ignores: [
+      '**/*.jvm.test.ts',
+      // Files that still sleep on a wall clock, to be emptied rather than grown.
+      'apps/server/src/http/gate.test.ts',
+      'apps/server/src/index.test.ts',
+      'apps/server/src/play/browser/browser-jvm.test.ts',
+      'apps/server/src/play/jvm.test.ts',
+      'apps/server/src/http/tables.test.ts',
+      'apps/server/src/play/browser/browser.test.ts',
+      'apps/server/src/play/browser/mounted.test.ts',
+      'apps/server/src/play/host.test.ts',
+      'apps/server/src/play/socket.test.ts',
+      'apps/server/src/room/feed.test.ts',
+      'apps/server/src/room/lobby.test.ts',
+      'apps/server/src/room/socket.test.ts',
+      'apps/ui/src/play/live/LiveBoard.test.ts',
+      'apps/ui/src/play/live/art-preload.test.ts',
+      'apps/ui/src/play/live/gestures/gestures.test.ts',
+      'apps/ui/src/play/live/placed.test.ts',
+      'apps/ui/src/play/live/presence.test.ts',
+      'apps/ui/src/screens/constructed.test.ts',
+      'packages/room-ask/src/registry.test.ts',
+      'packages/room-store/src/sigterm.test.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Promise'] CallExpression[callee.name='setTimeout']",
+          message: 'A test waits on state (vi.waitFor, findBy*, an awaited event) or advances fake timers; it never sleeps.',
+        },
+        {
+          selector: "CallExpression[callee.property.name=/^(toBe|toEqual)$/] > Literal[value=/calc\\(|var\\(--/]",
+          message: 'A stylesheet formula is not a behaviour: read the cascade on a rendered element and assert a keyword or a relation.',
+        },
+      ],
+    },
+  },
+
   prettierConfig,
 ];
