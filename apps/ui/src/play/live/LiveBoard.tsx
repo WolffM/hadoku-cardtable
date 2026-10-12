@@ -250,7 +250,7 @@
  * new wire shape changes.
  */
 
-import { Component, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, type ClientEvent, type DraftCard } from '@hadoku/shared';
 import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
@@ -1040,18 +1040,18 @@ function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (str
  *    seat) shows NOTHING: that is the honest answer, and inventing a face for it
  *    would be the second surface again. The name is `tabindex`-reachable, and the
  *    inspector answers focus as it answers hover.
+ *
+ * Memoised ({@link sameLogLine}): Forge's log runs to hundreds of lines a game,
+ * and the board re-renders on every frame and every gesture.
  */
-function LogLine({
-  say,
-  cards,
-  ids,
-  theirName,
-}: {
+interface LogLineProps {
   say: Say;
   cards: ReadonlyMap<string, DraftCard>;
   ids: ReadonlyMap<string, readonly number[]>;
   theirName: string | null;
-}) {
+}
+
+const LogLine = memo(function LogLine({ say, cards, ids, theirName }: LogLineProps) {
   const text = plainRulesText(say.text);
   const mine = theirName === null || !text.startsWith(`${theirName} `);
   // A line of Forge's log names its cards by id: those, and only those, are the hover targets.
@@ -1081,6 +1081,22 @@ function LogLine({
       )}
     </li>
   );
+}, sameLogLine);
+
+/**
+ * Whether a log line would draw the same again. A line of Forge's log reads the
+ * view only for the ids of the cards it names, so a new view redraws it only when
+ * one of those changed; any other line reads the whole view.
+ */
+function sameLogLine(a: LogLineProps, b: LogLineProps): boolean {
+  if (a.say !== b.say || a.theirName !== b.theirName) return false;
+  if (a.say.log === null) return a.cards === b.cards && a.ids === b.ids;
+  return a.say.log.cards.every((c) => {
+    const key = c.name.toLowerCase();
+    const before = a.ids.get(key) ?? [];
+    const after = b.ids.get(key) ?? [];
+    return before.length === after.length && before.every((id, i) => id === after[i]);
+  });
 }
 
 /* ── The phase, down the side (§C.2) ─────────────────────────────────── */
