@@ -14,6 +14,8 @@
  *   GET  /api/tables/rooms/:roomId         both players' state at a room's table
  *   PUT  /api/tables/rooms/:roomId/deck    `{ deck }` → check MY deck in the ROOM's pool and hold it
  *   POST /api/tables/rooms/:roomId/ready   `{ ready }` → I am (not) ready
+ *   POST /api/tables/rooms/:roomId/sit     `{}` → take a free seat (a deck may come later)
+ *   POST /api/tables/rooms/:roomId/stand   `{}` → give my seat back; refused once the table is locked
  *   POST /api/play/matches                 GATED: see below
  *
  * `/check` still takes `{ deck, rules }`: it starts nothing and belongs to no
@@ -318,17 +320,34 @@ const NO_ROOM = 'no such room';
  * `setPlayerState`. Opaque to the lobby, owned here, and read back defensively
  * (`readPlayerState`) because it survives a restart and a deploy.
  */
-interface TablePlayerState {
-	v: 1;
+interface TableDeck {
 	/** The choice as the player sent it, so their picker can be restored. */
 	choice: { deck: DeckRef; rules: DeckRules };
 	/** The verdict the gate gave when the deck was loaded, without the text. */
 	verdict: Omit<SeatVerdict, 'text'>;
 	/** The checked `.dck`, byte for byte. Never sent to a browser. */
 	text: string;
+}
+
+/**
+ * A SEAT, which may or may not hold a deck yet. Sitting is its own act since
+ * 2026-10-12 (the operator: a crowded watchparty room needs a way to take a
+ * seat that is not a race on the deck picker), so `deck` is null between
+ * `POST …/sit` and the first `PUT …/deck`. Rows written before that day were
+ * flat — `choice`/`verdict`/`text` beside `ready` — and `readPlayerState`
+ * migrates them on read, because they survive a deploy.
+ */
+interface TablePlayerState {
+	v: 1;
+	deck: TableDeck | null;
 	ready: boolean;
 	/** When this member first took a seat: the order the two players are in. */
 	seatedAt: number;
+}
+
+/** A seated player whose seat holds a deck: what a start needs. */
+interface LoadedPlayer extends TablePlayer {
+	deck: TableDeck;
 }
 
 /**
@@ -355,13 +374,36 @@ function parseDeckBody(raw: unknown): { ok: true; deck: DeckRef } | { ok: false;
 	return deck.ok ? { ok: true, deck: deck.value } : { ok: false, error: deck.error };
 }
 
+function readDeck(raw: unknown): TableDeck | null {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+	const d = raw as Partial<TableDeck>;
+	if (typeof d.text !== 'string') return null;
+	if (typeof d.verdict !== 'object' || d.verdict === null || typeof d.verdict.legal !== 'boolean') return null;
+	if (typeof d.choice !== 'object' || d.choice === null) return null;
+	return { choice: d.choice, verdict: d.verdict, text: d.text };
+}
+
 function readPlayerState(raw: unknown): TablePlayerState | null {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
-	const s = raw as Partial<TablePlayerState>;
-	if (s.v !== 1 || typeof s.text !== 'string' || typeof s.seatedAt !== 'number') return null;
-	if (typeof s.verdict !== 'object' || s.verdict === null || typeof s.verdict.legal !== 'boolean') return null;
-	if (typeof s.choice !== 'object' || s.choice === null) return null;
-	return { ...(s as TablePlayerState), ready: s.ready === true };
+	const s = raw as Partial<TablePlayerState> & Partial<TableDeck>;
+	if (s.v !== 1 || typeof s.seatedAt !== 'number') return null;
+	const ready = s.ready === true;
+	// A row written before seats were their own act: the deck's fields sit flat
+	// beside `ready`. It still reads as a seat that holds that deck.
+	if (!('deck' in s)) {
+		const deck = readDeck(s);
+		return deck === null ? null : { v: 1, deck, ready, seatedAt: s.seatedAt };
+	}
+	if (s.deck === null) return { v: 1, deck: null, ready, seatedAt: s.seatedAt };
+	const deck = readDeck(s.deck);
+	return deck === null ? null : { v: 1, deck, ready, seatedAt: s.seatedAt };
+}
+
+/** The players whose seats hold a deck, in seat order; a seat without one is left out. */
+function loadedOf(players: TablePlayer[]): LoadedPlayer[] {
+	const out: LoadedPlayer[] = [];
+	for (const p of players) if (p.state.deck !== null) out.push({ ...p, deck: p.state.deck });
+	return out;
 }
 
 interface TablePlayer {
@@ -371,9 +413,9 @@ interface TablePlayer {
 }
 
 /**
- * The (at most two) players at a room's table: the members who have loaded a
- * deck, earliest first. A third member who loads one is refused, so this never
- * has to choose between three.
+ * The (at most two) players at a room's table: the members who hold a seat,
+ * earliest first. A third member who sits or loads a deck is refused, so this
+ * never has to choose between three.
  */
 function playersOf(rooms: TablesRooms, room: RoomViewLike): TablePlayer[] {
 	const held: TablePlayer[] = [];
@@ -637,6 +679,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
+	 * Both seats ready, or a match live: the table is nobody's to leave. The
+	 * ruling (2026-10-12): "players should be able to give up their seat, but
+	 * not after both players are ready. when both players are ready and the
+	 * match is initiated then they are locked in until they concede".
+	 */
+	function tableLocked(players: TablePlayer[], matchId: string | null): boolean {
+		return matchId !== null || (players.length >= TABLE_SEATS && players.every((p) => p.state.ready));
+	}
+
+	/**
 	 * What both players may see: who has chosen what, whether it is legal,
 	 * whether they are ready.
 	 *
@@ -668,6 +720,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				draftId: draftIdOfPool(room.format),
 				matchId,
 				seats: TABLE_SEATS,
+				// The operator's ruling (2026-10-12): once both players are ready, or a
+				// match is live, the seats are locked and nobody stands up. One fact,
+				// so the screen draws Stand up disabled from the same bit the server
+				// refuses on (`tableLocked`).
+				locked: tableLocked(players, matchId),
 			},
 			// `player` is "I have a deck at this table"; `leader` is "this room's
 			// settings are mine to change". A member can be either, both or neither,
@@ -688,12 +745,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// both readers means the fallback a client writes is one check.
 				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
 				you: p.member.id === me,
-				deckName: p.state.verdict.deckName,
-				rulesName: p.member.id === me ? p.state.verdict.rulesName : poolName(room),
-				legal: p.state.verdict.legal,
-				issueCount: p.state.verdict.issues.length,
+				// A seat taken ahead of a deck: no name, not legal, nothing to count.
+				deckName: p.state.deck?.verdict.deckName ?? null,
+				rulesName: p.state.deck === null ? null : p.member.id === me ? p.state.deck.verdict.rulesName : poolName(room),
+				legal: p.state.deck?.verdict.legal ?? false,
+				issueCount: p.state.deck?.verdict.issues.length ?? 0,
 				ready: p.state.ready,
-				choice: p.member.id === me ? p.state.choice : null,
+				choice: p.member.id === me ? (p.state.deck?.choice ?? null) : null,
 			})),
 		};
 	}
@@ -793,11 +851,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// A new deck un-readies you: what you readied with is not what you hold.
 		// `choice` keeps the room's rules beside the deck, so the hold records which
 		// pool its verdict was taken in even after the leader moves the room.
+		//
+		// Loading a deck while unseated takes a free seat (`mine === undefined`
+		// and the table not full, above): a browser that goes Random → Ready
+		// without sitting first still plays, and so does every spec written
+		// before `POST …/sit` existed.
 		const state: TablePlayerState = {
 			v: 1,
-			choice: seat,
-			verdict: publicVerdict(verdict),
-			text: verdict.text,
+			deck: { choice: seat, verdict: publicVerdict(verdict), text: verdict.text },
 			ready: false,
 			seatedAt: mine?.state.seatedAt ?? Date.now(),
 		};
@@ -805,7 +866,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			notFound(res);
 			return;
 		}
-		log({ evt: 'room-deck-loaded', room: room.id, deck: verdict.deckName, rules: verdict.rulesName, legal: verdict.legal });
+		log({ evt: 'room-deck-loaded', room: room.id, deck: verdict.deckName, rules: verdict.rulesName, legal: verdict.legal, sat: mine === undefined });
 		res.json(tableView(rooms.get(room.id) ?? room, me));
 	});
 
@@ -830,15 +891,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const players = playersOf(rooms, room);
 		const seat = players.findIndex((p) => p.member.id === me);
 		const mine = players[seat];
-		if (mine === undefined) {
+		// A seat without a deck readies nothing: the same sentence for "not
+		// seated" and "seated, no deck", because the fix is the same.
+		if (mine === undefined || mine.state.deck === null) {
 			res.status(409).json({ error: 'load a deck before you ready up' });
 			return;
 		}
 		// An illegal deck blocks THIS player's ready and nobody else's, and says
 		// which card did it — the same sentence the gate refuses a match with.
-		if (body.ready && !mine.state.verdict.legal) {
-			const line = refusalLine(seat, { ...mine.state.verdict, text: mine.state.text });
-			log({ evt: 'room-ready-refused', room: room.id, issues: mine.state.verdict.issues.length });
+		if (body.ready && !mine.state.deck.verdict.legal) {
+			const line = refusalLine(seat, { ...mine.state.deck.verdict, text: mine.state.deck.text });
+			log({ evt: 'room-ready-refused', room: room.id, issues: mine.state.deck.verdict.issues.length });
 			res.status(422).json({ error: line });
 			return;
 		}
@@ -847,6 +910,79 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return;
 		}
 		log({ evt: 'room-ready', room: room.id, ready: body.ready });
+		res.json(tableView(rooms.get(room.id) ?? room, me));
+	});
+
+	/**
+	 * Sitting is its own act (2026-10-12). Idempotent: a seat you hold is
+	 * answered 200 with the table as it stands. A deck is NOT required to sit,
+	 * and `PUT …/deck` still seats an unseated caller, so neither path is the
+	 * only way in.
+	 */
+	tables.post('/rooms/:roomId/sit', (req: Request, res: Response) => {
+		const found = tableFor(req, String(req.params.roomId));
+		if (found === null || rooms === null) {
+			notFound(res);
+			return;
+		}
+		const { room, me } = found;
+		if (wrongGameType(room, res)) return;
+		if (liveMatchId(room) !== null) {
+			res.status(409).json({ error: 'the match has already started' });
+			return;
+		}
+		const players = playersOf(rooms, room);
+		if (players.some((p) => p.member.id === me)) {
+			res.json(tableView(room, me));
+			return;
+		}
+		if (players.length >= TABLE_SEATS) {
+			res.status(409).json({ error: 'this table already has two players' });
+			return;
+		}
+		const state: TablePlayerState = { v: 1, deck: null, ready: false, seatedAt: Date.now() };
+		if (!rooms.setPlayerState(room.id, me, state)) {
+			notFound(res);
+			return;
+		}
+		log({ evt: 'room-sat', room: room.id, seat: players.length });
+		res.json(tableView(rooms.get(room.id) ?? room, me));
+	});
+
+	/**
+	 * Giving the seat back, with the deck and the ready flag that sat on it.
+	 * Refused once the table is locked (`tableLocked`): the server enforces the
+	 * ruling, the screen only mirrors it. Nobody can stand somebody else up —
+	 * the seat row is the caller's own, as every other write here is.
+	 */
+	tables.post('/rooms/:roomId/stand', (req: Request, res: Response) => {
+		const found = tableFor(req, String(req.params.roomId));
+		if (found === null || rooms === null) {
+			notFound(res);
+			return;
+		}
+		const { room, me } = found;
+		if (wrongGameType(room, res)) return;
+		const matchId = liveMatchId(room);
+		if (matchId !== null) {
+			res.status(409).json({ error: 'the match has already started' });
+			return;
+		}
+		const players = playersOf(rooms, room);
+		const seat = players.findIndex((p) => p.member.id === me);
+		if (seat < 0) {
+			res.json(tableView(room, me));
+			return;
+		}
+		if (tableLocked(players, matchId)) {
+			res.status(409).json({ error: 'both players are ready — the table is locked' });
+			return;
+		}
+		if (!rooms.setPlayerState(room.id, me, undefined)) {
+			notFound(res);
+			return;
+		}
+		log({ evt: 'room-stood', room: room.id, seat, hadDeck: players[seat]!.state.deck !== null });
 		res.json(tableView(rooms.get(room.id) ?? room, me));
 	});
 
@@ -913,7 +1049,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			notFound(res);
 			return;
 		}
-		const { room } = found;
+		const { room, me } = found;
 		if (wrongGameType(room, res)) return;
 		// Idempotent: whichever player asks second is answered the match the
 		// first one started, not a second JVM.
@@ -934,11 +1070,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// myself everytime"). Only when the caller is the room's ONLY member:
 			// with two people in the room they play each other, and a bot start
 			// would take the table out from under the second one.
-			if (room.members.length !== 1) {
-				res.status(409).json({ error: 'a bot game is for a room with one player in it' });
+			//
+			// Since 2026-10-12 the gate is on SEATS, not members: a crowded watchparty
+			// room mounts the table for everyone at once, so "the only member" was
+			// never true there and the AI was unreachable at a party. One seated
+			// human, and it is the caller: the rest of the room watches.
+			if (players.length !== 1 || players[0]!.member.id !== me) {
+				res.status(409).json({ error: 'a bot game is for a table with one seated player' });
 				return;
 			}
-			if (players.length !== 1) {
+			if (players[0]!.state.deck === null) {
 				res.status(409).json({ error: 'load a deck first' });
 				return;
 			}
@@ -947,11 +1088,23 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				res.status(409).json({ error: 'both players have to load a deck first' });
 				return;
 			}
+			const unloaded = players.find((p) => p.state.deck === null);
+			if (unloaded !== undefined) {
+				res.status(409).json({ error: `${unloaded.member.name} has not loaded a deck` });
+				return;
+			}
 			const waiting = players.find((p) => !p.state.ready);
 			if (waiting !== undefined) {
 				res.status(409).json({ error: `${waiting.member.name} is not ready yet` });
 				return;
 			}
+		}
+		// Every seat that plays holds a deck from here on; the two gates above are
+		// what make this a statement and not a hope.
+		const loaded = loadedOf(players);
+		if (loaded.length !== players.length) {
+			res.status(409).json({ error: 'a seated player has not loaded a deck' });
+			return;
 		}
 		// BOTH decks against the ROOM's pool, which is what makes the pool a
 		// property of the table: one rule, applied to both seats, independent of who
@@ -976,9 +1129,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// caller for the seat that is not making the request, and a room member's id
 		// is exactly that.
 		if (unknownPool(room, res)) return;
-		for (const player of players) {
+		for (const player of loaded) {
 			const verdict = checkSeat(
-				{ deck: { dck: player.state.text }, rules: roomRules(room) },
+				{ deck: { dck: player.deck.text }, rules: roomRules(room) },
 				contextFor(player.member.id),
 			);
 			if ('error' in verdict) {
@@ -997,7 +1150,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// deck, so a drafted room cannot have a bot.
 		let botDeck: { id: string; text: string; name: string } | null = null;
 		if (vsBot) {
-			const owner = players[0]!.member.id;
+			const owner = loaded[0]!.member.id;
 			const swept = draftIdOfPool(room.format) === null ? legalLibraryDecks(room.format, contextFor(owner)) : { ids: [] };
 			const offered = 'error' in swept ? [] : swept.ids;
 			if (offered.length === 0) {
@@ -1053,8 +1206,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// the match ends, and not when a restart restores the room without
 				// it. The decks stay held: they are what a Rematch plays.
 				for (const p of players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
-				deps.matchStarted?.(matchId, matchStartOf(room, players, botDeck));
-				log({ evt: 'room-match-started', room: room.id, matchId, decks: players.map((p) => p.state.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
+				deps.matchStarted?.(matchId, matchStartOf(room, loaded, botDeck));
+				log({ evt: 'room-match-started', room: room.id, matchId, decks: loaded.map((p) => p.deck.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
 				settle(200, { matchId });
 				return answer(payload);
 			}
@@ -1073,9 +1226,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// names it itself.
 			req.body = {
 				opponent: 'ai',
-				decks: [players[0]!.state.text, botDeck!.text],
-				avatarIds: [players[0]!.member.avatarId, undefined],
-				names: [players[0]!.member.name, undefined],
+				decks: [loaded[0]!.deck.text, botDeck!.text],
+				avatarIds: [loaded[0]!.member.avatarId, undefined],
+				names: [loaded[0]!.member.name, undefined],
 				format: room.format,
 			};
 			next();
@@ -1083,11 +1236,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		req.body = {
 			opponent: 'human',
-			decks: players.map((p) => p.state.text),
-			avatarIds: players.map((p) => p.member.avatarId),
+			decks: loaded.map((p) => p.deck.text),
+			avatarIds: loaded.map((p) => p.member.avatarId),
 			// Seat names (wave 31 shape 1): the same order, each the member's display
 			// name, so Forge's own prompts and the board say who is who.
-			names: players.map((p) => p.member.name),
+			names: loaded.map((p) => p.member.name),
 			// The pool a card-name ask is narrowed to (`play/names.ts`).
 			format: room.format,
 		};
@@ -1100,17 +1253,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * the AI seat has none. The cost map is the room's era's own plus the
 	 * library's, so a deck's colours fold the same as the room screen's pips.
 	 */
-	function matchStartOf(room: RoomViewLike, players: TablePlayer[], botDeck: { id: string; text: string; name: string } | null): MatchStartInput {
+	function matchStartOf(room: RoomViewLike, players: LoadedPlayer[], botDeck: { id: string; text: string; name: string } | null): MatchStartInput {
 		const format = library.format(room.format);
 		const costs = format === undefined ? LIBRARY_CARD_COSTS : { ...LIBRARY_CARD_COSTS, ...format.fixture.manaCost };
 		const family = draftIdOfPool(room.format) !== null ? 'draft' : room.format === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
 		const seats: MatchStartInput['seats'] = players.map((p) => {
-			const ref = p.state.choice.deck;
+			const ref = p.deck.choice.deck;
 			return {
 				memberId: p.member.id,
 				displayName: p.member.name,
 				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
-				deck: summarizeDeck(p.state.text, p.state.verdict.deckName, costs, 'library' in ref ? ref.library : undefined),
+				deck: summarizeDeck(p.deck.text, p.deck.verdict.deckName, costs, 'library' in ref ? ref.library : undefined),
 			};
 		});
 		if (botDeck !== null) seats.push({ memberId: null, deck: summarizeDeck(botDeck.text, botDeck.name, costs, botDeck.id) });

@@ -319,8 +319,10 @@ function fakeLobby(): FakeLobby {
 			const room = member(roomId, memberId);
 			if (room === undefined) return false;
 			// Through JSON, as a persisted lobby would: a state this route cannot
-			// read back after a restart is a state it must not depend on.
-			room.state.set(memberId, JSON.parse(JSON.stringify(state)) as unknown);
+			// read back after a restart is a state it must not depend on. `undefined`
+			// clears the row, exactly as `Lobby.setPlayerState` does.
+			if (state === undefined) room.state.delete(memberId);
+			else room.state.set(memberId, JSON.parse(JSON.stringify(state)) as unknown);
 			return true;
 		},
 		setMatch(roomId, matchId) {
@@ -907,6 +909,10 @@ describe('a room table', () => {
 		call(h, 'POST', `/api/tables/rooms/${roomId}/ready`, { ready }, edgeHeaders(user));
 	const view = (h: Harness, user: string, roomId = ROOM) =>
 		call(h, 'GET', `/api/tables/rooms/${roomId}`, undefined, edgeHeaders(user));
+	const sit = (h: Harness, user: string, roomId = ROOM) =>
+		call(h, 'POST', `/api/tables/rooms/${roomId}/sit`, {}, edgeHeaders(user));
+	const stand = (h: Harness, user: string, roomId = ROOM) =>
+		call(h, 'POST', `/api/tables/rooms/${roomId}/stand`, {}, edgeHeaders(user));
 	const startRoom = (h: Harness, user: string, roomId = ROOM) =>
 		start(h, { room: roomId }, '/api/play/matches', 'application/json', edgeHeaders(user));
 
@@ -914,8 +920,9 @@ describe('a room table', () => {
 		seat: number;
 		name: string;
 		you: boolean;
-		deckName: string;
-		rulesName: string;
+		/** Null for a seat taken ahead of a deck. */
+		deckName: string | null;
+		rulesName: string | null;
 		legal: boolean;
 		ready: boolean;
 		issueCount: number;
@@ -1059,13 +1066,41 @@ describe('a room table', () => {
 			expect(library.decks.some((d) => d.text === seats[1]?.deck)).toBe(true);
 		});
 
-		it('is refused when a second person is in the room: they play each other', async () => {
+		it('is refused when a second person is SEATED: they play each other', async () => {
 			const h = await boot();
 			openRoom(h);
 			await bothLoaded(h);
 			const res = await startBot(h, 'alice');
 			expect(res.status).toBe(409);
-			expect(res.body.error).toMatch(/one player/);
+			expect(res.body.error).toMatch(/one seated player/);
+			expect(h.specs).toHaveLength(0);
+		});
+
+		/*
+		 * 2026-10-12: a watchparty room mounts the table for everyone at once, so
+		 * "the only member" was never true at a party and the AI was unreachable
+		 * there. The gate is on SEATS now: one seated human, who is the caller.
+		 */
+		it('starts with other people in the room, as long as only the caller is seated', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+			// An unseated member cannot start a bot game for the seated one.
+			const notMine = await startBot(h, 'bob');
+			expect(notMine.status).toBe(409);
+			expect(h.specs).toHaveLength(0);
+			const res = await startBot(h, 'alice');
+			expect(res.status).toBe(201);
+			expect(h.specs).toHaveLength(1);
+			expect(h.specs[0]!.seats[1]?.ai).toBe(true);
+		});
+
+		it('is refused for a seated caller who has not loaded a deck', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+			expect((await sit(h, 'alice')).status).toBe(200);
+			const res = await startBot(h, 'alice');
+			expect(res).toMatchObject({ status: 409, body: { error: 'load a deck first' } });
 			expect(h.specs).toHaveLength(0);
 		});
 
@@ -1394,6 +1429,113 @@ describe('a room table', () => {
 		const seen = await view(h, 'carol');
 		expect(seen.body.you).toEqual({ player: false, leader: false });
 		expect(players(seen.body).map((p) => p.you)).toEqual([false, false]);
+	});
+
+	/*
+	 * Seats as their own act (2026-10-12). The operator: "players should be able
+	 * to give up their seat, but not after both players are ready. when both
+	 * players are ready and the match is initiated then they are locked in until
+	 * they concede". The lock is the server's — `room.locked` is the same bit the
+	 * stand route refuses on — and nobody can stand anybody else up.
+	 */
+	describe('sitting and standing', () => {
+		const THREE = [...MEMBERS, { id: CAROL, name: 'user-carol' }];
+		const locked = (body: Record<string, unknown>): boolean => (body.room as { locked: boolean }).locked;
+
+		it('seats a member without a deck, in the order people sat, and the deck may come later', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, THREE);
+			const sat = await sit(h, 'carol');
+			expect(sat.status).toBe(200);
+			expect(sat.body.you).toEqual({ player: true, leader: false });
+			expect(players(sat.body)).toMatchObject([{ seat: 0, you: true, deckName: null, rulesName: null, legal: false, issueCount: 0, ready: false }]);
+			expect(locked(sat.body)).toBe(false);
+			// Bob loads a deck without sitting first: that still takes the next seat,
+			// behind carol, who sat before him.
+			expect((await putDeck(h, 'bob', deckBody(SECOND_DECK))).status).toBe(200);
+			// A seat without a deck cannot ready up.
+			expect(await setReady(h, 'carol')).toMatchObject({ status: 409, body: { error: 'load a deck before you ready up' } });
+			// Carol's deck lands in the seat she already holds.
+			const loaded = await putDeck(h, 'carol', deckBody(UG_POLYMORPH));
+			expect(players(loaded.body).map((p) => [p.name, p.deckName])).toEqual([
+				['user-carol', 'UG Polymorph (Antoine Ruel)'],
+				['user-bob', 'Jund (Emanuele Giusti)'],
+			]);
+			// Alice, the third, is refused a seat and sees herself as no player.
+			expect(await sit(h, 'alice')).toMatchObject({ status: 409, body: { error: 'this table already has two players' } });
+			expect((await view(h, 'alice')).body.you).toEqual({ player: false, leader: true });
+			// Sitting again is a no-op answer, not a refusal.
+			expect((await sit(h, 'carol')).status).toBe(200);
+		});
+
+		it('gives a seat back with its deck and ready flag, until both players are ready', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, THREE);
+			await bothLoaded(h);
+			expect((await setReady(h, 'alice')).status).toBe(200);
+			// One ready player is not a lock: alice, ready, may still stand.
+			const stood = await stand(h, 'alice');
+			expect(stood.status).toBe(200);
+			expect(stood.body.you).toEqual({ player: false, leader: true });
+			expect(players(stood.body).map((p) => p.name)).toEqual(['user-bob']);
+			// Her seat is free for the next person, who sits behind bob.
+			expect(players((await sit(h, 'carol')).body).map((p) => [p.seat, p.name])).toEqual([
+				[0, 'user-bob'],
+				[1, 'user-carol'],
+			]);
+			// Standing when you hold no seat is a no-op answer.
+			expect((await stand(h, 'alice')).status).toBe(200);
+			// Both ready: the table locks, and the server refuses, not just the button.
+			expect((await putDeck(h, 'carol', deckBody(UG_POLYMORPH))).status).toBe(200);
+			expect((await setReady(h, 'bob')).status).toBe(200);
+			const both = await setReady(h, 'carol');
+			expect(locked(both.body)).toBe(true);
+			expect(await stand(h, 'carol')).toMatchObject({ status: 409, body: { error: 'both players are ready — the table is locked' } });
+			expect(players((await view(h, 'carol')).body)).toHaveLength(2);
+		});
+
+		it('keeps both seats for the whole match: no sitting, no standing, until it ends', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, THREE);
+			await bothLoaded(h);
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			expect((await startRoom(h, 'alice')).status).toBe(201);
+			// The start spent both Readys, and the match itself is what locks now.
+			const during = await view(h, 'bob');
+			expect(players(during.body).map((p) => p.ready)).toEqual([false, false]);
+			expect(locked(during.body)).toBe(true);
+			expect(await stand(h, 'alice')).toMatchObject({ status: 409, body: { error: 'the match has already started' } });
+			expect(await sit(h, 'carol')).toMatchObject({ status: 409, body: { error: 'the match has already started' } });
+			expect(players((await view(h, 'carol')).body).map((p) => p.name)).toEqual(['user-alice', 'user-bob']);
+		});
+
+		it('refuses a start while a seated player has no deck, naming them', async () => {
+			const h = await boot();
+			openRoom(h);
+			expect((await sit(h, 'alice')).status).toBe(200);
+			expect((await putDeck(h, 'bob', deckBody(SECOND_DECK))).status).toBe(200);
+			expect((await setReady(h, 'bob')).status).toBe(200);
+			expect(await startRoom(h, 'alice')).toMatchObject({ status: 409, body: { error: 'user-alice has not loaded a deck' } });
+			expect(h.specs).toEqual([]);
+		});
+
+		it('still reads a seat row written before seats were their own act', async () => {
+			const h = await boot();
+			openRoom(h);
+			expect((await putDeck(h, 'bob', deckBody(SECOND_DECK))).status).toBe(200);
+			// What a pre-2026-10-12 deploy persisted: the deck's fields flat beside `ready`.
+			const stored = h.lobby.room(ROOM)!.state.get(BOB) as { deck: Record<string, unknown> };
+			h.lobby.setPlayerState(ROOM, ALICE, { v: 1, ...stored.deck, ready: true, seatedAt: 1 });
+			const seen = await view(h, 'alice');
+			expect(players(seen.body).map((p) => [p.name, p.deckName, p.ready])).toEqual([
+				['user-alice', 'Jund (Emanuele Giusti)', true],
+				['user-bob', 'Jund (Emanuele Giusti)', false],
+			]);
+			// And a start reads the migrated deck: both ready, it launches.
+			expect((await setReady(h, 'bob')).status).toBe(200);
+			expect((await startRoom(h, 'alice')).status).toBe(201);
+		});
 	});
 
 	it('shows the other player’s state without their issues or their .dck', async () => {
