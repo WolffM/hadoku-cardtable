@@ -154,6 +154,18 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
 
     // What an earlier failed row left behind (its mana floats, its source stays tapped) is the baseline.
     const baseline = async () => ({ pool: (await manaPool(a)).total, life: await life(a), tapped: new Set(await tappedIds(a)) });
+    type Baseline = Awaited<ReturnType<typeof baseline>>;
+
+    /**
+     * The row's end state against `base`, read once its pool, life and board are back where they
+     * were: the painland's life comes back in a frame after its untap. A row that never gets
+     * there is read as it stands after 10 s, so its line says what was left.
+     */
+    const backTo = async (base: Baseline, fresh: () => Promise<number[]>) => {
+      const now = async () => ({ pool: (await manaPool(a)).total - base.pool, life: (await life(a)) - base.life, tapped: await fresh() });
+      await expect.poll(async () => { const n = await now(); return n.pool === 0 && n.life === 0 && n.tapped.length === 0; }, { timeout: 10_000 }).toBe(true).then(() => true, () => false);
+      return now();
+    };
 
     /** Tap it, click it: it untaps with its mana and life given back, and is offered again. */
     const lastTapped = async (what: string, source: (typeof SOURCES)[number]): Promise<void> => {
@@ -165,10 +177,12 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       const pool = await manaPool(a);
       const floating = pool.total - base.pool;
       const added = source.adds === undefined || pool[source.adds] === 1;
+      // The painland's damage comes after its mana: read its cost once it has landed.
+      await expect.poll(async () => base.life - (await life(a)), { timeout: 10_000 }).toBe(source.life ?? 0).then(() => true, () => false);
       const lifeCost = base.life - (await life(a));
       const back = await untapByClick(id);
       const offeredAgain = back && (await expect.poll(() => isOffered(a, id), { timeout: 10_000 }).toBe(true).then(() => true, () => false));
-      const after = { pool: (await manaPool(a)).total - base.pool, life: (await life(a)) - base.life, tapped: await fresh() };
+      const after = await backTo(base, fresh);
       row(
         what,
         added && lifeCost === (source.life ?? 0) && back && offeredAgain && after.pool === 0 && after.life === 0 && after.tapped.length === 0,
@@ -199,7 +213,7 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       const controlStays = await isTapped(a, control);
       const poolOut = (await manaPool(a)).total - base.pool;
       const controlBack = await untapByClick(control);
-      const end = { pool: (await manaPool(a)).total - base.pool, life: (await life(a)) - base.life, tapped: await fresh() };
+      const end = await backTo(base, fresh);
       row(
         `${name} out-of-order`,
         backOut && controlStays && controlBack && end.pool === 0 && end.life === 0 && end.tapped.length === 0,
