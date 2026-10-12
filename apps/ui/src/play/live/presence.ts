@@ -642,7 +642,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * `cleared`: the sender has said the card is no longer parked, and the
    * short grace is running.
    */
-  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean } | null = null;
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean; since: number } | null = null;
   /** Where the back stands, or — on its glide into a placement's gap — where it is heading. */
   let backAt: Point | null = null;
   /** Telemetry for the play in hand (`./handover-report.ts`): when its release reached this screen, its glide began, its spell was seen on the stack. */
@@ -716,6 +716,16 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       }
     }
     return null;
+  }
+
+  /** A wait its card never ended — a clock did: said, with how long the back stood, then taken down. */
+  function expire(how: 'grace' | 'timeout'): void {
+    if (waiting !== null) {
+      const data: Record<string, string | number | boolean> = { how, ms: Date.now() - waiting.since, forBattlefield: waiting.forBattlefield };
+      if (waiting.card !== null) data.card = waiting.card;
+      host.report?.('stand-in', data);
+    }
+    stopWaiting();
   }
 
   function stopWaiting(): void {
@@ -916,7 +926,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
         play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
-        waiting = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false };
+        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false, since: Date.now() };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
         // the one object, in place — never a back beside a face until a timer ends it.
@@ -943,7 +953,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       // kept the back on the board for as long as they kept moving.
       waiting.cleared = true;
       clearTimeout(waiting.timer);
-      waiting.timer = setTimeout(stopWaiting, CLEARED_GRACE_MS);
+      waiting.timer = setTimeout(() => expire('grace'), CLEARED_GRACE_MS);
     }
 
     const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
@@ -1214,7 +1224,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
     standIn.setAttribute(PRESENCE_CARD_ATTR, String(card));
-    const wait = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
+    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false, since: Date.now() };
     waiting = wait;
     // The card reaching its column while the stand-in still waits — straight from the hand, or a
     // spell resolving before the glide let it hand over to the stack — finishes the stand-in's

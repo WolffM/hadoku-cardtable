@@ -418,9 +418,19 @@ function doubledHandovers(rows: readonly LogRow[]): string[] {
   return doubled.length === 0 ? [] : [`${doubled.length} hand-over(s) left two copies of a card drawn: ${doubled.map((r) => JSON.stringify(r)).join(' ; ')}`];
 }
 
+/**
+ * The other seat's back taken down by a clock rather than by its card (`presence.ts`'s `expire`):
+ * printed, not asserted — a cancelled play ends that way by design (`how: 'grace'`); one that stood
+ * for seconds is the evidence for a back left on the board.
+ */
+function printExpiredStandIns(rows: readonly LogRow[]): void {
+  for (const r of rows) if (r.evt === 'client' && r.kind === 'stand-in') console.log(`[stand-in] ${JSON.stringify(r)}`);
+}
+
 /** What every spec's stack checks at `stop()`, whatever the spec was about. */
 function assertStackInvariants(serverLogFile: string): void {
   const rows = logRows(serverLogFile);
+  printExpiredStandIns(rows);
   const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows)];
   if (broken.length > 0) throw new Error(broken.join('\n'));
 }

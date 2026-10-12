@@ -1361,7 +1361,8 @@ describe('receiving', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();
-    const handle = installPresence({ canvas, host: host(t) });
+    const report = vi.fn();
+    const handle = installPresence({ canvas, host: { ...host(t), report } });
     const at = { zone: 'battlefield' as const, x: 0.3, y: 0.5 };
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null, placing: { at } });
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, handRows: 1, arranging: null });
@@ -1371,6 +1372,7 @@ describe('receiving', () => {
       t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { ...at, x: 0.3 + i * 0.05 }, held: false, from: null, handRows: 1, arranging: null });
     }
     expect(canvas.querySelector('.presence__back'), 'gone one grace after the cancel, however they moved').toBeNull();
+    expect(report.mock.calls, 'the clock, not its card, took it down — said once').toEqual([['stand-in', { how: 'grace', ms: CLEARED_GRACE_MS, forBattlefield: false }]]);
     handle.dispose();
   });
 

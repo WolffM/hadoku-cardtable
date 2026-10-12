@@ -30,8 +30,11 @@ export const ClientEventSchema = z
      * ample telemetry"*). `bar-stuck`: the server's latest bar for this seat had
      * an enabled button and the screen offered nothing to press for longer than
      * `BAR_STUCK_MS` (`phase: 'held'`), and again when that ends (`'cleared'`).
+     * `stand-in`: the other seat's back, standing in for a play of theirs, taken
+     * down by a clock (`how: 'grace' | 'timeout'`) rather than by its card — how
+     * long it stood, so a back left on the board is read from the log.
      */
-    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in']),
     data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
   })
   .strict();
