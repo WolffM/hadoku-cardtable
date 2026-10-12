@@ -176,7 +176,7 @@ function fakeSocket() {
 }
 
 describe('the page’s one socket', () => {
-  it('opens for the first follower, says everything the page follows, and closes after the last', () => {
+  it('opens for the first follower, says everything the page follows, and closes after the last', async () => {
     const fake = fakeSocket();
     let opened = 0;
     const source = socketPings(() => {
@@ -195,7 +195,30 @@ describe('the page’s one socket', () => {
     expect(fake.sent.at(-1)).toEqual({ rooms: [], list: true });
     expect(fake.closed()).toBe(0);
     b();
+    await Promise.resolve();
     expect(fake.closed(), 'nothing follows: closed').toBe(1);
+  });
+
+  it('a follower that replaces the last one in the same tick keeps the socket, and the watch names only it', async () => {
+    const fake = fakeSocket();
+    let opened = 0;
+    const source = socketPings(() => {
+      opened += 1;
+      return fake.socket;
+    });
+    const room = source.subscribe({ room: 'r-1' }, () => undefined);
+    fake.connect();
+    room();
+    const list = source.subscribe('list', () => undefined);
+    await Promise.resolve();
+    expect(opened, 'the room screen gave way to the lobby on the same connection').toBe(1);
+    expect(fake.closed()).toBe(0);
+    expect(fake.sent.at(-1)).toEqual({ rooms: [], list: true });
+    list();
+    await Promise.resolve();
+    expect(fake.closed()).toBe(1);
+    source.subscribe({ room: 'r-2' }, () => undefined);
+    expect(opened, 'a follower after the close opens a new one').toBe(2);
   });
 
   it('a ping reaches the followers of that room, or of the list, and nobody else', () => {

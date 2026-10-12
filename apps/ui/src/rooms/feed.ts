@@ -23,7 +23,8 @@
  * ## One socket per page, opened while something follows
  *
  * Every follower on the page shares one connection, and it is closed when the
- * last one stops: an embed that unmounts leaves no socket behind
+ * last one stops and no other has started in the same tick: an embed that
+ * unmounts leaves no socket behind
  * (`e2e/embed.spec.ts` counts them). Its own connection, not the match's: a
  * match socket comes and goes with the match screen, and a pod's with the pod.
  */
@@ -166,12 +167,20 @@ export function socketPings(connect: () => FeedSocket = () => io({ path: default
       return () => {
         followers.delete(id);
         if (socket === null) return;
-        if (followers.size === 0) {
-          socket.close();
-          socket = null;
-        } else if (socket.connected) {
-          sendWatch(socket);
+        if (followers.size > 0) {
+          if (socket.connected) sendWatch(socket);
+          return;
         }
+        // Closed once the commit that let go of the last follower is over, so a screen
+        // that replaces another (the room → the lobby) keeps the connection instead of
+        // opening a new one — which, still upgrading when an embed unmounted, polled on
+        // after the unmount.
+        const idle = socket;
+        queueMicrotask(() => {
+          if (followers.size > 0 || socket !== idle) return;
+          idle.close();
+          socket = null;
+        });
       };
     },
   };
