@@ -161,6 +161,7 @@ import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
+import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary } from '../deck/build.ts';
 import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
@@ -660,7 +661,8 @@ function PoolSets({ format }: { format: TableFormat | null }) {
  * The SLICE is a CSS crop of those bytes for layout — `object-fit: cover` on a
  * short box — which is what *"a partial art that represents the deck"* asks for,
  * and it is a display crop rather than an `art_crop` URL, so we are still not
- * copying anybody's image metadata.
+ * copying anybody's image metadata — but it is art shown without its frame all
+ * the same, so it is credited like one.
  *
  * Decorative, and deliberately: `alt=""` plus `aria-hidden`. The row's accessible
  * name is the DECK's name, and announcing "Primeval Titan" for a deck called
@@ -668,16 +670,22 @@ function PoolSets({ format }: { format: TableFormat | null }) {
  *
  * A URL that 404s (a CDN key never uploaded) only shows up at fetch time, so
  * `onError` falls back to the same empty band an unresolved id gets.
+ *
+ * The slice drops the illustrator and copyright line printed at the card's
+ * foot, so the band carries them itself (Scryfall's image guidelines for art
+ * shown cropped), and shows no art it cannot credit.
  */
 function DeckArt({ artId }: { artId: string | undefined }) {
   const [broken, setBroken] = useState(false);
+  const artist = useArtist(artId ?? null);
   const url = artId === undefined ? null : cardImageUrl(artId);
-  if (url === null || broken) {
+  if (url === null || typeof artist !== 'string' || broken) {
     return <span className="deckpick__art deckpick__art--none" aria-hidden="true" />;
   }
   return (
     <span className="deckpick__art" aria-hidden="true">
       <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} />
+      <span className="deckpick__credit">{artCredit(artist)}</span>
     </span>
   );
 }

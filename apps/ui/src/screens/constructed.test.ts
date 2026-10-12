@@ -2384,7 +2384,7 @@ describe('the deck dropdown shows its colours', () => {
     // The row's own visible text is the deck's NAME and nothing else: the ` · WU`
     // suffix the `<option>` needed is gone, because the row draws real pips.
     expect(rowName(two)).toBe(UW_DELVER.name);
-    expect(two.textContent).toBe(UW_DELVER.name);
+    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(UW_DELVER.name);
     expect(within(two).getByTestId('deck-colors').dataset['colors']).toBe('WU');
 
     const one = deckRow(MONO_GREEN.id);

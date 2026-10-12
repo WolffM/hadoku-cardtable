@@ -66,10 +66,6 @@ describe('resolveArtUrl — case 1, a cdn entry', () => {
     );
   });
 
-  it("asks Scryfall for the artwork alone when the size is art_crop", () => {
-    expect(resolveArtUrl(ID_ABSENT, {}, { size: 'art_crop' })).toBe(scryfallUrl(ID_ABSENT, 'art_crop'));
-  });
-
   it('ignores size — a key addresses one stored object at one size', () => {
     const small = resolveArtUrl(ID_CDN, MANIFEST, { size: 'small' });
     const large = resolveArtUrl(ID_CDN, MANIFEST, { size: 'large' });
@@ -255,7 +251,7 @@ describe("resolveArtUrl — a back face's art id", () => {
 
   it("builds Scryfall's back image for the same card", () => {
     expect(resolveArtUrl(back, MANIFEST)).toBe(`${SCRYFALL_IMAGE_BASE}/normal/back/4/d/${ID_ABSENT}.jpg`);
-    expect(resolveArtUrl(back, MANIFEST, { size: 'art_crop' })).toBe(`${SCRYFALL_IMAGE_BASE}/art_crop/back/4/d/${ID_ABSENT}.jpg`);
+    expect(resolveArtUrl(back, MANIFEST, { size: 'large' })).toBe(`${SCRYFALL_IMAGE_BASE}/large/back/4/d/${ID_ABSENT}.jpg`);
   });
 
   it('is repointed by its own manifest row, leaving the front alone', () => {

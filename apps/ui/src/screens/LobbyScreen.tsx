@@ -34,6 +34,7 @@ import type { RoomFeed } from '../rooms/feed.ts';
 import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
+import { Disclaimer } from '../components/Disclaimer.tsx';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -64,6 +65,7 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
       {stats !== undefined && <StatsPopout player={stats.player} source={statsSource} />}
 
       <footer className="shell__foot">
+        <Disclaimer />
         {import.meta.env?.DEV === true && (
           <p>
             <a

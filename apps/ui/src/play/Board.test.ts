@@ -3198,14 +3198,19 @@ describe('the stack’s art (#10)', () => {
     const { container } = renderBoard(viewWithArt());
     const items = [...container.querySelectorAll<HTMLElement>('[data-placed-spell]')];
     expect(items).toHaveLength(2);
+    let spells = 0;
     for (const item of items) {
-      // A spell draws its card; an ability its chip (AE29) — either names the source.
-      const name = item.querySelector('.card__name, .placed__chip-name')!.textContent!;
+      // A spell draws its card; an ability its chip (AE29) — either names the source. A chip draws its
+      // art only once it can credit it (`placed.test.ts`), and these ids are synthetic, so it is spells only.
+      if (item.querySelector('[data-ability-chip]') !== null) continue;
+      spells += 1;
+      const name = item.querySelector('.card__name')!.textContent!;
       const img = item.querySelector('img');
       expect(img, `${name} on the stack has art`).not.toBeNull();
       expect(img!.getAttribute('src')).toBe(cardImageUrl(TEST_IDS.get(name)));
       expect(ALLOWED_ART_HOSTS).toContain(new URL(img!.getAttribute('src')!).origin);
     }
+    expect(spells, 'at least one spell on the stack').toBeGreaterThan(0);
     expect(container.innerHTML).not.toMatch(/url\(/);
   });
 
@@ -3606,17 +3611,17 @@ describe('§A.15 — a card’s state is drawn', () => {
     }
   });
 
-  it('summoning sickness desaturates the card and carries a drawn mark, never an outline', () => {
+  it('summoning sickness veils the card and carries a drawn mark, never an outline', () => {
     const { container } = renderBoard(withState({ summoningSick: true }));
     expect(card(container).getAttribute('data-sick')).toBe('true');
     const mark = card(container).querySelector<HTMLElement>('.board-card__mark[data-mark="sick"]')!;
     expect(mark, 'a mark of its own').not.toBeNull();
     expect(mark.querySelector('svg.board-card__mark-art'), 'drawn, not a glyph a font might not have').not.toBeNull();
     expect(mark.textContent, 'and the word is still said, for anything that cannot see it').toBe('summoning sick');
-    // The treatment is a FILTER — a channel no outline uses — and it is not the accent.
-    const sick = /\.board-card\[data-sick\] > \.board-card__face \{([^}]*)\}/.exec(withoutComments(CARD_CSS));
+    // The treatment is a hatched layer over the image — a channel no outline uses — and it is not the accent.
+    const sick = /\.board-card\[data-sick\] > \.board-card__face::before \{([^}]*)\}/.exec(withoutComments(CARD_CSS));
     expect(sick, 'the sick rule').not.toBeNull();
-    expect(sick![1]).toMatch(/filter:\s*grayscale/);
+    expect(sick![1]).toMatch(/repeating-linear-gradient/);
     expect(sick![1], 'and it is not a fourth outline').not.toMatch(/outline|--accent/);
   });
 
@@ -4190,7 +4195,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   });
 
   it('Q13: power/toughness sits in the card’s BOTTOM-right corner, clear of the counters and the marks', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom'), 'to the FACE: the pile box hangs --pile-fan below it').toBe('calc(2px + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom'), 'to the FACE: the pile box hangs --pile-fan below it').toBe('calc(var(--credit-strip) + var(--pile-fan))');
     expect(declarationInCss(CARD_CSS, '.board-card__pt', 'top'), 'it no longer hangs off the top').toBeUndefined();
     expect(declarationInCss(CARD_CSS, '.board-card__pt', 'right')).toContain('--pile-fan');
     // The other two corners it must not collide with.
@@ -4258,8 +4263,10 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   it('a card’s bottom badges keep to its FACE, not the pile box that hangs --pile-fan below it', () => {
     // table-fit 2026-10-07: a piled creature's P/T drew 6 px (the fan) below its own card, because the badge
     // was anchored to the pile's box; the top-right badges already carried the fan on `right`.
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('calc(2px + var(--pile-fan))');
-    expect(declarationInCss(CARD_CSS, '.board-card__counters', 'bottom')).toBe('calc(2px + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__counters', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
+    // And above the face's printed artist and copyright line, which Scryfall's image guidelines say never to cover.
+    expect(declarationInCss(CARD_CSS, '.board-card__relations', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
   });
 
   it('stack: a question moves the band’s top up and gives it room for a long effect; the band is sized by state alone', () => {

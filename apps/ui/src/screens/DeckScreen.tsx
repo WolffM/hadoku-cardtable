@@ -32,6 +32,7 @@ import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '.
 import { navigate } from './route.ts';
 import { tablesClient, type TablesClient } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { Disclaimer } from '../components/Disclaimer.tsx';
 
 export interface DeckScreenProps {
   draftId: string;
@@ -113,6 +114,7 @@ export function DeckScreen({ draftId, makeTransport, client: given, checkDelayMs
       )}
 
       <footer className="shell__foot">
+        <Disclaimer />
         <p>
           <a
             className="shell__link"

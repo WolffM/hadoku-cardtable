@@ -89,6 +89,7 @@ import { createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
+import { artCredit, useArtist } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { PLACEMENT_WAIT_MS } from '../motion.ts';
@@ -476,7 +477,7 @@ function deferUnmount(root: Root | null): void {
 }
 
 function faceNode(item: StackEntry): ReactElement | null {
-  if (item.isAbility) return abilityChip(item);
+  if (item.isAbility) return createElement(AbilityChip, { item });
   if (item.sourceCard === null) return null;
   // A face-down spell of theirs: the same back a hidden card is in every zone (and the inspector's).
   return item.sourceHidden === true ? createElement(HiddenCard, { card: item.sourceCard }) : createElement(CardTile, { card: item.sourceCard });
@@ -487,9 +488,14 @@ function faceNode(item: StackEntry): ReactElement | null {
  * activated ability on the stack is an EFFECT of its card, never a second copy of it — half a card
  * tall, the source's art as a band with its name, the ability's own text beneath, rounded, no frame,
  * an accent glow. Mock-up: the operator's `ae29-options.html`, option 1.
+ *
+ * The band is the art without the card's frame, so it carries the illustrator and copyright itself
+ * (Scryfall's image guidelines for art shown cropped), and shows no art it cannot credit.
  */
-function abilityChip(item: StackEntry): ReactElement {
-  const art = item.sourceCard === null ? null : cardImageUrl(item.sourceCard.scryfallId);
+function AbilityChip({ item }: { readonly item: StackEntry }): ReactElement {
+  const artId = item.sourceCard?.scryfallId ?? null;
+  const artist = useArtist(artId);
+  const art = artId === null || typeof artist !== 'string' ? null : cardImageUrl(artId);
   const name = item.sourceName ?? item.sourceCard?.name ?? '';
   // The ability's own words (`abilityTextOf`): its targets are its arrows and its accessible name.
   const text = item.abilityText ?? item.description;
@@ -500,6 +506,7 @@ function abilityChip(item: StackEntry): ReactElement {
       'div',
       { className: 'placed__chip-band' },
       art === null ? null : createElement('img', { className: 'placed__chip-art', src: art, alt: '', 'aria-hidden': 'true', draggable: false }),
+      art === null || typeof artist !== 'string' ? null : createElement('span', { className: 'placed__chip-credit' }, artCredit(artist)),
       createElement('span', { className: 'placed__chip-name' }, name),
     ),
     createElement('div', { className: 'placed__chip-text' }, createElement(RulesText, { text })),

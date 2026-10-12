@@ -228,7 +228,7 @@ if (basePath.ok) {
 	);
 }
 
-// The game picker's tile in watchparty: a redirect to the cover's art.
+// The game picker's tile in watchparty: our own drawing of card backs.
 app.get('/cover', serveCover);
 
 // The embed bundle watchparty imports (D21). Its two entry files keep their

@@ -149,14 +149,12 @@
     rotate: -3deg;
     scale: 1;
     opacity: 1;
-    filter: none;
   }
 
   100% {
     rotate: 12deg;
     scale: 0.4;
     opacity: 0;
-    filter: grayscale(1) brightness(0.5);
   }
 }
 
@@ -193,6 +191,19 @@
   object-fit: cover;
   /* the art box of a card face sits ~12–55% down the image */
   object-position: 50% 28%;
+}
+
+.placed__chip-credit {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  left: 4px;
+  font-size: 7px;
+  line-height: 1.15;
+  text-align: right;
+  color: var(--ink);
+  text-shadow: 0 1px 2px var(--scrim);
+  pointer-events: none;
 }
 
 .placed__chip-name {

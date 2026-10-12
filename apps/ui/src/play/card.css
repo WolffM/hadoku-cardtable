@@ -25,6 +25,14 @@
   --pile-fan: 0px;
 
   /*
+   * The bottom strip of a card face, where the illustrator and copyright are
+   * printed: ~7% of a 488/680 face's height, so a tenth of its width. Scryfall's
+   * image guidelines: never cover the artist or copyright line. Every badge and
+   * layer on the face keeps above it.
+   */
+  --credit-strip: calc(var(--card-w, 5.5rem) * 0.1);
+
+  /*
    * Q16: every card is its own stacking context, so the marks, the badge and the
    * counters inside it (`--z-card-badge`, `styles.css`) are ordered among
    * themselves and can no longer paint over the stack, a prompt or a menu —
@@ -198,7 +206,7 @@
    * it), so the badge keeps to the FACE's bottom, not the box's — a piled
    * creature's P/T drew exactly the fan below its card (table-fit, 2026-10-07).
    */
-  bottom: calc(2px + var(--pile-fan));
+  bottom: calc(var(--credit-strip) + var(--pile-fan));
   right: calc(2px + var(--pile-fan));
   z-index: var(--z-card-badge, 1);
   display: flex;
@@ -348,19 +356,31 @@
 }
 
 /*
- * Summoning sickness: the card DESATURATES.
+ * Summoning sickness: a hatched veil over the card.
  *
- * A saturation channel, chosen because it is the one signal that cannot be
- * mistaken for an outline and says exactly the same thing to a colour-blind
- * viewer as to anyone else. It reads over art — which is the case that matters,
- * since a sick creature has just arrived and is the card a player is looking at.
- * The mark in the corner is the second signal, per the rule the P/T badge set.
+ * A texture channel, chosen because it cannot be mistaken for an outline and
+ * says exactly the same thing to a colour-blind viewer as to anyone else. It
+ * reads over art — which is the case that matters, since a sick creature has
+ * just arrived and is the card a player is looking at. The mark in the corner
+ * is the second signal, per the rule the P/T badge set.
  *
- * On the FACE, not on the `<li>`: the marks and the badges must stay legible, and
- * a filter on the list item would grey them out too.
+ * A layer OVER the image, never a filter ON it: Scryfall's image guidelines rule
+ * out desaturating or colour-shifting a card image. It stops short of the
+ * bottom strip, where the illustrator and copyright are printed. `::before`, so
+ * the badges after it in the face stay on top at the same z-index.
  */
-.board-card[data-sick] > .board-card__face {
-  filter: grayscale(0.7) brightness(0.82);
+.board-card[data-sick] > .board-card__face::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 var(--credit-strip);
+  z-index: var(--z-card-badge, 1);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bg) 42%, transparent) 0 5px,
+    color-mix(in srgb, var(--bg) 18%, transparent) 5px 10px
+  );
+  pointer-events: none;
 }
 
 .board-card__mark[data-mark='blocking'] {
@@ -406,7 +426,7 @@
   position: absolute;
   z-index: var(--z-card-badge, 1);
   /* To the face's bottom, as `.board-card__pt` — the pile box hangs `--pile-fan` below it. */
-  bottom: calc(2px + var(--pile-fan));
+  bottom: calc(var(--credit-strip) + var(--pile-fan));
   left: 2px;
   display: flex;
   flex-wrap: wrap;
@@ -613,7 +633,7 @@
 .board-card__relations {
   position: absolute;
   z-index: var(--z-card-badge, 1);
-  bottom: calc(2px + var(--pile-fan));
+  bottom: calc(var(--credit-strip) + var(--pile-fan));
   left: 50%;
   transform: translateX(-50%);
   display: flex;

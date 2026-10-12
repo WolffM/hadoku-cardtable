@@ -372,6 +372,22 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  it('a chip\'s art band credits its illustrator and copyright, and shows no art it cannot credit', async () => {
+    const { canvas } = board();
+    setChainHalted(true);
+    const handle = installPlaced(canvas);
+    const credited = { ...draftCard('Descendant of Storms'), scryfallId: 'f632be90-9e7f-41f8-a52e-a2952354d730' };
+    const unknown = { ...draftCard('Nobody'), scryfallId: '00000000-0000-4000-8000-000000000000' };
+    handle.notify(view([stackItem(9, { isAbility: true, sourceCard: credited }), stackItem(10, { isAbility: true, sourceCard: unknown })]));
+    const chip = (id: number) => canvas.querySelector<HTMLElement>(`[data-placed-spell="${id}"]`)!;
+    await vi.waitFor(() => expect(chip(9).querySelector('.placed__chip-credit')).not.toBeNull());
+    expect(chip(9).querySelector('.placed__chip-credit')!.textContent).toBe('Illus. Lie Setiawan · ™ & © WotC');
+    expect(chip(9).querySelector('img.placed__chip-art'), 'credited, so drawn').not.toBeNull();
+    expect(chip(10).querySelector('img'), 'no artist on record: no art').toBeNull();
+    expect(chip(10).querySelector('.placed__chip-name')!.textContent, 'the band still names its source').toBe('Card 10');
+    handle.dispose();
+  });
+
   it('their ability, dragged by them, moves without ever turning over or being rebuilt — it hides no card', async () => {
     // The operator, 2026-10-10: "moving around ability chips is weirdly visually laggy … only see from
     // the opponents view." Their first move registers the chip here (`presence.ts`'s `onPlaced`:

@@ -86,6 +86,10 @@
   margin: 0 0 6px;
 }
 
+.shell__disclaimer {
+  font-size: 11px;
+}
+
 .shell__link {
   color: var(--color-primary);
   text-decoration: none;
@@ -1145,6 +1149,7 @@
  * missing or oddly sized still fills the band instead of letterboxing.
  */
 .deckpick__art {
+  position: relative;
   grid-area: art;
   display: block;
   align-self: stretch;
@@ -1159,6 +1164,20 @@
   height: 100%;
   object-fit: cover;
   object-position: center 22%;
+}
+
+/* The slice drops the card's printed credit line, so the band carries it. */
+.deckpick__credit {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  left: 4px;
+  font-size: 8px;
+  line-height: 1.2;
+  text-align: right;
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 85%);
+  pointer-events: none;
 }
 
 /* No art resolved, and no apology for it: the row is complete without one. */
