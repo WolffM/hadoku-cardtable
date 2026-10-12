@@ -1,0 +1,19 @@
+# e2e/cr-combat-clip.spec.ts — a crowded battlefield at declare attackers.
+# Seat 0 (human) in an uncontested Main Phase 1 of its own turn with sixteen different untapped,
+# non-sick creatures (distinct names, so none of them piles) and five lands: the front tier is
+# creatures from its first column to its last, and the spec drags one into the back tier, so a
+# creature that can attack sits on every edge of the battlefield.
+# Seat 1 (ai) has nothing, so nothing blocks and nothing answers.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Plains;Island;Swamp;Mountain;Forest;Grizzly Bears;Hill Giant;Gray Ogre;Craw Wurm;Savannah Lions;Llanowar Elves;Walking Corpse;Runeclaw Bear;Centaur Courser;Balduvian Bears;Coral Merfolk;Goblin Piker;Elvish Warrior;Trained Armodon;Python;Eager Cadet
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
