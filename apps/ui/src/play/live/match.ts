@@ -1362,7 +1362,7 @@ const ALPHA_STRIKE_LABEL = 'Alpha Strike';
  * checking it is reading Forge's fixed UI vocabulary, not its prose.
  */
 function attackWindowLive(match: LiveMatch): boolean {
-  const bar = match.buttons;
+  const bar = liveBar(match);
   if (bar === null || !(bar.enable1 || bar.enable2)) return false;
   return bar.label2 === CALL_BACK_LABEL || bar.label2 === ALPHA_STRIKE_LABEL;
 }
