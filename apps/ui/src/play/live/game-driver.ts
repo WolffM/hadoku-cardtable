@@ -74,6 +74,8 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
   const roots: [HTMLElement, HTMLElement] = [mount(h.seats[0]), mount(h.seats[1])];
   const log: string[] = [];
   const seen = [0, 0];
+  /** The `notes.version` each seat last acted on: one act per thing Forge said. */
+  const acted = [-1, -1];
   const idleSince = [Date.now(), Date.now()];
   const done = [new Set<string>(), new Set<string>()];
   const picks = [new Map<string, number[]>(), new Map<string, number[]>()];
@@ -175,9 +177,15 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
       const opp = v.players.find((p) => !p.isViewer);
       if (me === undefined || opp === undefined) continue;
       if (/^Waiting/.test(s.notes.prompt?.message ?? '')) continue;
-      if (s.notes.version === seen[s.seat]) {
-        // Nothing new: an act that changed nothing (a card that cannot be
-        // played now). Press OK rather than wait forever.
+      if (s.notes.version !== seen[s.seat]) idleSince[s.seat] = Date.now();
+      // Decided again on every tick until it acts, not only when Forge says
+      // something new: a decision that waits on the board (the hand the keep
+      // question is about) is answered by a state frame, which bumps nothing.
+      const decision = s.notes.version === acted[s.seat] ? null : decide(s, v, me, opp);
+      seen[s.seat] = s.notes.version;
+      if (decision === null) {
+        // Nothing to do, or an act that changed nothing (a card that cannot
+        // be played now). Press OK rather than wait forever.
         if (Date.now() - idleSince[s.seat]! > IDLE_MS && s.notes.buttons?.enable1 === true) {
           log.push(`seat ${s.seat} idle -> OK`);
           idleSince[s.seat] = Date.now();
@@ -185,10 +193,7 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
         }
         continue;
       }
-      seen[s.seat] = s.notes.version;
-      idleSince[s.seat] = Date.now();
-      const decision = decide(s, v, me, opp);
-      if (decision === null) continue;
+      acted[s.seat] = s.notes.version;
       log.push(`seat ${s.seat} t${v.turn} ${v.phase ?? '-'}: ${decision[0]}`);
       s.act(decision[1]);
     }
