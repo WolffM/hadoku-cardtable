@@ -323,11 +323,10 @@ describe('installPlaced: drawing', () => {
       expect(mine.querySelector('.placed__back'), 'my own click-cast is never a back').toBeNull();
       expect(decodes.map((d) => d.src)).toHaveLength(1);
       decodes[0]!.settle();
-      // The decode settles, the flip remounts, and a fresh React root commits one macrotask later.
-      await new Promise((r) => setTimeout(r, 0));
-      await new Promise((r) => setTimeout(r, 0));
+      // The decode settles, the flip remounts, and the fresh React root commits on its scheduler's own
+      // turn — how many macrotasks that is depends on where in the event loop the test began.
+      await vi.waitFor(() => expect(theirs.querySelector('.card__name')?.textContent).toBe('Think Twice'));
       expect(theirs.querySelector('.placed__back'), 'turned over once decoded').toBeNull();
-      expect(theirs.querySelector('.card__name')?.textContent).toBe('Think Twice');
     } finally {
       handle.dispose();
       vi.unstubAllGlobals();
