@@ -174,6 +174,35 @@ describe('pacedMatchTransport', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('ending the turn lets phase-only frames straight through, and keeps every other pace', () => {
+    const inner = fakeInner();
+    const { transport, received } = paced(inner);
+    inner.deliver(RESOLVE);
+    inner.deliver(PHASE); // waiting on its 250 ms when End Turn is pressed
+    expect(received).toEqual([RESOLVE]);
+    transport.setEndingTurn(true);
+    expect(received).toEqual([RESOLVE, PHASE]);
+    inner.deliver(PHASE);
+    inner.deliver(PHASE);
+    expect(received).toEqual([RESOLVE, PHASE, PHASE, PHASE]);
+    inner.deliver(DRAW);
+    expect(received).toHaveLength(4);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.draw);
+    expect(received).toHaveLength(5);
+  });
+
+  it('once the turn has changed, phases are paced again', () => {
+    const inner = fakeInner();
+    const { transport, received } = paced(inner);
+    transport.setEndingTurn(true);
+    transport.setEndingTurn(false);
+    inner.deliver(RESOLVE);
+    inner.deliver(PHASE);
+    expect(received).toEqual([RESOLVE]);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.phase);
+    expect(received).toEqual([RESOLVE, PHASE]);
+  });
+
   it('fast mode from the start holds nothing', () => {
     const inner = fakeInner();
     const { received } = paced(inner, { initialFast: true });

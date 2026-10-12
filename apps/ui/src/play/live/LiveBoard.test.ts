@@ -3071,6 +3071,36 @@ function turnDelta(m: LiveMatch, playerTurn: number, turn: number) {
  * turn to 'Auto Yield'… Auto Yield should only last for that turn."* Same
  * testid, same slot — only the label, enablement and press change.
  */
+/*
+ * The operator, 2026-10-11: "'end turn' skips the remaining phases and goes straight to the opponents turn".
+ * The phases Forge passes through after End Turn make no phase sound; the opponent's turn sounds as ever.
+ */
+describe('End Turn goes straight to the other turn', () => {
+  it('the rest of the turn sounds no phase change, and the next turn sounds as usual', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority', card: null }));
+    s.send(
+      parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'End Turn', enable1: true, enable2: true, focus1: true }),
+    );
+    await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(getByTestId('live-button-end-turn'));
+    soundCalls.length = 0;
+    s.send(phaseDelta(m, 'MAIN2', me.id));
+    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    s.send(phaseDelta(m, 'END_OF_TURN', me.id));
+    await waitFor(() => expect(m.view!.phase).toBe('END_OF_TURN'));
+    expect(soundCalls.map((e) => e.role)).not.toContain('g.phase');
+
+    s.send(turnDelta(m, them.id, m.view!.turn + 1));
+    await waitFor(() => expect(soundCalls.map((e) => e.role)).toContain('g.turn-theirs'));
+    s.send(phaseDelta(m, 'UPKEEP', them.id));
+    await waitFor(() => expect(soundCalls.map((e) => e.role)).toContain('g.phase'));
+  });
+});
+
 describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s turn)', () => {
   it('reads End Turn on the viewer’s own turn, even with no bar yet', async () => {
     const { getByTestId } = await liveBoard();

@@ -164,6 +164,13 @@ export function classify(payload: unknown): PaceClass {
 export interface PacedMatchTransport extends MatchTransport {
   /** `true`: today's behaviour exactly — every queued payload flushes at once and nothing new is held. `false`: paced. */
   setFast(fast: boolean): void;
+  /**
+   * `true` from an End Turn press until the turn changes: a frame that only moves the phase goes out at once,
+   * so the rest of the turn does not step past on screen one phase at a time (the operator, 2026-10-11:
+   * "'end turn' skips the remaining phases and goes straight to the opponents turn"). A stack change, a draw
+   * or anything else in those phases keeps its own pace.
+   */
+  setEndingTurn(ending: boolean): void;
 }
 
 /** Narrows a plain `MatchTransport` (the dev harness's, a test's own stub) from one this wrapper built. Structural, not a brand: `setFast` is this interface's only addition. */
@@ -191,6 +198,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const cancel = options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
 
   let fast = options.initialFast ?? false;
+  let endingTurn = false;
   let queue: unknown[] = [];
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
@@ -198,7 +206,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   let deliverTo: ((payload: unknown) => void) | null = null;
 
   function delayFor(payload: unknown): number {
-    return fast ? 0 : delays[classify(payload)];
+    if (fast) return 0;
+    const pace = classify(payload);
+    return endingTurn && pace === 'phase' ? 0 : delays[pace];
   }
 
   function deliverNext(): void {
@@ -263,6 +273,15 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     setFast(value: boolean): void {
       fast = value;
       if (value) flush();
+    },
+    setEndingTurn(value: boolean): void {
+      endingTurn = value;
+      // A phase frame already waiting on its gap goes now: the wait was computed before the press.
+      if (value && timer !== null) {
+        cancel(timer);
+        timer = null;
+        pump();
+      }
     },
   };
 }

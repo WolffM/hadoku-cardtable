@@ -1819,6 +1819,30 @@ function useBarStuckReport(match: LiveMatch, stuck: boolean, detail: () => Clien
   }, [stuck, match]);
 }
 
+/**
+ * The turn an End Turn press was made on, per match, until the turn changes. While it is set the rest of the
+ * turn goes by without a stop per phase: the pacer lets phase-only frames straight through
+ * (`setEndingTurn`) and no `g.phase` sounds. Telemetry before this: five phase sounds 250 ms apart, and the
+ * opponent's turn 2.2 s after the press, every time.
+ */
+const endingTurnFrom = new WeakMap<LiveMatch, number>();
+
+function endTurn(match: LiveMatch): void {
+  if (!pressWithSound(match, 'cancel')) return;
+  endingTurnFrom.set(match, match.view?.turn ?? 0);
+  if (isPacedTransport(match.transport)) match.transport.setEndingTurn(true);
+}
+
+/** Whether `view` is still the turn End Turn was pressed on; clears the mark (and the pacer's) once it is not. */
+function stillEndingTurn(match: LiveMatch, view: BoardView): boolean {
+  const from = endingTurnFrom.get(match);
+  if (from === undefined) return false;
+  if (view.turn === from && !view.gameOver) return true;
+  endingTurnFrom.delete(match);
+  if (isPacedTransport(match.transport)) match.transport.setEndingTurn(false);
+  return false;
+}
+
 /** A control-bar press, with its sound. `pressButton` refuses a disabled button; then nothing plays. */
 function pressWithSound(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   const pressed = pressButton(match, which);
@@ -1862,7 +1886,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     lastSoundView.current = soundView;
     if (spectator) return;
     try {
-      const events = deriveSoundEvents(prev, soundView);
+      const ending = stillEndingTurn(match, soundView);
+      const events = deriveSoundEvents(prev, soundView).filter((e) => !(ending && e.role === 'g.phase'));
       playSoundEvents(events);
       reportSound(match, 'view', events, { prevSeq: prev?.seq ?? -1 });
     } catch (err) {
@@ -2786,7 +2811,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           data-highlight={!yieldMode && highlightEndTurn ? '' : undefined}
           data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
           disabled={yieldMode ? spectator : !endTurnEnabled}
-          onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : pressWithSound(match, 'cancel'))}
+          onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : endTurn(match))}
         >
           {yieldMode ? (autoYieldOn ? 'Cancel Yield' : 'Auto Yield') : 'End Turn'}
         </button>
