@@ -1,0 +1,12 @@
+# Paths left out of the public snapshot (scripts/public/export.sh), one per line,
+# relative to the repo root. A directory takes everything under it.
+#
+# Working material: wave briefs, retros, the playtest ledger, the deck-selection
+# crawl tools, and handoffs to other repos. It stays in the private archive.
+docs/planning
+docs/requests
+docs/WAVE_WORKTREE.md
+# CI runs on the operator's own machines, and the public repo runs none.
+.github
+# Names of secrets in the vault broker: nothing a reader of the code needs.
+.devvault.json
