@@ -1,0 +1,16 @@
+# A pile of copies wears ×N: alice (human, seat 0) has three Goblin tokens (Forge's own token
+# script) and a Grizzly Bears on the battlefield in her Main Phase 1, nothing in hand — nothing to
+# do but stack them. e2e/xn-copies.spec.ts piles the tokens, takes one off, and puts the Bears on.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=T:r_1_1_goblin;T:r_1_1_goblin;T:r_1_1_goblin;Grizzly Bears;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
