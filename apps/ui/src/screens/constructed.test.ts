@@ -2213,6 +2213,10 @@ describe('a room on a drafted pool', () => {
    */
   it('says you have no seat in the pod rather than offering nothing', async () => {
     const { socket } = await mountPod({ pods: [] });
+    // Subscribed before the view is sent, as in the test above: a view fired
+    // before the screen listens is dropped, and under load that left this
+    // test on `drafted-waiting` for its whole budget.
+    await screen.findByTestId('drafted-waiting');
     socket.fire(
       DRAFT_CHANNEL.serverToClient,
       stateMessage({ ...seatView(POOL), viewer: { kind: 'spectator' } }, { name: 'Test Cube', size: 540 }),
