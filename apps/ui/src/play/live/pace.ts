@@ -205,10 +205,17 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** The handler `startMatch` registered for `MATCH_EVENTS.serverToClient` — null until `on` is called for it, which `startMatch` always does before anything can arrive. */
   let deliverTo: ((payload: unknown) => void) | null = null;
 
-  function delayFor(payload: unknown): number {
+  /*
+   * A phase frame with something already queued behind it is a phase Forge passed straight through: nobody
+   * stopped there, so it goes at once instead of holding the board for its 250 ms. On every screen, so the other
+   * seat's End Turn no longer steps past one phase (and one phase sound) at a time either (the operator,
+   * 2026-10-12: "hearing some duplicate sounds" — 15-19 phase sounds 250 ms apart a game, each an opponent's
+   * End Turn). The phase that is still the newest keeps its pace.
+   */
+  function delayFor(payload: unknown, superseded: boolean): number {
     if (fast) return 0;
     const pace = classify(payload);
-    return endingTurn && pace === 'phase' ? 0 : delays[pace];
+    return pace === 'phase' && (endingTurn || superseded) ? 0 : delays[pace];
   }
 
   function deliverNext(): void {
@@ -221,7 +228,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** Deliver whatever is due, and schedule a timer for whatever is not — never more than one timer live at once. */
   function pump(): void {
     if (timer !== null || queue.length === 0) return;
-    const waitMs = Math.max(0, lastDeliveredAt + delayFor(queue[0]) - now());
+    const waitMs = Math.max(0, lastDeliveredAt + delayFor(queue[0], queue.length > 1) - now());
     if (waitMs <= 0) {
       deliverNext();
       pump();
@@ -252,6 +259,11 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       deliverTo = handler;
       inner.on(event, (payload) => {
         queue.push(payload);
+        // A phase frame waiting on its gap has just been superseded: let it go now.
+        if (timer !== null && queue.length === 2 && classify(queue[0]) === 'phase' && !fast) {
+          cancel(timer);
+          timer = null;
+        }
         pump();
       });
     },

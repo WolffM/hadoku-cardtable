@@ -142,14 +142,15 @@ describe('pacedMatchTransport', () => {
   it('order is kept across a three-deep burst', () => {
     const inner = fakeInner();
     const { received } = paced(inner);
+    // A phase in the middle would be superseded and go at once (its own test, below): a default frame keeps a gap.
     inner.deliver(RESOLVE);
-    inner.deliver(PHASE);
+    inner.deliver(DEFAULT_DELTA);
     inner.deliver(DRAW);
     expect(received).toEqual([RESOLVE]);
-    vi.advanceTimersByTime(PACE_DELAYS_MS.phase);
-    expect(received).toEqual([RESOLVE, PHASE]);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.default);
+    expect(received).toEqual([RESOLVE, DEFAULT_DELTA]);
     vi.advanceTimersByTime(PACE_DELAYS_MS.draw);
-    expect(received).toEqual([RESOLVE, PHASE, DRAW]);
+    expect(received).toEqual([RESOLVE, DEFAULT_DELTA, DRAW]);
   });
 
   it('an input frame is never held, even mid-burst: its own delay is zero, so it is due the instant it is next', () => {
@@ -165,12 +166,12 @@ describe('pacedMatchTransport', () => {
     const inner = fakeInner();
     const { transport, received } = paced(inner);
     inner.deliver(RESOLVE);
-    inner.deliver(PHASE);
+    inner.deliver(DEFAULT_DELTA);
     inner.deliver(DRAW);
     expect(received).toEqual([RESOLVE]);
     expect(vi.getTimerCount()).toBeGreaterThan(0);
     transport.setFast(true);
-    expect(received).toEqual([RESOLVE, PHASE, DRAW]);
+    expect(received).toEqual([RESOLVE, DEFAULT_DELTA, DRAW]);
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -189,6 +190,31 @@ describe('pacedMatchTransport', () => {
     expect(received).toHaveLength(4);
     vi.advanceTimersByTime(PACE_DELAYS_MS.draw);
     expect(received).toHaveLength(5);
+  });
+
+  it('a phase with another frame behind it was passed straight through: it goes at once, on any screen', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(RESOLVE);
+    inner.deliver(PHASE); // waiting on its 250 ms
+    expect(received).toEqual([RESOLVE]);
+    inner.deliver(PHASE); // the first is superseded
+    expect(received).toEqual([RESOLVE, PHASE]);
+    inner.deliver(DRAW); // and so is the second
+    expect(received).toEqual([RESOLVE, PHASE, PHASE]);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.draw);
+    expect(received).toEqual([RESOLVE, PHASE, PHASE, DRAW]);
+  });
+
+  it('the newest phase keeps its pace', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(RESOLVE);
+    inner.deliver(PHASE);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.phase - 1);
+    expect(received).toEqual([RESOLVE]);
+    vi.advanceTimersByTime(1);
+    expect(received).toEqual([RESOLVE, PHASE]);
   });
 
   it('once the turn has changed, phases are paced again', () => {
