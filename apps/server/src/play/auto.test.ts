@@ -1568,7 +1568,7 @@ describe('the adapter is the ONLY prose reader', () => {
 						const read = facts({ window, phase, myTurn, stackEmpty, cost: window === 'payment' ? '{U}' : null, sources: [67] });
 						const scrambled = { ...read, phaseLabel: 'Main phase, precombat — Auto' };
 						for (const name of STOP_POLICY_NAMES) {
-							const policy = namedStopPolicy(name);
+							const policy = namedStopPolicy(name)!;
 							for (const decide of [decideStop, decidePay, decideCancel]) {
 								// Whether it acts; the reason it returns may quote the label back for display.
 								expect(decide(scrambled, policy) === null, `${decide.name} ${window} ${phase} ${name}`).toBe(decide(read, policy) === null);

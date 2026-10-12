@@ -1153,7 +1153,9 @@ describe('the deck picker', () => {
     await deckPicker();
     const tile = screen.getByTestId('deck-mine').querySelector<HTMLElement>(`[data-deck-id="${SECOND_DECK}"]`)!;
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    onTestFinished(() => vi.useRealTimers());
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
