@@ -2074,12 +2074,12 @@ function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
 
 /**
  * The operator: *"should be able to see that creature is flying … a tag on the
- * creature when they gain flying."* Each evergreen keyword Forge says the card
- * has NOW (`keywordTags`), as a capsule down the top-right corner, under the
- * chosen-type label when there is one.
+ * creature when they gain flying."* Each evergreen keyword the card has NOW and
+ * was not printed with (`keywordTags`), as a capsule down the top-right corner,
+ * under the chosen-type label when there is one.
  */
 function KeywordTags({ entry }: { entry: BoardCard }) {
-  const tags = keywordTags(entry.keywords);
+  const tags = keywordTags(entry.keywords, entry.card.oracleText);
   if (tags.length === 0) return null;
   return (
     <ul className="board-card__keywords" aria-label={`${entry.card.name} keywords: ${tags.join(', ')}`}>

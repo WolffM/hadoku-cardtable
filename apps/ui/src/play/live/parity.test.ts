@@ -558,8 +558,12 @@ import { fixtureFrames, startReplayServer, until, type ReplayServer } from './re
 // wears one tag — `<ul class="board-card__keywords" aria-label="Fire Urchin
 // keywords: Trample">…Trample</li></ul>`, +148 characters, 39282 (1fa565ae…) ->
 // 39430, and nothing else moved.
-const BASELINE_SHA256 = '43a2bde56cb3443a0c86f618091992fc32b0217c51e3695fd69f30d34e553a4b';
-const BASELINE_LENGTH = 39430;
+//
+// Re-recorded again: a tag is only for a keyword the card was not printed with.
+// Fire Urchin's Trample is printed (its `OracleText` keyword line), so the tag
+// above is gone — 39430 -> 39282, back to exactly 1fa565ae….
+const BASELINE_SHA256 = '1fa565aeec186307f7f405656e67c8fbbd3730da18b61d81f3c6c1b85673e67b';
+const BASELINE_LENGTH = 39282;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

@@ -987,10 +987,9 @@ export function hasKeyword(keywords: readonly string[] | undefined, name: string
 }
 
 /**
- * The evergreen keywords the board draws as a tag, in this order. A card's art
- * covers its rules text, so a flyer — printed or granted by an aura — reads as
- * a flyer only through this. Haste is not here: what it changes is summoning
- * sickness, which the board already draws.
+ * The evergreen keywords the board draws as a tag, in this order, when the
+ * card was not printed with them (`keywordTags`). Haste is not here: what it
+ * changes is summoning sickness, which the board already draws.
  */
 const TAGGED_KEYWORDS: readonly string[] = [
   'flying',
@@ -1008,14 +1007,46 @@ const TAGGED_KEYWORDS: readonly string[] = [
 ];
 
 /**
- * The keyword tags a card wears, off Forge's CURRENT `Keywords` — the cached
- * keywords of the face after every continuous effect (`CardView.updateKeywords`
- * runs on each change), so an aura's flying is here the moment it attaches and
- * gone when it leaves. Each tag is Forge's own word for the keyword. A
- * parameterised hexproof (`Hexproof:Card.Black:black`, hexproof from) is not
- * hexproof and gets no tag.
+ * The keyword names a card's PRINTED text gives it, among the tagged ones.
+ *
+ * `OracleText` is the face's printed rules text: Forge sets it once, from the
+ * card script's `Oracle:` line (`CardFactory.java:374`, `face.getOracleText()`),
+ * and no continuous effect touches it — an aura's flying is in `Keywords` and
+ * never here. A printed keyword sits on a keyword line, which is a list of
+ * keywords and not a sentence: `Flying, vigilance` against `Enchanted creature
+ * gets +1/+1 and has flying.` So a line counts once its reminder text is gone
+ * and it does not end in a full stop, and each of its comma-separated items
+ * that IS a tagged keyword's name is printed.
  */
-export function keywordTags(keywords: readonly string[] | undefined): string[] {
+function printedKeywordNames(oracleText: string): Set<string> {
+  const printed = new Set<string>();
+  for (const raw of oracleText.split(/\r?\n/)) {
+    const line = raw.replace(/\([^)]*\)/g, '').trim();
+    if (line === '' || line.endsWith('.')) continue;
+    for (const item of line.split(/[,;]/)) {
+      const name = item.trim().toLowerCase();
+      if (TAGGED_KEYWORDS.includes(name)) printed.add(name);
+    }
+  }
+  return printed;
+}
+
+/**
+ * The keyword tags a card wears: each evergreen keyword it has NOW and was not
+ * printed with — an aura's, an equipment's, an anthem's. The operator: *"those
+ * types of written tabs should only go there if they received the effect from
+ * something else."*
+ *
+ * NOW is Forge's CURRENT `Keywords` — the cached keywords of the face after
+ * every continuous effect (`CardView.updateKeywords` runs on each change), so
+ * a granted keyword is here the moment it attaches and gone when it leaves.
+ * Printed is `printedKeywordNames` over the face's `OracleText`; a keyword the
+ * card has printed AND granted is still printed, and wears no tag. Each tag is
+ * Forge's own word for the keyword. A parameterised hexproof
+ * (`Hexproof:Card.Black:black`, hexproof from) is not hexproof and gets no tag.
+ */
+export function keywordTags(keywords: readonly string[] | undefined, oracleText: string): string[] {
+  const printed = printedKeywordNames(oracleText);
   const byName = new Map<string, string>();
   for (const k of keywords ?? []) {
     const name = keywordName(k);
@@ -1024,7 +1055,7 @@ export function keywordTags(keywords: readonly string[] | undefined): string[] {
   }
   return TAGGED_KEYWORDS.flatMap((name) => {
     const word = byName.get(name);
-    return word === undefined ? [] : [word];
+    return word === undefined || printed.has(name) ? [] : [word];
   });
 }
 

@@ -31,6 +31,7 @@ import {
   boardPT,
   CUBE_ART_IDS,
   HIDDEN_CARD_NAME,
+  keywordTags,
   KNOWN_ART_IDS,
   POOL_PRINTED_PT,
   printedPTIndex,
@@ -338,6 +339,27 @@ describe('a stack item’s ability text and hidden source', () => {
     const hidden = adapt(state).stack.find((i) => i.id === sid)!;
     expect(hidden.sourceHidden, 'a face-down spell of theirs').toBe(true);
     expect(hidden.sourceCard!.name).toBe(HIDDEN_CARD_NAME);
+  });
+});
+
+describe('keyword tags: only what the card was not printed with', () => {
+  it('the capture’s Fire Urchin has Trample printed, so it wears no tag', () => {
+    const urchin = allCards(adapt(baseState())).find((c) => c.id === 21)!;
+    expect(urchin.card.oracleText.split('\n')[0]).toBe('Trample');
+    expect(keywordTags(urchin.keywords, urchin.card.oracleText)).toEqual([]);
+  });
+
+  it('a printed keyword line is a list; a sentence that grants a keyword is not', () => {
+    // Serra Angel, wearing Arcane Flight: flying is both printed and granted.
+    expect(keywordTags(['Flying', 'Vigilance'], 'Flying, vigilance')).toEqual([]);
+    // Grizzly Bears wearing Arcane Flight: flying is granted only.
+    expect(keywordTags(['Flying'], '')).toEqual(['Flying']);
+    // Arcane Flight's own sentence, and reminder text, print nothing.
+    expect(keywordTags(['Flying'], 'Enchant creature\nEnchanted creature gets +1/+1 and has flying.')).toEqual(['Flying']);
+    expect(keywordTags(['Flying', 'Lifelink'], 'Flying (This creature can’t be blocked except by creatures with flying or reach.)')).toEqual([
+      'Lifelink',
+    ]);
+    expect(keywordTags(['First Strike', 'Trample'], 'First strike; trample')).toEqual([]);
   });
 });
 

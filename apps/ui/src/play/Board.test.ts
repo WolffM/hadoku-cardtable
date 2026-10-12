@@ -3625,6 +3625,11 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(sick![1], 'and it is not a fourth outline').not.toMatch(/outline|--accent/);
   });
 
+  it('the hatch is over the art at rest, not only while something lifts the tile', () => {
+    // The art (`.card__art`) shares the hatch's z-index and comes later in the tree; only an isolated tile keeps it under.
+    expect(declarationInCss(CARD_CSS, '.board-card[data-sick] > .board-card__face > .card', 'isolation')).toBe('isolate');
+  });
+
   it('blocking and token are corner marks, and neither is drawn in the accent', () => {
     const { container } = renderBoard(withState({ blocking: true, token: true }));
     const marks = [...card(container).querySelectorAll<HTMLElement>('.board-card__mark')].map((m) => m.dataset.mark);

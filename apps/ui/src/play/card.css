@@ -383,6 +383,17 @@
   pointer-events: none;
 }
 
+/*
+ * The art is `.card__art` at z-index 1 (`styles.css`), the hatch's own level,
+ * and it comes later in the tree, so in the card's stacking context it paints
+ * OVER the hatch. The hatch only showed when something made the tile its own
+ * stacking context — the hover lift on a selectable card, a flyer's float.
+ * Isolating the tile keeps its art inside it, under the hatch, at rest too.
+ */
+.board-card[data-sick] > .board-card__face > .card {
+  isolation: isolate;
+}
+
 .board-card__mark[data-mark='blocking'] {
   color: var(--ink);
 }
