@@ -1,5 +1,8 @@
 # §E — e2e specs, wave 34
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 All work in `e2e/w34.spec.ts`, plus a fix to `e2e/w31.spec.ts` (the rail-rows
 check, §E item 2) and a fix to `e2e/play/prompts.ts` (the shared test-driver
 for every spec in this lane). Every scenario used is lane S's

@@ -1,5 +1,8 @@
 # P6: one page boundary (lane L)
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 Measured in headless Chromium against a production build of this worktree (`vite build`, `base: /cardtable/`), route `#/match/m-probe` inside the watchparty room chrome (`/session/whoami` answered as a friend so `RoomChrome` mounts; the match socket has no server, so the table is the `Connecting…` state). Edges are `getBoundingClientRect()` left/right in CSS px.
 
 - **table** = `.live` (the canvas box the board fills; `.board` is a flex child of it with the same left and right edges).

@@ -110,8 +110,8 @@ From the "Use of Scryfall Data and Images" section of
 | **No paywalling Scryfall data.** No payments, surveys, subscriptions, ratings, chat-server joins or channel follows in exchange for access | No money, ever (D13). But see §1.6 — the second half of this clause deserves a straight look. |
 | Not to create **new games**, or imply the data is from another game | We play Magic, and say so. |
 | **"You may not simply repackage, republish, or proxy Scryfall data. Your software must create additional value for end-users."** | We are a drafting and play client, not a card search site. We do not expose a card-data endpoint to anyone. |
-| Image rules: do not cover/crop the copyright or artist name, do not distort, recolour, watermark, or imply non-WotC authorship | Satisfied by **mechanism**, not by absence. This cell used to read *"we hold no images at all"*; since D15 we host card art on `cdn.hadoku.me`. What holds the rules now: we serve the **whole unmodified card face**, never `art_crop`; the `.card:has(.card__art) { aspect-ratio: 488 / 680 }` rule in `apps/ui/src/styles.css` means `object-fit: cover` crops nothing, so the artist and © lines printed at the card's foot stay legible; no `filter` touches `.card__art`; and the CDN is content-addressed by SHA-256, so the bytes served are provably the bytes fetched. Same table as `LICENSING.md` §3.1 — keep the two in step. |
-| When using `art_crop`, the artist and copyright must be identifiable in the same interface | **Not engaged** — we do not use `art_crop`; the whole card face carries both. Relevant to the UI, not this package. We keep the `artist` field locally so the UI *can* satisfy it if that ever changes. |
+| Image rules: do not cover/crop the copyright or artist name, do not distort, recolour, watermark, or imply non-WotC authorship | Art loads from Scryfall's image CDN (the art manifest is empty, so every card falls back to Scryfall). Card tiles show the **whole card face** at 488 / 680, so the printed artist and © lines stay visible; no CSS `filter` touches card art (summoning sickness is an overlay); counters and badges sit clear of the credit strip; `NOTICE.md` and the UI footer say the project is unofficial and unaffiliated. Same table as `LICENSING.md` §3.1 — keep the two in step. |
+| When using `art_crop`, the artist and copyright must be identifiable in the same interface | **Engaged** in three places that show cropped art — the stack's ability chip, the deck-chooser tiles and the `/cover` tile (Scryfall `art_crop`). Each carries an *"Illus. <artist>"* credit, from the `artist` field this package keeps. |
 
 They close with: "Repeated mishandling or misrepresentation of data or images
 in your project may result in Scryfall restricting or blocking your API
@@ -136,8 +136,8 @@ what we do with it. Until 2026-09-15 this paragraph read:
 > to us. Do not relax D13 on the grounds that Scryfall did not forbid it.
 
 **The operator repealed that rule** on 2026-09-15 — `DECISIONS.md` **D15**, which
-supersedes D13's image clause. Card art is hosted on `cdn.hadoku.me`, as a
-replaceable placeholder behind a per-card manifest.
+supersedes D13's image clause. Card art is shown as a replaceable placeholder
+behind a per-card manifest; today every card resolves to Scryfall's image CDN.
 
 The warning in the quoted paragraph is still worth heeding on its own terms, and
 the two facts sit together without contradiction:

@@ -13,8 +13,8 @@
  *      frame. Rarity is a letter, not a gem.
  *
  * ~~Mana pips are circles with letters, not the printed symbols; the tap symbol
- * is the word TAP.~~ **Repealed by D20 (operator, 2026-09-27):** *"naw we're not
- * drawing our own"*. The symbols are Keyrune's and Mana's, imported at the top
+ * is the word TAP.~~ **Repealed by D20 (operator, 2026-09-27):** we use
+ * established symbol fonts rather than draw our own. The symbols are Keyrune's and Mana's, imported at the top
  * of this file and rendered by `components/ManaPip.tsx`; the 16 rules that drew
  * our own discs were deleted in wave 27 §D and the note where they were says
  * what each one was doing. Still forbidden, and NOT loosened by D20: the WotC
@@ -617,7 +617,7 @@ button {
  * They drew our own pips: a 16px grey disc with a 9px letter in it, a wide
  * capsule, six colour fills, a diagonally split hybrid and a dashed Phyrexian
  * ring — because "no WotC trademarks in the UI" was absolute under D13. **D20
- * (operator, 2026-09-27) repealed that**: *"naw we're not drawing our own"*, and
+ * (operator, 2026-09-27) repealed that** in favour of the Keyrune and Mana fonts, and
  * `ManaPip.tsx` has rendered Mana's `ms ms-<x> ms-cost` glyph ever since.
  *
  * Two of them were still reachable and neither was doing what it looked like:

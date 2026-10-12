@@ -2,15 +2,16 @@
 
 Cube drafting and Magic play for a small group of friends — a fork of
 [Forge](https://github.com/Card-Forge/forge) for the rules engine, with the room
-and networking layer from [hadoku-watchparty](https://github.com/WolffM/hadoku-watchparty)
+and networking layer from hadoku-watchparty (a private repo)
 in place of Forge's own online infrastructure.
 
 Runs behind `hadoku.me/cardtable/` at friend tier. Unofficial, unaffiliated, and
 non-commercial — see [`NOTICE.md`](NOTICE.md).
 
-> **Status: scaffold + design.** Nothing runs yet. What exists is a verified
-> analysis of the Forge codebase, an architecture, and a request to watchparty
-> for the room module. Start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+> **Status: in use.** Friends draft cubes and play constructed and drafted
+> decks in the browser against each other or Forge's AI, with Forge running
+> headless on the server as the rules engine. Start with
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design it grew from.
 
 ## Why this is tractable
 
@@ -18,67 +19,40 @@ Forge's reputation says its networking is a mess welded to the GUI. Reading the
 actual source says otherwise — the full evidence is in
 [`docs/FORGE_ANALYSIS.md`](docs/FORGE_ANALYSIS.md):
 
-- The **entire** client↔server protocol is one closed enum of **62 methods**.
+- The **entire** client↔server protocol is one closed enum of **60 methods**
+  (45 server→client, 15 client→server).
 - The **entire** transport seam is a **3-method interface** (`IRemote`), and the
   server→client half (`IToClient`) is an *empty* interface extending it.
 - The view layer is a closed enum of **214 typed properties**.
 - `FServerManager` imports **zero** Swing/AWT/libGDX, and headless startup is
   regression-tested upstream.
 - Per-client hidden information is **already** handled server-side.
-- Cube draft is first-class, with **96 bundled cube lists**.
-- `Main.java` has a `case "server":` that prints *"Not implemented."* — upstream
-  left the dedicated-server slot open.
+- Cube draft is first-class, with **95 bundled cube lists**.
 
-So the plan isn't "bolt networking onto Forge". It's: keep Forge's
+So the approach isn't "bolt networking onto Forge". It's: keep Forge's
 server-authoritative model, replace its wire format at the seam Forge already
 drew, and let the watchparty room layer own everything above a match.
-
-## Plan
-
-| Phase | What | State |
-| --- | --- | --- |
-| **P1** | Browser cube draft on the watchparty room layer → exports `.dck` | next |
-| **P2** | Play the drafted decks in Forge desktop over Forge's netplay | — |
-| **P3** | WS/JSON bridge at `IToClient`; headless Forge on hokon | — |
-| **P4** | Browser play client; drop the desktop dependency | **may be deleted** — see below |
-
-Draft-first is deliberate: drafting is the social bottleneck, it's a small
-protocol, and it's playable long before the bridge exists.
-
-**Open: can Forge's UI just run in the browser?** `forge-gui-mobile` is 103,038
-lines of libGDX — deck editor, draft, lobby, match — and libGDX has a maintained
-TeaVM backend emitting WASM. If it compiles, P4 is deleted and we get desktop +
-Android + iOS + web from one UI. A time-boxed spike and the full argument
-(including why *not* Rust/Bevy) are in
-[`docs/WASM_AND_PORTING.md`](docs/WASM_AND_PORTING.md).
 
 ## Layout
 
 ```
-forge/          vendored Forge fork (GPL-3.0) — see "Getting forge/" below
-apps/server/    Node room + draft server
-apps/ui/        React SPA
-packages/shared/ Zod wire schemas shared by both ends
-cubes/          cube lists
-docs/           architecture, Forge analysis, licensing
-docs/requests/  the ask to watchparty
+forge/            Forge fork (GPL-3.0), a git submodule of github.com/WolffM/forge
+apps/server/      Node room, draft and play server; runs Forge headless per match
+apps/ui/          React SPA: lobby, draft, deck building, the play table
+packages/         shared wire schemas, card data, draft and deck logic
+cubes/, decks/    cube lists and preconstructed decks
+docs/             architecture, Forge analysis, licensing, decisions
+e2e/              Playwright specs against a real Forge
 ```
 
-## Getting `forge/`
+## Building
 
-`forge/` is **not tracked by this repo yet** (it's in `.gitignore`). It's
-currently a plain shallow clone of upstream, used for analysis:
-
-```bash
-git clone --depth 1 https://github.com/Card-Forge/forge.git forge
-```
-
-Once `WolffM/forge` exists, this becomes a submodule pointing at the fork, with
-`upstream` set to `Card-Forge/forge`. Until then there's nothing to fork *from* —
-no changes have been made.
-
-**Prerequisite not yet met:** building Forge needs Maven. hokon has none, and
-upstream ships no `mvnw` wrapper (only `.mvn/maven.config`). Java 21 is present.
+You can read everything here, but you **cannot build it as-is from outside**:
+it depends on private `@wolffm/*` packages published to GitHub Packages and on
+the private `hadoku-watchparty` repo for the room layer, and it is deployed
+behind infrastructure that is not part of this repo. The Forge side builds from
+the public submodule with JDK 21 and Maven — see
+[`docs/FORGE_JAR.md`](docs/FORGE_JAR.md).
 
 ## Licence
 
@@ -87,6 +61,9 @@ upstream ships no `mvnw` wrapper (only `.mvn/maven.config`). Java 21 is present.
 that does and doesn't require, plus the separate and more important question of
 Wizards of the Coast's IP.
 
-Short version: no money ever, no public access, no WotC trademarks in the UI.
-Card art is hosted on `cdn.hadoku.me` as a replaceable placeholder (D15) — never
-committed to this repo, and never served by the app's own origin.
+Short version: no money ever, no public access to the app, and an
+"unofficial, not affiliated with or endorsed by Wizards of the Coast"
+disclaimer. Mana and set symbols come from the third-party Keyrune and Mana
+fonts (licence texts in `apps/ui/src/symbols/`). Card art is loaded from
+Scryfall's image CDN as a replaceable placeholder (D15); no image is ever
+committed to this repo.

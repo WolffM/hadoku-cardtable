@@ -1,5 +1,8 @@
 # Workstreams — hadoku-cardtable
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 **The tracker owns this file.** Managers and sub-agents report; the tracker
 records. Every row carries the evidence it was checked against, not the doc that
 claimed it.

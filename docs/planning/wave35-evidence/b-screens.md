@@ -1,5 +1,8 @@
 # Lane B — screenshots
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 Captured against a real browser (Chromium via Playwright), not jsdom — the committed
 fixture, rendered by the real `Board` component through `apps/ui/src/play/harness.html`
 under `pnpm --filter @hadoku/ui dev`, 1280×800 viewport. The harness file itself was

@@ -40,7 +40,7 @@
  *     the TEXT that does not fit, and the only thing that knows is
  *     `scrollWidth > clientWidth`. Wave 26 shipped `Full c…` and `Conc…` at
  *     1280×800 through a green run of this very spec
- *     (`docs/planning/wave26-question-panel-1280x800.png`);
+ *     (a wave 26 screenshot, since removed from the repo);
  *   - an open prompt lies inside the viewport and above the bar;
  *   - no battlefield or hand has to scroll internally to show its cards —
  *     the layout FITS them rather than hiding the overflow a level down.

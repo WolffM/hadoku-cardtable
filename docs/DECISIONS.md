@@ -399,10 +399,9 @@ full:
   operator was shown this and accepted it. **Do not add a gate to the CDN** —
   it is a shared service, this is its designed posture, and re-litigating it is
   out of scope.
-- **The art is a PLACEHOLDER, and that is the load-bearing part.** *"There's a
-  good chance i source the art from somewhere else in the future… just make sure
-  that it's easy to simply hook up a link to a new image in the cdn whenever that
-  happens."* So a card's art is an indirection, never a URL in a component:
+- **The art is a PLACEHOLDER, and that is the load-bearing part.** The operator
+  expects to source the art elsewhere later and asked that pointing a card at a
+  new image stay easy. So a card's art is an indirection, never a URL in a component:
   `apps/ui/src/draft/art-manifest.json` maps `scryfallId → { source, key }` and
   `packages/carddata/src/art/index.ts` resolves it, with an absent or unusable row
   falling back to Scryfall and then to the text tile. Repointing one card is a
@@ -452,7 +451,9 @@ or proxies a card image"*. D15 makes that **false on screen**, and it is the one
 place the claim is user-visible rather than internal. `LICENSING.md` §2 rule 6
 also wants the unaffiliated/unendorsed disclaimer in that footer and it is not
 there. That file belongs to another workstream; this is recorded so the gap is
-owned rather than forgotten.
+owned rather than forgotten. **Closed 2026-10-11:** the footer line is gone and
+the footer now carries *"Unofficial fan project; not affiliated with or endorsed
+by Wizards of the Coast."*
 
 
 ## D16 — `@hadoku/room-ask` is MIT inside a GPL repo · settled · 2026-09-16 · operator
@@ -569,12 +570,12 @@ watchparty", which is now answered.
 ## D18 — "our own origin never serves an image" is repealed
 
 **2026-09-19, operator.** Supersedes the origin clause of D15 and of
-`docs/LICENSING.md` rule 3. In their words: *"this seems unnecessary. i dont
-care to follow this strictness regarding the WOTC ip. from what i know it's
-actually fine to save and serve the files if they are unaltered."*
+`docs/LICENSING.md` rule 3. The operator repealed the rule as stricter than
+needed for a private, non-commercial, friend-tier app that shows card images
+unaltered.
 
-**Recorded accurately, because the reason matters more than the rule:** the
-"unaltered is fine" reading is not the legal position — copying an unaltered
+**Recorded accurately, because the reason matters more than the rule:** showing
+an image unaltered does not by itself make it permitted — copying an unaltered
 image is still reproduction, and WotC's Fan Content Policy is permission that
 can be withdrawn, not a licence. The decision is still a reasonable one,
 because the exposure was never carried by that rule. It is carried by **no

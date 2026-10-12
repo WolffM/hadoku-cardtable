@@ -24,10 +24,11 @@ before planning cross-game work.
   overruled. Do not restore the old rule from a stale comment.
   `.gitignore` still refuses `*.jpg`/`*.png`/`cards/`, and that half is absolute.
   Since 2026-10-03 that includes wave evidence screenshots under `docs/`: the
-  old `!docs/**/*.png` exception is gone. Never `git add -f` one.
+  old `!docs/**/*.png` exception is gone, and the 60 that were tracked were
+  deleted on 2026-10-11. Never `git add -f` one.
 - ~~**Our own origin never serves an image.**~~ **Repealed 2026-09-19 (D18)**
-  by the operator: *"i dont care to follow this strictness regarding the WOTC
-  ip"*. Image URLs are no longer restricted by host, and `scripts/d13-gate.sh`
+  by the operator, as stricter than needed for a private, non-commercial,
+  friend-tier app. Image URLs are no longer restricted by host, and `scripts/d13-gate.sh`
   no longer checks them. `docs/LICENSING.md` §3.1 keeps the original argument.
   What still holds the licensing posture up is unchanged: **no money**, the
   **friend gate**, a handful of players, and the disclaimer in `NOTICE.md`.
@@ -40,7 +41,8 @@ before planning cross-game work.
   repointing a card must stay a one-line data edit. A component that hardcodes an
   image host has broken this even if every URL it emits is legal.
 - ~~**No WotC trademarks in the UI**~~ — **amended 2026-09-27 (D20)** by the
-  operator: *"naw we're not drawing our own"*. **Mana symbols, the tap symbol
+  operator, who chose established third-party symbol fonts over drawing our
+  own. **Mana symbols, the tap symbol
   and set symbols ship from Keyrune (GPL-3.0 glyphs, OFL font) and Mana (OFL
   font)** — third-party fonts, never WotC's own files, and never
   `svgs.scryfall.io`. `docs/LICENSING.md` §3.2 records what each licence

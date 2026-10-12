@@ -4,6 +4,8 @@ name: CI
 # check that never runs never reports, and auto-merge waits only on required
 # checks, so a `paths:` filter is a gate that is ABSENT on some PRs (they merge
 # with nothing verified) and FATAL on others (they wait forever).
+# The one exception is a pull request from a fork: `check` is skipped for it
+# (job-level `if:`), because it would run a stranger's code on self-hosted runners.
 #
 # `push: main` is covered too, because this repo's normal path is landing
 # straight on main rather than opening a PR. A PR-only gate would leave that
@@ -36,6 +38,9 @@ permissions:
 jobs:
   check:
     name: check
+    # Never on a fork's pull request: this job runs on the operator's self-hosted
+    # runners, so a fork PR would run arbitrary code on the production host.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # The fleet form. `vars.CI_RUNNER` holds the label set to schedule on:
     # normally the self-hosted claws, and mgmt-api flips it to a hosted runner
     # only while every claw is offline. Hardcoding `ubuntu-latest` pinned this

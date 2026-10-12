@@ -9,8 +9,9 @@ Magic: The Gathering.
 - Copyright (C) Forge Team
 - Licensed under the **GNU General Public License, version 3 or later**
 
-Forge's source is vendored under `forge/`. Its per-file copyright headers are
-preserved unmodified. This repository as a whole is distributed under GPL-3.0;
+Forge's source is included as a git submodule at `forge/`, pointing at the
+public fork <https://github.com/WolffM/forge>. Its per-file copyright headers
+are preserved unmodified. This repository as a whole is distributed under GPL-3.0;
 see `LICENSE`.
 
 ## Wizards of the Coast
@@ -30,7 +31,7 @@ this is claimed or implied by this project.
 ### Non-commercial, and private
 
 Both of these statements are load-bearing, and more so since this project began
-hosting card art (see below):
+showing card art (see below):
 
 - **Non-commercial.** This project is not sold, licensed, monetized, advertised,
   sponsored or donated to, in any form, ever. There is no payment path of any
@@ -41,34 +42,25 @@ hosting card art (see below):
 
 ### Card artwork
 
-This project **does host card art**, on its own content-delivery endpoint at
-`cdn.hadoku.me`. That changed on 2026-09-15; this notice previously stated that
-no artwork was stored or served, and that is no longer true. The specifics,
-stated plainly rather than summarised:
+This project **displays card art**. It changed on 2026-09-15; this notice
+previously stated that no artwork was stored or served. The specifics:
 
-- **What is served is the whole, unmodified card face.** Images are not cropped,
-  distorted, stretched, recoloured, filtered, watermarked or altered in any way.
-  The artist credit and the copyright line printed on each card are therefore
-  present and legible in every image this project displays, which is how
-  attribution is carried. Storage is content-addressed by SHA-256, so any
-  alteration would be a different object.
+- **Where it comes from.** The browser loads card images directly from
+  Scryfall's image CDN (`cards.scryfall.io`). The project can also host art on
+  its own content endpoint (`cdn.hadoku.me`), but no card currently uses it.
+- **How it is shown.** Card tiles show the whole card face, unmodified, so the
+  artist credit and copyright line printed on each card stay legible. A few
+  small views show cropped art (the stack's ability chip, deck-chooser tiles and
+  a cover tile); each of those names the artist ("Illus. <artist>"). Images are
+  not distorted, recoloured, filtered or watermarked.
 - **No artwork is contained in this source repository.** Image bytes are never
   committed to git, and a continuous-integration check (`scripts/d13-gate.sh`)
   fails the build if any image file reaches the built application.
-- **The application's own origin serves no image bytes.** Images are fetched by
-  the browser from `cdn.hadoku.me` or from `cards.scryfall.io`.
 - **The artwork is a placeholder.** It is held behind a per-card indirection
-  specifically so that it can be replaced with differently-sourced art, and the
-  intent is to replace it.
-- **An asymmetry, named because it is real:** the application is
-  authentication-gated, but `cdn.hadoku.me` is not. Uploading to it requires
-  authorisation; reading from it is public. An image stored there is therefore
-  retrievable by anyone who knows its SHA-256 URL, even though the application
-  that uses it is private. This was understood and accepted when the decision
-  was made; it is recorded here rather than glossed over.
+  specifically so that it can be replaced with differently-sourced art.
 
 **If you are a rights holder** — Wizards of the Coast, or an artist whose work
-appears here — and you would prefer your artwork not be hosted by this project,
+appears here — and you would prefer your artwork not be shown by this project,
 it will be removed on request. Because art is resolved through a per-card
 manifest, removing or repointing a specific image is a small, immediate change.
 
@@ -91,10 +83,13 @@ underlying symbols are trademarks of Wizards of the Coast, and their use here
 does not indicate endorsement by Wizards of the Coast.
 
 Mana symbols are from the **Mana** font (<https://mana.andrewgioia.com>),
-copyright (c) Andrew Gioia, licensed under the SIL Open Font License 1.1.
-All mana, tap and card type symbol images are copyright Wizards of the Coast.
+copyright (c) Andrew Gioia, licensed under the SIL Open Font License 1.1 (font)
+and the MIT License (CSS). All mana, tap and card type symbol images are
+copyright Wizards of the Coast.
 
-Neither font is renamed, per the SIL OFL reserved font name clause.
+Neither font is renamed, per the SIL OFL reserved font name clause. The full
+licence texts are in `apps/ui/src/symbols/LICENSE-keyrune.md` and
+`apps/ui/src/symbols/LICENSE-mana.md`.
 
 ## Sound effects
 

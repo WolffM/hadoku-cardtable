@@ -1,5 +1,8 @@
 # §A evidence — the play surface
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 Wave 28, lane A. Items 4-render, 6, 7, 8, 9, 10, 11-render, 12-backs, 13, 14, 15.
 Every number below is a command that was run and an exit code that was read.
 

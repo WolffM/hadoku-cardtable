@@ -40,8 +40,8 @@ card-images/
 *.png
 # Evidence screenshots are not committed either (operator, 2026-10-03): the
 # `!docs/**/*.png` exception that let 60 of them (9.6 MB) into history is gone.
-# The ones already tracked stay; describe new evidence in words, or keep the
-# image outside git.
+# The 60 that were tracked were deleted on 2026-10-11; describe evidence in
+# words, or keep the image outside git.
 
 # sound-builder audio — never committed, never bundled (docs/planning/wave50-2026-10-06.md).
 # Takes are server-hosted under CARDTABLE_SOUNDS_DIR, outside this tree entirely.

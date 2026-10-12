@@ -1,7 +1,15 @@
+/*!
+ * Mana 1.18.0 by Andrew Gioia — https://mana.andrewgioia.com
+ * Copyright (c) Andrew Gioia.
+ * Font (mana.woff2): SIL Open Font License 1.1. CSS: MIT License.
+ * All mana, tap and card type symbol images are copyright Wizards of the Coast.
+ * Licence texts: LICENSE-mana.md beside this file.
+ */
 /*
  * Mana 1.18.0 — vendored, with exactly three edits. NOT ours to restyle.
  *
- * D20 (operator, 2026-09-27): *"naw we're not drawing our own"*. What each pack
+ * D20 (operator, 2026-09-27): use these third-party fonts rather than draw our
+ * own symbols. What each pack
  * licenses is in `docs/LICENSING.md` §3.2 and the attribution is in `NOTICE.md`;
  * the two packs are NOT the same position, so read that before touching this.
  *

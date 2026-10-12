@@ -1,7 +1,14 @@
+/*!
+ * Keyrune 3.19.0 by Andrew Gioia — https://keyrune.andrewgioia.com
+ * Copyright (c) 2019 Andrew Gioia.
+ * Icons and CSS: GPL-3.0. Font (keyrune.woff2): SIL Open Font License 1.1.
+ * Licence texts: LICENSE-keyrune.md beside this file.
+ */
 /*
  * Keyrune 3.19.0 — vendored, with exactly three edits. NOT ours to restyle.
  *
- * D20 (operator, 2026-09-27): *"naw we're not drawing our own"*. What each pack
+ * D20 (operator, 2026-09-27): use these third-party fonts rather than draw our
+ * own symbols. What each pack
  * licenses is in `docs/LICENSING.md` §3.2 and the attribution is in `NOTICE.md`;
  * the two packs are NOT the same position, so read that before touching this.
  *

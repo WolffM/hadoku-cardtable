@@ -10,9 +10,9 @@
 #
 # D13 said "never commit, host, mirror, cache or proxy card images". The
 # operator repealed the hosting half on 2026-09-15 (`docs/DECISIONS.md` D15):
-# card art now lives on `cdn.hadoku.me`. What SURVIVED is the part this gate
-# exists for — **the app's own origin serves no image bytes.** We serve the
-# app; something else serves the pictures.
+# card art could be hosted on `cdn.hadoku.me`. D18 then repealed the origin
+# rule too (below). What this gate still exists for is the bundle: the app's
+# build carries no image bytes and no copied Scryfall image blob.
 #
 # Against the artifact that actually reaches a browser:
 #
@@ -31,8 +31,8 @@
 # the things that actually carry the licensing argument: no money, the friend
 # gate, a handful of players, and the disclaimer in `NOTICE.md`.
 #
-# The operator repealed it: *"i dont care to follow this strictness regarding
-# the WOTC ip"*. Fifty reference fixtures went with it. `docs/LICENSING.md`
+# The operator repealed it as stricter than a private, non-commercial,
+# friend-tier app needs. Fifty reference fixtures went with it. `docs/LICENSING.md`
 # §3.1 keeps the original argument, because a rule that changes without a
 # recorded reason is one that flips back.
 #

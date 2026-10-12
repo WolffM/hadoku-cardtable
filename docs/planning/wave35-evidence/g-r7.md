@@ -1,5 +1,8 @@
 # R7 — Arena casting: frames of a drag-to-target
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 Captured against a REAL browser (Chromium via Playwright), not jsdom: a standalone
 `startReplayServer` (`apps/ui/src/play/live/replay-server.ts`, scratch-run with
 `tsx`, never shipped) replaying the committed fixture capture plus a

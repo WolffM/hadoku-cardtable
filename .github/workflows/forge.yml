@@ -135,6 +135,9 @@ jobs:
   # No base, a push whose range diverged, a compare past 300 files or any error: everything.
   changes:
     name: changes
+    # Never on a fork's pull request: this job runs on the operator's self-hosted
+    # runners, so a fork PR would run arbitrary code on the production host.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 5
     outputs:
@@ -253,7 +256,9 @@ jobs:
     # those triggers), so the added clause is always true there and this job
     # runs exactly when it did before: gated on `changes.outputs.e2e` alone.
     # On a dispatch, `only: jvm` turns this job off.
-    if: needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
+    # Fork PRs never reach here (`changes` is skipped for them); the guard is
+    # repeated so this job stays safe if its `needs` ever changes.
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
     # The suite is serial by design (`e2e/playwright.config.ts`: one worker, one
     # stack at a time), so a full run is ~30 min on one claw however idle the
@@ -538,7 +543,9 @@ jobs:
     # `inputs.only` is '' on every push/PR/schedule, so the added clause is
     # always true there — same gate as before. On a dispatch, `only: e2e`
     # turns this job off.
-    if: needs.changes.outputs.jvm == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
+    # Fork PRs never reach here (`changes` is skipped for them); the guard is
+    # repeated so this job stays safe if its `needs` ever changes.
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.jvm == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
     # Since 2026-10-06: the 39 suites a push runs took
     # 457 s (7.6 min). They were 1483 s on run 37487474250, before the

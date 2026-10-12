@@ -2,8 +2,8 @@
 
 How a Forge fork and the hadoku-watchparty room layer become one thing.
 
-> **Status: design, not implementation.** Nothing in this repo runs yet.
-> Every factual claim about Forge has now been checked against a real clone —
+> **Status: the original design document.** It was written before anything
+> ran; the app has since been built along these lines and is in use. Every factual claim about Forge has now been checked against a real clone —
 > the evidence lives in **`FORGE_ANALYSIS.md`**, which supersedes the
 > `[assumed]` markers this document originally carried.
 

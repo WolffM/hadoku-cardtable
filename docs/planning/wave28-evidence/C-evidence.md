@@ -1,5 +1,8 @@
 # C — evidence for wave 28 §C (the room screen)
 
+> The `.png` screenshots this file names were removed from the repository on
+> 2026-10-11; the written descriptions stand on their own.
+
 Suite: `apps/ui/src/screens/constructed.test.ts`, run as
 `pnpm vitest run apps/ui/src/screens/constructed.test.ts`. Exit codes read
 directly, never through a pipe.

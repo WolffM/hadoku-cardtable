@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Draft UI — the interior of the room's central canvas slot. Three sources: fixtures, the in-process engine, and a live socket. Card art resolves through @hadoku/carddata/art; our own origin never serves an image.",
+  "description": "Draft UI — the interior of the room's central canvas slot. Three sources: fixtures, the in-process engine, and a live socket. Card art resolves through @hadoku/carddata/art (Scryfall's image CDN by default); no image bytes are bundled.",
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build -c vite.embed.config.ts",
