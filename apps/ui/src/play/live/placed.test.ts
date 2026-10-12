@@ -163,12 +163,10 @@ describe('the seam', () => {
     // The flip tears the old root down and mounts a fresh one (`placed.ts`'s
     // own note on why — `flushSync` nested inside a React effect warns in
     // the real app). React schedules a fresh root's first commit on its own
-    // clock (a macrotask in this environment, not a microtask) — this waits
-    // for one, same as any other React DOM update read from outside `act()`.
-    await new Promise((r) => setTimeout(r, 0));
+    // clock, so this waits for the face, as for any React DOM update read from outside `act()`.
+    await vi.waitFor(() => expect(canvas.querySelector('[data-placed-spell="9"] .card__name')?.textContent).toBe('Card 9'));
     el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el.querySelector('.card-back')).toBeNull();
-    expect(el.querySelector('.card__name')?.textContent).toBe('Card 9');
     handle.dispose();
   });
 
@@ -286,7 +284,7 @@ describe('installPlaced: drawing', () => {
     placeSpell(61, { x: 400, y: 320 }, 'them');
     commitSpell(61);
     handle.notify(view([stackItem(4, { sourceCardId: 61, sourceCard: hidden, sourceName: 'Hidden card', sourceHidden: true, controllerName: 'Bob' })]));
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() => expect(canvas.querySelector('[data-placed-spell="4"] [data-card-back]')).not.toBeNull());
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="4"]')!;
     const back = el.querySelector<HTMLElement>('[data-card-back]');
     expect(back, 'a back').not.toBeNull();
@@ -361,8 +359,8 @@ describe('installPlaced: drawing', () => {
         }),
       ]),
     );
-    // A fresh React root commits on its own clock — one macrotask (see the flip test above).
-    await new Promise((r) => setTimeout(r, 0));
+    // A fresh React root commits on its own clock (see the flip test above).
+    await vi.waitFor(() => expect(canvas.querySelector('[data-placed-spell="9"] [data-ability-chip]')).not.toBeNull());
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el.querySelector('[data-ability-chip]'), 'the chip').not.toBeNull();
     expect(el.querySelector('.card'), 'no card face').toBeNull();
@@ -395,7 +393,7 @@ describe('installPlaced: drawing', () => {
     setChainHalted(true);
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(8, { isAbility: true, sourceCardId: 202, controllerName: 'Bob', sourceName: 'Eternal Witness' })]));
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() => expect(canvas.querySelector('[data-placed-spell="8"] [data-ability-chip]')).not.toBeNull());
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!;
     const chip = el.querySelector('[data-ability-chip]');
     expect(chip).not.toBeNull();
@@ -539,7 +537,7 @@ describe('installPlaced: drawing', () => {
     const chip = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(chip.style.width, 'nothing to measure before its text has rendered').toBe('');
     // A fresh React root commits on its own clock; the chip's own resize redraws it then (the ResizeObserver jsdom lacks).
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() => expect(chip.querySelector('.placed__chip-text')?.textContent).toBeTruthy());
     handle.notify(view(stack, [{ id: 201 }]));
     const w = widthOf(chip);
     const h = BAND + textHeight(w);
