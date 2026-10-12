@@ -1983,8 +1983,11 @@ function RoomTableScreen({
                        * library deck legal in this room's pool; the server picks it.
                        * Since 2026-10-12 the gate is the seat and not the room —
                        * a room full of watchers can see one friend play the AI.
+                       * Drawn while nobody ELSE is seated: alone and not yet seated
+                       * (loading the deck seats you), or seated alone. Another
+                       * seated player hides it. The server holds the same gate.
                        */}
-                      {players.length === 1 && mine !== null && (
+                      {players.every((p) => p.you) && (
                         <button
                           type="button"
                           className="deckpick__random"

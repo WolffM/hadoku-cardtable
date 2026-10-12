@@ -161,7 +161,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     expect.soft(lobbyHiddenLog.length, 'the hidden lobby tab read nothing through two changes').toBe(0);
     await setHidden(roomHidden, false);
     await setHidden(lobbyHidden, false);
-    await expect(roomHidden.getByTestId('play-vs-bot'), 'shown again, the room tab catches up').toHaveCount(0, { timeout: 5_000 });
+    await expect(roomHidden.getByTestId('constructed'), 'shown again, the room tab catches up').toHaveAttribute('data-members', '2', { timeout: 5_000 });
     await roomHidden.waitForTimeout(3_000);
     console.log(`[aa-poll] shown again: room=${since(roomHiddenLog, 0)} lobby=${since(lobbyHiddenLog, 0)}`);
     expect.soft(roomHiddenLog.length, 'shown again: one refresh (two reads)').toBeLessThanOrEqual(2);
