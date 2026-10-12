@@ -176,3 +176,33 @@ without the clipping. Then re-cut in place:
 
 `--into` cuts a placed take for the role it plays (the shortest limit across its cells), so a creature take placed
 on "Hover a card" is cut to a hover's 0.25 s.
+
+## Outliers and the hover (2026-10-12)
+
+The operator: *"lets smoothen out the 'hover' sound it's a bit harsh"* and *"normalize all the sound effects a bit
+... make sure there aren't too many crazy outliers"*. Measured, three causes, all fixed in `finish.py`:
+
+- **Stereo that cancels.** Some takes are near opposite in phase between channels; the mono downmix (ffmpeg's, after
+  levelling) left them 20 dB under target. `to_mono` downmixes first and keeps the louder channel when the average
+  cancels. Targets are now on the mono take (3 dB lower numbers, the same output).
+- **Short hits.** A click levelled on its loudest 400 ms had its first 50 ms up to 9.5 dB over the rest. A take's
+  loudest 50 ms may now sit at most `TRANSIENT_HEADROOM_DB` (4) over its target.
+- **The hovers** get a 5 kHz low-pass, a raised-cosine attack and a fade over half their length, applied before
+  the level is measured.
+
+After a `--into` re-cut: every take within −6.5..+0.1 dB of its target on 400 ms, no take's 50 ms more than 4.2 dB
+over (before: −22.8..+0.5, and +9.5). A take with no raw source (a hand edit) is levelled from its own file.
+`momentary_max` and `short_max` use a running sum: the full convolution took minutes per take.
+
+## Round 7 (2026-10-12)
+
+`make-round7.py`: every empty cell and role, new Colourless and Boros lands (the operator named both), and a
+second take for every sound heard often (*"at least two for each of the common ones like basic lands"*). A common
+sound's prompts are siblings of the take already placed on it. Quick sounds are generated 1 s long.
+
+```sh
+python3 scripts/sfx/make-round7.py
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round7.json --takes 2 --seed 9000 --offload model
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 9000 --out finished-r7
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r7 --to apps/server/data/sounds --add
+```

@@ -12,6 +12,7 @@ target, and the gain is then capped so the peak stays at or under -1 dBFS.
 """
 import argparse
 import glob
+import io
 import json
 import os
 import subprocess
@@ -24,7 +25,14 @@ import soundfile as sf
 ROOT = os.path.expanduser('~/.local/share/cardtable-sfx')
 # Momentary-max loudness per kind of sound, in LUFS. Moments a player should notice sit highest; a hover,
 # which fires constantly, sits far under everything.
-LOUDNESS = {'moment': -20.0, 'game': -23.0, 'ui': -28.0, 'hover': -34.0}
+# Measured on the mono take this writes (2026-10-12; before, on the stereo source, 3 dB higher for the same output).
+LOUDNESS = {'moment': -23.0, 'game': -26.0, 'ui': -31.0, 'hover': -37.0}
+# A short hit is levelled on its loudest 400 ms like everything else, which let a click's first 50 ms land up to
+# 9.5 dB over the rest (the operator, 2026-10-12: "make sure there aren't too many crazy outliers"). Its loudest
+# 50 ms may sit this far over the target, no further.
+TRANSIENT_HEADROOM_DB = 4.0
+# The hovers fire constantly and were "a bit harsh" (2026-10-12): a slow attack, a long fade, no top end.
+SOFT_FADE_IN_S, SOFT_LOWPASS_HZ = 0.02, 5000
 MOMENT_ROLES = ('g.turn-mine', 'g.turn-theirs', 'g.win', 'g.lose', 'g.game-start', 'g.match-start')
 PEAK_CEILING_DB = -1.0
 GATE_DB = -45.0          # relative to the take's own peak: quieter than this is silence
@@ -69,6 +77,30 @@ def loudness_for(folder):
     return LOUDNESS['game']
 
 
+def to_mono(audio):
+    """One channel. The model's stereo is sometimes near opposite in phase, and a plain average then cancels to
+    almost nothing (round 6: takes 20 dB under target, peaking at -42 dBFS); then the louder channel alone."""
+    if audio.shape[1] == 1:
+        return audio
+    mid = audio.mean(axis=1, keepdims=True)
+    channel_rms = np.sqrt((audio ** 2).mean(axis=0))
+    if np.sqrt((mid ** 2).mean()) < 0.5 * channel_rms.mean():
+        return audio[:, [int(channel_rms.argmax())]]
+    return mid
+
+
+def short_max(audio, rate):
+    """The loudest 50 ms, K-weighted, in LUFS: what a click or a hit feels like."""
+    weighted = audio
+    for stage in pyloudnorm.Meter(rate)._filters.values():
+        weighted = stage.apply_filter(weighted)
+    power = (weighted ** 2).sum(axis=1)
+    window = int(0.05 * rate)
+    if len(power) < window:
+        power = np.pad(power, (0, window - len(power)))
+    return -0.691 + 10 * np.log10(max(window_means(power, window).max(), 1e-12))
+
+
 def momentary_max(audio, rate):
     """The loudest 400 ms window, K-weighted (BS.1770), in LUFS. A take shorter than a window counts as one."""
     weighted = audio
@@ -78,16 +110,25 @@ def momentary_max(audio, rate):
     window = int(0.4 * rate)
     if len(power) < window:
         power = np.pad(power, (0, window - len(power)))
-    means = np.convolve(power, np.ones(window) / window, 'valid')[::int(0.05 * rate)]
-    return -0.691 + 10 * np.log10(max(means.max(), 1e-12))
+    return -0.691 + 10 * np.log10(max(window_means(power, window).max(), 1e-12))
+
+
+def window_means(power, window):
+    """The mean of every `window`-long run of `power`, in linear time (a full convolution took minutes per take)."""
+    total = np.concatenate([[0.0], np.cumsum(power)])
+    return (total[window:] - total[:-window]) / window
 
 
 def db(x):
     return 20 * np.log10(max(x, 1e-9))
 
 
-def finish(path, cap, target):
+def finish(path, cap, target, soft=False):
     audio, rate = sf.read(path, always_2d=True)
+    audio = to_mono(audio)
+    if soft:
+        from scipy.signal import butter, sosfilt
+        audio = sosfilt(butter(2, SOFT_LOWPASS_HZ, 'low', fs=rate, output='sos'), audio, axis=0)
     mono = np.abs(audio).max(axis=1)
     peak = mono.max()
     if peak <= 0:
@@ -97,14 +138,21 @@ def finish(path, cap, target):
     end = min(len(audio), sounding[-1] + int(TAIL_PAD_S * rate), start + int(cap * rate))
     capped = end == start + int(cap * rate)
     clip = audio[start:end].copy()
-    gain = 10 ** ((target - momentary_max(clip, rate)) / 20)
+    # a capped take fades over its last 30%, so the cut reads as a decay, not a chop. Fades come before the
+    # level is measured: on an 80 ms tick, a soft fade applied after it took most of the sound away again.
+    fade_out = max(FADE_OUT_S, cap * 0.3) if capped else FADE_OUT_S
+    fade_in = FADE_IN_S
+    if soft:
+        seconds = len(clip) / rate
+        fade_in, fade_out = min(SOFT_FADE_IN_S, seconds * 0.15), seconds * 0.5
+    n_in, n_out = min(int(fade_in * rate), len(clip) // 3), min(int(fade_out * rate), len(clip) // 2)
+    ramp = lambda n: (0.5 - 0.5 * np.cos(np.linspace(0, np.pi, n)))[:, None] if soft else np.linspace(0, 1, n)[:, None]
+    clip[:n_in] *= ramp(n_in)
+    clip[-n_out:] *= ramp(n_out)[::-1]
+    gain_db = min(target - momentary_max(clip, rate), target + TRANSIENT_HEADROOM_DB - short_max(clip, rate))
+    gain = 10 ** (gain_db / 20)
     gain = min(gain, 10 ** (PEAK_CEILING_DB / 20) / np.abs(clip).max())
     clip *= gain
-    # a capped take fades over its last 30%, so the cut reads as a decay, not a chop
-    fade_out = max(FADE_OUT_S, cap * 0.3) if capped else FADE_OUT_S
-    n_in, n_out = int(FADE_IN_S * rate), min(int(fade_out * rate), len(clip) // 2)
-    clip[:n_in] *= np.linspace(0, 1, n_in)[:, None]
-    clip[-n_out:] *= np.linspace(1, 0, n_out)[:, None]
     return clip, rate, {
         'seconds': round(len(clip) / rate, 3),
         'gainDb': round(db(gain), 1),
@@ -136,7 +184,7 @@ def main():
         if args.min_seed is not None and int(stem.rsplit('-', 1)[-1]) < args.min_seed:
             continue
         meta = json.load(open(wav[:-4] + '.json'))
-        done = finish(wav, cap_for(sid), loudness_for(sid))
+        done = finish(wav, cap_for(sid), loudness_for(sid), soft=sid.startswith('ui.hover'))
         if done is None:
             continue
         clip, rate, measured = done
@@ -166,34 +214,50 @@ def recut_in_place(sounds_dir):
             row = cell.split('|')[0]
             for file in files:
                 placed.setdefault(file, []).append(row)
-    done = skipped = longer = 0
+    done = levelled = longer = 0
     for take in catalogue['takes']:
         source = raw.get(take['file'])
+        roles = placed.get(take['file'], [])
+        target = os.path.join(sounds_dir, 'takes', take['file'])
         if source is None:
-            skipped += 1
+            # A hand edit (a first hit cut out, a take reversed) has no raw source: level the take itself, gain only.
+            sid = take['file'].split('/')[0]
+            loudness = min([loudness_for(r) for r in roles] + ([] if roles else [loudness_for(sid)]))
+            relevel(target, loudness)
+            levelled += 1
             continue
         wav, sid = source
-        roles = placed.get(take['file'], [])
         cap = min([cap_for(r) for r in roles] + ([] if roles else [cap_for(sid)]))
         loudness = min([loudness_for(r) for r in roles] + ([] if roles else [loudness_for(sid)]))
-        result = finish(wav, cap, loudness)
+        soft = any(r.startswith('ui.hover') for r in roles) or (not roles and sid.startswith('ui.hover'))
+        result = finish(wav, cap, loudness, soft)
         if result is None:
-            skipped += 1
             continue
         clip, rate, measured = result
-        target = os.path.join(sounds_dir, 'takes', take['file'])
-        with tempfile.NamedTemporaryFile(suffix='.wav') as tmp:
-            sf.write(tmp.name, clip, rate)
-            part = target + '.recut.ogg'
-            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', tmp.name, '-ac', '1', '-c:a', 'libopus', '-b:a', '64k', part], check=True)
-            os.replace(part, target)
+        write_ogg(clip, rate, target)
         longer += measured['seconds'] > take['seconds'] + 0.01
         take['seconds'] = measured['seconds']
         done += 1
     part = cat_path + '.recut.tmp'
     json.dump(catalogue, open(part, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     os.replace(part, cat_path)
-    print(f"re-cut {done} takes in place ({longer} now longer), {skipped} with no raw source left as they were")
+    print(f"re-cut {done} takes in place ({longer} now longer), {levelled} with no raw source levelled as they are")
+
+
+def write_ogg(clip, rate, target):
+    with tempfile.NamedTemporaryFile(suffix='.wav') as tmp:
+        sf.write(tmp.name, clip, rate)
+        part = target + '.recut.ogg'
+        subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', tmp.name, '-ac', '1', '-c:a', 'libopus', '-b:a', '64k', part], check=True)
+        os.replace(part, target)
+
+
+def relevel(target, loudness):
+    decoded = subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', target, '-f', 'wav', '-'], capture_output=True, check=True).stdout
+    clip, rate = sf.read(io.BytesIO(decoded), always_2d=True)
+    gain_db = min(loudness - momentary_max(clip, rate), loudness + TRANSIENT_HEADROOM_DB - short_max(clip, rate))
+    gain = min(10 ** (gain_db / 20), 10 ** (PEAK_CEILING_DB / 20) / np.abs(clip).max())
+    write_ogg(clip * gain, rate, target)
 
 
 if __name__ == '__main__':

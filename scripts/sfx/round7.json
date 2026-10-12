@@ -1,0 +1,685 @@
+{
+ "note": "Round 7 (2026-10-12): see make-round7.py.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+ "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+ "seconds": 2.5,
+ "sounds": {
+  "ui.hover-card": {
+   "group": "Interface",
+   "name": "Hover a card",
+   "seconds": 1.0,
+   "prompts": [
+    "A faint soft breath of air across paper, very gentle",
+    "The softest brush of a fingertip over a smooth card",
+    "A quiet low whoosh of a hand passing over a table, barely there"
+   ]
+  },
+  "ui.hover-control": {
+   "group": "Interface",
+   "name": "Hover a button",
+   "seconds": 1.0,
+   "prompts": [
+    "A tiny soft tick of a wooden bead, very quiet",
+    "A faint muted tap of a fingertip on felt",
+    "A tiny soft click of a small wooden button"
+   ]
+  },
+  "ui.select": {
+   "group": "Interface",
+   "name": "Select",
+   "seconds": 1.0,
+   "prompts": [
+    "One clean click of a small brass switch",
+    "A crisp single click of a wooden toggle",
+    "A short neat click of a small metal clasp"
+   ]
+  },
+  "ui.lift": {
+   "group": "Interface",
+   "name": "Pick up a card",
+   "seconds": 1.0,
+   "prompts": [
+    "A playing card slid off a felt table and lifted, a soft scrape",
+    "A single card picked up between two fingers, a light paper flick",
+    "A card peeled up from a wooden table, short and soft"
+   ]
+  },
+  "ui.place": {
+   "group": "Interface",
+   "name": "Put a card down",
+   "seconds": 1.0,
+   "prompts": [
+    "A playing card set flat on a felt table, a soft pat",
+    "A card laid down on a wooden table, a light dry tap",
+    "A card dropped a short way onto cloth, a muffled slap"
+   ]
+  },
+  "ui.deny": {
+   "group": "Interface",
+   "name": "Refused",
+   "seconds": 1.0,
+   "prompts": [
+    "A dull low knock on a wooden table, once",
+    "A short muted thunk of a wooden drawer stopping",
+    "A soft low double tap of a knuckle on wood"
+   ]
+  },
+  "ui.pass": {
+   "group": "Interface",
+   "name": "Pass / OK",
+   "seconds": 1.0,
+   "prompts": [
+    "Two soft knocks of knuckles on a wooden table",
+    "One soft knock on a thick wooden table",
+    "Two light taps of a fingertip on a wooden table"
+   ]
+  },
+  "ui.prompt": {
+   "group": "Interface",
+   "name": "Decision needed",
+   "seconds": 1.0,
+   "prompts": [
+    "A single soft tap of a small wooden mallet on a wooden block",
+    "One low hollow knock on a wooden box",
+    "A gentle single tap on a hollow wooden log"
+   ]
+  },
+  "ui.inspect": {
+   "group": "Interface",
+   "name": "Inspect",
+   "seconds": 1.0,
+   "prompts": [
+    "A card turned over in the hand, a short soft swish",
+    "A short light paper flutter, a card raised",
+    "A soft quick swish of a page turned"
+   ]
+  },
+  "ui.target": {
+   "group": "Interface",
+   "name": "Target locks",
+   "seconds": 1.0,
+   "prompts": [
+    "A small metal latch clicking shut, crisp",
+    "A crossbow string locked into place, one click",
+    "A short sharp click of a compass lid closing"
+   ]
+  },
+  "g.cast.creature": {
+   "group": "Casting and the stack",
+   "name": "Cast a creature",
+   "seconds": 1.5,
+   "prompts": [
+    "A leather glove gripping tight and a soft low thump",
+    "A heavy leather pouch set down on a table, a soft thud",
+    "A rope pulled taut with a creak and a soft knock"
+   ]
+  },
+  "g.cast.instant": {
+   "group": "Casting and the stack",
+   "name": "Cast an instant",
+   "seconds": 1.5,
+   "prompts": [
+    "A quick snap of fingers and a short swish of air",
+    "A fast flick of a card through the air",
+    "A short sharp whip crack, far and light"
+   ]
+  },
+  "g.cast.sorcery": {
+   "group": "Casting and the stack",
+   "name": "Cast a sorcery",
+   "seconds": 2.0,
+   "prompts": [
+    "A heavy book slammed shut on a table",
+    "A thick old book opened fast, pages fanning",
+    "A heavy wooden chest lid dropped shut"
+   ]
+  },
+  "g.cast.planeswalker": {
+   "group": "Casting and the stack",
+   "name": "Cast a planeswalker",
+   "seconds": 2.5,
+   "prompts": [
+    "A heavy cloak swept around and boots landing on stone",
+    "A large war drum struck once, deep and close",
+    "A heavy iron door slammed in a stone hall"
+   ]
+  },
+  "g.ability": {
+   "group": "Casting and the stack",
+   "name": "Ability",
+   "seconds": 1.5,
+   "prompts": [
+    "A short rising whoosh ending in a soft click",
+    "A quick lever pulled with a short mechanical clack",
+    "A short rope pull through a pulley, one squeak"
+   ]
+  },
+  "g.resolve": {
+   "group": "Casting and the stack",
+   "name": "Resolves",
+   "seconds": 1.5,
+   "prompts": [
+    "A soft release of air, a short falling whoosh that settles",
+    "A cloth dropped softly onto a table",
+    "A short soft exhale of a bellows"
+   ]
+  },
+  "g.land": {
+   "group": "On the battlefield",
+   "name": "Play a land",
+   "seconds": 1.5,
+   "prompts": [
+    "A boot stepping firmly onto packed earth",
+    "A flat stone set down on the ground, one dull knock",
+    "A handful of soil dropped onto the ground"
+   ]
+  },
+  "g.creature": {
+   "group": "Green",
+   "name": "Green creature",
+   "prompts": [
+    "A bear growling, deep and close",
+    "A stag bellowing in a forest",
+    "A wolf snarling, low and close"
+   ]
+  },
+  "g.enter": {
+   "group": "On the battlefield",
+   "name": "Hits the table",
+   "seconds": 1.5,
+   "prompts": [
+    "A heavy wooden block set down on a table, one deep thud",
+    "A thick book dropped flat onto a wooden table",
+    "A heavy stone set down on wood, one solid knock"
+   ]
+  },
+  "g.tap": {
+   "group": "On the battlefield",
+   "name": "Tap",
+   "seconds": 1.0,
+   "prompts": [
+    "A light fingertip tap on a card, a short paper slide",
+    "A playing card turned sideways on felt, a tiny scrape",
+    "A soft single tap on a thick card"
+   ]
+  },
+  "g.untap": {
+   "group": "On the battlefield",
+   "name": "Untap",
+   "seconds": 1.0,
+   "prompts": [
+    "A playing card straightened on felt, a tiny soft scrape",
+    "A soft short paper slide, a card turned upright",
+    "A light flick of a card edge on a table"
+   ]
+  },
+  "g.counter-on": {
+   "group": "On the battlefield",
+   "name": "Counter added",
+   "seconds": 1.0,
+   "prompts": [
+    "A small glass bead set down on wood, one tick",
+    "A small bone die set down on a table, one click",
+    "A small stone counter placed on wood, one tap"
+   ]
+  },
+  "g.counter-off": {
+   "group": "On the battlefield",
+   "name": "Counter removed",
+   "seconds": 1.0,
+   "prompts": [
+    "A small glass bead picked up off wood, a short scrape",
+    "A small die slid off a table into a palm",
+    "A small stone counter lifted, a soft hollow pop"
+   ]
+  },
+  "g.mana": {
+   "group": "On the battlefield",
+   "name": "Mana",
+   "seconds": 1.0,
+   "prompts": [
+    "A small spark struck from flint, one crackle",
+    "A water droplet falling into a still pool",
+    "A small ember popping in a fire"
+   ]
+  },
+  "g.transform": {
+   "group": "On the battlefield",
+   "name": "Transform",
+   "seconds": 2.0,
+   "prompts": [
+    "A heavy cloth cloak swept around fast",
+    "A wolf growl rising out of a breath",
+    "Stone cracking open, one sharp split"
+   ]
+  },
+  "g.shuffle": {
+   "group": "Cards moving",
+   "name": "Shuffle",
+   "seconds": 1.5,
+   "prompts": [
+    "A short riffle shuffle of a deck of cards",
+    "A deck of cards bridged and cascading together",
+    "A quick overhand shuffle of cards, soft paper slaps"
+   ]
+  },
+  "g.dies": {
+   "group": "Cards moving",
+   "name": "Creature dies",
+   "seconds": 1.5,
+   "prompts": [
+    "A last low breath and a soft heavy thud",
+    "A body falling onto straw, a soft heavy thump",
+    "A heavy sack dropped onto a wooden floor"
+   ]
+  },
+  "g.destroy": {
+   "group": "Cards moving",
+   "name": "Destroyed",
+   "seconds": 1.5,
+   "prompts": [
+    "A wooden plank snapping in two",
+    "A clay pot breaking on stone",
+    "A small wooden crate crushed, one crunch"
+   ]
+  },
+  "g.exile": {
+   "group": "Cards moving",
+   "name": "Exile",
+   "seconds": 1.5,
+   "prompts": [
+    "A short airy whoosh of something pulled away into nothing",
+    "A candle snuffed out with a soft puff",
+    "A cloth pulled off a table in one fast swish"
+   ]
+  },
+  "g.discard": {
+   "group": "Cards moving",
+   "name": "Discard",
+   "seconds": 1.0,
+   "prompts": [
+    "A card flicked away across a table, a quick swish",
+    "A card tossed onto a pile of cards, a light slap",
+    "A crumpled piece of paper tossed onto a table"
+   ]
+  },
+  "g.mill": {
+   "group": "Cards moving",
+   "name": "Mill",
+   "seconds": 1.5,
+   "prompts": [
+    "A few cards sliding off a deck onto a pile",
+    "A handful of pages torn from a book",
+    "A short slide of a stack of cards spilling"
+   ]
+  },
+  "g.attack": {
+   "group": "Combat and life",
+   "name": "Attack",
+   "seconds": 1.5,
+   "prompts": [
+    "A sword drawn from a leather scabbard, short scrape",
+    "An axe lifted off a wooden rack",
+    "A spear tip scraped along stone"
+   ]
+  },
+  "g.block": {
+   "group": "Combat and life",
+   "name": "Block",
+   "seconds": 1.5,
+   "prompts": [
+    "A wooden shield blocking a sword, one heavy knock",
+    "Two staffs clashing once, wooden crack",
+    "A metal shield bash, one dull clang"
+   ]
+  },
+  "g.lifegain": {
+   "group": "Combat and life",
+   "name": "Life gain",
+   "seconds": 2.0,
+   "prompts": [
+    "A deep relieved breath in and out",
+    "A warm campfire flaring up with a soft whoosh",
+    "Water poured from a jug into a wooden cup"
+   ]
+  },
+  "g.game-start": {
+   "group": "Turn and game",
+   "name": "Coin toss",
+   "seconds": 2.5,
+   "prompts": [
+    "A coin flipped high, spinning and landing on a wooden table",
+    "A coin spun on a wooden table until it falls flat",
+    "A heavy coin tossed and caught in a hand"
+   ]
+  },
+  "g.turn-mine": {
+   "group": "Turn and game",
+   "name": "Your turn",
+   "seconds": 2.5,
+   "prompts": [
+    "A wooden door opening onto a breezy courtyard",
+    "An hourglass turned over on a wooden table, sand starting to pour",
+    "A deep breath in and a chair pulled up to a table"
+   ]
+  },
+  "g.turn-theirs": {
+   "group": "Turn and game",
+   "name": "Their turn",
+   "seconds": 2.5,
+   "prompts": [
+    "An hourglass set down on a wooden table, sand trickling",
+    "A chair pushed back from a wooden table",
+    "A heavy wooden door closing softly in another room"
+   ]
+  },
+  "g.phase": {
+   "group": "Turn and game",
+   "name": "Phase change",
+   "seconds": 1.0,
+   "prompts": [
+    "A single soft wooden click",
+    "A soft tick of a wooden counter slid on a rail",
+    "A page corner flipped, one soft tick"
+   ]
+  },
+  "g.token": {
+   "group": "On the battlefield",
+   "name": "Token appears",
+   "seconds": 1.0,
+   "prompts": [
+    "A small wooden token set on a table, one bright tap",
+    "A cardboard chip flicked onto felt, one soft clack",
+    "A small clay figure set on wood, one knock"
+   ]
+  },
+  "c.land": {
+   "group": "Lands",
+   "name": "Colourless land",
+   "prompts": [
+    "Heavy stone blocks grinding into place in an old ruin",
+    "A metal gate in a stone wall swinging shut, an echo",
+    "Wind through a hollow stone monolith, a low hum"
+   ]
+  },
+  "rw.land": {
+   "group": "Lands",
+   "name": "Boros land",
+   "prompts": [
+    "Soldiers marching through a city gate, boots on cobblestone",
+    "A blacksmith forge roaring as bellows pump",
+    "A war banner snapping in a strong wind on a stone wall"
+   ]
+  },
+  "w.creature": {
+   "group": "White",
+   "name": "White creature",
+   "prompts": [
+    "A horse whinny and hooves stamping on packed earth",
+    "A lion roaring once on open grassland",
+    "An eagle crying overhead with a beat of wings"
+   ]
+  },
+  "u.spell": {
+   "group": "Blue",
+   "name": "Blue spell",
+   "prompts": [
+    "A wave drawn back over pebbles and crashing",
+    "A water drop into a deep cave pool, a hollow plunk",
+    "A gust of sea wind over open water"
+   ]
+  },
+  "u.creature": {
+   "group": "Blue",
+   "name": "Blue creature",
+   "prompts": [
+    "A seal barking on a rocky shore",
+    "A heron croaking and taking off from the water",
+    "A whale blowing through its blowhole, a deep spray"
+   ]
+  },
+  "ub.land": {
+   "group": "Lands",
+   "name": "Dimir land",
+   "prompts": [
+    "Water dripping in a stone sewer tunnel",
+    "A heavy iron grate dragged over wet stone",
+    "A rat scurrying through a dark tunnel"
+   ]
+  },
+  "r.creature": {
+   "group": "Red",
+   "name": "Red creature",
+   "prompts": [
+    "A wild boar squealing and grunting",
+    "A large lizard hissing with a burst of fire",
+    "A goat bleating on a rocky cliff, pebbles falling"
+   ]
+  },
+  "wb.spell": {
+   "group": "Orzhov",
+   "name": "Orzhov spell",
+   "prompts": [
+    "Coins poured onto a stone table",
+    "A heavy vault lock turning, one clunk",
+    "A wax seal pressed onto parchment"
+   ]
+  },
+  "rgw.land": {
+   "group": "Lands",
+   "name": "Naya land",
+   "prompts": [
+    "Jungle birds calling with insects buzzing",
+    "A waterfall pouring into a jungle pool",
+    "Huge footsteps shaking the ground in a jungle"
+   ]
+  },
+  "urw.creature": {
+   "group": "Jeskai",
+   "name": "Jeskai creature",
+   "prompts": [
+    "A hawk diving with a sharp cry",
+    "A wooden staff spun fast through the air",
+    "A crane flapping its wings and calling"
+   ]
+  },
+  "urw.land": {
+   "group": "Lands",
+   "name": "Jeskai land",
+   "prompts": [
+    "Prayer flags flapping in mountain wind",
+    "A mountain stream rushing over rocks",
+    "A wooden temple door sliding shut"
+   ]
+  },
+  "rwb.land": {
+   "group": "Lands",
+   "name": "Mardu land",
+   "prompts": [
+    "A campfire crackling with war drums in the distance",
+    "Tent canvas flapping in strong wind",
+    "Horses snorting and stamping in a camp"
+   ]
+  },
+  "wubrg.creature": {
+   "group": "Four colours or more",
+   "name": "Five-colour creature",
+   "prompts": [
+    "A huge mythical beast roaring with wings beating",
+    "A dragon landing heavily and folding its wings",
+    "A great beast stamping and roaring in a cave"
+   ]
+  },
+  "land-plains": {
+   "group": "Basic lands",
+   "name": "Plains",
+   "prompts": [
+    "A footstep onto open plains, warm wind over grass",
+    "Wind sweeping through a wheat field",
+    "A horse trotting over a grassy meadow"
+   ]
+  },
+  "land-island": {
+   "group": "Basic lands",
+   "name": "Island",
+   "prompts": [
+    "Waves lapping on a sandy beach, field recording",
+    "A wave rolling onto a pebble beach",
+    "Seagulls over a calm shore with soft surf"
+   ]
+  },
+  "land-swamp": {
+   "group": "Basic lands",
+   "name": "Swamp",
+   "prompts": [
+    "Mud bubbling in a swamp, a frog croaking",
+    "Boots squelching in deep mud",
+    "A slow bog bubbling with insects buzzing"
+   ]
+  },
+  "land-mountain": {
+   "group": "Basic lands",
+   "name": "Mountain",
+   "prompts": [
+    "Rocks and gravel tumbling down a slope",
+    "A boulder rolling and cracking against rock",
+    "Wind howling over a rocky mountain ridge"
+   ]
+  },
+  "land-forest": {
+   "group": "Basic lands",
+   "name": "Forest",
+   "prompts": [
+    "Leaves rustling and branches creaking in a forest",
+    "Footsteps on dry leaves and twigs in a forest",
+    "Birds singing in a deep forest, leaves rustling"
+   ]
+  },
+  "c.artifact": {
+   "group": "Colourless",
+   "name": "Colourless artifact",
+   "prompts": [
+    "An iron key turned in an old lock, short clunk",
+    "A brass padlock snapped shut",
+    "A heavy iron hinge creaking once"
+   ]
+  },
+  "r.spell": {
+   "group": "Red",
+   "name": "Red spell",
+   "prompts": [
+    "A fast fiery whoosh into crackling sparks",
+    "A torch thrust into flames, a roaring flare",
+    "A firework fuse hissing and popping"
+   ]
+  },
+  "g.spell": {
+   "group": "Green",
+   "name": "Green spell",
+   "prompts": [
+    "Leaves swirling in a warm gust of wind",
+    "Vines creaking and snapping as they grow",
+    "A tree branch swaying and rustling"
+   ]
+  },
+  "ur.land": {
+   "group": "Lands",
+   "name": "Izzet land",
+   "prompts": [
+    "A close thunder crack and a rolling boom",
+    "Electric sparks crackling from a coil",
+    "Steam hissing from a brass pipe"
+   ]
+  },
+  "rg.land": {
+   "group": "Lands",
+   "name": "Gruul land",
+   "prompts": [
+    "War drums pounding in a canyon",
+    "A herd of large animals stampeding over rock",
+    "A huge rock split by a heavy blow"
+   ]
+  },
+  "wu.land": {
+   "group": "Lands",
+   "name": "Azorius land",
+   "prompts": [
+    "A heavy stone door closing in a marble hall",
+    "A fountain splashing in a stone plaza",
+    "Footsteps echoing in a marble courtroom"
+   ]
+  },
+  "w.spell": {
+   "group": "White",
+   "name": "White spell",
+   "prompts": [
+    "A bright brass horn call, short",
+    "A strong warm wind gust over a sunlit field",
+    "A sword raised and shining, a soft metallic shing"
+   ]
+  },
+  "b.spell": {
+   "group": "Black",
+   "name": "Black spell",
+   "prompts": [
+    "A low cold breath in a stone crypt",
+    "Bones rattling in a wooden coffin",
+    "A raven cawing once in the dark"
+   ]
+  },
+  "b.creature": {
+   "group": "Black",
+   "name": "Black creature",
+   "prompts": [
+    "A low snarl and rattling bones",
+    "A bat screeching with wings flapping",
+    "A large rat hissing"
+   ]
+  },
+  "r.land": {
+   "group": "Lands",
+   "name": "Red land",
+   "prompts": [
+    "Lava bubbling and hissing",
+    "A volcanic vent hissing steam",
+    "Fire crackling in a stone forge"
+   ]
+  },
+  "u.land": {
+   "group": "Lands",
+   "name": "Blue land",
+   "prompts": [
+    "An ocean wave crashing on a rocky shore",
+    "A tide pool draining over rocks",
+    "Rain falling onto a calm lake"
+   ]
+  },
+  "b.land": {
+   "group": "Lands",
+   "name": "Black land",
+   "prompts": [
+    "Crows cawing over a graveyard",
+    "An iron cemetery gate creaking open",
+    "Water dripping in a stone crypt"
+   ]
+  },
+  "w.land": {
+   "group": "Lands",
+   "name": "White land",
+   "prompts": [
+    "A footstep onto open plains, warm wind over grass",
+    "A sunlit meadow with birds and wind",
+    "Wind over a field of tall grass"
+   ]
+  },
+  "br.land": {
+   "group": "Lands",
+   "name": "Rakdos land",
+   "prompts": [
+    "A fireball flying past and exploding",
+    "Chains rattling over a crackling fire",
+    "A furnace door clanging open, fire roaring"
+   ]
+  }
+ }
+}
