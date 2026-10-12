@@ -23,7 +23,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, clickPermanent, clickRecords, handCardNamed, isOffered, isTapped, makeTitled, manaPool } from './play/board.ts';
+import { clickHandCard, clickPermanent, clickRecords, handCardNamed, holdsLiveWindow, isOffered, isTapped, makeTitled, manaPool } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -117,9 +117,15 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
 
     /** Click a tapped `id` once; true when it untaps on alice's screen and on bob's. */
     const untapByClick = async (id: number): Promise<boolean> => {
-      if (!(await clickPermanent(a, id, 8_000))) return false;
+      if (!(await clickPermanent(a, id, 8_000))) {
+        console.log(`[w68-untap] #${id} never offered in a live window: offered ${await isOffered(a, id)}, live window ${await holdsLiveWindow(a)}`);
+        return false;
+      }
       const mine = await expect.poll(() => isTapped(a, id), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
-      if (!mine) return false;
+      if (!mine) {
+        console.log(`[w68-untap] #${id} clicked, still tapped — the server's clicks on it: ${clickRecords(stack, id)}`);
+        return false;
+      }
       return expect.poll(() => isTapped(b, id), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
     };
 
