@@ -11,7 +11,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { boxOf, endOfSlot, onTopPoint, pointerDrag, viewerSlot } from './play/w32.ts';
+import { boxOf, onTopPoint, pointerDrag } from './play/w32.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -74,8 +74,14 @@ test(titled('a pile of copies wears ×N on both screens; it follows a card leavi
     }
     await expect(field(a, 'you').locator('.board-card__copies'), 'one count per pile').toHaveCount(1);
 
-    // One leaves the pile (the top card, to the end of the row): ×2 on both screens; the one that left wears none.
-    await pointerDrag(a, card(a, 'you', g1), await endOfSlot(viewerSlot(a, 'front')));
+    // One leaves the pile (the top card, into the thin reorder strip at the Bears' left edge — its own column beside
+    // them): ×2 on both screens; the one that left wears none.
+    const bearsBox = await boxOf(card(a, 'you', bears));
+    await pointerDrag(a, card(a, 'you', g1), { x: bearsBox.x + bearsBox.width * 0.05, y: bearsBox.y + bearsBox.height / 2 });
+    const columns = await field(a, 'you')
+      .locator('[data-tier="front"] > li.board-card')
+      .evaluateAll((els) => els.map((e) => [e.getAttribute('data-card-id'), ...Array.from(e.querySelectorAll(':scope > ul > li.board-card'), (m) => m.getAttribute('data-card-id'))].join('+')));
+    console.log(`[xn] front tier after the lift: ${columns.join(' | ')}`);
     await expect(card(a, 'you', g2), 'two Goblins left in the pile').toHaveAttribute('data-pile-size', '2');
     await expect.poll(() => countOn(a, 'you', g2), { message: 'alice’s pile says ×2' }).toBe('×2');
     await expect.poll(() => countOn(bob.page, 'them', g2), { timeout: 10_000, message: 'bob sees ×2' }).toBe('×2');
