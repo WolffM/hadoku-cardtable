@@ -2743,6 +2743,40 @@ describe('the top card of the library, offered while the board draws it, is pick
  * it — through the "pay 2 life?" question, through the spell's time on the
  * stack — and the stack flashed a creature nobody responded to.
  */
+/**
+ * Holds every `GLIDE_MS` timer until `release`, so a test can look at the board mid-glide however
+ * slowly the run goes. Any other timer runs as usual; a held one that is cleared never runs.
+ */
+function holdGlides(): { release(): void; restore(): void } {
+  const realSet = globalThis.setTimeout;
+  const realClear = globalThis.clearTimeout;
+  const held = new Map<unknown, () => void>();
+  const set = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((run: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (ms !== GLIDE_MS) return realSet(run, ms, ...args);
+    const handle = realSet(() => undefined, 2 ** 30);
+    held.set(handle, () => run(...args));
+    return handle;
+  }) as typeof setTimeout);
+  const clear = vi.spyOn(globalThis, 'clearTimeout').mockImplementation(((handle?: Parameters<typeof clearTimeout>[0]) => {
+    held.delete(handle);
+    realClear(handle);
+  }) as typeof clearTimeout);
+  const restore = (): void => {
+    set.mockRestore();
+    clear.mockRestore();
+    for (const handle of held.keys()) realClear(handle as Parameters<typeof clearTimeout>[0]);
+    held.clear();
+  };
+  return {
+    release(): void {
+      const due = [...held.values()];
+      restore();
+      for (const run of due) run();
+    },
+    restore,
+  };
+}
+
 describe('a played card waits where it was let go until Forge has it on the battlefield', () => {
   const PLAYER_KEY = String((1 << 28) | 0);
   const ints = (ids: number[]) => ({ t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) });
@@ -2921,6 +2955,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const spy = vi
       .spyOn(CastModule, 'expectedGapBox')
       .mockReturnValue({ left: 500, top: 280, width: 60, height: 84, right: 560, bottom: 364, x: 500, y: 280, toJSON: () => ({}) } as DOMRect);
+    // The glide ends when the test says so: on a loaded runner the steps below took longer than its 300 ms.
+    const glides = holdGlides();
     try {
       const { s, m, canvas, card, rest, battlefield } = await play(() => true);
       const ghost = await waitFor(() => {
@@ -2936,9 +2972,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
       expect(placed.style.left, 'drawn where the stand-in comes to rest').toBe('530px');
       expect(placed.hasAttribute('data-placed-pending'), 'but hidden while the stand-in is still on its way').toBe(true);
       expect(ghost.isConnected, 'the stand-in is what is drawn meanwhile').toBe(true);
+      glides.release();
       await waitFor(() => expect(ghost.isConnected).toBe(false), { timeout: GLIDE_MS + 1000 });
       expect(placed.hasAttribute('data-placed-pending'), 'shown the moment the stand-in goes').toBe(false);
     } finally {
+      glides.restore();
       spy.mockRestore();
     }
   });
