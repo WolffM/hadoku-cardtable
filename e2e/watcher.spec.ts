@@ -108,7 +108,7 @@ test('a third person watches the match from either side with no controls, and no
     await carol.page.goto(roomUrl);
     await carol.page.waitForURL(new RegExp(`#/match/${matchId}$`), { timeout: 60_000 });
     await expect(carol.page.locator('[aria-label="Game board"]'), 'a board, not a refusal').toBeVisible({ timeout: 30_000 });
-    await expect(carol.page.locator('[data-role="watcher"]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(carol.page.locator('.live[data-role="watcher"]'), 'the board root says watcher').toBeVisible({ timeout: 30_000 });
     await expect(carol.page.getByTestId('watcher-status')).toBeVisible();
     for (const id of ['live-concede', 'live-button-end-turn', 'live-play-or-draw-play']) {
       await expect(carol.page.getByTestId(id), `${id} is not drawn for a watcher`).toHaveCount(0);
