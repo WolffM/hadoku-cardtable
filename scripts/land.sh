@@ -50,6 +50,23 @@ if ! git cherry-pick -x "${PICKS[@]}" >/dev/null; then
   exit 4
 fi
 
+# Dependencies first: the art step below runs code that imports them. Linking borrows the
+# deploy tree's node_modules, which match the deploy tree's lockfile, not this one. When the
+# two lockfiles differ (an auto-update landed since the last deploy, or the
+# land itself changes dependencies), a linked check typechecks against the wrong versions, so
+# install for real instead. The temp worktree has no node_modules of its own, so nothing here
+# writes through a symlink into the deploy tree.
+if cmp -s "$MAIN/pnpm-lock.yaml" pnpm-lock.yaml; then
+  bash "$MAIN/scripts/link-worktree-node-modules.sh" "$TMP"
+else
+  echo "land: lockfile differs from the deploy tree's — pnpm install --frozen-lockfile"
+  PATH="$NODE_BIN:$PATH" pnpm install --frozen-lockfile --prefer-offline > "$TMP.install.log" 2>&1 \
+    || { tail -20 "$TMP.install.log"
+         grep -q 'ERR_PNPM_FETCH_401' "$TMP.install.log" \
+           && echo "land: GitHub Packages refused ~/.npmrc's token (401) — it needs the current HADOKU_NPM_READ_TOKEN" >&2
+         echo "land: install FAILED — nothing pushed" >&2; exit 5; }
+fi
+
 # The art table's rows are derived data: every card a scenario places or a deck lists gets one.
 # Derive them here, from the deploy tree's Scryfall cache, so a new scenario's cards land with
 # their rows instead of reddening the coverage suite on main. `--no-tokens`: only the rows this
@@ -82,21 +99,6 @@ if [ ${#BUMPS[@]} -gt 0 ]; then
   echo "land: bumped ${BUMPS[*]}"
 fi
 
-# Linking borrows the deploy tree's node_modules, which match the deploy tree's lockfile, not
-# this one. When the two lockfiles differ (an auto-update landed since the last deploy, or the
-# land itself changes dependencies), a linked check typechecks against the wrong versions, so
-# install for real instead. The temp worktree has no node_modules of its own, so nothing here
-# writes through a symlink into the deploy tree.
-if cmp -s "$MAIN/pnpm-lock.yaml" pnpm-lock.yaml; then
-  bash "$MAIN/scripts/link-worktree-node-modules.sh" "$TMP"
-else
-  echo "land: lockfile differs from the deploy tree's — pnpm install --frozen-lockfile"
-  PATH="$NODE_BIN:$PATH" pnpm install --frozen-lockfile --prefer-offline > "$TMP.install.log" 2>&1 \
-    || { tail -20 "$TMP.install.log"
-         grep -q 'ERR_PNPM_FETCH_401' "$TMP.install.log" \
-           && echo "land: GitHub Packages refused ~/.npmrc's token (401) — it needs the current HADOKU_NPM_READ_TOKEN" >&2
-         echo "land: install FAILED — nothing pushed" >&2; exit 5; }
-fi
 # Typecheck and lint run whole. The unit suites run only where the change reaches
 # (`vitest related`: the test files whose import graph holds a changed file) — CI's `check` on
 # the pushed commit runs every suite anyway. Whole when the change is to what every suite
