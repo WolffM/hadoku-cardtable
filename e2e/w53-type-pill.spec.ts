@@ -91,7 +91,7 @@ test(titled('T2 — Magus of the Moon: a nonbasic land wears a pill reading Land
  *
  * `w52-s-signet.state` itself is NOT used here: it puts the Signet on the
  * OPPONENT's battlefield specifically to prove the SERVER auto-passes that
- * seat's priority (`apps/server/src/play/w52-s-signet.jvm.test.ts`) — an
+ * seat's priority (`apps/server/src/play/mana-sources.jvm.test.ts`) — an
  * intentionally transient window a seat never has to act in. End Turn's
  * highlight is a different claim: the VIEWER's own priority, with nothing
  * left to decide, stays a stable, visible invitation to end the turn

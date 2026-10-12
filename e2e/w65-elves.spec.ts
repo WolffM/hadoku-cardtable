@@ -3,7 +3,7 @@
  *
  * The operator, three times (2026-10-04, 2026-10-06, 2026-10-08): "i should be
  * able to untap llanowar elves if i haven't done anything with the mana and it
- * hasn't triggered anything." Measured against the jar (`w65-elves.jvm.test.ts`):
+ * hasn't triggered anything." Measured against the jar (`mana-sources.jvm.test.ts`):
  * Forge undoes a creature's mana ability exactly as a land's; what kept the
  * Elves off the click was the board's own tap record reading "Land". Scenario
  * `w65-elves`: alice's turn-1 Main 1 with Llanowar Elves (not sick) and two

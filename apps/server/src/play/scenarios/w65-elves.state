@@ -4,8 +4,8 @@
 # Phase 1 with Llanowar Elves (non-sick — `GameState.java` sets every created
 # card non-sick) and two Forests on the battlefield, an empty hand so nothing
 # can spend the mana, and the library full so the draw step is harmless.
-# `w65-elves.jvm.test.ts` taps each source and tries the untap the way the
-# board does, and records what Forge gives back.
+# `e2e/w65-elves.spec.ts` plays it in two browsers; the same untap against
+# the jar, for every kind of source, is `mana-sources.jvm.test.ts`.
 turn=1
 activeplayer=human
 activephase=MAIN1

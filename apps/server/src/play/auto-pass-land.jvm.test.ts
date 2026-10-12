@@ -119,7 +119,7 @@ describe.skipIf(!available.ok)(title, () => {
 
 				// One select, sent once Forge's own offer names the Goblin — the scenario-start
 				// race (`PlayBridge.java`'s `refreshActionable`) is over then. Never a retry (the
-				// same driver as `w52-s-signet.jvm.test.ts`): a resend cannot tell a dropped click
+				// same driver as `mana-sources.jvm.test.ts`): a resend cannot tell a dropped click
 				// from one Forge is still taking. The single {R} is paid by `landPayer` (wave 53
 				// §E), which sends the next land only once the payment prompt has changed.
 				await waitUntil(() => { s.answerAsks(); return offeredTo(s, 0).includes(goblin.id); }, 'Forge offers seat 0 the Goblin', 20_000, s);
