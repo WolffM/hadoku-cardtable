@@ -21,7 +21,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useEffect, type ReactNode } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
 /*
  * A theme name this install's `Theme` union does not contain.
@@ -115,6 +115,13 @@ describe('the content of a room', () => {
     const roomChrome = await waitFor(() => screen.getByTestId('room-chrome'));
 
     expect(roomChrome.contains(screen.getByTestId('content'))).toBe(true);
+    // The chrome can be in the DOM a tick before the content's effect runs (CI
+    // read 0 here once), so wait for the first mount — then a twice-mounted
+    // content would read 2, which is the bug this pins.
+    await waitFor(() => expect(mounts).toBeGreaterThan(0));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
     expect(mounts).toBe(1);
   });
 });
