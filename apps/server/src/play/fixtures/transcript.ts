@@ -103,6 +103,23 @@ export function replayFactory(): { factory: MatchHostFactory; hosts: ReplayHost[
 
 /* ── The oracle ──────────────────────────────────────────────────────── */
 
+/** Every card id an ask Forge sent `seat` names — what Forge itself showed that seat, whatever zone it sits in. */
+export function shownByAsks(lines: readonly BridgeLine[], seat: number): Set<number> {
+	const out = new Set<number>();
+	const walk = (node: unknown): void => {
+		if (Array.isArray(node)) node.forEach(walk);
+		else if (typeof node === 'object' && node !== null) {
+			const o = node as Record<string, unknown>;
+			if (o.kind === 'card' && typeof o.id === 'number') out.add(o.id);
+			Object.values(o).forEach(walk);
+		}
+	};
+	for (const line of lines) {
+		if (line.t === 'frame' && line.seat === seat && (line.frame as { kind?: unknown }).kind === 'ask') walk(line.frame);
+	}
+	return out;
+}
+
 type Table = Record<string, WireObj>;
 
 /** Forge's apply rules, applied to one seat's RAW frames from the transcript. */
@@ -200,12 +217,21 @@ export function everyString(state: ReadonlyMap<string, WireObj>, cardId: number)
  * `AbilityText: "Flying"` (`FLYING_FILE`). The secrets themselves are still
  * every `str` a hidden card carries, so the check is not weakened for anything
  * that actually names a hidden card.
+ *
+ * `shown` is the cards Forge itself put in front of the viewer while their
+ * zone stayed hidden — a reveal, a look at an opponent's hand — read from the
+ * raw stream by {@link shownByAsks}. A seat that was shown bob's hand by
+ * Thoughtseize was told those cards by Forge, so they are not its secrets.
  */
-export function secretsFor(states: readonly Map<string, WireObj>[], viewer: number): {
+export function secretsFor(
+	states: readonly Map<string, WireObj>[],
+	viewer: number,
+	shown: ReadonlySet<number> = new Set(),
+): {
 	secrets: Set<string>;
 	hiddenCards: Set<number>;
 } {
-	const everShown = new Set<number>();
+	const everShown = new Set<number>(shown);
 	const everHidden = new Set<number>();
 	for (const state of states) {
 		for (const obj of state.values()) {
@@ -221,7 +247,18 @@ export function secretsFor(states: readonly Map<string, WireObj>[], viewer: numb
 	}
 	const last = states[states.length - 1] ?? new Map<string, WireObj>();
 	const allowed = new Set<string>();
-	for (const id of everShown) for (const s of everyString(last, id)) allowed.add(s);
+	// A shown card is read where it last existed: a card the viewer held and that
+	// then left the game — an opening hand a scenario replaced, a token — is gone
+	// from the last state, and the viewer still saw it.
+	const unread = new Set(everShown);
+	for (let at = states.length - 1; at >= 0 && unread.size > 0; at--) {
+		const state = states[at]!;
+		for (const id of [...unread]) {
+			if (!state.has(keyOf(TYPE.card, id))) continue;
+			unread.delete(id);
+			for (const s of everyString(state, id)) allowed.add(s);
+		}
+	}
 	const hiddenCards = new Set([...everHidden].filter((id) => !everShown.has(id)));
 	const secrets = new Set<string>();
 	for (const id of hiddenCards) for (const s of identifyingStrings(last, id)) if (!allowed.has(s)) secrets.add(s);

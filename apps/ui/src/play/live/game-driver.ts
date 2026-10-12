@@ -85,11 +85,21 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
     const once = (k: string) => (mine.has(`${v.turn}:${k}`) ? false : (mine.add(`${v.turn}:${k}`), true));
     const myTurn = v.activePlayerId === me.id;
 
-    if (/keep your hand/.test(msg) && plan.mulliganWith !== undefined) {
+    if (/keep your hand/.test(msg) && plan.mulliganWith !== undefined && !mine.has(`${v.turn}:mulligan-with`)) {
+      // The keep question can arrive before the hand it is about is folded: wait for the
+      // card rather than keep the hand without it. A hand dealt without one is kept by the
+      // idle OK in `step`.
       const card = me.hand?.find((c) => c.card.name === plan.mulliganWith);
-      if (card !== undefined && once('mulligan-with')) return [`use ${card.card.name}`, select(card.id)];
+      if (card === undefined) return null;
+      once('mulligan-with');
+      return [`use ${card.card.name}`, select(card.id)];
     }
     if (msg.startsWith(`Priority: ${me.name}`)) {
+      // The window is the seat's only once its bar is live: Forge sends the
+      // prompt and its buttons as two frames, and a card clicked between them
+      // is dropped — the first cast after a scenario applies, most visibly.
+      // The buttons frame bumps `notes.version`, so this is decided again then.
+      if (buttons?.enable1 !== true) return null;
       if (myTurn && v.phase === 'MAIN1' && /Stack: Empty/.test(msg)) {
         const land = me.hand?.find((c) => plan.land.test(c.card.name));
         if (land !== undefined && once('land')) return [`play ${land.card.name}`, select(land.id)];
@@ -103,23 +113,30 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
           if (c !== undefined && untapped >= mana && once(`cast-${name}`)) return [`cast ${name}`, select(c.id)];
         }
       }
-      return buttons?.enable1 === true ? ['pass', OK] : null;
+      return ['pass', OK];
     }
-    if (/to attack/.test(msg) && myTurn) {
+    /*
+     * Combat inputs, read off Forge's own instruction with its bar live — never a
+     * looser word, which also matches the priority windows of the same step. Each
+     * creature is picked once per turn and each declaration closed once: a pick
+     * whose fold has not landed yet must not be clicked again (a second click takes
+     * it back), and a second OK would pass the window after it.
+     */
+    if (/to attack/.test(msg) && myTurn && buttons?.enable1 === true) {
       const a = plan.attack;
       const attacker = me.battlefield.find((c) => c.card.name === a?.name && !c.summoningSick && !c.tapped && !c.attacking);
       if (a !== undefined && attacker !== undefined && v.turn >= a.fromTurn && once('attack')) return [`attack with ${attacker.id}`, select(attacker.id)];
-      return ['attackers done', OK];
+      return once('attackers-done') ? ['attackers done', OK] : null;
     }
-    if (/[Bb]lock/.test(msg) && !myTurn) {
+    if (/to block/.test(msg) && !myTurn && buttons?.enable1 === true) {
       const b = plan.block;
-      const free = me.battlefield.filter((c) => c.card.name === b?.name && !c.tapped && !c.blocking);
-      const used = [...mine].filter((k) => k.startsWith(`${v.turn}:block-`)).length;
-      if (b !== undefined && free[0] !== undefined && used < b.count) {
-        mine.add(`${v.turn}:block-${used}`);
-        return [`block with ${free[0].id}`, select(free[0].id)];
+      const picked = [...mine].filter((k) => k.startsWith(`${v.turn}:block-`)).length;
+      const next = me.battlefield.find((c) => c.card.name === b?.name && !c.tapped && !c.blocking && !mine.has(`${v.turn}:block-${c.id}`));
+      if (b !== undefined && next !== undefined && picked < b.count) {
+        mine.add(`${v.turn}:block-${next.id}`);
+        return [`block with ${next.id}`, select(next.id)];
       }
-      return ['blockers done', OK];
+      return once('blockers-done') ? ['blockers done', OK] : null;
     }
     if (/target/i.test(msg) && !/Pay Mana Cost/.test(msg)) {
       const t = opp.battlefield.find((c) => c.card.name === plan.targetCard);

@@ -29,10 +29,6 @@ function all(root: Element, selector: string): HTMLElement[] {
 export interface PromptPreferences {
   /** Press the button Forge did NOT make the default — so a result can only have come from the click. */
   confirmAgainstDefault?: boolean;
-  /** Pick this `getChoices` option first, by its label, when one matches. */
-  choice?: (label: string) => boolean;
-  /** What to type into a `showInputDialog`. Default "1". */
-  input?: string;
 }
 
 /**
@@ -62,7 +58,7 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
     }
     case 'input': {
       const input = sheet.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-testid="${ANSWER_TESTID.input}"]`);
-      if (input instanceof HTMLInputElement) fireEvent.change(input, { target: { value: prefs.input ?? '1' } });
+      if (input instanceof HTMLInputElement) fireEvent.change(input, { target: { value: '1' } });
       submit();
       return method;
     }
@@ -76,8 +72,6 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
     case 'tick-until-submittable': {
       const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);
       const choices = all(sheet, `input[data-testid="${ANSWER_TESTID.choice}"]`);
-      const preferred = prefs.choice === undefined ? undefined : choices.find((c) => prefs.choice!(c.parentElement?.textContent ?? ''));
-      if (preferred !== undefined) fireEvent.click(preferred);
       // Tick options in order until the answer is sendable.
       for (const choice of choices) {
         if (submitButton !== null && !submitButton.disabled) break;
@@ -108,10 +102,14 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
       return method;
     }
     case 'order-until-submittable': {
+      // An unplaced row is placed by clicking the row itself (`OrderPrompt.tsx`: drag, or click
+      // as the short form — there is no Place button since 2026-10-06). Read afresh after each
+      // click: placing one re-renders the list.
       const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);
-      for (const place of all(sheet, `[data-testid="${ANSWER_TESTID.orderSource}"] button`)) {
-        if (submitButton !== null && !submitButton.disabled) break;
-        fireEvent.click(place);
+      for (let guard = 0; guard < 100 && submitButton?.disabled === true; guard += 1) {
+        const row = sheet.querySelector<HTMLElement>(`[data-testid="${ANSWER_TESTID.orderSource}"] > li`);
+        if (row === null) break;
+        fireEvent.click(row);
       }
       submit();
       return method;

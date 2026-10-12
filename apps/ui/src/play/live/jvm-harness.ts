@@ -41,7 +41,7 @@ import { join } from 'node:path';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
-import { dumpTimeoutReport, summarizeFrame } from '../../../../server/src/play/scenario.ts';
+import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 import { MATCH_EVENTS, type ServerEnvelope } from './transport.ts';
 
@@ -149,6 +149,32 @@ function dumpOnTimeout(dump: DumpSource, label: string): string {
 }
 
 export { waitUntil };
+
+/**
+ * A match that starts where a question is asked: `apps/server/src/play/
+ * scenarios/<name>.state` applied after the mulligan, both seats human.
+ * `human…` keys are seat 0's, `ai…` keys seat 1's.
+ *
+ * The scenario scripts every zone, so a deck only matters for what happens
+ * BEFORE it applies — the opening hands, the mulligan — and is forty
+ * Mountains unless a caller needs that part (`decks`).
+ *
+ * This is how a driver reaches an ask. A seeded game played until Forge
+ * happened to raise one was the biggest red on main (`prompts.jvm`'s combat
+ * case: 24 of 129 runs, docs/planning/test-audit-2026-10-12.md M1); a
+ * scenario reaches its ask every run, in one turn.
+ */
+export function startLiveScenario(name: string, decks: [string, string] = ['40 Mountain', '40 Mountain']): Promise<LiveHarness> {
+  const deck = (seat: number) => `[metadata]\nName=Scenario ${seat}\n[main]\n${decks[seat]}\n`;
+  return startLiveMatch({
+    seed: 7,
+    seats: [
+      { name: 'A', ai: false, deck: deck(0) },
+      { name: 'B', ai: false, deck: deck(1) },
+    ],
+    scenario: scenarioText(name),
+  });
+}
 
 export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
   const available = forgeAvailability();
