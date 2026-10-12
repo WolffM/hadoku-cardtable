@@ -20,67 +20,36 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { livePrompt, makeTitled } from './play/board.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { clickPermanent, clickRecords, isOffered, isTapped, livePrompt, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
+import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-const ownBattlefield = '.seat[data-viewer] [data-zone="battlefield"]';
-
-/** The viewer's own battlefield cards named `name`, in DOM order. */
-function ownNamed(page: Page, name: string): Promise<number[]> {
-  return page
-    .locator(`${ownBattlefield} [data-board-card]`)
-    .evaluateAll(
-      (els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))),
-      name,
-    );
-}
-
-const card = (page: Page, id: number) => page.locator(`[data-board-card="${id}"]`);
-const isTapped = (page: Page, id: number) => card(page, id).evaluate((e) => e.hasAttribute('data-tapped'));
-const isOffered = (page: Page, id: number) => card(page, id).evaluate((e) => e.hasAttribute('data-selectable'));
-const pool = (page: Page) =>
-  page.locator('.seat[data-viewer] [data-mana-pool]').evaluate((el) => ({
-    total: Number(el.getAttribute('data-mana-total') ?? '0'),
-    W: Number(el.querySelector('[data-mana="W"]')?.getAttribute('data-mana-count') ?? '0'),
-    U: Number(el.querySelector('[data-mana="U"]')?.getAttribute('data-mana-count') ?? '0'),
-  }));
-
-/**
- * Click an offered permanent until it taps. The first click after a scenario
- * applies can be dropped (the scenario-start race, `PlayBridge.java`'s
- * `refreshActionable`), so a click is repeated only while the card is still
- * untapped, a second apart — never once it has tapped.
- */
-async function tapByClick(page: Page, id: number, what: string): Promise<void> {
-  await expect.poll(() => isOffered(page, id), { timeout: 45_000, message: `${what} is offered at priority` }).toBe(true);
-  for (let i = 0; i < 10 && !(await isTapped(page, id)); i++) {
-    await card(page, id).locator('button').first().click();
-    await expect.poll(() => isTapped(page, id), { timeout: 1_000 }).toBe(true).catch(() => undefined);
-  }
-  expect(await isTapped(page, id), `${what} tapped on a click`).toBe(true);
+/** One click on an offered permanent in a live window; it taps. */
+async function tapByClick(page: Page, stack: PlayStack, id: number, what: string): Promise<void> {
+  expect(await clickPermanent(page, id), `${what} is offered in a live window`).toBe(true);
+  await expect.poll(() => isTapped(page, id), { timeout: 10_000, message: `${what} tapped on one click — the server's clicks on it: ${clickRecords(stack, id)}` }).toBe(true);
 }
 
 /** Island → tapped → Undo → untapped and offered again → tapped again. */
-async function tapUndoTap(page: Page): Promise<void> {
+async function tapUndoTap(page: Page, stack: PlayStack): Promise<void> {
   const island = (await ownNamed(page, 'Island'))[0];
   if (island === undefined) throw new Error('no Island on the viewer battlefield');
-  await tapByClick(page, island, 'the Island');
+  await tapByClick(page, stack, island, 'the Island');
   await expect.poll(async () => (await pool(page)).U, { timeout: 10_000, message: 'the Island added {U}' }).toBe(1);
 
   // The way back is a click on the land tapped last (Forge's Undo underneath, ledger V6): after a mana tap
   // the table draws no Undo button and Next Phase stays live (operator, 2026-10-06).
   await expect(page.getByTestId('live-decision'), 'no pop-up after a mana tap').toHaveCount(0);
   await expect(page.getByTestId('live-button-next-phase'), 'Next Phase stays live after a mana tap').toBeEnabled({ timeout: 10_000 });
-  await card(page, island).locator('button').first().click();
+  expect(await clickPermanent(page, island, 10_000), 'the tapped Island is offered for the untap click').toBe(true);
   await expect.poll(() => isTapped(page, island), { timeout: 10_000, message: 'a click on the Island untapped it (Undo)' }).toBe(false);
   await expect.poll(async () => (await pool(page)).total, { timeout: 10_000, message: 'Undo emptied the pool' }).toBe(0);
   // The claim: the re-shown prompt offers the Island again, so a click taps it.
   await expect.poll(() => isOffered(page, island), { timeout: 10_000, message: 'the Island is offered again after Undo' }).toBe(true);
-  await card(page, island).locator('button').first().click();
+  expect(await clickPermanent(page, island, 10_000), 'the Island is offered in a live window after Undo').toBe(true);
   await expect.poll(() => isTapped(page, island), { timeout: 10_000, message: 'the Island taps again after Undo' }).toBe(true);
   await expect.poll(async () => (await pool(page)).U, { timeout: 10_000 }).toBe(1);
 }
@@ -95,10 +64,10 @@ test(titled('w52 — Azorius Signet is clickable at priority; a click adds {W}{U
     const page = alice.page;
     const signet = (await ownNamed(page, 'Azorius Signet'))[0];
     if (signet === undefined) throw new Error('no Azorius Signet on alice’s battlefield');
-    expect(await pool(page), 'the pool starts empty').toEqual({ total: 0, W: 0, U: 0 });
+    expect((await pool(page)).total, 'the pool starts empty').toBe(0);
 
-    await tapByClick(page, signet, 'Azorius Signet');
-    await expect.poll(() => pool(page), { timeout: 15_000, message: 'the pool shows {W}{U}' }).toEqual({ total: 2, W: 1, U: 1 });
+    await tapByClick(page, stack, signet, 'Azorius Signet');
+    await expect.poll(async () => { const p = await pool(page); return [p.total, p.W, p.U]; }, { timeout: 15_000, message: 'the pool shows {W}{U}' }).toEqual([2, 1, 1]);
     const islandsTapped = await Promise.all((await ownNamed(page, 'Island')).map((id) => isTapped(page, id)));
     expect(islandsTapped.filter(Boolean), 'exactly one Island paid the {1}').toHaveLength(1);
     await expect(livePrompt(page), 'nothing is left asking').toHaveCount(0);
@@ -114,7 +83,7 @@ test(titled('w52 — Island: tap, Undo, tap again — Main 1 with something cast
   const stack = await startPlayStack(forge);
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w52-e-signet');
-    await tapUndoTap(alice.page);
+    await tapUndoTap(alice.page, stack);
   } finally {
     await stack.stop();
   }
@@ -127,7 +96,7 @@ test(titled('w52 — Island: tap, Undo, tap again — Main 2 with nothing castab
   const stack = await startPlayStack(forge);
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w52-e-island');
-    await tapUndoTap(alice.page);
+    await tapUndoTap(alice.page, stack);
   } finally {
     await stack.stop();
   }

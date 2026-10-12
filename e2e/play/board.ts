@@ -487,3 +487,53 @@ export async function handCardNamed(page: Page, name: string): Promise<number | 
     .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));
   return cards.find((c) => c.name === name)?.id;
 }
+
+/* ── permanents: reading one, and the ONE click on one ─────────────────── */
+
+export const boardCard = (page: Page, id: number): Locator => page.locator(`[data-board-card="${id}"]`);
+export const isTapped = (page: Page, id: number): Promise<boolean> => boardCard(page, id).evaluate((e) => e.hasAttribute('data-tapped'));
+export const isOffered = (page: Page, id: number): Promise<boolean> => boardCard(page, id).evaluate((e) => e.hasAttribute('data-selectable'));
+
+/** The viewer's own battlefield cards named `name`, in DOM order. */
+export function ownNamed(page: Page, name: string): Promise<number[]> {
+  return page
+    .locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]')
+    .evaluateAll(
+      (els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))),
+      name,
+    );
+}
+
+/** The viewer's own mana pool: its total and the count of each colour it shows. */
+export function manaPool(page: Page): Promise<Record<'total' | 'W' | 'U' | 'B' | 'R' | 'G' | 'C', number>> {
+  return page.locator('.seat[data-viewer] [data-mana-pool]').evaluate((el) => {
+    const count = (c: string) => Number(el.querySelector(`[data-mana="${c}"]`)?.getAttribute('data-mana-count') ?? '0');
+    return { total: Number(el.getAttribute('data-mana-total') ?? '0'), W: count('W'), U: count('U'), B: count('B'), R: count('R'), G: count('G'), C: count('C') };
+  });
+}
+
+/** The seat holds a live window of Forge's: one of its two buttons is pressable. */
+export const holdsLiveWindow = async (page: Page): Promise<boolean> => (await page.locator(`${BUTTON_ONE}, ${BUTTON_TWO}`).count()) > 0;
+
+/**
+ * Click a permanent once, and only once the click can be taken: the card is offered AND the
+ * seat holds a live window. The offer alone does not prove that. A scenario's start pushes
+ * the offer before Forge opens the first priority window (`PlayBridge.java`'s
+ * `refreshActionable`), so a card can read offered while no input of Forge's is up.
+ * `false`, with nothing pressed, when that state does not come within `timeout`.
+ */
+export async function clickPermanent(page: Page, id: number, timeout = 45_000): Promise<boolean> {
+  const ready = async (): Promise<boolean> => (await isOffered(page, id)) && (await holdsLiveWindow(page));
+  const live = await expect.poll(ready, { timeout }).toBe(true).then(
+    () => true,
+    () => false,
+  );
+  if (live) await boardCard(page, id).locator('button').first().click();
+  return live;
+}
+
+/** The server's `click` records for `card` (`match.ts`'s `endClick`): what came of each click on it, for a failure message. */
+export function clickRecords(stack: { serverLogFile: string }, card: number): string {
+  const rows = serverLog(stack).filter((r) => r.evt === 'click' && r.card === card);
+  return rows.map((r) => `${String(r.outcome)}${r.by === undefined ? '' : ` by ${String(r.by)}`} in ${String(r.ms)} ms`).join('; ') || 'none';
+}

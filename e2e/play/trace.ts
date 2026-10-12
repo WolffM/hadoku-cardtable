@@ -3,7 +3,7 @@
  * dragged ability chip, or the tile of a card they rearrange — and summing it up.
  *
  * Each recording's loop carries its own token and dies on the first frame after `stopTrace`, or
- * after the next `recordTrace` replaced it. The first copy of this recorder (in `w69-chip.spec.ts`)
+ * after the next `recordTrace` replaced it. The first copy of this recorder (in the chip spec, since folded into `w67-trigger.spec.ts`)
  * shared one `__stop` flag that the next recording re-armed: when the page had not painted between
  * the two calls, the first loop never saw the flag and went on recording ITS selector into the
  * second trace. Two loops into one trace read as one element flipping every frame between two

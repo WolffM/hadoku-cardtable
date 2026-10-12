@@ -3,7 +3,7 @@
  * battlefield card itself by id since 2c9d16c): bob's screen draws ONE tile, off the ONE home card
  * it belongs to, and it follows alice's drag without ever jumping.
  *
- * Why this spec exists: two of ~20 CI traces of `w69-chip.spec.ts`'s card baseline showed bob's
+ * Why this spec exists: two of ~20 CI traces of the card baseline (`w67-trigger.spec.ts`) showed bob's
  * tile flipping every frame between two spots 174 px apart (368,219 ↔ 542,258), `rebuilds=1`. The
  * flip was the RECORDER, not the board: its loops shared one stop flag, the next recording re-armed
  * it before the old loop's next frame, and the old loop (the chip, at rest at 368,219) went on
