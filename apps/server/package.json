@@ -1,6 +1,6 @@
 {
   "name": "@hadoku/server",
-  "version": "0.32.105",
+  "version": "0.32.106",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
