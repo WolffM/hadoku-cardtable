@@ -169,7 +169,8 @@ export function PileView({
         <span>{label}</span>
         <span className="pile-view__count">{count}</span>
       </header>
-      <ul className="pile-view__cards">{children}</ul>
+      {/* The cards wait for the fit: laid out once, at the width they are drawn at. */}
+      {layout !== null && <ul className="pile-view__cards">{children}</ul>}
     </section>
   );
 }

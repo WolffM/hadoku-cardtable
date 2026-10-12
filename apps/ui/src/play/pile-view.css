@@ -40,6 +40,16 @@
   list-style: none;
 }
 
+/*
+ * A card here is drawn as its art and its name. The type line, the rules and the print line sit
+ * under the art at any size the view draws, and unreadably small without it; a sixty-card pile laid
+ * them out, scrollers and all, every time it opened. The inspector reads a hovered card in full — it
+ * clones the whole tile into its own panel, outside this one.
+ */
+.pile-view :is(.card__type, .card__rules, .card__foot) {
+  display: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .pile-view {
     animation: pile-view-in 120ms ease-out;
