@@ -898,6 +898,45 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
+  it('a spell that goes public while its back is still gliding turns the back over on its way — with the face placed.ts drew for it, never before its art is in — and hands over to that same face at the gap', async () => {
+    const { canvas } = board();
+    fakeClock();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => theirs, theirPlayerId: () => 1, motion: () => true },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, handRows: 1, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    reservedGap(canvas);
+    await frame();
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    // The held stack card `placed.ts` drew for it: still a back, its art not decoded yet.
+    const placed = document.createElement('div');
+    placed.setAttribute('data-placed-card', '121');
+    placed.innerHTML = '<div class="card-back placed__back"></div>';
+    canvas.append(placed);
+    theirs = [121];
+    wake!();
+    await frame();
+    expect(back.hasAttribute('data-face'), 'no face before its art is in').toBe(false);
+    // The art decodes: placed.ts draws the face.
+    placed.innerHTML = '<div class="placed__tile"><div class="card" data-card-id="121" data-testid="card-121"><span class="card__name">Grizzly Bears</span></div></div>';
+    await frame();
+    expect(back.hasAttribute('data-face'), 'turned over mid-glide').toBe(true);
+    expect(back.querySelector('.card .card__name')?.textContent, 'with the card’s own face').toBe('Grizzly Bears');
+    expect(back.querySelector('[data-card-id], [data-testid]'), 'a copy, never a second element a reader counts as the card').toBeNull();
+    expect(placedMod.placeSpell, 'still not handed over mid-glide').not.toHaveBeenCalled();
+    await glide();
+    expect(placedMod.placeSpell, 'handed over at the gap').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');
+    expect(canvas.querySelector('.presence__back'), 'one object: the stand-in is gone').toBeNull();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('a creature on the stack before the board has even drawn its gap waits for the gap, and the glide, before it is handed over', async () => {
     const { canvas } = board();
     fakeClock();

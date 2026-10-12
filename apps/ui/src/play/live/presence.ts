@@ -732,6 +732,31 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     back?.remove();
     back = null;
   }
+  /**
+   * Their spell is public while its stand-in is still gliding into its gap: the stand-in turns over
+   * on its way, so the card is revealed with the lands that pay for it (the operator, 2026-10-11:
+   * "release card, reveal it, pay for mana … can we squish together 1-3"), and the stack card that
+   * takes over where it comes to rest is the same face. The face is the one `placed.ts` already drew
+   * for the held stack card, so it is never shown sooner than that one would be — a back until the
+   * art has decoded — and looked for each frame until it is there or the glide is over.
+   */
+  function turnOver(standIn: HTMLElement, card: number): void {
+    if (back !== standIn || waiting === null || standIn.hasAttribute('data-face')) return;
+    const placed = canvas.querySelector(`[data-placed-card="${card}"]`);
+    const face = placed === null || placed.querySelector('.placed__back') !== null ? null : placed.querySelector('.placed__tile .card');
+    if (face === null) {
+      requestAnimationFrame(() => turnOver(standIn, card));
+      return;
+    }
+    const copy = face.cloneNode(true) as HTMLElement;
+    for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
+      el.removeAttribute('data-card-id');
+      el.removeAttribute('data-testid');
+    }
+    standIn.append(copy);
+    standIn.setAttribute('data-face', '');
+  }
+
   /** The one element every back/stand-in on this board is — appended, never reused across one. */
   function backElement(root: HTMLElement): HTMLElement {
     const el = document.createElement('div');
@@ -1086,6 +1111,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             if (left === null || left > 0) {
               holdSpell(onStack);
               heldSpell = onStack;
+              turnOver(standIn, onStack);
               if (left === null) afterSeek = settle;
               else handTimer = setTimeout(settle, left);
               return;

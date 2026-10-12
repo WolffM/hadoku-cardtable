@@ -89,6 +89,19 @@
   }
 }
 
+/* Turned over on its way into the gap (`presence.ts`'s `turnOver`): the card's own face, no back. */
+.presence__back[data-face] {
+  background: none;
+  box-shadow: 0 4px 10px var(--shadow);
+}
+.presence__back[data-face] > .card {
+  width: 100%;
+  height: 100%;
+}
+.presence__back[data-face]::after {
+  content: none;
+}
+
 .presence__back::after {
   content: '';
   position: absolute;
