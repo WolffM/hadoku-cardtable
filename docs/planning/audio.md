@@ -32,6 +32,7 @@ Later directions, verbatim, in order:
 - *"can we get a "start of game" sound that plays before the coinflip? maybe something when both plays are ready and the room is initiated?"* — `g.match-start`, sounded at the room's hand-off into a new match (`play/live/matchStart.ts`).
 - On round 6 (2026-10-11): *"some good ones in there. but a lot of these sounds are just way too loud and end up sounding really weird. like they're capping out something. also in a lot of cases the sounds are too long. many sounds like hovering, tapping, destroying should be shorter and simpler"* — the takes were clipped when saved (`scripts/sfx/README.md`, Clipping); quick roles got short limits in `finish.py`.
 - On the frequency graph (2026-10-11): *"yep that phase change sound i do become very familiar with"* (62 a game from one take) and *"a lot of that can be fixed if 'end turn' skips the remaining phases and goes straight to the opponents turn"* — after End Turn the phases left go by at once and silently (`LiveBoard.tsx`'s `endTurn`, the pacer's `setEndingTurn`).
+- Asked whether Auto Yield should pass the opponent's phases silently too: *"naw auto yield is just for decisions not for phases. shouldn't impact how phases are handled"*. The opponent's turn keeps its phase pacing and sounds.
 
 | Brief item | Where it stands |
 | --- | --- |
