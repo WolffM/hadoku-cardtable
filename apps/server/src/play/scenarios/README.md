@@ -132,6 +132,9 @@ is in `docs/planning/wave37-evidence/A-repro.md`.
 | `shockland.state` | seat 0 holds Steam Vents, no land played, uncontested Main Phase 1; playing it opens the card's own "pay 2 life?" (InputConfirm Yes/No). | wave 36 T4 (the confirm pop-up) |
 | `cavern.state` | seat 0 controls Cavern of Souls, uncontested Main Phase 1; applying it asks seat 0 for a creature type (Cavern's own replacement) right after the mulligan. | wave 36 T7 (ChosenType on the card) |
 | `nothing-left.state` | seat 0's own Main Phase 2, after combat: an empty hand and one Memnite (no activated ability), so nothing — not Forge's actionable set, not a possible attack — holds the turn. | End Turn's highlight (`e2e/w35.spec.ts` R5, part 1b), beside `attackers-declared.state`, where the same board in Main Phase 1 must NOT highlight it. |
+| `prompts-arc-lightning.state` | seat 0 casts Arc Lightning off three Volcanic Islands at bob's Memnite and bob: `openZones` and `assignGenericAmount`. | `apps/ui/src/play/live/prompts.jvm.test.ts` |
+| `prompts-double-block.state` | seat 0 attacks with one Memnite into seat 1's two; both block: `assignCombatDamage`. | `prompts.jvm.test.ts`, `combat-drag.jvm.test.ts` |
+| `prompts-brainstorm.state` | seat 0 casts Brainstorm over three different names: `tempShowZones` and `order`. | `prompts.jvm.test.ts` |
 
 Every scenario sets `turn=1`, both seats' life to 20, and a small library of
 basic lands for both seats (so an incidental draw never loses the game) unless
