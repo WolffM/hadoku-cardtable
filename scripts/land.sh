@@ -7,9 +7,9 @@
 # Lanes share the manager's worktree and leave uncommitted files in it while another lane
 # lands, so this never rebases the wave branch. It builds a throwaway worktree on the latest
 # origin/main, cherry-picks the commits main lacks (by patch id, so a second land skips what
-# the first one already pushed), bumps the app versions the commits touched, runs
-# `pnpm run check`, and pushes with an explicit refspec. One land at a time: the lock is
-# held from fetch to push, so two waves never bump the same version.
+# the first one already pushed), bumps the app versions the commits touched, runs typecheck,
+# lint and the unit suites the change reaches, and pushes with an explicit refspec. One land
+# at a time: the lock is held from fetch to push, so two waves never bump the same version.
 #
 # It does NOT wait for CI (memory: never wait inside a lock). CI is the combined gate: a red
 # run on the pushed sha belongs to the wave that pushed it.
@@ -80,15 +80,31 @@ else
            && echo "land: GitHub Packages refused ~/.npmrc's token (401) — it needs the current HADOKU_NPM_READ_TOKEN" >&2
          echo "land: install FAILED — nothing pushed" >&2; exit 5; }
 fi
-echo "land: pnpm run check $(date -u +%T)"
+# Typecheck and lint run whole. The unit suites run only where the change reaches
+# (`vitest related`: the test files whose import graph holds a changed file) — CI's `check` on
+# the pushed commit runs every suite anyway. Whole when the change is to what every suite
+# runs on: a package, the vitest/TS config, the dependencies, the test setup — or a deleted
+# module, which `related` cannot follow to the suites that still import it.
+TESTS="pnpm run test"
+GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
+if [ -z "$GONE" ] && ! grep -qE '^(packages/|vitest\.config\.ts$|tsconfig[^/]*\.json$|(apps/[^/]+/)?package\.json$|pnpm-(lock|workspace)\.yaml$|apps/[^/]+/tsconfig[^/]*\.json$|apps/ui/src/test-setup\.ts$)' <<<"$CHANGED"; then
+  mapfile -t RELATED < <(grep -E '\.(tsx?|css|json)$' <<<"$CHANGED" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
+  if [ ${#RELATED[@]} = 0 ]; then
+    TESTS="echo 'land: no source file changed — no unit suite to run'"
+  else
+    TESTS="pnpm exec vitest related --run --passWithNoTests ${RELATED[*]}"
+  fi
+fi
+echo "land: typecheck, lint, $TESTS $(date -u +%T)"
 # No jar env: with it, check runs every jvm suite (memory: check-with-jar-env-runs-all-jvm).
 # CI=1: the same check CI gates a deploy on — its timeouts and its 4-worker cap. This host
 # runs production and every lane at once; the local 5 s/1 s budgets measured its load instead.
 # NO_COLOR: CI=1 turns vitest's colour on, and the Tests-line grep below must read plain text.
-if ! env -u CARDTABLE_FORGE_JAR -u CARDTABLE_FORGE_RES CI=1 NO_COLOR=1 PATH="$NODE_BIN:$PATH" pnpm run check > "$TMP.check.log" 2>&1; then
+if ! env -u CARDTABLE_FORGE_JAR -u CARDTABLE_FORGE_RES CI=1 NO_COLOR=1 PATH="$NODE_BIN:$PATH" \
+  bash -c "pnpm run typecheck && pnpm run lint && $TESTS" > "$TMP.check.log" 2>&1; then
   tail -40 "$TMP.check.log"; echo "land: check FAILED — nothing pushed (log $TMP.check.log)" >&2; exit 5
 fi
-grep -E 'Tests +[0-9]' "$TMP.check.log" | tail -1
+{ grep -E 'Tests +[0-9]' "$TMP.check.log" || true; } | tail -1
 
 if [ $DRY = 1 ]; then echo "land: dry run — would push $(git rev-parse --short HEAD)"; exit 0; fi
 # The lock keeps other waves out, but the auto-update bot can still move main. Its commits

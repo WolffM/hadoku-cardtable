@@ -1,0 +1,51 @@
+{
+ "range": "76f60cb4d7814d1bd8a42b65b8dd4896de3a17d0..da8026aafb75bae35f151b816abb9c631943c5d0",
+ "files": [
+  {
+   "status": "modified",
+   "filename": "apps/server/package.json",
+   "patch": "@@ -1,6 +1,6 @@\n {\n   \"name\": \"@hadoku/server\",\n-  \"version\": \"0.32.98\",\n+  \"version\": \"0.32.99\",\n   \"private\": true,\n   \"type\": \"module\",\n   \"license\": \"GPL-3.0-or-later\",\n"
+  },
+  {
+   "status": "modified",
+   "filename": "apps/server/src/play/bridge/PlayBridge.java",
+   "patch": "@@ -585,7 +585,8 @@ public final class PlayBridge {\n      * additive to the envelope (`packages/forge-wire/src/tier-c.ts`'s\n      * {@code StackTargetSpellsSchema}), not to {@code STATE_PROPERTIES}.\n      *\n-     * <p>One pair per stack item that targets exactly one OTHER stack item:\n+     * <p>One pair per stack item that targets another stack item, from the\n+     * item's own targets or any sub-instance's ({@link #stackTargetOf}):\n      * Forge's own stack-target ask ({@code TargetSelection.chooseCardFromStack})\n      * offers one choice at a time, so a real game never has a second one to\n      * lose by keeping only the first match.\n@@ -598,20 +599,33 @@ public final class PlayBridge {\n             owner.put(si.getSpellAbility(), si.getId());\n         }\n         for (final SpellAbilityStackInstance si : game.getStack()) {\n-            final TargetChoices tc = si.getTargetChoices();\n+            final Integer toId = stackTargetOf(si, owner);\n+            if (toId != null) {\n+                final JsonArray pair = new JsonArray();\n+                pair.add(si.getId());\n+                pair.add(toId);\n+                out.add(pair);\n+            }\n+        }\n+        return out;\n+    }\n+\n+    /**\n+     * The first other stack item {@code si} targets, read down its whole\n+     * sub-instance chain: a charm's or a Command's chosen mode is a\n+     * sub-ability ({@code CharmEffect.chainAbilities}), so its targets sit on\n+     * {@code si.getSubInstance()}, never on {@code si} itself.\n+     */\n+    private static Integer stackTargetOf(final SpellAbilityStackInstance si, final Map<SpellAbility, Integer> owner) {\n+        for (SpellAbilityStackInstance at = si; at != null; at = at.getSubInstance()) {\n+            final TargetChoices tc = at.getTargetChoices();\n             if (tc == null) { continue; }\n             for (final SpellAbility targetSa : tc.getTargetSpells()) {\n                 final Integer toId = owner.get(targetSa);\n-                if (toId != null) {\n-                    final JsonArray pair = new JsonArray();\n-                    pair.add(si.getId());\n-                    pair.add(toId);\n-                    out.add(pair);\n-                    break;\n-                }\n+                if (toId != null) { return toId; }\n             }\n         }\n-        return out;\n+        return null;\n     }\n \n     /**\n"
+  },
+  {
+   "status": "added",
+   "filename": "apps/server/src/play/modal-targets.jvm.test.ts"
+  },
+  {
+   "status": "added",
+   "filename": "apps/server/src/play/scenarios/modal-charm.state"
+  },
+  {
+   "status": "added",
+   "filename": "apps/server/src/play/scenarios/modal-command.state"
+  },
+  {
+   "status": "modified",
+   "filename": "apps/ui/package.json",
+   "patch": "@@ -1,6 +1,6 @@\n {\n   \"name\": \"@hadoku/ui\",\n-  \"version\": \"0.32.152\",\n+  \"version\": \"0.32.153\",\n   \"private\": true,\n   \"type\": \"module\",\n   \"license\": \"GPL-3.0-or-later\",\n"
+  },
+  {
+   "status": "modified",
+   "filename": "apps/ui/src/play/adapter.test.ts",
+   "patch": "@@ -40,7 +40,7 @@ import {\n } from './adapter.ts';\n import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';\n import { foldPackets, type WireState } from './fold.ts';\n-import { cardStateKey, deltaKey, WireType, type WireObject } from './wire.ts';\n+import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';\n \n const fixture = PLAY_FIXTURES[0]!;\n const MANIFEST = artManifest.entries;\n@@ -246,6 +246,30 @@ describe('targetStackItemId (wave 49 \u00a7A)', () => {\n   });\n });\n \n+describe('a modal spell\u2019s targets', () => {\n+  /*\n+   * A charm's or a Command's chosen modes are sub-abilities: the stack item Forge publishes targets\n+   * nothing itself, and each mode's targets sit one `SubInstance` down (`StackItemView.updateSubInstance`).\n+   */\n+  it('reads every target down the SubInstance chain onto the item, each once, and the chain adds no stack entry', () => {\n+    const state = baseState();\n+    const before = adapt(state).stack;\n+    const sid = before[0]!.id;\n+    const mountain = cardIdNamed(state, 'Mountain');\n+    const ids = (...v: number[]): Tagged => ({ t: 'list', v: v.map((id) => ({ t: 'int', v: id })) });\n+    const key = deltaKey(WireType.StackItem, sid);\n+    state.set(key, { ...state.get(key)!, TargetCards: ids(), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9001 } });\n+    state.set(deltaKey(WireType.StackItem, 9001), { _type: WireType.StackItem, _id: 9001, TargetCards: ids(mountain), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9002 } });\n+    state.set(deltaKey(WireType.StackItem, 9002), { _type: WireType.StackItem, _id: 9002, TargetCards: ids(mountain), TargetPlayers: ids(fixture.viewerPlayerId) });\n+\n+    const view = adapt(state);\n+    const entry = view.stack.find((e) => e.id === sid)!;\n+    expect(entry.targetCardIds).toEqual([mountain]);\n+    expect(entry.targetPlayerIds).toEqual([fixture.viewerPlayerId]);\n+    expect(view.stack.map((e) => e.id)).toEqual(before.map((e) => e.id));\n+  });\n+});\n+\n /* \u2500\u2500 \u00a7A.2, \u00a7A.3, \u00a7A.4: what else the wire already carries \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n \n /** Set one property on a `CardView` in place. */\n"
+  },
+  {
+   "status": "modified",
+   "filename": "apps/ui/src/play/adapter.ts",
+   "patch": "@@ -459,7 +459,9 @@ export interface StackEntry {\n    * Wave 33 agreed shape 2: this item's targets, from `StackItemView`'s own\n    * `TargetCards` / `TargetPlayers` (`TrackableProperty.java:225-226`, both set\n    * from `SpellAbilityStackInstance.getTargetChoices()` \u2014 `StackItemView.java`,\n-   * `updateTargetCards`/`updateTargetPlayers`). Both cross as the same\n+   * `updateTargetCards`/`updateTargetPlayers`) and from every `SubInstance`\n+   * under it (`subInstanceChain`): a modal spell's chosen modes target from\n+   * there, never from the item itself. Each id once; both cross as the same\n    * `list`-of-`int` shape every other entity collection does (`readIds`),\n    * empty when the item targets nothing of that kind \u2014 never missing.\n    *\n@@ -850,6 +852,22 @@ function readIds(obj: WireObject | undefined, name: string): number[] {\n   return ids;\n }\n \n+/**\n+ * A stack item and every `SubInstance` under it, in chain order. A charm's or a Command's chosen\n+ * modes, and any \"\u2026, then\" clause, are sub-abilities: the item Forge publishes keeps only the\n+ * root's targets, and each further one is a `StackItemView` one link down\n+ * (`StackItemView.updateSubInstance`) \u2014 the chain Forge's own desktop arrows walk\n+ * (`TargetingOverlay.java`).\n+ */\n+function subInstanceChain(state: WireState, item: WireObject | undefined): WireObject[] {\n+  const chain: WireObject[] = [];\n+  for (let at = item; at !== undefined && !chain.includes(at); ) {\n+    chain.push(at);\n+    at = prop(at, 'SubInstance') === undefined ? undefined : state.get(deltaKey(WireType.StackItem, readInt(at, 'SubInstance')));\n+  }\n+  return chain;\n+}\n+\n // \u2500\u2500 card faces \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n \n /**\n@@ -1277,8 +1295,9 @@ export function toBoardView(\n     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;\n     const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT, false, printedType) : null;\n     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;\n-    const targetCardIds = readIds(item, 'TargetCards');\n-    const targetPlayerIds = readIds(item, 'TargetPlayers');\n+    const chain = subInstanceChain(state, item);\n+    const targetCardIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetCards')))];\n+    const targetPlayerIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetPlayers')))];\n     // T8: resolved NAMES, never ids \u2014 a card by the same resolver every other\n     // card on the board goes through, a player by the board's own name.\n     const targetNames = [\n"
+  },
+  {
+   "status": "added",
+   "filename": "e2e/modal-arrows.spec.ts"
+  },
+  {
+   "status": "modified",
+   "filename": "packages/forge-wire/src/tier-c.ts",
+   "patch": "@@ -687,8 +687,10 @@ export type DeltaPacket = z.infer<typeof DeltaPacketSchema>;\n  * frame's own payload \u2014 additive to the envelope, not to `STATE_PROPERTIES`.\n  *\n  * `[fromStackItemId, toStackItemId]` pairs, one per stack item that targets\n- * exactly one other stack item (Forge's own stack-target ask offers one\n- * choice at a time, so a real game never has a second target to carry here).\n+ * another stack item, whether the target is the item's own or a\n+ * sub-instance's (a charm's chosen mode, `PlayBridge.java`'s\n+ * `stackTargetOf`). Forge's own stack-target ask offers one choice at a\n+ * time, so a real game never has a second target to carry here.\n  * Optional on the payload: a historical capture or fixture predating this\n  * addition parses exactly as it did before \u2014 \"additive and strict\" (see\n  * `AGENTS.md`'s Settled note) does not mean every past frame grows the key,\n"
+  }
+ ]
+}

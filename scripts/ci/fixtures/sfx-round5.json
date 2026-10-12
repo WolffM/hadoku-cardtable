@@ -1,0 +1,28 @@
+{
+ "range": "9ae1f7b2044ef4d0bb779c1c0455a1ddc0e25318..4a011ffb1ebebeefc6d10737be3a93b202fafbc1",
+ "files": [
+  {
+   "status": "modified",
+   "filename": "scripts/sfx/README.md",
+   "patch": "@@ -111,3 +111,19 @@ python3 scripts/sfx/retired.py apps/server/data/sounds\n Per prompt it shows how many takes were thrown out and why, and what is still kept. Mostly *broken* points at\n generation or finishing; mostly *bad* at the prompt \u2014 rewrite it, or drop it from the next `roundN.json`.\n \n+## Round 5: a new round in folders older rounds share\n+\n+Round 5 (2026-10-11) filled the cells left empty after the operator had heard every earlier take; every\n+take that was not placed was retired first (`retired.jsonl`, reason `unused`). New takes land in folders\n+that also hold placed ones (`g.tap/`), so:\n+\n+```sh\n+python3 scripts/sfx/make-round5.py <empty.json>                       # round5.json from the empty cells\n+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round5.json --takes 3 --seed 7000\n+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 7000 --out finished-r5\n+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r5 --to apps/server/data/sounds --add\n+```\n+\n+`--min-seed` finishes only this round's files; `--add` appends them and keeps every entry already in the\n+catalogue (`--merge` replaces whole folders, which would drop placed takes and their renames).\n+\n"
+  },
+  {
+   "status": "modified",
+   "filename": "scripts/sfx/finish.py",
+   "patch": "@@ -83,6 +83,8 @@ def main():\n     ap = argparse.ArgumentParser()\n     ap.add_argument('--only', default='', help='comma-separated folder prefixes, e.g. \"ui.,g.\" for round 4')\n     ap.add_argument('--out', default='finished', help='output dir under ~/.local/share/cardtable-sfx')\n+    ap.add_argument('--min-seed', type=int, default=None,\n+                    help='only takes whose seed (the stem\\'s last number) is at least this: one round\\'s files in folders older rounds share')\n     ap.add_argument('--into', default='', help='re-cut in place: a sounds dir (catalogue.json + takes/); overwrites each '\n                     'take that has a raw source and updates only its seconds, so names, groups and placements stay')\n     args = ap.parse_args()\n@@ -96,6 +98,8 @@ def main():\n         if prefixes and not sid.startswith(prefixes):\n             continue\n         stem = os.path.splitext(os.path.basename(wav))[0]\n+        if args.min_seed is not None and int(stem.rsplit('-', 1)[-1]) < args.min_seed:\n+            continue\n         meta = json.load(open(wav[:-4] + '.json'))\n         done = finish(wav, cap_for(sid))\n         if done is None:\n"
+  },
+  {
+   "status": "modified",
+   "filename": "scripts/sfx/import.py",
+   "patch": "@@ -86,6 +86,10 @@ def classify(folder: str, lib_names: dict) -> tuple[str, str, str, str]:\n \tsound/name/group (the bin pools them as one pill row); only the five basic lands get their\n \town distinct \"Land types\" pool.\"\"\"\n \tbase = folder.split('.')[0]\n+\t# Round 5 names every folder it made, colour cells included (\"Boros land\", in its own section).\n+\tentry = lib_names.get(folder)\n+\tif entry is not None and 'section' in entry:\n+\t\treturn folder, entry['name'], entry['group'], entry['section']\n \tif folder.startswith('lib-'):\n \t\tentry = lib_names.get(folder)\n \t\tif entry is not None:\n@@ -122,6 +126,9 @@ def main() -> None:\n \tap.add_argument('--seed', help='an assignments.json (or exported seed) to pre-populate assignments.json')\n \tap.add_argument('--to', required=True, dest='dest', help='the destination sounds dir (CARDTABLE_SOUNDS_DIR)')\n \tap.add_argument('--force', action='store_true', help='overwrite an existing assignments.json from --seed')\n+\tap.add_argument('--add', action='store_true',\n+\t\thelp=\"append --from's takes to the existing catalogue and keep every entry already there, renames included \"\n+\t\t     \"(a new round in folders that also hold placed takes; --merge would drop those)\")\n \tap.add_argument('--merge', action='store_true',\n \t\thelp=\"add --from's takes to the existing catalogue instead of rebuilding it (folders in --from replace their old entries)\")\n \targs = ap.parse_args()\n@@ -129,7 +136,7 @@ def main() -> None:\n \tmanifest = json.load(open(os.path.join(args.src, 'manifest.json'), encoding='utf-8'))\n \n \tlib_names: dict = {}\n-\tfor spec in ('round3.json', 'round4.json'):\n+\tfor spec in ('round3.json', 'round4.json', 'round5.json'):\n \t\tspec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), spec)\n \t\tif os.path.exists(spec_path):\n \t\t\tlib_names.update(json.load(open(spec_path, encoding='utf-8'))['sounds'])\n@@ -149,7 +156,12 @@ def main() -> None:\n \t\t\t\t'seconds': item['seconds'],\n \t\t\t\t'prompt': item['prompt'],\n \t\t\t})\n-\tif args.merge:\n+\tif args.add:\n+\t\tcatalogue_path = os.path.join(args.dest, 'catalogue.json')\n+\t\texisting = json.load(open(catalogue_path, encoding='utf-8'))['takes'] if os.path.exists(catalogue_path) else []\n+\t\tknown = {t['file'] for t in existing}\n+\t\ttakes = existing + [t for t in takes if t['file'] not in known]\n+\telif args.merge:\n \t\tcatalogue_path = os.path.join(args.dest, 'catalogue.json')\n \t\tif os.path.exists(catalogue_path):\n \t\t\treplaced = {folder.lower() for folder in manifest}\n"
+  },
+  {
+   "status": "added",
+   "filename": "scripts/sfx/make-round5.py"
+  },
+  {
+   "status": "added",
+   "filename": "scripts/sfx/round5.json"
+  }
+ ]
+}

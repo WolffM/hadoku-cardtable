@@ -1,13 +1,19 @@
 name: Forge
 
-# The Forge jobs: the real-Forge e2e and the jar-gated vitest suites, on every
-# push to main and every PR, beside `ci.yml`'s `check`. Since 2026-10-07 they
-# gate NOTHING: `redeploy.yml` deploys on `check` alone, and a red here is a
-# work item for whoever landed it (the operator: "look at the tests and fix
-# them later"). Everything below moved here verbatim from `ci.yml`.
+# The Forge jobs: the real-Forge e2e and the jar-gated vitest suites, beside
+# `ci.yml`'s `check`. Since 2026-10-07 they gate NOTHING: `redeploy.yml`
+# deploys on `check` alone, and a red here is a work item for whoever landed it
+# (the operator: "look at the tests and fix them later").
 #
-# `push: main` is covered because this repo's normal path is landing straight
-# on main rather than opening a PR.
+# What runs is picked from the changed paths (`scripts/ci/select-forge-tests.ts`,
+# see the `changes` job). A push to main runs a short run: what changed itself
+# (a spec, a suite, a scenario), the smoke set, and the few most specific specs
+# the change maps to. The FULL set runs on the schedule instead — every two
+# hours when main has moved since the last full run, and nightly with the
+# `[nightly]` tests. The trade: a regression outside what a push ran turns red
+# up to two hours late, against a range of that window's lands rather than one.
+# Measured over 2026-10-09..11 (162 lands) it is ~3300 runner-minutes instead of
+# ~5450 for main's Forge runs; hourly would be ~4900, every three hours ~2600.
 on:
   pull_request:
   push:
@@ -16,24 +22,24 @@ on:
   # dispatch can narrow what runs instead of the full derived/pinned set, so
   # an agent session can prove a fix on the claws in ~minutes instead of
   # running the whole suite on hokon. Every input defaults to '' (or `both`
-  # for `only`), which is EXACTLY today's behaviour — a push, a PR and the
-  # nightly schedule never carry `inputs` at all, so every `${{ inputs.* }}`
-  # expression below reads as the empty string/default on those triggers,
-  # identical to before this block existed.
+  # for `only`, `false` for `full`): with none given, a dispatch runs what its
+  # branch's changes against main select. A push, a PR and the schedule never
+  # carry `inputs` at all, so every `${{ inputs.* }}` expression below reads as
+  # the empty string/default on those triggers.
   workflow_dispatch:
     inputs:
       specs:
         description: >-
           forge-e2e only: extra args appended to `playwright test`, e.g.
-          `table-fit -g "a live match fits"`. Empty = today's derived
-          Forge-gated spec list.
+          `table-fit -g "a live match fits"`. Empty = what `changes` selects
+          from this branch's diff against main.
         required: false
         default: ''
       jvm:
         description: >-
           forge-jvm only: space-separated *.jvm.test.ts paths to run instead
           of the full pinned set, e.g. `apps/server/src/play/priority.jvm.test.ts`.
-          Empty = today's full set (gated by `changes`' jvm_ui/jvm_server).
+          Empty = what `changes` selects.
         required: false
         default: ''
       only:
@@ -54,6 +60,20 @@ on:
         required: false
         type: boolean
         default: false
+      full:
+        description: >-
+          Run everything (both jobs, every spec and suite, the `[nightly]`
+          tests) instead of what this branch's changes against main select.
+          Ignored when `specs` or `jvm` is given.
+        required: false
+        type: boolean
+        default: false
+      base:
+        description: >-
+          A dispatch without `specs`/`jvm`: the ref this branch's changes are
+          measured from (`<base>...<branch>`). Empty = main.
+        required: false
+        default: ''
       runs_on:
         description: >-
           A JSON array of runner labels for this dispatch's jobs, e.g.
@@ -61,10 +81,14 @@ on:
           the node it is testing. Empty = the usual jdk21 pool.
         required: false
         default: ''
-  # The full set, every night, whatever changed: what path selection (the
-  # `changes` job) skipped is still run within a day, and a pinned test that
-  # stopped failing, or vanished, is caught by the strict full-run judge.
+  # The full set. Every two hours (at :17) when main moved since the last
+  # scheduled run finished, so whatever a push's short run skipped is run
+  # within two hours; and every night whatever changed, with the `[nightly]`
+  # tests, so a pinned test that stopped failing, or vanished, is caught by the
+  # strict full-run judge. The nightly cron string is matched by the `changes`
+  # job — keep them equal.
   schedule:
+    - cron: '17 */2 * * *'
     - cron: '0 10 * * *'
 
 # Queue, never cancel. On a claw this is no longer about orphaned e2e servers
@@ -90,69 +114,98 @@ permissions:
   actions: read
 
 jobs:
-  # ── Which slow jobs this push needs ───────────────────────────────────────
+  # ── Which slow jobs this run needs ────────────────────────────────────────
   #
-  # A push is compared with the last commit on main whose Forge run fully
-  # succeeded, not with its parent: a red or skipped run's changes stay in the
-  # range until a green run covers them. Measured on run 37222364036:
-  # forge-e2e 8 min, forge-jvm 20 min (UI suites 7, server suites 12). Since
-  # 2026-10-06 a push's forge-jvm is under 8 min in all (see that job).
-  #   docs, *.md, .claude/**                 nothing slow
-  #   unit tests only (*.test.ts, not e2e)    nothing slow; `check` runs them
-  #   apps/ui/src/play/** (not css, not the hover zoom), a UI jvm suite
-  #                                          e2e + UI jvm suites
-  #   other apps/ui/**, e2e/**               e2e
-  #   apps/server/**, packages/**, forge, the lockfile, package.json,
-  #   this file, scripts/**                  e2e + every jvm suite
-  #   anything unclassified                  everything
-  # Not a push (a PR, a manual run, the nightly schedule), no green base, a
-  # diverged range, or any error here: everything.
+  # A push is compared with the last run on main that actually RAN (a push or a
+  # schedule, success, failure or still running — not cancelled): a run that was
+  # replaced while pending leaves its commits in the next push's range. A
+  # dispatch that names no specs is compared with main (`main...<branch>`, or
+  # its `base` input).
+  # Either way `scripts/ci/select-forge-tests.ts` maps the changed paths to
+  # specs and jvm suites and prints one reason per decision; its header has the
+  # rules. A push runs it with `--defer-full`: never the full set, and only the
+  # most specific of the mapped specs (the rest are named in the log as
+  # deferred to the schedule). A dispatch runs everything its changes map to.
+  #   schedule, nightly cron    everything, `[nightly]` tests too
+  #   schedule, two-hourly      everything, if main moved since the last
+  #                             scheduled run that finished; otherwise nothing
+  #   pull_request              everything, `[nightly]` too
+  #   dispatch with specs/jvm   exactly those (see the inputs)
+  #   dispatch with `full`      everything, `[nightly]` too
+  # No base, a push whose range diverged, a compare past 300 files or any error: everything.
   changes:
     name: changes
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 5
     outputs:
       e2e: ${{ steps.pick.outputs.e2e }}
-      jvm_ui: ${{ steps.pick.outputs.jvm_ui }}
-      jvm_server: ${{ steps.pick.outputs.jvm_server }}
+      e2e_specs: ${{ steps.pick.outputs.e2e_specs }}
+      shards: ${{ steps.pick.outputs.shards }}
+      jvm: ${{ steps.pick.outputs.jvm }}
+      jvm_files: ${{ steps.pick.outputs.jvm_files }}
+      jvm_full: ${{ steps.pick.outputs.jvm_full }}
+      nightly: ${{ steps.pick.outputs.nightly }}
     steps:
-      - name: Pick the jobs this change needs
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Pick what this change needs
         id: pick
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
           HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          FULL: ${{ inputs.full }}
+          BASE: ${{ inputs.base }}
+          SPECS_OVERRIDE: ${{ inputs.specs }}
+          JVM_OVERRIDE: ${{ inputs.jvm }}
         run: |
           set -uo pipefail
-          all() { echo "running everything: $1"; { echo e2e=true; echo jvm_ui=true; echo jvm_server=true; } >> "$GITHUB_OUTPUT"; exit 0; }
-          [ "$EVENT" = push ] || all "event is $EVENT"
+          emit() { printf '%s\n' "$@" >> "$GITHUB_OUTPUT"; printf '%s\n' "$@"; }
+          all() { echo "running everything: $1"; emit e2e=true e2e_specs= 'shards=[1, 2, 3]' jvm=true jvm_files= jvm_full=true "nightly=$2"; exit 0; }
+          none() { echo "running nothing: $1"; emit e2e=false e2e_specs= 'shards=[1]' jvm=false jvm_files= jvm_full=false nightly=false; exit 0; }
           api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
-          base=$(api "actions/workflows/forge.yml/runs?branch=main&status=success&per_page=1" | jq -r '.workflow_runs[0].head_sha // empty') || all "could not read the last green run"
-          [ -n "$base" ] || all "no green run on main yet"
-          cmp=$(api "compare/$base...$HEAD_SHA") || all "could not compare $base...$HEAD_SHA"
+          case "$EVENT" in
+            pull_request) all "event is a pull request" true ;;
+            schedule)
+              [ "$CRON" = '0 10 * * *' ] && all "the nightly run" true
+              last=$(api "actions/workflows/forge.yml/runs?event=schedule&branch=main&status=completed&per_page=20" \
+                | jq -r '[.workflow_runs[] | select(.conclusion == "success" or .conclusion == "failure")][0].head_sha // empty') \
+                || all "could not read the last scheduled run" false
+              [ "$last" = "$HEAD_SHA" ] && none "main has not moved since the last full run ($last)"
+              all "main moved since the last full run (${last:-none})" false ;;
+            workflow_dispatch)
+              if [ -n "$SPECS_OVERRIDE$JVM_OVERRIDE" ]; then
+                echo "dispatch override: specs='$SPECS_OVERRIDE' jvm='$JVM_OVERRIDE'"
+                emit e2e=true e2e_specs= "shards=$([ -n "$SPECS_OVERRIDE" ] && echo '[1]' || echo '[1, 2, 3]')" \
+                  jvm=true "jvm_files=$JVM_OVERRIDE" "jvm_full=$([ -z "$JVM_OVERRIDE" ] && echo true || echo false)" nightly=true
+                exit 0
+              fi
+              [ "$FULL" = true ] && all "dispatch asked for full" true
+              # Three-dot: the branch's own commits since it left main, however far main has moved.
+              base=${BASE:-main}; diverged_ok=1; defer= ;;
+            push)
+              # A run still in progress counts: it will finish (nothing cancels a started run).
+              base=$(api "actions/workflows/forge.yml/runs?branch=main&per_page=50" \
+                | jq -r --argjson me "$RUN_ID" '[.workflow_runs[] | select(.id != $me and (.event == "push" or .event == "schedule")
+                    and (.status == "in_progress" or .conclusion == "success" or .conclusion == "failure"))][0].head_sha // empty') \
+                || all "could not read the last run on main" false
+              [ -n "$base" ] || all "no finished run on main yet" false
+              defer=--defer-full ;;
+            *) all "event is $EVENT" true ;;
+          esac
+          cmp=$(api "compare/$base...$HEAD_SHA") || all "could not compare $base...$HEAD_SHA" false
           status=$(jq -r .status <<<"$cmp"); n=$(jq -r '.files | length' <<<"$cmp")
-          echo "last green $base; this push $HEAD_SHA; $status, $n files"
-          [ "$status" = ahead ] || [ "$status" = identical ] || all "range is $status"
-          [ "$n" -lt 300 ] || all "$n files, past what the compare API lists"
-          e2e=false; ui=false; server=false
-          while IFS= read -r f; do
-            [ -n "$f" ] || continue
-            case "$f" in
-              docs/*|*.md|.claude/*) ;;
-              apps/server/*|packages/*|forge|pnpm-lock.yaml|package.json|pnpm-workspace.yaml|.github/workflows/forge.yml|scripts/*)
-                e2e=true; ui=true; server=true ;;
-              apps/ui/*.jvm.test.ts) ui=true ;;
-              e2e/*) e2e=true ;;
-              *.test.ts|*.test.tsx) ;;
-              apps/ui/src/play/*.css|apps/ui/src/play/inspect/*) e2e=true ;;
-              apps/ui/src/play/*) e2e=true; ui=true ;;
-              apps/ui/*) e2e=true ;;
-              *) echo "unclassified: $f"; e2e=true; ui=true; server=true ;;
-            esac
-          done < <(jq -r '.files[].filename' <<<"$cmp")
-          echo "e2e=$e2e jvm_ui=$ui jvm_server=$server"
-          { echo "e2e=$e2e"; echo "jvm_ui=$ui"; echo "jvm_server=$server"; } >> "$GITHUB_OUTPUT"
+          echo "base $base; head $HEAD_SHA; $status, $n files"
+          [ "$status" = ahead ] || [ "$status" = identical ] || { [ "$status" = diverged ] && [ -n "${diverged_ok:-}" ]; } || all "range is $status" false
+          [ "$n" -lt 300 ] || all "$n files, past what the compare API lists" false
+          jq '.files' <<<"$cmp" > "$RUNNER_TEMP/changes.json"
+          node scripts/ci/select-forge-tests.ts "$RUNNER_TEMP/changes.json" $defer --github-output "$GITHUB_OUTPUT" || all "the selection script failed" false
+          emit nightly=false
 
   # ── The Forge e2e: run it, and prove it RAN ─────────────────────────────────
   #
@@ -206,12 +259,13 @@ jobs:
     # stack at a time), so a full run is ~30 min on one claw however idle the
     # claw is (measured 2026-10-08 by the fleet tracker: load 6 of 12 cores).
     # Three shards are three jobs on three claws — each its own ports, its
-    # own JVMs — and Playwright's `--shard` splits the file list. A targeted
-    # dispatch (`specs` given) is one shard: its list is already short.
+    # own JVMs — and Playwright's `--shard` splits the file list. `changes`
+    # picks one shard for a short selection, and a targeted dispatch (`specs`
+    # given) is one shard: its list is already short.
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(inputs.specs != '' && '[1]' || '[1, 2, 3]') }}
+        shard: ${{ fromJSON(needs.changes.outputs.shards) }}
     # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test
     # time with three reds burning their own budgets (play.spec alone 312 s),
     # plus install and build. On a claw the same budget also has to cover a
@@ -334,6 +388,8 @@ jobs:
           CARDTABLE_E2E_WORK_DIRS_KEPT: '96'
           # '' on every push/PR/schedule — see the `on:` block above.
           SPECS_OVERRIDE: ${{ inputs.specs }}
+          # What `changes` selected; '' = every Forge-gated spec.
+          SELECTED: ${{ needs.changes.outputs.e2e_specs }}
           # '1' only on a dispatch with `video: true`; the harness records
           # every two-browser context under `e2e/.run/videos/<spec>/<name>.webm`.
           CARDTABLE_E2E_VIDEO: ${{ inputs.video == true && '1' || '' }}
@@ -366,12 +422,13 @@ jobs:
           NONE
           )
           specs=$(grep -lE 'forge\.ok|startPlayStack|startScenarioMatch' e2e/*.spec.ts | xargs -n1 basename | sort)
+          [ -z "$SELECTED" ] || specs=$(printf '%s\n' $SELECTED)
           for x in $(printf '%s\n' "$excluded" | sed -E 's/#.*//'); do
             echo "::warning::$x is excluded from forge-e2e: $(printf '%s\n' "$excluded" | grep -F "$x")"
             specs=$(printf '%s\n' "$specs" | grep -vxF "$x" || true)
           done
           [ -n "$specs" ] || { echo "::error::no Forge-gated spec found — the grep matched nothing"; exit 1; }
-          echo "forge-gated specs (derived), shard ${{ matrix.shard }}/${{ strategy.job-total }}:"
+          echo "forge-gated specs ($([ -n "$SELECTED" ] && echo selected || echo derived)), shard ${{ matrix.shard }}/${{ strategy.job-total }}:"
           echo "$specs"
           pnpm --filter @hadoku/e2e test --shard=${{ matrix.shard }}/${{ strategy.job-total }} $specs
           fi
@@ -472,16 +529,16 @@ jobs:
   # `known_failing` burned its whole 180 s budget to fail the same way. So a
   # test may gate itself on `nightly` (`apps/server/src/play/scenario.ts`),
   # and must then carry `[nightly]` in its title. `CARDTABLE_JVM_NIGHTLY=1` is
-  # set on every run that is not a push, so the schedule, a manual run and a
-  # PR still run all of it. The judge below accepts a `[nightly]` skip on a
-  # push and nowhere else.
+  # set when `changes` says `nightly` — the nightly schedule, a PR, a `full` or
+  # `jvm` dispatch — and the judge below accepts a `[nightly]` skip everywhere
+  # else.
   forge-jvm:
     name: forge-jvm
     needs: changes
     # `inputs.only` is '' on every push/PR/schedule, so the added clause is
     # always true there — same gate as before. On a dispatch, `only: e2e`
     # turns this job off.
-    if: (needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true') && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
+    if: needs.changes.outputs.jvm == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
     # Since 2026-10-06: the 39 suites a push runs took
     # 457 s (7.6 min). They were 1483 s on run 37487474250, before the
@@ -530,9 +587,8 @@ jobs:
       - name: Run every *.jvm.test.ts, serially
         env:
           CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
-          JVM_UI: ${{ needs.changes.outputs.jvm_ui }}
-          JVM_SERVER: ${{ needs.changes.outputs.jvm_server }}
-          CARDTABLE_JVM_NIGHTLY: ${{ github.event_name != 'push' && '1' || '0' }}
+          SELECTED: ${{ needs.changes.outputs.jvm_files }}
+          CARDTABLE_JVM_NIGHTLY: ${{ needs.changes.outputs.nightly == 'true' && '1' || '0' }}
           # '' on every push/PR/schedule — see the `on:` block above.
           JVM_OVERRIDE: ${{ inputs.jvm }}
         run: |
@@ -549,16 +605,14 @@ jobs:
             # automatically since `inputs.jvm` is non-empty there too.
             files="$JVM_OVERRIDE"
             echo "forge-jvm: jvm override: $files"
+          elif [ -n "$SELECTED" ]; then
+            files="$SELECTED"
+            echo "forge-jvm: selected by changes"
           else
-            # `changes` picks the groups; both together is the full set.
-            files=""
-            [ "$JVM_UI" = true ] && files="$files $(git ls-files 'apps/ui/*.jvm.test.ts')"
-            [ "$JVM_SERVER" = true ] && files="$files $(git ls-files 'apps/server/*.jvm.test.ts')"
-            extra=$(git ls-files '*.jvm.test.ts' | grep -vE '^apps/(ui|server)/' || true)
-            [ -z "$extra" ] || { echo "::error::jvm suites outside apps/ui and apps/server, which no group runs: $extra"; exit 1; }
+            files=$(git ls-files '*.jvm.test.ts')
           fi
           [ -n "$files" ] || { echo "::error::no *.jvm.test.ts tracked — nothing to run"; exit 1; }
-          echo "jvm suites ($(printf '%s\n' "$files" | wc -l)):"
+          echo "jvm suites ($(wc -w <<<"$files")):"
           echo "$files"
           # vitest's own exit code would red the job on a pinned failure; the
           # next step judges the report by name instead, and reds a missing one.
@@ -581,14 +635,13 @@ jobs:
       - name: Every jvm suite ran, and nothing failed or skipped off the pinned lists
         if: always()
         env:
-          # A partial run (one group, or a `jvm` override) judges only the
-          # pinned tests it ran; the full run (both groups, every night at
-          # least, no override) judges all of them. `inputs.jvm != ''` forces
-          # the partial path on a targeted dispatch even when both groups
-          # would otherwise read `true`.
-          FULL: ${{ inputs.jvm == '' && needs.changes.outputs.jvm_ui == 'true' && needs.changes.outputs.jvm_server == 'true' }}
+          # A partial run (a selection, or a `jvm` override) judges only the
+          # pinned tests it ran; the full run (every suite, at least every
+          # night, no override) judges all of them. `inputs.jvm != ''` forces
+          # the partial path on a targeted dispatch.
+          FULL: ${{ inputs.jvm == '' && needs.changes.outputs.jvm_full == 'true' }}
           # Whether the `[nightly]` tests ran: the same test as CARDTABLE_JVM_NIGHTLY above.
-          NIGHTLY: ${{ github.event_name != 'push' }}
+          NIGHTLY: ${{ needs.changes.outputs.nightly == 'true' }}
         run: |
           report="${{ runner.temp }}/forge-jvm-report.json"
           test -s "$report" || { echo "::error::$report is empty or missing — the jvm run did not finish writing its report"; exit 1; }
