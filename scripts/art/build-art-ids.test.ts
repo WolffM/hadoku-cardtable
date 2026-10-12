@@ -83,6 +83,7 @@ describe('mostUsedPrinting', () => {
   });
 });
 
+// @reads apps/server/src/play/scenarios/ apps/ui/src/draft/art-ids.json apps/ui/src/draft/pool.json
 describe('the committed table covers every card a test scenario places', () => {
   it('a scenario card has an art row (the e2e Grizzly Bears was drawn without art)', () => {
     const read = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));

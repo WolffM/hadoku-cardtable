@@ -9,7 +9,9 @@
  *
  * That is the whole command. `--cache=<dir>` overrides the cache location
  * (default `packages/carddata/data`, which `.gitignore` refuses) and
- * `--out=<file>` the output. Re-running against the same cache produces the
+ * `--out=<file>` the output. `--no-tokens` adds no token row: what
+ * `scripts/land.sh` runs to give a new scenario's or deck's cards their rows
+ * without the bulk token rows a whole rebuild would bring. Re-running against the same cache produces the
  * same bytes: every lookup goes through `resolveCard`, whose ordering is total,
  * and the keys are sorted before they are written. Verified by running it twice
  * and comparing SHA-256.
@@ -569,18 +571,20 @@ async function main(argv: readonly string[]): Promise<number> {
   let cacheDir = DEFAULT_CACHE;
   let outFile = DEFAULT_OUT;
   let forgeResDir: string | null = null;
+  let tokens = true;
   for (const arg of argv) {
     if (arg.startsWith('--cache=')) cacheDir = resolvePath(arg.slice('--cache='.length));
     else if (arg.startsWith('--out=')) outFile = resolvePath(arg.slice('--out='.length));
     else if (arg.startsWith('--forge-res=')) forgeResDir = resolvePath(arg.slice('--forge-res='.length));
+    else if (arg === '--no-tokens') tokens = false;
     else {
       console.error(`Unknown argument '${arg}'`);
-      console.error('Usage: build-art-ids.ts [--cache=<dir>] [--out=<file>] [--forge-res=<forge-gui/res dir>]');
+      console.error('Usage: build-art-ids.ts [--cache=<dir>] [--out=<file>] [--forge-res=<forge-gui/res dir>] [--no-tokens]');
       return 2;
     }
   }
 
-  return await run(cacheDir, outFile, forgeResDir);
+  return await run(cacheDir, outFile, forgeResDir, tokens);
 }
 
 /** Forge set codes, grouped by the Scryfall set they name. */
@@ -619,7 +623,7 @@ function existingRows(outFile: string): ReadonlyMap<string, string> {
   }
 }
 
-async function run(cacheDir: string, outFile: string, forgeResDir: string | null = null): Promise<number> {
+async function run(cacheDir: string, outFile: string, forgeResDir: string | null = null, tokens = true): Promise<number> {
   const started = Date.now();
   const manifestPath = join(cacheDir, 'manifest.json');
   const sourceUpdatedAt = (() => {
@@ -674,7 +678,7 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
 
     /** First write wins, exactly as the browser-side index resolves. */
     const put = (key: string, id: string, bucket: keyof Counts): void => {
-      if (ids.has(key)) return;
+      if (ids.has(key) || (bucket === 'tokens' && !tokens)) return;
       ids.set(key, id);
       if (bucket !== 'unresolved') counts[bucket] += 1;
     };

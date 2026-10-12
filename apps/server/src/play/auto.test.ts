@@ -44,6 +44,7 @@ import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/trans
 
 /* ── The real prompt fixtures ────────────────────────────────────────── */
 
+// @reads apps/ui/src/play/prompts/fixtures/ apps/server/src/play/fixtures/w20-turn-flow.json
 const FIXTURE_DIR = resolve(
 	dirname(fileURLToPath(import.meta.url)),
 	'../../../ui/src/play/prompts/fixtures',

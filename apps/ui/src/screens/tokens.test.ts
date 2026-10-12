@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 type Rgb = [number, number, number];
 
+// @reads apps/ui/src/*.css
 const themeCss = readFileSync(new URL('../../node_modules/@wolffm/themes/src/style.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const ownCss = readFileSync(new URL('../styles.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 

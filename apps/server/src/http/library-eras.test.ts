@@ -29,6 +29,7 @@ import { LIBRARY, formatIdOf, poolFixturePath, type FormatFamily, type LibraryCo
 import { loadTablesLibrary } from './library.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// @reads decks/
 const REPO_ROOT = resolve(HERE, '../../../..');
 
 describe('the picker offers exactly the catalogued eras', () => {

@@ -7,8 +7,9 @@
 # Lanes share the manager's worktree and leave uncommitted files in it while another lane
 # lands, so this never rebases the wave branch. It builds a throwaway worktree on the latest
 # origin/main, cherry-picks the commits main lacks (by patch id, so a second land skips what
-# the first one already pushed), bumps the app versions the commits touched, runs typecheck,
-# lint and the unit suites the change reaches, and pushes with an explicit refspec. One land
+# the first one already pushed), derives the art rows for any card they add, bumps the app
+# versions the commits touched, runs typecheck, lint and the unit suites the change reaches
+# (by import, or by an `@reads` declaration), and pushes with an explicit refspec. One land
 # at a time: the lock is held from fetch to push, so two waves never bump the same version.
 #
 # It does NOT wait for CI (memory: never wait inside a lock). CI is the combined gate: a red
@@ -47,6 +48,22 @@ if ! git cherry-pick -x "${PICKS[@]}" >/dev/null; then
   git cherry-pick --abort || true
   echo "land: a commit does not apply on the latest main — merge origin/main into $BRANCH, resolve, and land again" >&2
   exit 4
+fi
+
+# The art table's rows are derived data: every card a scenario places or a deck lists gets one.
+# Derive them here, from the deploy tree's Scryfall cache, so a new scenario's cards land with
+# their rows instead of reddening the coverage suite on main. `--no-tokens`: only the rows this
+# land's cards need, never the token rows a whole rebuild would bring. A no-op (3 s) otherwise.
+ART_CACHE="$MAIN/packages/carddata/data"
+if [ -f "$ART_CACHE/cards.jsonl" ]; then
+  PATH="$NODE_BIN:$PATH" node --max-old-space-size=6144 scripts/art/build-art-ids.ts --no-tokens --cache="$ART_CACHE" > "$TMP.art.log" 2>&1 \
+    || { tail -20 "$TMP.art.log"; echo "land: art rows FAILED — nothing pushed (log $TMP.art.log)" >&2; exit 5; }
+  if ! git diff --quiet -- apps/ui/src/draft/art-ids.json; then
+    git commit -qm "art: rows for the cards this land's scenarios and decks place" -- apps/ui/src/draft/art-ids.json
+    echo "land: art rows — $(grep -oE 'added [0-9]+ new' "$TMP.art.log")"
+  fi
+else
+  echo "land: no Scryfall cache at $ART_CACHE — art rows not derived; the coverage suite still runs"
 fi
 
 # Bump each app whose code (or a package it builds from) changed; docs-only lands bump nothing.
@@ -89,9 +106,19 @@ TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
 if [ -z "$GONE" ] && ! grep -qE '^(packages/|vitest\.config\.ts$|tsconfig[^/]*\.json$|(apps/[^/]+/)?package\.json$|pnpm-(lock|workspace)\.yaml$|apps/[^/]+/tsconfig[^/]*\.json$|apps/ui/src/test-setup\.ts$)' <<<"$CHANGED"; then
   mapfile -t RELATED < <(grep -E '\.(tsx?|css|json)$' <<<"$CHANGED" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
-  # Suites that read the tree from disk, not through an import: `related` cannot reach them.
-  # A scenario, a deck, a cube or the art table changing runs the art table's coverage suite.
-  grep -qE '^(apps/server/src/play/scenarios/|decks/|cubes/|apps/ui/src/draft/(art-ids|pool)\.json$)' <<<"$CHANGED" && RELATED+=(scripts/art/build-art-ids.test.ts)
+  # Suites that read the tree from disk, not through an import, are out of `related`'s reach, so
+  # they say what they read: a `// @reads <path>…` line (repo paths; `*` spans directories, a
+  # trailing `/` is everything under it). A changed path matching one runs the suite.
+  while IFS= read -r hit; do
+    read -ra pats <<<"${hit#*@reads}"
+    for pat in "${pats[@]}"; do
+      [[ $pat == */ ]] && pat+='*'
+      while IFS= read -r f; do
+        # shellcheck disable=SC2053 # the declared path is a pattern on purpose
+        [[ $f == $pat ]] && { RELATED+=("${hit%%:*}"); continue 3; }
+      done <<<"$CHANGED"
+    done
+  done < <(git grep -E '^\s*(//|\*)\s*@reads\s' -- '*.test.ts' '*.test.tsx' || true)
   if [ ${#RELATED[@]} = 0 ]; then
     TESTS="echo 'land: no source file changed — no unit suite to run'"
   else

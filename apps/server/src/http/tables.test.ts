@@ -41,6 +41,7 @@ import { loadTablesLibrary } from './library.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const HERE = dirname(fileURLToPath(import.meta.url));
+// @reads decks/ apps/ui/src/draft/pool.json
 const REPO_ROOT = resolve(HERE, '../../../..');
 const CUBE_FILE = resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json');
 

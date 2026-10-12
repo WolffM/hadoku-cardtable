@@ -305,6 +305,7 @@ describe('determinism', () => {
  * consumer, because a resolver that reached for an image field would be a
  * second, independent way to grow an image code path.
  */
+// @reads packages/carddata/reports/cube-resolution.json
 const SRC_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 describe('D13 — no image code path', () => {
