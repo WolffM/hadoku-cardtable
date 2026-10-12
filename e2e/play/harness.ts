@@ -447,6 +447,7 @@ async function waitForHealth(server: ChildProcess): Promise<void> {
 }
 
 export async function startPlayStack(forge: { jar: string; res: string }): Promise<PlayStack> {
+  const begun = Date.now();
   // The previous test's pages, if it left them open — see `open-friends.ts`.
   const closed = await closeStaleFriends();
   if (closed > 0) console.log(`[play-stack] closed ${closed} browser context(s) left open by an earlier test`);
@@ -654,9 +655,14 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   };
 
   try {
+    const spawned = Date.now();
     await waitForHealth(server);
+    const healthy = Date.now();
     edge = await startEdge({ port: PLAY_EDGE_PORT, upstreamPort: PLAY_SERVER_PORT, secret });
     await warm;
+    // What a test pays before its match exists, split where it goes: the evidence for (or
+    // against) sharing one server across a worker's tests.
+    console.log(`[play-stack] up in ${Date.now() - begun} ms: prepare ${spawned - begun}, server healthy ${healthy - spawned}, spare JVM warm ${Date.now() - healthy}`);
   } catch (err) {
     await stop();
     throw err;
