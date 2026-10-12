@@ -34,14 +34,12 @@ import {
 	available,
 	deck,
 	finishMulligan,
-	idsOf,
 	inOwnMain,
 	landPayer,
 	startScenario,
 	waitUntil,
 	type Scenario,
 } from './scenario.js';
-import { TYPE, type WireObj } from './visibility.js';
 
 const title = available.ok
 	? 'every kind of mana source, against real Forge'
@@ -169,11 +167,9 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => { s.answerAsks(); return offeredTo(s, 0).includes(goblin.id); }, 'Forge offers seat 0 the Goblin', 20_000, s);
 				s.select(0, goblin.id);
 				const pay = landPayer(s, 0);
-				const stackHas = (): boolean => {
-					const game = [...s.state(0).values()].find((o: WireObj) => o._type === TYPE.game);
-					return idsOf(game, 'Stack').length > 0;
-				};
-				await waitUntil(() => { s.answerAsks(); pay(); return stackHas(); }, "seat 0's Raging Goblin to reach the stack", 45_000, s);
+				// Cast: out of the hand. Not "on the stack" — a passed seat 1 lets it resolve
+				// within a poll (run 38298019713 sampled the stack empty either side of it).
+				await waitUntil(() => { s.answerAsks(); pay(); return !s.zone(0, 'Hand').some((c) => c.id === goblin.id); }, "seat 0's Raging Goblin cast", 45_000, s);
 
 				// Seat 1's window over the Goblin, as Forge sent it: the raw stream, because a
 				// passed window's prompt is withheld from the seat's own wire.

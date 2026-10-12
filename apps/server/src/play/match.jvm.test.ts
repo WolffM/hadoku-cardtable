@@ -52,7 +52,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostFactory, type MatchSpec } from './host.js';
@@ -147,6 +147,13 @@ describe.skipIf(!available.ok)(title, () => {
 			const started = Date.now();
 			const match = registry.create(spec());
 			matches.push(match);
+			// Stopped however the case ends: a red one left its JVM (and the spare)
+			// running, and the next case's own "no JVM left" read it (run 38298019713).
+			onTestFinished(async () => {
+				match.stop();
+				jvm.close();
+				await waitUntil(() => liveJvmCount() === 0, "this match's JVM (and any spare) to exit", 15_000);
+			});
 			const running = await match.whenRunning(120_000);
 			expect(running).toEqual({ ok: true });
 			const ready = raw.find((l) => l.t === 'ready') as Extract<BridgeLine, { t: 'ready' }>;
@@ -233,9 +240,6 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(leaked(secrets, rawText).length).toBe(secrets.size);
 				expect(leaked(secrets, emitted)).toEqual([]);
 			}
-			match.stop();
-			jvm.close();
-			await waitUntil(() => liveJvmCount() === 0, 'this match\'s JVM (and any spare) to exit', 15_000);
 		},
 		240_000,
 	);

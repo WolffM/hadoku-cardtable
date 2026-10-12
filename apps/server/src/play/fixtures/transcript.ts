@@ -272,6 +272,10 @@ export function secretsFor(
  * key's closing quote is followed by optional whitespace and `:`, a value's is
  * not, and every occurrence is checked, so a key earlier in the text cannot
  * hide a value later on.
+ *
+ * A button's label is the wire's vocabulary too: Forge's own "Cancel" on
+ * `updateButtons` is not the counterspell Cancel in a library (match.jvm's
+ * variety run, seed 833507925, run 38298019713).
  */
 export function leaked(secrets: Iterable<string>, text: string): string[] {
 	return [...secrets].filter((s) => {
@@ -279,7 +283,9 @@ export function leaked(secrets: Iterable<string>, text: string): string[] {
 		const colon = /\s*:/y;
 		for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
 			colon.lastIndex = at + needle.length;
-			if (!colon.test(text)) return true;
+			if (colon.test(text)) continue;
+			if (/"label[12]"\s*:\s*$/.test(text.slice(Math.max(0, at - 16), at))) continue;
+			return true;
 		}
 		return false;
 	});
