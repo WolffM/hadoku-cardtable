@@ -36,8 +36,15 @@ TAIL_PAD_S = 0.03
 # the game takes were cut mid-ring, when their median rings 1.7 s to -45 dB and their main hit is over by 0.7 s.
 # So a limit now only stops a runaway take, and a sound keeps its own tail: card games let a tail ring under the
 # next sound rather than chop it (the mixer collapses repeats and caps voices). Interface sounds rarely reach theirs.
+# Then too long again for the quick ones (2026-10-11: "many sounds like hovering, tapping, destroying should be
+# shorter and simpler"), so the roles that answer a gesture or tick by often get their own short limit.
 MOMENT_CAP = {'m-turn': 2.5, 'm-win': 4.0, 'm-lose': 4.0}
-ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.turn-theirs': 2.5, 'g.game-start': 2.5}
+ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.turn-theirs': 2.5, 'g.game-start': 2.5, 'g.match-start': 3.0,
+            'ui.hover-card': 0.25, 'ui.hover-control': 0.2, 'ui.select': 0.3, 'ui.pass': 0.4, 'ui.lift': 0.35,
+            'ui.place': 0.35, 'ui.deny': 0.4, 'ui.target': 0.4, 'ui.inspect': 0.4, 'ui.draft-pick': 0.4,
+            'g.tap': 0.35, 'g.untap': 0.35, 'g.counter-on': 0.4, 'g.counter-off': 0.4, 'g.mana': 0.5,
+            'g.phase': 0.4, 'g.draw': 0.5, 'g.discard': 0.6, 'g.mill': 0.8, 'g.attach': 0.6,
+            'g.destroy': 0.9, 'g.dies': 1.0, 'g.exile': 0.9, 'g.bounce': 0.8, 'g.counter': 0.9, 'g.damage': 0.8}
 UI_CAP, GAME_CAP = 0.6, 2.0
 
 
@@ -151,6 +158,14 @@ def recut_in_place(sounds_dir):
         raw[f"{sid.lower()}/{os.path.splitext(os.path.basename(wav))[0]}.ogg"] = (wav, sid)
     cat_path = os.path.join(sounds_dir, 'catalogue.json')
     catalogue = json.load(open(cat_path, encoding='utf-8'))
+    # A placed take is cut for the role it plays, not the folder it came from: "Hover a card" plays a creature take.
+    placed = {}
+    assignments = os.path.join(sounds_dir, 'assignments.json')
+    if os.path.exists(assignments):
+        for cell, files in json.load(open(assignments, encoding='utf-8')).get('cells', {}).items():
+            row = cell.split('|')[0]
+            for file in files:
+                placed.setdefault(file, []).append(row)
     done = skipped = longer = 0
     for take in catalogue['takes']:
         source = raw.get(take['file'])
@@ -158,7 +173,10 @@ def recut_in_place(sounds_dir):
             skipped += 1
             continue
         wav, sid = source
-        result = finish(wav, cap_for(sid), loudness_for(sid))
+        roles = placed.get(take['file'], [])
+        cap = min([cap_for(r) for r in roles] + ([] if roles else [cap_for(sid)]))
+        loudness = min([loudness_for(r) for r in roles] + ([] if roles else [loudness_for(sid)]))
+        result = finish(wav, cap, loudness)
         if result is None:
             skipped += 1
             continue

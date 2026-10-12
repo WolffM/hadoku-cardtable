@@ -30,6 +30,7 @@ Later directions, verbatim, in order:
 - *"keep going on the audio work, i'll review the sounds in the morning."*
 - On round 5 (2026-10-11): *"a lot of the new sounds are useless and mostly sound the same as other sounds. you didn't get creative enough here. way too many of the sounds are the same. all the lifegain sounds basically sound the same and it's not what i want for lifegain."* / *"in most cases bells sound bad and a ton of sounds are bells. also many of the sounds are really extreme. like the bant creature sounds are just maxing out my speakers."* / *"bant: harbour sounds — can you try something like this?"* / *"can you look at what types of sounds succeeded? use that also to guide the new sounds"* — measured and answered in `scripts/sfx/README.md` (Round 6, Loudness).
 - *"can we get a "start of game" sound that plays before the coinflip? maybe something when both plays are ready and the room is initiated?"* — `g.match-start`, sounded at the room's hand-off into a new match (`play/live/matchStart.ts`).
+- On round 6 (2026-10-11): *"some good ones in there. but a lot of these sounds are just way too loud and end up sounding really weird. like they're capping out something. also in a lot of cases the sounds are too long. many sounds like hovering, tapping, destroying should be shorter and simpler"* — the takes were clipped when saved (`scripts/sfx/README.md`, Clipping); quick roles got short limits in `finish.py`.
 
 | Brief item | Where it stands |
 | --- | --- |

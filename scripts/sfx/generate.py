@@ -88,6 +88,14 @@ def expand(sounds):
     return out
 
 
+def save(base, audio, rate):
+    """A take as 32-bit float WAV. The model peaks well past full scale (2.29 on a mill take, 2026-10-11), and
+    soundfile's default 16-bit WAV hard-clipped every sample beyond ±1: 309 of the 439 live takes carried that
+    distortion into the picker (the operator: "like they're capping out something"). Float keeps the overshoot
+    for finish.py, which only ever turns a take down."""
+    sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate, subtype='FLOAT')
+
+
 def render(pipe, prompt, seed, s, args, negative, seconds=None):
     """One take. Out of memory means a neighbour on the shared GPU is busy: wait and try again."""
     for attempt in range(40):
@@ -119,10 +127,14 @@ def main():
     ap.add_argument('--spec', default='', help='round3.json: named sounds, literal prompts, its own suffix, negative and length')
     ap.add_argument('--variants', default='', help='variants.json: several distinct prompts per sound; folder <id>.r2, files take-v<k>-<seed>')
     ap.add_argument('--avoid', default='', help='extra negative prompt for this run, e.g. "bells, chimes, harsh, metallic"')
+    ap.add_argument('--rerender', default='', help='a sounds dir: render again, from its sidecar, every catalogued take '
+                    'whose raw .wav was saved clipped, and save it as float. Same seed, same sound, without the clipping')
     ap.add_argument('--offload', choices=['none', 'model', 'sequential'], default='none',
                     help='the GPU is shared (InvokeAI, other projects): model ~4 GB of VRAM, sequential ~1 GB and slowest')
     args = ap.parse_args()
 
+    if args.rerender:
+        return rerender(args)
     if args.spec:
         return run_spec(args)
     if args.variants:
@@ -156,13 +168,36 @@ def main():
             if os.path.exists(base + '.wav'):
                 continue  # resume: a take is a pure function of (prompt, seed, steps, cfg)
             audio = render(pipe, prompt, seed, s, args, negative)
-            sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
+            save(base, audio, rate)
             json.dump({
                 'id': s['id'], 'name': s['name'], 'role': s.get('role'), 'prompt': prompt, 'negative': negative, 'seed': seed,
                 'steps': args.steps, 'cfg': args.cfg, 'seconds': seconds_for(s), 'model': MODEL,
                 'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)',
             }, open(base + '.json', 'w'), indent=1)
         print(f"{s['id']:>8}  {args.takes} takes  {time.time() - started:6.1f}s", flush=True)
+
+
+def rerender(args):
+    import glob
+    import numpy as np
+    catalogued = {t['file'] for t in json.load(open(os.path.join(args.rerender, 'catalogue.json')))['takes']}
+    jobs = []
+    for wav in sorted(glob.glob(os.path.join(OUT, '*', 'take-*.wav'))):
+        folder = os.path.basename(os.path.dirname(wav))
+        if f"{folder.lower()}/{os.path.basename(wav)[:-4]}.ogg" not in catalogued or sf.info(wav).subtype == 'FLOAT':
+            continue
+        if (np.abs(sf.read(wav)[0]) >= 0.9999).sum() > 2:
+            jobs.append(wav)
+    print(f'{len(jobs)} clipped takes to render again', flush=True)
+    pipe = load_pipe(args)
+    rate = pipe.vae.sampling_rate
+    started = time.time()
+    for n, wav in enumerate(jobs, 1):
+        meta = json.load(open(wav[:-4] + '.json'))
+        args.steps, args.cfg = meta['steps'], meta['cfg']
+        audio = render(pipe, meta['prompt'], meta['seed'], {'id': meta['id']}, args, meta['negative'], meta['seconds'])
+        save(wav[:-4], audio, rate)
+        print(f'{n}/{len(jobs)}  {wav}  {time.time() - started:6.1f}s', flush=True)
 
 
 def load_pipe(args):
@@ -206,7 +241,7 @@ def run_variants(args):
                 if os.path.exists(base + '.wav'):
                     continue
                 audio = render(pipe, prompt, seed, {'id': sid}, args, negative, seconds)
-                sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
+                save(base, audio, rate)
                 json.dump({'id': sid, 'variant': k + 1, 'prompt': prompt, 'negative': negative, 'seed': seed,
                            'steps': args.steps, 'cfg': args.cfg, 'seconds': seconds, 'model': MODEL,
                            'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)'},
@@ -239,7 +274,7 @@ def run_spec(args):
                 if os.path.exists(base + '.wav'):
                     continue
                 audio = render(pipe, prompt, seed, {'id': folder}, args, negative, seconds)
-                sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
+                save(base, audio, rate)
                 json.dump({'id': folder, 'name': sound['name'], 'group': sound['group'], 'variant': k + 1,
                            'prompt': prompt, 'negative': negative, 'seed': seed, 'steps': args.steps, 'cfg': args.cfg,
                            'seconds': seconds, 'model': MODEL,

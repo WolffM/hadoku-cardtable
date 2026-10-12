@@ -159,3 +159,20 @@ python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r6 --
 `finish.py` levels by perceived loudness (BS.1770 momentary max) with a target per kind of sound: moments −20,
 game −23, interface −28, hovers −34 LUFS, before the mono downmix. RMS levelling had left a 17 dB spread
 (p5 −31.9, p95 −14.6); after a `--into` re-cut, every game take is within about a dB of the others.
+
+## Clipping (2026-10-11)
+
+Stable Audio peaks well past full scale (2.29 on one take), and until this date every take was saved as 16-bit WAV,
+which hard-clipped it: 309 of 439 live takes, from every round. Levelling then turned those takes down, so the
+distortion played quietly; the operator heard it as *"like they're capping out something"*. `generate.py` saves
+32-bit float now, and `--rerender <sounds dir>` renders each clipped catalogued take again from its sidecar. The
+render is deterministic (the same seed matched the saved file to within 16-bit rounding), so it is the same sound
+without the clipping. Then re-cut in place:
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --rerender apps/server/data/sounds --offload model
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --into apps/server/data/sounds
+```
+
+`--into` cuts a placed take for the role it plays (the shortest limit across its cells), so a creature take placed
+on "Hover a card" is cut to a hover's 0.25 s.
