@@ -1825,21 +1825,32 @@ function useBarStuckReport(match: LiveMatch, stuck: boolean, detail: () => Clien
  * (`setEndingTurn`) and no `g.phase` sounds. Telemetry before this: five phase sounds 250 ms apart, and the
  * opponent's turn 2.2 s after the press, every time.
  */
-const endingTurnFrom = new WeakMap<LiveMatch, number>();
+const endingTurnFrom = new WeakMap<LiveMatch, { turn: number; at: number; phase: string | null; phases: number }>();
 
 function endTurn(match: LiveMatch): void {
   if (!pressWithSound(match, 'cancel')) return;
-  endingTurnFrom.set(match, match.view?.turn ?? 0);
+  endingTurnFrom.set(match, { turn: match.view?.turn ?? 0, at: Date.now(), phase: match.view?.phase ?? null, phases: 0 });
   if (isPacedTransport(match.transport)) match.transport.setEndingTurn(true);
 }
 
-/** Whether `view` is still the turn End Turn was pressed on; clears the mark (and the pacer's) once it is not. */
+/**
+ * Whether `view` is still the turn End Turn was pressed on; clears the mark (and the pacer's) once it is not,
+ * and logs how long the rest of the turn took and how many phases it passed — the phases make no sound now,
+ * so the sound telemetry no longer shows them.
+ */
 function stillEndingTurn(match: LiveMatch, view: BoardView): boolean {
-  const from = endingTurnFrom.get(match);
-  if (from === undefined) return false;
-  if (view.turn === from && !view.gameOver) return true;
+  const ending = endingTurnFrom.get(match);
+  if (ending === undefined) return false;
+  if (view.turn === ending.turn && !view.gameOver) {
+    if (view.phase !== ending.phase) {
+      ending.phase = view.phase;
+      ending.phases += 1;
+    }
+    return true;
+  }
   endingTurnFrom.delete(match);
   if (isPacedTransport(match.transport)) match.transport.setEndingTurn(false);
+  reportClient(match.transport, match.matchId, 'info', { what: 'end-turn', ms: Date.now() - ending.at, phases: ending.phases, turn: view.turn });
   return false;
 }
 
