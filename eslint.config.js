@@ -201,10 +201,7 @@ export default [
     ignores: [
       '**/*.jvm.test.ts',
       // Files that still sleep on a wall clock, to be emptied rather than grown.
-      'apps/server/src/http/gate.test.ts',
       'apps/server/src/index.test.ts',
-      'apps/server/src/play/browser/browser-jvm.test.ts',
-      'apps/server/src/play/jvm.test.ts',
       'apps/server/src/http/tables.test.ts',
       'apps/server/src/play/browser/browser.test.ts',
       'apps/server/src/play/browser/mounted.test.ts',
