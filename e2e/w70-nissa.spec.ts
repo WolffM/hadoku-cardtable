@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castByDrag, enabledOk, handCardNamed, livePrompt, makeTitled, says } from './play/board.ts';
+import { castByDrag, enabledOk, handCardNamed, livePrompt, makeTitled, says, stackCount } from './play/board.ts';
 import { confirmOpen, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -130,6 +130,89 @@ test(titled("Nissa's Forest search lists only the Forests, says so in one clean 
     }
     console.log(`[w70-nissa] library cards ever drawn on a board: [${seen.join(' | ')}]`);
     expect(seen, 'no library card was ever drawn on a board').toEqual([]);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
+ * The operator, 2026-10-11, on a scry 1: *"it placed the scry'd card directly on the board. that's ugly, we
+ * should have a proper decision card for this"*. Scenario `w70-scry-one`: alice casts Opt twice by dragging
+ * it from her hand. Each time Forge asks Top or Bottom of one card on its button bar
+ * (`PlayerControllerHuman.willPutCardOnTop`): her decision window draws that card, neither board ever
+ * draws it, and both answers do what they say — Top keeps Serra Angel on top for Opt to draw, Bottom sends
+ * Grizzly Bears away so Opt draws Swamp.
+ */
+test(titled('a scry 1 shows its card in the decision window, never on the board, and Top and Bottom both work'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w70-scry-one');
+    const pages = [alice.page, bob.page];
+    const seen: string[] = [];
+    const watchBoards = async (when: string) => {
+      for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
+        const names = await libraryOnBoard(page);
+        const line = `${when}: ${who}'s board draws library card(s) [${names.join(', ')}]`;
+        if (names.length > 0 && !seen.includes(line)) {
+          seen.push(line);
+          console.log(`[w70-scry-one] ${line}`);
+        }
+      }
+    };
+    /** Answer what Forge asks and pass priority while a spell waits — never the empty-stack Next Phase. */
+    const pump = async () => {
+      for (const p of pages) await answerPrompt(p);
+      for (const p of pages) {
+        const ok = enabledOk(p).first();
+        if ((await stackCount(p)) > 0 && (await ok.count()) > 0) await ok.click({ timeout: 1_000 }).catch(() => undefined);
+      }
+      await alice.page.waitForTimeout(60);
+    };
+    const confirm = alice.page.getByTestId('live-confirm');
+    const field = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+
+    for (const [answer, scried, drawn] of [['Top', 'Serra Angel', 'Serra Angel'], ['Bottom', 'Grizzly Bears', 'Swamp']] as const) {
+      const opt = await handCardNamed(alice.page, 'Opt');
+      expect(opt, 'an Opt is in alice’s hand').toBeDefined();
+      await castByDrag(alice.page, stack, opt!, { x: field.x + field.width / 2, y: field.y + field.height / 2 });
+      console.log(`[w70-scry-one] Opt is on the stack; alice says: "${await says(alice.page)}"`);
+
+      const deadline = Date.now() + 60_000;
+      while ((await confirm.count()) === 0 && Date.now() < deadline) {
+        await watchBoards(`before the ${answer} scry`);
+        await pump();
+      }
+      await expect(confirm, `the ${answer} scry opens a decision on alice’s screen`).toHaveCount(1);
+      await alice.page.waitForTimeout(1_000);
+      await watchBoards(`during the ${answer} scry`);
+      const message = (await confirm.locator('.confirm__message').textContent())?.trim() ?? '';
+      const labels = (await confirm.locator('.confirm__button').allTextContents()).map((s) => s.trim());
+      const shown = (await confirm.getByTestId('confirm-card').locator('.card__name').allTextContents()).map((s) => s.trim());
+      console.log(`[w70-scry-one] decision: "${message}" buttons [${labels.join(', ')}] card [${shown.join(', ')}]`);
+      expect.soft(labels, 'Forge’s own Top and Bottom').toEqual(['Top', 'Bottom']);
+      expect.soft(shown, 'the decision window draws the scried card').toEqual([scried]);
+      expect.soft(await libraryOnBoard(alice.page), 'alice’s board draws no library card during the scry').toEqual([]);
+      expect.soft(await libraryOnBoard(bob.page), 'bob’s board draws no library card during the scry').toEqual([]);
+
+      await confirm.getByRole('button', { name: answer, exact: true }).click();
+      const until = Date.now() + 30_000;
+      while (Date.now() < until && !(await handNames(alice.page)).includes(drawn)) {
+        await watchBoards(`after the ${answer} scry`);
+        await pump();
+      }
+      const hand = await handNames(alice.page);
+      console.log(`[w70-scry-one] after ${answer}: alice's hand [${hand.join(', ')}]`);
+      expect(hand, `${answer}: Opt draws ${drawn}`).toContain(drawn);
+      for (let i = 0; i < 10; i++) {
+        await watchBoards(`after the ${answer} scry`);
+        await alice.page.waitForTimeout(100);
+      }
+    }
+    console.log(`[w70-scry-one] library cards ever drawn on a board: [${seen.join(' | ')}]`);
+    expect(seen, 'no scried card was ever drawn on a board').toEqual([]);
   } finally {
     await stack.stop();
   }

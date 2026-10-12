@@ -1,0 +1,19 @@
+# The operator, 2026-10-11, on a scry 1: "it placed the scry'd card directly on the board. that's ugly, we
+# should have a proper decision card for this". Alice (seat 0) holds her main phase with two Opts (Scry 1,
+# draw a card) and two Islands. Forge asks a scry of one card as Top or Bottom on its button bar
+# (`PlayerControllerHuman.willPutCardOnTop`), letting her look at that card meanwhile. Her library's top
+# three are Serra Angel, Grizzly Bears, Swamp: the first Opt keeps Serra Angel on top and draws it, the
+# second sends Grizzly Bears to the bottom and draws Swamp.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Opt;Opt
+humanbattlefield=Island;Island
+humanlibrary=Serra Angel;Grizzly Bears;Swamp;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
