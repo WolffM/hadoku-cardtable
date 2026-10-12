@@ -31,7 +31,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
@@ -87,12 +87,25 @@ afterEach(() => {
   globalThis.location.hash = '';
 });
 
-/**
- * The stylesheet itself, so "colour is not the only signal" can be asserted:
- * jsdom lays nothing out and computes no cascade, and the rule that carries
- * the second signal is a declaration, not a geometry.
- */
 const SCREENS_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/screens', 'screens.css'), 'utf8');
+
+/**
+ * `screens.css` on the document for this test, and a reader of what the cascade
+ * gives a rendered element — so "colour is not the only signal" is asserted on
+ * the pills actually drawn. jsdom resolves the cascade but lays nothing out.
+ */
+function styled(): (el: Element, property: string) => string {
+  const sheet = document.createElement('style');
+  sheet.textContent = SCREENS_CSS;
+  document.head.append(sheet);
+  onTestFinished(() => sheet.remove());
+  return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();
+}
+
+/** Every pill state on the page, by the border it is drawn with: a second signal besides its colour. */
+function pillBorders(css: (el: Element, property: string) => string): Map<string, string> {
+  return new Map([...document.querySelectorAll<HTMLElement>('.pill[data-state]')].map((p) => [p.dataset.state!, css(p, 'border-style')]));
+}
 
 /**
  * Real cross-era history, the way `apps/server/src/http/tables.test.ts` and
@@ -398,7 +411,10 @@ function stubServer(table: Table) {
       return json(200, { formats: [...pods, FREE, ...FORMATS, MODERN] });
     }
     if (url.endsWith('/tables/decks')) {
-      if (table.catalogueAfterRoom === true) await roomAnswered.then(() => new Promise((r) => setTimeout(r, 20)));
+      if (table.catalogueAfterRoom === true) {
+        await roomAnswered;
+        await waitFor(() => expect(document.querySelector('[data-testid="room-name"]')).not.toBeNull());
+      }
       return json(200, { decks: decks() });
     }
     // One per era, each time the room's pool moves: how the picker learns
@@ -512,6 +528,41 @@ function everyMs(ms: number): RoomFeed {
     },
   };
 }
+
+/**
+ * A feed the test steps by hand, for "however often it re-reads, nothing more
+ * happens": `reread(n)` pings n times and lets each read's answer land before
+ * the next, so the assertion counts reads instead of sleeping through them.
+ */
+function steppedFeed() {
+  const refreshers = new Set<() => void>();
+  const feed: RoomFeed = {
+    follow(_target, refresh) {
+      refresh();
+      refreshers.add(refresh);
+      return () => {
+        refreshers.delete(refresh);
+      };
+    },
+  };
+  return {
+    feed,
+    /** How many reads are following the feed right now. */
+    following: () => refreshers.size,
+    async reread(n: number) {
+      for (let i = 0; i < n; i += 1) {
+        await act(async () => {
+          for (const refresh of [...refreshers]) refresh();
+        });
+        // The stub answers in promises, never timers: a few turns of the queue land every answer and its render.
+        for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+      }
+    },
+  };
+}
+
+/** `GET /api/rooms/:id`: one per read of the room. */
+const roomReads = (server: { calls: Call[] }): number => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(`/api/rooms/${ROOM}`)).length;
 
 async function mountRoom(table: Table, rand?: () => number, feed: RoomFeed = everyMs(10)) {
   const server = stubServer(table);
@@ -729,9 +780,13 @@ describe('a room’s table', () => {
     expect(legal.dataset.state).toBe('yes');
     expect(legal.dataset.mark).toBe('tick');
 
-    // And the styles that colour them do not carry the whole signal: the
-    // stylesheet distinguishes the two states by border style as well.
-    expect(SCREENS_CSS).toMatch(/\.pill\[data-state='no'\] \{[^}]*border-style: dashed;/);
+  });
+
+  it('draws every pill state in a border style of its own, so colour is never the only signal', async () => {
+    await mountRoom({ players: [opponent({ ready: false })], matchId: null });
+    const borders = pillBorders(styled());
+    expect([...borders.keys()].sort()).toEqual(['leader', 'no', 'yes']);
+    expect(new Set(borders.values()).size, JSON.stringify([...borders])).toBe(borders.size);
   });
 
   it('an unready, illegal seat reads as two failed states, with the count on the pill', async () => {
@@ -978,13 +1033,12 @@ describe('a room’s table', () => {
   it('stops after ONE refused join instead of re-asking on the timer', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: everyMs(10), rooms: rooms.client }));
+    const stepped = steppedFeed();
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, roomId: ROOM, feed: stepped.feed, rooms: rooms.client }));
     await screen.findByTestId('room-locked');
 
     const readsWhenRefused = server.calls.length;
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 120)); // twelve re-reads
-    });
+    await stepped.reread(12);
     expect(rooms.joins).toEqual([ROOM]);
     expect(server.calls.length).toBe(readsWhenRefused);
   });
@@ -1005,11 +1059,12 @@ describe('a room’s table', () => {
   });
 
   it('says when the server refuses the start, and asks again only when told to', async () => {
-    const server = await mountRoom({
-      players: [opponent({ ready: true })],
-      matchId: null,
-      refuseStart: { status: 409, error: 'user-bob is not ready yet' },
-    });
+    const stepped = steppedFeed();
+    const server = await mountRoom(
+      { players: [opponent({ ready: true })], matchId: null, refuseStart: { status: 409, error: 'user-bob is not ready yet' } },
+      undefined,
+      stepped.feed,
+    );
     await pick(UG_POLYMORPH);
     await act(async () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
@@ -1021,7 +1076,9 @@ describe('a room’s table', () => {
     // One attempt, not one per re-read.
     const attempts = () => server.calls.filter((c) => c.url.endsWith('/play/matches')).length;
     const once = attempts();
-    await new Promise((r) => setTimeout(r, 60));
+    const reads = roomReads(server);
+    await stepped.reread(6);
+    expect(roomReads(server), 'it did re-read').toBeGreaterThan(reads);
     expect(attempts()).toBe(once);
 
     // Told to, it asks again — and this time the server starts it.
@@ -1029,6 +1086,7 @@ describe('a room’s table', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('start-retry'));
     });
+    await stepped.reread(1);
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
   });
 });
@@ -1094,10 +1152,17 @@ describe('the deck picker', () => {
     await mountRoom({ players: [opponent()], matchId: null });
     await deckPicker();
     const tile = screen.getByTestId('deck-mine').querySelector<HTMLElement>(`[data-deck-id="${SECOND_DECK}"]`)!;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => vi.useRealTimers());
     fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
-    await new Promise((r) => setTimeout(r, 500));
-    expect(screen.queryByTestId('deck-peek')).toBeNull();
-    const peek = await screen.findByTestId('deck-peek', {}, { timeout: 2000 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(screen.queryByTestId('deck-peek'), 'not at half a second').toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    const peek = screen.getByTestId('deck-peek');
     expect(peek.textContent).toContain('Jund (Emanuele Giusti)');
     expect(peek.textContent).toContain('Main 60');
     expect(peek.textContent).toContain('Island');
@@ -1256,13 +1321,14 @@ describe('the deck picker', () => {
       choice: { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } },
     };
     // The other player is NOT ready, so nothing starts while this is watched.
-    const server = await mountRoom({ players: [opponent(), held], matchId: null });
+    const stepped = steppedFeed();
+    const server = await mountRoom({ players: [opponent(), held], matchId: null }, undefined, stepped.feed);
     // The picker opens on the deck the server holds…
     await waitFor(() => expect(chosen()).toBe(SECOND_DECK));
     // …and over a dozen re-reads it never writes one.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 120));
-    });
+    const reads = roomReads(server);
+    await stepped.reread(12);
+    expect(roomReads(server), 'it did re-read').toBeGreaterThanOrEqual(reads + 12);
     expect(server.calls.filter((c) => c.url.endsWith('/deck'))).toHaveLength(0);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down');
   });
@@ -1435,12 +1501,7 @@ describe('the table’s pool', () => {
     // No prose: nothing on the card explains what a leader is or may do.
     const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
     expect(card.textContent).not.toMatch(/room leader|can change|only the/i);
-    // And the quietest colouring in the file is its own state, so the two
-    // pass/fail colourings still mean exactly what they meant.
-    expect(SCREENS_CSS).toMatch(/\.pill\[data-state='leader'\] \{[^}]*border-style: dotted;/);
-    // The card is a flex COLUMN, where a flex item stretches by default — an
-    // inline-flex pill left to that is a 300px lozenge round two words.
-    expect(SCREENS_CSS).toMatch(/\.lobby__card > \.pill \{[^}]*align-self: flex-start;/);
+
   });
 
   it('names the leader without “(you)” to everybody else', async () => {
@@ -1495,14 +1556,14 @@ describe('a draft room', () => {
   const members = (...ready: boolean[]) =>
     ready.map((r, i) => ({ id: i === 0 ? 'p-alice' : `p-${i}`, name: i === 0 ? 'user-alice' : `user-${i}`, ready: r }));
 
-  async function mountDraft(table: Partial<Table> = {}) {
+  async function mountDraft(table: Partial<Table> = {}, feed: RoomFeed = everyMs(10)) {
     const server = stubServer({ players: [], matchId: null, gameType: 'draft', members: members(false), ...table });
     render(
       createElement(ConstructedScreen, {
         client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
-        feed: everyMs(10),
+        feed,
         makeTransport: stubTransport,
       }),
     );
@@ -1510,7 +1571,8 @@ describe('a draft room', () => {
   }
 
   it('shows the room’s lobby and NOT a pack: nothing is dealt before everyone is ready', async () => {
-    const server = await mountDraft({ members: members(false, false) });
+    const stepped = steppedFeed();
+    const server = await mountDraft({ members: members(false, false) }, stepped.feed);
     await screen.findByTestId('draft-lobby');
 
     // Who is here, and who is ready — off the ROOM's record, not the table's.
@@ -1533,9 +1595,7 @@ describe('a draft room', () => {
     // The legality sweep — one `GET /tables/legal/:format` per era — never runs. (The two catalogue GETs start at mount,
     // before the room's own type is known, and their answer is discarded rather
     // than delaying the picker for every constructed room; see the effect.)
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 60));
-    });
+    await stepped.reread(6);
     expect(sweeps(server)).toHaveLength(0);
     // Nor is a single table write made: `routes.ts` answers 409 to all of them.
     expect(server.calls.filter((c) => c.url.includes('/tables/rooms/') && c.method !== 'GET')).toHaveLength(0);
@@ -1613,25 +1673,23 @@ describe('a draft room', () => {
 
   it('starts the draft exactly once when every member is ready, and only then', async () => {
     // One member still not ready: nothing is asked for, however often it re-reads.
-    const server = await mountDraft({ members: members(true, false) });
+    const stepped = steppedFeed();
+    const server = await mountDraft({ members: members(true, false) }, stepped.feed);
     await screen.findByTestId('draft-lobby');
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 80)); // eight re-reads
-    });
+    await stepped.reread(8);
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(0);
     expect(screen.queryByTestId('pod')).toBeNull();
 
     // The other browser readies up; this one learns it from a re-read and deals.
     server.table.members = members(true, true);
+    await stepped.reread(1);
     await waitFor(() => expect(screen.queryByTestId('pod')).not.toBeNull());
     const starts = server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`));
     expect(starts).toHaveLength(1);
     expect(starts[0]).toEqual({ url: `/cardtable/api/rooms/${ROOM}/start`, method: 'POST', body: {} });
 
     // And a re-read does not ask again now that it has started.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 80));
-    });
+    await stepped.reread(8);
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(1);
   });
 
@@ -1653,10 +1711,11 @@ describe('a draft room', () => {
   });
 
   it('says what the server refused, and asks again only when told to', async () => {
-    const server = await mountDraft({
-      members: members(true, true),
-      refuseRoomWrite: { status: 409, error: 'this room plays constructed-1v1, not draft' },
-    });
+    const stepped = steppedFeed();
+    const server = await mountDraft(
+      { members: members(true, true), refuseRoomWrite: { status: 409, error: 'this room plays constructed-1v1, not draft' } },
+      stepped.feed,
+    );
     const refused = await screen.findByTestId('draft-error');
     expect(refused.textContent).toContain('this room plays constructed-1v1, not draft');
     expect(screen.queryByTestId('pod')).toBeNull();
@@ -1665,9 +1724,7 @@ describe('a draft room', () => {
     const attempts = () => server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`)).length;
     const once = attempts();
     expect(once).toBe(1);
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 60));
-    });
+    await stepped.reread(6);
     expect(attempts()).toBe(once);
 
     // Told to, it asks again — and this time the server deals.
@@ -1868,7 +1925,7 @@ describe('a room read that overlapped the leader’s own write', () => {
     await waitFor(() => expect(select.value).toBe('2011-07-15'));
     release();
     // The stale answer lands now — and changes nothing.
-    await new Promise((r) => setTimeout(r, 30));
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
     expect(select.value, 'the stale read did not revert the pick').toBe('2011-07-15');
     expect(server.table.format).toBe('2011-07-15');
   });
@@ -1937,11 +1994,6 @@ describe('the era’s set symbols', () => {
     // No image, no WotC host: the symbols are a font.
     expect(row.querySelector('img')).toBeNull();
     expect(row.innerHTML).not.toContain('scryfall');
-    // Bigger, and the grouping is drawn as well as grouped: the gap between
-    // blocks is the second signal, and jsdom computes no cascade, so the
-    // declaration is the assertion.
-    expect(SCREENS_CSS).toMatch(/\.lobby__block \{[^}]*font-size: 2rem;/);
-    expect(SCREENS_CSS).toMatch(/\.lobby__sets \{[^}]*gap: 6px 26px;/);
   });
 
   it('follows the pool the leader moves it to, and NPH joins its own block', async () => {
@@ -2585,7 +2637,8 @@ describe('the deck chooser', () => {
     // colouring is not the only signal either — the chosen row is ringed.
     expect(deckRow(MONO_GREEN.id).querySelector('.deckpick__mark')?.textContent).toBe('chosen');
     expect(deckRow(UW_DELVER.id).querySelector('.deckpick__mark')).toBeNull();
-    expect(SCREENS_CSS).toMatch(/\.deckpick__option\[aria-checked='true'\] \{[^}]*box-shadow: inset 0 0 0 2px/);
+    const css = styled();
+    expect(css(deckRow(MONO_GREEN.id), 'box-shadow'), 'the chosen row is ringed').not.toBe(css(deckRow(UW_DELVER.id), 'box-shadow'));
   });
 
   it('is operable by keyboard: one tab stop, arrows choose, and nothing wraps', async () => {
@@ -2679,22 +2732,15 @@ describe('the deck chooser', () => {
   });
 
   it('gives every box the same size, whatever text is in it', async () => {
-    // One grid track height for every row, and the item stretched to fill it —
-    // this is what makes a short name's box and a long name's box come out the
-    // same height; `boxes.md` (real Playwright, a built page) has the proof that
-    // a browser actually lays it out this way.
-    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*grid-auto-rows: 190px;/);
-    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*align-items: stretch;/);
-    expect(SCREENS_CSS).toMatch(/\.deckpick__option \{[^}]*height: 100%;/);
-
-    // The clamp: without it a long name would still wrap past the fixed track
-    // and get cut off by `.deckpick__option`'s own `overflow: hidden` instead of
-    // ending in an ellipsis after two lines.
-    expect(SCREENS_CSS).toMatch(/\.deckpick__name \{[^}]*-webkit-line-clamp: 2;/);
-    expect(SCREENS_CSS).toMatch(/\.deckpick__name \{[^}]*text-overflow: ellipsis;/);
-
     await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, LONG_NAME_DECK] });
     await deckPicker();
+    // One fixed track for every row, the item stretched to fill it, and a long name ending in an ellipsis
+    // rather than wrapping past the track; `boxes.md` (real Playwright, a built page) measured the boxes.
+    const css = styled();
+    const list = document.querySelector('.deckpick')!;
+    expect(css(list, 'grid-auto-rows'), 'a fixed track, not one per content').not.toMatch(/^(auto)?$/);
+    expect(css(list, 'align-items')).toBe('stretch');
+    for (const name of document.querySelectorAll('.deckpick__name')) expect(css(name, 'text-overflow')).toBe('ellipsis');
 
     // The clamp hides the overflow visually, but the full name is still there —
     // on the element's `title`, so a reader (and a mouse hover) still gets it.

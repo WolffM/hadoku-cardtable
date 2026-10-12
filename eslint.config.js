@@ -218,7 +218,6 @@ export default [
       'apps/ui/src/play/live/gestures/gestures.test.ts',
       'apps/ui/src/play/live/placed.test.ts',
       'apps/ui/src/play/live/presence.test.ts',
-      'apps/ui/src/screens/constructed.test.ts',
       'packages/room-ask/src/registry.test.ts',
       'packages/room-store/src/sigterm.test.ts',
     ],
