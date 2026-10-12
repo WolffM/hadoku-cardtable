@@ -20,14 +20,32 @@ const ASK = { frame: { kind: 'ask', callId: 'c1', method: 'showConfirmDialog' } 
 const INPUT_NOTIFY = { frame: { kind: 'notify', method: 'setWeaklySelectable', cards: [] } };
 const MESSAGE = { frame: { kind: 'notify', method: 'message', message: 'auto-passed Upkeep step' } };
 
-function deltaOf(objects: Record<string, Record<string, unknown>>): unknown {
-  return { frame: { kind: 'notify', method: 'applyDelta', payload: { packet: { newObjects: objects, objectDeltas: {} } } } };
+function deltaOf(objects: Record<string, Record<string, unknown>>, newObjects: Record<string, Record<string, unknown>> = {}): unknown {
+  return { frame: { kind: 'notify', method: 'applyDelta', payload: { packet: { newObjects, objectDeltas: objects } } } };
 }
 
-const RESOLVE = deltaOf({ 3000000003: { _type: 3, _id: 3, Stack: { t: 'list', v: [] } } });
-const PHASE = deltaOf({ 3000000003: { _type: 3, _id: 3, Phase: { t: 'enum', c: 'PhaseType', v: 'MAIN1' } } });
-const DRAW = deltaOf({ 1000000001: { _type: 1, _id: 1, Hand: { t: 'list', v: [] } } });
-const DEFAULT_DELTA = deltaOf({ card5: { _type: 0, _id: 5, Tapped: { t: 'bool', v: true } } });
+const stackOf = (ids: number[]) => ({ _type: 3, _id: 1, Stack: { t: 'list', v: ids.map((v) => ({ t: 'int', v })) } });
+const zone = (id: number, v: string) => ({ _type: 0, _id: id, Zone: { t: 'enum', c: 'ZoneType', v } });
+
+const RESOLVE = deltaOf({ g: stackOf([]) });
+const PHASE = deltaOf({ g: { _type: 3, _id: 1, Phase: { t: 'enum', c: 'PhaseType', v: 'MAIN1' } } });
+const DRAW = deltaOf({ c9: zone(9, 'Hand'), p0: { _type: 1, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 9 }] } } });
+const DEFAULT_DELTA = deltaOf({ p0: { _type: 1, _id: 0, Life: { t: 'int', v: 17 } } });
+
+/*
+ * A cast as Forge sends it (`e2e/w71-tap-reveal.spec.ts`'s wire record of Grizzly Bears paid by two
+ * Forests): the caster flagged, the card out of the hand, the lands tapped, the spell on the stack —
+ * then, after priority goes round, the stack empty again and the creature on the battlefield.
+ */
+const CAST_FLAG = deltaOf({ p0: { _type: 1, _id: 0, MindSlaveMaster: { t: 'int', v: 0 } } });
+const HAND_OUT = deltaOf({ p0: { _type: 1, _id: 0, Hand: { t: 'list', v: [] } } });
+const TAPS = deltaOf({
+  c167: { _type: 0, _id: 167, Tapped: { t: 'bool', v: true }, NeedsTapAnimation: { t: 'bool', v: true } },
+  c168: { _type: 0, _id: 168, Tapped: { t: 'bool', v: true }, NeedsTapAnimation: { t: 'bool', v: true } },
+  p0: { _type: 1, _id: 0, Mana: { t: 'map', v: [] } },
+});
+const ON_STACK = deltaOf({ g: stackOf([3]) }, { c160: zone(160, 'Stack'), s3: { _type: 2, _id: 3, SourceCard: { t: 'int', v: 160 } } });
+const RESOLVED = deltaOf({ c160: zone(160, 'Battlefield'), g: stackOf([]) });
 
 describe('classify', () => {
   it('an ask is input', () => expect(classify(ASK)).toBe('input'));
@@ -37,8 +55,26 @@ describe('classify', () => {
       'resolve',
     ));
   it('a Phase delta with no Stack key is phase', () => expect(classify(PHASE)).toBe('phase'));
-  it('a Hand delta is draw', () => expect(classify(DRAW)).toBe('draw'));
+  it('a card arriving in a hand is draw', () => expect(classify(DRAW)).toBe('draw'));
   it('an unrecognised delta is default', () => expect(classify(DEFAULT_DELTA)).toBe('default'));
+  it('a delta of nothing the board draws is unseen', () => expect(classify(CAST_FLAG)).toBe('unseen'));
+  it('a card leaving a hand is cast', () => expect(classify(HAND_OUT)).toBe('cast'));
+  it('a land tapping is cast', () => expect(classify(TAPS)).toBe('cast'));
+  it('a card untapping is not', () => expect(classify(deltaOf({ c1: { _type: 0, _id: 1, Tapped: { t: 'bool', v: false } } }))).toBe('default'));
+  it('the stack growing is cast; shrinking, or the same depth, is resolve', () => {
+    const memory = { stackDepth: null };
+    expect(classify(ON_STACK, memory)).toBe('cast');
+    expect(memory.stackDepth).toBe(1);
+    expect(classify(deltaOf({ g: stackOf([3, 4]) }), memory)).toBe('cast');
+    expect(classify(deltaOf({ g: stackOf([5, 3]) }), memory)).toBe('resolve');
+    expect(classify(deltaOf({ g: stackOf([3]) }), memory)).toBe('resolve');
+    expect(classify(RESOLVED, memory)).toBe('resolve');
+    expect(memory.stackDepth).toBe(0);
+  });
+  it('with no depth remembered yet, a frame bringing a new stack item is cast, any other stack frame resolve', () => {
+    expect(classify(ON_STACK)).toBe('cast');
+    expect(classify(deltaOf({ g: stackOf([3]) }))).toBe('resolve');
+  });
   it('a message notify is default', () => expect(classify(MESSAGE)).toBe('default'));
   it('garbage is default, never a throw', () => {
     expect(classify(null)).toBe('default');
@@ -151,6 +187,19 @@ describe('pacedMatchTransport', () => {
     expect(received).toEqual([RESOLVE, DEFAULT_DELTA]);
     vi.advanceTimersByTime(PACE_DELAYS_MS.draw);
     expect(received).toEqual([RESOLVE, DEFAULT_DELTA, DRAW]);
+  });
+
+  it('a cast goes out as Forge sends it — release, taps and the stack card at once — and its resolution keeps its pace', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(PHASE); // the table was just busy: the next paced frame would wait
+    for (const frame of [CAST_FLAG, ASK, HAND_OUT, CAST_FLAG, TAPS, ON_STACK]) inner.deliver(frame);
+    expect(received).toEqual([PHASE, CAST_FLAG, ASK, HAND_OUT, CAST_FLAG, TAPS, ON_STACK]);
+    expect(vi.getTimerCount()).toBe(0);
+    inner.deliver(RESOLVED);
+    expect(received).toHaveLength(7);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.resolve);
+    expect(received.at(-1)).toBe(RESOLVED);
   });
 
   it('an input frame is never held, even mid-burst: its own delay is zero, so it is due the instant it is next', () => {
@@ -313,9 +362,11 @@ describe('pacedMatchTransport', () => {
 
 /** Every class the delay table promises, so a renamed or dropped entry fails loudly. */
 describe('PACE_DELAYS_MS', () => {
-  it('has a non-negative delay for every PaceClass, and zero for input', () => {
-    const classes: PaceClass[] = ['input', 'resolve', 'phase', 'draw', 'default'];
+  it('has a non-negative delay for every PaceClass, and zero for input, a cast and an unseen change', () => {
+    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'draw', 'default'];
     for (const c of classes) expect(PACE_DELAYS_MS[c]).toBeGreaterThanOrEqual(0);
     expect(PACE_DELAYS_MS.input).toBe(0);
+    expect(PACE_DELAYS_MS.cast).toBe(0);
+    expect(PACE_DELAYS_MS.unseen).toBe(0);
   });
 });

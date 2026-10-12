@@ -36,9 +36,10 @@
  *
  * `classify` reads `frame.kind`/`frame.method` and, for `applyDelta`, the
  * packet's own objects — `WireType.Game`'s `Stack` and `Phase` properties,
- * `WireType.Player`'s `Hand` property (`../adapter.ts` reads the identical
- * three off the folded state: `readIds(game, 'Stack')`, `readEnum(game,
- * 'Phase')`, `readIds(p, 'Hand')`). Never a regex over `showPromptMessage`'s
+ * `WireType.Player`'s `Hand` property, `WireType.Card`'s `Zone` and `Tapped`
+ * (`../adapter.ts` reads the same properties off the folded state:
+ * `readIds(game, 'Stack')`, `readEnum(game, 'Phase')`, `readIds(p, 'Hand')`).
+ * Never a regex over `showPromptMessage`'s
  * text — the wave's own rule (§0b, carried from wave 24) and `./match.ts`'s
  * module header both forbid it, and a wire property that is already folded
  * into the board is the one signal this file does not have to invent.
@@ -48,6 +49,24 @@
  * it is not exported, and this file does not touch `match.ts`), is never
  * held: a player's own prompt or button bar appearing late is not "nice
  * pacing", it is a seat staring at a frozen board.
+ *
+ * ## A cast is one moment
+ *
+ * The operator, 2026-10-11: *"the sequence is: 1. release card 2. reveal it
+ * 3. pay for mana 4. resolve card. can we squish together 1-3 so they all
+ * happen simultaneously?"* Forge sends a cast as several frames inside about
+ * 80 ms — the card leaving the hand, the lands tapping for it, the spell
+ * joining the stack (`PlaySpellAbility.java:624-727`: the card is moved, the
+ * cost is paid, then the item is added) — and each one used to wait its own
+ * class's gap: measured in `e2e/w71-tap-reveal.spec.ts`, the taps drew 717 ms
+ * after the release and the face 1319 ms, on a cast Forge had finished by
+ * 300 ms. Those frames are `cast`, and go out as they come. What paces is the
+ * resolution after it: the stack SHRINKING is still `resolve`.
+ *
+ * Telling a stack that grew from one that shrank takes the depth before the
+ * frame, so the wrapper remembers the last `Stack` length it saw
+ * ({@link PaceMemory}), in arrival order. Before it has seen one (a snapshot
+ * never passes through here), a frame that brings a new stack item is a cast.
  *
  * ## What a resync needs from the pacer: nothing
  *
@@ -69,7 +88,7 @@ import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
 
-export type PaceClass = 'input' | 'resolve' | 'phase' | 'draw' | 'default';
+export type PaceClass = 'input' | 'cast' | 'unseen' | 'resolve' | 'phase' | 'draw' | 'default';
 
 /**
  * Starting values (wave file §P step 2) — the operator's to tune by feel
@@ -79,11 +98,15 @@ export type PaceClass = 'input' | 'resolve' | 'phase' | 'draw' | 'default';
  */
 export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
   input: 0,
-  /** A stack mutation — something going on, or something resolving/leaving. */
+  /** A spell going on the stack and what pays for it: the card leaving a hand, a land tapping, the stack growing — one moment (module header). */
+  cast: 0,
+  /** A delta that changes only what the board never draws ({@link UNDRAWN_PROPERTIES}): there is nothing to show, so nothing to wait for. */
+  unseen: 0,
+  /** The stack shrinking or changing in place — something resolving or leaving. */
   resolve: 600,
   /** `GameView.Phase` changed. */
   phase: 250,
-  /** A player's `Hand` list changed — a draw, most often; a discard or a cast reads the same way, and holding those too is harmless. */
+  /** A card arrived in a hand (its `Zone` is `Hand`) — a draw, most often. */
   draw: 200,
   /** Everything else on the state channel, and every `message` log line. */
   default: 150,
@@ -100,21 +123,41 @@ const INPUT_NOTIFY_METHODS: ReadonlySet<string> = new Set([
   'clearWeaklySelectable',
 ]);
 
-/** `WireType.Game` / `WireType.Player`, `../wire.ts` — copied as bare numbers rather than imported, for the same reason: this file reads the wire, it does not fold it. */
-const WIRE_TYPE_GAME = 3;
+/** `WireType.*`, `../wire.ts` — copied as bare numbers rather than imported, for the same reason: this file reads the wire, it does not fold it. */
+const WIRE_TYPE_CARD = 0;
 const WIRE_TYPE_PLAYER = 1;
+const WIRE_TYPE_STACK_ITEM = 2;
+const WIRE_TYPE_GAME = 3;
+
+/**
+ * Properties nothing on the board reads. Forge flips `MindSlaveMaster` on the caster twice in every
+ * cast (measured: alone in a frame at the cast's start and again at its payment), and each such
+ * frame cost the cast a `default` gap — the first one in front of the cast's own ability ask.
+ */
+const UNDRAWN_PROPERTIES: ReadonlySet<string> = new Set(['MindSlaveMaster']);
+
+/** What {@link classify} remembers between frames: the stack's depth after the last frame that carried it, or null before one has. */
+export interface PaceMemory {
+  stackDepth: number | null;
+}
+
+/** A tagged value's `v`, when it is the shape asked for. */
+function tagged(obj: Record<string, unknown>, key: string): unknown {
+  const value = obj[key];
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>).v : undefined;
+}
 
 /** Every object a packet's two arms carry, annotation keys (`_omitted`) dropped. */
-function packetObjects(packet: unknown): Record<string, unknown>[] {
+function packetObjects(packet: unknown): { obj: Record<string, unknown>; isNew: boolean }[] {
   if (typeof packet !== 'object' || packet === null) return [];
   const p = packet as Record<string, unknown>;
-  const out: Record<string, unknown>[] = [];
+  const out: { obj: Record<string, unknown>; isNew: boolean }[] = [];
   for (const arm of ['newObjects', 'objectDeltas'] as const) {
     const map = p[arm];
     if (typeof map !== 'object' || map === null) continue;
     for (const [key, obj] of Object.entries(map as Record<string, unknown>)) {
       if (key.startsWith('_')) continue;
-      if (typeof obj === 'object' && obj !== null) out.push(obj as Record<string, unknown>);
+      if (typeof obj === 'object' && obj !== null) out.push({ obj: obj as Record<string, unknown>, isNew: arm === 'newObjects' });
     }
   }
   return out;
@@ -124,10 +167,12 @@ function packetObjects(packet: unknown): Record<string, unknown>[] {
  * One raw `forge:s2c` payload (the server envelope — unparsed, same reason
  * `./transport.ts`'s own `frame` field is `unknown`: a payload this cannot
  * read is not this file's to reject, only to leave at `'default'`) to a pace
- * class. Exported so `pace.test.ts` can pin every branch directly, against
- * shapes built from this module's own header rather than guessed.
+ * class. `memory` carries the stack's depth from one frame to the next (the
+ * wrapper keeps one per match); it is updated here. Exported so `pace.test.ts`
+ * can pin every branch directly, against shapes built from this module's own
+ * header rather than guessed.
  */
-export function classify(payload: unknown): PaceClass {
+export function classify(payload: unknown, memory: PaceMemory = { stackDepth: null }): PaceClass {
   if (typeof payload !== 'object' || payload === null) return 'default';
   const frame = (payload as Record<string, unknown>).frame;
   if (typeof frame !== 'object' || frame === null) return 'default';
@@ -142,19 +187,41 @@ export function classify(payload: unknown): PaceClass {
     typeof packetPayload === 'object' && packetPayload !== null
       ? (packetPayload as Record<string, unknown>).packet
       : undefined;
+  const objects = packetObjects(packet);
+  let stack: number | null = null;
+  let newStackItem = false;
   let sawPhase = false;
-  let sawHand = false;
-  for (const obj of packetObjects(packet)) {
+  let arrivedInHand = false;
+  let castPiece = false;
+  let drawn = false;
+  for (const { obj, isNew } of objects) {
     const type = obj._type;
+    if (Object.keys(obj).some((k) => k !== '_type' && k !== '_id' && !UNDRAWN_PROPERTIES.has(k))) drawn = true;
     if (type === WIRE_TYPE_GAME) {
-      if ('Stack' in obj) return 'resolve';
+      const list = tagged(obj, 'Stack');
+      if (Array.isArray(list)) stack = list.length;
+      else if ('Stack' in obj) stack = 0;
       if ('Phase' in obj) sawPhase = true;
+    } else if (type === WIRE_TYPE_STACK_ITEM) {
+      if (isNew) newStackItem = true;
     } else if (type === WIRE_TYPE_PLAYER) {
-      if ('Hand' in obj) sawHand = true;
+      // A hand that changed with no card arriving in it: a card left it — cast, played or discarded.
+      if ('Hand' in obj) castPiece = true;
+    } else if (type === WIRE_TYPE_CARD) {
+      const zone = tagged(obj, 'Zone');
+      if (zone === 'Hand') arrivedInHand = true;
+      if (zone === 'Stack' || tagged(obj, 'Tapped') === true) castPiece = true;
     }
   }
+  if (stack !== null) {
+    const before = memory.stackDepth;
+    memory.stackDepth = stack;
+    return (before === null ? newStackItem : stack > before) ? 'cast' : 'resolve';
+  }
   if (sawPhase) return 'phase';
-  if (sawHand) return 'draw';
+  if (arrivedInHand) return 'draw';
+  if (castPiece) return 'cast';
+  if (objects.length > 0 && !drawn) return 'unseen';
   return 'default';
 }
 
@@ -199,7 +266,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
-  let queue: unknown[] = [];
+  /** Each payload with its class, read on arrival — in arrival order, which is what `memory` needs. */
+  let queue: { payload: unknown; pace: PaceClass }[] = [];
+  const memory: PaceMemory = { stackDepth: null };
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
   /** The handler `startMatch` registered for `MATCH_EVENTS.serverToClient` — null until `on` is called for it, which `startMatch` always does before anything can arrive. */
@@ -212,23 +281,22 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
    * 2026-10-12: "hearing some duplicate sounds" — 15-19 phase sounds 250 ms apart a game, each an opponent's
    * End Turn). The phase that is still the newest keeps its pace.
    */
-  function delayFor(payload: unknown, superseded: boolean): number {
+  function delayFor(pace: PaceClass, superseded: boolean): number {
     if (fast) return 0;
-    const pace = classify(payload);
     return pace === 'phase' && (endingTurn || superseded) ? 0 : delays[pace];
   }
 
   function deliverNext(): void {
-    const payload = queue.shift();
-    if (payload === undefined) return;
+    const next = queue.shift();
+    if (next === undefined) return;
     lastDeliveredAt = now();
-    deliverTo?.(payload);
+    deliverTo?.(next.payload);
   }
 
   /** Deliver whatever is due, and schedule a timer for whatever is not — never more than one timer live at once. */
   function pump(): void {
     if (timer !== null || queue.length === 0) return;
-    const waitMs = Math.max(0, lastDeliveredAt + delayFor(queue[0], queue.length > 1) - now());
+    const waitMs = Math.max(0, lastDeliveredAt + delayFor(queue[0]!.pace, queue.length > 1) - now());
     if (waitMs <= 0) {
       deliverNext();
       pump();
@@ -258,9 +326,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       }
       deliverTo = handler;
       inner.on(event, (payload) => {
-        queue.push(payload);
+        queue.push({ payload, pace: classify(payload, memory) });
         // A phase frame waiting on its gap has just been superseded: let it go now.
-        if (timer !== null && queue.length === 2 && classify(queue[0]) === 'phase' && !fast) {
+        if (timer !== null && queue.length === 2 && queue[0]!.pace === 'phase' && !fast) {
           cancel(timer);
           timer = null;
         }
