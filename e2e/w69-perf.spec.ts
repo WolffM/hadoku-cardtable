@@ -18,12 +18,14 @@
  * driven) layouts, React commits per second, DOM nodes, and the top self-time functions mapped
  * through the UI build's source map.
  *
- * What it asserts, and why not 4 ms: a claw draws in software on a shared CPU — an idle frame of
- * this board is ~0.9 ms there, a drag 9–12 ms p95 once nothing on the board lays all of it out.
- * Measured on claw-8 before that (main dc06571): hand 29 / 21 ms, arrange 14 / 12, chip 23 / 21
- * (dragger / other screen), most of it one or more whole-board layouts a frame (17–35 ms each).
- * So it holds the two things that regressed: no frame's layout over `LAYOUT_P95_MS` at p95, and no
- * drag over one 60 Hz frame of work at p95 on the claw.
+ * What it asserts, and why no milliseconds: a claw draws in software on a shared CPU — an idle frame
+ * of this board is ~0.9 ms there, a drag 9–12 ms p95 once nothing on the board lays all of it out,
+ * and the same drag 17+ ms when three e2e shards share the node. Measured on claw-8 before the fix
+ * (main dc06571): hand 29 / 21 ms, arrange 14 / 12, chip 23 / 21 (dragger / other screen), most of it
+ * one or more whole-board layouts a frame (17–35 ms each). What regressed is the SHARE of a drag's
+ * main-thread work that is layout, and how much of the page each layout touches — both ratios on
+ * the runner's own clock, so a loaded claw slows the layout and the rest alike. The milliseconds
+ * (and the 4 ms budget, `over4ms=`) are printed as evidence, never gated.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { SourceMap } from 'node:module';
@@ -49,16 +51,10 @@ async function offeredNamed(page: Page, name: string): Promise<number | undefine
 
 /** The operator's budget: 250 fps. Printed per scenario (`over4ms=`), not asserted — see the top. */
 const BUDGET_MS = 4;
-/** Layout per frame, p95, during a drag: a whole-board layout is 17–35 ms on a claw, a local one ~1. */
-const LAYOUT_P95_MS = 3;
-/**
- * Main-thread work per frame, p95, during a drag on a claw: one 60 Hz frame. Not asserted while the
- * run records video (`CARDTABLE_E2E_VIDEO=1`): the screencast's own capture work lands in the same
- * frames (measured, claw-9: frames 40 ms apart instead of 16.7, 14–27 ms of work against 8–12 ms
- * unrecorded) — the layout bound, which is what regressed, holds either way.
- */
-const CLAW_FRAME_MS = 16;
-const RECORDING = process.env.CARDTABLE_E2E_VIDEO === '1';
+/** Layout's share of a drag's main-thread work: a whole-board layout a frame made it most of it (17–35 of 21–29 ms), a local one is ~1 ms of 9–12. */
+const LAYOUT_SHARE = 0.3;
+/** The share of the page's layout objects one frame's layouts may dirty, p95: a drag's own are 11–44 of ~1,100 (at most 4 %). */
+const DIRTY_SHARE_P95 = 0.15;
 
 const CATEGORIES = [
   'toplevel',
@@ -360,9 +356,30 @@ interface Screen {
 interface Result {
   scenario: string;
   screen: string;
-  p95: number;
-  layoutP95: number;
+  /** All the drag's layout time over all its main-thread work. */
+  layoutShare: number;
+  /** Per frame, the layout objects its layouts dirtied over the page's total, at p95. */
+  dirtyP95: number;
   line: string;
+}
+
+/**
+ * Per frame of `seen`, the layout objects that frame's `Layout` events dirtied, as a share of the
+ * page: the largest layout tree in the window. A layout of a small tree of its own (the stack
+ * card's, measured whole) dirties all of ITS objects and a few of the page's.
+ */
+function dirtyShares(thread: TraceEvent[], seen: Seen): number[] {
+  const from = seen.starts[0] ?? 0;
+  const to = seen.starts.at(-1) ?? 0;
+  const layouts = thread.filter((e) => e.name === 'Layout' && (e.ph === 'X' || e.ph === 'B') && e.args?.beginData?.totalObjects !== undefined && e.ts >= from && e.ts < to);
+  const page = Math.max(0, ...layouts.map((e) => e.args!.beginData!.totalObjects!));
+  const shares: number[] = [];
+  for (let i = 1; i < seen.starts.length; i += 1) {
+    let dirty = 0;
+    for (const e of layouts) if (e.ts >= seen.starts[i - 1]! && e.ts < seen.starts[i]!) dirty += e.args!.beginData!.dirtyObjects ?? 0;
+    shares.push(page === 0 ? 0 : dirty / page);
+  }
+  return shares;
 }
 
 async function measure(browserCdp: CDPSession, screens: Screen[], scenario: string, gesture: () => Promise<void>): Promise<Result[]> {
@@ -403,16 +420,20 @@ async function measure(browserCdp: CDPSession, screens: Screen[], scenario: stri
     const over = totals.filter((t) => t > BUDGET_MS).length;
     const forced = seen.work.reduce((a, w) => a + w.forced, 0);
     const commits = before[i]! < 0 ? 'n/a' : f1((after[i]! - before[i]!) / seconds);
+    const sum = (k: Kind | 'total'): number => seen.work.reduce((a, w) => a + (k === 'total' ? w.total : w.by[k]), 0);
+    const layoutShare = sum('layout') / Math.max(1e-9, sum('total'));
+    const dirty = dirtyShares(thread, seen);
     const line =
       `${scenario} ${s.name}: frames=${seen.frames} interval p50/p95/max=${f1(pct(seen.interval, 50))}/${f1(pct(seen.interval, 95))}/${f1(Math.max(0, ...seen.interval))}ms` +
       ` work p50/p95/max=${f2(pct(totals, 50))}/${f2(pct(totals, 95))}/${f2(Math.max(0, ...totals))}ms over${BUDGET_MS}ms=${over}/${totals.length}` +
       ` p95/max script=${of('script')} style=${of('style')} layout=${of('layout')} paint=${of('paint')} other=${of('other')}` +
-      ` forcedLayouts=${forced} (${f1(forced / Math.max(1, seen.frames))}/frame) reactCommits/s=${commits} dom=${nodes[i]}`;
+      ` forcedLayouts=${forced} (${f1(forced / Math.max(1, seen.frames))}/frame) reactCommits/s=${commits} dom=${nodes[i]}` +
+      ` layoutShare=${f2(layoutShare)} dirtyShare p95/max=${f2(pct(dirty, 95))}/${f2(Math.max(0, ...dirty))}`;
     console.log(`[w69-perf] ${line}`);
     console.log(`[w69-perf] ${scenario} ${s.name} top: ${topSelf(profiles[i]!, 12)}`);
     console.log(`[w69-perf] ${scenario} ${s.name} app: ${topSelf(profiles[i]!, 14, true)}`);
     console.log(`[w69-perf] ${scenario} ${s.name} worst: ${worstFrames(thread, seen, 4)}`);
-    results.push({ scenario, screen: s.name, p95: pct(totals, 95), layoutP95: pct(seen.work.map((w) => w.by.layout), 95), line });
+    results.push({ scenario, screen: s.name, layoutShare, dirtyP95: pct(dirty, 95), line });
   });
   return results;
 }
@@ -554,13 +575,13 @@ test(titled('dragging a hand card, a battlefield card and an ability chip never 
       );
     } else console.log('[w69-perf] chip: never reached (no chip on both screens) — scenario not measured');
 
-    console.log(`[w69-perf] summary p95 work/frame: ${results.map((r) => `${r.scenario}/${r.screen}=${f2(r.p95)}ms`).join(' ')}`);
+    console.log(`[w69-perf] summary layout share / dirty p95: ${results.map((r) => `${r.scenario}/${r.screen}=${f2(r.layoutShare)}/${f2(r.dirtyP95)}`).join(' ')}`);
     const drags = results.filter((r) => r.scenario !== 'idle');
     expect(observerErrors, 'no ResizeObserver loop on either screen').toEqual([]);
     expect(drags.length, 'the hand and arrange drags were measured').toBeGreaterThanOrEqual(4);
     for (const r of drags) {
-      expect(r.layoutP95, `${r.scenario} on ${r.screen}'s screen: p95 layout per frame (${r.line})`).toBeLessThanOrEqual(LAYOUT_P95_MS);
-      if (!RECORDING) expect(r.p95, `${r.scenario} on ${r.screen}'s screen: p95 main-thread work per frame (${r.line})`).toBeLessThanOrEqual(CLAW_FRAME_MS);
+      expect(r.layoutShare, `${r.scenario} on ${r.screen}'s screen: layout's share of the drag's main-thread work (${r.line})`).toBeLessThanOrEqual(LAYOUT_SHARE);
+      expect(r.dirtyP95, `${r.scenario} on ${r.screen}'s screen: the share of the page one frame's layouts dirty, p95 (${r.line})`).toBeLessThanOrEqual(DIRTY_SHARE_P95);
     }
   } finally {
     unhook();
