@@ -32,6 +32,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   Board,
   clearPlacementColumns,
   commitHandMove,
+  copiesIn,
   forgetArrangements,
   forgetPendingPlacements,
   group,
@@ -2291,6 +2292,58 @@ describe('drag to stack (#1, #19)', () => {
     expect(columns(container)).toEqual([[8, 25], [24], [6]]);
     dragCard(container, 25, { slot: 'lands' });
     expect(columns(container), '25 is its own column again, at the row’s end').toEqual([[8], [24], [6], [25]]);
+  });
+
+  /** The viewer's battlefield with `n` more copies of land 8, ids 801…, so a pile of copies can be made. */
+  function withCopiesOf8(n: number): BoardView {
+    const base = boardFromFixture(fixture);
+    const seed = base.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === 8)!;
+    const extra = Array.from({ length: n }, (_, i) => ({ ...seed, id: 801 + i }));
+    return { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, battlefield: [...p.battlefield, ...extra] } : p)) };
+  }
+  const countOn = (container: HTMLElement, id: number) =>
+    container.querySelector<HTMLElement>(`[data-card-id="${id}"] > .board-card__copies`)?.textContent ?? null;
+
+  it('a pile of copies wears ×N on its base, and the count follows cards joining and leaving it', () => {
+    const { container } = renderBoard(withCopiesOf8(2));
+    expect(container.querySelectorAll('.board-card__copies'), 'nothing stacked, nothing counted').toHaveLength(0);
+    dragOnto(container, 801, 8, 'top');
+    expect(countOn(container, 8)).toBe('×2');
+    dragOnto(container, 802, 8, 'top');
+    expect(countOn(container, 8)).toBe('×3');
+    expect(container.querySelectorAll('.board-card__copies'), 'one count per pile, never on its members').toHaveLength(1);
+    dragCard(container, 802, { slot: 'lands' });
+    expect(countOn(container, 8), 'one left the pile').toBe('×2');
+    dragCard(container, 801, { slot: 'lands' });
+    expect(countOn(container, 8), 'a lone card has no count').toBeNull();
+  });
+
+  it('a pile that mixes cards has no count', () => {
+    const view = withCopiesOf8(1);
+    const { container } = renderBoard(view);
+    const name = (id: number) => view.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === id)!.card.name;
+    expect(name(25), 'the fixture’s 25 is a different card from 8').not.toBe(name(8));
+    dragOnto(container, 801, 8, 'top');
+    expect(countOn(container, 8)).toBe('×2');
+    dragOnto(container, 25, 8, 'top');
+    expect(container.querySelector<HTMLElement>('[data-card-id="8"]')!.dataset.pileSize, 'three cards in the pile').toBe('3');
+    expect(countOn(container, 8), 'two copies and another card are not copies').toBeNull();
+  });
+
+  it('the other seat’s pile of copies wears the same count', () => {
+    const base = boardFromFixture(fixture);
+    const them = base.players.find((p) => !p.isViewer)!;
+    const seed = them.battlefield[0]!;
+    const view: BoardView = {
+      ...base,
+      players: base.players.map((p) => (p.id === them.id ? { ...p, battlefield: [...p.battlefield, { ...seed, id: 901 }, { ...seed, id: 902 }] } : p)),
+    };
+    const { container } = renderBoard(view, undefined, 'single');
+    const tier = container.querySelector<HTMLElement>(`[data-card-id="${seed.id}"]`)!.closest<HTMLElement>('[data-tier]')!.dataset.tier!;
+    act(() => applyTheirArrangement(view, them.id, { [tier]: [[seed.id, 901, 902]] }));
+    expect(countOn(container, seed.id)).toBe('×3');
+    act(() => applyTheirArrangement(view, them.id, { [tier]: [[seed.id, 901], [902]] }));
+    expect(countOn(container, seed.id), 'one left their pile').toBe('×2');
   });
 
   it('survives a resync, piles and all', () => {
@@ -5393,5 +5446,37 @@ describe('wave 36 §B — T10: the arrangement survives a reload (D1)', () => {
     } finally {
       Object.defineProperty(globalThis, 'sessionStorage', { value: real, configurable: true });
     }
+  });
+});
+
+describe('copiesIn: the ×N a pile of copies wears', () => {
+  const seed = boardFromFixture(fixture).players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === 8)!;
+  const copy = (id: number, over: Partial<BoardCard> = {}): BoardCard => ({ ...seed, id, ...over });
+
+  it('counts a pile of two or more of the same card', () => {
+    expect(copiesIn([copy(1), copy(2)])).toBe(2);
+    expect(copiesIn([copy(1), copy(2), copy(3)])).toBe(3);
+  });
+
+  it('counts nothing for a lone card or an empty column', () => {
+    expect(copiesIn([copy(1)])).toBeNull();
+    expect(copiesIn([])).toBeNull();
+  });
+
+  it('counts nothing when the pile mixes cards', () => {
+    expect(copiesIn([copy(1), copy(2), copy(3, { card: { ...seed.card, name: 'Grizzly Bears' } })])).toBeNull();
+  });
+
+  it('a token is not the card of the same name', () => {
+    expect(copiesIn([copy(1, { token: true }), copy(2, { token: true })])).toBe(2);
+    expect(copiesIn([copy(1, { token: true }), copy(2, { token: false })])).toBeNull();
+  });
+
+  it('counts nothing when a card in the pile is hidden from this seat', () => {
+    expect(copiesIn([copy(1, { hidden: true }), copy(2, { hidden: true })])).toBeNull();
+  });
+
+  it('a tapped, damaged or countered copy is still a copy', () => {
+    expect(copiesIn([copy(1, { tapped: true }), copy(2, { damage: 2 }), copy(3, { counters: [{ name: 'P1P1', count: 1 }] })])).toBe(3);
   });
 });

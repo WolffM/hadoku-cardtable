@@ -659,6 +659,23 @@ function visualRow(card: BoardCard, layout: BoardLayout): BoardRow {
 type Pile = readonly BoardCard[];
 
 /**
+ * How many copies of one card a pile is, for its `×N` badge — the operator, 2026-10-12: *"when
+ * multiple copies of the same creature or token are stacked let's show an xN on top so it's clear
+ * how many there are."* `null` unless the pile holds two or more cards that are all the same card:
+ * the same name, and all tokens or all cards (a Goblin token is not a Goblin card). A pile that mixes
+ * cards — gear on a creature, a land under a creature — is not copies, so it has no count; nor does
+ * one holding a card this seat cannot see, whose name says nothing about which card it is.
+ */
+export function copiesIn(pile: Pile): number | null {
+  if (pile.length < 2) return null;
+  const [first] = pile;
+  for (const card of pile) {
+    if (card.hidden === true || card.card.name !== first!.card.name || card.token !== first!.token) return null;
+  }
+  return pile.length;
+}
+
+/**
  * One battlefield, in rows of piles. Always every `BoardRow` key, whether or
  * not the layout on screen draws it — `rowsForLayout` says which ones a given
  * render actually uses, and the rest sit empty.
@@ -2262,6 +2279,7 @@ function CardOnBoard({
    * plus 3 fanned) exactly — if either changes there, it must change here too.
    */
   const pileFan = pileSize === undefined || pileSize <= 1 ? 0 : Math.min(pileSize - 1, MAX_FAN_DEPTH) * STACK_STEP;
+  const copies = pile === undefined ? null : copiesIn(pile);
 
   return (
     <li
@@ -2381,6 +2399,11 @@ function CardOnBoard({
        * for the common case (no relation at all).
        */}
       <Relations entry={entry} />
+      {copies !== null && (
+        <span className="board-card__copies" data-copies={copies}>
+          ×{copies}
+        </span>
+      )}
       {above.length > 0 && (
         <ul className="board-card__pile" aria-label={`Stacked on ${entry.card.name}`}>
           {above.map((c, i) => (
@@ -3258,7 +3281,8 @@ function useArrangeDrag(
     const begin = (p: Press, x: number, y: number): void => {
       const at = p.li.getBoundingClientRect();
       const ghost = p.li.cloneNode(true) as HTMLElement;
-      ghost.querySelector(':scope > .board-card__pile')?.remove();
+      // A card lifted out of a pile is one card: neither the pile nor its count travels with it.
+      for (const el of ghost.querySelectorAll(':scope > .board-card__pile, :scope > .board-card__copies')) el.remove();
       for (const el of [ghost, ...ghost.querySelectorAll<HTMLElement>('*')]) {
         for (const attr of [
           'data-card-id',

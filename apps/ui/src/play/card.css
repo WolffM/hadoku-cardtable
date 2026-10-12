@@ -163,6 +163,32 @@
 }
 
 /*
+ * A pile of copies says how many: `×3` in the middle of the face on top, the one
+ * place none of the state layer's corners and bands below claims. Centred on the
+ * FACE, not the pile's box — the face is `--pile-fan` narrower and shorter — so
+ * it sits inside the card whatever the fan, and the same capsule as the P/T
+ * badge, a size up, so it reads over art.
+ */
+.board-card__copies {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: calc((100% - var(--pile-fan)) / 2);
+  left: calc((100% - var(--pile-fan)) / 2);
+  translate: -50% -50%;
+  padding: 0 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
  * The state layer needs no fan adjustment: a pile's fan narrows the base card's
  * face from the RIGHT and offsets the cards behind it down and right, so the
  * marks (top-left) and the counters (bottom-left) are already inside the face.
