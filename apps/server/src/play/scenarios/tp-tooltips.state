@@ -1,0 +1,22 @@
+# e2e/tp-tooltips.spec.ts — the board's marks say what they mean, and a card an effect forbids is drawn so.
+# Seat 0 (human), uncontested Main Phase 1 of its own turn:
+#   - Hill Giant, summoning sick: the sick mark.
+#   - a Goblin token: the token mark.
+#   - Grizzly Bears wearing Arcane Flight: a granted Flying tag.
+#   - Reflector Mage in hand with Plains + two Islands to cast it.
+# Seat 1 (ai) controls Ambush Viper (flash, {1}{G}) and two Forests: the Mage's trigger bounces the
+# Viper, Bob may not cast it until Alice's next turn, and from then on he can — at instant speed,
+# so on Alice's own turn 3 as well as his turn 4.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Reflector Mage
+humanbattlefield=Plains;Island;Island;Hill Giant|SummonSick;T:r_1_1_goblin;Grizzly Bears|Id:101;Arcane Flight|AttachedTo:101
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Ambush Viper;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
