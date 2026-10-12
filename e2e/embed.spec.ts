@@ -8,7 +8,8 @@
  *  1. **The binding and the page boundary** — no Forge needed. Two friends
  *     mounting with one room key land at ONE table (`wp-…`), the host's URL
  *     and styles are untouched, the theme is the context's and follows
- *     `update()`, an in-table hash link routes in memory, and `unmount()`
+ *     `update()`, an in-table hash link routes in memory — `#/stats` to the bound
+ *     room, never the lobby — and `unmount()`
  *     leaves nothing behind: no listener on `window`/`document`, no sheet, no
  *     shadow content, no socket.io traffic. A second mount on the same slot
  *     works.
@@ -199,16 +200,34 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     await expect(b.getByTestId('constructed')).toBeVisible();
     await expect(a.getByTestId('play-vs-bot'), 'alice sees bob join').toHaveCount(0, { timeout: 30_000 });
 
-    // An in-table hash link routes the TABLE, never the host page.
+    // An in-table hash link routes the TABLE, never the host page — and a
+    // route that is not a table (here the stats popout, which the standalone
+    // app draws over the lobby) shows the bound room and nothing else: no room
+    // list, no create-room, no popout, at any moment.
     await a.evaluate(() => {
+      const shadow = document.getElementById('slot')!.shadowRoot!;
+      const seen = new Set<string>();
+      const lobby = '[data-testid="lobby"], [data-testid="rooms"], [data-testid="room-create-open"], [data-testid="stats"]';
+      const note = () => shadow.querySelectorAll<HTMLElement>(lobby).forEach((el) => seen.add(el.dataset.testid!));
+      const observer = new MutationObserver(note);
+      observer.observe(shadow, { childList: true, subtree: true });
+      (window as unknown as { lobbySeen: () => string[] }).lobbySeen = () => {
+        observer.disconnect();
+        return [...seen];
+      };
       const link = document.createElement('a');
       link.href = '#/stats';
       link.textContent = 'stats';
       link.dataset.testid = 'probe-link';
-      document.getElementById('slot')!.shadowRoot!.querySelector('.cardtable-chrome__content')!.append(link);
+      shadow.querySelector('.cardtable-chrome__content')!.append(link);
     });
     await a.getByTestId('probe-link').click();
-    await expect(a.getByTestId('stats')).toBeVisible();
+    await a.waitForTimeout(1_000);
+    const lobbySeen = await a.evaluate(() => (window as unknown as { lobbySeen: () => string[] }).lobbySeen());
+    console.log(`[embed] #/stats in the embed: room=${await embed.getAttribute('data-bound-room')} lobby-seen=${lobbySeen.join(',') || 'none'}`);
+    expect(lobbySeen, 'following #/stats never draws the lobby, its room list, create-room or the stats popout').toEqual([]);
+    await expect(a.getByTestId('constructed'), 'following #/stats shows the bound room').toBeVisible();
+    await expect(embed).toHaveAttribute('data-bound-room', roomId!);
     expect((await residue(a)).hash).toBe('#/host-route');
 
     // Unmount: nothing of ours is left on the page.
