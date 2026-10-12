@@ -1,0 +1,24 @@
+# e2e/kw-granted-tags.spec.ts — a keyword tag only for a keyword the card did not print, and the
+# summoning-sickness hatch at rest, in the operator's own window: declaring blockers.
+# alice (human, seat 0) is the active player with Memnite already attacking bob. bob (ai seat,
+# driven by the second browser) holds:
+#   - Serra Angel ("Flying, vigilance") wearing Arcane Flight: flying printed AND granted, vigilance
+#     printed — no tag at all, and it still floats.
+#   - Grizzly Bears wearing Arcane Flight ("Enchanted creature gets +1/+1 and has flying."): flying
+#     granted only — a Flying tag.
+#   - Hill Giant, summoning sick: Forge's `Sickness` holds until bob's own next turn, so it wears
+#     the hatch while it blocks.
+# activephase is Declare ATTACKERS for the reason `w54-b-two-blockers.state` gives.
+turn=1
+activeplayer=human
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite|Attacking
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Serra Angel|Id:102;Arcane Flight|AttachedTo:102;Grizzly Bears|Id:101;Arcane Flight|AttachedTo:101;Hill Giant|SummonSick
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
