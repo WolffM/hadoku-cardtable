@@ -14,8 +14,9 @@
 
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
+import { clickHandCard, clickOnce, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { recordSurface } from './play/surface.ts';
 
@@ -52,6 +53,58 @@ test(titled('a bounceland played as the only land returns at once; the other sea
     console.log(`[w62-bounce] alice's getAbilityToPlay: ${asks.map((r) => (r.evt === 'ask-answered' ? `browser ${String(r.ms)} ms` : `server (${String(r.why)})`)).join(', ')}`);
     expect(seen.filter((t) => /to decide/.test(t)), `bob was told alice had a decision: ${JSON.stringify(seen)}`).toEqual([]);
     expect(seen.filter((t) => /to choose/.test(t)), `bob was told alice had a choice: ${JSON.stringify(seen)}`).toEqual([]);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/*
+ * The same sentence for the other ask a seat's browser answers by itself: a counterspell's lone
+ * stack target (`onlyStackTarget`, Mana Leak's optional "one or none"). Nobody decides it, so the
+ * other screen is never told anyone is choosing — however long a loaded browser takes to reply,
+ * which is why alice's page runs CPU-throttled here: the claws' 139–371 ms replies, every time.
+ */
+test(titled('a counterspell\'s lone target answers itself; the other seat is never told to "choose"'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // lone-spell.state: bob has an uncontested MAIN1 and a free Memnite; alice holds Mana Leak + 3 Islands.
+    const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'lone-spell');
+    const pop = await recordSurface(bob.page, '[data-testid="live-waiting-pop"]');
+
+    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his Memnite' }).not.toEqual([]);
+    expect(await clickHandCard(bob.page, (await offered(bob.page))[0]!), 'Memnite is played').toBe(true);
+    await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'bob’s Memnite is the only thing on the stack' }).toBe(1);
+    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her counterspell' }).not.toEqual([]);
+    const manaLeak = (await offered(alice.page))[0]!;
+
+    const cdp = await alice.context.newCDPSession(alice.page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 20 });
+    try {
+      expect(await clickHandCard(alice.page, manaLeak), 'Mana Leak is played').toBe(true);
+      await expect
+        .poll(
+          async () => {
+            await answerPrompt(alice.page);
+            const text = await says(alice.page);
+            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            return alice.page.locator('[data-zone="graveyard"][data-owner="them"]').getAttribute('data-count');
+          },
+          { timeout: 60_000, message: 'Mana Leak resolved: Memnite is in bob’s graveyard' },
+        )
+        .toBe('1');
+    } finally {
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    }
+
+    await bob.page.waitForTimeout(1500);
+    const seen = (await pop.rows()).map((r) => r.text);
+    const targets = serverLog(stack).filter((r) => r.matchId === matchId && r.seat === 0 && r.method === 'getChoices' && (r.evt === 'ask-answered' || r.evt === 'ask-auto-answered'));
+    console.log(`[w62-bounce] lone target: bob's pop-out said ${JSON.stringify(seen)}; alice's getChoices: ${targets.map((r) => (r.evt === 'ask-answered' ? `browser ${String(r.ms)} ms` : `server (${String(r.why)})`)).join(', ')}`);
+    expect(targets.some((r) => r.evt === 'ask-answered'), 'the lone target reached alice’s browser and was answered there').toBe(true);
+    expect(seen.filter((t) => /to (choose|decide)/.test(t)), `bob was told alice had a choice: ${JSON.stringify(seen)}`).toEqual([]);
   } finally {
     await stack.stop();
   }
