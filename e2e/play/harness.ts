@@ -520,6 +520,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_PLAY_SEED: String(PLAY_SEED),
       },
     });
+  /** Whoever is waiting on a line the server has not written yet — see {@link sparesWarm}. */
+  const lineWatchers = new Set<(line: string) => void>();
   /*
    * Both streams land in ONE file, so each is written a whole line at a time.
    * Copying raw chunks let a stdout chunk that ended mid-line be followed by a
@@ -528,8 +530,6 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
    * `…"path":"/r-4270d944{"t":…`). A partial line is held until its newline
    * arrives, and flushed when its stream ends.
    */
-  /** Whoever is waiting on a line the server has not written yet — see {@link sparesWarm}. */
-  const lineWatchers = new Set<(line: string) => void>();
   const pipeLog = (proc: ChildProcess): void => {
     for (const stream of [proc.stdout, proc.stderr]) {
       if (stream === null) continue;
