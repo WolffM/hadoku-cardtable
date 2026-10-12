@@ -70,6 +70,27 @@
 }
 
 /*
+ * Combat's lasting arrows in combat's colours, the same as the cards they join
+ * (`card.css`: an attacker's outline is the danger colour, a blocker's the
+ * success colour), so an attack and a block never read as one another.
+ */
+.targeter--auto[data-role='attack'] .targeter__shaft {
+  stroke: var(--danger);
+}
+
+.targeter--auto[data-role='attack'] .targeter__head {
+  fill: var(--danger);
+}
+
+.targeter--auto[data-role='block'] .targeter__shaft {
+  stroke: var(--success);
+}
+
+.targeter--auto[data-role='block'] .targeter__head {
+  fill: var(--success);
+}
+
+/*
  * The box-draw (§B.2). A plain rectangle in the overlay's coordinates, the
  * accent at low opacity so the creatures inside it stay readable.
  */

@@ -19,7 +19,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount } from './play/board.ts';
-import { passDeclareAttackers, phaseOf } from './play/combat.ts';
+import { assignBlock, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
@@ -194,11 +194,10 @@ test(titled('Q12 — a seat with one creature gets the block window, can assign 
     const card = bob.page.locator(`[data-board-card="${myId}"]`);
     await expect(card, 'the one creature is offered as a blocker').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
 
-    // Forge's `InputBlock`: click the attacker first (the "current attacker"), then the blocker.
+    // Blocking is a drag: the creature onto the attacker.
     const attacker = bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-attacking]').first();
     await expect(attacker, 'the attacking creature is on the board to assign a blocker to').toBeVisible({ timeout: 10_000 });
-    await attacker.locator('button').first().click();
-    await card.locator('button').first().click();
+    await assignBlock(bob.page, myId, Number(await attacker.getAttribute('data-board-card')));
     await expect(card, 'the assigned blocker is marked blocking').toHaveAttribute('data-blocking', 'true', { timeout: 10_000 });
   } finally {
     await stack.stop();

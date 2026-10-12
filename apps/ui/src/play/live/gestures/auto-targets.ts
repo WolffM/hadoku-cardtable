@@ -25,6 +25,8 @@ export interface AutoTargetArrow {
   /** The target's own element — the tip is computed against its live box at draw time, never cached. */
   to: Element;
   kind: 'card' | 'player';
+  /** What the arrow reports: an attack (attacker → defender) or a block (blocker → attacker). Each draws in its own theme colour. */
+  role: 'attack' | 'block';
 }
 
 /**
@@ -47,7 +49,7 @@ export function combatArrows(canvas: ParentNode, match: LiveMatch): AutoTargetAr
       if (source === null) continue;
       const to = band.defender.kind === 'card' ? cardBox(canvas, band.defender.id) : faceBox(canvas, band.defender.id);
       if (to === null) continue;
-      out.push({ key: `combat:${attackerId}`, from: centreOf(source), to, kind: band.defender.kind });
+      out.push({ key: `combat:${attackerId}`, from: centreOf(source), to, kind: band.defender.kind, role: 'attack' });
     }
   }
   return out;

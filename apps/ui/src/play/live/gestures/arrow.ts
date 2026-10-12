@@ -236,6 +236,7 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
     if (svg === null) {
       svg = newArrow({ className: 'targeter targeter--auto', testid: AUTO_TESTID, shaftClass: 'targeter__shaft', headClass: 'targeter__head' });
       svg.setAttribute('data-key', spec.key);
+      svg.setAttribute('data-role', spec.role);
       overlay.append(svg);
     }
     positionArrow(svg, aimed.from, aimed.tip, box);

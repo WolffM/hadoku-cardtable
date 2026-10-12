@@ -50,6 +50,7 @@ import {
   answerAsk,
   attackAssignment,
   boardInteraction,
+  clickCard,
   closeMatch,
   declaringBlockers,
   selectCard,
@@ -99,7 +100,7 @@ function Canvas({ match: m }: { match: LiveMatch }) {
     view: m.view,
     interaction: {
       ...offered,
-      onSelectCard: (cardId: number) => selectCard(m, cardId),
+      onSelectCard: (cardId: number) => clickCard(m, cardId),
       onSelectPlayer: (playerId: number) => selectPlayer(m, playerId),
     },
   });
@@ -1417,6 +1418,20 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     expect(sent(s)).toEqual([['selectCard', blocker]]);
   });
 
+  it('a click on the creature blocks nothing: blocking is by drag only', async () => {
+    const { s, canvas, blocker } = await blockingBoard();
+    fireEvent.click(cardEl(canvas, blocker).querySelector('button')!);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
+  it('dropped back on its own spot, an unassigned creature sends nothing', async () => {
+    const { s, canvas, blocker } = await blockingBoard();
+    drag(cardEl(canvas, blocker), cardEl(canvas, blocker));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
   it('a drop on nothing legal sends nothing — the blocker dragged off the table', async () => {
     const { s, canvas, blocker } = await blockingBoard();
     drag(cardEl(canvas, blocker), document.body);
@@ -1456,32 +1471,85 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     const { s, m } = ctx;
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     const blocker = mineOf(m).battlefield[0]!.id;
-    const combat = (pblk: number[], blk: number[] = []): ServerFrame =>
+    /** Forge's `CombatView`: the blocker planned on the first attacker (`pblk`), or on none. */
+    const combat = (pblk: number[], blk: number[] = [], second: number[] = []): ServerFrame =>
       stateDelta({
         [GAME_KEY]: {
           _type: 3,
           _id: 1,
-          CombatView: { t: 'combat', atk: [[theirs[0]!]], def: [[1, mineOf(m).id]], blk: [blk], pblk: [pblk] },
+          CombatView: {
+            t: 'combat',
+            atk: [[theirs[0]!], [theirs[1]!]],
+            def: [
+              [1, mineOf(m).id],
+              [1, mineOf(m).id],
+            ],
+            blk: [blk, []],
+            pblk: [pblk, second],
+          },
         },
       });
     s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
-    s.send(attackingDelta([theirs[0]!]));
+    s.send(attackingDelta([theirs[0]!, theirs[1]!]));
     await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
     // `pushBlockerCandidates` has dropped it (it is assigned, not a candidate
-    // any more); only the wire's planned map still names it.
-    for (const f of notify([prompt('Select a blocker'), actionable([])])) s.send(f);
+    // any more); only the wire's planned map still names it. The attacker it
+    // blocks is `InputBlock`'s current one.
+    for (const f of notify([prompt('Select a blocker'), actionable([]), highlight([theirs[0]!], true)])) s.send(f);
     s.send(combat([blocker]));
     await waitFor(() => expect(boardInteraction(m).selectable.has(blocker)).toBe(true));
-    return { ...ctx, blocker, attacker: theirs[0]!, combat };
+    return { ...ctx, blocker, attacker: theirs[0]!, other: theirs[1]!, combat };
   }
 
-  it('is offered off the planned map alone, and a second click sends its own selectCard — Forge’s own undo', async () => {
+  it('is offered off the planned map alone, and dropping it back on its own spot is Forge’s own undo', async () => {
     const { s, canvas, blocker } = await alreadyBlocking();
-    // No drag at all: a click on the same card it is already on, same as
-    // `InputBlock`'s own "click it again to undo" shape.
     drag(cardEl(canvas, blocker), cardEl(canvas, blocker));
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', blocker]]);
+  });
+
+  it('dragged onto a different attacker it MOVES: the undo, then the new attacker, then the blocker', async () => {
+    const { s, canvas, blocker, attacker, other, combat } = await alreadyBlocking();
+    drag(cardEl(canvas, blocker), cardEl(canvas, other));
+    // The undo first, on the attacker it blocks (already current): one frame.
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', blocker]]);
+    // Forge undoes it and offers it again as a candidate.
+    s.send(combat([]));
+    for (const f of notify([actionable([blocker])])) s.send(f);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([
+      ['selectCard', blocker],
+      ['selectCard', other],
+    ]);
+    // `setCurrentAttacker`: the other attacker is current now, and the blocker's click follows.
+    s.send(highlight([attacker], false));
+    s.send(highlight([other], true));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(3));
+    expect(sent(s)).toEqual([
+      ['selectCard', blocker],
+      ['selectCard', other],
+      ['selectCard', blocker],
+    ]);
+  });
+
+  it('a creature Forge still offers as a candidate (it can block one more) keeps its first block', async () => {
+    const { s, canvas, blocker, other } = await alreadyBlocking();
+    for (const f of notify([actionable([blocker])])) s.send(f);
+    await new Promise((r) => setTimeout(r, 50));
+    drag(cardEl(canvas, blocker), cardEl(canvas, other));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', other]]);
+  });
+
+  it('dropped on the attacker it already blocks, nothing is sent', async () => {
+    const { s, canvas, blocker, attacker } = await alreadyBlocking();
+    drag(cardEl(canvas, blocker), cardEl(canvas, attacker));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
   });
 
   it('draws a lasting arrow from the blocker to its attacker while declaring, off the PLANNED map', async () => {

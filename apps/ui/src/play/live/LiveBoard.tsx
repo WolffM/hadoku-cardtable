@@ -300,6 +300,7 @@ import {
   nothingToDecide,
   noteAutoAnswered,
   choosingMulligan,
+  clickCard,
   payingMana,
   pickedOf,
   pressButton,
@@ -2261,7 +2262,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      */
     stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait),
     onSelectCard: (cardId) => {
-      if (!spectator) selectCard(match, cardId);
+      if (!spectator) clickCard(match, cardId);
     },
     onSelectPlayer: (playerId) => {
       if (!spectator) selectPlayer(match, playerId);

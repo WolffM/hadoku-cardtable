@@ -6,7 +6,20 @@
  * gestures. `../match.ts` re-checks Forge's CURRENT offer inside both senders,
  * so no decision taken here can put an id on the wire that Forge did not name.
  */
-import { afterMarked, attackAssignment, boardInteraction, isBlockAssignment, isMarked, landsToTap, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
+import {
+  afterMarked,
+  assignBlock,
+  attackAssignment,
+  boardInteraction,
+  isBlockAssignment,
+  isMarked,
+  landsToTap,
+  ownBlocker,
+  removeBlock,
+  selectCard,
+  selectPlayer,
+  type LiveMatch,
+} from '../match.ts';
 import { cardBox, cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 import { playRole } from '../../../sound/index.ts';
@@ -16,6 +29,21 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
   const offered = boardInteraction(match);
   const source = drag.source !== null && offered.selectable.has(drag.source) ? drag.source : null;
   const target = targetUnder(node, offered);
+
+  /*
+   * Blocking is a drag and only a drag. Dropped on an attacker, the creature
+   * blocks it — moved off whatever it blocked before (`assignBlock`). Dropped
+   * anywhere else, its own spot included, it is out of combat (`removeBlock`).
+   */
+  if (source !== null && ownBlocker(match, source)) {
+    if (target !== null && target.kind === 'card' && isBlockAssignment(match, source, target.id)) {
+      playRole('ui.target');
+      assignBlock(match, source, target.id);
+    } else {
+      removeBlock(match, source);
+    }
+    return;
+  }
 
   if (target === null) {
     // Nothing Forge named is under the pointer. A drop inside a zone is the
@@ -34,33 +62,6 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
     return;
   }
   playRole('ui.target');
-  /*
-   * Blocking by drag (§B.3), and the ONE place the order is reversed.
-   *
-   * `InputBlock` takes the attacker first — a click on an attacking card sets
-   * `currentAttacker`, and the click AFTER it becomes that attacker's blocker
-   * (`InputBlock.java:112-160`). The gesture the operator asked for is "drag
-   * the blocker onto the attacker", so the frames go out attacker-then-blocker
-   * even though the pointer travelled the other way. `isBlockAssignment` is
-   * where the argument that this is Forge's own condition lives.
-   *
-   * …unless Forge has ALREADY made that attacker the current one, which it
-   * says by HIGHLIGHTING it (`setCurrentAttacker`, `InputBlock.java:190-197` —
-   * and its constructor auto-selects the first blockable attacker before the
-   * input is even shown). Then the attacker's click would be a no-op and the
-   * gesture is one frame, which is what `../combat-drag.jvm.test.ts` measured
-   * against a real Forge. So the wire carries the clicks Forge still needs and
-   * not one more: two when the player pointed at a DIFFERENT attacker, one when
-   * they pointed at the one Forge was already on.
-   */
-  if (source !== null && target.kind === 'card' && isBlockAssignment(match, source, target.id)) {
-    const attacker = { kind: 'card' as const, id: target.id };
-    if (isMarked(match, attacker)) { selectCard(match, source); return; }
-    if (!selectCard(match, target.id)) return;
-    // the blocker's click waits for Forge to make the attacker current: see `afterMarked`
-    afterMarked(match, attacker, () => selectCard(match, source));
-    return;
-  }
   /*
    * Attacking by drag, and the other reversed order: `InputAttack` declares an
    * attacker against whichever defender is CURRENT, and a click on a defender

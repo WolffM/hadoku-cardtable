@@ -378,7 +378,7 @@ function blockArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
     for (const blockerId of blockerIds) {
       const source = cardBox(canvas, blockerId);
       if (source === null) continue;
-      out.push({ key: `block:${blockerId}:${attackerId}`, from: centreOf(source), to, kind: 'card' });
+      out.push({ key: `block:${blockerId}:${attackerId}`, from: centreOf(source), to, kind: 'card', role: 'block' });
     }
   }
   return out;

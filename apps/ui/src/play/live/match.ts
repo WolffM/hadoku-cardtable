@@ -1481,6 +1481,17 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
   );
 }
 
+/**
+ * A click on a board card's own face. `selectCard`, except on the seat's own
+ * creature while it blocks: blocking is by drag only, so that click never
+ * assigns a block — it takes the creature out of any block it is in
+ * (`removeBlock`).
+ */
+export function clickCard(match: LiveMatch, cardId: number): void {
+  if (ownBlocker(match, cardId)) removeBlock(match, cardId);
+  else selectCard(match, cardId);
+}
+
 /** Click a player: Forge's `selectPlayer`. Same rule as `selectCard`. */
 export function selectPlayer(match: LiveMatch, playerId: number): boolean {
   if (!boardInteraction(match).selectablePlayers.has(playerId)) return false;
@@ -2027,7 +2038,12 @@ export function isMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id
  * current before.
  */
 export function afterMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id: number }, then: () => void, timeoutMs = 2000): void {
-  if (isMarked(match, target)) { then(); return; }
+  afterState(match, () => isMarked(match, target), then, timeoutMs);
+}
+
+/** Run `then` once `ready()` holds — at once if it already does — and never if it has not within `timeoutMs`. */
+function afterState(match: LiveMatch, ready: () => boolean, then: () => void, timeoutMs = 2000): void {
+  if (ready()) { then(); return; }
   let done = false;
   const finish = (go: boolean): void => {
     if (done) return;
@@ -2036,28 +2052,100 @@ export function afterMarked(match: LiveMatch, target: { kind: 'card' | 'player';
     clearTimeout(timer);
     if (go) then();
   };
-  const unsubscribe = subscribe(match, () => { if (isMarked(match, target)) finish(true); });
+  const unsubscribe = subscribe(match, () => { if (ready()) finish(true); });
   const timer = setTimeout(() => finish(false), timeoutMs);
 }
 
-/**
- * Whether dragging `blocker` onto `attacker` is a block assignment — and so
- * whether the two `selectCard`s go out ATTACKER FIRST (§B.3).
- *
- * The order is `InputBlock`'s, not a preference: a click on an attacker sets
- * `currentAttacker`, and only the click AFTER that becomes its blocker
- * (`InputBlock.java:112-160`). Sending the blocker first would assign it to
- * whichever attacker Forge had auto-selected and then move the cursor to the
- * one the player actually pointed at — two right frames in the wrong order,
- * which is a wrong block.
- */
+/** Whether `attacker` is one this seat can drag a blocker onto while `InputBlock` runs, and `blocker` is its own. */
 export function isBlockAssignment(match: LiveMatch, blocker: number, attacker: number): boolean {
   const view = match.view;
   if (view === null) return false;
   const targets = blockTargets(match, view);
   if (targets === null || !targets.has(attacker)) return false;
-  const me = view.players.find((p) => p.isViewer);
-  return me !== undefined && me.battlefield.some((c) => c.id === blocker);
+  return ownBlocker(match, blocker);
+}
+
+/**
+ * `card` is on this seat's own battlefield while `InputBlock` runs for it (a
+ * current attacker is marked). Such a card blocks only by being dragged onto
+ * an attacker (`assignBlock`): a click on it never assigns a block, it takes
+ * the card out of whatever it blocks (`removeBlock`).
+ */
+export function ownBlocker(match: LiveMatch, card: number): boolean {
+  if (blockFocusOf(match) === null) return false;
+  return match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === card)) === true;
+}
+
+/** The attackers `blocker` is assigned to right now — the first attacker of each band whose planned blockers name it. */
+function attackersBlockedBy(match: LiveMatch, blocker: number): number[] {
+  const out: number[] = [];
+  for (const band of match.view?.combat ?? []) {
+    const attacker = band.attackers[0];
+    if (attacker !== undefined && (band.plannedBlockers ?? []).includes(blocker)) out.push(attacker);
+  }
+  return out;
+}
+
+/**
+ * One `InputBlock` click on `blocker` against `attacker`: the attacker first,
+ * unless Forge has already marked it current, then the blocker once it has.
+ *
+ * `InputBlock` takes the attacker first — a click on an attacking card sets
+ * `currentAttacker`, and the click AFTER it is applied to that attacker
+ * (`InputBlock.java:129-163`): it adds the blocker, or removes it when it
+ * already blocks that attacker. Its constructor auto-selects the first
+ * blockable attacker (`:59-68`) and marks it (`setCurrentAttacker`,
+ * `:190-197`), so when that is the one meant the blocker's click is all it
+ * takes. The blocker's click waits for the mark: Forge may apply two quick
+ * clicks in either order (`afterMarked`).
+ */
+function clickBlock(match: LiveMatch, attacker: number, blocker: number, then?: () => void): void {
+  const target = { kind: 'card' as const, id: attacker };
+  const blockerClick = (): void => {
+    if (selectCard(match, blocker)) then?.();
+  };
+  if (isMarked(match, target)) { blockerClick(); return; }
+  if (!selectCard(match, attacker)) return;
+  afterMarked(match, target, blockerClick);
+}
+
+/**
+ * Take `blocker` out of every block it is in, then run `then`: Forge's own
+ * undo (`InputBlock.java:134-146`, the blocker clicked with the attacker it
+ * blocks current), one attacker at a time. Each next step waits until Forge's
+ * combat no longer names the pair AND Forge offers the blocker again
+ * (`pushBlockerCandidates` after the undo), so a following click on it is
+ * not refused as stale.
+ */
+export function removeBlock(match: LiveMatch, blocker: number, then: () => void = () => {}): void {
+  const [attacker] = attackersBlockedBy(match, blocker);
+  if (attacker === undefined) { then(); return; }
+  clickBlock(match, attacker, blocker, () =>
+    afterState(
+      match,
+      () => !attackersBlockedBy(match, blocker).includes(attacker) && boardInteraction(match).selectable.has(blocker),
+      () => removeBlock(match, blocker, then),
+    ),
+  );
+}
+
+/**
+ * Block `attacker` with `blocker` — the drag. A creature already blocking
+ * something else is MOVED: Forge refuses a second block for a creature that
+ * cannot block more (`CombatUtil.canBlock` → `canBlockMoreCreatures`), so it
+ * is taken off first (`removeBlock`). One that can block another attacker is
+ * still offered by Forge as a candidate (`pushBlockerCandidates`,
+ * `PlayerControllerHuman.java:1621-1647`) and keeps its first block. A drop on
+ * the attacker it already blocks changes nothing.
+ */
+export function assignBlock(match: LiveMatch, blocker: number, attacker: number): void {
+  const current = attackersBlockedBy(match, blocker);
+  if (current.includes(attacker)) return;
+  if (current.length === 0 || match.weaklySelectable?.has(blocker) === true) {
+    clickBlock(match, attacker, blocker);
+    return;
+  }
+  removeBlock(match, blocker, () => clickBlock(match, attacker, blocker));
 }
 
 /** What `attackIntents` can say about a card this seat pointed at. */

@@ -47,12 +47,14 @@ describe('drawAutoTargetArrows', () => {
     const to1 = el({});
     const to2 = el({});
     drawAutoTargetArrows(box, [
-      { key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card' },
-      { key: 'b', from: { x: 0, y: 0 }, to: to2, kind: 'player' },
+      { key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card', role: 'attack' },
+      { key: 'b', from: { x: 0, y: 0 }, to: to2, kind: 'player', role: 'block' },
     ]);
     const arrows = [...box.querySelectorAll('[data-testid="stack-target-arrow"]')];
     expect(arrows).toHaveLength(2);
     expect(arrows.map((a) => a.getAttribute('data-key')).sort()).toEqual(['a', 'b']);
+    // An attack and a block are told apart by `data-role`, which the stylesheet colours.
+    expect(arrows.map((a) => `${a.getAttribute('data-key')}:${a.getAttribute('data-role')}`).sort()).toEqual(['a:attack', 'b:block']);
     for (const a of arrows) {
       expect(a.classList.contains('targeter--auto')).toBe(true);
       expect(a.querySelector('path')).not.toBeNull();
@@ -67,11 +69,11 @@ describe('drawAutoTargetArrows', () => {
     const to1 = el({});
     const to2 = el({});
     drawAutoTargetArrows(box, [
-      { key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card' },
-      { key: 'b', from: { x: 0, y: 0 }, to: to2, kind: 'player' },
+      { key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card', role: 'attack' },
+      { key: 'b', from: { x: 0, y: 0 }, to: to2, kind: 'player', role: 'block' },
     ]);
     const kept = box.querySelector('[data-testid="stack-target-arrow"][data-key="a"]');
-    drawAutoTargetArrows(box, [{ key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card' }]);
+    drawAutoTargetArrows(box, [{ key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card', role: 'attack' }]);
     const arrows = [...box.querySelectorAll('[data-testid="stack-target-arrow"]')];
     expect(arrows).toHaveLength(1);
     expect(arrows[0]).toBe(kept);
@@ -80,7 +82,7 @@ describe('drawAutoTargetArrows', () => {
   it('draws nothing, and removes everything, once the spec list is empty', () => {
     const box = overlay();
     const to1 = el({});
-    drawAutoTargetArrows(box, [{ key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card' }]);
+    drawAutoTargetArrows(box, [{ key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card', role: 'attack' }]);
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(1);
     drawAutoTargetArrows(box, []);
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(0);
@@ -89,7 +91,7 @@ describe('drawAutoTargetArrows', () => {
   it('clearAutoTargetArrows takes every one away, and a null overlay is a no-op', () => {
     const box = overlay();
     const to1 = el({});
-    drawAutoTargetArrows(box, [{ key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card' }]);
+    drawAutoTargetArrows(box, [{ key: 'a', from: { x: 0, y: 0 }, to: to1, kind: 'card', role: 'attack' }]);
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(1);
     clearAutoTargetArrows(box);
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(0);
@@ -108,7 +110,7 @@ describe('combatArrows', () => {
     const pw = el({ 'data-board-card': '55' });
     const match = matchWithCombat([{ attackers: [10], defender: { kind: 'card', id: 55 } }]);
     const arrows = combatArrows(document.body, match);
-    expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: pw, kind: 'card' }]);
+    expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: pw, kind: 'card', role: 'attack' }]);
     expect(arrows[0]!.to).toBe(pw);
   });
 
@@ -117,7 +119,7 @@ describe('combatArrows', () => {
     const face = el({ 'data-player-face': '', 'data-player-id': '1' });
     const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 } }]);
     const arrows = combatArrows(document.body, match);
-    expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: face, kind: 'player' }]);
+    expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: face, kind: 'player', role: 'attack' }]);
   });
 
   it('draws one arrow per attacker in a multi-attacker band, all to the same defender', () => {
