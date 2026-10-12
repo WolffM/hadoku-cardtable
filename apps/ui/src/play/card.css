@@ -743,6 +743,12 @@
   }
 }
 
+/* An emphasised card is drawn over its neighbours, whose own shadows and rings it reaches. */
+.board-card[data-block-focus],
+.board-card[data-combat-ready] {
+  z-index: var(--z-card-raised, 1);
+}
+
 /* ── refused: Forge turned this card's play away ────────────────────────── */
 
 /*

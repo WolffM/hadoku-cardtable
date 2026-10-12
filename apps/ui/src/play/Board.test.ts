@@ -1199,7 +1199,9 @@ describe('the canvas is static', () => {
     expect(declarationIn('.zone__rows', 'flex-direction')).toBe('row');
     expect(declarationIn('.zone__row', 'flex')).toBe('0 1 var(--group-overhead)');
     expect(declarationIn('.zone__row[data-empty]', 'flex')).toBe('0 0 var(--group-empty-w)');
-    expect(declarationIn('.zone__row', 'overflow')).toBe('hidden');
+    // A lane clips, but a card's emphasis may paint `--emphasis-room` past it — and it never scrolls.
+    expect(declarationIn('.zone__row', 'overflow')).toBe('clip');
+    expect(declarationIn('.zone__row', 'overflow-clip-margin')).toBe('var(--emphasis-room)');
     // The two things that appear mid-game are out of flow, so neither can
     // push a track when it does.
     expect(declarationIn('.board__warn', 'position')).toBe('absolute');

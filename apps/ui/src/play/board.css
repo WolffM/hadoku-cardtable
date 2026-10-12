@@ -106,8 +106,9 @@
  * is its own measured box, so `--zone-h` there is the lane's height, which is
  * the whole slot's.
  *
- * A lane clips: a hover lift or a selectable card's ring may not spill into the
- * lane beside it, and it may certainly not make the zone scroll.
+ * A lane clips, `--emphasis-room` out from its edge: a card's emphasis (its
+ * combat-ready growth and shadow, a ring) paints over the lane beside it rather
+ * than being cut, and nothing in a lane can make the zone scroll.
  *
  * ## Hand and battlefield are different places
  *
@@ -882,12 +883,30 @@
   /* One line of the 9px lane label (12.6px). */
   --row-head-h: 0.8rem;
   --row-head-gap: 2px;
+  /*
+   * How far a card's emphasis paints past its resting box (`card.css`), and so past the edge of the
+   * lane or tier it rests against. The most is a combat-ready card wearing the can-act glow, above
+   * it: 6% of the tallest card (`--card-max` · `--card-tall`, 10px) grown upward, 4px of lift and
+   * the 13px glow at 1.06×. Sideways it is 3.6px of growth and the same glow; below, the glow or
+   * the 17px drop shadow less the lift; the block focus is 12px all round. A plain length, because
+   * Chromium drops an `overflow-clip-margin` written as `calc()` to 0px (measured).
+   */
+  --emphasis-room: 28px;
 
   gap: 4px;
   /* The right pad is the overlays' (`--right-gutter`, on the shared rule above). */
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
   background: var(--bg);
+  /*
+   * The operator: a creature ready to attack *"get[s] clipped by the field boundaries … let's make
+   * sure they can be on top."* No resting box here may grow to make that room, so the paint gets it
+   * instead: `clip` lets a card's emphasis reach `--emphasis-room` past the battlefield, over the
+   * seat around it, and unlike the shared rule's `auto` it is no scroll container, so nothing it
+   * draws there can make the battlefield scroll.
+   */
+  overflow: clip;
+  overflow-clip-margin: var(--emphasis-room);
 }
 
 /*
@@ -940,8 +959,9 @@
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--line-soft);
-  /* A hover lift may not spill into the lane beside it, or make the zone scroll. */
-  overflow: hidden;
+  /* A card's emphasis paints over the lane beside it; a lane never scrolls (the battlefield's own rule). */
+  overflow: clip;
+  overflow-clip-margin: var(--emphasis-room);
 }
 
 .zone__row:first-child {
@@ -1062,8 +1082,8 @@
  * then just its face's — height alone. A grid row sized to that (and, on the
  * single layout's own tier, `align-content: center`ing the shorter row)
  * leaves less room below the row's top than the fan needs to extend into, so
- * the deepest member's painted bottom can run past the tier — onto the
- * battlefield's own `overflow: auto` (the "last resort", above).
+ * the deepest member's painted bottom can run past the tier — and is cut at
+ * the battlefield's own clip edge.
  *
  * This is the zone's SIZING, this file's job even where the box belongs to
  * one card (`card.css`'s own header: "how ONE card looks... is `card.css`;

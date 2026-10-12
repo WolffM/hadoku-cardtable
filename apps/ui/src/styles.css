@@ -105,6 +105,7 @@
    */
   --z-board: 0;
   --z-card-badge: 1;
+  --z-card-raised: 1; /* an emphasised card, over the cards beside it */
   --z-overlay: 20; /* rail, controls, the stack */
   --z-popover: 40; /* prompts, dialogs, menus */
   --z-zoom: 60; /* the hover zoom: above everything, the control bar and prompts included */
