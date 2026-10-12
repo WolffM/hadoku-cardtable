@@ -1467,7 +1467,87 @@ public final class PlayBridge {
             final JsonObject f = notify("setWeaklySelectable");
             f.add("cards", refs(cards));
             offerFacts(f, cards);
+            castForbidden(f);
             frame(f);
+        }
+
+        /**
+         * {@code castForbidden}: the cards this seat holds that an effect forbids it to cast — a
+         * {@code CantBeCast} static (Reflector Mage's effect, Silence's, Meddling Mage's), asked the
+         * way {@code StaticAbilityCantBeCast.cantBeCastAbility} asks it when a cast begins and the
+         * fork's {@code AvailableActions.passesRestrictions} asks it for the highlight: of the spell
+         * as it would stand on the stack. Not mana, not timing — a card is named only when a static
+         * says no. Each entry names the static's source (the card that made an effect, not the
+         * effect) and, for an effect, Forge's own {@code Duration} and the player it is counted from.
+         *
+         * Read with the game thread parked on the input that pushed the set, as {@link #offerFacts}
+         * reads. A failure omits the field, which the browser reads as "unchanged".
+         */
+        private void castForbidden(final JsonObject f) {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            if (mine == null) { return; }
+            try {
+                final List<forge.game.staticability.StaticAbility> statics = new ArrayList<>();
+                for (final forge.game.card.Card c : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
+                    for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                        if (st.checkConditions(forge.game.staticability.StaticAbilityMode.CantBeCast)) { statics.add(st); }
+                    }
+                }
+                final JsonArray out = new JsonArray();
+                final java.util.Set<Integer> seen = new java.util.HashSet<>();
+                final List<forge.game.card.Card> held = new ArrayList<>(mine.getCardsIn(ZoneType.Hand));
+                held.addAll(mine.getCardsIn(ZoneType.Flashback));
+                for (final forge.game.card.Card c : held) {
+                    if (!seen.add(c.getId())) { continue; }
+                    final forge.game.staticability.StaticAbility by = forbiddenBy(c, mine, statics);
+                    if (by == null) { continue; }
+                    final forge.game.card.Card host = by.getHostCard();
+                    final forge.game.card.Card source = host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host;
+                    final JsonObject o = new JsonObject();
+                    o.add("card", ref("card", c.getId()));
+                    o.addProperty("source", source.getName());
+                    if (host.isImmutable()) {
+                        final SpellAbility made = host.getEffectSourceAbility();
+                        final String duration = made == null ? null : made.getParamOrDefault("Duration", "EndOfTurn");
+                        if (duration != null && !"Permanent".equals(duration)) {
+                            o.addProperty("duration", duration);
+                            o.add("durationPlayer", ref("player", host.getController().getId()));
+                        }
+                    }
+                    out.add(o);
+                }
+                f.add("castForbidden", out);
+            } catch (final RuntimeException e) {
+                System.err.println("[bridge] castForbidden: could not read the cast restrictions (" + e + "); the hand keeps its last marks");
+            }
+        }
+
+        /** The {@code CantBeCast} static that forbids every spell of {@code c} to {@code mine}, or null. */
+        private static forge.game.staticability.StaticAbility forbiddenBy(final forge.game.card.Card c, final forge.game.player.Player mine,
+                                                                          final List<forge.game.staticability.StaticAbility> statics) {
+            forge.game.staticability.StaticAbility first = null;
+            boolean any = false;
+            for (final SpellAbility sa : c.getSpells()) {
+                any = true;
+                sa.setActivatingPlayer(mine);
+                final forge.game.card.Card onStack = forge.game.card.CardCopyService.getLKICopy(c);
+                onStack.setLKICMC(-1);
+                onStack.setLastKnownZone(mine.getGame().getStackZone());
+                onStack.setCastFrom(c.getZone());
+                onStack.setCastSA(sa);
+                final List<forge.game.staticability.StaticAbility> mineToo = new ArrayList<>(statics);
+                for (final forge.game.staticability.StaticAbility st : onStack.getStaticAbilities()) {
+                    if (st.checkConditions(forge.game.staticability.StaticAbilityMode.CantBeCast)) { mineToo.add(st); }
+                }
+                forge.game.staticability.StaticAbility by = null;
+                for (final forge.game.staticability.StaticAbility st : mineToo) {
+                    if (forge.game.staticability.StaticAbilityCantBeCast.applyCantBeCastAbility(st, sa, onStack, mine)) { by = st; break; }
+                }
+                if (by == null) { return null; }
+                if (first == null) { first = by; }
+            }
+            return any ? first : null;
         }
 
         /**

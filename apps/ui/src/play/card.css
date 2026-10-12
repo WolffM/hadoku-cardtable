@@ -1360,3 +1360,23 @@ button.face__hit:focus-visible .seat__ring {
 .card.card-back {
   --card-back-w: 100%;
 }
+
+/*
+ * A held card an effect forbids its owner to cast (Reflector Mage's, Silence's):
+ * greyed by a veil over the face — a layer OVER the image, never a filter ON it,
+ * for the reason the sickness hatch gives. Its tooltip (`tip/index.ts`) names
+ * the effect's card and how long.
+ */
+.board-card[data-cast-forbidden] > .board-card__face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-card-badge, 1);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  pointer-events: none;
+}
+
+.board-card[data-cast-forbidden] > .board-card__face > .card {
+  isolation: isolate;
+}

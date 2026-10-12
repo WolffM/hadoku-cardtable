@@ -3703,8 +3703,8 @@ describe('§A.15 — a card’s state is drawn', () => {
    * moon' and 'Urborg tomb of yawgmoth' change the types of cards … put one
    * of our overlay pills over the type bar."* Replaces wave 35's corner mark
    * (same fact, a pill now): the pill's own visible text is the CURRENT type
-   * line, and its `title` — the same native hover surface
-   * `.board-card__chosen-type` already relies on — carries the PRINTED one.
+   * line, and its `data-tip` — the board's one tooltip (`tip/index.ts`) —
+   * carries the PRINTED one.
    */
   it('a changed permanent (R15) wears a pill over the type bar: current type visible, printed type on hover', () => {
     const state = withState({ changedFrom: { name: 'Wasteland', printed: 'Land' } });
@@ -3713,7 +3713,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     const pill = card(container).querySelector<HTMLElement>('.board-card__type-pill')!;
     expect(pill, 'the pill is drawn').not.toBeNull();
     expect(pill.textContent, 'the visible text is the CURRENT type line').toBe(currentTypeLine);
-    expect(pill.title, 'the printed line is on the title — the native hover surface').toBe('Land');
+    expect(pill.dataset.tip, 'the printed line is in the tooltip').toBe('Printed as Land');
     // No corner mark duplicates the same fact any more (wave 35's was dropped
     // in favour of this pill).
     expect(
@@ -5110,9 +5110,9 @@ describe('wave 33 §B', () => {
     const poison = theirBar.querySelector<HTMLElement>('[data-counter="poison"]')!;
     // Wave 34 §B: the GLYPH is abbreviated (`--counts-h` cannot grow without
     // moving the graveyard, `e2e/table-fit.spec.ts`'s Q9/Q2 column check) —
-    // the full word is not gone, it moved to `title`/`aria-label`.
+    // the full word is not gone, it moved to the tooltip and `aria-label`.
     expect(poison.textContent).toBe('P7');
-    expect(poison.getAttribute('title')).toBe('7 poison');
+    expect(poison.dataset.tip).toBe('7 poison');
     expect(poison.getAttribute('aria-label')).toBe('7 poison');
     // The viewer's own seat was never given any and shows none.
     expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
@@ -5148,7 +5148,7 @@ describe('wave 33 §B', () => {
  * above, in "P2 / Q9"); what changed instead is the counter's OWN glyph:
  * `PLAYER_COUNTER_ABBREV` (`Board.tsx`) draws `P7`, `E3`, `XP5` — short
  * enough that all three share hand+library's second line rather than each
- * claiming one of their own. The word itself is not gone: `title` and
+ * claiming one of their own. The word itself is not gone: `data-tip` and
  * `aria-label` still carry it in full (asserted on the wave 33 §B case above,
  * which this design also has to keep passing).
  *
@@ -5189,7 +5189,7 @@ describe('wave 34 §B', () => {
     expect(new Set(glyphs).size, `the three glyphs ${JSON.stringify(glyphs)} must be pairwise distinct`).toBe(3);
   });
 
-  it('item 1: a seat with poison, energy and experience all non-zero draws all five marks (hand, library, and the three player counters), each with the full word in title and aria-label', () => {
+  it('item 1: a seat with poison, energy and experience all non-zero draws all five marks (hand, library, and the three player counters), each with the full word in the tooltip and aria-label', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = deltaKey(WireType.Player, 1);
     const them = state.get(key)!;
@@ -5211,7 +5211,7 @@ describe('wave 34 §B', () => {
     expect(theirBar.querySelector('[data-testid="library-count"]')).not.toBeNull();
     const counters = [...theirBar.querySelectorAll<HTMLElement>('.seat__counter')];
     expect(counters.map((c) => c.textContent).sort()).toEqual(['E3', 'P7', 'XP5']);
-    expect(counters.map((c) => c.getAttribute('title')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
+    expect(counters.map((c) => c.getAttribute('data-tip')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
     expect(counters.map((c) => c.getAttribute('aria-label')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
     // Still inside the SAME box as the hand/library counts (item 1's brief:
     // "stay inside their column") — not promoted to a track of its own.
@@ -5274,7 +5274,7 @@ describe('wave 36 §B — T7: a card with ChosenType wears a small label', () =>
     expect(label.textContent).toBe('Elf');
     // The full rules text stays the inspector's: this label names only the
     // word, not a second copy of the oracle text the hover already shows.
-    expect(label.getAttribute('title')).toBe('Elf');
+    expect(label.dataset.tip).toBe('Chosen type: Elf');
   });
 
   it('the label is out of flow and takes no click, like the rest of the state layer', () => {

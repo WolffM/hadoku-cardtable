@@ -4,7 +4,13 @@
  *
  * ## The baseline
  *
- * Re-recorded for `CardTile` drawing Forge's LIVE `AbilityText` in place of
+ * Re-recorded for the board's tooltip (`../tip/index.ts`): every mark now
+ * carries its words in `data-tip`. The fixture's only marks are its three
+ * creatures' P/T badges, so 39282 -> 39378, +96, and the three attributes are
+ * exactly that: ` data-tip="Power 5, toughness 5"`, `…2, toughness 2"` and
+ * `…1, toughness 3"`, 32 characters each, counted off the rendered markup.
+ *
+ * Before that, re-recorded for `CardTile` drawing Forge's LIVE `AbilityText` in place of
  * the printed `OracleText` when the two differ; see `../adapter.ts`'s
  * `BoardCard.abilityText` and `../../components/CardTile.tsx`'s `liveText`.
  * Not owned by the change that moved it, but the pin is a mechanical
@@ -562,8 +568,8 @@ import { fixtureFrames, startReplayServer, until, type ReplayServer } from './re
 // Re-recorded again: a tag is only for a keyword the card was not printed with.
 // Fire Urchin's Trample is printed (its `OracleText` keyword line), so the tag
 // above is gone — 39430 -> 39282, back to exactly 1fa565ae….
-const BASELINE_SHA256 = '1fa565aeec186307f7f405656e67c8fbbd3730da18b61d81f3c6c1b85673e67b';
-const BASELINE_LENGTH = 39282;
+const BASELINE_SHA256 = '7ca131f01ade1477af43092fef2f899da4ee33579f72c46c84aee6ac0b2d7385';
+const BASELINE_LENGTH = 39378;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

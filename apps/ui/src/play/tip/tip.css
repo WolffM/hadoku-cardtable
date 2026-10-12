@@ -1,0 +1,19 @@
+/*
+ * The board's tooltip (`index.ts`): a small capsule in the theme's raised
+ * surface, at the pointer, over everything on the board — the inspector's layer
+ * (`--z-zoom`), drawn after it — and never the element under the pointer.
+ */
+.board-tip {
+  position: absolute;
+  z-index: var(--z-zoom, 60);
+  max-width: 16rem;
+  padding: 4px 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px var(--shadow);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+}

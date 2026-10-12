@@ -274,7 +274,7 @@ test(titled('T7 — Cavern of Souls shows the creature type it named, on the car
     const label = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] .board-card__chosen-type');
     await expect(label, 'Cavern of Souls draws its chosen type on the card').toBeVisible();
     await expect(label, 'the type drawn is the one picked').toHaveText('Goblin');
-    await expect(label, 'the full value is on the title attribute too (hover text)').toHaveAttribute('title', 'Goblin');
+    await expect(label, 'the full value is in its tooltip too').toHaveAttribute('data-tip', 'Chosen type: Goblin');
   } finally {
     await stack.stop();
   }

@@ -51,7 +51,7 @@ test(titled('T1 — Urborg, Tomb of Yawgmoth: a Plains wears a pill reading its 
     const typePill = pill(plains);
     await expect(typePill, 'Urborg’s AddType$ Swamp changed the Plains — the pill is drawn').toBeVisible({ timeout: 30_000 });
     await expect(typePill, 'visible text: the CURRENT type line (Swamp added alongside Plains)').toHaveText('Basic Land — Plains Swamp');
-    await expect(typePill, 'hover text (the title attribute): the PRINTED type line').toHaveAttribute('title', 'Basic Land — Plains');
+    await expect(typePill, 'its tooltip: the PRINTED type line').toHaveAttribute('data-tip', 'Printed as Basic Land — Plains');
   } finally {
     await stack.stop();
   }
@@ -72,7 +72,7 @@ test(titled('T2 — Magus of the Moon: a nonbasic land wears a pill reading Land
       timeout: 30_000,
     });
     await expect(typePill, 'visible text: the CURRENT type line (Mountain, replacing whatever it had)').toHaveText('Land — Mountain');
-    await expect(typePill, 'hover text (the title attribute): the PRINTED type line').toHaveAttribute('title', 'Land');
+    await expect(typePill, 'its tooltip: the PRINTED type line').toHaveAttribute('data-tip', 'Printed as Land');
 
     // Magus of the Moon itself is unaffected — the effect names "nonbasic
     // lands", not the creature making it happen.

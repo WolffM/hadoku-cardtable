@@ -380,6 +380,24 @@ export const SetWeaklySelectableSchema = z.strictObject({
    * Augur of Skulls in its controller's upkeep. Battlefield only.
    */
   phaseRestricted: z.array(CardRefSchema).optional(),
+  /**
+   * Ours: the cards this seat holds that an effect forbids it to cast (a
+   * `CantBeCast` static — Reflector Mage's effect, Silence's), read by the
+   * bridge the way Forge refuses the cast. `source` is the card that made the
+   * effect; `duration` is Forge's own `Duration` word, counted from
+   * `durationPlayer`, when the static is a temporary effect. Absent when the
+   * bridge could not read them.
+   */
+  castForbidden: z
+    .array(
+      z.strictObject({
+        card: CardRefSchema,
+        source: z.string(),
+        duration: z.string().optional(),
+        durationPlayer: PlayerRefSchema.optional(),
+      }),
+    )
+    .optional(),
 });
 
 /** `void restoreOldZones(PlayerView playerView, PlayerZoneUpdates playerZoneUpdates)` — IGuiGame.java:263. */

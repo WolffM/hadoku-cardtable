@@ -79,7 +79,7 @@ const cardIdLabels = (page: Page): Promise<string[]> =>
     for (const el of Array.from(document.querySelectorAll('*'))) {
       const text = el.textContent?.trim() ?? '';
       if (el.children.length === 0 && re.test(text)) out.push(`<${el.tagName.toLowerCase()} class="${el.getAttribute('class') ?? ''}"> ${text}`);
-      for (const attr of ['aria-label', 'title', 'alt']) {
+      for (const attr of ['aria-label', 'title', 'alt', 'data-tip']) {
         const v = el.getAttribute(attr)?.trim() ?? '';
         if (re.test(v)) out.push(`<${el.tagName.toLowerCase()} ${attr}="${v}">`);
       }

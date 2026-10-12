@@ -397,6 +397,8 @@ import {
   type PTState,
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
+import { mountTips } from './tip/index.ts';
+import { keywordTip, MARK_TIP } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
@@ -505,6 +507,13 @@ export interface BoardInteraction {
    * **Absent means nothing refused.**
    */
   refused?: { card: number; seq: number };
+  /**
+   * The held cards an effect forbids this seat to cast (Reflector Mage's,
+   * Silence's — the bridge's `castForbidden`), each with the words its tooltip
+   * says. Not mana, not timing: only a `CantBeCast` static puts a card here.
+   * **Absent means none.**
+   */
+  castForbidden?: ReadonlyMap<number, string>;
   /**
    * Item 17.2 — *"when playing a card, it should get put in the 'decision
    * area' and the arrow should draw from there."* The id of the hand card
@@ -1816,7 +1825,7 @@ function Loyalty({ entry }: { entry: BoardCard }) {
   const loyalty = Number(entry.card.loyalty);
   if (!Number.isFinite(loyalty)) return null;
   return (
-    <span className="board-card__pt" data-pt="loyalty" aria-label={`loyalty ${loyalty}`}>
+    <span className="board-card__pt" data-pt="loyalty" aria-label={`loyalty ${loyalty}`} data-tip={`Loyalty ${loyalty}`}>
       <span className="board-card__pt-n" data-pt-of="loyalty">
         {loyalty}
       </span>
@@ -1872,6 +1881,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
         data-pt=""
         data-damage={entry.damage}
         aria-label={`${entry.damage} damage marked`}
+        data-tip={`${entry.damage} damage marked`}
       >
         <span className="board-card__pt-n" data-pt-state="hurt" data-pt-of="damage">
           <span aria-hidden="true">{PT_MARK.hurt}</span>
@@ -1894,6 +1904,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
       {value}
     </span>
   );
+  const said = `${say('power', pt.power, pt.powerState)}, ${say('toughness', pt.toughness, pt.toughnessState)}`;
   return (
     <span
       className="board-card__pt"
@@ -1901,7 +1912,8 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
       /* Damage, on the badge that carries it — the badge itself reads hurt, so a
          damaged creature is visible before anyone reads the two numbers. */
       data-damage={pt.damage > 0 ? pt.damage : undefined}
-      aria-label={`${say('power', pt.power, pt.powerState)}, ${say('toughness', pt.toughness, pt.toughnessState)}`}
+      aria-label={said}
+      data-tip={said.charAt(0).toUpperCase() + said.slice(1)}
     >
       {number(pt.power, pt.powerState, 'power')}
       <span aria-hidden="true">/</span>
@@ -2004,7 +2016,7 @@ function StateMarks({ entry }: { entry: BoardCard }) {
   return (
     <ul className="board-card__marks" aria-label={`${entry.card.name} status`}>
       {marks.map((mark) => (
-        <li key={mark} className="board-card__mark" data-mark={mark}>
+        <li key={mark} className="board-card__mark" data-mark={mark} data-tip={MARK_TIP[mark]}>
           <svg className="board-card__mark-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path d={MARK_ART[mark]} />
           </svg>
@@ -2057,7 +2069,13 @@ function Counters({
       aria-label={`${entry.card.name} counters: ${ordered.map((c) => `${c.count} ${c.name}`).join(', ')}`}
     >
       {ordered.map((c) => (
-        <li key={c.name} className="board-card__counter" data-counter={counterKind(c.name)} data-count={c.count}>
+        <li
+          key={c.name}
+          className="board-card__counter"
+          data-counter={counterKind(c.name)}
+          data-count={c.count}
+          data-tip={`${c.count} ${c.name} counter${Math.abs(c.count) === 1 ? '' : 's'}`}
+        >
           <span aria-hidden="true">{counterFace(c)}</span>
         </li>
       ))}
@@ -2083,7 +2101,7 @@ function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
   const chosenType = entry.chosenType;
   if (chosenType === null || chosenType === undefined) return null;
   return (
-    <span className="board-card__chosen-type" title={chosenType}>
+    <span className="board-card__chosen-type" data-tip={`Chosen type: ${chosenType}`}>
       {chosenType}
     </span>
   );
@@ -2101,7 +2119,7 @@ function KeywordTags({ entry }: { entry: BoardCard }) {
   return (
     <ul className="board-card__keywords" aria-label={`${entry.card.name} keywords: ${tags.join(', ')}`}>
       {tags.map((tag) => (
-        <li key={tag} className="board-card__keyword" data-keyword={tag.toLowerCase()}>
+        <li key={tag} className="board-card__keyword" data-keyword={tag.toLowerCase()} data-tip={keywordTip(tag)}>
           {tag}
         </li>
       ))}
@@ -2122,9 +2140,8 @@ function KeywordTags({ entry }: { entry: BoardCard }) {
  * the same fact). The pill's own visible text is the CURRENT type line —
  * Forge's words, read live, exactly as `CardTile`'s own (art-covered)
  * `.card__type` would draw it — so a glance says what the permanent IS now;
- * hovering it (the `title`, the same mechanism `ChosenTypeLabel` and the
- * counters already use — there is no second, custom hover surface here, only
- * the one native one) says what it was PRINTED as.
+ * hovering it (its `data-tip`, the board's one tooltip, `tip/index.ts`) says
+ * what it was PRINTED as.
  *
  * Positioned over the type bar — roughly where `CardTile`'s own `.card__type`
  * sits, just under the name row — rather than in a free corner: the marks
@@ -2135,7 +2152,7 @@ function TypePill({ entry }: { entry: BoardCard }) {
   const changed = entry.changedFrom;
   if (changed == null) return null;
   return (
-    <span className="board-card__type-pill" title={changed.printed}>
+    <span className="board-card__type-pill" data-tip={`Printed as ${changed.printed}`}>
       {entry.card.typeLine}
     </span>
   );
@@ -2280,6 +2297,8 @@ function CardOnBoard({
    */
   const pileFan = pileSize === undefined || pileSize <= 1 ? 0 : Math.min(pileSize - 1, MAX_FAN_DEPTH) * STACK_STEP;
   const copies = pile === undefined ? null : copiesIn(pile);
+  /** An effect forbids casting this held card (`BoardInteraction.castForbidden`): drawn greyed, and its tip says why. */
+  const forbidden = onBattlefield ? undefined : interaction?.castForbidden?.get(entry.id);
 
   return (
     <li
@@ -2312,6 +2331,8 @@ function CardOnBoard({
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
       data-library-top={libraryTop || undefined}
+      data-cast-forbidden={forbidden === undefined ? undefined : ''}
+      data-tip={forbidden}
       data-refused={interaction?.refused?.card === entry.id ? (interaction.refused.seq % 2 === 0 ? 'even' : 'odd') : undefined}
       /* Forge says this card is attached to something: not the player's doing. */
       data-attached={(entry.attachedToId ?? null) !== null || undefined}
@@ -2380,7 +2401,7 @@ function CardOnBoard({
         )}
       </button>
       {picked && (
-        <span className="board-card__picked" aria-hidden="true">
+        <span className="board-card__picked" aria-hidden="true" data-tip="Picked">
           <svg className="board-card__picked-art" viewBox="0 0 16 16" focusable="false">
             <path d="M6 10.8 3.2 8 2.3 8.9 6 12.7 14 4.7 13.1 3.7Z" />
           </svg>
@@ -2400,7 +2421,7 @@ function CardOnBoard({
        */}
       <Relations entry={entry} />
       {copies !== null && (
-        <span className="board-card__copies" data-copies={copies}>
+        <span className="board-card__copies" data-copies={copies} data-tip={`${copies} copies of ${entry.card.name}`}>
           ×{copies}
         </span>
       )}
@@ -2972,7 +2993,7 @@ function playerCounterAbbrev(name: string): string {
  * — a gap that tracks `--counts-h` itself, not how much of it the counters
  * fill — so growing the track to fit a longer word moved the graveyard
  * (measured: 46.3px of "nothing but a pile's own margin", GAP_MAX 32). The
- * word, in full, is still here: in `title` for a pointer and `aria-label` for
+ * word, in full, is still here: in `data-tip` for a pointer and `aria-label` for
  * everything else — nothing about the counter's MEANING is abbreviated, only
  * its glyph.
  */
@@ -2986,7 +3007,7 @@ function PlayerCounters({ player }: { player: BoardPlayer }) {
           key={c.name}
           className="seat__counter"
           data-counter={c.name.toLowerCase()}
-          title={`${c.count} ${c.name.toLowerCase()}`}
+          data-tip={`${c.count} ${c.name.toLowerCase()}`}
           aria-label={`${c.count} ${c.name.toLowerCase()}`}
         >
           {playerCounterAbbrev(c.name)}
@@ -3525,6 +3546,12 @@ export function Board({
     const el = root.current;
     if (el === null) return undefined;
     return mountInspector(el);
+  }, []);
+  /* The marks' tooltip (`tip/index.ts`), booted the same way. */
+  useEffect(() => {
+    const el = root.current;
+    if (el === null) return undefined;
+    return mountTips(el);
   }, []);
 
   /*

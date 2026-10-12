@@ -464,6 +464,13 @@ export interface LiveButtons {
   enable2: boolean;
 }
 
+/** Why a held card may not be cast: the card whose effect forbids it, and for how long (Forge's `Duration`, counted from `durationPlayer`). */
+export interface CastForbidden {
+  readonly source: string;
+  readonly duration?: string;
+  readonly durationPlayer?: number;
+}
+
 export interface LiveMatch {
   readonly matchId: string;
   /** From the snapshot. Null until one lands. */
@@ -563,6 +570,13 @@ export interface LiveMatch {
    * battlefield lands.
    */
   weaklySelectableManaOnly: ReadonlySet<number> | null;
+  /**
+   * The cards this seat holds that an effect forbids it to cast, by id, from
+   * the bridge's `castForbidden` on the last `setWeaklySelectable` that carried
+   * it. Kept through `clearWeaklySelectable`: the effect outlasts the window,
+   * and the next set replaces it. Null when the bridge has not said.
+   */
+  castForbidden: ReadonlyMap<number, CastForbidden> | null;
   /**
    * The CARDS Forge's current input has marked, from `setHighlighted` — folded,
    * because that frame is incremental: `on: true` adds, `on: false` removes
@@ -856,6 +870,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     selectables: null,
     weaklySelectable: null,
     weaklySelectableManaOnly: null,
+    castForbidden: null,
     highlighted: null,
     highlightedPlayers: null,
     says: [],
@@ -2342,6 +2357,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.selectables = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
+  match.castForbidden = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
   // The log, like the asks: the server re-sends its kept says after the
@@ -2657,6 +2673,11 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // `undefined` (the bridge could not classify) stays `null`, never an
     // empty set — see the field's own note on `LiveMatch`.
     match.weaklySelectableManaOnly = frame.manaOnly === undefined ? null : new Set(frame.manaOnly.map((c) => c.id));
+    if (frame.castForbidden !== undefined) {
+      match.castForbidden = new Map(
+        frame.castForbidden.map((f) => [f.card.id, { source: f.source, duration: f.duration, durationPlayer: f.durationPlayer?.id }]),
+      );
+    }
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'finishGame') {
     match.finished = true;
@@ -2728,6 +2749,7 @@ function discardLocal(match: LiveMatch): void {
   match.selectables = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
+  match.castForbidden = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
   match.says = [];

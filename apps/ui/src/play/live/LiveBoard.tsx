@@ -325,6 +325,7 @@ import { StopPhaseSchema, type StopPhase } from './transport.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
+import { castForbiddenTip } from '../tip/words.ts';
 import './live.css';
 import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
 
@@ -955,6 +956,14 @@ function logKind(line: string): LogKind {
 /** Reused so `interaction.actionable` allocates nothing when there is no glow to draw. */
 const EMPTY_CARD_IDS: ReadonlySet<number> = new Set();
 
+/** The held cards an effect forbids this seat to cast, each with what its tooltip says. */
+function castForbiddenTips(match: LiveMatch): ReadonlyMap<number, string> | undefined {
+  if (match.castForbidden === null || match.castForbidden.size === 0) return undefined;
+  const players = match.view?.players ?? [];
+  const viewer = players[0]?.id ?? null;
+  return new Map([...match.castForbidden].map(([id, why]) => [id, castForbiddenTip(why, players, viewer)]));
+}
+
 /**
  * Every id on a battlefield, either seat. This is `classifySelection`'s
  * (`../prompts/index.ts`, lane P's) own `boardCardIds` — "every id the board
@@ -1367,6 +1376,7 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
               data-group-start={i === 0 || rows[i - 1]!.group !== group ? '' : undefined}
               aria-current={current ? 'step' : undefined}
               data-stop={marked ? '' : undefined}
+              data-tip={marked ? 'Your stop: the game waits for you at this step' : undefined}
               data-stoppable={target === null ? undefined : ''}
               onClick={target === null ? undefined : () => onStop?.(marked ? null : target)}
             >
@@ -2238,6 +2248,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      */
     actionable: offered.selectionOpen ? EMPTY_CARD_IDS : offered.selectable,
     refused: match.refused ?? undefined,
+    castForbidden: spectator ? undefined : castForbiddenTips(match),
     /*
      * The operator, Playtest 10: *"hard to tell when i have a card selected
      * because the background for all cards is green."* Forge's own
