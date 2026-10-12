@@ -1,0 +1,74 @@
+{
+ "commit": "112836fe",
+ "subject": "forge pin: Nykthos",
+ "files": [
+  {
+   "filename": "apps/server/src/play/scenario-nykthos.jvm.test.ts",
+   "status": "added",
+   "patch": "@@ -0,0 +1,69 @@\n+/**\n+ * The operator's frozen match, 2026-10-11 (m-34ad8755db4d): \"can't play nykthos?\". Seat 1 played\n+ * Nykthos, Shrine to Nyx, Forge was answered \"Play land\", and then sent nothing again. Its stderr held\n+ * the reason:\n+ *\n+ *   NullPointerException: ... \"SpellAbility.getManaPart()\" is null\n+ *     at forge.ai.AvailableActions.canAffordWithManaRocks(AvailableActions.java:222)\n+ *     ... PlayerControllerHuman.chooseSpellAbilityToPlay ... PhaseHandler.mainGameLoop\n+ *\n+ * Nykthos's second ability (`AB$ ChooseColor | Cost$ 2 T | SubAbility$ DBMana`) is a mana ability\n+ * whose mana part lives on its sub-ability, so its own `getManaPart()` is null. The actionable sweep\n+ * (which only decides what the board highlights) read it as a mana rock and threw on the game thread,\n+ * which ended the game for both seats.\n+ *\n+ * Both ways in are covered: playing Nykthos (the operator's exact sequence), and a first priority\n+ * window with Nykthos already in play. Each must come back with a live priority window.\n+ *\n+ *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=… \\\n+ *   pnpm exec vitest run apps/server/src/play/scenario-nykthos.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true\n+ */\n+\n+import { describe, expect, it } from 'vitest';\n+\n+import { available, castNamed, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';\n+\n+const title = available.ok\n+\t? 'Nykthos, Shrine to Nyx does not stop the game, against real Forge'\n+\t: `Nykthos, Shrine to Nyx does not stop the game, against real Forge — SKIPPED: ${available.reason}`;\n+\n+const DECKS: [string, string] = [deck('Nyx A', ['40 Forest']), deck('Nyx B', ['40 Mountain'])];\n+\n+/** Forge's own stderr for the crash, if it was printed: the reason a frozen game froze. */\n+function crashOf(s: Scenario): string | undefined {\n+\treturn s.logs.map((l) => JSON.stringify(l)).find((l) => l.includes('NullPointerException') || l.includes('getManaPart'));\n+}\n+\n+describe.skipIf(!available.ok)(title, () => {\n+\tit('playing Nykthos lands it and gives seat 0 its next priority window', async () => {\n+\t\tif (!available.ok) return;\n+\t\tconst s = await startScenario(available.config, { seed: 4242, decks: DECKS, scenario: scenarioText('nykthos') });\n+\t\ttry {\n+\t\t\tawait finishMulligan(s);\n+\t\t\tawait waitUntil(() => {\n+\t\t\t\ts.answerAsks();\n+\t\t\t\treturn inOwnMain(s, 0, 1);\n+\t\t\t}, \"seat 0's first priority window\", 60_000, s);\n+\t\t\tawait castNamed(s, 0, 'Nykthos, Shrine to Nyx');\n+\t\t\texpect(s.zone(0, 'Battlefield').some((c) => c.name === 'Nykthos, Shrine to Nyx'), crashOf(s)).toBe(true);\n+\t\t\texpect(inOwnMain(s, 0, 1), 'still seat 0’s main phase, with priority').toBe(true);\n+\t\t} finally {\n+\t\t\tawait s.stop();\n+\t\t}\n+\t}, 150_000);\n+\n+\tit('a first priority window with Nykthos already in play arrives', async () => {\n+\t\tif (!available.ok) return;\n+\t\tconst s = await startScenario(available.config, { seed: 4243, decks: DECKS, scenario: scenarioText('nykthos-in-play') });\n+\t\ttry {\n+\t\t\tawait finishMulligan(s);\n+\t\t\tawait waitUntil(() => {\n+\t\t\t\ts.answerAsks();\n+\t\t\t\treturn inOwnMain(s, 0, 1);\n+\t\t\t}, \"seat 0's first priority window\", 60_000, s);\n+\t\t\texpect(s.zone(0, 'Battlefield').some((c) => c.name === 'Nykthos, Shrine to Nyx')).toBe(true);\n+\t\t} finally {\n+\t\t\tawait s.stop();\n+\t\t}\n+\t}, 150_000);\n+});\n"
+  },
+  {
+   "filename": "apps/server/src/play/scenarios/nykthos-in-play.state",
+   "status": "added",
+   "patch": "@@ -0,0 +1,15 @@\n+# The same crash from the other side: Nykthos already on the battlefield and a card seat 0 cannot pay for\n+# in hand. The very first priority window's actionable sweep walked Nykthos's colour ability and threw.\n+turn=1\n+activeplayer=human\n+activephase=MAIN1\n+humanlife=20\n+ailife=20\n+humanhand=Arbor Colossus\n+humanbattlefield=Nykthos, Shrine to Nyx;Forest\n+humanlibrary=Forest;Forest;Forest;Forest\n+humangraveyard=\n+aihand=\n+aibattlefield=\n+ailibrary=Mountain;Mountain;Mountain;Mountain\n+aigraveyard=\n"
+  },
+  {
+   "filename": "apps/server/src/play/scenarios/nykthos.state",
+   "status": "added",
+   "patch": "@@ -0,0 +1,18 @@\n+# The operator's frozen match (m-34ad8755db4d, 2026-10-11): seat 0 holds Nykthos, Shrine to Nyx and a\n+# card it cannot pay for, a Forest on the battlefield, Main Phase 1. Playing Nykthos used to kill the\n+# game thread: the actionable sweep (`AvailableActions.canAffordWithManaRocks`) read Nykthos's\n+# \"{2},{T}: Choose a color …\" ability as a mana ability with a mana cost, and its mana part is null\n+# (the Mana effect is its sub-ability), so `getManaPart().isComboMana()` threw and Forge never spoke again.\n+turn=1\n+activeplayer=human\n+activephase=MAIN1\n+humanlife=20\n+ailife=20\n+humanhand=Nykthos, Shrine to Nyx;Arbor Colossus\n+humanbattlefield=Forest\n+humanlibrary=Forest;Forest;Forest;Forest\n+humangraveyard=\n+aihand=\n+aibattlefield=\n+ailibrary=Mountain;Mountain;Mountain;Mountain\n+aigraveyard=\n"
+  },
+  {
+   "filename": "forge",
+   "status": "modified",
+   "patch": "@@ -1 +1 @@\n-Subproject commit 09aeb16402f7ee050da651fd8c3488761f1d2e50\n+Subproject commit 6e9517c7dd76a6892385076ccefe14410248c99f\n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "b0485e7e4a369fc6446fa8dfbfb11f8ee4a2ef3e",
+    "files": [
+     "apps/server/src/play/match.test.ts",
+     "apps/server/src/play/match.ts",
+     "apps/server/src/play/offer-telemetry.jvm.test.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "112836fed3e1d0b5188411cc2c657b3605a333a2",
+    "files": [
+     "apps/server/src/play/scenario-nykthos.jvm.test.ts",
+     "apps/server/src/play/scenarios/nykthos-in-play.state",
+     "apps/server/src/play/scenarios/nykthos.state",
+     "forge"
+    ],
+    "touched": {
+     "apps/server/src/play/scenario-nykthos.jvm.test.ts": [
+      "title",
+      "DECKS",
+      "crashOf"
+     ],
+     "apps/server/src/play/scenarios/nykthos-in-play.state": [],
+     "apps/server/src/play/scenarios/nykthos.state": [],
+     "forge": []
+    }
+   },
+   {
+    "sha": "bb5bc9a159722591b9cb6f9174315c8e0a30264c",
+    "files": [
+     ".github/workflows/forge.yml",
+     "scripts/ci/fixtures/auto-update-wolffm.json",
+     "scripts/ci/fixtures/chrome-divider-css.json",
+     "scripts/ci/fixtures/flashback-gestures.json",
+     "scripts/ci/fixtures/modal-arrows-bridge.json",
+     "scripts/ci/fixtures/prompt-sheet.json",
+     "scripts/ci/fixtures/sfx-round5.json",
+     "scripts/ci/select-forge-tests.test.ts",
+     "scripts/ci/select-forge-tests.ts",
+     "scripts/land.sh"
+    ],
+    "touched": {}
+   }
+  ]
+ }
+}

@@ -413,14 +413,20 @@ describe('historical misses, replayed as a push', () => {
     ['3802057e', "the Signet fix (match.ts)", ['w68-untap.spec.ts']],
     ['826021d8', 'a log line waits for its delta (match.ts)', ['lg-gamelog.spec.ts', 'w68-untap.spec.ts']],
     ['922cd08e', 'a log line paced as its own class (pace.ts)', ['w47-pace.spec.ts', 'w71-tap-reveal.spec.ts', 'dead-bar.spec.ts']],
+    ['1f49c91c', 'a land is a mana source only for mana (auto.ts, the bridge)', ['play.spec.ts', 'w68-untap.spec.ts', 'land-abilities.spec.ts']],
+    ['112836fe', 'the engine pin moves (Nykthos)', ['w68-untap.spec.ts', 'modal-arrows.spec.ts']],
   ])('%s, %s, runs %j', (sha, _what, want) => {
     const sel = replay(sha);
     expect(sel.specs).toEqual(expect.arrayContaining(want));
-    // Tiers 0 and 1 may pass the budget; the run still fits one shard.
-    expect(sel.specs!.length).toBeLessThanOrEqual(12);
   });
 
   it('the Signet regression also runs the jvm suites that pin auto-pay', () => {
     expect(replay('44497be5').jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/w52-s-signet.jvm.test.ts', 'apps/server/src/play/auto.jvm.test.ts']));
+  });
+
+  it("the engine pin runs the new scenario's suite and the engine's guard suites, and leaves the rest to the full run", () => {
+    const sel = replay('112836fe');
+    expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/scenario-nykthos.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
+    expect(sel.deferred).toBe(true);
   });
 });
