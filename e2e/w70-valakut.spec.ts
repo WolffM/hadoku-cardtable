@@ -8,11 +8,13 @@
  *   3. "i prefer a bit of random placement rather than stacking all the valakut triggers in the same spot"
  *   4. "it had me select a target, why is it asking me again 'Do you want to deal 3 damage to [Bella]?'"
  *
+ * And, 2026-10-11: "identical-effect triggers the order doesn't matter, it should be answered for us."
+ *
  * `w70-valakut.state`: alice casts Splendid Reclamation; six Mountains return at once and Valakut
  * triggers six times. At her first target question both screens already draw all six chips, the one
  * being asked about marked, scattered round Valakut inside the board. She ticks "same target for all"
  * and clicks bob once: that covers all six. Nothing asks "Do you want to deal 3 damage" afterwards, and
- * bob ends at 2.
+ * bob ends at 2. No `order` question reaches alice's wire or her screen on the way.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -61,6 +63,12 @@ async function overlayBox(page: Page): Promise<{ x: number; y: number; width: nu
 const line = (cs: readonly Chip[]): string => cs.map((c) => `${c.id}@${c.x},${c.y}${c.current ? '*' : ''}${c.pending ? '~' : ''}`).join(' ');
 
 /** Seat 0's target prompts on the wire (what alice's browser was asked), from `from` on. */
+/** Seat 0's `order` asks: what Forge sent, and what reached alice's wire. */
+const orderRows = (stack: { serverLogFile: string }, from: number, evt: 'forge-frame' | 'wire-frame'): Row[] =>
+  serverLog(stack)
+    .slice(from)
+    .filter((r) => r.evt === evt && r.seat === 0 && r.method === 'order');
+
 const wiredTargets = (stack: { serverLogFile: string }, from: number): Row[] =>
   serverLog(stack)
     .slice(from)
@@ -83,12 +91,19 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
     let lastSays = '';
     await clickHandCard(alice.page, reclamation!);
 
-    // Pay, pass bob's window, take Forge's order of the six (each names its own Mountain, so Forge
-    // asks), until alice's first target question is up.
+    // Pay, pass bob's window, until alice's first target question is up. An order question drawn on the
+    // way is answered (so the rest still runs) and counted.
+    const ordersDrawn: string[] = [];
     await expect
       .poll(
         async () => {
           await pressPaymentAuto(alice.page);
+          const order = alice.page.locator('[data-testid="live-prompt"][data-method="order"]');
+          if ((await order.count()) > 0) {
+            const text = (await order.first().innerText().catch(() => '')).replace(/\s+/g, ' ').trim().slice(0, 200);
+            ordersDrawn.push(text);
+            console.log(`[w70-valakut] order drawn: "${text}"`);
+          }
           const answered = await answerPrompt(alice.page);
           if (answered !== null) console.log(`[w70-valakut] alice answered ${answered.method}`);
           const ok = bob.page.locator('[data-testid="live-decision-ok"]:enabled');
@@ -161,6 +176,11 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
     console.log(`[w70-valakut] target picks ${picks}, target prompts wired ${wiredTargets(stack, fromCast).length}; "Do you want to deal" asked by Forge ${dealAsked.length}, wired ${dealWired.length}, drawn ${deals}`);
     expect.soft(picks, 'one target pick covered all six triggers').toBe(1);
     expect.soft(dealWired.length, 'no "Do you want to deal 3 damage" reached alice after she chose the target').toBe(0);
+
+    const autoOrders = log.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'order').map((r) => String(r.why));
+    console.log(`[w70-valakut] order asks: Forge ${orderRows(stack, fromCast, 'forge-frame').length}, wired ${orderRows(stack, fromCast, 'wire-frame').length}, drawn ${ordersDrawn.length}; answered for alice: ${JSON.stringify(autoOrders)}`);
+    expect.soft(orderRows(stack, fromCast, 'wire-frame').length, "no order question reached alice's wire").toBe(0);
+    expect.soft(ordersDrawn, "no order question was drawn on alice's screen").toEqual([]);
   } finally {
     await stack.stop();
   }
