@@ -33,7 +33,7 @@ function drawn(el: HTMLElement, x: number, y: number): HTMLElement {
 
 describe('handoverData', () => {
   it('measures the stand-in against its replacement: rounded centres, the distance, how far into the glide, and since the release and the stack frame', () => {
-    expect(handoverData(facts, false, 1_200)).toEqual({
+    expect(handoverData(facts, ['placed'], 1_200)).toEqual({
       screen: 'receiver',
       how: 'stack',
       motion: true,
@@ -49,13 +49,13 @@ describe('handoverData', () => {
       msSinceRelease: 300,
       msSinceStackFrame: 50,
     });
-    expect(handoverData(facts, true, 1_000 + GLIDE_MS).glideDone, 'a glide of GLIDE_MS is done').toBe(true);
+    expect(handoverData(facts, ['placed'], 1_000 + GLIDE_MS).glideDone, 'a glide of GLIDE_MS is done').toBe(true);
   });
 
   it('leaves out what is not known — no stand-in drawn, no glide, no stack frame — and stays a valid client event', () => {
-    const data = handoverData({ ...facts, how: 'motion-off', from: null, glideStartedAt: null, stackFrameAt: null }, false, 1_200);
+    const data = handoverData({ ...facts, how: 'motion-off', from: null, glideStartedAt: null, stackFrameAt: null }, ['zone:battlefield'], 1_200);
     expect(data).toEqual({ screen: 'receiver', how: 'motion-off', motion: true, doubled: false, card: 121, toX: 454, toY: 280, msSinceRelease: 300 });
-    expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'landing', data: handoverData(facts, true, 1_200) }).success, 'within the schema’s 16 flat fields').toBe(true);
+    expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'landing', data: handoverData(facts, ['zone:battlefield', 'placed', 'back'], 1_200) }).success, 'within the schema’s 16 flat fields').toBe(true);
     expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'handover', data }).success).toBe(true);
   });
 });
@@ -101,7 +101,7 @@ describe('reportHandover', () => {
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(report).toHaveBeenCalledTimes(1);
     expect(report.mock.calls[0]![0]).toBe('landing');
-    expect(report.mock.calls[0]![1]).toMatchObject({ screen: 'caster', how: 'swap', card: 121, doubled: true, toX: 454, toY: 280 });
+    expect(report.mock.calls[0]![1]).toMatchObject({ screen: 'caster', how: 'swap', card: 121, doubled: true, copies: 'placed,ghost', toX: 454, toY: 280 });
   });
 
   it('sends nothing without a reporter', () => {

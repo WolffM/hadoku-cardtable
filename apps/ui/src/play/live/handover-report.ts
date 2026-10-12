@@ -52,23 +52,36 @@ function shown(el: Element): boolean {
 }
 
 /**
- * How many copies of `card` are drawn and visible right now: its own element in a zone, its
- * placed stack card, the caster's stand-in (`data-cast-ghost`), and the receiver's back or
- * travelling copy (these carry no id; one play is in flight on that screen at a time).
+ * Which copies of `card` are drawn and visible right now, one name each: its own element in a
+ * zone (`zone:<zone>`), its placed stack card (`placed`), the caster's stand-in (`ghost`), and
+ * the receiver's back or travelling copy (`back`, `handoff` — these carry no id; one play is in
+ * flight on that screen at a time).
  */
-export function visibleCopies(root: ParentNode, card: number): number {
-  const copies = [
-    ...root.querySelectorAll(`[data-zone] [data-board-card="${card}"]`),
-    ...root.querySelectorAll(`[data-placed-card="${card}"]`),
-    ...root.querySelectorAll(`[data-cast-ghost="${card}"]`),
-    ...root.querySelectorAll('.presence__back[data-waiting], .presence__handoff'),
+export function drawnCopies(root: ParentNode, card: number): string[] {
+  const at = (el: Element): string => {
+    const c = drawnCentreOf(el);
+    return c === null ? '' : `@${Math.round(c.x)},${Math.round(c.y)}`;
+  };
+  const named = (selector: string, name: (el: Element) => string): string[] => [...root.querySelectorAll(selector)].filter(shown).map(name);
+  return [
+    ...named(`[data-zone] [data-board-card="${card}"]`, (el) => `zone:${el.closest('[data-zone]')?.getAttribute('data-zone') ?? ''}`),
+    ...named(`[data-placed-card="${card}"]`, () => 'placed'),
+    ...named(`[data-cast-ghost="${card}"]`, () => 'ghost'),
+    ...named('.presence__back[data-waiting]', (el) => `back${at(el)}`),
+    ...named('.presence__handoff', (el) => `handoff${at(el)}`),
   ];
-  return copies.filter(shown).length;
+}
+
+/** How many copies of `card` are drawn and visible right now (`drawnCopies`). */
+export function visibleCopies(root: ParentNode, card: number): number {
+  return drawnCopies(root, card).length;
 }
 
 /** The event's fields: flat, rounded, and only the ones known (a null is left out). */
-export function handoverData(f: HandoverFacts & { readonly to: Point | null }, doubled: boolean, now = Date.now()): Record<string, string | number | boolean> {
+export function handoverData(f: HandoverFacts & { readonly to: Point | null }, copies: readonly string[], now = Date.now()): Record<string, string | number | boolean> {
+  const doubled = copies.length > 1;
   const data: Record<string, string | number | boolean> = { screen: f.screen, how: f.how, motion: f.motion, doubled };
+  if (doubled) data.copies = copies.join(',').slice(0, 80);
   if (f.card !== null) data.card = f.card;
   if (f.from !== null) {
     data.fromX = Math.round(f.from.x);
@@ -97,8 +110,8 @@ export function reportHandover(report: Report | undefined, kind: ReportKind, roo
   if (report === undefined) return;
   const now = Date.now();
   requestAnimationFrame(() => {
-    const doubled = facts.card !== null && visibleCopies(root, facts.card) > 1;
+    const copies = facts.card === null ? [] : drawnCopies(root, facts.card);
     const to = facts.to instanceof Element ? drawnCentreOf(facts.to) : facts.to;
-    report(kind, handoverData({ ...facts, to }, doubled, now));
+    report(kind, handoverData({ ...facts, to }, copies, now));
   });
 }
