@@ -6,10 +6,17 @@
  *     own pace.** Operator: *"only when 'end turn' is clicked."* The rail's phase
  *     changes are timestamped in the page, so the gap measured is the one a person
  *     watching would see.
- *  2. **An avatar change reaches the board (Q6).** The watchparty picker saves into
- *     the prefs SDK's write-through cache (`prefs-cache:<user>:watchparty`); the page
- *     writes that row the way the SDK does, and BOTH boards must redraw that seat's
- *     face within a few seconds, with no reload.
+ *  2. **A player who never picked a character still has one, and an avatar change
+ *     reaches the board (Q6).** The operator, 2026-10-11: *"just had a game with
+ *     'rhomancer' and they had no avatar selected. in watchparty there is logic to
+ *     auto-select an avatar we should probably port that into the generic
+ *     functionality as well."* Alice and bob are fresh browsers with no saved avatar
+ *     anywhere; the room gives each a character on joining, not the same one, and
+ *     both boards draw both faces with it (`[w32 avatar]` lines). Then the watchparty
+ *     picker saves into the prefs SDK's write-through cache
+ *     (`prefs-cache:<user>:watchparty`); the page writes that row the way the SDK
+ *     does, and BOTH boards must redraw that seat's face within a few seconds, with
+ *     no reload.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`) like
  * `play.spec.ts`; without one each test SKIPS and its title says why. Serves the
@@ -27,7 +34,7 @@
  * reaches it.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
@@ -194,9 +201,18 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
   }
 });
 
-/* ── 2. an avatar change reaches the board ───────────────────────────── */
+/* ── 2. an avatar given on joining, and an avatar change, reach the board ─ */
 
-test(titled('changing the saved avatar mid-match redraws that seat\'s face on both boards, with no reload (Q6)'), async ({ browser }) => {
+const PREFIX = '/cardtable';
+
+/** Their sprite server, stood in for by a disc so no image bytes enter this repo. */
+const SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="42" fill="#70a0d0"/></svg>`;
+
+const ownFace = (f: Friend): Locator => f.page.locator('[data-player-face][data-viewer]');
+const theirFace = (f: Friend): Locator => f.page.locator('[data-player-face]:not([data-viewer])');
+
+
+test(titled('a player with no saved avatar is given one on joining a room, two such players get different ones, and changing the saved avatar mid-match redraws that seat\'s face on both boards, with no reload (Q6)'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -204,7 +220,42 @@ test(titled('changing the saved avatar mid-match redraws that seat\'s face on bo
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
-    await enterMatch(alice, bob, stack.origin);
+    for (const f of [alice, bob]) {
+      await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
+    }
+    const { roomUrl } = await enterMatch(alice, bob, stack.origin);
+    const roomId = /#\/room\/(r-[0-9a-f]{12})$/.exec(roomUrl)?.[1];
+    if (roomId === undefined) throw new Error(`no room id in ${roomUrl}`);
+
+    const res = await alice.context.request.get(`${stack.origin}${PREFIX}/api/rooms/${roomId}`);
+    expect(res.ok(), `the room answers (${res.status()})`).toBe(true);
+    const members = ((await res.json()) as { members: { name: string; avatarId?: string }[] }).members;
+    for (const m of members) console.log(`[w32 avatar] room ${roomId} member ${m.name} avatarId=${m.avatarId ?? '(none)'}`);
+    expect(members, 'both players are in the room').toHaveLength(2);
+    for (const m of members) expect(m.avatarId, `${m.name} was given an avatar on joining`).toBeTruthy();
+    expect(members[0]!.avatarId, 'the two players were given different avatars').not.toBe(members[1]!.avatarId);
+
+    // Member names are the edge's user ids, not the friends' names, so each face
+    // is checked against the room's set and against the other screen's drawing of it.
+    const given = new Set(members.map((m) => m.avatarId));
+    const drawn = async (face: Locator): Promise<string | null> => face.getAttribute('data-avatar', { timeout: 30_000 }).catch(() => null);
+    const faces: string[] = [];
+    for (const [f, other] of [
+      [alice, bob],
+      [bob, alice],
+    ] as const) {
+      const own = await drawn(ownFace(f));
+      const seen = await drawn(theirFace(other));
+      console.log(`[w32 avatar] ${f.name}'s face: on their screen data-avatar=${own ?? '(none)'}, on ${other.name}'s data-avatar=${seen ?? '(none)'}`);
+      if (own === null) throw new Error(`${f.name}'s own screen draws no avatar on their face`);
+      expect(given.has(own), `${f.name}'s face is one the room gave (${[...given].join(', ')})`).toBe(true);
+      await expect(theirFace(other), `${other.name}'s screen draws ${f.name}'s face with the same avatar`).toHaveAttribute('data-avatar', own);
+      for (const face of [ownFace(f), theirFace(other)]) {
+        await expect(face.getByTestId('seat-avatar'), `${f.name}'s face is that character's image`).toHaveAttribute('src', new RegExp(`square_${own}\\.png$`));
+      }
+      faces.push(own);
+    }
+    expect(faces[0], "alice's and bob's faces differ").not.toBe(faces[1]);
 
     // The chrome keys the SDK's cache by the userId it was handed. In this harness the page's
     // chrome runs as `anon` (measured: the only prefs-cache row on the page is
