@@ -365,19 +365,25 @@ export interface PlayStack {
 /** The longest a seat may hold a live server window with nothing on its screen to press. */
 export const DEAD_BAR_MAX_MS = 3_000;
 
+type LogRow = Record<string, unknown>;
+
+/** The server's structured lines (`{`-led JSON), in order. */
+function logRows(serverLogFile: string): LogRow[] {
+  if (!existsSync(serverLogFile)) return [];
+  return readFileSync(serverLogFile, 'utf8')
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .map((l) => JSON.parse(l) as LogRow);
+}
+
 /**
- * Every spec's dead-bar check, at its stack's `stop()`. The client reports `bar-stuck`
+ * Every spec's dead-bar check. The client reports `bar-stuck`
  * (`apps/ui/src/play/live/bar-hold.ts`) once a live server window has had nothing pressable
  * on its screen for `BAR_STUCK_MS`, and again when that ends; a seat stuck past
  * {@link DEAD_BAR_MAX_MS}, or still stuck when the log ends, fails the spec that ran it. The
  * server's own `window-resent` repairs are printed beside it.
  */
-function assertNoDeadBar(serverLogFile: string): void {
-  if (!existsSync(serverLogFile)) return;
-  const rows = readFileSync(serverLogFile, 'utf8')
-    .split('\n')
-    .filter((l) => l.startsWith('{'))
-    .map((l) => JSON.parse(l) as Record<string, unknown>);
+function deadBars(rows: readonly LogRow[]): string[] {
   const lastAt = rows.length === 0 ? 0 : Date.parse(String(rows.at(-1)!.t));
   for (const r of rows.filter((r) => r.evt === 'window-resent')) console.log(`[window-resent] ${JSON.stringify(r)}`);
   const stuck = rows.filter((r) => r.evt === 'client' && r.kind === 'bar-stuck');
@@ -387,7 +393,38 @@ function assertNoDeadBar(serverLogFile: string): void {
     const cleared = stuck.slice(i + 1).some((c) => c.phase === 'cleared' && c.seat === r.seat && c.matchId === r.matchId);
     return !cleared && Number(r.ms) + (lastAt - Date.parse(String(r.t))) > DEAD_BAR_MAX_MS;
   });
-  if (dead.length > 0) throw new Error(`a seat's live window had nothing pressable for over ${DEAD_BAR_MAX_MS} ms: ${dead.map((r) => JSON.stringify(r)).join(' ; ')}`);
+  return dead.length === 0 ? [] : [`a seat's live window had nothing pressable for over ${DEAD_BAR_MAX_MS} ms: ${dead.map((r) => JSON.stringify(r)).join(' ; ')}`];
+}
+
+/**
+ * An ask whose frame did not parse (`ask-unparsed`, `match.ts`: shown as a fallback pick or
+ * left open) or a trigger decision the server could not read (`trigger-decision-malformed`,
+ * `socket.ts`) is a prompt shape nothing was built for. Zero in all 422 stack logs of five
+ * full-shard evidence uploads (2026-10-12), so any one of them is the spec's red.
+ */
+function unreadAsks(rows: readonly LogRow[]): string[] {
+  const bad = rows.filter((r) => r.evt === 'ask-unparsed' || r.evt === 'trigger-decision-malformed');
+  return bad.length === 0 ? [] : [`the server could not read ${bad.length} ask(s) or decision(s): ${bad.map((r) => JSON.stringify(r)).join(' ; ')}`];
+}
+
+/**
+ * A hand-over or landing that left two copies of the card drawn (`handover-report.ts`
+ * `doubled`). Printed, not asserted: 11 of 584 such rows in those same 422 logs were
+ * doubled, so as a gate it would red about one spec in forty on a product fault no spec of
+ * its own is about. The rows are the evidence for whoever takes that fault on.
+ */
+function printDoubled(rows: readonly LogRow[]): void {
+  for (const r of rows) {
+    if (r.evt === 'client' && (r.kind === 'handover' || r.kind === 'landing') && r.doubled === true) console.log(`[handover-doubled] ${JSON.stringify(r)}`);
+  }
+}
+
+/** What every spec's stack checks at `stop()`, whatever the spec was about. */
+function assertStackInvariants(serverLogFile: string): void {
+  const rows = logRows(serverLogFile);
+  printDoubled(rows);
+  const broken = [...deadBars(rows), ...unreadAsks(rows)];
+  if (broken.length > 0) throw new Error(broken.join('\n'));
 }
 
 async function waitForHealth(server: ChildProcess): Promise<void> {
@@ -490,6 +527,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
    * `…"path":"/r-4270d944{"t":…`). A partial line is held until its newline
    * arrives, and flushed when its stream ends.
    */
+  /** Whoever is waiting on a line the server has not written yet — see {@link sparesWarm}. */
+  const lineWatchers = new Set<(line: string) => void>();
   const pipeLog = (proc: ChildProcess): void => {
     for (const stream of [proc.stdout, proc.stderr]) {
       if (stream === null) continue;
@@ -498,7 +537,10 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
       stream.on('data', (chunk: string) => {
         const lines = (held + chunk).split('\n');
         held = lines.pop() ?? '';
-        for (const line of lines) serverLog.write(`${line}\n`);
+        for (const line of lines) {
+          serverLog.write(`${line}\n`);
+          for (const watch of lineWatchers) watch(line);
+        }
       });
       stream.on('end', () => {
         if (held !== '') serverLog.write(`${held}\n`);
@@ -522,8 +564,44 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     await exited;
     clearTimeout(killed);
   };
+  /**
+   * Resolves on the server's own "the next match will not wait for a JVM" line: `spare-warm`
+   * (or `spare-disabled`, after which every match starts cold and there is nothing to wait
+   * for). Watched from the first byte, so the line cannot be missed.
+   *
+   * Why the stack waits on it: every stack is a fresh server, and `POST /api/play/matches`
+   * adopts the spare it is still booting and answers only once Forge is ready, so the
+   * request carried the whole JVM boot. That is 8.4–9.3 s on an idle claw and 15–19 s on a
+   * loaded one (run 38117429287, 61 stacks), and past ~19 s Playwright's 20 s request
+   * timeout cut it: the M4 `apiRequestContext.post: Timeout 20000ms` reds. Waiting here
+   * leaves the request the ~0.5 s it takes a warm spare to open a game.
+   */
+  const sparesWarm = (proc: ChildProcess): Promise<void> =>
+    new Promise<void>((resolveWarm, rejectWarm) => {
+      const done = (err?: Error): void => {
+        lineWatchers.delete(watch);
+        proc.off('exit', exited);
+        clearTimeout(cap);
+        if (err === undefined) resolveWarm();
+        else rejectWarm(err);
+      };
+      // The pool logs compact `JSON.stringify` lines (`host.ts` `defaultHostLog`).
+      const watch = (line: string): void => {
+        if (/"evt":"spare-(warm|disabled)"/.test(line)) done();
+      };
+      const exited = (): void => done(new Error(`the play server exited with ${String(proc.exitCode)} before its spare JVM was warm`));
+      // The server's own bound on a JVM start (`socket.ts`, `startTimeoutMs`): a spare that
+      // is not warm by then would fail the match it was adopted for anyway.
+      const cap = setTimeout(() => done(new Error('the play server\'s spare JVM was not warm within 60 s')), 60_000);
+      lineWatchers.add(watch);
+      proc.once('exit', exited);
+    });
   let server = launch();
   pipeLog(server);
+  const warm = sparesWarm(server);
+  // Awaited once the edge is up. Marked handled now, so a failure that lands before then
+  // is not reported as an unhandled rejection on top of the error the await rethrows.
+  warm.catch(() => undefined);
 
   let edge: Server | null = null;
   const reap = (): ReapedJvm[] => reapJvms(workDir);
@@ -572,12 +650,13 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     // Only now: while the server was up, the JVMs it means to keep are exactly
     // what this would have killed.
     if (options.reap !== false) reap();
-    assertNoDeadBar(serverLogFile);
+    assertStackInvariants(serverLogFile);
   };
 
   try {
     await waitForHealth(server);
     edge = await startEdge({ port: PLAY_EDGE_PORT, upstreamPort: PLAY_SERVER_PORT, secret });
+    await warm;
   } catch (err) {
     await stop();
     throw err;
