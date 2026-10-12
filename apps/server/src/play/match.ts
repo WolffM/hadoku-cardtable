@@ -107,7 +107,7 @@ import {
 	type TriggerDecision,
 	YIELDING,
 } from '@hadoku/forge-wire';
-import type { RememberedTrigger } from '@hadoku/shared';
+import type { RememberedTrigger, StopPhase } from '@hadoku/shared';
 
 import {
 	chosenCostConfirm,
@@ -352,6 +352,18 @@ export interface SeatState {
 	 * {@link fullControl}, never instead of it.
 	 */
 	autoYield: { turn: number; on: boolean } | null;
+	/**
+	 * The seat's one-shot stop ({@link Match.setPhaseStop}): its priority is held
+	 * at the next occurrence of `phase`, on either player's turn. `skipTurn` is the
+	 * turn whose occurrence does not count — the stop was set while the game was
+	 * already in that phase, so it is for the next one. Null is no stop.
+	 */
+	phaseStop: { phase: StopPhase; skipTurn: number | null } | null;
+	/**
+	 * The phase occurrence a stop fired in: every priority window of the seat in
+	 * it is kept, as full control would keep it, until the game leaves it.
+	 */
+	stopHeld: { turn: number | null; phase: StopPhase } | null;
 	/**
 	 * The optional triggers this seat told Forge to answer itself ("Always" on
 	 * the trigger's confirm), by Forge's storage key, oldest first. Forge holds
@@ -605,6 +617,8 @@ export interface MatchDeps {
 	 * with none (a unit suite) simply never tells anyone.
 	 */
 	seatsChanged?(seats: SeatIdentity[]): void;
+	/** A seat's stop ({@link Match.setPhaseStop}) was set, cleared or spent: the socket layer tells that seat's sockets. */
+	phaseStopChanged?(seat: number, phase: StopPhase | null): void;
 	/**
 	 * Forge said the game is over — `winner` and the seats' histories are final.
 	 * Not called for a game-over replayed into a resumed match: the server that
@@ -1042,6 +1056,8 @@ export class Match {
 			here: false,
 			fullControl: false,
 			autoYield: null,
+			phaseStop: null,
+			stopHeld: null,
 			triggerDecisions: new Map(),
 			// The starting value only — `setStopPolicy` still moves one seat at a
 			// time. Absent is production (`MatchDeps.stopPolicy`).
@@ -2413,6 +2429,55 @@ export class Match {
 	}
 
 	/**
+	 * Hold this seat's priority at the next occurrence of `phase`, on either
+	 * player's turn, once — or, with null, drop the stop it has. Set while the game
+	 * is in `phase`, it is for the phase's next occurrence. Untap and Cleanup are
+	 * not stops (`StopPhaseSchema`): Forge opens no window there to hold.
+	 */
+	setPhaseStop(seat: number, phase: StopPhase | null): ClientOutcome {
+		const s = this.seats[seat];
+		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		const was = s.phaseStop?.phase ?? null;
+		if (phase === was) return { ok: true };
+		const turn = s.projector.turnNumber();
+		if (phase === null) {
+			s.phaseStop = null;
+			this.deps.log({ evt: 'stop-cleared', matchId: this.id, seat, phase: was, why: 'player' });
+		} else {
+			const now = s.projector.phase();
+			s.phaseStop = { phase, skipTurn: now === phase ? turn : null };
+			this.deps.log({ evt: 'stop-set', matchId: this.id, seat, phase, turn, now, ...(was === null ? {} : { replaced: was }) });
+		}
+		this.deps.phaseStopChanged?.(seat, phase);
+		return { ok: true };
+	}
+
+	phaseStop(seat: number): StopPhase | null {
+		return this.seats[seat]?.phaseStop?.phase ?? null;
+	}
+
+	/**
+	 * Whether this seat's stop keeps the priority window in `facts`: the first one
+	 * at the stop's phase spends the stop, and every later one in that same
+	 * occurrence of the phase is kept too, as full control would keep it.
+	 */
+	private stopHolds(s: SeatState, facts: PromptFacts): boolean {
+		if (facts.window !== 'priority' || !facts.mine || !facts.confirmLive || facts.phase === null) return false;
+		const turn = s.projector.turnNumber();
+		if (s.stopHeld !== null) {
+			if (s.stopHeld.turn === turn && s.stopHeld.phase === facts.phase) return true;
+			s.stopHeld = null;
+		}
+		const stop = s.phaseStop;
+		if (stop === null || stop.phase !== facts.phase || (stop.skipTurn !== null && stop.skipTurn === turn)) return false;
+		s.phaseStop = null;
+		s.stopHeld = { turn, phase: stop.phase };
+		this.deps.log({ evt: 'stop-fired', matchId: this.id, seat: s.seat, phase: stop.phase, turn, myTurn: facts.myTurn });
+		this.deps.phaseStopChanged?.(s.seat, null);
+		return true;
+	}
+
+	/**
 	 * Give ONE seat its own stop preferences (wave 26 §E).
 	 *
 	 * A policy is a value (`auto.ts`), so this is an assignment and nothing more —
@@ -2660,6 +2725,8 @@ export class Match {
 		const gate = this.autoGateFacts(s);
 		if (gate === null) return false;
 		const { facts } = gate;
+		// The seat's own stop outranks every shortcut below, the yield included.
+		if (this.stopHolds(s, facts)) return false;
 		/*
 		 * The auto-yield override, read ahead of `decideStop`. Gated on
 		 * `decideStop`'s own entry guards plus one new condition, `!facts.myTurn`:
@@ -3275,10 +3342,12 @@ export interface MatchRegistry {
 	handOver(): { handed: Match[]; ending: Match[] };
 }
 
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'onGameOver'> & {
+export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
 	/** See {@link MatchDeps.seatsChanged}. */
 	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
+	/** See {@link MatchDeps.phaseStopChanged}. */
+	phaseStopChanged?(match: Match, seat: number, phase: StopPhase | null): void;
 	/** See {@link MatchDeps.onGameOver}. */
 	onGameOver?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
@@ -3294,6 +3363,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				...deps,
 				emit: (seat, envelope) => deps.emit(match, seat, envelope),
 				seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
+				phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
 				onGameOver: () => deps.onGameOver?.(match),
 			});
 			matches.set(id, match);
@@ -3315,6 +3385,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 					...deps,
 					emit: (seat, envelope) => deps.emit(match, seat, envelope),
 					seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
+					phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
 					onGameOver: () => deps.onGameOver?.(match),
 				},
 				{ epoch: record.epoch, owners: record.owners },

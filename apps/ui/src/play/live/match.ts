@@ -265,12 +265,15 @@ import {
   parseMatchRole,
   parseMatchSeats,
   parseServerEnvelope,
+  PhaseStopSchema,
+  phaseStopFrame,
   replyFrame,
   stopPreferenceFrame,
   triggerDecisionFrame,
   TriggerDecisionsSchema,
   type ClientEnvelope,
   type MatchSnapshot,
+  type StopPhase,
   type TransportIssue,
   type WireCursor,
 } from './transport.ts';
@@ -679,6 +682,12 @@ export interface LiveMatch {
    */
   autoYield: { turn: number; on: boolean } | null;
   /**
+   * This seat's one-shot stop at a phase, or null. The server holds it and
+   * clears it once spent: its word after every snapshot and every change, this
+   * client's own last word in between.
+   */
+  phaseStop: StopPhase | null;
+  /**
    * Every seat's identity, keyed by Forge PLAYER id — item 4 (wave 29 §A.6-8),
    * the render half. `seats[].playerId` is the join key `D-avatar-field.md` §2
    * traced (the same id `BoardPlayer.id` already is), and this map carries only
@@ -870,6 +879,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     fullControl: false,
     stopAtEndStep: false,
     autoYield: null,
+    phaseStop: null,
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -890,6 +900,13 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(MATCH_EVENTS.fullControl, (payload) => {
     adoptFullControl(match, payload);
+  });
+
+  match.transport.on(MATCH_EVENTS.phaseStop, (payload) => {
+    const parsed = PhaseStopSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.matchId !== match.matchId || parsed.data.phase === match.phaseStop) return;
+    match.phaseStop = parsed.data.phase;
+    notify(match);
   });
 
   match.transport.on(MATCH_EVENTS.triggerDecisions, (payload) => {
@@ -1056,6 +1073,18 @@ export function setAutoYield(match: LiveMatch, on: boolean): boolean {
   const turn = match.view?.turn ?? 0;
   match.transport.emit(MATCH_EVENTS.autoYield, autoYieldFrame(match.matchId, on));
   match.autoYield = { turn, on };
+  notify(match);
+  return true;
+}
+
+/**
+ * Set this seat's stop at `phase`'s next occurrence, or clear it with null, and
+ * tell the server. The phase rail's own sender. Optimistic, as `setFullControl`.
+ */
+export function setPhaseStop(match: LiveMatch, phase: StopPhase | null): boolean {
+  if (match.phaseStop === phase) return false;
+  match.transport.emit(MATCH_EVENTS.phaseStop, phaseStopFrame(match.matchId, phase));
+  match.phaseStop = phase;
   notify(match);
   return true;
 }

@@ -53,19 +53,24 @@ interface Harness {
 	logs: Record<string, unknown>[];
 }
 
-function harness(disconnectGraceMs?: number): Harness {
+/** Every `phaseStopChanged` the match made, in order. */
+type StopsTold = { seat: number; phase: string | null }[];
+
+function harness(disconnectGraceMs?: number): Harness & { stops: StopsTold } {
 	const { factory, hosts } = replayFactory();
 	const sent: Harness['sent'] = [];
 	const logs: Record<string, unknown>[] = [];
+	const stops: StopsTold = [];
 	const registry = createMatchRegistry({
 		host: factory,
 		log: (e) => logs.push(e),
 		overGraceMs: 60_000,
 		disconnectGraceMs,
 		emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
+		phaseStopChanged: (_match, seat, phase) => stops.push({ seat, phase }),
 	});
 	const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
-	return { match, host: hosts[0] as ReplayHost, sent, logs };
+	return { match, host: hosts[0] as ReplayHost, sent, logs, stops };
 }
 
 const TRANSCRIPT = loadTranscript();
@@ -2101,7 +2106,7 @@ describe("V7: the whole game's log, not just its last few lines", () => {
 describe('hold-decide-forward', () => {
 	const SEAT1_ID = 1;
 
-	function openedHarness(): Harness {
+	function openedHarness(): ReturnType<typeof harness> {
 		const h = harness();
 		h.host.push(...OPENING);
 		return h;
@@ -2504,6 +2509,114 @@ describe('hold-decide-forward', () => {
 	 * this seat's own prompt text, which `auto.ts`'s `TURN_OWNER` reads for a
 	 * different fact and only when this seat IS the one prompted.
 	 */
+	describe('a stop at a phase: held once, at the next occurrence, on either turn', () => {
+		function gameFrame(turn: number, phase: string) {
+			return {
+				kind: 'notify' as const,
+				method: 'applyDelta' as const,
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: {},
+						objectDeltas: {
+							[String(deltaKeyOf(TYPE.game, 1))]: {
+								_type: TYPE.game,
+								_id: 1,
+								Turn: { t: 'int', v: turn },
+								Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: phase },
+							},
+						},
+						events: [],
+					},
+				},
+			};
+		}
+		const actsSent = (h: Harness) => h.host.commands.filter((c) => c.t === 'act').length;
+		/** Seat 2's priority window in `phase` on `turn`, whoever's turn it is. */
+		function windowAt(h: Harness, turn: number, owner: 'Seat 1' | 'Seat 2', label: string, phase: string) {
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: gameFrame(turn, phase) },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, `Priority: Seat 2\nTurn: ${turn} (${owner})\nPhase: ${label}\nStack: Empty`) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label2: 'End Turn', enable2: true }) },
+			);
+		}
+		const stopLogs = (h: Harness) => h.logs.filter((l) => typeof l.evt === 'string' && ['stop-set', 'stop-fired', 'stop-cleared'].includes(l.evt));
+
+		it("keeps the seat's own end step the default passes, once, and tells the seat it is spent", () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(5, 'MAIN1') });
+			expect(h.match.setPhaseStop(SEAT1_ID, 'END_OF_TURN')).toEqual({ ok: true });
+			expect(h.match.phaseStop(SEAT1_ID)).toBe('END_OF_TURN');
+
+			const acts = actsSent(h);
+			windowAt(h, 5, 'Seat 2', 'End step', 'END_OF_TURN');
+			expect(actsSent(h), 'kept').toBe(acts);
+			expect(h.match.phaseStop(SEAT1_ID)).toBeNull();
+			// A second window in the same end step — after a spell resolved — is kept as well.
+			windowAt(h, 5, 'Seat 2', 'End step', 'END_OF_TURN');
+			expect(actsSent(h), 'still held').toBe(acts);
+			// The next own end step is the default's again.
+			windowAt(h, 7, 'Seat 2', 'End step', 'END_OF_TURN');
+			expect(actsSent(h), 'spent: passed').toBe(acts + 1);
+
+			expect(h.stops).toEqual([
+				{ seat: SEAT1_ID, phase: 'END_OF_TURN' },
+				{ seat: SEAT1_ID, phase: null },
+			]);
+			expect(stopLogs(h).map((l) => [l.evt, l.phase, l.turn])).toEqual([
+				['stop-set', 'END_OF_TURN', 5],
+				['stop-fired', 'END_OF_TURN', 5],
+			]);
+		});
+
+		it("set in the phase itself, it is for that phase's next occurrence — the other seat's turn", () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(5, 'UPKEEP') });
+			h.match.setPhaseStop(SEAT1_ID, 'UPKEEP');
+			const acts = actsSent(h);
+			windowAt(h, 5, 'Seat 2', 'Upkeep step', 'UPKEEP');
+			expect(actsSent(h), 'this upkeep is passed').toBe(acts + 1);
+			windowAt(h, 6, 'Seat 1', 'Upkeep step', 'UPKEEP');
+			expect(actsSent(h), "the other seat's upkeep is held").toBe(acts + 1);
+			expect(stopLogs(h).map((l) => [l.evt, l.phase, l.myTurn])).toEqual([
+				['stop-set', 'UPKEEP', undefined],
+				['stop-fired', 'UPKEEP', false],
+			]);
+		});
+
+		it('cleared before it fires, the phase is passed as ever', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(5, 'MAIN1') });
+			h.match.setPhaseStop(SEAT1_ID, 'END_OF_TURN');
+			h.match.setPhaseStop(SEAT1_ID, null);
+			const acts = actsSent(h);
+			windowAt(h, 5, 'Seat 2', 'End step', 'END_OF_TURN');
+			expect(actsSent(h)).toBe(acts + 1);
+			expect(stopLogs(h).map((l) => [l.evt, l.phase, l.why])).toEqual([
+				['stop-set', 'END_OF_TURN', undefined],
+				['stop-cleared', 'END_OF_TURN', 'player'],
+			]);
+			expect(h.stops.map((c) => c.phase)).toEqual(['END_OF_TURN', null]);
+		});
+
+		it("outranks the seat's own Auto Yield, and touches only its own seat", () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(6, 'MAIN1') });
+			h.match.setAutoYield(SEAT1_ID, true);
+			h.match.setPhaseStop(SEAT1_ID, 'END_OF_TURN');
+			expect(h.match.phaseStop(0)).toBeNull();
+			const acts = actsSent(h);
+			windowAt(h, 6, 'Seat 1', 'End step', 'END_OF_TURN');
+			expect(actsSent(h)).toBe(acts);
+		});
+	});
+
 	describe('the auto-yield override, read ahead of autoPassReason', () => {
 		function turnFrame(turn: number) {
 			return {

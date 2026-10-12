@@ -108,7 +108,9 @@ import {
 	parseClientEnvelope,
 	parseFullControl,
 	parseMatchRequest,
+	parsePhaseStop,
 	parseStopPreference,
+	phaseStopFrame,
 	parseTriggerDecision,
 	type MatchError,
 	type MatchSnapshot,
@@ -525,6 +527,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			// already carries (`forge:seats`), so the board and the chat agree again.
 			io.to(roomFor(match).roomId).emit(MATCH_EVENTS.seats, { matchId: match.id, seats });
 		},
+		// A seat's stop is its own: only the sockets bound to that seat hear it.
+		phaseStopChanged: (match, seat, phase) => {
+			const frame = phaseStopFrame(match.id, phase);
+			emitPerRecipient<PlayApp, PlayClient, typeof frame>(io, roomFor(match), MATCH_EVENTS.phaseStop, (client) => (client.app.seat === seat ? frame : SKIP), policy);
+		},
 		emit: (match, seat, envelope) => {
 			emitPerRecipient<PlayApp, PlayClient, typeof envelope>(
 				io,
@@ -796,6 +803,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * server's to settle.
 						 */
 						socket.emit(MATCH_EVENTS.fullControl, fullControlFrame(result.matchId, match.fullControl(result.seat)));
+						// And its stop, for the same reason: the server holds it, so a reload still draws it.
+						socket.emit(MATCH_EVENTS.phaseStop, phaseStopFrame(result.matchId, match.phaseStop(result.seat)));
 						// The seat's remembered trigger answers, for the same reason: Forge still holds them after a refresh.
 						socket.emit(MATCH_EVENTS.triggerDecisions, { matchId: result.matchId, decisions: match.triggerDecisions(result.seat) });
 						/*
@@ -905,6 +914,27 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			const outcome = match.setAutoYield(seat, parsed.value.on);
 			if (!outcome.ok) log({ evt: 'auto-yield-refused', participantId, matchId: match.id, seat, error: outcome.error });
+		});
+
+		// The seat's one-shot stop at a phase, same shape again: the seat is the claimed one.
+		socket.on(MATCH_EVENTS.phaseStop, (raw: unknown) => {
+			const parsed = parsePhaseStop(raw);
+			if (!parsed.ok) {
+				log({ evt: 'phase-stop-malformed', participantId, errors: parsed.errors.slice(0, 3) });
+				return;
+			}
+			const match = matches.get(parsed.value.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined) {
+				log({ evt: 'phase-stop-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'phase-stop' });
+				return;
+			}
+			const outcome = match.setPhaseStop(seat, parsed.value.phase);
+			if (!outcome.ok) log({ evt: 'phase-stop-refused', participantId, matchId: match.id, seat, error: outcome.error });
 		});
 
 		// An optional trigger's remembered answer, same shape again — the seat is the claimed one,

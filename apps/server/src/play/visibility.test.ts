@@ -585,3 +585,26 @@ describe('turnNumber', () => {
 		expect(projector.turnNumber()).toBe(14);
 	});
 });
+
+describe('phase', () => {
+	it('is the Game object’s own Phase constant — null until one arrives', () => {
+		const projector = createProjector(0);
+		expect(projector.phase()).toBeNull();
+		const game = keyOf(TYPE.game, 1);
+		projector.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: { [game]: { _type: TYPE.game, _id: 1 } },
+					objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'END_OF_TURN' } } },
+					events: [],
+				},
+			},
+		} as StateFrame);
+		expect(projector.phase()).toBe('END_OF_TURN');
+	});
+});

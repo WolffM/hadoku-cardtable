@@ -80,6 +80,9 @@ import {
   MatchRequestSchema,
   MatchSnapshotSchema,
   parseClientEnvelope,
+  PhaseStopSchema,
+  phaseStopFrame,
+  StopPhaseSchema,
   parseServerEnvelope as sharedParseServerEnvelope,
   SeqCursorSchema,
   ServerEnvelopeSchema,
@@ -95,6 +98,7 @@ import {
   type MatchWireIssue,
   type MatchWireParse,
   type ServerEnvelope,
+  type StopPhase,
   type WireCursor,
 } from '@hadoku/shared';
 
@@ -106,6 +110,10 @@ export {
   fullControlFrame,
   AutoYieldSchema,
   autoYieldFrame,
+  PhaseStopSchema,
+  phaseStopFrame,
+  StopPhaseSchema,
+  type StopPhase,
   StopPreferenceSchema,
   stopPreferenceFrame,
   TriggerDecisionRequestSchema,

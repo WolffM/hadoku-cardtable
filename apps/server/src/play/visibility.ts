@@ -416,6 +416,8 @@ export interface SeatProjector {
 	 * a global fact off the table, so `who` is never consulted.
 	 */
 	turnNumber(): number | null;
+	/** Forge's own current phase (the Game object's `Phase`), or null when the state does not say. Global, as {@link turnNumber} is. */
+	phase(): string | null;
 }
 
 export function createProjector(viewer: number | null = null): SeatProjector {
@@ -592,6 +594,9 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		turnNumber(): number | null {
 			const game = [...raw.values()].find((o) => o._type === TYPE.game);
 			return intOf(game, 'Turn');
+		},
+		phase(): string | null {
+			return enumOf([...raw.values()].find((o) => o._type === TYPE.game), 'Phase');
 		},
 	};
 }

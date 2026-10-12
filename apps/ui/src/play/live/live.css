@@ -1186,8 +1186,8 @@
  *
  * Out of flow and `pointer-events: none`, which is what makes it legal here —
  * the canvas is static (w19, absolute) and an overlay cannot move a grid track,
- * so the rail changes no box the fit spec measures and can never become the
- * element under the pointer.
+ * so the rail changes no box the fit spec measures; only a row that can take
+ * the seat's stop (`.live__step[data-stoppable]`, below) takes the pointer.
  *
  * `z-index: 1` puts it over the table's own cards (they are positioned with
  * `z-index: auto`, which paints below any positive layer) and UNDER lane A's
@@ -1414,4 +1414,33 @@
 .live__step[data-current] {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   box-shadow: inset 3px 0 0 0 var(--accent);
+}
+
+/*
+ * The seat's one-shot stop. A row that can take one is the only part of the
+ * rail that takes the pointer; the pending stop is a bar down the row's
+ * trailing edge and its name in the warning ink, beside the current step's
+ * own leading bar when the two are the same row.
+ */
+.live__step[data-stoppable] {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.live__step[data-stoppable]:hover {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+.live__step[data-stop] {
+  box-shadow: inset -3px 0 0 0 var(--warn);
+}
+
+.live__step[data-stop][data-current] {
+  box-shadow:
+    inset 3px 0 0 0 var(--accent),
+    inset -3px 0 0 0 var(--warn);
+}
+
+.live__step[data-stop] .live__step-name {
+  color: var(--warn);
 }

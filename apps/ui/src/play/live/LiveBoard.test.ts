@@ -4828,3 +4828,40 @@ describe('rematchOf — who has pressed Rematch, read off the room table', () =>
     expect(rematchOf(table(row(true, false)), true)).toMatchObject({ possible: true, agreed: false });
   });
 });
+
+describe('a stop on the phase rail', () => {
+  const rowOf = (container: HTMLElement, phase: string) => container.querySelector<HTMLElement>(`[data-testid="live-phases"] li[data-phase="${phase}"]`)!;
+  const stopsSent = (s: ReplayServer) => s.received.filter((r) => r.event === 'forge:phase-stop').map((r) => (r.payload as { phase: unknown }).phase);
+
+  it('a click sets the seat’s stop and marks the row; a second click clears it', async () => {
+    const { s, m, container } = await liveBoard();
+    fireEvent.click(rowOf(container, 'END_OF_TURN'));
+    await waitFor(() => expect(stopsSent(s)).toEqual(['END_OF_TURN']));
+    expect(m.phaseStop).toBe('END_OF_TURN');
+    expect(rowOf(container, 'END_OF_TURN').hasAttribute('data-stop')).toBe(true);
+
+    fireEvent.click(rowOf(container, 'END_OF_TURN'));
+    await waitFor(() => expect(stopsSent(s)).toEqual(['END_OF_TURN', null]));
+    expect(rowOf(container, 'END_OF_TURN').hasAttribute('data-stop')).toBe(false);
+    expect(s.clientFrames()).toEqual([]);
+  });
+
+  it('Untap and Cleanup take no stop: Forge opens no window there', async () => {
+    const { s, container } = await liveBoard();
+    for (const phase of ['UNTAP', 'CLEANUP']) {
+      expect(rowOf(container, phase).hasAttribute('data-stoppable')).toBe(false);
+      fireEvent.click(rowOf(container, phase));
+    }
+    fireEvent.click(rowOf(container, 'UPKEEP'));
+    await waitFor(() => expect(stopsSent(s)).toEqual(['UPKEEP']));
+  });
+
+  it('the server’s word is the stop: its echo after a reload marks the row, and a spent stop clears it', async () => {
+    const { s, m, container } = await liveBoard();
+    s.sendPhaseStop('MAIN2');
+    await waitFor(() => expect(rowOf(container, 'MAIN2').hasAttribute('data-stop')).toBe(true));
+    s.sendPhaseStop(null);
+    await waitFor(() => expect(rowOf(container, 'MAIN2').hasAttribute('data-stop')).toBe(false));
+    expect(m.phaseStop).toBeNull();
+  });
+});

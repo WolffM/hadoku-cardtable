@@ -223,9 +223,9 @@
  *
  * The current step is marked three ways, because colour may not be the only
  * signal: it is the only one that says its name, its mark is the long one, and
- * it carries `aria-current="step"`. The rail is out of flow and takes no
- * pointer events, so it changes no canvas box (the static-canvas rule) and can
- * never be the thing under the cursor.
+ * it carries `aria-current="step"`. The rail is out of flow, so it changes no
+ * canvas box (the static-canvas rule), and only its rows that can take a stop
+ * take the pointer (`PhaseRail`).
  *
  * ## One state, one line
  *
@@ -309,6 +309,7 @@ import {
   sendStopPreference,
   setAutoYield,
   setFullControl,
+  setPhaseStop,
   setSameTarget,
   setTriggerDecision,
   subscribe,
@@ -318,6 +319,7 @@ import {
   type MatchTransport,
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
+import { StopPhaseSchema, type StopPhase } from './transport.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
@@ -1285,7 +1287,22 @@ export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponent
 }
 
 /**
- * The phase rail. Presentation only — turn, step and whose turn all come off
+ * The phase a click on a rail row puts the seat's stop on: the row's own, or Beginning of combat for the
+ * collapsed `Combat` row. Null for Untap and Cleanup, where Forge opens no window to stop in.
+ */
+function stopPhaseOf(row: string): StopPhase | null {
+  const parsed = StopPhaseSchema.safeParse(row === COMBAT_ROW ? 'COMBAT_BEGIN' : row);
+  return parsed.success ? parsed.data : null;
+}
+
+/** Whether the rail row stands for the seat's pending stop — any combat step's, on the collapsed row. */
+function rowHoldsStop(row: string, stop: StopPhase | null): boolean {
+  if (stop === null) return false;
+  return row === COMBAT_ROW ? PHASE_ORDER.some((p) => p.phase === stop && p.group === 'combat') : row === stop;
+}
+
+/**
+ * The phase rail. Turn, step and whose turn all come off — turn, step and whose turn all come off
  * the view that was already on screen (see the module header).
  *
  * A step before the current one carries `data-past`, so the column reads as a
@@ -1309,8 +1326,14 @@ export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponent
  *
  * **Wave 35 R6**: `data-crawl` turns the resize transition off while the phase
  * is changing faster than a person could watch it (see `useCrawlGuard` above).
+ *
+ * **A row is also where the seat puts its one-shot stop** (`setPhaseStop`): a
+ * click holds the seat's priority the next time that phase comes round, on
+ * either turn, and the server clears it once spent. The pending stop is
+ * `data-stop` on its row; a second click clears it. A spectator's rail takes no
+ * click.
  */
-function PhaseRail({ view }: { view: BoardView }) {
+function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | null; onStop: ((phase: StopPhase | null) => void) | null }) {
   const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
   const whose = whoseTurn(view);
   const inCombat = at >= 0 && PHASE_ORDER[at]!.group === 'combat';
@@ -1329,6 +1352,8 @@ function PhaseRail({ view }: { view: BoardView }) {
       <ol className="live__steps" aria-label="Phase">
         {rows.map(({ phase, group, last }, i) => {
           const current = phase === view.phase;
+          const target = onStop === null ? null : stopPhaseOf(phase);
+          const marked = rowHoldsStop(phase, stop);
           return (
             <li
               key={phase}
@@ -1339,6 +1364,9 @@ function PhaseRail({ view }: { view: BoardView }) {
               data-past={at >= 0 && last < at ? '' : undefined}
               data-group-start={i === 0 || rows[i - 1]!.group !== group ? '' : undefined}
               aria-current={current ? 'step' : undefined}
+              data-stop={marked ? '' : undefined}
+              data-stoppable={target === null ? undefined : ''}
+              onClick={target === null ? undefined : () => onStop?.(marked ? null : target)}
             >
               <span className="live__step-name">{PHASE_LABEL[phase] ?? (phase === COMBAT_ROW ? 'Combat' : phase)}</span>
             </li>
@@ -2678,7 +2706,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       )}
       {visualView !== null && <Board view={visualView} interaction={interaction} boardLayout={boardLayout} onOpenSettings={settings.toggle} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
-      {match.view !== null && <PhaseRail view={match.view} />}
+      {match.view !== null && (
+        <PhaseRail view={match.view} stop={match.phaseStop} onStop={spectator ? null : (phase) => setPhaseStop(match, phase)} />
+      )}
       {/*
        * The logbook (§C.3): Forge's current message and the server's says, a
        * wide overlay over the main view starting at the board's LEFT edge

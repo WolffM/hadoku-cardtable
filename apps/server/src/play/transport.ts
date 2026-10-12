@@ -28,6 +28,9 @@
  *                    answered a snapshot. One event, one schema, both ways.
  *   client → server  `forge:stop-preference`  `{ matchId, type: 'stopPreference', stopAtEndStep }`
  *   client → server  `forge:auto-yield`  `{ matchId, on }`, no ack
+ *   client → server  `forge:phase-stop`  `{ matchId, phase }`
+ *   server → client  `forge:phase-stop`  `{ matchId, phase }` — the seat's
+ *                    current stop, after every snapshot and every change
  *   client → server  `forge:trigger-decision`  `{ matchId, key, decision }`, no ack
  *   server → client  `forge:trigger-decisions`  `{ matchId, decisions }` — on every
  *                    change, join and resync
@@ -48,6 +51,8 @@ export {
 	fullControlFrame,
 	AutoYieldSchema,
 	type AutoYieldRequest,
+	phaseStopFrame,
+	type StopPhase,
 	StopPreferenceSchema,
 	type StopPreferenceRequest,
 	TriggerDecisionRequestSchema,
@@ -64,6 +69,7 @@ export {
 	parseMatchRequest,
 	parseFullControl,
 	parseAutoYield,
+	parsePhaseStop,
 	parseStopPreference,
 	parseTriggerDecision,
 	parseClientEnvelope,

@@ -72,6 +72,7 @@
 import { z } from 'zod';
 import {
   FORGE_CHANNEL,
+  PhaseTypeSchema,
   ServerFrameSchema,
   TriggerDecisionSchema,
   safeParseClientFrame,
@@ -99,6 +100,12 @@ export const MATCH_EVENTS = {
    * button off. See {@link AutoYieldSchema}.
    */
   autoYield: 'forge:auto-yield',
+  /**
+   * The seat's one-shot stop at a phase, both ways like `forge:full-control`:
+   * client → server sets or clears it, server → client is the seat's current
+   * stop, after every snapshot and whenever it changes. See {@link PhaseStopSchema}.
+   */
+  phaseStop: 'forge:phase-stop',
   /**
    * Wave 30 §B item 2/6: *"always stop at end step — default off"*. Client →
    * server only, same no-ack shape as `forge:full-control`. See
@@ -197,6 +204,29 @@ export type AutoYieldRequest = z.infer<typeof AutoYieldSchema>;
 /** The payload of a `forge:auto-yield` emit, parsed through its own schema. */
 export function autoYieldFrame(matchId: string, on: boolean): AutoYieldRequest {
   return AutoYieldSchema.parse({ matchId, on });
+}
+
+/**
+ * The phases a stop can be put on: every one Forge opens a priority window in.
+ * Untap never gives priority, and Cleanup only does when something triggers
+ * in it (`PhaseHandler.onPhaseBegin`), so a stop on either would wait for a
+ * window Forge does not open.
+ */
+export const StopPhaseSchema = PhaseTypeSchema.exclude(['UNTAP', 'CLEANUP']);
+export type StopPhase = z.infer<typeof StopPhaseSchema>;
+
+/**
+ * `forge:phase-stop` — this seat's stop at the next occurrence of one phase, on
+ * either player's turn; `null` is none. One-shot: the server clears it once it
+ * has held the seat's priority there. The same payload both ways, the server's
+ * word after every snapshot and every change, so a reload still draws it.
+ */
+export const PhaseStopSchema = z.object({ matchId: z.string().min(1), phase: StopPhaseSchema.nullable() }).strict();
+export type PhaseStopRequest = z.infer<typeof PhaseStopSchema>;
+
+/** The payload of a `forge:phase-stop` message, parsed through its own schema. */
+export function phaseStopFrame(matchId: string, phase: StopPhase | null): PhaseStopRequest {
+  return PhaseStopSchema.parse({ matchId, phase });
 }
 
 /**
@@ -386,6 +416,10 @@ export function parseFullControl(raw: unknown): MatchWireParse<FullControlReques
 
 export function parseAutoYield(raw: unknown): MatchWireParse<AutoYieldRequest> {
   return parseWith(AutoYieldSchema, raw);
+}
+
+export function parsePhaseStop(raw: unknown): MatchWireParse<PhaseStopRequest> {
+  return parseWith(PhaseStopSchema, raw);
 }
 
 export function parseStopPreference(raw: unknown): MatchWireParse<StopPreferenceRequest> {
