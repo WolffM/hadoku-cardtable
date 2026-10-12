@@ -157,11 +157,19 @@ test('admin can place a take and reload to find it saved; a friend gets no edito
     await expect(pill).toHaveAttribute('aria-pressed', 'true');
 
     const cell = admin.page.locator(`[data-cell="${CELL}"]`);
+    // The cell draws the take at once and saves it behind (`SoundBuilder.tsx`'s `persist`), so
+    // nothing on screen says the save is done: no `data-unsaved` reads the same before the PUT
+    // has answered as after it succeeded. A reload in that gap lost the save (CI `check` on
+    // 80394f32 and 5b386ac5). The server's own answer is the signal.
+    const saved = admin.page.waitForResponse(
+      (r) => r.request().method() === 'PUT' && r.url().endsWith(`/api/sounds/assignments/${encodeURIComponent(CELL)}`),
+    );
     await cell.click();
 
     // Placed: the bin pill shows the placed dot, and the cell holds the take.
     await expect(pill).toHaveAttribute('data-placed', '');
     await expect(cell.locator('.sound-builder__pill--placed')).toContainText('w50 test · a');
+    expect((await saved).status(), 'the server stored the cell').toBe(200);
     await expect(cell).not.toHaveAttribute('data-unsaved', '');
 
     // The save is server-hosted, not client state: reload and it is still there.
