@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ArtPreloadSchema } from '@hadoku/shared';
 
-import { artOf } from './art.js';
+import { artOf, scenarioCardNames } from './art.js';
 
 const alice = '[metadata]\nName=Alice\n[main]\n4 Lightning Bolt|M10\n20 Mountain\n2 Volcanic Hammer\n';
 const bob = `[metadata]\nName=Bob\n[Main]\n4 Grizzly Bears\n18 Forest|M10\n[Sideboard]\n2 Naturalize|ONS\n`;
@@ -32,5 +32,11 @@ describe('the art a match tells each client to preload', () => {
 		const scenario = 'turn=1\nhumanhand=Volcanic Hammer;Mountain\nhumanbattlefield=Mountain|Tapped:True\naibattlefield=Grizzly Bears\nailibrary=\n';
 		const cards = artOf({ seats: [{ name: 'a', ai: false, deck: null }, { name: 'b', ai: false, deck: null }], scenario });
 		expect(cards.map((c) => c.name).sort()).toEqual(['Grizzly Bears', 'Mountain', 'Volcanic Hammer']);
+	});
+});
+
+describe('the cards a scenario places', () => {
+	it("skips Forge's token scripts: a `T:` entry is no card name and has no art row", () => {
+		expect(scenarioCardNames('humanbattlefield=T:c_a_clue_draw;Shivan Reef|ORI\nhumanhand=Opt\n')).toEqual(['Shivan Reef', 'Opt']);
 	});
 });
