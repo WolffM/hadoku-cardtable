@@ -209,3 +209,47 @@ play the AI.
   DOM.
 - An unseated viewer has no game controls.
 - The watchparty spec asserts all three against production.
+
+---
+
+## 9. Rulings and what landed (cardtable, 2026-10-12)
+
+The operator ruled on §6 the same afternoon, ahead of the party:
+
+| § 6 | ruling |
+| --- | --- |
+| 1 | **Explicit "Sit here."** Each empty seat offers it; a seated player has "Stand up". Loading a deck still seats an unseated caller when a seat is free, so the Random → Ready flow (and watchparty's production spec) is unchanged. |
+| 2 | **Nobody** may unseat someone else tonight. A seat held by someone who walked away is cleared by that person standing up or leaving. |
+| 3 | Not changed: a locked-in player who disconnects keeps the seat under the match's existing rejoin grace; the opponent's concede is the way out. |
+| 4 | Not changed: Rematch keeps the same two. Standing up after the game ends is how the table turns over. |
+| 5 | **No over-the-shoulder.** The rule in `P3_PER_RECIPIENT_EMIT.md` stands; the watcher channel is what enforces it. |
+| 6 | **Vs-AI is allowed when exactly one human is seated**, however many members the room has. |
+| 7 | Two seats. Multiplayer formats are out of scope. |
+
+What the code does now:
+
+- `POST /api/tables/rooms/:roomId/sit` and `…/stand` (body `{}`); both return the
+  table view. `stand` is refused with 409 once the room has a live match or both
+  players are ready — the lock is the server's, not the button's. The table view
+  carries `room.locked` for that fact.
+- A socket with no seat that joins a full match is a **watcher**: `forge:role`
+  says `'watcher'` (wave 31's `'spectator'` keeps meaning "your own other tab").
+  Its snapshot is oriented by seat 0 and its frames come from one shared
+  projection built with no viewer — public zones, face-up exile, counts for
+  every hand and library, no prompt or window ever. Its input is dropped and
+  logged as `c2s-watcher`. Perspective is flipped on the client.
+- `e2e/watcher.spec.ts` asserts the lobby flow and, on the wire, that no card
+  face reaches a watcher before a card is played.
+
+**For `cardtable-party.spec.ts`'s "Record what the unseated see" step**, the
+`data-testid`s to assert:
+
+| where | testid / attribute | meaning |
+| --- | --- | --- |
+| lobby | `seat-sit` | one per empty seat; absent for a seated player |
+| lobby | `seat-stand` | on your own row; disabled when `room.locked` |
+| lobby | `room-spectator` | unseated with the table full |
+| match | `[data-role="watcher"]` on the board root | this client is a watcher |
+| match | `watcher-status` | the "Watching" status line |
+| match | `perspective-flip` | swaps which player is at the bottom; watchers only |
+| match | `live-concede`, `live-button-end-turn` | **absent** for a watcher |

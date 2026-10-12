@@ -33,6 +33,8 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
   // belong cannot pass by accident.
   alice: { key: 'e2e-friend-key-alice-7f3a', userId: 'e2e-alice-id', name: 'e2e-alice' },
   bob: { key: 'e2e-friend-key-bob-91c2', userId: 'e2e-bob-id', name: 'e2e-bob' },
+  // A third person in a two-seat room: the one the seats and watcher specs leave standing.
+  carol: { key: 'e2e-friend-key-carol-3e5d', userId: 'e2e-carol-id', name: 'e2e-carol' },
   // wave 50 §U only: the sound builder's write half needs an admin identity.
   admin: {
     key: 'e2e-friend-key-admin-a4d1',
