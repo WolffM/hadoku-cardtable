@@ -2094,25 +2094,47 @@ describe('a room on a drafted pool', () => {
     };
   }
 
-  function makeSocket() {
-    const handlers = new Map<string, ((payload: unknown) => void)[]>();
+  /**
+   * The pod's side of the socket, answering as `apps/server/src/room/socket.ts`
+   * does: every `join` is answered with the pod's current view, and a new view
+   * reaches every transport that has joined and not hung up. So a view the test
+   * serves before the screen has subscribed is not lost — the screen's own join
+   * collects it, whatever order React flushes the subscribing effect in.
+   */
+  function podServer() {
+    let view: unknown;
+    const joined = new Set<(payload: unknown) => void>();
+    const deliver = (to: (payload: unknown) => void, payload: unknown): void => {
+      act(() => to(payload));
+    };
     return {
-      fire(event: string, payload?: unknown) {
-        act(() => {
-          for (const h of handlers.get(event) ?? []) h(payload);
-        });
+      serve(payload: unknown) {
+        view = payload;
+        for (const to of joined) deliver(to, payload);
       },
-      make: (): DraftTransport => ({
-        on(event, handler) {
-          handlers.set(event, [...(handlers.get(event) ?? []), handler]);
-        },
-        emit() {},
-        disconnect() {},
-      }),
+      make: (): DraftTransport => {
+        let toClient: ((payload: unknown) => void) | undefined;
+        return {
+          on(event, handler) {
+            if (event === DRAFT_CHANNEL.serverToClient) toClient = handler;
+          },
+          emit(event, message) {
+            if (event !== DRAFT_CHANNEL.clientToServer || (message as { type?: string }).type !== 'join' || !toClient) return;
+            const to = toClient;
+            joined.add(to);
+            // A reply, so it arrives after the emitting effect has finished, as over a wire.
+            if (view !== undefined) queueMicrotask(() => joined.has(to) && deliver(to, view));
+          },
+          disconnect() {
+            if (toClient) joined.delete(toClient);
+          },
+        };
+      },
     };
   }
 
-  async function mountPod(over: Partial<Table> = {}) {
+  /** `served`: the view the pod already holds when the screen opens, so the screen's join is what fetches it. */
+  async function mountPod(over: Partial<Table> = {}, served?: unknown) {
     const server = stubServer({
       players: [],
       matchId: null,
@@ -2120,18 +2142,19 @@ describe('a room on a drafted pool', () => {
       pods: [{ id: POD, cards: 45 }],
       ...over,
     });
-    const socket = makeSocket();
+    const pod = podServer();
+    if (served !== undefined) pod.serve(served);
     render(
       createElement(ConstructedScreen, {
         client: server.client, deckRecords: server.deckRecords,
         rooms: server.rooms,
         roomId: ROOM,
         feed: everyMs(10),
-        makeTransport: socket.make,
+        makeTransport: pod.make,
       }),
     );
     await screen.findByTestId('room-players');
-    return { server, socket };
+    return { server, pod };
   }
 
   it('offers the pods the caller drafted in, on their own tab, without making one the default era', async () => {
@@ -2160,12 +2183,12 @@ describe('a room on a drafted pool', () => {
   });
 
   it('offers YOUR drafted cards as the deck, and sends the .dck of your own pool', async () => {
-    const { server, socket } = await mountPod();
+    const { server, pod } = await mountPod();
     // Until the pod answers, there is nothing to offer and the screen says why.
     expect(screen.getByTestId('deck-mine').getAttribute('aria-disabled')).toBe('true');
     expect((await screen.findByTestId('drafted-waiting')).textContent).toContain(POD);
 
-    socket.fire(DRAFT_CHANNEL.serverToClient, stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
+    pod.serve(stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
 
     await deckPicker();
     // One row, and it is the cards you drafted — not the 60-card library, which
@@ -2212,18 +2235,8 @@ describe('a room on a drafted pool', () => {
    * server tells you about your own seat and nobody else's.
    */
   it('says you have no seat in the pod rather than offering nothing', async () => {
-    const { socket } = await mountPod({ pods: [] });
-    // Subscribed before the view is sent, as in the test above: a view fired
-    // before the screen listens is dropped, and under load that left this
-    // test on `drafted-waiting` for its whole budget.
-    await screen.findByTestId('drafted-waiting');
-    socket.fire(
-      DRAFT_CHANNEL.serverToClient,
-      stateMessage({ ...seatView(POOL), viewer: { kind: 'spectator' } }, { name: 'Test Cube', size: 540 }),
-    );
-    // A loaded CI claw has twice run this `findBy` past its 1 s default (757fcf3, eb31fe3); the budget is
-    // not what this test is about.
-    const note = await screen.findByTestId('drafted-none', {}, { timeout: 10_000 });
+    await mountPod({ pods: [] }, stateMessage({ ...seatView(POOL), viewer: { kind: 'spectator' } }, { name: 'Test Cube', size: 540 }));
+    const note = await screen.findByTestId('drafted-none');
     expect(note.textContent).toContain(POD);
     // No rows at all — and `Random` is still there, with nothing to roll.
     expect(offered()).toEqual([]);

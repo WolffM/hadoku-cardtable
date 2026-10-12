@@ -20,8 +20,8 @@
  * renders.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement, useEffect, type ReactNode } from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { createElement, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 /*
  * A theme name this install's `Theme` union does not contain.
@@ -78,6 +78,7 @@ import { watchpartyPrefsCacheKey } from './avatar.ts';
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe('the room key for a pod or match', () => {
@@ -103,26 +104,22 @@ describe('the room key for a pod or match', () => {
 
 describe('the content of a room', () => {
   it('mounts once, inside the chrome — never alone first and again when whoami answers', async () => {
-    let mounts = 0;
+    // Recorded at commit (a layout effect), so by the time the chrome is in the
+    // DOM every mount that has happened is counted — a content drawn alone first
+    // and again inside the chrome reads two, the first of them outside.
+    const mounts: boolean[] = [];
     function Content() {
-      useEffect(() => {
-        mounts += 1;
+      const ref = useRef<HTMLDivElement>(null);
+      useLayoutEffect(() => {
+        mounts.push(ref.current?.closest('[data-testid="room-chrome"]') != null);
       }, []);
-      return createElement('div', { 'data-testid': 'content' });
+      return createElement('div', { ref, 'data-testid': 'content' });
     }
 
     render(createElement(RoomShell, { roomId: 'm-test', children: createElement(Content) }));
-    const roomChrome = await waitFor(() => screen.getByTestId('room-chrome'));
+    await waitFor(() => screen.getByTestId('room-chrome'));
 
-    expect(roomChrome.contains(screen.getByTestId('content'))).toBe(true);
-    // The chrome can be in the DOM a tick before the content's effect runs (CI
-    // read 0 here once), so wait for the first mount — then a twice-mounted
-    // content would read 2, which is the bug this pins.
-    await waitFor(() => expect(mounts).toBeGreaterThan(0));
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-    expect(mounts).toBe(1);
+    expect(mounts).toEqual([true]);
   });
 });
 
@@ -214,21 +211,28 @@ describe('the avatar the viewer picked in watchparty', () => {
 
   it('asserts again when the first try is refused, because a joiner’s first screen beats their own join', async () => {
     globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
-    let answers = 0;
     const posts: string[] = [];
+    // The room as the server answers an accepted assert: a parseable view, or the client counts it refused.
+    const room = { id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [] };
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       posts.push(String(input));
-      answers += 1;
       // Refused the first time (not a member yet), accepted the second.
-      const status = answers === 1 ? 404 : 200;
-      return Promise.resolve(new Response('{}', { status, headers: { 'content-type': 'application/json' } }));
+      const accepted = posts.filter((u) => u.includes('/identity')).length > 1;
+      return Promise.resolve(
+        new Response(JSON.stringify(accepted ? room : {}), { status: accepted ? 200 : 404, headers: { 'content-type': 'application/json' } }),
+      );
     });
 
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const identity = (): string[] => posts.filter((u) => u.includes('/identity'));
     render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
-    await waitFor(() => expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(2), { timeout: 4000 });
-    // Accepted on the second, so there is no third.
-    await new Promise((r) => setTimeout(r, 100));
-    expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(2);
+    await vi.waitFor(() => expect(identity()).toHaveLength(1));
+    // Past the first back-off: the refused assert is sent again.
+    await vi.advanceTimersByTimeAsync(1500);
+    await vi.waitFor(() => expect(identity()).toHaveLength(2));
+    // Accepted on the second, so no back-off is left to send a third.
+    await vi.runAllTimersAsync();
+    expect(identity()).toHaveLength(2);
   });
 
   it('sends nothing at all when the viewer has no avatar to send', async () => {
