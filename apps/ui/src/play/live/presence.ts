@@ -83,7 +83,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
-import { drawnCentreOf, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
+import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
@@ -995,6 +995,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function handToSpell(id: number): Point | null {
     const at = backAt;
     play.stackFrameAt ??= Date.now();
+    back?.setAttribute(PRESENCE_CARD_ATTR, String(id));
     reportHandover(host.report, 'handover', canvas, receiverFacts(id, 'stack', back === null ? null : drawnCentre(back), at));
     if (at !== null) {
       placeSpell(id, at, 'them');
@@ -1172,6 +1173,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) return;
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
+    ghost.setAttribute(PRESENCE_CARD_ATTR, String(card));
     sizeAsBattlefieldCard(ghost, battlefieldCardWidth(canvas, 'them'));
     ghost.setAttribute('aria-hidden', 'true');
     const copy = tile.cloneNode(true) as HTMLElement;
@@ -1211,6 +1213,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     standBack(root, root.getBoundingClientRect(), from);
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
+    standIn.setAttribute(PRESENCE_CARD_ATTR, String(card));
     const wait = { timer: setTimeout(stopWaiting, PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false };
     waiting = wait;
     // The card reaching its column while the stand-in still waits — straight from the hand, or a

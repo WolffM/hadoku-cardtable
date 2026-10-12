@@ -1418,6 +1418,7 @@ describe('receiving', () => {
     t.receivePlacement({ matchId: 'm-1', seat: 1, card: 44, slot: 'back', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
     const standIn = overlay.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
     expect(standIn, 'the placement’s stand-in').not.toBeNull();
+    expect(standIn.getAttribute('data-presence-card'), 'named: the placement made the card public').toBe('44');
     const where = [standIn.style.left, standIn.style.top];
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.9, y: 0.1 }, held: true, from: null, handRows: 1, arranging: null });
     expect(overlay.querySelectorAll('.presence__back'), 'still the one stand-in').toHaveLength(1);

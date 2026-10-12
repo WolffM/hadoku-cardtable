@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientEventSchema } from '@hadoku/shared';
 
 import { GLIDE_MS } from '../motion.ts';
-import { handoverData, reportHandover, visibleCopies, type HandoverFacts } from './handover-report.ts';
+import { drawnCopies, handoverData, PRESENCE_CARD_ATTR, reportHandover, visibleCopies, type HandoverFacts } from './handover-report.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -80,8 +80,15 @@ describe('visibleCopies', () => {
     const back = drawn(document.createElement('div'), 450, 282);
     back.className = 'presence__back';
     back.setAttribute('data-waiting', '');
-    expect(visibleCopies(document, 121), 'the receiver’s back still standing in').toBe(2);
-    expect(visibleCopies(document, 7), 'another card’s copies are not this one’s').toBe(1);
+    expect(visibleCopies(document, 121), 'a back nobody has named is another card in flight, not this one').toBe(1);
+    back.setAttribute(PRESENCE_CARD_ATTR, '121');
+    expect(visibleCopies(document, 121), 'the receiver’s back for this card still standing in').toBe(2);
+    expect(visibleCopies(document, 7), 'another card’s copies are not this one’s').toBe(0);
+    const flight = drawn(document.createElement('div'), 300, 200);
+    flight.className = 'presence__handoff';
+    flight.setAttribute(PRESENCE_CARD_ATTR, '7');
+    expect(visibleCopies(document, 121), 'another card’s flight landing meanwhile').toBe(2);
+    expect(drawnCopies(document, 7)).toEqual(['handoff@300,200']);
   });
 });
 

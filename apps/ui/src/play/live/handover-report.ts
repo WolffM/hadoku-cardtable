@@ -52,10 +52,18 @@ function shown(el: Element): boolean {
 }
 
 /**
+ * The card a receiver's stand-in or travelling copy (`presence.ts`) is, set the moment that card
+ * is public to this screen: a placement names it, a spell's id names it at its hand-over. A back
+ * without it is a card nobody here may know yet — never the card a hand-over is reporting on.
+ */
+export const PRESENCE_CARD_ATTR = 'data-presence-card';
+
+/**
  * Which copies of `card` are drawn and visible right now, one name each: its own element in a
  * zone (`zone:<zone>`), its placed stack card (`placed`), the caster's stand-in (`ghost`), and
- * the receiver's back or travelling copy (`back`, `handoff` — these carry no id; one play is in
- * flight on that screen at a time).
+ * the receiver's back or travelling copy of THIS card (`back`, `handoff`, by
+ * {@link PRESENCE_CARD_ATTR}). Both seats may have a play in flight at once, and one seat two in
+ * quick succession: another card's back or flight is not this card drawn twice.
  */
 export function drawnCopies(root: ParentNode, card: number): string[] {
   const at = (el: Element): string => {
@@ -67,8 +75,8 @@ export function drawnCopies(root: ParentNode, card: number): string[] {
     ...named(`[data-zone] [data-board-card="${card}"]`, (el) => `zone:${el.closest('[data-zone]')?.getAttribute('data-zone') ?? ''}`),
     ...named(`[data-placed-card="${card}"]`, () => 'placed'),
     ...named(`[data-cast-ghost="${card}"]`, () => 'ghost'),
-    ...named('.presence__back[data-waiting]', (el) => `back${at(el)}`),
-    ...named('.presence__handoff', (el) => `handoff${at(el)}`),
+    ...named(`.presence__back[data-waiting][${PRESENCE_CARD_ATTR}="${card}"]`, (el) => `back${at(el)}`),
+    ...named(`.presence__handoff[${PRESENCE_CARD_ATTR}="${card}"]`, (el) => `handoff${at(el)}`),
   ];
 }
 
