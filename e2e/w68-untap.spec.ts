@@ -12,19 +12,19 @@
  *
  * Scenario `w68-untap`: alice's turn-1 Main 1 with Forest, Island, the Tron
  * set, River of Tears, Izzet Signet, Llanowar Elves and Adarkar Wastes, and
- * only an Island in hand. For each source: tap it by a click (bob sees it
+ * an empty hand. For each source: tap it by a click (bob sees it
  * tapped) and click it again (it was tapped last); then tap it, tap a basic
  * after it, and click the FIRST (out of order). Every row ends with the pool,
  * the life and the board as they were before it, and the source offered
  * again. The painland's tap costs 1 life and its untap gives it back (AC7).
- * Last, alice plays the Island and the River row runs again: River's {B}
- * sub-ability, which Forge once refused to undo (AB8). Rows are soft so one
- * run reports every kind that fails, with a tagged line per row.
+ * Rows are soft so one run reports every kind that fails, with a tagged line
+ * per row. A second test, on `river-of-tears`, plays a land first: River's {B}
+ * sub-ability, which Forge once refused to undo (AB8).
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, clickPermanent, clickRecords, handCardNamed, holdsLiveWindow, isOffered, isTapped, makeTitled, manaPool } from './play/board.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { clickHandCard, clickPermanent, clickRecords, handCardNamed, holdsLiveWindow, isOffered, isTapped, makeTitled, manaPool, ownNamed } from './play/board.ts';
+import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -77,6 +77,46 @@ async function answerAsks(page: Page): Promise<void> {
   if (await colour.isVisible({ timeout: 500 }).catch(() => false)) await colour.click();
 }
 
+/** The two clicks every row is made of, on alice's screen, each read on both screens. */
+function drive(a: Page, b: Page, stack: PlayStack): { tapByClick: (id: number, what: string) => Promise<void>; untapByClick: (id: number) => Promise<boolean> } {
+  /**
+   * Tap `id` by one click, answering what Forge asks on the way (the painland's ability, then its
+   * colour, which Forge asks after it has tapped the land); resolves once it is tapped on both
+   * screens, its mana is in the pool and nothing is asking.
+   */
+  const tapByClick = async (id: number, what: string): Promise<void> => {
+    const poolBefore = (await manaPool(a)).total;
+    expect(await clickPermanent(a, id), `${what} is offered in a live window`).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          await answerAsks(a);
+          return (await isTapped(a, id)) && (await manaPool(a)).total > poolBefore;
+        },
+        { timeout: 15_000, message: `${what} tapped for mana on one click — the server's clicks on it: ${clickRecords(stack, id)}` },
+      )
+      .toBe(true);
+    await expect.poll(() => isTapped(b, id), { timeout: 10_000, message: `bob sees ${what} tapped` }).toBe(true);
+    await expect(a.getByTestId('live-prompt'), `nothing is left asking after ${what} tapped`).toHaveCount(0, { timeout: 10_000 });
+  };
+
+  /** Click a tapped `id` once; true when it untaps on alice's screen and on bob's. */
+  const untapByClick = async (id: number): Promise<boolean> => {
+    if (!(await clickPermanent(a, id, 8_000))) {
+      console.log(`[w68-untap] #${id} never offered in a live window: offered ${await isOffered(a, id)}, live window ${await holdsLiveWindow(a)}`);
+      return false;
+    }
+    const mine = await expect.poll(() => isTapped(a, id), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
+    if (!mine) {
+      console.log(`[w68-untap] #${id} clicked, still tapped — the server's clicks on it: ${clickRecords(stack, id)}`);
+      return false;
+    }
+    return expect.poll(() => isTapped(b, id), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
+  };
+
+  return { tapByClick, untapByClick };
+}
+
 test(titled('every mana source tapped for mana untaps on a click while its mana is unspent — last-tapped and out of order, on both screens'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -94,40 +134,7 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       return found.id;
     };
 
-    /**
-     * Tap `id` by one click, answering what Forge asks on the way (the painland's ability, then its
-     * colour, which Forge asks after it has tapped the land); resolves once it is tapped on both
-     * screens, its mana is in the pool and nothing is asking.
-     */
-    const tapByClick = async (id: number, what: string): Promise<void> => {
-      const poolBefore = (await manaPool(a)).total;
-      expect(await clickPermanent(a, id), `${what} is offered in a live window`).toBe(true);
-      await expect
-        .poll(
-          async () => {
-            await answerAsks(a);
-            return (await isTapped(a, id)) && (await manaPool(a)).total > poolBefore;
-          },
-          { timeout: 15_000, message: `${what} tapped for mana on one click — the server's clicks on it: ${clickRecords(stack, id)}` },
-        )
-        .toBe(true);
-      await expect.poll(() => isTapped(b, id), { timeout: 10_000, message: `bob sees ${what} tapped` }).toBe(true);
-      await expect(a.getByTestId('live-prompt'), `nothing is left asking after ${what} tapped`).toHaveCount(0, { timeout: 10_000 });
-    };
-
-    /** Click a tapped `id` once; true when it untaps on alice's screen and on bob's. */
-    const untapByClick = async (id: number): Promise<boolean> => {
-      if (!(await clickPermanent(a, id, 8_000))) {
-        console.log(`[w68-untap] #${id} never offered in a live window: offered ${await isOffered(a, id)}, live window ${await holdsLiveWindow(a)}`);
-        return false;
-      }
-      const mine = await expect.poll(() => isTapped(a, id), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
-      if (!mine) {
-        console.log(`[w68-untap] #${id} clicked, still tapped — the server's clicks on it: ${clickRecords(stack, id)}`);
-        return false;
-      }
-      return expect.poll(() => isTapped(b, id), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
-    };
+    const { tapByClick, untapByClick } = drive(a, b, stack);
 
     /** Undo whatever a failed row left tapped, by the same clicks, so the next row starts from the same board. */
     const settle = async (before: ReadonlySet<number>): Promise<void> => {
@@ -198,14 +205,32 @@ test(titled('every mana source tapped for mana untaps on a click while its mana 
       await settle(base.tapped);
     }
 
-    // River of Tears adds {B} instead once a land was played: its sub-ability undoes too.
-    const island = await handCardNamed(a, 'Island');
-    if (island === undefined) throw new Error('alice holds no Island to play');
-    await clickHandCard(a, island);
-    await expect.poll(async () => (await ownBoard(a)).length, { timeout: 20_000, message: 'the Island is played' }).toBe(10);
-    await lastTapped('River of Tears after a land drop', { name: 'River of Tears', adds: 'B' });
-
     console.log(`[w68-untap] summary: ${results.filter((l) => l.includes(' ok ')).length}/${results.length} rows ok`);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('River of Tears after a land drop: its {B} sub-ability, tapped by a click, untaps on another with nothing left floating, on both screens'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'river-of-tears');
+    const a = alice.page;
+    const { tapByClick, untapByClick } = drive(a, bob.page, stack);
+    await expect.poll(async () => (await ownNamed(a, 'River of Tears')).length, { timeout: 45_000, message: 'the River is on alice’s battlefield' }).toBe(1);
+    const [river] = await ownNamed(a, 'River of Tears');
+    await expect.poll(() => handCardNamed(a, 'Island'), { timeout: 20_000, message: 'alice holds the Island' }).not.toBeUndefined();
+    await clickHandCard(a, (await handCardNamed(a, 'Island'))!);
+    await expect.poll(async () => (await ownNamed(a, 'Island')).length, { timeout: 20_000, message: 'the Island is played' }).toBe(1);
+
+    await tapByClick(river!, 'River of Tears');
+    expect((await manaPool(a)).B, 'the River added {B}: a land was played').toBe(1);
+    expect(await untapByClick(river!), 'a click on the tapped River untapped it on both screens (Undo)').toBe(true);
+    await expect.poll(async () => (await manaPool(a)).total, { timeout: 10_000, message: 'Undo emptied the pool: no {B} left floating' }).toBe(0);
+    await expect.poll(() => isOffered(a, river!), { timeout: 10_000, message: 'the River is offered again after Undo' }).toBe(true);
   } finally {
     await stack.stop();
   }
