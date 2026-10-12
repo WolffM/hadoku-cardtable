@@ -148,7 +148,7 @@ export const GUARDS: Guard[] = [
   {
     name: 'auto-pass and auto-pay',
     paths: /^apps\/server\/src\/play\/auto\.ts$/,
-    specs: ['w68-untap.spec.ts', 'w52-mana.spec.ts', 'unless-cost.spec.ts', 'w67-trigger-ask.spec.ts', 'land-abilities.spec.ts'],
+    specs: ['w68-untap.spec.ts', 'w52-mana.spec.ts', 'unless-cost.spec.ts', 'w67-reveal.spec.ts', 'land-abilities.spec.ts'],
     jvm: ['apps/server/src/play/auto.jvm.test.ts', 'apps/server/src/play/auto-pass-land.jvm.test.ts', 'apps/server/src/play/mana-sources.jvm.test.ts'],
   },
   {
