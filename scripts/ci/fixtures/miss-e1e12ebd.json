@@ -1,0 +1,117 @@
+{
+ "commit": "e1e12ebd",
+ "subject": "scry 1 card in its window",
+ "files": [
+  {
+   "filename": "apps/ui/src/play/adapter.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/ui/src/play/adapter.ts",
+   "status": "modified",
+   "patch": "@@ -634,6 +634,12 @@ export interface AdaptOptions {\n   stackTargetSpells?: ReadonlyMap<number, number>;\n   /** `PlayBridge.java`'s `pendingTriggers` (`../fold.ts`), read onto `BoardView.pendingTriggers`. */\n   pendingTriggers?: PendingTriggers;\n+  /**\n+   * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):\n+   * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,\n+   * :1089-1099), so that card is the decision's, never a revealed top on the board.\n+   */\n+  promptCard?: number | null;\n }\n \n // ── what a card's printed power and toughness are ───────────────────────────\n@@ -1335,7 +1341,8 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {\n  * as a revealed top, it put a library card on the board mid-search (the\n  * operator, 2026-10-11: *\"a hangerback walker appeared on my board suddenly …\n  * i'm just searching my library\"*). So the top is a standing reveal only when\n- * the seat may see it and NOT the card under it.\n+ * the seat may see it and NOT the card under it — and is not the one card a\n+ * prompt is showing (a scry 1's Top or Bottom, `AdaptOptions.promptCard`).\n  */\n function revealedTop(\n   state: WireState,\n@@ -1343,7 +1350,9 @@ function revealedTop(\n   artIds: ArtIdIndex,\n   printedPT: PrintedPTIndex,\n   printedType: PrintedTypeLineIndex,\n+  promptCard: number | null,\n ): BoardCard | null {\n+  if (libraryIds[0] === promptCard) return null;\n   const seen = (id: number | undefined): BoardCard | null => {\n     if (id === undefined) return null;\n     const card = toBoardCard(state, id, artIds, printedPT, false, printedType);\n@@ -1365,6 +1374,7 @@ export function toBoardView(\n     nameByPlayerId,\n     stackTargetSpells,\n     pendingTriggers,\n+    promptCard = null,\n   }: AdaptOptions,\n ): BoardView {\n   const game = [...state.values()].find((o) => o._type === WireType.Game);\n@@ -1387,7 +1397,7 @@ export function toBoardView(\n     const isViewer = pid === viewerPlayerId;\n     const handIds = readIds(p, 'Hand');\n     const libraryIds = readIds(p, 'Library');\n-    const top = revealedTop(state, libraryIds, artIds, printedPT, printedType);\n+    const top = revealedTop(state, libraryIds, artIds, printedPT, printedType, promptCard);\n     const avatarId = avatarByPlayerId?.get(pid);\n     const seatName = nameByPlayerId?.get(pid);\n     return {\n"
+  },
+  {
+   "filename": "apps/ui/src/play/live/LiveBoard.tsx",
+   "status": "modified",
+   "patch": "@@ -268,6 +268,7 @@ import { lookupFromState, plainRulesText, promptText, withAbilityLabels, type Pr\n import { RulesText } from '../prompts/RulesText.tsx';\n import { RevealNotice } from '../prompts/RevealNotice.tsx';\n import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';\n+import { promptTileFor } from '../prompts/PromptShell.tsx';\n import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';\n import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';\n import { installGestures } from './gestures/index.ts';\n@@ -2049,6 +2050,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {\n    * true for the same bar.\n    */\n   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);\n+  /* A yes/no about a card still in a library (a scry 1's Top or Bottom): the board has no face of it, so the window draws it. */\n+  const confirmCardId = confirmPrompt ? match.promptCard : null;\n+  const confirmCard =\n+    confirmCardId !== null && match.view?.players.some((p) => p.libraryIds?.includes(confirmCardId) === true) === true\n+      ? { id: confirmCardId, tile: promptTileFor(lookupFromState(match.state), confirmCardId) }\n+      : undefined;\n   /* \"Your move\": a decision window opened for this seat — an ask, or a yes/no in the decision area. */\n   const decisionKey = ask !== null ? `ask:${ask.callId}` : confirmPrompt || playOrDraw ? `bar:${bar?.label1 ?? ''}` : null;\n   useEffect(() => {\n@@ -2937,6 +2944,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {\n             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') }}\n             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') }}\n             check={match.promptTrigger === null ? undefined : { label: 'Always', testId: 'live-confirm-always', checked: always, onChange: setAlways }}\n+            card={confirmCard}\n           />\n         </div>\n       )}\n"
+  },
+  {
+   "filename": "apps/ui/src/play/live/match.ts",
+   "status": "modified",
+   "patch": "@@ -2367,6 +2367,7 @@ function redraw(match: LiveMatch): void {\n           nameByPlayerId: match.nameByPlayerId ?? undefined,\n           stackTargetSpells: match.stackTargetSpells,\n           pendingTriggers: match.pendingTriggers,\n+          promptCard: match.promptCard,\n         });\n   if (match.view?.gameOver === true) match.over = true;\n }\n@@ -2506,7 +2507,11 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {\n     match.prompt = typeof frame.message === 'string' ? frame.message : null;\n     // Overwritten by EVERY prompt, including with null. That is what makes it\n     // fresh: see the field's note, and `payingMana`.\n-    match.promptCard = frame.card === null ? null : frame.card.id;\n+    const promptCard = frame.card === null ? null : frame.card.id;\n+    const redrawBoard = promptCard !== match.promptCard;\n+    match.promptCard = promptCard;\n+    // The board's revealed library top depends on it (`adapter.ts` `revealedTop`).\n+    if (redrawBoard) redraw(match);\n     match.promptTrigger = frame.confirmAbility?.trigger ?? null;\n     match.promptTargetMore = frame.targetAbility?.more ?? 0;\n     match.sameTarget = false;\n"
+  },
+  {
+   "filename": "apps/ui/src/play/prompts/ConfirmPrompt.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/ui/src/play/prompts/ConfirmPrompt.tsx",
+   "status": "modified",
+   "patch": "@@ -104,7 +104,9 @@\n  * a dialog that pre-answered would have failed it).\n  */\n import { useId } from 'react';\n+import type { DraftCard } from '@hadoku/shared';\n \n+import { CardTile } from '../../components/CardTile.tsx';\n import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';\n import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';\n import '../live/live.css';\n@@ -224,6 +226,11 @@ export interface ConfirmPromptProps {\n    * Forge keeps giving), a trigger target's \"Same target for all\".\n    */\n   check?: { label: string; testId: string; checked: boolean; onChange: (checked: boolean) => void };\n+  /**\n+   * The card the question is about, drawn in the window, when the board has no face of it to point at —\n+   * a scry 1's library card (the operator, 2026-10-11: *\"we should have a proper decision card for this\"*).\n+   */\n+  card?: { id: number; tile: DraftCard };\n }\n \n /**\n@@ -234,7 +241,7 @@ export interface ConfirmPromptProps {\n  * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this\n  * component sends nothing itself.\n  */\n-export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, check }: ConfirmPromptProps) {\n+export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, check, card }: ConfirmPromptProps) {\n   const titleId = useId();\n   const messageId = useId();\n   return (\n@@ -252,6 +259,11 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c\n         </h2>\n       )}\n       {coin === true && <span className=\"confirm__coin\" aria-hidden=\"true\" data-testid=\"live-play-or-draw-coin\" />}\n+      {card !== undefined && (\n+        <div className=\"confirm__card\" data-testid=\"confirm-card\" data-card-id={card.id}>\n+          <CardTile card={card.tile} />\n+        </div>\n+      )}\n       <p className=\"confirm__message\" id={messageId}>\n         <RulesText text={message} />\n       </p>\n"
+  },
+  {
+   "filename": "apps/ui/src/play/prompts/prompts.css",
+   "status": "modified",
+   "patch": "@@ -645,6 +645,19 @@\n   height: auto;\n }\n \n+/* The card a yes/no is about, when the board has none to point at (`ConfirmPrompt.tsx`'s `card`). */\n+.confirm__card {\n+  --card-w: 7rem;\n+\n+  align-self: center;\n+  width: var(--card-w);\n+}\n+\n+.confirm__card .card {\n+  aspect-ratio: 488 / 680;\n+  height: auto;\n+}\n+\n .reveal-notice > .prompt__submit {\n   align-self: flex-end;\n }\n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "e1e12ebdc8be8850e156cfc3e0aad5e25530e3cb",
+    "files": [
+     "apps/ui/src/play/adapter.test.ts",
+     "apps/ui/src/play/adapter.ts",
+     "apps/ui/src/play/live/LiveBoard.tsx",
+     "apps/ui/src/play/live/match.ts",
+     "apps/ui/src/play/prompts/ConfirmPrompt.test.ts",
+     "apps/ui/src/play/prompts/ConfirmPrompt.tsx",
+     "apps/ui/src/play/prompts/prompts.css"
+    ],
+    "touched": {
+     "apps/ui/src/play/adapter.test.ts": [],
+     "apps/ui/src/play/adapter.ts": [
+      "AdaptOptions",
+      "PHASE_LABEL",
+      "revealedTop",
+      "toBoardView"
+     ],
+     "apps/ui/src/play/live/LiveBoard.tsx": [],
+     "apps/ui/src/play/live/match.ts": [
+      "redraw",
+      "applyFrame"
+     ],
+     "apps/ui/src/play/prompts/ConfirmPrompt.test.ts": [
+      "buttons"
+     ],
+     "apps/ui/src/play/prompts/ConfirmPrompt.tsx": [
+      "ConfirmPromptProps",
+      "ConfirmPrompt"
+     ],
+     "apps/ui/src/play/prompts/prompts.css": [
+      ".confirm__card",
+      ".confirm__card .card"
+     ]
+    }
+   },
+   {
+    "sha": "0f62e8aa4e05f8abd70b9aa2694c1bb8b32ac7da",
+    "files": [
+     "apps/server/src/play/scenarios/w70-scry-one.state",
+     "e2e/w70-nissa.spec.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "63626530ac0079ec7e96129e30126289f9b06140",
+    "files": [
+     "apps/ui/src/play/adapter.test.ts",
+     "apps/ui/src/play/adapter.ts",
+     "apps/ui/src/play/prompts/ChoicePrompts.tsx",
+     "apps/ui/src/play/prompts/choices.test.ts",
+     "apps/ui/src/play/prompts/rules.test.ts",
+     "apps/ui/src/play/prompts/rules.ts",
+     "apps/ui/src/play/prompts/search.jvm.test.ts"
+    ],
+    "touched": {
+     "apps/ui/src/play/adapter.test.ts": [],
+     "apps/ui/src/play/adapter.ts": [
+      "BoardPlayer",
+      "PHASE_LABEL",
+      "revealedTop",
+      "toBoardView"
+     ]
+    }
+   },
+   {
+    "sha": "5a33b130750935bdb576841792c595d49f3b02d6",
+    "files": [
+     "apps/server/src/play/scenarios/w70-nissa.state",
+     "e2e/w70-nissa.spec.ts"
+    ],
+    "touched": {}
+   }
+  ]
+ }
+}

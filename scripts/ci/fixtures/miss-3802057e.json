@@ -1,0 +1,30 @@
+{
+ "commit": "3802057e",
+ "subject": "Signet fix",
+ "files": [
+  {
+   "filename": "apps/server/src/play/match.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/server/src/play/match.ts",
+   "status": "modified",
+   "patch": "@@ -3092,9 +3092,13 @@ export class Match {\n \t\t\t\tmethod: auto.method,\n \t\t\t\twhy: auto.why,\n \t\t\t});\n-\t\t\t// Not `chosenAbility`: an ability the server played (a trigger, an effect's cast) is not\n-\t\t\t// one the seat chose, and Forge's re-ask of one it did choose is that choice already.\n-\t\t\tif (frame.method === 'getAbilityToPlay') s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };\n+\t\t\t// `chosenAbility` only for an offer the seat's own click opened (the same ability it chose\n+\t\t\t// on its last click of this card): an ability the server played (a trigger, an effect's\n+\t\t\t// cast) is not one the seat chose, and Forge's re-ask inside one activation is that choice already.\n+\t\t\tif (frame.method === 'getAbilityToPlay') {\n+\t\t\t\ts.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };\n+\t\t\t\tif (clicked) s.chosenAbility = s.lastAbilityToPlay;\n+\t\t\t}\n \t\t\t// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for\n \t\t\t// (`onlyAnswer`'s own \"one option\") still owes its later echo nothing.\n \t\t\tif (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);\n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "3802057e7e89cd19327c421c266dfc9886f086ac",
+    "files": [
+     "apps/server/src/play/match.test.ts",
+     "apps/server/src/play/match.ts"
+    ],
+    "touched": {
+     "apps/server/src/play/match.test.ts": [],
+     "apps/server/src/play/match.ts": []
+    }
+   }
+  ]
+ }
+}

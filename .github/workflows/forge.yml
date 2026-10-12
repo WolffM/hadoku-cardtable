@@ -7,8 +7,8 @@ name: Forge
 #
 # What runs is picked from the changed paths (`scripts/ci/select-forge-tests.ts`,
 # see the `changes` job). A push to main runs a short run: what changed itself
-# (a spec, a suite, a scenario), the smoke set, and the few most specific specs
-# the change maps to. The FULL set runs on the schedule instead — every two
+# (a spec, a suite, a scenario), the smoke set, the guard family of any hot-path
+# module it touches, and the most relevant of the specs it maps to. The FULL set runs on the schedule instead — every two
 # hours when main has moved since the last full run, and nightly with the
 # `[nightly]` tests. The trade: a regression outside what a push ran turns red
 # up to two hours late, against a range of that window's lands rather than one.
@@ -124,7 +124,7 @@ jobs:
   # Either way `scripts/ci/select-forge-tests.ts` maps the changed paths to
   # specs and jvm suites and prints one reason per decision; its header has the
   # rules. A push runs it with `--defer-full`: never the full set, and only the
-  # most specific of the mapped specs (the rest are named in the log as
+  # most relevant of the mapped specs (the rest are named in the log as
   # deferred to the schedule). A dispatch runs everything its changes map to.
   #   schedule, nightly cron    everything, `[nightly]` tests too
   #   schedule, two-hourly      everything, if main moved since the last
@@ -149,7 +149,11 @@ jobs:
       jvm_full: ${{ steps.pick.outputs.jvm_full }}
       nightly: ${{ steps.pick.outputs.nightly }}
     steps:
+      # Full history: the selector reads which specs landed with earlier edits
+      # to the code a change touches (main's lands, cut at land.sh's version bumps).
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: '24'

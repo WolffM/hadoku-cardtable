@@ -1,0 +1,57 @@
+{
+ "commit": "fa399cef",
+ "subject": "stand-in turned over",
+ "files": [
+  {
+   "filename": "apps/ui/src/play/live/presence.css",
+   "status": "modified",
+   "patch": "@@ -89,6 +89,19 @@\n   }\n }\n \n+/* Turned over on its way into the gap (`presence.ts`'s `turnOver`): the card's own face, no back. */\n+.presence__back[data-face] {\n+  background: none;\n+  box-shadow: 0 4px 10px var(--shadow);\n+}\n+.presence__back[data-face] > .card {\n+  width: 100%;\n+  height: 100%;\n+}\n+.presence__back[data-face]::after {\n+  content: none;\n+}\n+\n .presence__back::after {\n   content: '';\n   position: absolute;\n"
+  },
+  {
+   "filename": "apps/ui/src/play/live/presence.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/ui/src/play/live/presence.ts",
+   "status": "modified",
+   "patch": "@@ -732,6 +732,31 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo\n     back?.remove();\n     back = null;\n   }\n+  /**\n+   * Their spell is public while its stand-in is still gliding into its gap: the stand-in turns over\n+   * on its way, so the card is revealed with the lands that pay for it (the operator, 2026-10-11:\n+   * \"release card, reveal it, pay for mana … can we squish together 1-3\"), and the stack card that\n+   * takes over where it comes to rest is the same face. The face is the one `placed.ts` already drew\n+   * for the held stack card, so it is never shown sooner than that one would be — a back until the\n+   * art has decoded — and looked for each frame until it is there or the glide is over.\n+   */\n+  function turnOver(standIn: HTMLElement, card: number): void {\n+    if (back !== standIn || waiting === null || standIn.hasAttribute('data-face')) return;\n+    const placed = canvas.querySelector(`[data-placed-card=\"${card}\"]`);\n+    const face = placed === null || placed.querySelector('.placed__back') !== null ? null : placed.querySelector('.placed__tile .card');\n+    if (face === null) {\n+      requestAnimationFrame(() => turnOver(standIn, card));\n+      return;\n+    }\n+    const copy = face.cloneNode(true) as HTMLElement;\n+    for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {\n+      el.removeAttribute('data-card-id');\n+      el.removeAttribute('data-testid');\n+    }\n+    standIn.append(copy);\n+    standIn.setAttribute('data-face', '');\n+  }\n+\n   /** The one element every back/stand-in on this board is — appended, never reused across one. */\n   function backElement(root: HTMLElement): HTMLElement {\n     const el = document.createElement('div');\n@@ -1086,6 +1111,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo\n             if (left === null || left > 0) {\n               holdSpell(onStack);\n               heldSpell = onStack;\n+              turnOver(standIn, onStack);\n               if (left === null) afterSeek = settle;\n               else handTimer = setTimeout(settle, left);\n               return;\n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "fa399cef813ec0c1cff91141382bb193eddd837f",
+    "files": [
+     "apps/ui/src/play/live/presence.css",
+     "apps/ui/src/play/live/presence.test.ts",
+     "apps/ui/src/play/live/presence.ts"
+    ],
+    "touched": {
+     "apps/ui/src/play/live/presence.css": [
+      ".presence__back[data-face]",
+      ".presence__back[data-face] > .card",
+      ".presence__back[data-face]::after"
+     ],
+     "apps/ui/src/play/live/presence.test.ts": [],
+     "apps/ui/src/play/live/presence.ts": []
+    }
+   },
+   {
+    "sha": "4cb65532030c85742b85c6e18e47bc760bff3f0e",
+    "files": [
+     "apps/ui/src/play/live/pace.test.ts",
+     "apps/ui/src/play/live/pace.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "226ff8a9dc176a3fe12bf33c3b2d792d973b1d32",
+    "files": [
+     "e2e/play/scenario.ts",
+     "e2e/w71-tap-reveal.spec.ts"
+    ],
+    "touched": {}
+   }
+  ]
+ }
+}

@@ -1,0 +1,60 @@
+{
+ "commit": "922cd08e",
+ "subject": "log line paced as its own class",
+ "files": [
+  {
+   "filename": "apps/ui/src/play/live/pace.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/ui/src/play/live/pace.ts",
+   "status": "modified",
+   "patch": "@@ -88,7 +88,7 @@ import { MATCH_EVENTS } from './transport.ts';\n \n /* ── Classifying an event ────────────────────────────────────────────── */\n \n-export type PaceClass = 'input' | 'cast' | 'unseen' | 'resolve' | 'phase' | 'draw' | 'default';\n+export type PaceClass = 'input' | 'cast' | 'unseen' | 'log' | 'resolve' | 'phase' | 'draw' | 'default';\n \n /**\n  * Starting values (wave file §P step 2) — the operator's to tune by feel\n@@ -102,13 +102,18 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {\n   cast: 0,\n   /** A delta that changes only what the board never draws ({@link UNDRAWN_PROPERTIES}): there is nothing to show, so nothing to wait for. */\n   unseen: 0,\n+  /**\n+   * A `message` notify — a line of Forge's game log. It draws nothing on the board, and Forge writes one for\n+   * every mana ability and cast inside a cast's own burst, so a gap here would pull the cast apart again.\n+   */\n+  log: 0,\n   /** The stack shrinking or changing in place — something resolving or leaving. */\n   resolve: 600,\n   /** `GameView.Phase` changed. */\n   phase: 250,\n   /** A card arrived in a hand (its `Zone` is `Hand`) — a draw, most often. */\n   draw: 200,\n-  /** Everything else on the state channel, and every `message` log line. */\n+  /** Everything else on the state channel. */\n   default: 150,\n };\n \n@@ -181,6 +186,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu\n   if (f.kind !== 'notify') return 'default';\n   const method = f.method;\n   if (typeof method === 'string' && INPUT_NOTIFY_METHODS.has(method)) return 'input';\n+  if (method === 'message') return 'log';\n   if (method !== 'applyDelta') return 'default';\n   const packetPayload = f.payload;\n   const packet =\n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "0aba11777d4d62555080dd1034fbfffe7fe36bbf",
+    "files": [
+     "apps/ui/src/play/live/gestures/gestures.test.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "02de24f91be7d3c370506e1137e873fd17908a39",
+    "files": [
+     "apps/ui/src/play/live/LiveBoard.tsx"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "922cd08ec06b2f743ff0cd6a5b70d8d9cedb69ab",
+    "files": [
+     "apps/ui/src/play/live/pace.test.ts",
+     "apps/ui/src/play/live/pace.ts"
+    ],
+    "touched": {
+     "apps/ui/src/play/live/pace.test.ts": [
+      "MESSAGE",
+      "RESOLVED",
+      "paced"
+     ],
+     "apps/ui/src/play/live/pace.ts": [
+      "PaceClass",
+      "PACE_DELAYS_MS",
+      "classify"
+     ]
+    }
+   },
+   {
+    "sha": "826021d8803620d8823cef642ad6dc1d245f4867",
+    "files": [
+     "apps/server/src/play/auto.test.ts",
+     "apps/server/src/play/match.ts"
+    ],
+    "touched": {}
+   }
+  ]
+ }
+}

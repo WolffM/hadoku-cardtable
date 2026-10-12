@@ -12,24 +12,41 @@
  * `changes.json` is the `files` array of GitHub's compare API (or the same
  * shape built from `git diff`): `[{ "filename", "status", "patch"? }]`.
  *
+ * Every pick has a tier:
+ *   0  what changed itself: a spec, a jvm suite, the specs and suites a
+ *      changed scenario starts                                   always runs
+ *   1  the guard family of a hot-path module (`GUARDS`)          always runs
+ *   2  a spec the change is relevant to, scored                  a dispatch runs them all; a push
+ *                                                                runs the best until `PUSH_BUDGET`
+ * and the smoke set runs whenever app code changed.
+ *
+ * Tier 2's score adds up the evidence, per changed file:
+ *   history  the specs that landed with an earlier edit to the same declaration
+ *            (a top-level TS declaration, a CSS rule) — the spec a fix was proven
+ *            by guards the code it fixed — and, weaker, with any earlier edit to
+ *            the file. A land is the run of commits `land.sh` closes with its
+ *            version bump; one carrying many specs says little about each.
+ *   renders  the test ids and `data-*` attributes in the declarations the diff
+ *            touches, or (half weight) in what uses them, each weighted by how
+ *            few specs touch it. A key more than a quarter of the specs touch
+ *            tells nothing about any of them and is left to the smoke set.
+ *   imports  an e2e helper's importers; a server module's route callers.
+ *
  * The rules, in order, per changed file:
  *   a package.json whose only edit is "version"         nothing
  *   an edit to comments or whitespace only              nothing
  *   docs, *.md, .claude, scripts/sfx, other workflows   nothing
  *   a unit test                                         nothing (`check` runs it)
- *   the engine pin, the bridge, match.ts / auto.ts, packages, dependencies,
- *   workspace config, forge.yml, this script, card data
- *                                                       every spec + every jvm suite
- *   an e2e spec                                         that spec
- *   a jvm suite                                         that suite
+ *   the engine pin, packages, dependencies, workspace config, forge.yml, this
+ *   script, card data                                   every spec + every jvm suite (a push: the
+ *                                                       smoke set, and the engine's guards for the pin)
+ *   an e2e spec, a jvm suite                            itself
  *   an e2e helper                                       the specs that import it
  *   a scenario (`*.state`)                              the specs + jvm suites that name it
- *   apps/server, in the match runtime (play/ and what it imports)
- *                                                       every spec + the jvm suites that import it
- *   other apps/server (rooms, HTTP, stats)              the specs that call one of its routes,
- *                                                       the smoke set, the jvm suites that import it
- *   apps/ui source                                      the specs that touch what it renders,
- *                                                       the smoke set, the jvm suites that import it
+ *   a hot-path module, or a server play module one
+ *   import below one                                    its guard family
+ *   apps/server                                         history, route callers, the jvm suites importing it
+ *   apps/ui source                                      history, what it renders, the jvm suites importing it
  *   anything else                                       every spec + every jvm suite
  *
  * "What it renders" is mechanical: the test ids and `data-*` attributes in
@@ -39,10 +56,10 @@
  * `type` declarations lead nowhere. A stylesheet's edited rules name classes,
  * and the components that use those classes render the ids near each use. A
  * spec "touches" a key when the key appears in the spec or in the e2e helper
- * functions the spec actually calls. A key most specs touch (the OK button) is
- * run by the smoke set or one sample spec rather than by all of them.
+ * functions the spec actually calls.
  */
 
+import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, normalize } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -64,23 +81,95 @@ export interface Selection {
   jvm: boolean;
   /** `null` = every jvm suite; otherwise exactly these (repo paths). */
   jvmFiles: string[] | null;
-  /** Everything was needed, and left to the batched full run. */
+  /** Something needed was left to the batched full run. */
   deferred: boolean;
   /** One line per decision, for the job log. */
   reasons: string[];
 }
 
-/** Always run when any UI file changes: one whole match, and the layout check. */
+/** Always run when any app code changes: one whole match, and the layout check. */
 export const SMOKE = ['play.spec.ts', 'table-fit.spec.ts'];
 
-/** On a push to main, the mapped specs that run beyond what changed itself and the smoke set. */
-export const PUSH_MAPPED = 6;
+/** On a push to main, scored specs are added, best first, until this many specs run in all (one shard). */
+export const PUSH_BUDGET = 10;
 
-/** A key more than this share of specs touch is sampled, not run everywhere. */
+/** A tier-2 spec runs only on this much evidence: one key a handful of specs touch, or one land with an edit to the same declaration. */
+export const MIN_SCORE = 3;
+
+/** On a push to main, the jvm suites importing a changed file directly that run beyond tiers 0 and 1. */
+export const PUSH_JVM_BUDGET = 2;
+
+/** A key more than this share of specs touch tells nothing about any one of them. */
 const UBIQUITOUS = 0.25;
 
 /** Past this share of every Forge-gated spec, a narrowed run saves too little to be worth the risk. */
 export const FULL_SHARE = 0.6;
+
+/** A land carrying more specs than this (a whole wave at once) says nothing about which spec guards what. */
+const LAND_SPECS_MAX = 6;
+
+/** A declaration longer than this (a class holding a whole module) names no narrower part of the file than the file does. */
+const DECL_MAX_LINES = 300;
+
+/** How far back the history signal reads (first-parent commits). */
+const HISTORY = 2000;
+
+/**
+ * The hot paths: modules every match runs through, whose regressions surface far
+ * from anything they render. A change to one always runs its guard family — the
+ * specs and suites that pin its behaviour — on a push as on a dispatch. A server
+ * play module one import below a hot module inherits its family. Names are
+ * checked against the tree by the selector's test, so a renamed or merged spec
+ * reds `check` until this table follows it.
+ */
+export interface Guard {
+  name: string;
+  /** The hot-path modules, by repo path. */
+  paths: RegExp;
+  /** Spec basenames. */
+  specs: string[];
+  /** jvm suite repo paths. */
+  jvm: string[];
+}
+
+export const GUARDS: Guard[] = [
+  {
+    name: 'the engine',
+    paths: /^(forge|apps\/server\/src\/play\/bridge\/.*)$/,
+    specs: ['play.spec.ts', 'w68-untap.spec.ts', 'modal-arrows.spec.ts', 'w70-valakut.spec.ts', 'tt-cryptic.spec.ts', 'ee-thicket.spec.ts'],
+    jvm: ['apps/server/src/play/match-frames.jvm.test.ts', 'apps/server/src/play/w52-s-signet.jvm.test.ts'],
+  },
+  {
+    name: 'the server match',
+    paths: /^apps\/server\/src\/play\/match\.ts$/,
+    specs: ['w68-untap.spec.ts', 'dead-bar.spec.ts', 'waiting.spec.ts', 'lg-gamelog.spec.ts', 'w62-bounce.spec.ts', 'played-card.spec.ts'],
+    jvm: ['apps/server/src/play/w52-s-signet.jvm.test.ts', 'apps/server/src/play/priority.jvm.test.ts'],
+  },
+  {
+    name: 'auto-pass and auto-pay',
+    paths: /^apps\/server\/src\/play\/auto\.ts$/,
+    specs: ['w68-untap.spec.ts', 'w52-mana.spec.ts', 'unless-cost.spec.ts', 'w67-trigger-ask.spec.ts', 'land-abilities.spec.ts'],
+    jvm: ['apps/server/src/play/auto.jvm.test.ts', 'apps/server/src/play/auto-pass-land.jvm.test.ts', 'apps/server/src/play/w52-s-signet.jvm.test.ts'],
+  },
+  {
+    name: 'pacing',
+    paths: /^apps\/ui\/src\/play\/live\/pace\.ts$/,
+    specs: ['w47-pace.spec.ts', 'w71-tap-reveal.spec.ts', 'dead-bar.spec.ts', 'lg-gamelog.spec.ts', 'w67-shaman.spec.ts'],
+    jvm: [],
+  },
+  {
+    name: 'the client match state',
+    paths: /^apps\/ui\/src\/play\/live\/match\.ts$/,
+    specs: ['dead-bar.spec.ts', 'w60-waiting.spec.ts', 'w55-withheld.spec.ts', 'w32.spec.ts', 'w54-blockers.spec.ts'],
+    jvm: [],
+  },
+  {
+    name: 'placement and gestures',
+    paths: /^apps\/ui\/src\/play\/live\/((presence|placed)\.ts|gestures\/.*)$/,
+    specs: ['presence.spec.ts', 'played-card.spec.ts', 'w62-parked.spec.ts', 'w67-shaman.spec.ts', 'w70-tapped-drag.spec.ts', 'w71-tap-reveal.spec.ts'],
+    jvm: [],
+  },
+];
 
 const NOTHING: RegExp[] = [
   /^docs\//,
@@ -98,8 +187,6 @@ const NOTHING: RegExp[] = [
 const EVERYTHING: RegExp[] = [
   /^forge$/,
   /^\.gitmodules$/,
-  /^apps\/server\/src\/play\/bridge\//,
-  /^apps\/server\/src\/play\/(match|auto)\.ts$/,
   /^packages\//,
   /^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|tsconfig\.base\.json|vitest\.config\.ts|\.npmrc|\.nvmrc)$/,
   /^apps\/(ui|server)\/(package\.json|tsconfig[^/]*\.json|vite\.config\.ts|index\.html)$/,
@@ -184,6 +271,65 @@ export class Repo {
     walk(dir);
     return out.sort();
   }
+
+  /** The revision history is read from; a replay of an old range reads it at that range's head. */
+  protected rev = 'HEAD';
+  private landCache: Land[] | null = null;
+
+  /** `git` in this checkout, or null where there is none (a tree without `.git`, an unknown sha). */
+  protected git(args: string[]): string | null {
+    try {
+      return execFileSync('git', ['-C', this.root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Main's lands, newest first: first-parent history cut at the version-bump
+   * commits `land.sh` closes each land with. A shallow clone has one commit of
+   * history and so, honestly, no lands.
+   */
+  lands(): Land[] {
+    if (this.landCache) return this.landCache;
+    const lands: Land[] = [];
+    const log = this.git(['log', '--first-parent', '--no-renames', '--name-only', '--format=%x00%H %s', '-n', String(HISTORY), this.rev]);
+    let cur: Land = { commits: [] };
+    for (const chunk of (log ?? '').split('\0').slice(1)) {
+      const [head, ...files] = chunk.split('\n').filter(Boolean);
+      if (BUMP.test(head.slice(41))) {
+        if (cur.commits.length) lands.push(cur);
+        cur = { commits: [] };
+      } else cur.commits.push({ sha: head.slice(0, 40), files });
+    }
+    if (cur.commits.length) lands.push(cur);
+    this.landCache = lands;
+    return lands;
+  }
+
+  /** The declarations or rules commit `sha` edited in `file`, by name (`touchedNames`). */
+  touchedAt(sha: string, file: string): string[] {
+    const show = this.git(['show', '--format=', '-U0', '--no-renames', sha, '--', file]);
+    const src = this.git(['show', `${sha}:${file}`]);
+    const at = show?.indexOf('\n@@') ?? -1;
+    return src === null || at < 0 ? [] : touchedNames(file, src, show!.slice(at + 1));
+  }
+}
+
+export interface Land {
+  commits: { sha: string; files: string[] }[];
+}
+
+/** `land.sh`'s closing commit: `ui 0.32.190, server 0.32.121`. */
+const BUMP = /^(ui|server) \d+\.\d+\.\d+(, (ui|server) \d+\.\d+\.\d+)?$/;
+
+/** The top-level declarations (TS) or rule selectors (CSS) a diff of `src` touches. */
+export function touchedNames(file: string, src: string, patch: string): string[] {
+  const lines = changedLines(patch);
+  if (file.endsWith('.css')) return [...new Set(changedSelectors(src, lines).map((s) => s.replace(/\s+/g, ' ')))];
+  if (!/\.tsx?$/.test(file)) return [];
+  const decls = declarations(src).filter((d) => d.end - d.start < DECL_MAX_LINES);
+  return [...new Set(decls.filter((d) => lines.some((l) => l >= d.start && l <= d.end)).map((d) => d.name))];
 }
 
 /* ── imports ──────────────────────────────────────────────────────────── */
@@ -210,17 +356,19 @@ export function resolveImport(repo: Repo, from: string, spec: string): string | 
   return [base, `${stem}.ts`, `${stem}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find((c) => repo.read(c) !== null) ?? null;
 }
 
-/** Every file `roots` import, transitively, including the roots. */
-function closure(repo: Repo, roots: string[]): Set<string> {
-  const seen = new Set<string>();
-  const todo = [...roots];
+/** Every file `root` imports, transitively, with how many imports away it is (the root is 0). */
+function closure(repo: Repo, root: string): Map<string, number> {
+  const depth = new Map([[root, 0]]);
+  const todo = [root];
   while (todo.length) {
-    const f = todo.pop()!;
-    if (seen.has(f)) continue;
-    seen.add(f);
-    todo.push(...importsOf(repo, f));
+    const f = todo.shift()!;
+    for (const g of importsOf(repo, f)) {
+      if (depth.has(g)) continue;
+      depth.set(g, depth.get(f)! + 1);
+      todo.push(g);
+    }
   }
-  return seen;
+  return depth;
 }
 
 /* ── what a UI file renders ───────────────────────────────────────────── */
@@ -313,25 +461,26 @@ export function changedSelectors(css: string, lines: number[]): string[] {
 
 /**
  * What a stylesheet change can move: the classes and attributes of the rules it
- * edits, and the ids rendered within `RADIUS` lines of each component line that
- * uses one of those classes. With no diff, every rule counts.
+ * edits (direct), and the ids rendered within `RADIUS` lines of each component
+ * line that uses one of those classes (reached). With no diff, every rule counts.
  */
 const RADIUS = 12;
-export function cssChangeKeys(repo: Repo, file: string, patch: string | undefined): { keys: Keys; via: string[] } {
+export function cssChangeKeys(repo: Repo, file: string, patch: string | undefined): Reached {
   const css = repo.read(file) ?? '';
-  const keys = patch ? cssKeys(changedSelectors(css, changedLines(patch)).map((s) => `${s}{}`).join('\n')) : cssKeys(css);
+  const direct = patch ? cssKeys(changedSelectors(css, changedLines(patch)).map((s) => `${s}{}`).join('\n')) : cssKeys(css);
+  const reached = emptyKeys();
   const via: string[] = [];
-  if (keys.classes.size === 0) return { keys, via };
-  const uses = [...keys.classes].map((c) => new RegExp(`['"\`][^'"\`\n]*(?<![\\w-])${escape(c)}(?![\\w-])`));
+  if (direct.classes.size === 0) return { direct, reached, via, typesOnly: false };
+  const uses = [...direct.classes].map((c) => new RegExp(`['"\`][^'"\`\n]*(?<![\\w-])${escape(c)}(?![\\w-])`));
   for (const f of repo.list('apps/ui')) {
     if (!f.endsWith('.tsx')) continue;
     const lines = (repo.read(f) ?? '').split('\n');
     const hits = lines.flatMap((l, i) => (uses.some((u) => u.test(l)) ? [i] : []));
     if (!hits.length) continue;
     via.push(f);
-    for (const i of hits) merge(keys, tsxKeys(lines.slice(Math.max(0, i - RADIUS), i + RADIUS + 1).join('\n')));
+    for (const i of hits) merge(reached, tsxKeys(lines.slice(Math.max(0, i - RADIUS), i + RADIUS + 1).join('\n')));
   }
-  return { keys, via };
+  return { direct, reached, via, typesOnly: false };
 }
 
 /* ── what a spec touches ──────────────────────────────────────────────── */
@@ -480,12 +629,22 @@ export function bindings(repo: Repo, importer: string, file: string): Map<string
 
 const mentions = (text: string, name: string): boolean => new RegExp(`(?<![\\w$.])${escape(name)}(?![\\w$])`).test(text);
 
+export interface Reached {
+  /** Rendered by what the diff touched itself. */
+  direct: Keys;
+  /** Rendered only by what uses it. */
+  reached: Keys;
+  via: string[];
+  typesOnly: boolean;
+}
+
 /**
  * What a change to a TS module puts on screen, followed symbol by symbol: the
  * top-level declarations its diff touches; for each one that renders (names a
  * test id or a `data-*` attribute) its keys, and for each one that does not,
  * the declarations that use it — in the same file, or in a file that imports
- * it — until every path reaches something that renders. Edits outside every
+ * it — until every path reaches something that renders. The keys of the
+ * touched declarations themselves are `direct`; the rest are `reached`. Edits outside every
  * declaration (the imports) act through the declarations that use them; with
  * no diff, or only such edits, every declaration counts. `interface` and
  * `type` declarations are erased at build and lead nowhere.
@@ -495,8 +654,9 @@ export function reachedKeys(
   importers: Map<string, string[]>,
   file: string,
   patch: string | undefined,
-): { keys: Keys; via: string[]; typesOnly: boolean } {
-  const keys = emptyKeys();
+): Reached {
+  const direct = emptyKeys();
+  const reached = emptyKeys();
   const via: string[] = [];
   const declCache = new Map<string, Decl[]>();
   const declsOf = (f: string): Decl[] => {
@@ -520,7 +680,7 @@ export function reachedKeys(
     if (n.decl) {
       const k = tsxKeys(n.decl.text);
       if (keyCount(k) > 0) {
-        merge(keys, k);
+        merge(start.includes(n) ? direct : reached, k);
         if (!via.includes(n.file)) via.push(n.file);
         continue;
       }
@@ -533,52 +693,129 @@ export function reachedKeys(
       for (const d of declsOf(g)) if (local.some((x) => mentions(d.text, x))) todo.push({ file: g, decl: d });
     }
   }
-  return { keys, via, typesOnly: own.length > 0 && start.length === 0 };
+  return { direct, reached, via, typesOnly: own.length > 0 && start.length === 0 };
 }
 
 export interface Options {
-  /** Run the smoke set instead of everything, and say so (a push to main; the schedule runs the full set). */
+  /** A push to main: never the full set, and tier 2 only up to `PUSH_BUDGET` (the schedule runs the rest). */
   deferFull?: boolean;
   fullShare?: number;
+  /** The hot-path table; `GUARDS` unless a test brings its own. */
+  guards?: Guard[];
 }
 
-export function select(repo: Repo, changes: Change[], { deferFull = false, fullShare = FULL_SHARE }: Options = {}): Selection {
+/** Each key alone, with the name `touched` prints for it. */
+function singleKeys(k: Keys): [string, Keys][] {
+  return [
+    ...[...k.testids].map((t): [string, Keys] => [`testid ${t}`, { ...emptyKeys(), testids: new Set([t]) }]),
+    ...[...k.prefixes].map((t): [string, Keys] => [`testid ${t}*`, { ...emptyKeys(), prefixes: new Set([t]) }]),
+    ...[...k.attrs].map((t): [string, Keys] => [`attr ${t}`, { ...emptyKeys(), attrs: new Set([t]) }]),
+    ...[...k.classes].map((t): [string, Keys] => [`class .${t}`, { ...emptyKeys(), classes: new Set([t]) }]),
+  ];
+}
+
+/** One candidate: its tier (lower runs first and is never cut), its tier-2 score, and the evidence. */
+interface Pick {
+  tier: number;
+  score: number;
+  why: { text: string; score: number }[];
+}
+
+/** The strongest piece of evidence, for the job log. */
+const reason = (p: Pick): string => {
+  const top = [...p.why].sort((a, b) => b.score - a.score)[0];
+  return p.tier < 2 ? top.text : `${top.text}${p.why.length > 1 ? ` (+${p.why.length - 1} more)` : ''}; score ${p.score.toFixed(1)}`;
+};
+
+/** Score weights: a key's is log(specs / specs touching it); history weighs a one-spec land like a rare key; an import or a route call is enough alone. */
+const W = { reachedKey: 0.75, landDecl: 4, landFile: 1.5, importer: 3 };
+
+export function select(repo: Repo, changes: Change[], { deferFull = false, fullShare = FULL_SHARE, guards = GUARDS }: Options = {}): Selection {
   const all = universe(repo);
   const reasons: string[] = [];
-  // Each pick's reason and rank: 0 for what changed itself (a spec, a suite, a scenario) and the
-  // smoke set, otherwise how many specs share the key it was picked by — lower is more specific.
-  const specs = new Map<string, { why: string; rank: number }>();
-  const jvm = new Map<string, { why: string; rank: number }>();
+  const specs = new Map<string, Pick>();
+  const jvm = new Map<string, Pick>();
   let allSpecs: string | null = null;
   let allJvm: string | null = null;
   const everything = (why: string): void => {
     allSpecs ??= why;
     allJvm ??= why;
   };
-  const addSpec = (s: string, why: string, rank = 0): void => {
-    if (all.specs.includes(s) && (specs.get(s)?.rank ?? Infinity) > rank) specs.set(s, { why, rank });
+  const add = (into: Map<string, Pick>, key: string, tier: number, text: string, score = 0): void => {
+    const p = into.get(key);
+    if (!p || tier < p.tier) into.set(key, { tier, score, why: [{ text, score }] });
+    else if (tier === p.tier) {
+      p.score += score;
+      p.why.push({ text, score });
+    }
   };
-  const addJvm = (f: string, why: string, rank = 0): void => {
-    if ((jvm.get(f)?.rank ?? Infinity) > rank) jvm.set(f, { why, rank });
+  const addSpec = (s: string, tier: number, text: string, score = 0): void => {
+    if (all.specs.includes(s)) add(specs, s, tier, text, score);
+  };
+  const addJvm = (f: string, tier: number, text: string, score = 0): void => {
+    if (all.jvm.includes(f)) add(jvm, f, tier, text, score);
+  };
+  const smoke = (f: string): void => {
+    for (const s of SMOKE) addSpec(s, 0, `smoke (${f})`);
+  };
+  const guard = (g: Guard, why: string): void => {
+    for (const s of g.specs) addSpec(s, 1, `guards ${g.name} (${why})`);
+    for (const j of g.jvm) addJvm(j, 1, `guards ${g.name} (${why})`);
   };
 
-  let jvmClosures: Map<string, Set<string>> | null = null;
-  const jvmImporting = (f: string): string[] => {
-    jvmClosures ??= new Map(all.jvm.map((s) => [s, closure(repo, [s])]));
-    return all.jvm.filter((s) => s !== f && jvmClosures!.get(s)!.has(f));
+  let jvmClosures: Map<string, Map<string, number>> | null = null;
+  /** The jvm suites importing `f`, each scored by how directly. */
+  const jvmImporting = (f: string): void => {
+    jvmClosures ??= new Map(all.jvm.map((s) => [s, closure(repo, s)]));
+    for (const s of all.jvm) {
+      const d = jvmClosures.get(s)!.get(f);
+      if (s !== f && d !== undefined) addJvm(s, 2, `imports ${f}${d > 1 ? ` (${d} deep)` : ''}`, 1 / d);
+    }
   };
   const specTexts = new Map<string, string>();
   const textOf = (s: string): string => {
     if (!specTexts.has(s)) specTexts.set(s, specText(repo, `e2e/${s}`));
     return specTexts.get(s)!;
   };
-  let specClosures: Map<string, Set<string>> | null = null;
+  let specClosures: Map<string, Map<string, number>> | null = null;
   const specsImporting = (f: string): string[] => {
-    specClosures ??= new Map(all.specs.map((s) => [s, closure(repo, [`e2e/${s}`])]));
+    specClosures ??= new Map(all.specs.map((s) => [s, closure(repo, `e2e/${s}`)]));
     return all.specs.filter((s) => specClosures!.get(s)!.has(f));
   };
   let uiImporters: Map<string, string[]> | null = null;
-  let playRuntime: Set<string> | null = null;
+  /** Score the specs touching each key by how few do; a key most specs touch is left to the smoke set. */
+  const byKeys = (label: string, keys: Keys, weight: number): void => {
+    for (const [name, one] of singleKeys(keys)) {
+      const users = all.specs.filter((s) => touched(textOf(s), one).length > 0);
+      if (users.length === 0) continue;
+      if (users.length > UBIQUITOUS * all.specs.length) {
+        reasons.push(`${label}: ${name} is in ${users.length} specs — the smoke set covers it`);
+        continue;
+      }
+      for (const s of users) addSpec(s, 2, `${label}: ${name}`, weight * Math.log(all.specs.length / users.length));
+    }
+  };
+  /** The specs that landed with earlier edits to `f`: to the same declarations, or to the file at all. */
+  const history = (f: string, names: string[]): void => {
+    for (const land of repo.lands()) {
+      const landed = [...new Set(land.commits.flatMap((c) => c.files).filter((g) => /^e2e\/[^/]+\.spec\.ts$/.test(g)).map((g) => g.slice('e2e/'.length)))].filter((s) =>
+        all.specs.includes(s),
+      );
+      if (landed.length === 0 || landed.length > LAND_SPECS_MAX) continue;
+      const edits = land.commits.filter((c) => c.files.includes(f));
+      if (edits.length === 0) continue;
+      const same = names.length > 0 ? edits.flatMap((c) => repo.touchedAt(c.sha, f)).find((n) => names.includes(n)) : undefined;
+      for (const s of landed) {
+        if (same) addSpec(s, 2, `${f}: landed with an edit to ${same.length > 60 ? `${same.slice(0, 57)}…` : same} (${edits[0].sha.slice(0, 8)})`, W.landDecl / landed.length);
+        else addSpec(s, 2, `${f}: landed with an edit to it (${edits[0].sha.slice(0, 8)})`, W.landFile / landed.length);
+      }
+    }
+  };
+  /** The current diff's own touched names, for `history`. */
+  const namesOf = (c: Change): string[] => {
+    const src = repo.read(c.filename);
+    return src === null || !c.patch ? [] : touchedNames(c.filename, src, c.patch);
+  };
 
   for (const c of changes) {
     const f = c.filename;
@@ -599,6 +836,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       continue;
     }
     const paths = c.previous_filename ? [f, c.previous_filename] : [f];
+    for (const g of guards) if (paths.some((p) => g.paths.test(p))) guard(g, f);
     if (paths.some((p) => EVERYTHING.some((r) => r.test(p)))) {
       everything(`${f}: changes what every match runs on`);
       continue;
@@ -606,18 +844,18 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     if (/^e2e\/[^/]+\.spec\.ts$/.test(f)) {
       const s = f.slice('e2e/'.length);
       if (c.status === 'removed') reasons.push(`${f}: removed`);
-      else if (all.specs.includes(s)) addSpec(s, 'the spec itself changed');
+      else if (all.specs.includes(s)) addSpec(s, 0, 'the spec itself changed');
       else reasons.push(`${f}: not Forge-gated (runs in check)`);
       continue;
     }
     if (f.endsWith('.jvm.test.ts')) {
-      if (c.status !== 'removed') addJvm(f, 'the suite itself changed');
+      if (c.status !== 'removed') addJvm(f, 0, 'the suite itself changed');
       continue;
     }
     if (/^e2e\//.test(f)) {
       const users = specsImporting(f);
       if (c.status === 'removed' || users.length === 0) everything(`${f}: an e2e file no spec imports (or a removed one)`);
-      for (const s of users) addSpec(s, `imports ${f}`, users.length);
+      for (const s of users) addSpec(s, 2, `imports ${f}`, W.importer);
       continue;
     }
     if (/^apps\/server\/src\/play\/scenarios\/[^/]+\.state$/.test(f)) {
@@ -625,9 +863,16 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       const re = new RegExp(`['"\`]${escape(name)}(\\.state)?['"\`]`);
       const specUsers = all.specs.filter((s) => re.test(repo.read(`e2e/${s}`) ?? ''));
       const jvmUsers = all.jvm.filter((j) => re.test(repo.read(j) ?? ''));
-      for (const s of specUsers) addSpec(s, `starts scenario ${name}`);
-      for (const j of jvmUsers) addJvm(j, `starts scenario ${name}`);
+      for (const s of specUsers) addSpec(s, 0, `starts scenario ${name}`);
+      for (const j of jvmUsers) addJvm(j, 0, `starts scenario ${name}`);
       if (specUsers.length + jvmUsers.length === 0) reasons.push(`${f}: no spec or suite names it`);
+      continue;
+    }
+    if (guards.some((g) => paths.some((p) => g.paths.test(p)))) {
+      // A hot path: its family above, and what history adds.
+      smoke(f);
+      history(f, namesOf(c));
+      if (isSource(f)) jvmImporting(f);
       continue;
     }
     if (/^apps\/server\//.test(f)) {
@@ -635,21 +880,22 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         everything(`${f}: ${c.status === 'removed' ? 'removed' : 'not TypeScript'} — outside the import graph`);
         continue;
       }
-      for (const j of jvmImporting(f)) addJvm(j, `imports ${f}`, 1);
-      playRuntime ??= closure(repo, repo.list('apps/server/src/play').filter((g) => isSource(g) && !g.includes('/scenarios/')));
-      if (playRuntime.has(f)) {
-        allSpecs ??= `${f}: part of the match runtime (apps/server/src/play and what it imports)`;
-        continue;
+      smoke(f);
+      jvmImporting(f);
+      history(f, namesOf(c));
+      // One import below a hot module: what guards that module guards this.
+      for (const g of guards) {
+        const hot = repo.list('apps/server/src/play').filter((h) => g.paths.test(h) && importsOf(repo, h).includes(f));
+        if (hot.length) guard(g, `${f}, imported by ${hot[0]}`);
       }
-      // Room, HTTP and stats scaffolding: the specs that call one of its routes, and the smoke set.
+      // Room, HTTP and stats scaffolding: the specs that call one of its routes.
       const routes = new Set<string>();
       for (const m of (repo.read(f) ?? '').matchAll(/['"`](\/[a-z][\w/-]*)/g)) if (m[1].length >= 4) routes.add(m[1].replace(/\/$/, ''));
-      for (const s of SMOKE) addSpec(s, `smoke (${f})`);
       const callers = all.specs.flatMap((s) => {
         const hit = [...routes].find((r) => textOf(s).includes(r));
         return hit ? [[s, hit]] : [];
       });
-      for (const [s, hit] of callers) addSpec(s, `${f}: route ${hit}`, callers.length);
+      for (const [s, hit] of callers) addSpec(s, 2, `${f}: route ${hit}`, W.importer);
       continue;
     }
     if (/^apps\/ui\//.test(f)) {
@@ -662,77 +908,81 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         reasons.push(`${f}: not part of the bundle`);
         continue;
       }
-      for (const j of jvmImporting(f)) addJvm(j, `imports ${f}`, 1);
-      const direct = specsImporting(f);
-      for (const s of direct) addSpec(s, `imports ${f}`, direct.length);
-      uiImporters ??= importersIn(repo, 'apps/ui');
-      const { keys, via, typesOnly } = f.endsWith('.css') ? { ...cssChangeKeys(repo, f, c.patch), typesOnly: false } : reachedKeys(repo, uiImporters, f, c.patch);
-      if (keyCount(keys) === 0) {
-        if (typesOnly) reasons.push(`${f}: type declarations only — tsc covers them`);
-        else if (f.endsWith('.css')) reasons.push(`${f}: its edited rules name no class or attribute`);
-        else if (f.endsWith('.json') && !uiImporters.has(f)) reasons.push(`${f}: nothing in the bundle imports it`);
-        else allSpecs ??= `${f}: renders nothing a spec can name, and nothing that imports it does`;
+      jvmImporting(f);
+      history(f, namesOf(c));
+      if (f.endsWith('.json')) {
+        smoke(f);
+        // Data: the components importing it render it, but every key they render is theirs, not its.
+        reasons.push(`${f}: data — the smoke set, and what landed with it`);
         continue;
       }
-      const label = via.length === 0 || via[0] === f ? f : `${f} via ${via.slice(0, 2).join(', ')}${via.length > 2 ? ', …' : ''}`;
-      for (const s of SMOKE) addSpec(s, `smoke (${f})`);
-      // Which specs touch each key. A key nearly every spec touches (the OK button, a card) is
-      // exercised by the smoke set, or by the smallest spec that touches it, not by all of them.
-      const byKey = new Map<string, string[]>();
-      for (const s of all.specs) for (const h of touched(textOf(s), keys)) byKey.set(h, [...(byKey.get(h) ?? []), s]);
-      for (const [key, users] of byKey) {
-        if (users.length <= UBIQUITOUS * all.specs.length) {
-          for (const s of users) addSpec(s, `${label}: ${key}`, users.length);
-          continue;
+      for (const s of specsImporting(f)) addSpec(s, 2, `imports ${f}`, W.importer);
+      uiImporters ??= importersIn(repo, 'apps/ui');
+      const r = f.endsWith('.css') ? cssChangeKeys(repo, f, c.patch) : reachedKeys(repo, uiImporters, f, c.patch);
+      if (keyCount(r.direct) + keyCount(r.reached) === 0) {
+        if (r.typesOnly) reasons.push(`${f}: type declarations only — tsc covers them`);
+        else if (f.endsWith('.css')) reasons.push(`${f}: its edited rules name no class or attribute`);
+        else {
+          reasons.push(`${f}: renders nothing a spec can name — the smoke set, and what landed with it`);
+          smoke(f);
         }
-        const smoke = users.find((s) => SMOKE.includes(s));
-        const sample = smoke ?? [...users].sort((x, y) => (repo.read(`e2e/${x}`)?.length ?? 0) - (repo.read(`e2e/${y}`)?.length ?? 0))[0];
-        reasons.push(`${label}: ${key} is in ${users.length} specs — sampled by ${sample}`);
-        addSpec(sample, `${label}: ${key} (sample of ${users.length})`);
+        continue;
       }
+      smoke(f);
+      const label = r.via.length === 0 || r.via[0] === f ? f : `${f} via ${r.via.slice(0, 2).join(', ')}${r.via.length > 2 ? ', …' : ''}`;
+      byKeys(f, r.direct, 1);
+      byKeys(label, r.reached, W.reachedKey);
       continue;
     }
     everything(`${f}: unclassified`);
   }
 
-  if (allSpecs === null && specs.size > 0 && specs.size >= fullShare * all.specs.length) {
+  const best = (m: Map<string, Pick>): [string, Pick][] => [...m].filter(([, p]) => p.tier === 2).sort((a, b) => b[1].score - a[1].score || a[0].localeCompare(b[0]));
+  for (const [s, p] of best(specs).filter(([, p]) => p.score < MIN_SCORE)) {
+    reasons.push(`${s}: not run — too little evidence (${reason(p)})`);
+    specs.delete(s);
+  }
+  if (allSpecs === null && specs.size > 0 && specs.size >= fullShare * all.specs.length && !deferFull) {
     allSpecs = `${specs.size} of ${all.specs.length} specs selected, past ${fullShare * 100}% — running all`;
   }
-  // A push to main never runs the full set: it runs what changed, the smoke set and the
-  // `PUSH_MAPPED` most specific picks, and the next batched full run (`forge.yml`'s schedule)
-  // covers the rest.
-  const deferredAll = deferFull && (allSpecs !== null || allJvm !== null);
+  // A push to main never runs the full set: tiers 0 and 1, then the best of tier 2 up to
+  // `PUSH_BUDGET`; the next batched full run (`forge.yml`'s schedule) covers the rest.
+  let deferred = false;
   if (deferFull && allSpecs !== null) {
     reasons.push(`every spec needed (${allSpecs}) — deferred to the next batched full run`);
     allSpecs = null;
-    for (const s of SMOKE) addSpec(s, 'smoke (the full set is deferred)');
+    for (const s of SMOKE) addSpec(s, 0, 'smoke (the full set is deferred)');
+    deferred = true;
   }
   if (deferFull && allJvm !== null) {
     reasons.push(`every jvm suite needed (${allJvm}) — deferred to the next batched full run`);
     allJvm = null;
+    deferred = true;
   }
-  let capped = false;
   if (deferFull) {
-    const broad = [...specs].filter(([, v]) => v.rank > 0).sort((a, b) => a[1].rank - b[1].rank || a[0].localeCompare(b[0]));
-    for (const [s, v] of broad.slice(PUSH_MAPPED)) {
-      reasons.push(`${s}: deferred to the batched full run (${v.why}; ${PUSH_MAPPED} more specific picks ran)`);
+    const room = Math.max(0, PUSH_BUDGET - [...specs.values()].filter((p) => p.tier < 2).length);
+    for (const [s, p] of best(specs).slice(room)) {
+      reasons.push(`${s}: deferred to the batched full run (${reason(p)})`);
       specs.delete(s);
-      capped = true;
+      deferred = true;
     }
-    for (const [f, v] of [...jvm].filter(([, v]) => v.rank > 0)) {
-      reasons.push(`${f}: deferred to the batched full run (${v.why})`);
+    const ranked = best(jvm);
+    const kept = ranked.filter(([, p]) => p.score >= 1).slice(0, PUSH_JVM_BUDGET);
+    for (const [f, p] of ranked.filter((e) => !kept.includes(e))) {
+      reasons.push(`${f}: deferred to the batched full run (${reason(p)})`);
       jvm.delete(f);
-      capped = true;
+      deferred = true;
     }
   }
 
   const e2e = allSpecs !== null || specs.size > 0;
+  const list = (m: Map<string, Pick>): string[] => [...m].sort((a, b) => a[1].tier - b[1].tier || b[1].score - a[1].score || a[0].localeCompare(b[0])).map(([k, p]) => `${k} — ${reason(p)}`);
   if (allSpecs !== null) reasons.push(`e2e: every spec — ${allSpecs}`);
-  else if (specs.size) for (const [s, v] of [...specs].sort()) reasons.push(`e2e: ${s} — ${v.why}`);
+  else if (specs.size) for (const l of list(specs)) reasons.push(`e2e: ${l}`);
   else reasons.push('e2e: none');
   const jvmOn = allJvm !== null || jvm.size > 0;
   if (allJvm !== null) reasons.push(`jvm: every suite — ${allJvm}`);
-  else if (jvm.size) for (const [s, v] of [...jvm].sort()) reasons.push(`jvm: ${s} — ${v.why}`);
+  else if (jvm.size) for (const l of list(jvm)) reasons.push(`jvm: ${l}`);
   else reasons.push('jvm: none');
 
   return {
@@ -740,7 +990,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     specs: allSpecs !== null ? null : [...specs.keys()].sort(),
     jvm: jvmOn,
     jvmFiles: allJvm !== null ? null : [...jvm.keys()].sort(),
-    deferred: capped || deferredAll,
+    deferred,
     reasons,
   };
 }

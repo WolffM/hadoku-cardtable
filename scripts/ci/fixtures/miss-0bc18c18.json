@@ -1,0 +1,57 @@
+{
+ "commit": "0bc18c18",
+ "subject": "tapped row re-centres",
+ "files": [
+  {
+   "filename": "apps/ui/src/play/card.css",
+   "status": "modified",
+   "patch": "@@ -776,6 +776,19 @@\n   margin-top: calc((680 / 488 - 488 / 680) / 2 * 100%);\n }\n \n+/*\n+ * And the same step below the card, outside its box, so a turned card still claims a portrait\n+ * card's height in its row. Without it a row of nothing but turned cards was shorter than a\n+ * card, and anything that made the row a card tall again — a drag's placement columns, an\n+ * untapped card joining it — re-centred the row and moved every turned card in it by 11px (the\n+ * operator, 2026-10-11: \"when dragging cards i notice tapped cards shift down slightly\"). The\n+ * card's own box, and every mark drawn against it, is unchanged. A pile's `<li>` is sized by its\n+ * fan (`board.css`) and is left out.\n+ */\n+.board-card:not([data-pile-size]):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {\n+  margin-bottom: calc((680 / 488 - 488 / 680) / 2 * 100%);\n+}\n+\n /*\n  * The card is laid out portrait at the landscape box's HEIGHT, so that turned\n  * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide\n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "7774c4341cc8e353c3b327e3b040ad8e6bd1ba4a",
+    "files": [
+     "apps/server/src/play/art.test.ts",
+     "apps/server/src/play/art.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "0bc18c1889a53612096b0cb8bd70e81a4ed6b9c0",
+    "files": [
+     "apps/ui/src/play/card.css"
+    ],
+    "touched": {
+     "apps/ui/src/play/card.css": [
+      ".board-card:not([data-pile-size]):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant]))"
+     ]
+    }
+   },
+   {
+    "sha": "ca8a516b89b32774bf508bf24b2b386ec0b774c1",
+    "files": [
+     "apps/server/src/play/scenarios/w70-clue.state",
+     "e2e/w70-clue.spec.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "63175b6e630e5bb4d1a57027d21e572df2286304",
+    "files": [
+     "apps/server/src/play/scenarios/w70-tapped-drag.state",
+     "e2e/w70-tapped-drag.spec.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "363757ce919f542fff94ced3c130f5e5f13d2cc5",
+    "files": [
+     "apps/server/src/play/w70-clue.jvm.test.ts"
+    ],
+    "touched": {}
+   }
+  ]
+ }
+}

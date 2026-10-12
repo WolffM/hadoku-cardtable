@@ -1,0 +1,55 @@
+{
+ "commit": "826021d8",
+ "subject": "log waits for its delta",
+ "files": [
+  {
+   "filename": "apps/server/src/play/auto.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/server/src/play/match.ts",
+   "status": "modified",
+   "patch": "@@ -427,6 +427,13 @@ export interface SeatState {\n \t * after a snapshot so a refresh does not lose the game's record.\n \t */\n \tsays: ServerFrame[];\n+\t/**\n+\t * Lines of Forge's game log waiting for this seat's board to show the cards\n+\t * they name ({@link Match.onGameLog}), oldest first, and the timer that sends\n+\t * them anyway ({@link LOG_HOLD_MAX_MS}).\n+\t */\n+\theldLog: { text: string; log: GameLogLine }[];\n+\theldLogTimer: NodeJS.Timeout | null;\n \t/**\n \t * Wave 34 §S4 — the host card + ability id of the last `getAbilityToPlay`\n \t * this seat was actually given an answer for, whether the browser answered\n@@ -686,6 +693,14 @@ export const MATCH_ENDED_TITLE = 'Match ended';\n  */\n const SAYS_KEPT = 2000;\n \n+/**\n+ * The longest a game log line waits for the delta that shows its cards\n+ * ({@link Match.onGameLog}). The wait is about order, not secrecy — the bridge\n+ * already decided the seat may read the line — so a line whose card never\n+ * becomes visible on this seat's board still goes, this late.\n+ */\n+const LOG_HOLD_MAX_MS = 1000;\n+\n /**\n  * The name this seat is entitled to see for a card, off its own projected\n  * state — never off the raw stream. A card the projection hid has no name here,\n@@ -1060,6 +1075,8 @@ export class Match {\n \t\t\tautoPassed: 0,\n \t\t\tmulligans: 0,\n \t\t\tsays: [],\n+\t\t\theldLog: [],\n+\t\t\theldLogTimer: null,\n \t\t\tlastAbilityToPlay: null,\n \t\t\tchosenAbility: null,\n \t\t\tsameTarget: null,\n@@ -1890,6 +1907,7 @@ export class Match {\n \t\tconst projected = s.projector.project(raw) as unknown as ServerFrame;\n \t\ts.history.push(projected);\n \t\tthis.send(s, projected);\n+\t\tthis.releaseLog(s, false);\n \t}\n \n \tprivate onLine(line: BridgeLine): void {\n@@ -2528,7 +2546,39 @@ export class Match {\n \t\t\tif (s.ai || s.playerId === null) continue;\n \t\t\tconst mine = line.players.find((p) => p.player === s.playerId);\n \t\t\tif (mine === undefined || mine.text === null || mine.text === '') continue;\n-\t\t\tthis.say(s, mine.text, { type: line.type, cards: mine.cards });\n+\t\t\ts.heldLog.push({ text: mine.text, log: { type: line.type, cards: mine.cards } });\n+\t\t\tthis.releaseLog(s, false);\n+\t\t\tif (s.heldLog.length > 0 && s.heldLogTimer === null) {\n+\t\t\t\tconst timer = setTimeout(() => {\n+\t\t\t\t\ts.heldLogTimer = null;\n+\t\t\t\t\tif (this.status === 'running' || this.status === 'over') this.releaseLog(s, true);\n+\t\t\t\t}, LOG_HOLD_MAX_MS);\n+\t\t\t\ttimer.unref();\n+\t\t\t\ts.heldLogTimer = timer;\n+\t\t\t}\n+\t\t}\n+\t}\n+\n+\t/**\n+\t * Send this seat's held log lines, oldest first, up to the first that names a\n+\t * card its board does not show yet (all of them when `all`).\n+\t *\n+\t * Forge writes a log entry while it acts, and the delta that shows the act is\n+\t * sent after: a cast's `STACK_ADD` is written as the spell joins the stack,\n+\t * and the delta that puts it there reaches the other seat only once\n+\t * `playAbility` has committed (`cast-hidden.jvm.test.ts`). Sent as it came,\n+\t * the line named the card on the opponent's screen before its board did.\n+\t */\n+\tprivate releaseLog(s: SeatState, all: boolean): void {\n+\t\twhile (s.heldLog.length > 0) {\n+\t\t\tconst next = s.heldLog[0]!;\n+\t\t\tif (!all && next.log.cards.some((c) => s.projector.visibilityOf(c.id) === 'hidden')) break;\n+\t\t\ts.heldLog.shift();\n+\t\t\tthis.say(s, next.text, next.log);\n+\t\t}\n+\t\tif (s.heldLog.length === 0 && s.heldLogTimer !== null) {\n+\t\t\tclearTimeout(s.heldLogTimer);\n+\t\t\ts.heldLogTimer = null;\n \t\t}\n \t}\n \n"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "0aba11777d4d62555080dd1034fbfffe7fe36bbf",
+    "files": [
+     "apps/ui/src/play/live/gestures/gestures.test.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "02de24f91be7d3c370506e1137e873fd17908a39",
+    "files": [
+     "apps/ui/src/play/live/LiveBoard.tsx"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "922cd08ec06b2f743ff0cd6a5b70d8d9cedb69ab",
+    "files": [
+     "apps/ui/src/play/live/pace.test.ts",
+     "apps/ui/src/play/live/pace.ts"
+    ],
+    "touched": {}
+   },
+   {
+    "sha": "826021d8803620d8823cef642ad6dc1d245f4867",
+    "files": [
+     "apps/server/src/play/auto.test.ts",
+     "apps/server/src/play/match.ts"
+    ],
+    "touched": {
+     "apps/server/src/play/auto.test.ts": [],
+     "apps/server/src/play/match.ts": [
+      "SAYS_KEPT",
+      "LOG_HOLD_MAX_MS"
+     ]
+    }
+   }
+  ]
+ }
+}

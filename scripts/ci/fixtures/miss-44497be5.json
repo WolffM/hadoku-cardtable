@@ -1,0 +1,66 @@
+{
+ "commit": "44497be5",
+ "subject": "Signet regression",
+ "files": [
+  {
+   "filename": "apps/server/src/play/auto.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/server/src/play/auto.ts",
+   "status": "modified",
+   "patch": "@@ -1186,6 +1186,16 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul\n  * is Forge's actionable HIGHLIGHT set, not the cards that can pay this cost. That\n  * is item 6's whole story, and `'forgeAuto'` is the value that stops asking about\n  * it; {@link StopPolicy.unambiguousPayment} carries the evidence.\n+ *\n+ * **Asked only of a payment for the seat's own cast or activation**\n+ * ({@link Payment.own}): choosing the spell was choosing to pay for it. Every\n+ * other payment is a decision in itself and is the player's whatever the\n+ * policy says — a cost another player's spell puts on theirs (Izzet Charm,\n+ * Mana Leak, Daze: pay, or let it be countered), a trigger's \"you may pay\", a\n+ * ward cost. The operator, 2026-10-11, of an Izzet Charm the server paid: *\"i\n+ * never said it should auto pay for it, that decision should have been\n+ * surfaced to me.\"* Such a payment is still cancelled for them when Forge says\n+ * it cannot be paid at all ({@link decideCancel}): that leaves no decision.\n  */\n export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null {\n \tif (facts.openAsks > 0) return null;\n@@ -1318,6 +1328,13 @@ export function paymentCost(message: string): string | null {\n /** One payment, while it is being made. */\n export interface Payment {\n \tcost: string;\n+\t/**\n+\t * The payment follows this seat's own cast or activation: the seat chose the\n+\t * ability it pays for, so it already chose to pay, and Forge's Auto may be\n+\t * pressed for it ({@link decidePay}). Fixed when the payment opens — a land\n+\t * the seat taps by hand inside it is a choice of its own and changes nothing.\n+\t */\n+\town: boolean;\n \t/** Cards that tapped while the payment prompt was up, in the order they tapped. */\n \ttapped: { id: number; name: string }[];\n }\n@@ -1340,7 +1357,7 @@ export interface Payment {\n  * payer's own copy is left unattributed — their own log does not need to tell\n  * them who they are.\n  */\n-export function paymentLine(payment: Payment, actor?: string): string {\n+export function paymentLine(payment: Pick<Payment, 'cost' | 'tapped'>, actor?: string): string {\n \tconst cost = plainCost(payment.cost);\n \tconst who = actor === undefined || actor === '' ? '' : `${actor} `;\n \tif (payment.tapped.length === 0) return `${who}paid ${cost}`;"
+  },
+  {
+   "filename": "apps/server/src/play/match.test.ts",
+   "status": "modified"
+  },
+  {
+   "filename": "apps/server/src/play/match.ts",
+   "status": "modified",
+   "patch": "@@ -456,10 +456,12 @@ export interface SeatState {\n \t */\n \tlastAbilityToPlay: { hostCard: number; abilityId: number } | null;\n \t/**\n-\t * Wave 52 §S B — the ability this seat chose from `getAbilityToPlay` since its\n-\t * last `Priority:` prompt, or null. A cost confirm for exactly this ability is\n-\t * answered Yes (`auto.ts`'s `chosenCostConfirm`), once; a priority prompt\n-\t * means the activation is over, so it is cleared there.\n+\t * The ability this seat chose from `getAbilityToPlay` since its last\n+\t * `Priority:` prompt, or null — the seat's own answer (its browser's), never\n+\t * one the server gave for it. A cost confirm for exactly this ability is\n+\t * answered Yes (`auto.ts`'s `chosenCostConfirm`), once, and a payment for its\n+\t * card is the seat's own (`Payment.own`) and may be auto-paid; a priority\n+\t * prompt means the activation is over, so it is cleared there.\n \t */\n \tchosenAbility: { hostCard: number; abilityId: number } | null;\n \t/**\n@@ -2029,7 +2031,7 @@ export class Match {\n \t\t\t// The payment this prompt opens or closes is on record before anything\n \t\t\t// decides on it (Z4: `maybeCancelUnpayable` must see the payment it is\n \t\t\t// cancelling) — independent of whether this half is held or sent.\n-\t\t\tthis.trackPayment(s, frame.message);\n+\t\t\tthis.trackPayment(s, frame.message, frame.card?.id ?? null);\n \t\t\tthis.holdPromptWindow(s, frame);\n \t\t\treturn;\n \t\t} else if (frame.method === 'updateButtons') {\n@@ -2634,6 +2636,11 @@ export class Match {\n \t * extra: `trackPayment` already says what was paid and what tapped, which is\n \t * the whole record either way (#8).\n \t *\n+\t * Only for a payment that follows this seat's own cast or activation\n+\t * (`Payment.own`): an \"unless pays\" cost another player's spell puts on it, a\n+\t * trigger's \"you may pay\" or a ward cost is shown to the seat with Forge's own\n+\t * pay and Cancel, never paid for it (`auto.ts`'s `decidePay`).\n+\t *\n \t * The payment that CANNOT be made is the same shape and is answered here too,\n \t * with the other button (item 7).\n \t */\n@@ -2642,7 +2649,7 @@ export class Match {\n \t\tconst gate = this.autoGateFacts(s);\n \t\tif (gate === null) return false;\n \t\tconst { facts } = gate;\n-\t\tconst cost = decidePay(facts, s.policy);\n+\t\tconst cost = s.payment?.own === true ? decidePay(facts, s.policy) : null;\n \t\tif (cost === null) {\n \t\t\tthis.maybeCancelUnpayable(s, facts);\n \t\t\t// The payment ended (or never started); the next one earns its press.\n@@ -2719,11 +2726,14 @@ export class Match {\n \t * the opponent's copy is attributed, because an unattributed line in a table's\n \t * log reads as your own.\n \t */\n-\tprivate trackPayment(s: SeatState, message: string): void {\n+\tprivate trackPayment(s: SeatState, message: string, card: number | null): void {\n \t\tconst cost = paymentCost(message);\n \t\tif (cost !== null) {\n \t\t\tif (s.payment === null || s.payment.cost !== cost) {\n-\t\t\t\ts.payment = { cost, tapped: [] };\n+\t\t\t\t// Whose decision the payment is, settled once as it opens: the seat's own when it pays\n+\t\t\t\t// for the card whose ability this seat chose (`Payment.own`).\n+\t\t\t\tconst own = s.payment?.own ?? (s.chosenAbility !== null && s.chosenAbility.hostCard === card);\n+\t\t\t\ts.payment = { cost, tapped: [], own };\n \t\t\t\ts.paymentCancelled = false;\n \t\t\t\tthis.checkWaitingOn();\n \t\t\t}\n@@ -2960,10 +2970,9 @@ export class Match {\n \t\t\t\tmethod: auto.method,\n \t\t\t\twhy: auto.why,\n \t\t\t});\n-\t\t\tif (frame.method === 'getAbilityToPlay') {\n-\t\t\t\ts.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };\n-\t\t\t\ts.chosenAbility = s.lastAbilityToPlay;\n-\t\t\t}\n+\t\t\t// Not `chosenAbility`: an ability the server played (a trigger, an effect's cast) is not\n+\t\t\t// one the seat chose, and Forge's re-ask of one it did choose is that choice already.\n+\t\t\tif (frame.method === 'getAbilityToPlay') s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };\n \t\t\t// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for\n \t\t\t// (`onlyAnswer`'s own \"one option\") still owes its later echo nothing.\n \t\t\tif (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);"
+  }
+ ],
+ "land": {
+  "commits": [
+   {
+    "sha": "44497be57519b73aa80d62f7a33b1c0a5d078772",
+    "files": [
+     "apps/server/src/play/auto.test.ts",
+     "apps/server/src/play/auto.ts",
+     "apps/server/src/play/match.test.ts",
+     "apps/server/src/play/match.ts"
+    ],
+    "touched": {
+     "apps/server/src/play/auto.test.ts": [
+      "prompt",
+      "oneAbilityAsk",
+      "OWN_CARD",
+      "castOwn"
+     ],
+     "apps/server/src/play/auto.ts": [
+      "decideStop",
+      "Payment",
+      "paymentLine"
+     ],
+     "apps/server/src/play/match.test.ts": [
+      "envelopesFor",
+      "OWN_CARD",
+      "castOwn"
+     ],
+     "apps/server/src/play/match.ts": [
+      "SeatState"
+     ]
+    }
+   },
+   {
+    "sha": "5f6a2e94278a1c525c69217ca57ab35170359568",
+    "files": [
+     "apps/server/src/play/scenarios/unless-cost.state",
+     "e2e/unless-cost.spec.ts"
+    ],
+    "touched": {}
+   }
+  ]
+ }
+}
