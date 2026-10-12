@@ -2176,6 +2176,17 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     expect(combatCandidates(m).size).toBe(0);
   });
 
+  it('combatCandidates: the attack window closes on the OK press itself, and is live again if the hold lapses', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), attackBar(true), actionable([attacker])]);
+    expect([...combatCandidates(m)]).toEqual([attacker]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    expect(combatCandidates(m).size).toBe(0);
+    await until('the hold to lapse', () => m.barHold === null, BAR_HOLD_MAX_MS + 2000);
+    expect([...combatCandidates(m)]).toEqual([attacker]);
+  });
+
   it('a planeswalker is offered as a card target while declaring attackers, and attackAssignment says ASSIGN', async () => {
     const { s, m } = await fullGame();
     const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
