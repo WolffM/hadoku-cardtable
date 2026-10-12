@@ -148,6 +148,37 @@ describe.skipIf(!available.ok)(title, () => {
 		}, 120_000);
 	}
 
+	// A source whose mana part changes with the game: River of Tears adds {U}, or {B} from its
+	// sub-ability once a land was played. The {B} tap, after an earlier {U} tap was undone, must be
+	// as undoable as the first — the {U} part made nothing this time and must not still claim the
+	// {U} the undo already took back.
+	it('untap: River of Tears tapped for {U} and untapped, then tapped for {B} after a land drop, untaps on a click again', async () => {
+		if (!available.ok) return;
+		const s = await startScenario(available.config, { seed: 6501, decks: DECKS, scenario: state({ hand0: 'Island', field0: 'River of Tears', field1: 'Island' }) });
+		try {
+			await finishMulligan(s);
+			await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, "seat 0's main phase with the scripted board", 60_000, s);
+			const river = s.zone(0, 'Battlefield').find((c) => c.name === 'River of Tears')!;
+			const untap = async (what: string): Promise<void> => {
+				await waitUntil(() => { s.answerAsks(); return offeredTo(s, 0).includes(river.id); }, `the River, tapped ${what}, offered for the untap click`, 20_000, s);
+				s.select(0, river.id);
+				await waitUntil(() => { s.answerAsks(); return !tappedOn(s, river.id) && inOwnMain(s, 0, 1); }, `the River, tapped ${what}, untapped by the click`, 20_000, s);
+			};
+
+			await tap(s, river.id, 'the River for {U}');
+			await untap('for {U}');
+			const island = s.zone(0, 'Hand').find((c) => c.name === 'Island')!;
+			await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1) && offeredTo(s, 0).includes(island.id); }, 'the Island offered to play', 20_000, s);
+			s.select(0, island.id);
+			await waitUntil(() => { s.answerAsks(); return s.zone(0, 'Battlefield').some((c) => c.id === island.id) && inOwnMain(s, 0, 1); }, 'the Island played', 20_000, s);
+			await tap(s, river.id, 'the River for {B}');
+			await untap('for {B} after a land drop');
+			console.log('[mana-sources] River of Tears: {U} tap undone, {B} tap after a land drop undone');
+		} finally {
+			await s.stop();
+		}
+	}, 120_000);
+
 	for (const row of HOLD) {
 		const name = row.source.split(';')[0]!;
 		it(`hold: seat 1 holding only a ${row.kind} (${name}) is ${row.stops ? 'stopped' : 'passed'} in seat 0's spell's window`, async () => {
