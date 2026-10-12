@@ -27,7 +27,7 @@
  *            the file. A land is the run of commits `land.sh` closes with its
  *            version bump; one carrying many specs says little about each.
  *   renders  the test ids and `data-*` attributes in the declarations the diff
- *            touches, or (half weight) in what uses them, each weighted by how
+ *            touches, or (weighing less) in what uses them, each weighted by how
  *            few specs touch it. A key more than a quarter of the specs touch
  *            tells nothing about any of them and is left to the smoke set.
  *   imports  an e2e helper's importers; a server module's route callers.
@@ -114,14 +114,6 @@ const DECL_MAX_LINES = 300;
 /** How far back the history signal reads (first-parent commits). */
 const HISTORY = 2000;
 
-/**
- * The hot paths: modules every match runs through, whose regressions surface far
- * from anything they render. A change to one always runs its guard family — the
- * specs and suites that pin its behaviour — on a push as on a dispatch. A server
- * play module one import below a hot module inherits its family. Names are
- * checked against the tree by the selector's test, so a renamed or merged spec
- * reds `check` until this table follows it.
- */
 export interface Guard {
   name: string;
   /** The hot-path modules, by repo path. */
@@ -132,6 +124,14 @@ export interface Guard {
   jvm: string[];
 }
 
+/**
+ * The hot paths: modules every match runs through, whose regressions surface far
+ * from anything they render. A change to one always runs its guard family — the
+ * specs and suites that pin its behaviour — on a push as on a dispatch. A server
+ * play module one import below a hot module inherits its family. Names are
+ * checked against the tree by the selector's test, so a renamed or merged spec
+ * reds `check` until this table follows it.
+ */
 export const GUARDS: Guard[] = [
   {
     name: 'the engine',
@@ -796,7 +796,9 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     }
   };
   /** The specs that landed with earlier edits to `f`: to the same declarations, or to the file at all. */
+  let historyRead = false;
   const history = (f: string, names: string[]): void => {
+    historyRead = true;
     for (const land of repo.lands()) {
       const landed = [...new Set(land.commits.flatMap((c) => c.files).filter((g) => /^e2e\/[^/]+\.spec\.ts$/.test(g)).map((g) => g.slice('e2e/'.length)))].filter((s) =>
         all.specs.includes(s),
@@ -975,6 +977,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     }
   }
 
+  if (historyRead) reasons.push(`history: ${repo.lands().length} lands read${repo.lands().length ? '' : ' — no history here (a shallow checkout?), so no spec was picked for landing with this code'}`);
   const e2e = allSpecs !== null || specs.size > 0;
   const list = (m: Map<string, Pick>): string[] => [...m].sort((a, b) => a[1].tier - b[1].tier || b[1].score - a[1].score || a[0].localeCompare(b[0])).map(([k, p]) => `${k} — ${reason(p)}`);
   if (allSpecs !== null) reasons.push(`e2e: every spec — ${allSpecs}`);
