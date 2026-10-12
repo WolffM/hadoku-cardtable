@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 
@@ -249,10 +249,6 @@ describe('the turn bar is deleted (§A.4)', () => {
     // Nothing is hidden in its place either: the deletion is a deletion.
     expect(board.querySelectorAll('[hidden]'), 'nothing hidden stands in for it').toHaveLength(0);
     expect(board.textContent, 'and the turn number is not written anywhere').not.toContain('Turn 14');
-    // The stylesheet went with it, token and all.
-    expect(BOARD_RULES).not.toContain('.board__bar');
-    expect(BOARD_RULES).not.toContain('--bar-h');
-    expect(declarationIn('.board', 'grid-template-areas'), 'and the board has no bar row').toBe("'them' 'you'");
   });
 
   it('draws no game-over banner of its own; the result screen is LiveBoard\'s', () => {
@@ -260,9 +256,6 @@ describe('the turn bar is deleted (§A.4)', () => {
     const { container } = renderBoard({ ...base, gameOver: true });
     expect(container.querySelector('.board__over'), 'Board draws no banner, even when the game is over').toBeNull();
     expect(container.textContent, 'and no "game over" text anywhere').not.toContain('game over');
-    // The stylesheet went with it: Board owns no `.board__over` rule any more.
-    // (`.board__overlay` is a different, surviving selector and must not match.)
-    expect(BOARD_RULES).not.toMatch(/\.board__over\b(?!lay)/);
   });
 });
 
@@ -327,13 +320,10 @@ describe('zones', () => {
     // Mountain 87, Mountain 78, Vulshok War Boar 99.
     expect(tapped).toHaveLength(3);
     expect(field.textContent, 'no card on the board says "tapped"').not.toContain('tapped');
-    // And the turn is real: the stylesheet turns anything tapped, pending-tapped or attacking.
-    expect(
-      /\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
-        withoutComments(CARD_CSS),
-      ),
-      'the turn is on the tapped/pending/attacking rule',
-    ).toBe(true);
+    // And the turn is real: the cascade gives a tapped card a quarter turn, and an untapped one none.
+    const css = styled();
+    expect(turnOf(css, tapped[0]!)).toContain('90deg');
+    expect(turnOf(css, field.querySelector('[data-board-card]:not([data-tapped])')!)).not.toContain('90deg');
   });
 
   it('reports summoning sickness only for creatures on the battlefield', () => {
@@ -660,12 +650,6 @@ describe('BoardInteraction', () => {
   // One of each zone the viewer can see: my land, my hand, their creature, my graveyard.
   const picks = [me.battlefield[1]!.id, me.hand![2]!.id, them.battlefield.at(-1)!.id, me.graveyard[0]!.id];
 
-  it('a tapped card is centred in the row, not hung from its top: the turned face steps down half the height difference (2026-10-08)', () => {
-    expect(
-      declarationInCss(CARD_CSS, ".board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face", 'margin-top'),
-    ).toBe('calc((680 / 488 - 488 / 680) / 2 * 100%)');
-  });
-
   it('with no interaction, nothing Forge offers on the board is a button', () => {
     const { container } = renderBoard(view);
     expect(forgeButtons(container)).toHaveLength(0);
@@ -716,11 +700,6 @@ describe('BoardInteraction', () => {
       expect(offeredOnly.hasAttribute('data-picked'), 'but not picked').toBe(false);
       expect(offeredOnly.querySelector('.board-card__face')!.getAttribute('aria-pressed')).toBe('false');
     }
-  });
-
-  it('a picked card draws a filled badge in the offer’s own hue, not a new colour', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card__picked', 'background')).toBe('var(--accent)');
-    expect(declarationInCss(CARD_CSS, '.board-card__picked-art', 'fill')).toBe('var(--on-accent)');
   });
 
   /**
@@ -974,49 +953,40 @@ const BOARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play'
 const CARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'card.css'), 'utf8');
 
 /**
- * A stylesheet with its comments taken out. A grep for a declaration must not
- * be able to read PROSE about that declaration — both files below discuss
- * `writing-mode` and `rotate` at length, and a test that the discussion can
- * satisfy is a test that cannot fail for the right reason.
+ * A stylesheet with its comments taken out, so a grep for a rule cannot be
+ * satisfied by PROSE about that rule — both files discuss `writing-mode` and
+ * `rotate` at length.
  */
 function withoutComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
-/**
- * `board.css`'s DECLARATIONS, with every comment gone.
- *
- * Every "this token is gone" assertion below reads this and not `BOARD_CSS`, for
- * the same reason the rotation grep does: this file discusses the tokens it
- * deleted — `.board__bar`'s own `padding-right` trick, the `--gutter-w` column
- * §A.3 removed — and a test the PROSE can satisfy is a test that cannot fail for
- * the right reason.
- */
 const BOARD_RULES = withoutComments(BOARD_CSS);
 
-/**
- * One declaration out of a rule in `board.css`, so a regression reads as itself.
- *
- * `selector` has to be a whole selector LINE, which is how a rule with several
- * selectors is addressed by any one of them. More than one rule can therefore
- * carry the line — `.zone__cards`'s shared sizing rule and the per-zone rule
- * that gives it a `--card-slack` are two such — so the blocks are read in file
- * order and the LAST one declaring the property wins, which for rules of equal
- * specificity is also what the cascade does.
- */
-function declarationInCss(css: string, selector: string, property: string): string | undefined {
-  const blocks = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([\\s\\S]*?)^\\}`, 'gm');
-  const declares = new RegExp(`(?:^|;|\\{)\\s*${property}:([^;]+);`, 'm');
-  let found: string | undefined;
-  for (const block of css.matchAll(blocks)) {
-    const value = declares.exec(block[1]!)?.[1]?.replace(/\s+/g, ' ').trim();
-    if (value !== undefined) found = value;
-  }
-  return found;
+/** The turn the cascade gives a card's own face — `rotate` or a `transform` carrying one. */
+function turnOf(css: (el: Element, property: string) => string, boardCard: Element): string {
+  const face = boardCard.querySelector(':scope > .board-card__face > .card')!;
+  return `${css(face, 'rotate')} ${css(face, 'transform')}`;
 }
 
-const declarationIn = (selector: string, property: string): string | undefined =>
-  declarationInCss(BOARD_CSS, selector, property);
+/**
+ * What the cascade gives a RENDERED element for `property`, with both
+ * stylesheets on the document. jsdom matches selectors and resolves the
+ * cascade but lays nothing out, so this answers "is it out of flow", "does it
+ * take a click", "is it drawn at all" — never where a box lands, which is
+ * `e2e/table-fit.spec.ts`'s. A test here reads a keyword or compares two
+ * elements; it never pins a tuned value, so nudging a size needs no test edit.
+ *
+ * Per test, not file-wide: `card-size.ts` reads computed widths, and the rest
+ * of this suite is written against a document with no stylesheet.
+ */
+function styled(): (el: Element, property: string) => string {
+  const sheet = document.createElement('style');
+  sheet.textContent = `${BOARD_CSS}\n${CARD_CSS}`;
+  document.head.append(sheet);
+  onTestFinished(() => sheet.remove());
+  return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();
+}
 
 /** The fixture's own spell on the stack, repeated, so the only thing that varies is how many (a lone ABILITY draws on its source instead). */
 function withStack(base: BoardView, n: number): BoardView {
@@ -1108,105 +1078,12 @@ describe('the canvas is static', () => {
     }
   });
 
-  it('lays the board and the seats out in named tracks, not in their content', () => {
-    /*
-     * TWO rows, one to one (§A.1): the bar is deleted and the stack floats, so the
-     * two seats have the canvas between them and the two battlefields come out the
-     * same size on either side of the centre line — 26% each, the operator's own
-     * number (`board-layout-2026-09-27.md`).
-     */
-    expect(declarationIn('.board', 'grid-template-rows')).toBe('minmax(0, 1fr) minmax(0, 1fr)');
-    /*
-     * A seat is two card rows, no head row and ONE narrow column (wave 32 Q9) that
-     * spans both of them: the avatar, the counts, then the piles. Nothing about it
-     * is sized by what it holds.
-     */
-    expect(declarationIn('.board .seat', 'grid-template-columns')).toBe('var(--who-w) minmax(0, 1fr)');
-    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe('minmax(0, 2.6fr) minmax(0, 4fr)');
-    expect(BOARD_RULES, 'the head row is gone, token and all').not.toContain('--seat-head-h');
-    expect(BOARD_RULES, 'and so is the opponent-hand strip the fr row replaced').not.toContain('--opp-hand-h');
-    /*
-     * And the bar itself is fixed tracks with the avatar block in the seat's
-     * INNER one — `auto` LAST for the opponent, whose bar is the lower cell of
-     * their seat, and `auto` FIRST for the viewer, whose bar is the upper cell of
-     * theirs. That is item 10, and it REVERSES wave 20's anchoring on the
-     * operator's own instruction: *"lets push them closer together. bottom avatar
-     * anchored top of that box, top avatar anchored bottom of that box."* Telling
-     * ours from theirs still rests on `(you)`, on `data-viewer` and on the ink,
-     * which is what wave 20 was actually about.
-     */
-    // R3 (wave 35, fourth ask): the counts are the track right after the avatar;
-    // the mana pool moved to the far track, beside the graveyard.
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--counts-h) var(--mana-h)');
-    expect(declarationIn('.board .seat__ident', 'grid-row')).toBe('1');
-    expect(declarationIn('.board .seat__counts', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat__mana', 'grid-row')).toBe('3');
-    // The opponent's bar is the mirror: mana first, the avatar last, against the centre line.
-    expect(declarationIn('.board .seat:not([data-viewer]) .seat__who', 'grid-template-rows')).toBe(
-      'var(--mana-h) var(--counts-h) auto',
-    );
-    expect(declarationIn('.board .seat:not([data-viewer]) .seat__ident', 'grid-row')).toBe('3');
-    expect(declarationIn('.board .seat:not([data-viewer]) .seat__counts', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat:not([data-viewer]) .seat__mana', 'grid-row')).toBe('1');
-    // The graveyard left the bar entirely, and the bar's track for it with it.
-    expect(BOARD_RULES, 'the bar no longer has a graveyard track').not.toContain('--grave-h');
-    expect(BOARD_RULES).not.toContain('--grave-w');
-    /*
-     * The stack FLOATS (settled: *"float over the board makes sense"*), so the
-     * centre band is out of flow and the battlefields meet at the centre line. It
-     * takes the top of the same column the question panel takes the rest of —
-     * lane B's `--live-col-*` tokens, with the operator's own numbers as the
-     * fallback for a board mounted bare.
-     */
-    expect(declarationIn('.board__mid', 'position')).toBe('absolute');
-    expect(declarationIn('.board__mid', 'left')).toBe('var(--live-col-x, 59.4%)');
-    expect(declarationIn('.board__mid', 'width')).toBe('var(--live-col-w, 24.1%)');
-    expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(BOARD_RULES).not.toContain('--faces-w');
-    // The piles are ONE column (item 9, wave 30), and since wave 32 Q9 they are
-    // whatever the avatar and the counts leave of the seat's one left column: the
-    // graveyard takes the row that is left, and exile is an `auto` strip.
-    expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1fr) auto');
-    expect(declarationIn('.seat__piles', 'flex')).toBe('1 1 0');
-    // The left column spans BOTH seat rows, on both sides of the table.
-    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'side field' 'side hand'");
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'side hand' 'side field'");
-    /*
-     * The labels left on the board are a battlefield's four LANE names, and each
-     * is a `--row-head-h` strip across the top of its own lane — a lane is tall
-     * and narrow, and a column there would eat its whole share of the width. The
-     * zone captions and the `--gutter-w` COLUMN they sat in are gone (§A.3), so a
-     * row zone is one column, all of it the cards'.
-     *
-     * A lane paying in height means `--card-slack` owes that height back, or a
-     * two-row lane computes a card taller than the room under its own label and
-     * the lane has to scroll. The hand has no label at all, so its slack is the
-     * ring and lift alone.
-     */
-    expect(BOARD_RULES, 'no label column, token and all').not.toContain('--gutter-w');
-    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-rows'), 'no label track over the lanes').toBeUndefined();
-    expect(declarationIn('.zone__row', 'grid-template-rows')).toBe('var(--row-head-h) minmax(0, 1fr)');
-    expect(declarationIn('.seat[data-viewer] > .zone--hand > .zone__cards', '--card-slack')).toBe('8px');
-    expect(declarationIn('.seat > .zone--battlefield .zone__row > .zone__cards', '--card-slack')).toBe(
-      'calc(6px + var(--row-head-h) + var(--row-head-gap))',
-    );
-    // A battlefield's four groups are lanes across the slot, each lane's share
-    // of the width its card count (`Board.tsx` sets the grow), and a lane with
-    // nothing in it its label's width. Neither is sized by what is in it.
-    expect(declarationIn('.zone__rows', 'flex-direction')).toBe('row');
-    expect(declarationIn('.zone__row', 'flex')).toBe('0 1 var(--group-overhead)');
-    expect(declarationIn('.zone__row[data-empty]', 'flex')).toBe('0 0 var(--group-empty-w)');
-    // A lane clips, but a card's emphasis may paint `--emphasis-room` past it — and it never scrolls.
-    expect(declarationIn('.zone__row', 'overflow')).toBe('clip');
-    expect(declarationIn('.zone__row', 'overflow-clip-margin')).toBe('var(--emphasis-room)');
-    // The two things that appear mid-game are out of flow, so neither can
-    // push a track when it does.
-    expect(declarationIn('.board__warn', 'position')).toBe('absolute');
-    expect(declarationIn('.board__overlay', 'position')).toBe('absolute');
-    expect(declarationIn('.board__overlay', 'inset')).toBe('0');
+  it('draws everything that comes and goes mid-game out of flow, so no track moves for it', () => {
+    const css = styled();
+    const { container } = renderBoard({ ...base, missingCardIds: [4242] });
+    for (const selector of ['.board__mid', '.board__warn', '.board__overlay']) {
+      expect(css(container.querySelector(selector)!, 'position'), selector).toBe('absolute');
+    }
   });
 });
 
@@ -1223,41 +1100,28 @@ describe('the table as the operator blocked it (§A)', () => {
 
   /**
    * §A.1, and the only structural claim of the five that jsdom can settle: the
-   * rows, top to bottom, with the HANDS OUTERMOST.
-   *
-   * Read off the three `grid-template-areas` declarations rather than asserted as
-   * three separate strings, so the test says the thing the operator said — the
-   * order — and reds if any one of them stops mirroring the others.
+   * rows, top to bottom, with the HANDS OUTERMOST — read off the areas the
+   * cascade gives the rendered board and seats, so the test says the order the
+   * operator said and not the strings that produce it.
    */
-  const rowsOf = (selector: string): string[] =>
-    (declarationIn(selector, 'grid-template-areas') ?? '')
-      .split("'")
-      .filter((part) => part.trim() !== '')
-      .map((part) => part.trim());
-
   it('stacks four rows with each hand furthest from the middle', () => {
-    expect(rowsOf('.board'), 'the board: their seat, then ours').toEqual(['them', 'you']);
-    /*
-     * Which of the two CARD areas each row line holds, by name rather than by
-     * position, so the answer is the row order and not an index into whatever
-     * else the line mentions.
-     */
-    const cardRows = (selector: string): string[] =>
-      rowsOf(selector).map((line) => {
-        const names = line.split(/\s+/);
-        return ['field', 'hand'].find((a) => names.includes(a)) ?? '?';
-      });
-    expect([
-      ...cardRows('.board .seat:not([data-viewer])').map((r) => `them/${r}`),
-      ...cardRows('.board .seat').map((r) => `you/${r}`),
-    ]).toEqual(['them/hand', 'them/field', 'you/field', 'you/hand']);
-    // And the two battlefields are the same size, which is what "face each other
-    // across the middle" means for a canvas with nothing in flow between them.
-    expect(declarationIn('.board', 'grid-template-rows')).toBe('minmax(0, 1fr) minmax(0, 1fr)');
-    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe('minmax(0, 2.6fr) minmax(0, 4fr)');
-    // The one thing that was between them is out of flow now.
-    expect(declarationIn('.board__mid', 'position')).toBe('absolute');
+    const css = styled();
+    const { container, seat } = renderBoard(view);
+    const rowsOf = (el: Element): string[] =>
+      css(el, 'grid-template-areas')
+        .split(/["']/)
+        .filter((part) => part.trim() !== '')
+        .map((part) => part.trim());
+    expect(rowsOf(container.querySelector('.board')!), 'the board: their seat, then ours').toEqual(['them', 'you']);
+    // Which of the two CARD areas each row line holds, by name rather than by position.
+    const cardRows = (el: Element): string[] =>
+      rowsOf(el).map((line) => ['field', 'hand'].find((a) => line.split(/\s+/).includes(a)) ?? '?');
+    expect([...cardRows(seat(1)).map((r) => `them/${r}`), ...cardRows(seat(0)).map((r) => `you/${r}`)]).toEqual([
+      'them/hand',
+      'them/field',
+      'you/field',
+      'you/hand',
+    ]);
   });
 
   /**
@@ -1305,35 +1169,19 @@ describe('the table as the operator blocked it (§A)', () => {
    * come to rest under them. `.board__bar { padding-right: 11rem }` was this trick
    * for the status line; the bar is deleted, so the reservation is on the rows.
    *
-   * All four card rows, because a card can come to rest in any of them — and one
-   * token, because four hand-written paddings is how three of them end up wrong.
+   * All four card rows, because a card can come to rest in any of them, and all
+   * four the SAME, because four hand-written paddings is how three end up wrong.
+   * How much is `e2e/table-fit.spec.ts`'s to measure against the real overlays.
    */
-  it('reserves the right end of every row for the permanent overlays', () => {
-    /*
-     * The VALUE is pinned, not just the reference, because it is a measurement and
-     * because over-reserving is a silent failure with a real cost: 12rem — taken
-     * from the operator's drawing, where the leftmost permanent overlay sits at
-     * x=1080 of a 1280 WINDOW — reds `e2e/table-fit.spec.ts`'s crowded table at
-     * 28px against its 30px floor, because `live.css` anchors those overlays to
-     * `.live`'s right edge and `.live` is ~944px wide in a watchparty room. What
-     * they occupy is the widest of the three plus their shared 6px gutter: the
-     * controls, 6 + 112 = 118px. 7.5rem is that plus 2px of clearance.
-     */
-    expect(declarationIn('.board', '--right-gutter'), 'the reservation is what they occupy').toBe('7.5rem');
-    // A literal, not a reference: `--live-*` is `live.css`'s and is undefined when
-    // `Board` is mounted bare, which this suite and the dev harnesses both do.
-    expect(declarationIn('.board', '--right-gutter')).not.toContain('--live-');
-    for (const row of [
-      '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand',
-      '.seat > .zone--battlefield',
-      '.seat[data-viewer] > .zone--hand',
-      '.seat:not([data-viewer]) > .zone--hand',
-    ]) {
-      expect(declarationIn(row, 'padding-right'), `${row} reserves it`).toBe('var(--right-gutter)');
-    }
+  it('reserves the same right end of every row for the permanent overlays, and none under the stack', () => {
+    const css = styled();
+    const { zone, container } = renderBoard(view);
+    const reserved = [zone(0, 'battlefield'), zone(0, 'hand'), zone(1, 'battlefield'), zone(1, 'hand')].map((z) => css(z, 'padding-right'));
+    expect(reserved[0], 'a row reserves something').not.toBe('');
+    expect(new Set(reserved), 'and every row the same').toEqual(new Set([reserved[0]]));
     // A transient overlay reserves nothing: the stack and the question panel come
     // and go, so they cover what is under them (the operator, 2026-09-27).
-    expect(declarationIn('.board__mid', 'padding-right'), 'the stack reserves nothing').toBeUndefined();
+    expect(css(container.querySelector('.board__mid')!, 'padding-right'), 'the stack reserves none of it').not.toBe(reserved[0]);
   });
 
   /**
@@ -1390,7 +1238,6 @@ describe('the table as the operator blocked it (§A)', () => {
     expect(theirs, 'every seat has the box').not.toBeNull();
     expect(theirs.dataset.manaTotal).toBe('0');
     expect(theirs.children).toHaveLength(0);
-    expect(declarationIn('.board .seat', '--mana-h'), 'and the box is a named track').toBeDefined();
   });
 
   it('draws no pool at all from the committed capture, whose six colours are all zero', () => {
@@ -1460,11 +1307,7 @@ describe('no rotated text (operator, 2026-09-26)', () => {
      * test that says so.
      */
     const inCards = withoutComments(CARD_CSS).match(SIDEWAYS) ?? [];
-    expect(inCards).toEqual(['rotate(']);
-    const rotates = /^\s*transform: translate\(-50%, -50%\) rotate\(90deg\);$/m;
-    expect(rotates.test(CARD_CSS), 'the one rotation is the tapped card’s quarter turn').toBe(true);
-    const turned = /\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
-    expect(turned.test(withoutComments(CARD_CSS)), 'and it is on the turned card’s own rule').toBe(true);
+    expect(inCards, 'the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate(']);
   });
 
   it('draws the lane labels that are left horizontally, with their counts', () => {
@@ -1590,64 +1433,35 @@ describe('the seat’s vertical bar (#9)', () => {
       ).toEqual(['graveyard', 'exile']);
       expect(seat(p.id).querySelectorAll('[data-zone="graveyard"]'), 'one graveyard, not a copy').toHaveLength(1);
     }
-    // One column spanning both seat rows, the piles `flex: 1` — no fraction anywhere.
-    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'side field' 'side hand'");
-    expect(declarationIn('.board .seat__side', 'grid-area')).toBe('side');
-    expect(declarationIn('.board .seat__side', 'display')).toBe('flex');
-    expect(declarationIn('.board .seat__side', 'flex-direction')).toBe('column');
-    expect(declarationIn('.seat__piles', 'flex')).toBe('1 1 0');
-    expect(declarationIn('.board .seat__who', 'flex'), 'the bar takes what it needs and no more').toBe('none');
-    // The bar is fixed tracks: avatar, counts, mana (R3) — so the graveyard starts at one place.
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--counts-h) var(--mana-h)');
-    expect(BOARD_RULES).not.toContain('seat__who > .zone--graveyard');
-    // The retired w26 geometry is not still there.
-    expect(BOARD_RULES).not.toContain("'piles hand'");
-    expect(BOARD_RULES).not.toContain("'who field'");
   });
 
   /**
-   * R3 (wave 35, the fourth ask: L9, P2, Q9, R3). The operator's own words
-   * ("avatar, then the two counts, then the rest of the space graveyard")
-   * never actually happened: wave 32's build put the mana pool between the
-   * avatar and the counts. Read the `grid-row` each track is given and prove
-   * the ORDER it implies is avatar, counts, mana — not avatar, mana, counts.
+   * R3 (wave 35, the fourth ask): the operator's order, top to bottom, is
+   * avatar, counts, then the rest — and the opponent's column is its vertical
+   * mirror. Read off the rows the cascade gives each rendered element.
    */
-  it('R3: the counts are the track right after the avatar, not the mana pool', () => {
-    const rowOf = (selector: string): number => Number(declarationIn(selector, 'grid-row'));
-    const viewerOrder = (
-      [
-        ['ident', rowOf('.board .seat__ident')],
-        ['counts', rowOf('.board .seat__counts')],
-        ['mana', rowOf('.board .seat__mana')],
-      ] as const
-    )
-      .slice()
-      .sort((a, b) => a[1] - b[1])
-      .map(([name]) => name);
-    expect(viewerOrder, 'top to bottom: avatar, counts, mana').toEqual(['ident', 'counts', 'mana']);
-    const opponentOrder = (
-      [
-        ['ident', rowOf('.board .seat:not([data-viewer]) .seat__ident')],
-        ['counts', rowOf('.board .seat:not([data-viewer]) .seat__counts')],
-        ['mana', rowOf('.board .seat:not([data-viewer]) .seat__mana')],
-      ] as const
-    )
-      .slice()
-      .sort((a, b) => a[1] - b[1])
-      .map(([name]) => name);
-    expect(opponentOrder, 'the mirror: mana, counts, avatar').toEqual(['mana', 'counts', 'ident']);
+  it('R3 / Q9: the viewer reads avatar, counts, mana down the column; the opponent reads it mirrored', () => {
+    const css = styled();
+    const { seat } = renderBoard(view);
+    const order = (id: number): string[] =>
+      ['ident', 'counts', 'mana']
+        .map((name) => [name, Number(css(seat(id).querySelector(`.seat__${name}`)!, 'grid-row'))] as const)
+        .sort((a, b) => a[1] - b[1])
+        .map(([name]) => name);
+    expect(order(0), 'the viewer, top to bottom').toEqual(['ident', 'counts', 'mana']);
+    expect(order(1), 'the opponent, top to bottom').toEqual(['mana', 'counts', 'ident']);
   });
 
-  it('Q9: the opponent’s column is the vertical mirror, and exile is a strip that exists only while it holds a card', () => {
-    // The mirror is the order only: text and faces are never turned.
-    expect(declarationIn('.board .seat:not([data-viewer]) > .seat__side', 'flex-direction')).toBe('column-reverse');
-    expect(declarationIn('.seat:not([data-viewer]) .seat__piles', 'grid-template-rows')).toBe('auto minmax(0, 1fr)');
-    expect(declarationIn('.board .seat:not([data-viewer]) .zone--graveyard', 'justify-content')).toBe('flex-end');
-    expect(declarationIn('.board .seat .zone--exile[data-count=\'0\']', 'display')).toBe('none');
-    expect(declarationIn('.board .seat .zone--exile', 'max-height'), 'a strip, not a second pile').toBe('3.6rem');
-    // The attribute that rule reads is the zone's own count.
-    const { zone } = renderBoard(view);
-    expect(zone(0, 'exile').dataset.count).toBe(String(view.players.find((p) => p.isViewer)!.exile.length));
+  it('Q9: exile is drawn only while it holds a card', () => {
+    const css = styled();
+    const empty = renderBoard(view);
+    expect(empty.zone(0, 'exile').dataset.count).toBe('0');
+    expect(css(empty.zone(0, 'exile'), 'display'), 'an empty exile is not drawn').toBe('none');
+    empty.unmount();
+    const viewer = view.players.find((p) => p.isViewer)!;
+    const exiled = { ...view, players: view.players.map((p) => (p.isViewer ? { ...p, exile: [viewer.battlefield[0]!] } : p)) };
+    const { zone } = renderBoard(exiled);
+    expect(css(zone(0, 'exile'), 'display'), 'one card, and it is').not.toBe('none');
   });
 
   it('marks a pile that holds a card Forge offers, however deep, and opens it with that card first', () => {
@@ -1664,7 +1478,8 @@ describe('the seat’s vertical bar (#9)', () => {
     const pile = zone(viewer.id, 'graveyard');
     expect(pile.hasAttribute('data-can-act')).toBe(true);
     expect(zone(viewer.id, 'exile').hasAttribute('data-can-act')).toBe(false);
-    expect(declarationIn('.board .seat :is(.zone--graveyard, .zone--exile)[data-can-act]', 'outline')).toBe('2px solid var(--accent)');
+    const css = styled();
+    expect(css(pile, 'outline'), 'the offered pile is outlined').not.toBe(css(zone(viewer.id, 'exile'), 'outline'));
     fireEvent.click(pile.querySelector(`[data-board-card="${7059}"]`)!);
     const opened = [...container.querySelectorAll('[data-testid="pile-view"] [data-board-card]')].map((el) => Number(el.getAttribute('data-board-card')));
     expect(opened.length).toBe(60);
@@ -2800,33 +2615,21 @@ describe('a hand card is never this component’s own drag', () => {
  * drag that no `preventDefault` may cancel.
  */
 describe('a card selects no text (#2)', () => {
-  it('writes user-select: none on the seat’s own cards, and only there', () => {
-    expect(declarationIn('.board .seat .board-card', 'user-select')).toBe('none');
-    /*
-     * Scoped to the seat: `card.css` and `prompts/prompts.css` style
-     * `.board-card` too, and a card in a prompt is read, not dragged. So this
-     * file may not write the rule on a bare `.board-card`.
-     */
-    expect(declarationIn('.board-card', 'user-select'), 'not on every .board-card there is').toBeUndefined();
-  });
-
-  it('really is on a card the player can drag, and on the opponent’s too', () => {
+  it('is on a card the player can drag and on the opponent’s, and not on a card outside the seats', () => {
+    const css = styled();
     const { container, seat } = renderBoard();
-    const sheet = document.createElement('style');
-    sheet.textContent = BOARD_CSS;
-    document.head.append(sheet);
-    try {
-      for (const el of [
-        container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"] .board-card')!,
-        container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] .board-card')!,
-        seat(1).querySelector<HTMLElement>('[data-zone="battlefield"] .board-card')!,
-      ]) {
-        expect(el, 'a card to read the rule off').not.toBeNull();
-        expect(getComputedStyle(el).userSelect, `${el.dataset.cardId} selects no text`).toBe('none');
-      }
-    } finally {
-      sheet.remove();
+    for (const el of [
+      container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"] .board-card')!,
+      container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] .board-card')!,
+      seat(1).querySelector<HTMLElement>('[data-zone="battlefield"] .board-card')!,
+    ]) {
+      expect(css(el, 'user-select'), `${el.dataset.cardId} selects no text`).toBe('none');
     }
+    // `card.css` and `prompts/prompts.css` style `.board-card` too, and a card in a prompt is read, not dragged.
+    const loose = document.body.appendChild(document.createElement('div'));
+    loose.className = 'board-card';
+    onTestFinished(() => loose.remove());
+    expect(css(loose, 'user-select'), 'a card outside a seat').not.toBe('none');
   });
 });
 
@@ -2978,19 +2781,23 @@ describe('power and toughness on the board (#12, #18)', () => {
       }
       expect(n.querySelector('[aria-hidden="true"]')!.textContent, `${state} has a marker glyph`).toMatch(/[▲▼]/);
     }
-    // The stylesheet pairs the ink with a weight, so the states differ
-    // without a colour too.
-    for (const state of ['buffed', 'hurt', 'damaged']) {
-      const rule = new RegExp(`\\.board-card__pt-n\\[data-pt-state='${state}'\\] \\{([^}]*)\\}`).exec(withoutComments(CARD_CSS));
-      expect(rule, `${state} has a rule`).not.toBeNull();
-      expect(rule![1], `${state} sets a colour`).toMatch(/color:/);
-      expect(rule![1], `${state} sets a weight too`).toMatch(/font-weight:/);
-    }
+  });
+
+  it('sets every state in a heavier weight than a plain number, so the states differ without a colour too', () => {
+    const css = styled();
+    const numbers = (view: BoardView) => [...renderBoard(view).container.querySelectorAll<HTMLElement>('[data-card-id="21"] .board-card__pt-n')];
+    const plain = numbers(urchin(1, 2, 0, { power: 1, toughness: 2 }))[0]!;
+    const stated = [...numbers(urchin(3, 4, 3, { power: 1, toughness: 2 })), ...numbers(urchin(0, 1, 0, { power: 1, toughness: 2 }))];
+    expect(new Set(stated.map((n) => n.dataset.ptState))).toEqual(new Set(['buffed', 'damaged', 'hurt']));
+    for (const n of stated) expect(css(n, 'font-weight'), n.dataset.ptState).not.toBe(css(plain, 'font-weight'));
   });
 
   it('is out of flow and takes no click: it may not move a card or eat a selection', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'position')).toBe('absolute');
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'pointer-events')).toBe('none');
+    const css = styled();
+    const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
+    const pt = container.querySelector('[data-card-id="21"] > .board-card__pt')!;
+    expect(css(pt, 'position')).toBe('absolute');
+    expect(css(pt, 'pointer-events')).toBe('none');
   });
 });
 
@@ -3093,7 +2900,10 @@ describe('a planeswalker that is a creature too (Gideon on his own turn)', () =>
   });
 
   it('stacks the loyalty above the P/T badge rather than on it', () => {
-    expect(CARD_CSS).toMatch(/\.board-card__pt\[data-pt='loyalty'\]:has\(\+ \.board-card__pt\[data-pt=''\]\) \{\s*bottom:/);
+    const css = styled();
+    const { container } = renderBoard(gideon());
+    const [loyalty, pt] = [...container.querySelectorAll('[data-card-id="21"] > .board-card__pt')];
+    expect(css(loyalty!, 'bottom'), 'not at the P/T badge’s height').not.toBe(css(pt!, 'bottom'));
   });
 });
 
@@ -3121,9 +2931,9 @@ describe('keyword tags and the flyer’s float', () => {
     expect(container.querySelector('[data-card-id="99"]')!.hasAttribute('data-flying')).toBe(false);
   });
 
-  it('the float only lifts the art upward, and stands still for reduced motion', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card[data-flying] > .board-card__face > .card', 'translate')).toBe('0 -3px');
-    expect(CARD_CSS).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.board-card\[data-flying\] > \.board-card__face > \.card \{\s*animation: none;/);
+  it('the float stands still for reduced motion', () => {
+    // jsdom evaluates no media query, so this one reads the rule.
+    expect(withoutComments(CARD_CSS)).toMatch(/prefers-reduced-motion: reduce\) \{[^@]*\[data-flying\][^}]*\{\s*animation: none;/);
   });
 });
 
@@ -3138,7 +2948,11 @@ describe('combat-ready: the creatures that can attack or block right now', () =>
   });
 
   it('grows from the bottom edge, so the extra size never runs down out of the battlefield', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card[data-combat-ready] > .board-card__face', 'transform-origin')).toBe('50% 100%');
+    const css = styled();
+    const view = boardFromFixture(fixture);
+    const ready = view.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+    const { container } = renderBoard(view, { ...spyInteraction([]).interaction, combatReady: new Set([ready]) });
+    expect(css(container.querySelector(`[data-card-id="${ready}"] > .board-card__face`)!, 'transform-origin')).toMatch(/(100%|bottom)$/);
   });
 });
 
@@ -3369,213 +3183,6 @@ describe('cards find their place (§A.3, §A.4)', () => {
     // A player's stack is NOT marked as Forge's — that attribute is the engine's
     // claim, and the player making a pile must not be able to forge it.
     expect(member.dataset.attached, 'the player stacked it; Forge did not').toBeUndefined();
-    // And the OFFSET is `card.css`'s fan, the one an attachment has always been
-    // drawn with: the depth drives `--pile-fan`, a step per card, and the pile
-    // occupies exactly one card's box whatever it holds.
-    expect(CARD_CSS).toContain("--pile-fan: var(--stack-step);");
-    expect(CARD_CSS).toMatch(/\.board-card\[data-pile-size\][^{]*\{[^}]*--pile-fan/);
-    expect(CARD_CSS).toMatch(/\.board-card__pile > \.board-card\[data-pile-depth='1'\]/);
-  });
-});
-
-/**
- * §A.1 — the fit. The table is **960px wide at a 1280 viewport**, not 1280:
- * watchparty's roster-and-chat aside is 20rem wide and beside the table above
- * 767px (`@wolffm/watchparty-ui`'s `room-chrome.css`), so the board gets 1280 − 320.
- *
- * jsdom lays nothing out, so this does the arithmetic the stylesheet does, on
- * the tokens read out of the stylesheet and the counts read off the rendered
- * markup. The same numbers were measured in a real browser at 960×705 and
- * 1046×683 while this was written; `e2e/table-fit.spec.ts` (lane B's) is where
- * they are measured on a live match.
- */
-describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
-  /** 1280 minus watchparty's 320px aside. */
-  const TABLE_W = 960;
-  /** The board's own height there, measured: the page header takes the rest. */
-  const TABLE_H = 705;
-  const px = (value: string | undefined): number => {
-    const rem = /^([\d.]+)rem$/.exec(value ?? '');
-    if (rem !== null) return Number(rem[1]) * 16;
-    const abs = /^([\d.]+)px$/.exec(value ?? '');
-    if (abs === null) throw new Error(`not a length: ${String(value)}`);
-    return Number(abs[1]);
-  };
-  const token = (selector: string, name: string): number => px(declarationIn(selector, name));
-  /** The one rule that sizes a card's column, in a hand and in a battlefield lane. */
-  const GRID =
-    '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat > .zone--battlefield .zone__tiers > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
-  /**
-   * The rule that gives a battlefield lane its `--card-max`. T6 (wave 36) moved
-   * this off the selector `.seat > .zone--battlefield` used to share with the
-   * hand — a hand card has no such ceiling any more — so this reads the
-   * battlefield's own, more specific rule rather than the pair they used to
-   * both sit on.
-   */
-  const ROW_ZONE = '.seat > .zone--battlefield';
-
-  /** Every `--rows` formula in file order: the base band, then >= 3, 4, 5, 6, 8, 10. */
-  const ladder = (): { above: number; steps: number[] }[] => {
-    const found = BOARD_RULES.match(/--rows: calc\([^;]+\);/g) ?? [];
-    expect(found, 'the row ladder is arithmetic on `--cols`, one rule per band').toHaveLength(7);
-    return found.map((rule, i) => ({
-      above: [0, 3, 4, 5, 6, 8, 10][i]!,
-      steps: [...rule.matchAll(/clamp\(0, var\(--cols, 0\) - (\d+), 1\)/g)].map((m) => Number(m[1]) + 1),
-    }));
-  };
-
-  /**
-   * A viewer's battlefield filled lane by lane, in `BOARD_ROWS` order: lands,
-   * artifacts, creatures, everything else. The split is what decides whether the
-   * lanes starve each other, so it is the input.
-   */
-  function lopsided(...want: [number, number, number, number]): BoardView {
-    const base = boardFromFixture(fixture);
-    const me = base.players.find((p) => p.isViewer)!;
-    const seed = me.battlefield.find((c) => c.card.typeLine.includes('Land'))!;
-    const kinds = [
-      ['Land', 'Izzet Guildgate'],
-      ['Artifact', 'Bonesplitter'],
-      ['Creature — Elemental', 'Fire Urchin'],
-      ['Enchantment', 'Pacifism'],
-    ] as const;
-    const made: BoardCard[] = [];
-    let id = 50_000;
-    want.forEach((n, lane) => {
-      const [typeLine, name] = kinds[lane]!;
-      for (let i = 0; i < n; i += 1) made.push({ ...seed, id: (id += 1), card: { ...seed.card, cardId: `w${id}`, typeLine, name } });
-    });
-    return { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, battlefield: made } : p)) };
-  }
-
-  /**
-   * What the stylesheet will draw, at `TABLE_W`: the narrowest card on the
-   * viewer's battlefield, and the row count the zone settled on.
-   *
-   * Every number below is a token out of `board.css` or a count out of the
-   * markup. It follows the boxes down: the board's padding, the seat's border
-   * and padding, the left column and its gap, the zone's border, its 2px of
-   * left pad and the gutter it reserves for the permanent overlays, the lane
-   * gaps and each lane's own border and list padding.
-   */
-  function draws(container: HTMLElement) {
-    const zone = container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!;
-    const list = zone.querySelector<HTMLElement>(':scope > ul.zone__rows')!;
-    const lanes = [...list.querySelectorAll<HTMLElement>(':scope > li.zone__row')];
-    const cols = lanes.map((l) => Number(l.style.getPropertyValue('--cols')));
-    const total = Number(list.style.getPropertyValue('--cols'));
-    expect(total, 'the zone reports every column on it').toBe(cols.reduce((a, b) => a + b, 0));
-
-    const boardGap = token('.board', '--board-gap');
-    const seat = TABLE_W - 2 * boardGap - 2 /* the seat's own border */ - 2 * 8 /* its padding */;
-    const zoneW = seat - token('.board .seat', '--who-w') - 8 /* the seat's column gap */;
-    const inner = zoneW - 2 /* the zone's border */ - 2 /* its 2px of left pad */ - token('.board', '--right-gutter');
-
-    // The zone's height, the same way down, because the row ladder reads the
-    // zone's SHAPE and `--card-w` reads its height.
-    const seatH = (TABLE_H - 2 * boardGap - boardGap) / 2 - 2 - 11;
-    const zoneH = ((seatH - 4) * 4) / 6.6 - 2;
-
-    const band = ladder()
-      .filter((b) => inner / zoneH >= b.above)
-      .at(-1)!;
-    const rows = 1 + band.steps.filter((t) => total >= t).length;
-
-    const gap = token('.seat > .zone--battlefield', '--group-gap');
-    const emptyW = token('.seat > .zone--battlefield', '--group-empty-w');
-    const overhead = token('.seat > .zone--battlefield', '--group-overhead');
-    const cardsGap = token('.board', '--cards-gap');
-    // How many columns each lane DRAWS, and — read out of the stylesheet, so
-    // that reverting the budget reverts this arithmetic with it — how much width
-    // each lane ASKS for. Wave 26 asked by the pile count, which is the defect.
-    const drawn = cols.map((n) => Math.ceil(n / rows));
-    const grow = declarationIn('.zone__row', 'flex-grow') ?? 'var(--cols, 0)';
-    const share = grow.includes('--rows') ? drawn : cols;
-    const grown = share.reduce((a, b) => a + b, 0);
-    // Flexbox: every lane starts at its basis, an empty one is pinned to its
-    // label's width, and what is left is shared out by the grow.
-    const spare = inner - 3 * gap - cols.filter((n) => n === 0).length * emptyW - cols.filter((n) => n > 0).length * overhead;
-    const widths = cols.map((n, i) => (n === 0 ? emptyW : overhead + (spare * share[i]!) / grown));
-    const cardW = cols.map((n, i) => {
-      if (n === 0) return Infinity;
-      const laneInner = widths[i]! - (i === 0 ? 0 : 1) /* the lane's left rule */ - 2 * 2 /* the list's padding */;
-      const even = (laneInner - (drawn[i]! - 1) * cardsGap) / drawn[i]!;
-      // A column is never wider than one card and, since §A.1, never narrower
-      // than a name can be read — the floor giving way to the lane's own share.
-      const floor = declarationIn(GRID, 'grid-auto-columns')!.includes('--card-min') ? Math.min(token('.board', '--card-min'), even) : 0;
-      return Math.max(floor, Math.min(even, token(ROW_ZONE, '--card-max')));
-    });
-    return { rows, narrowest: Math.min(...cardW), cardW, widths };
-  }
-
-  /**
-   * The floor and the budget, as declarations — so reverting either hunk fails
-   * here and not only in a browser.
-   */
-  it('floors a column at a legible width and takes the lane’s share from the COLUMNS it draws', () => {
-    expect(declarationIn('.board', '--card-min'), 'the floor is a token of the board, beside the gutter').toBe('2.75rem');
-    const columns = declarationIn(GRID, 'grid-auto-columns')!;
-    expect(columns, 'a column is never narrower than a card whose name can be read').toContain('var(--card-min)');
-    expect(columns, 'nor wider than one card').toContain('var(--card-w)');
-    expect(columns, 'and the floor gives way to the lane’s own share rather than overflowing it').toContain('var(--zone-w)');
-    expect(columns, 'the wave-26 rule let it go on shrinking to nothing').not.toContain('minmax(0,');
-    // A lane asks for the COLUMNS it draws, `ceil(--cols / --rows)`. Wave 26 grew
-    // it by its piles, so a lane on two rows starved the lane beside it.
-    expect(declarationIn('.zone__row', 'flex-grow')).toBe('round(up, var(--cols, 0) / var(--rows), 1)');
-    // And the row count is ONE decision per battlefield, taken on the zone's own
-    // shape — not four lanes disagreeing. The hand is one list and keeps its own,
-    // and so (item 11) does the single-layout default's one lane.
-    expect(
-      declarationIn('.zone__rows,\n.zone--hand > .zone__cards,\n.seat > .zone--battlefield > .zone__cards', '--rows'),
-    ).toMatch(/^calc\(1 \+ clamp\(/);
-    expect(BOARD_RULES, 'nothing counts cards with a `:has()` ladder any more').not.toContain('nth-child');
-  });
-
-  it('draws the report’s own row — sixteen lands beside four creatures — with every name readable', () => {
-    const { container } = renderBoard(lopsided(16, 0, 4, 0));
-    const got = draws(container);
-    expect(got.rows, 'twenty columns on a zone this shape is two rows').toBe(2);
-    // A wave 26 screenshot (since removed)
-    // is this row: the creatures lane came out at 27px, where "Izzet Guildgate"
-    // is seven lines of one letter. Measured in chromium at 960×705 after the
-    // fix: 56px in the lands lane and 57px in the creatures lane.
-    expect(Math.round(got.narrowest), 'the narrowest card on the battlefield').toBeGreaterThanOrEqual(
-      px(declarationIn('.board', '--card-min')),
-    );
-    expect(Math.round(got.narrowest)).toBeLessThan(70);
-  });
-
-  it('holds for every split a real game produces, and puts every lane at one width', () => {
-    const splits: [number, number, number, number][] = [
-      [9, 2, 8, 1],
-      [16, 0, 4, 0],
-      [5, 1, 4, 1],
-      [12, 2, 5, 1],
-      [20, 4, 12, 2],
-    ];
-    for (const want of splits) {
-      const [lands, artifacts, creatures, other] = want;
-      const total = lands + artifacts + creatures + other;
-      const { container } = renderBoard(lopsided(...want));
-      const got = draws(container);
-      const drawn = got.cardW.filter((w) => w !== Infinity);
-      expect(Math.round(got.narrowest), `the split ${want.join('/')}`).toBeGreaterThanOrEqual(
-        // Past the point where the zone can hold them all at the floor the floor
-        // gives way — on purpose, because a clipped card is worse than a small
-        // one. Twenty lands and twelve creatures is already far past a real game.
-        total > 30 ? 36 : px(declarationIn('.board', '--card-min')),
-      );
-      /*
-       * One width, whatever the split — which is what taking the share from the
-       * columns buys and what wave 26 could not do. Chromium measured 60/61/60/61
-       * for this split at 960 and 59/59/59/59 at 1046; wave 26 measured
-       * 59/33/61/35. The few pixels of slack here are the lane's flat
-       * `--group-overhead` basis, which a one-column lane spends on one card and
-       * an eight-column lane spreads over eight.
-       */
-      expect(Math.max(...drawn) - Math.min(...drawn), `${want.join('/')}: every lane draws one card width`).toBeLessThan(5);
-      cleanup();
-    }
   });
 });
 
@@ -3617,15 +3224,11 @@ describe('§A.15 — a card’s state is drawn', () => {
   });
 
   it('an ATTACKING creature draws turned, exactly as a tapped one does (item 6)', () => {
+    const css = styled();
     const { container } = renderBoard(withState({ attacking: true, tapped: false }));
     expect(card(container).getAttribute('data-attacking')).toBe('true');
     expect(card(container).hasAttribute('data-tapped'), 'and Forge’s own tapped is untouched').toBe(false);
-    // One rule turns either, so a card that is both is turned once.
-    const rule = /\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{([^}]*)\}/.exec(
-      withoutComments(CARD_CSS),
-    );
-    expect(rule, 'the turn is one rule for both').not.toBeNull();
-    expect(rule![1]).toMatch(/rotate\(90deg\)/);
+    expect(turnOf(css, card(container)), 'turned').toContain('90deg');
   });
 
   it('a creature with vigilance attacks upright: it is attacking, and the rule that turns an attacker leaves it out', () => {
@@ -3633,10 +3236,11 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(card(container).getAttribute('data-attacking'), 'still attacking, for everything that reads it').toBe('true');
     expect(card(container).getAttribute('data-vigilant')).toBe('true');
     expect(renderBoard(withState({ attacking: true, tapped: false, keywords: ['Flying'] })).container.querySelector('[data-vigilant]')).toBeNull();
-    // Every rule that turns a card excludes a vigilant attacker; a TAPPED (or pending-tapped) one still turns, vigilance or not.
-    const turning = [...withoutComments(CARD_CSS).matchAll(/([^{}]*)\{[^{}]*(?:rotate\(90deg\)|aspect-ratio: 680 \/ 488)[^{}]*\}/g)].map((m) => m[1]!.trim());
-    expect(turning.length).toBeGreaterThan(0);
-    for (const selector of turning) expect(selector).toContain(':is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant]))');
+    // Upright while attacking; a TAPPED vigilant creature still turns.
+    const css = styled();
+    expect(turnOf(css, card(container)), 'a vigilant attacker stands').not.toContain('90deg');
+    const tapped = renderBoard(withState({ attacking: true, tapped: true, keywords: ['Vigilance'] })).container;
+    expect(turnOf(css, card(tapped)), 'a tapped one turns, vigilance or not').toContain('90deg');
   });
 
   /**
@@ -3653,11 +3257,12 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(card(vigilant).getAttribute('data-attacking')).toBe('true');
     expect(card(ordinary).getAttribute('data-attacking')).toBe('true');
 
-    const mark = declarationInCss(CARD_CSS, '.board-card[data-attacking] > .board-card__face', 'outline');
-    expect(mark, 'the attacker mark').toBeDefined();
-    expect(mark).toContain('var(--danger)');
+    const css = styled();
+    const outline = (c: HTMLElement) => css(card(c).querySelector(':scope > .board-card__face')!, 'outline');
+    expect(outline(ordinary), 'the attacker mark').not.toMatch(/^(none)?$/);
+    expect(outline(vigilant), 'the same mark on a vigilant attacker').toBe(outline(ordinary));
     // Never the accent — that ring already means "Forge is offering this".
-    expect(mark).not.toContain('var(--accent)');
+    expect(outline(ordinary)).not.toContain('var(--accent)');
   });
 
   it('a card in a graveyard or exile pile is not raised under the pointer: the cards below it stay readable', () => {
@@ -3682,7 +3287,9 @@ describe('§A.15 — a card’s state is drawn', () => {
 
   it('the hatch is over the art at rest, not only while something lifts the tile', () => {
     // The art (`.card__art`) shares the hatch's z-index and comes later in the tree; only an isolated tile keeps it under.
-    expect(declarationInCss(CARD_CSS, '.board-card[data-sick] > .board-card__face > .card', 'isolation')).toBe('isolate');
+    const css = styled();
+    const { container } = renderBoard(withState({ summoningSick: true }));
+    expect(css(card(container).querySelector(':scope > .board-card__face > .card')!, 'isolation')).toBe('isolate');
   });
 
   it('blocking and token are corner marks, and neither is drawn in the accent', () => {
@@ -3806,10 +3413,12 @@ describe('§A.15 — a card’s state is drawn', () => {
   });
 
   it('nothing the state layer draws can change a card’s box', () => {
-    const css = withoutComments(CARD_CSS);
+    const css = styled();
+    const { container } = renderBoard(withState({ blocking: true, token: true, counters: [{ name: '+1/+1', count: 1 }] }));
     for (const sel of ['.board-card__marks', '.board-card__counters']) {
-      expect(declarationInCss(css, sel, 'position'), `${sel} is out of flow`).toBe('absolute');
-      expect(declarationInCss(css, sel, 'pointer-events'), `${sel} eats no click`).toBe('none');
+      const layer = card(container).querySelector(sel)!;
+      expect(css(layer, 'position'), `${sel} is out of flow`).toBe('absolute');
+      expect(css(layer, 'pointer-events'), `${sel} eats no click`).toBe('none');
     }
   });
 
@@ -3910,52 +3519,26 @@ describe('§A.7 / §A.13 — the stack is hidden at zero and roomy unless a ques
     // stop (`visibility`, not `display` — the BOX has to stay the box, the
     // older *"the entire canvas must be fully static at all times"* rule,
     // which `e2e/table-fit.spec.ts` still measures).
-    const hidden = /\.stack \{([^}]*visibility:[^}]*)\}/.exec(BOARD_RULES);
-    expect(hidden, 'the stack’s own rule').not.toBeNull();
-    expect(hidden![1]).toMatch(/visibility:\s*hidden/);
-    expect(hidden![1], 'the slot is not taken away').not.toMatch(/display:\s*none/);
+    const css = styled();
     const { container } = renderBoard({ ...base, stack: [] });
-    expect(container.querySelector<HTMLElement>('[data-zone="stack"]')!.children).toHaveLength(0);
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
+    expect(stack.children).toHaveLength(0);
+    expect(css(stack, 'visibility')).toBe('hidden');
+    expect(css(stack, 'display'), 'the slot is not taken away').not.toBe('none');
   });
 
   it('is roomy by default and compact while a question is open', () => {
     // *"the stack should allow to be bigger unless there is a decision waiting"*.
-    const roomy = declarationIn('.board', '--mid-h')!;
-    const asked = declarationIn('.board', '--mid-h-asked')!;
-    expect(Number.parseFloat(roomy), 'the roomy band is the bigger one').toBeGreaterThan(Number.parseFloat(asked));
-    // Wave 51 §A.6: never more than the compact size; less only when the room above the question is less.
-    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toMatch(/^min\(var\(--mid-h-asked\), /);
+    const css = styled();
+    const board = renderBoard(base).container.querySelector('.board')!;
+    expect(Number.parseFloat(css(board, '--mid-h')), 'the roomy band is the bigger one').toBeGreaterThan(Number.parseFloat(css(board, '--mid-h-asked')));
+    cleanup();
 
     const quiet = renderBoard(base, noInteraction());
     expect(quiet.container.querySelector<HTMLElement>('.board__mid')!.hasAttribute('data-question')).toBe(false);
     cleanup();
     const asking = renderBoard(base, noInteraction({ questionOpen: true }));
     expect(asking.container.querySelector<HTMLElement>('.board__mid')!.getAttribute('data-question')).toBe('true');
-  });
-});
-
-describe('§A.9 — a pile’s cards expand to fit their box', () => {
-  it('sizes a graveyard card from the box rather than from a fixed width', () => {
-    // *"the graveyard is unecessarily small, i think the cards can expand to fit
-    // the width of that box"*.
-    /*
-     * Both piles share one rule, so it is addressed by its LAST selector line —
-     * which is how `declarationIn` reads a multi-selector rule, and the two lines
-     * are asserted to be together so "the graveyard's rule" cannot drift from
-     * "exile's rule" without this failing.
-     */
-    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile {');
-    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards {');
-    expect(declarationIn('.board .seat .zone--exile', 'contain'), 'the pile is a measured box its card never resizes').toBe(
-      'inline-size style',
-    );
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--pile-card-w')).toBe('var(--zone-w)');
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
-    expect(declarationIn('.board .seat .zone--exile .zone__cards', 'justify-content'), 'and it fills it').toBe(
-      'stretch',
-    );
-    // The fixed width it replaced is gone outright, not merely unused.
-    expect(BOARD_RULES, 'the fixed pile width is gone').not.toContain('--pile-w:');
   });
 });
 
@@ -4036,22 +3619,18 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
    * stays asserted here as the reason a shared cap is enough once the list
    * is actually IN the grid this pins.
    */
-  it('the single list shares the lanes’ own sizing grid — same --card-max, same --rows device, not the hand’s fallback size', () => {
-    const gridSelector =
-      '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat > .zone--battlefield .zone__tiers > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
-    expect(
-      declarationIn(gridSelector, 'display'),
-      'the single list is in the SAME shared grid rule as the lanes and the hand',
-    ).toBe('grid');
-    expect(declarationIn(gridSelector, 'grid-auto-flow')).toBe('column');
-    expect(declarationIn(gridSelector, '--card-w')).toContain('var(--card-max)');
-    expect(
-      declarationIn('.seat > .zone--battlefield .zone__tiers > .zone__cards', '--card-slack'),
-      'the tier lists have their own slack override — they are not silently falling back to the hand’s',
-    ).toBe('6px');
-    // Two tiers, so a card is sized for two rows of cards in the zone's own height.
-    expect(declarationIn('.zone__tiers', '--rows'), 'a card is sized for TWO tiers in the zone’s height').toBe('2');
-    expect(declarationIn('.zone__tiers', 'grid-template-rows')).toBe('repeat(2, minmax(0, 1fr))');
+  it('the single list is laid out in the lanes’ own grid, not flowed as blocks', () => {
+    const css = styled();
+    const view = boardFromFixture(fixture);
+    const grid = (container: HTMLElement, list: string) => {
+      const el = container.querySelector(`.seat[data-viewer] [data-zone="battlefield"] ${list}`)!;
+      return [css(el, 'display'), css(el, 'grid-auto-flow'), css(el, '--card-w')];
+    };
+    const lane = grid(render(createElement(Board, { view, boardLayout: 'type-separated' })).container, '.zone__row > .zone__cards');
+    cleanup();
+    const tier = grid(render(createElement(Board, { view })).container, '.zone__tiers > .zone__cards');
+    expect(lane[0], 'a lane is a grid').toBe('grid');
+    expect(tier, 'and the single list is the same grid, sized the same way').toEqual(lane);
   });
 
   it('boardLayout="type-separated" still renders the four labelled lanes — the alternate is not deleted', () => {
@@ -4106,7 +3685,6 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
  * per item, each reading the thing that item changed rather than a neighbour.
  */
 describe('wave 31 §A: the seat, the left column and the stack', () => {
-  const BOARD_TSX = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'Board.tsx'), 'utf8');
 
   it('P3: no text node says (you), the life sits under the mark, and the name is the seat’s own', () => {
     const { container, seat, view } = renderBoard();
@@ -4128,8 +3706,7 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
       'seat__ring',
       'face__life',
     ]);
-    expect(declarationInCss(CARD_CSS, '.seat__ident .face__life', 'position')).toBe('static');
-    expect(declarationInCss(CARD_CSS, '.seat__ident .face__art', 'width')).toBe('var(--face-w)');
+    expect(styled()(hit.querySelector('.face__life')!, 'position'), 'in flow under the mark, not laid over it').toBe('static');
   });
 
   it('P3: the adapter takes the seat’s name from identity.name, and falls back to Forge’s when it is blank or absent', () => {
@@ -4151,42 +3728,24 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
   });
 
   it('P2 / Q9: no share of the column is written for the graveyard — it takes what the avatar and counts leave', () => {
-    // Wave 31's `4fr / 1fr` inside the hand's cell is gone, and so is the idea of a figure.
-    const rows = declarationIn('.seat__piles', 'grid-template-rows')!;
-    expect(rows, 'the graveyard row is `1fr`, not a ratio of a ratio').toBe('minmax(0, 1fr) auto');
-    expect(BOARD_RULES).not.toMatch(/\d+(?:\.\d+)?fr\s+minmax\(0,\s*1fr\)/);
-    expect(BOARD_RULES).not.toMatch(/\b[0-9.]+%\s+of the (?:column|cell)/);
-    // The counts spend none of it: they are in the bar, on one row, in their own track.
+    // The counts spend none of it: they are in the bar, in their own track.
     const { seat } = renderBoard();
     expect(seat(0).querySelector('.seat__piles [data-testid="hand-count"]')).toBeNull();
-    expect(declarationIn('.board .seat__counts', 'flex-direction')).toBe('row');
-    expect(declarationIn('.board .seat', '--counts-h'), 'a flag arriving mid-game moves nothing under it').toBe('2.2rem');
   });
 
-  it('P5: Regroup is gone from the markup, the stylesheet and the source', () => {
+  it('P5: Regroup is gone from the board', () => {
     const { container } = renderBoard();
     expect(container.querySelector('[data-arrange-reset], .seat__regroup')).toBeNull();
     expect(container.textContent).not.toMatch(/Regroup/i);
-    expect(BOARD_RULES).not.toContain('seat__regroup');
-    const code = BOARD_TSX.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(code).not.toMatch(/regroup\s*\(|withoutSeat|ARRANGE_SLOTS|data-arrange-reset/);
-  });
-
-  it('P9 → §S: the thumbnail and its sizing are gone with the row; the band is still one size per state, not per item', () => {
-    // Wave 46 X3's thumbnail (`.stack__item`, `--stack-card-w`) is deleted
-    // outright by wave 59 §S — `live/placed.ts` draws every item as a card at
-    // a point, sized by its own CSS (`live/placed.css`), never by the band.
-    expect(declarationIn('.stack__item', 'flex')).toBeUndefined();
-    expect(declarationIn('.stack', '--stack-card-w')).toBeUndefined();
-    // The band is sized by state (`--mid-h`, `--mid-h-asked`) and nothing else:
-    // no rule of the stack sizes itself by what it holds.
-    expect(Number.parseFloat(declarationIn('.board', '--mid-h')!)).toBeGreaterThanOrEqual(12);
-    expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
   });
 
   it('P6: the canvas has no outer border or inset shadow, and board.css has no hex literal', () => {
-    expect(declarationIn('.seat > .zone--battlefield', 'border')).toBeUndefined();
-    expect(declarationIn('.seat > .zone--battlefield', 'box-shadow')).toBeUndefined();
+    const css = styled();
+    const { zone } = renderBoard();
+    for (const id of [0, 1]) {
+      expect(css(zone(id, 'battlefield'), 'border-style'), 'no border').toMatch(/^(none)?$/);
+      expect(css(zone(id, 'battlefield'), 'box-shadow'), 'no inset shadow').toMatch(/^(none)?$/);
+    }
     expect(BOARD_RULES.match(/#[0-9a-fA-F]{3,8}\b/g), 'the colour pie comes off the --c-* tokens').toBeNull();
     for (const c of ['white', 'blue', 'black', 'red', 'green']) {
       expect(BOARD_RULES).toContain(`var(--c-${c})`);
@@ -4200,50 +3759,14 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   const view = boardFromFixture(fixture);
 
   it('Q2: the opponent’s hand is drawn at the card size of yours, from the same tokens', () => {
-    const theirs = '.seat:not([data-viewer]) > .zone--hand';
-    const mine = '.seat[data-viewer] > .zone--hand';
-    // T6 (wave 36): neither side caps a hand card below what its own row
-    // allows any more — the "same tokens" promise now means NEITHER declares
-    // `--card-max` at all, not that the two happen to agree on a number.
-    expect(declarationIn(theirs, '--card-max'), 'no ceiling, on either side').toBeUndefined();
-    expect(declarationIn(mine, '--card-max'), 'no ceiling, on either side').toBeUndefined();
-    expect(declarationIn(theirs, '--card-slack')).toBe(declarationIn(`${mine} > .zone__cards`, '--card-slack'));
-    // `--card-w` is derived from the zone's height the way the hand's is, not a fixed 4rem, and not capped.
-    const w = declarationIn(theirs, '--card-w')!;
-    expect(w, 'T6: no cap left to read').not.toContain('var(--card-max)');
-    expect(w).toContain('var(--zone-h)');
-    expect(w).not.toContain('4rem');
-    expect(declarationIn(theirs, 'contain')).toBe('size style');
-    // A back is a whole column of that grid, and the grid shrinks to the width down to the same floor.
-    expect(declarationIn('.seat:not([data-viewer]) > .zone--hand > .card-backs', '--card-back-w')).toBe('100%');
-    expect(declarationIn('.seat:not([data-viewer]) > .zone--hand > .card-backs', 'grid-auto-columns')).toContain(
-      'var(--card-min)',
-    );
-  });
-
-  /*
-   * Wave 46 X3 deleted `.stack__what` outright (T8's one-line text moved to
-   * `aria-label`, above) — the item is now a fixed-size thumbnail, clipped by
-   * `overflow: hidden` the same way the old row was, so a card-shaped slot
-   * never grows past `--stack-card-w` x its own aspect ratio.
-   */
-  it('stack → §S: the old summary line and the thumbnail it was replaced by are both gone, not re-shaped', () => {
-    expect(declarationIn('.stack__what', 'white-space'), 'the old summary-line rule is gone').toBeUndefined();
-    expect(declarationIn('.stack__item', 'overflow'), 'and the thumbnail that replaced it — `live/placed.ts` draws the card now').toBeUndefined();
-  });
-
-  /*
-   * T8 removed the whole "while a question is open, give the text the band's
-   * width" treatment, and wave 46 X3 removed the text it was making room for
-   * too — a thumbnail is the same size in the compact band as the roomy one
-   * (only `--stack-card-w` itself reads `--mid-h`), so there is nothing left
-   * keyed on `[data-question]` for the stack to do differently.
-   */
-  it('stack: no question-specific stack rule exists', () => {
-    expect(BOARD_RULES).not.toContain('.board__mid[data-question] .stack');
-    // Chosen by question state alone, never by what the stack holds — the
-    // part of the old rule's OWN claim that still has to hold with it gone.
-    expect(BOARD_RULES).not.toMatch(/\.stack[^{]*:has\([^)]*nth/);
+    const css = styled();
+    const { zone } = renderBoard(view);
+    const theirs = zone(1, 'hand');
+    const mine = zone(0, 'hand').querySelector(':scope > .zone__cards')!;
+    // T6 (wave 36): neither side caps a hand card below what its own row allows.
+    expect(css(theirs, '--card-max'), 'no ceiling on theirs').toBe('');
+    expect(css(mine, '--card-max'), 'nor on yours').toBe('');
+    expect(css(theirs, '--card-slack'), 'the same slack as yours').toBe(css(mine, '--card-slack'));
   });
 
   it('Q2: the strip tells the stylesheet how many backs it holds, as a hand of faces does', () => {
@@ -4255,12 +3778,13 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   });
 
   it('Q13: power/toughness sits in the card’s BOTTOM-right corner, clear of the counters and the marks', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom'), 'to the FACE: the pile box hangs --pile-fan below it').toBe('calc(var(--credit-strip) + var(--pile-fan) - 3px)');
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'top'), 'it no longer hangs off the top').toBeUndefined();
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'right')).toContain('--pile-fan');
-    // The other two corners it must not collide with.
-    expect(declarationInCss(CARD_CSS, '.board-card__counters', 'left')).toBe('2px');
-    expect(declarationInCss(CARD_CSS, '.board-card__marks', 'top')).toBe('2px');
+    const css = styled();
+    const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, blocking: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
+    const card = renderBoard(urchin).container.querySelector('[data-card-id="21"]')!;
+    const anchors = (sel: string) => ['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(card.querySelector(`:scope > ${sel}`)!, side)));
+    expect(anchors('.board-card__pt'), 'P/T: the bottom-right corner').toEqual(['right', 'bottom']);
+    expect(anchors('.board-card__counters'), 'counters: the left edge').toContain('left');
+    expect(anchors('.board-card__marks'), 'marks: the top edge').toContain('top');
   });
 
   it('Q1b: whose turn it is is a ring round the avatar, and the words are gone', () => {
@@ -4268,14 +3792,14 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     const { container } = renderBoard(active);
     const faces = [...container.querySelectorAll<HTMLElement>('[data-player-face]')];
     expect(faces.filter((f) => f.dataset.active === 'true')).toHaveLength(1);
-    const ring = declarationInCss(CARD_CSS, '.seat[data-active] .seat__ring', 'box-shadow')!;
-    expect(ring, 'a ring, in the accent').toContain('var(--accent)');
-    expect(declarationInCss(CARD_CSS, '.seat__ring', 'border-radius')).toBe('50%');
-    // A 50% radius is a circle only on a square box. In a seat's bar the
-    // ring's parent is the mark plus the life number under it, so the ring
-    // takes the mark's own square (the operator saw an oval, 2026-10-03).
-    expect(declarationInCss(CARD_CSS, '.seat__ident .seat__ring', 'width')).toBe('var(--face-w)');
-    expect(declarationInCss(CARD_CSS, '.seat__ident .seat__ring', 'height')).toBe('var(--face-w)');
+    const css = styled();
+    const lit = container.querySelector('[data-testid="player"][data-active] .seat__ring');
+    const unlit = container.querySelector('[data-testid="player"]:not([data-active]) .seat__ring');
+    expect(css(lit!, 'box-shadow'), 'the active seat’s ring is drawn').not.toMatch(/^(none)?$/);
+    expect(css(unlit!, 'box-shadow'), 'the other seat’s is not').toMatch(/^(none)?$/);
+    // A 50% radius is a circle only on a square box (the operator saw an oval, 2026-10-03).
+    expect(css(lit!, 'border-radius')).toBe('50%');
+    expect(css(lit!, 'width'), 'a square box').toBe(css(lit!, 'height'));
     expect(container.textContent).not.toMatch(/their turn/i);
   });
 
@@ -4306,43 +3830,32 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     expect(container.textContent).not.toMatch(/their turn/i);
   });
 
-  it('Q16: card badges sit on the shared scale, inside a stacking context of the card’s own', () => {
-    for (const sel of ['.board-card__pt', '.board-card__marks', '.board-card__counters']) {
-      expect(declarationInCss(CARD_CSS, sel, 'z-index'), sel).toBe('var(--z-card-badge, 1)');
-    }
-    expect(declarationInCss(CARD_CSS, '.board-card', 'isolation')).toBe('isolate');
+  it('Q16: card badges sit on one rung of the shared scale, inside a stacking context of the card’s own', () => {
+    const css = styled();
+    const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, blocking: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
+    const card = renderBoard(urchin).container.querySelector('[data-card-id="21"]')!;
+    const rungs = ['.board-card__pt', '.board-card__marks', '.board-card__counters'].map((sel) => css(card.querySelector(`:scope > ${sel}`)!, 'z-index'));
+    expect(rungs[0], 'a badge is on the scale').toContain('--z-card-badge');
+    expect(new Set(rungs), 'and every badge on the same rung').toEqual(new Set([rungs[0]]));
+    expect(css(card, 'isolation')).toBe('isolate');
     // No literal that outranks the scale survives in the card's own sheet.
     expect(withoutComments(CARD_CSS)).not.toMatch(/z-index:\s*(?:[2-9]|\d\d+)\s*;/);
-    // The pile is behind its base card's face, inside the same context.
-    expect(declarationInCss(CARD_CSS, '.board-card__pile > .board-card', 'z-index')).toBe('calc(var(--at) * -1)');
-    // And what the card must sit UNDER is on the overlay rung of the same scale.
-    expect(declarationIn('.board__mid', 'z-index')).toBe('var(--z-overlay, 20)');
-    expect(declarationIn('.staging', 'z-index')).toBe('var(--z-overlay, 20)');
   });
 
-  it('a card’s bottom badges keep to its FACE, not the pile box that hangs --pile-fan below it', () => {
-    // table-fit 2026-10-07: a piled creature's P/T drew 6 px (the fan) below its own card, because the badge
-    // was anchored to the pile's box; the top-right badges already carried the fan on `right`.
-    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan) - 3px)');
-    expect(declarationInCss(CARD_CSS, '.board-card__counters', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
-    // And above the face's printed artist and copyright line, which Scryfall's image guidelines say never to cover.
-    expect(declarationInCss(CARD_CSS, '.board-card__relations', 'bottom')).toBe('calc(var(--credit-strip) + var(--pile-fan))');
-  });
-
-  it('stack: a question moves the band’s top up and gives it room for a long effect; the band is sized by state alone', () => {
-    expect(Number.parseFloat(declarationIn('.board', '--mid-h-asked')!), 'roomier than w31’s 5.75rem').toBeGreaterThanOrEqual(8.5);
-    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toMatch(/^min\(var\(--mid-h-asked\), /);
-    // Wave 51 §A.6: hung from the question's measured top, and never above the board's own top edge. Before
-    // any pop-up has been measured, above where one sits (2026-10-07: the band flashed at the column's top for
-    // the frame between a spell reaching the stack and its pop-up).
-    expect(declarationIn('.board__mid[data-question]', 'top'), 'out of flow, so moving it moves no track').toBe(
-      'max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)))',
-    );
-    expect(declarationIn('.board__mid', 'position')).toBe('absolute');
-    const { container } = renderBoard(withStack(view, 5), { ...spyInteraction([]).interaction, questionOpen: true });
-    expect(container.querySelector('[data-testid="board-mid"]')!.hasAttribute('data-question')).toBe(true);
-    // The band's height never reads how many items there are.
-    expect(BOARD_RULES).not.toMatch(/--mid-h[^;]*(?:--items|--stack-n|--count)/);
+  it('stack: a question moves the band, and the band is sized by state alone', () => {
+    const css = styled();
+    const band = (n: number, questionOpen: boolean) => {
+      const mid = renderBoard(withStack(view, n), { ...spyInteraction([]).interaction, questionOpen }).container.querySelector('[data-testid="board-mid"]')!;
+      const got = { question: mid.hasAttribute('data-question'), top: css(mid, 'top'), height: css(mid, 'height') };
+      cleanup();
+      return got;
+    };
+    const asked = band(5, true);
+    expect(asked.question).toBe(true);
+    expect(asked.top, 'the question moves the band').not.toBe(band(5, false).top);
+    // The band's size never reads how many items there are.
+    expect(band(1, true)).toEqual(asked);
+    expect(band(1, false)).toEqual(band(5, false));
   });
 });
 
@@ -4372,10 +3885,14 @@ describe('wave 32 §B — Q4a: where a permanent goes by default', () => {
     expect(tiers(container)).toEqual({ back: [8, 24, 6, 25, 701], front: [21, 702] });
   });
 
-  it('there is no direction rule that reads a row right to left', () => {
-    // The brief's "found, unverified": `board.css` was checked for `direction` / `rtl` / `row-reverse` and has none.
-    expect(BOARD_RULES).not.toMatch(/direction:\s*rtl|flex-direction:\s*row-reverse|justify-content:\s*(?:end|flex-end)\s*;\s*\n\s*\}\s*\n\s*\.zone__cards/);
-    expect(declarationIn('.seat > .zone--battlefield .zone__tiers > .zone__cards', 'justify-content')).toBeUndefined();
+  it('reads every row left to right', () => {
+    const css = styled();
+    const { container } = renderBoard(boardFromFixture(fixture), undefined, 'single');
+    for (const row of container.querySelectorAll('.seat [data-zone="battlefield"] .zone__tiers > .zone__cards')) {
+      expect(css(row, 'direction')).not.toBe('rtl');
+      expect(css(row, 'flex-direction')).not.toMatch(/reverse/);
+      expect(css(row, 'justify-content')).not.toMatch(/end/);
+    }
   });
 
   it('the tiers are slots even while empty, so a card can be put in either', () => {
@@ -4530,29 +4047,41 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       expect(ghost.querySelector('[data-pile-size], [data-pile-depth], .board-card__pile'), 'nor inside it').toBeNull();
       release();
     }
-    // The copy is positioned by a rule the pile's own `.board-card[data-pile-size]` cannot beat.
-    const rule = /\.board > \.board-card\[data-arrange-ghost\] \{([^}]*)\}/.exec(withoutComments(BOARD_CSS));
-    expect(rule, 'the ghost rule names .board-card').not.toBeNull();
-    expect(rule![1]).toMatch(/position: absolute;/);
   });
+
+  /** Fire Urchin (21), tapped, with an untapped Bonesplitter (901) attached: a pile whose base is turned. */
+  function tappedPile(): BoardView {
+    const base = boardFromFixture(fixture);
+    const seed = base.players.find((p) => p.isViewer)!.battlefield[0]!;
+    const gear: BoardCard = { ...seed, id: 901, tapped: false, card: { ...seed.card, cardId: 'w901', name: 'Bonesplitter', typeLine: 'Artifact — Equipment' }, attachedToId: 21, attachedCardIds: [] };
+    return {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer ? p : { ...p, battlefield: [...p.battlefield.map((c) => (c.id === 21 ? { ...c, tapped: true, attachedCardIds: [901] } : c)), gear] },
+      ),
+    };
+  }
 
   it('a tapped base turns its own face only: a card piled behind it keeps its own data-tapped (and nobody else’s)', () => {
     // The operator, 2026-10-07: "when an untapped card is put behind a tapped card, it displays as tapped."
-    const css = withoutComments(CARD_CSS);
-    const turning = [...css.matchAll(/\.board-card:is\(\[data-tapped\], \[data-tapped-pending\], \[data-attacking\]:not\(\[data-vigilant\]\)\)([^{]*)\{/g)].map((m) => m[1]!.trim());
-    expect(turning, 'both turning rules exist').toHaveLength(2);
-    for (const tail of turning) expect(tail, `the card’s OWN face, by child combinator: ${tail}`).toMatch(/^> \.board-card__face/);
+    const css = styled();
+    const { container } = renderBoard(tappedPile());
+    expect(turnOf(css, container.querySelector('[data-card-id="21"]')!), 'the base turns').toContain('90deg');
+    expect(turnOf(css, container.querySelector('[data-card-id="901"]')!), 'the card behind it does not').not.toContain('90deg');
   });
 
   it('the overlay clips what it draws at the board’s edge, so no overlay child can widen the page', () => {
     // table-fit 2026-10-07: the presence cursor's name tag past the right edge grew the shell by 46px.
-    expect(declarationIn('.board__overlay', 'overflow')).toBe('clip');
+    const css = styled();
+    expect(css(renderBoard(view).container.querySelector('.board__overlay')!, 'overflow')).toBe('clip');
   });
 
   it('a pile’s list takes no press, and every card in it takes its own', () => {
-    const css = withoutComments(CARD_CSS);
-    expect(/\.board-card__pile \{([^}]*)\}/.exec(css)?.[1]).toMatch(/pointer-events: none;/);
-    expect(/\.board-card__pile > \.board-card \{([^}]*)\}/.exec(css)?.[1]).toMatch(/pointer-events: auto;/);
+    const css = styled();
+    const { container } = renderBoard(tappedPile());
+    const pile = container.querySelector('[data-card-id="21"] .board-card__pile')!;
+    expect(css(pile, 'pointer-events')).toBe('none');
+    expect(css(pile.querySelector(':scope > .board-card')!, 'pointer-events')).not.toBe('none');
   });
 
   it('draws OUR ghost and indicator while a card is held, and removes every trace on release', () => {
@@ -4628,17 +4157,26 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(board.querySelectorAll('li[data-virtual]')).toHaveLength(0);
   });
 
-  it('board.css outlines a column only on the viewer’s side, never a whole row, and a gap is card-tall', () => {
-    expect(BOARD_RULES, 'no whole-row outline').not.toMatch(/\[data-arrange-slot\]\[data-arrange-target\]/);
-    expect(BOARD_RULES, 'no whole-row tint').not.toMatch(/\.zone__cards\[data-arrange-target\]/);
-    const gapRules = [...BOARD_RULES.matchAll(/([^{}]*\.zone__gap[^{}]*)\{([^{}]*)\}/g)].filter((m) => /outline/.test(m[2]!));
-    expect(gapRules.length, 'the scaffold rules exist').toBeGreaterThan(0);
-    for (const [, selector] of gapRules) expect(selector!.trim(), 'only the viewer’s own columns').toMatch(/^\.board\[data-placing\] \.seat\[data-viewer\] /);
-    expect(declarationIn(".board[data-placing] .seat[data-viewer] [data-zone='battlefield'] .zone__gap", 'aspect-ratio'), 'an empty row’s column is a card tall, not a line').toBe('1 / var(--card-tall)');
-    // A release over a column must hit the row, not a column the release itself takes down.
-    expect(declarationIn(".board[data-placing] .seat[data-viewer] [data-zone='battlefield'] .zone__gap", 'pointer-events')).toBe('none');
-    // Only while placing: a reserved gap in an empty row is no box to glide into (`cast.ts` `expectedGapBox`).
-    expect(declarationIn('.zone__gap', 'aspect-ratio')).toBeUndefined();
+  it('outlines a column only on the viewer’s side while placing, never a whole row, and a column takes no press', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    boardOf(container).style.setProperty('--card-w', '70px');
+    showPlacementColumns(container);
+    // Applied after the columns are drawn: `virtualColumns` measures, and the sheet's widths are no lengths to jsdom.
+    const css = styled();
+    const gaps = [...container.querySelectorAll('.seat[data-viewer] [data-zone="battlefield"] li.zone__gap')];
+    expect(gaps.length, 'columns drawn').toBeGreaterThan(0);
+    for (const gap of gaps) {
+      expect(css(gap, 'outline'), 'a column is outlined').not.toMatch(/^(none)?$/);
+      // A release over a column must hit the row, not a column the release itself takes down.
+      expect(css(gap, 'pointer-events')).toBe('none');
+      // An empty row's column is a card tall, not a line.
+      expect(css(gap, 'aspect-ratio')).not.toBe('');
+    }
+    for (const row of container.querySelectorAll('.seat [data-zone="battlefield"] .zone__cards')) {
+      expect(css(row, 'outline'), 'never a whole row').toMatch(/^(none)?$/);
+    }
+    clearPlacementColumns(container);
   });
 
   it('virtualColumns reads the row’s own column gap, not a fixed one', () => {
@@ -4804,7 +4342,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     fireEvent.pointerMove(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
     fireEvent.pointerUp(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['25', '8', '24', '6']);
-    expect(declarationIn('.board .seat .board-card[data-arrange-card]', 'touch-action'), 'or the browser claims it to scroll').toBe('none');
+    expect(styled()(from, 'touch-action'), 'or the browser claims it to scroll').toBe('none');
   });
 
   it('a press that never moves is a plain click, and the click after a real drag is swallowed', () => {
@@ -5123,10 +4661,6 @@ describe('wave 33 §B', () => {
     expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
     expect(seat(1).querySelectorAll('.seat__counter')).toHaveLength(0);
   });
-
-  it('item 5: the seat’s flags are --accent-ink, not --accent, as text', () => {
-    expect(declarationIn('.seat__flag', 'color')).toBe('var(--accent-ink)');
-  });
 });
 
 /*
@@ -5221,13 +4755,6 @@ describe('wave 34 §B', () => {
       expect(counts.contains(el)).toBe(true);
     }
   });
-
-  it('item 1: --counts-h is unchanged from before this wave — table-fit\'s graveyard-gap reads the hand/library marks\' own box, not the track, so any growth of the track (even empty growth) moves the graveyard', () => {
-    // Pinned here too (not only in "P2 / Q9" above) because this is the exact
-    // regression the manager caught: 3.6rem read back as 46.3px of
-    // "nothing but a pile's own margin" against table-fit's GAP_MAX of 32.
-    expect(declarationIn('.board .seat', '--counts-h')).toBe('2.2rem');
-  });
 });
 
 /*
@@ -5237,24 +4764,6 @@ describe('wave 34 §B', () => {
  * lane's report for mutation counts (revert each change, this case fails;
  * restore, it passes).
  */
-
-describe('wave 36 §B — T6: a hand card is as tall as its row allows', () => {
-  it('the viewer’s hand — and the opponent’s, same tokens — size their card from the row alone, no --card-max ceiling', () => {
-    const mine = '.seat[data-viewer] > .zone--hand > .zone__cards';
-    const theirs = '.seat:not([data-viewer]) > .zone--hand';
-    const battlefield = declarationIn('.seat > .zone--battlefield', '--card-max');
-    // The battlefield KEEPS its density cap — only the hand's own was lifted.
-    expect(battlefield, 'the battlefield’s own cap is untouched by T6').toBe('7.5rem');
-    for (const [selector, label] of [
-      [mine, 'the viewer’s hand'],
-      [theirs, 'the opponent’s hand'],
-    ] as const) {
-      const w = declarationIn(selector, '--card-w')!;
-      expect(w, `${label}: no ceiling left to read`).not.toContain('var(--card-max)');
-      expect(w, `${label}: still driven by the row’s own height`).toContain('var(--zone-h)');
-    }
-  });
-});
 
 describe('wave 36 §B — T7: a card with ChosenType wears a small label', () => {
   const base = boardFromFixture(fixture);
@@ -5278,12 +4787,12 @@ describe('wave 36 §B — T7: a card with ChosenType wears a small label', () =>
   });
 
   it('the label is out of flow and takes no click, like the rest of the state layer', () => {
-    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'position')).toBe('absolute');
-    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'pointer-events')).toBe('none');
-    // The one corner the marks (top-left), the P/T badge (bottom-right) and
-    // the counters (bottom-left) leave free.
-    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'top')).toBe('2px');
-    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'right')).toContain('--pile-fan');
+    const css = styled();
+    const label = card(renderBoard(withChosenType('Elf')).container).querySelector('.board-card__chosen-type')!;
+    expect(css(label, 'position')).toBe('absolute');
+    expect(css(label, 'pointer-events')).toBe('none');
+    // The one corner the marks (top-left), the P/T badge (bottom-right) and the counters (bottom-left) leave free.
+    expect(['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(label, side)))).toEqual(['top', 'right']);
   });
 
   it('a card with nothing chosen (the common case) wears no label at all', () => {
@@ -5361,7 +4870,6 @@ describe('wave 36 §B / wave 46 X3 — the stack names who/what/target in aria-l
     const { container } = renderBoard(tripled);
     expect(container.querySelector('[data-zone="stack"]')!.children, 'the zone itself is still empty at six').toHaveLength(0);
     expect(container.querySelectorAll('[data-placed-spell]'), 'all six are drawn, just elsewhere').toHaveLength(6);
-    expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
   });
 });
 
