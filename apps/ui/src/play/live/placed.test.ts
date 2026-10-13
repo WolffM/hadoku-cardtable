@@ -9,6 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardView, StackEntry } from '../adapter.ts';
+import { PLACEMENT_WAIT_MS } from '../motion.ts';
 import {
   besideSource,
   commitSpell,
@@ -197,6 +198,26 @@ describe('the seam', () => {
     unsub();
     moveSpell(5, { x: 30, y: 40 });
     expect(heard, 'unsubscribed').toHaveLength(1);
+  });
+
+  it('a card released again waits its own PLACEMENT_WAIT_MS for its stack item, not what is left of an earlier release that never matched', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    // Played once and never cast (back to the hand, a cancelled aim): its release is still waiting.
+    placeSpell(301, { x: 100, y: 100 }, 'you');
+    handle.notify(view([]));
+    vi.advanceTimersByTime(PLACEMENT_WAIT_MS - 1000);
+    // Played again: let go here, and moved into its gap a frame later.
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    placeSpell(301, { x: 530, y: 322 }, 'you');
+    vi.advanceTimersByTime(2000);
+    handle.notify(view([])); // the card left the hand; its spell is not on the stack yet
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect([el.style.left, el.style.top], 'drawn where it was put this time').toEqual(['530px', '322px']);
+    expect(el.hasAttribute('data-placed-pending'), 'its registration arrived with it').toBe(false);
+    handle.dispose();
   });
 });
 
