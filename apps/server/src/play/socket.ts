@@ -755,14 +755,17 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				// its own channel is the watcher one (`Match.watcherSnapshot`).
 				if (!claim.ok && claim.error !== 'match-full') return { error: claim.error };
 				seat = claim.ok ? claim.seat : WATCHER_SEAT;
-				const room = roomFor(match);
-				joinRoom<PlayApp, PlayClient>(room, socket.id, socket.id, participantId, () => ({ seat: seat as number }));
-				await socket.join(room.roomId);
+				// The seat is this socket's before the first await: socket.io hands every packet of one
+				// read to its handler in that same tick, so an act the browser sent right behind its join
+				// is read before this function resumes, and would be dropped as `c2s-not-joined`.
 				joined.set(match.id, seat);
 				const key = seatKey(match.id, seat);
 				const sockets = connected.get(key) ?? [];
 				sockets.push(socket.id);
 				connected.set(key, sockets);
+				const room = roomFor(match);
+				joinRoom<PlayApp, PlayClient>(room, socket.id, socket.id, participantId, () => ({ seat: seat as number }));
+				await socket.join(room.roomId);
 				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.ok ? claim.fresh : false, role: roleOf(match.id, seat, socket.id) });
 				for (const [k, held] of arrangements) {
 					if (k.startsWith(`${match.id}#`) && k !== key) socket.emit(ARRANGEMENT_EVENT, held);
