@@ -14,6 +14,6 @@
   "dependencies": {
     "@hadoku/carddata": "workspace:*",
     "@hadoku/shared": "workspace:*",
-    "@wolffm/rooms-protocol": "0.41.12"
+    "@wolffm/rooms-protocol": "0.41.14"
   }
 }
