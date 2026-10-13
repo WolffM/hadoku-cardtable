@@ -1,0 +1,21 @@
+# The operator, 2026-10-12: "theres ALWAYS a second 'next phase' click required" after
+# declaring attackers. Alice (seat 0) attacks with Grizzly Bears holding nothing she can
+# play at instant speed: Celestial Colonnade beside an Island and a Plains (its {3}{W}{U}
+# animation is not affordable off three lands), a Plains and a Divination (a sorcery) in
+# hand. Bob (seat 1) has no creature, so nothing blocks. Her own priority at Declare
+# Attackers Step after the attack has nothing in it, so it is passed for her and the game
+# moves on with no second press. `attack-window-play.state` is the other half: an
+# affordable instant in hand, and the window is hers. `e2e/attack-window.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Plains;Divination
+humanbattlefield=Grizzly Bears;Celestial Colonnade;Island;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

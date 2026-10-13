@@ -19,8 +19,8 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, offeredNamed, says, stackCount } from './play/board.ts';
-import { phaseOf } from './play/combat.ts';
+import { castUntilOnStack, clickHandCard, clickOnce, makeTitled, offeredNamed, says, stackCount } from './play/board.ts';
+import { passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -97,17 +97,6 @@ function emphasis(page: Page, ids: number[]): Promise<Emphasis> {
       scrolls,
     };
   }, ids);
-}
-
-/** Press alice's OK at her Main 1 priority until Forge's live `InputAttack` opens. */
-async function passToDeclareAttackers(page: Page): Promise<void> {
-  const deadline = Date.now() + 30_000;
-  while (!/^Select creatures to attack/i.test(await says(page)) && Date.now() < deadline) {
-    const text = await says(page);
-    if (/^Priority:/.test(text) && (await enabledOk(page).count()) > 0) await clickOnce(page, text, 'ok');
-    await page.waitForTimeout(40);
-  }
-  await expect.poll(() => says(page), { timeout: 5_000, message: 'the live declare-attackers window opened' }).toMatch(/^Select creatures to attack/i);
 }
 
 test(titled('an aura that grants flying tags the creature and floats it, on both screens'), async ({ browser }) => {

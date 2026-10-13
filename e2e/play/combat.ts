@@ -11,7 +11,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { enabledOk, says } from './board.ts';
+import { clickOnce, enabledOk, says } from './board.ts';
 
 /** The rail's own phase (`BoardView.phase`, a `PhaseType` name) and whose turn it is. */
 export async function phaseOf(page: Page): Promise<{ phase: string; whose: string } | null> {
@@ -52,6 +52,17 @@ export async function passDeclareAttackers(page: Page): Promise<void> {
     )
     .toMatch(/^(past|stop)$/);
   if (/Declare Attackers Step/i.test(await says(page)) && (await enabledOk(page).count()) > 0) await enabledOk(page).click();
+}
+
+/** Press the attacker's OK at each of their own priority windows until Forge's live `InputAttack` opens. */
+export async function passToDeclareAttackers(page: Page): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  while (!/^Select creatures to attack/i.test(await says(page)) && Date.now() < deadline) {
+    const text = await says(page);
+    if (/^Priority:/.test(text) && (await enabledOk(page).count()) > 0) await clickOnce(page, text, 'ok');
+    await page.waitForTimeout(40);
+  }
+  await expect.poll(() => says(page), { timeout: 5_000, message: 'the live declare-attackers window opened' }).toMatch(/^Select creatures to attack/i);
 }
 
 /** Every creature Forge has declared attacking (`data-attacking`), on either seat's board as drawn by `page`. */

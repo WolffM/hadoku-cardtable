@@ -1,0 +1,17 @@
+# `attack-window-idle.state`'s other half: alice (seat 0) attacks with Grizzly Bears holding
+# Giant Growth ({G}, an instant) with two untapped Forests, so her own priority at Declare
+# Attackers Step after the attack is a real play and is hers to answer. Bob (seat 1) has
+# no creature. `e2e/attack-window.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Giant Growth
+humanbattlefield=Grizzly Bears;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -134,6 +134,8 @@ is in `docs/planning/wave37-evidence/A-repro.md`.
 | `prompts-arc-lightning.state` | seat 0 casts Arc Lightning off three Volcanic Islands at bob's Memnite and bob: `openZones` and `assignGenericAmount`. | `apps/ui/src/play/live/prompts.jvm.test.ts` |
 | `prompts-double-block.state` | seat 0 attacks with one Memnite into seat 1's two; both block: `assignCombatDamage`. | `prompts.jvm.test.ts`, `combat-drag.jvm.test.ts` |
 | `prompts-brainstorm.state` | seat 0 casts Brainstorm over three different names: `tempShowZones` and `order`. | `prompts.jvm.test.ts` |
+| `attack-window-idle.state` | seat 0 attacks with Grizzly Bears beside an untapped Celestial Colonnade (its animation unaffordable off three lands), a land and a sorcery in hand; seat 1 has no creature. | `e2e/attack-window.spec.ts` — no second OK after the attack |
+| `attack-window-play.state` | the same attack holding Giant Growth with two Forests up. | `e2e/attack-window.spec.ts` — the window is kept for a real play |
 
 Every scenario sets `turn=1`, both seats' life to 20, and a small library of
 basic lands for both seats (so an incidental draw never loses the game) unless

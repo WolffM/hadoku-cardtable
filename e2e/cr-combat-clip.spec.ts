@@ -19,7 +19,8 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
+import { makeTitled } from './play/board.ts';
+import { passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf, pointerDrag } from './play/w32.ts';
@@ -146,17 +147,6 @@ function measure(page: Page): Promise<Board> {
       scrolls,
     };
   });
-}
-
-/** Press alice's OK at her Main 1 priority until Forge's live `InputAttack` opens. */
-async function passToDeclareAttackers(page: Page): Promise<void> {
-  const deadline = Date.now() + 30_000;
-  while (!/^Select creatures to attack/i.test(await says(page)) && Date.now() < deadline) {
-    const text = await says(page);
-    if (/^Priority:/.test(text) && (await enabledOk(page).count()) > 0) await clickOnce(page, text, 'ok');
-    await page.waitForTimeout(40);
-  }
-  await expect.poll(() => says(page), { timeout: 5_000, message: 'the live declare-attackers window opened' }).toMatch(/^Select creatures to attack/i);
 }
 
 test(titled('a creature ready to attack is drawn whole at the edge of the battlefield — face, ring and shadow — and nothing scrolls'), async ({ browser }) => {
