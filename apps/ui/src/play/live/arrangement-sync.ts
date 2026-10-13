@@ -9,6 +9,22 @@
  * from the other seat is written under their player id with
  * `applyTheirArrangement`, which wakes the mounted board. A watcher (no seat)
  * sends nothing and is shown both sides as their owners placed them.
+ *
+ * An echo is applied to the player of the SEAT it is stamped with
+ * (`playerOfSeat`, `forge:seats`' join key), never to "the other player": a
+ * watcher hears both seats, and which of them is drawn at the bottom is its
+ * own choice (`flipPerspective`). Before the first party (2026-10-12) every
+ * echo went to the non-viewer, so on a watcher's screen seat 0's rows landed on
+ * seat 1's side and the bottom side never moved at all — the operator: *"card
+ * placement on board doesnt update as players move things around."* A seat's
+ * own window still drops its own echo (a resync's replay of it).
+ *
+ * Only the seat table says whose an echo is — never "the other player". The
+ * server sends `forge:seats` on every join and resync, right behind the ack;
+ * an echo that arrives first (the join's replay) is held for it. Guessing in
+ * that window is wrong for a watcher in particular: its ack names the seat it
+ * is ORIENTED as, so for a moment it looks seated, and a guess put seat 0's
+ * rows on seat 1's side.
  */
 import { ARRANGEMENT_EVENT, ArrangementEchoSchema, type ArrangementMessage } from '@hadoku/shared';
 import type { BoardView } from '../adapter.ts';
@@ -19,6 +35,8 @@ export interface ArrangementHost {
   readonly matchId: string;
   /** This seat's number; null while unseated (a spectator): then nothing is sent. */
   readonly seat: number | null;
+  /** The Forge player a seat holds (`match.ts`'s `playerIdOfSeat`); null until `forge:seats` has named it. */
+  readonly playerOfSeat: (seat: number) => number | null;
   readonly transport: Pick<MatchTransport, 'on' | 'emit'>;
   /** The board as the match holds it now; null before the first view. */
   readonly view: () => BoardView | null;
@@ -32,10 +50,26 @@ export interface ArrangementHandle {
   dispose(): void;
 }
 
+/**
+ * Each seat's last echo per match, held until the view names its player. Module
+ * state, not the handle's: the server replays a joiner the held arrangements
+ * BEFORE the join's own ack, and the board re-installs this sync as the role
+ * lands a moment later (`spectator` is a dependency of its effect) — an echo held
+ * by the first handle alone went down with it, and a late watcher saw both
+ * sides in Forge's order (2026-10-12). `presence.ts`'s `pendingPlaced` is the
+ * same shape for the same reason.
+ */
+const HELD = new Map<string, Map<number, ArrangementMessage['rows']>>();
+
+/** Tests: start from nothing held. */
+export function forgetHeldArrangements(): void {
+  HELD.clear();
+}
+
 export function installArrangementSync(host: ArrangementHost): ArrangementHandle {
   let live = true;
-  /** The other seat's last echo, held until the view names their player (a reload's replay can land first). */
-  let pending: { seat: number; rows: ArrangementMessage['rows'] } | null = null;
+  const pending = HELD.get(host.matchId) ?? new Map<number, ArrangementMessage['rows']>();
+  HELD.set(host.matchId, pending);
 
   const stopOwn = onOwnArrangement(({ playerId, rows }) => {
     if (!live || host.seat === null) return;
@@ -52,19 +86,24 @@ export function installArrangementSync(host: ArrangementHost): ArrangementHandle
   });
 
   function applyPending(): void {
-    if (pending === null) return;
+    if (pending.size === 0) return;
     const view = host.view();
-    const theirs = view?.players.find((p) => !p.isViewer);
-    if (view === null || view === undefined || theirs === undefined) return;
-    applyTheirArrangement(view, theirs.id, pending.rows);
-    pending = null;
+    if (view === null) return;
+    for (const [seat, rows] of pending) {
+      const owner = host.playerOfSeat(seat);
+      if (owner === null || !view.players.some((p) => p.id === owner)) continue;
+      applyTheirArrangement(view, owner, rows);
+      pending.delete(seat);
+    }
+    if (pending.size === 0) HELD.delete(host.matchId);
   }
 
   function onEcho(payload: unknown): void {
     if (!live) return;
     const parsed = ArrangementEchoSchema.safeParse(payload);
     if (!parsed.success || parsed.data.matchId !== host.matchId || parsed.data.seat === host.seat) return;
-    pending = { seat: parsed.data.seat, rows: parsed.data.rows };
+    pending.set(parsed.data.seat, parsed.data.rows);
+    HELD.set(host.matchId, pending);
     applyPending();
   }
   host.transport.on(ARRANGEMENT_EVENT, onEcho);

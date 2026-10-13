@@ -309,11 +309,13 @@ import {
   sendStopPreference,
   setAutoYield,
   flipPerspective,
+  playerIdOfSeat,
   setFullControl,
   setPhaseStop,
   setSameTarget,
   setTriggerDecision,
   subscribe,
+  viewerPlayerIdOf,
   type LiveAsk,
   type LiveClickables,
   type LiveMatch,
@@ -2491,6 +2493,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       get seat() {
         return spectator ? null : match.seat;
       },
+      playerOfSeat: (seat) => playerIdOfSeat(match, seat),
       transport: match.transport,
       view: () => match.view,
       layout: () => boardLayoutNow.current,
@@ -2512,6 +2515,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         transport: match.transport,
         opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
         theirPlayerId: () => match.view?.players.find((p) => !p.isViewer)?.id ?? null,
+        playerOfSeat: (seat) => playerIdOfSeat(match, seat),
+        viewerPlayerId: () => viewerPlayerIdOf(match),
         // `from` (the arrow's tail) is sent only while this seat is actually aiming — the
         // same condition `paint()` (`gestures/install.ts`) already uses for its own arrow.
         aiming: () => match.selectables !== null || stackAsk(match) !== null,

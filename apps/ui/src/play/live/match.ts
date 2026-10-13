@@ -737,6 +737,17 @@ export interface LiveMatch {
    */
   nameByPlayerId: ReadonlyMap<number, string> | null;
   /**
+   * Each SEAT's Forge player id, from `forge:seats`' `playerId` (2026-10-12).
+   * The join key for anything the server stamps with a seat and the board
+   * keeps by player — an arrangement or a placement echo
+   * (`arrangement-sync.ts`, `presence.ts`). A player's own window could read
+   * "the other seat" off `isViewer`; a watcher cannot, because every echo is
+   * someone else's and its perspective can be turned around. Same three-state
+   * rule as {@link LiveMatch.avatarByPlayerId}: `null` until the seat table
+   * has arrived, then a real Map holding only the seats Forge has named.
+   */
+  playerIdBySeat: ReadonlyMap<number, number> | null;
+  /**
    * Every seat's own open ask or mana payment, keyed by SEAT (0/1, not a
    * Forge player id — unlike {@link LiveMatch.avatarByPlayerId}), from
    * `forge:seats`' `waitingOn`
@@ -913,6 +924,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     sameTarget: false,
     avatarByPlayerId: null,
     nameByPlayerId: null,
+    playerIdBySeat: null,
     waitingOn: null,
     coinToss: null,
     spectator: false,
@@ -1250,6 +1262,11 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
     if (seat.playerId !== null && seat.name !== undefined) names.set(seat.playerId, seat.name);
   }
   match.nameByPlayerId = names;
+  const bySeat = new Map<number, number>();
+  for (const seat of parsed.value.seats) {
+    if (seat.playerId !== null) bySeat.set(seat.seat, seat.playerId);
+  }
+  match.playerIdBySeat = bySeat;
   // Keyed by SEAT, not player id — a seat can hold an open
   // ask before `openView` has named its Forge player (an early mulligan
   // confirm, for one), and the fact must still reach the viewer then.
@@ -1309,6 +1326,11 @@ function adoptRole(match: LiveMatch, payload: unknown): void {
  */
 export function viewerPlayerIdOf(match: LiveMatch): number | null {
   return match.perspective ?? match.playerId;
+}
+
+/** The Forge player a SEAT holds, once `forge:seats` has named it; null before, and for a seat Forge has not named. */
+export function playerIdOfSeat(match: LiveMatch, seat: number): number | null {
+  return match.playerIdBySeat?.get(seat) ?? null;
 }
 
 /**
@@ -2816,6 +2838,7 @@ function discardLocal(match: LiveMatch): void {
   match.sameTarget = false;
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;
+  match.playerIdBySeat = null;
   match.waitingOn = null;
   match.coinToss = null;
   match.over = false;

@@ -7,6 +7,10 @@
  * 2. The match: the third person sees the game live from either side, has no
  *    game controls, and — the done-when's payload clause — receives no card face
  *    from a hand or a library on the wire. Their input is dropped by the server.
+ * 3. The board follows both seats: where each player puts their own cards is
+ *    where the watcher sees them, on whichever side the watcher has at the
+ *    bottom. (The first party, 2026-10-12: *"card placement on board doesnt
+ *    update as players move things around"* — every echo went to the top side.)
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -14,6 +18,7 @@ import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
+import { matchUrl, startScenarioMatch } from './play/scenario.ts';
 import { connectSio } from './play/sio.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -24,6 +29,12 @@ const forge = forgeAvailability();
 const seatSit = (page: Page) => page.getByTestId('seat-sit');
 const seatStand = (page: Page) => page.getByTestId('seat-stand');
 const viewerName = (page: Page) => page.locator('[data-testid="player"][data-viewer] .face__name');
+/** The battlefield cards of one side, in DOM order. */
+const fieldOrder = (page: Page, side: 'you' | 'them'): Promise<number[]> =>
+  page
+    .locator(`${side === 'you' ? '.seat[data-viewer]' : '.seat:not([data-viewer])'} [data-zone="battlefield"] li.board-card[data-card-id]`)
+    .evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-card-id'))));
+const gaps = (page: Page, side: 'you' | 'them') => page.locator(`${side === 'you' ? '.seat[data-viewer]' : '.seat:not([data-viewer])'} [data-zone="battlefield"] li.zone__gap`);
 
 async function createConstructedRoom(alice: Friend, origin: string): Promise<string> {
   await alice.page.goto(`${origin}${PREFIX}/`);
@@ -184,6 +195,74 @@ test('a third person watches the match from either side with no controls, and no
     expect(bottom.back.height, 'a bottom back is as tall as its slot allows, like the top ones').toBeGreaterThan(bottom.box.height * 0.6);
     expect(Math.abs(bottom.back.height - top.back.height), 'the two strips draw their backs at one size').toBeLessThanOrEqual(4);
     expect(bottom.overflow, 'the bottom strip fits its slot').toBeLessThanOrEqual(1);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/* ── 3. the board follows both seats ───────────────────────────────── */
+
+test('a watcher sees each side as its owner arranged it, from either perspective', async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // Three lands each, nobody's turn to do anything (w67's fixture).
+    const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'w67-outlines');
+    const carol = await openFriend(browser, 'carol');
+    for (const p of [alice.page, bob.page, carol.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    await carol.page.goto(matchUrl(stack.origin, matchId));
+    await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol watches').toBeVisible({ timeout: 60_000 });
+    const own = (f: Friend) => f.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
+    await expect(own(alice), 'alice has her three lands').toHaveCount(3, { timeout: 60_000 });
+    await expect(own(bob), 'bob has his three').toHaveCount(3, { timeout: 30_000 });
+    await expect(carol.page.locator('[data-zone="battlefield"] li.board-card'), 'carol sees all six').toHaveCount(6, { timeout: 30_000 });
+    const before = { alice: await fieldOrder(alice.page, 'you'), bob: await fieldOrder(bob.page, 'you') };
+
+    // Each player carries their FIRST land to the far end of its row: the order changes and a gap is left.
+    const carry = async (f: Friend): Promise<void> => {
+      const first = (await own(f).first().boundingBox())!;
+      const row = (await f.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot]').first().boundingBox())!;
+      await f.page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+      await f.page.mouse.down();
+      await f.page.mouse.move(first.x + 20, first.y + 20, { steps: 3 });
+      await f.page.mouse.move(row.x + row.width - 30, first.y + first.height / 2, { steps: 12 });
+      await f.page.mouse.up();
+      await f.page.mouse.move(5, 5);
+    };
+    await carry(bob);
+    await expect.poll(() => fieldOrder(bob.page, 'you'), { timeout: 10_000, message: 'bob moved a land' }).not.toEqual(before.bob);
+    await carry(alice);
+    await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 10_000, message: 'alice moved a land' }).not.toEqual(before.alice);
+    const after = { alice: await fieldOrder(alice.page, 'you'), bob: await fieldOrder(bob.page, 'you') };
+    console.log(`[watcher arrangement] alice ${before.alice.join(',')} -> ${after.alice.join(',')}; bob ${before.bob.join(',')} -> ${after.bob.join(',')}`);
+
+    // Alice at the bottom: her side in her order, his in his — the bottom side moves too.
+    await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'the bottom side (alice) is as alice arranged it' }).toEqual(after.alice);
+    await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'the top side (bob) is as bob arranged it' }).toEqual(after.bob);
+    await expect(gaps(carol.page, 'you'), 'her gap is drawn on the bottom side').not.toHaveCount(0);
+    await expect(gaps(carol.page, 'them'), 'his gap is drawn on the top side').not.toHaveCount(0);
+
+    // Turned around: the same, with bob at the bottom.
+    await carol.page.getByTestId('perspective-flip').click();
+    await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'flipped: the bottom side (bob) is as bob arranged it' }).toEqual(after.bob);
+    await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'flipped: the top side (alice) is as alice arranged it' }).toEqual(after.alice);
+
+    // A move made AFTER the flip reaches the side it belongs to.
+    await carry(alice);
+    await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 10_000, message: 'alice moved again' }).not.toEqual(after.alice);
+    const again = await fieldOrder(alice.page, 'you');
+    await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'her second move reaches the top side' }).toEqual(again);
+    await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 5_000, message: 'and bob’s side did not move' }).toEqual(after.bob);
+
+    // A watcher arriving now is sent both arrangements on joining.
+    const dave = await openFriend(browser, 'carol');
+    await dave.page.setViewportSize({ width: 1280, height: 800 });
+    await dave.page.goto(matchUrl(stack.origin, matchId));
+    await expect(dave.page.locator('.live[data-role="watcher"]')).toBeVisible({ timeout: 60_000 });
+    await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);
+    await expect.poll(() => fieldOrder(dave.page, 'them'), { timeout: 10_000, message: 'a late watcher: bob’s side as he left it' }).toEqual(after.bob);
   } finally {
     await stack.stop();
   }

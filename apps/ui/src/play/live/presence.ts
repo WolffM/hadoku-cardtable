@@ -135,6 +135,17 @@ export interface PresenceHost {
   readonly opponentName: () => string | null;
   /** The other seat's player id, for the column their release reserves (`Board`'s `expectPlacement`). Absent: nothing is reserved. */
   readonly theirPlayerId?: () => number | null;
+  /**
+   * The Forge player a SEAT holds (`match.ts`'s `playerIdOfSeat`), so a placement
+   * is reserved for the seat that sent it rather than for "the other player": a
+   * watcher hears both seats' releases, and may have turned the table around.
+   * Null before `forge:seats` has named the seat: nothing is reserved then (a
+   * guess at "the other player" is wrong for a watcher, whose join ack names the
+   * seat it is oriented as). Absent: `theirPlayerId`.
+   */
+  readonly playerOfSeat?: (seat: number) => number | null;
+  /** The player drawn at the BOTTOM (`match.ts`'s `viewerPlayerIdOf`); a release of THEIRS is reserved and not animated. */
+  readonly viewerPlayerId?: () => number | null;
   /** Wake on every change of the match (`subscribe`), for the handoff; absent, no handoff is drawn. */
   readonly watch?: (onChange: () => void) => () => void;
   /** The ids of the other seat's cards the board draws as cards: their battlefield, and their spells on the stack. */
@@ -1281,16 +1292,25 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     landCastGhost(canvas, card, ghost, from, settled);
   }
 
+  /** Whose release an echo from `seat` is: the seat table's answer (null until it has arrived); the other player only for a host without one. */
+  function ownerOf(seat: number): number | null {
+    return host.playerOfSeat !== undefined ? host.playerOfSeat(seat) : (host.theirPlayerId?.() ?? null);
+  }
+
   function onPlacement(payload: unknown): void {
     if (!live) return;
     const parsed = PlacementEchoSchema.safeParse(payload);
     if (!parsed.success || parsed.data.matchId !== host.matchId || parsed.data.seat === host.seat) return;
-    const theirs = host.theirPlayerId?.() ?? null;
+    const owner = ownerOf(parsed.data.seat);
     const root = overlay();
     const from = placeSpot(canvas, parsed.data.at);
-    if (theirs === null || root === null || from === null) return;
+    if (owner === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
-    expectPlacement(theirs, slot, target, card);
+    expectPlacement(owner, slot, target, card);
+    // A watcher's bottom side (its chosen perspective) is someone else's seat too: the column is
+    // reserved, which is what puts the card where its owner let it go, and the stand-in — a back
+    // from the TOP hand into the top battlefield — is not drawn for it.
+    if (owner === (host.viewerPlayerId?.() ?? null)) return;
     play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
     const already = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     if (already !== null) {
@@ -1397,7 +1417,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return;
     }
     if (pendingPlaced === payload) pendingPlaced = null;
-    placeStackItem(parsed.data.spell, at, 'them', true);
+    const owner = ownerOf(parsed.data.seat);
+    const side = owner !== null && owner === (host.viewerPlayerId?.() ?? null) ? 'you' : 'them';
+    placeStackItem(parsed.data.spell, at, side, true);
     commitSpell(parsed.data.spell);
   }
 
