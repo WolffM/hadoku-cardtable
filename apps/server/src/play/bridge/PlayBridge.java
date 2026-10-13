@@ -1728,29 +1728,36 @@ public final class PlayBridge {
          * land with a non-mana ability the seat can take (Ghost Quarter, a fetchland, a
          * man-land it can pay for) is not in it, so it holds the window the way an instant in
          * hand does.</li>
-         * <li>{@code phaseRestricted}: the offered permanents this seat controls with a
-         * non-mana ability it can take now whose {@code ActivationPhases} restriction
-         * ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases}) is
-         * met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
+         * <li>{@code phaseRestricted}: the offered permanents this seat controls that are a
+         * play and have a playable non-mana ability whose {@code ActivationPhases}
+         * restriction ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases})
+         * is met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
          * hand: the card and its text are on the table for everyone.</li>
          * </ul>
          *
-         * "Can take" is {@link forge.ai.AvailableActions#offered}, the fork's own test for the highlight
-         * and for a click's ability list: affordable, targetable, past every restriction and
-         * {@code CantBeCast}/{@code CantBeActivated} static. {@code getAllPossibleAbilities(player,
-         * true)} alone is not that: its {@code canPlay} checks timing and the non-mana costs but
-         * never the mana, so a card Forge offered for its mana tap, with an animation or a token
-         * ability the seat cannot pay for beside it, read as a play and held every window it was
-         * offered in.
+         * "A play" is the fork's {@code AvailableActions.Scan#plays}, which the game thread
+         * records in the same walk that built the offered set, by the test the highlight and a
+         * click's ability list use (affordable, targetable, allowed). It is read here, never
+         * recomputed: that test runs under a swapped AI controller, and swapping it from this
+         * thread while the game thread runs let the AI act for the seat (an e2e match saw
+         * Gideon Blackblade's +1 activated with no click). {@code getAllPossibleAbilities} alone
+         * is no substitute: its {@code canPlay} never checks mana, so a Colonnade read as a play.
          *
-         * Read on this seat's channel thread while the game thread is parked on the input
-         * that pushed the set, as {@link #legalPlayers} does. A failure omits both fields,
-         * which the server reads as "no such card" — the stop it always made.
+         * Read on this seat's channel thread. No scan (an AI seat, a window with no full walk)
+         * or a failure omits both fields, which the server reads as "no such card" — the stop
+         * it always made.
          */
         private void offerFacts(final JsonObject f, final Iterable<CardView> cards) {
             final Game game = liveGame();
             final forge.game.player.Player mine = liveSelf(game);
             if (mine == null || cards == null) { return; }
+            // The plays of the scan that pushed this set, made on the game thread. Absent (an AI
+            // seat, no full scan) omits both fields, which keeps the stop.
+            final java.util.Set<CardView> scanned = mine.getController() instanceof forge.player.PlayerControllerHuman human
+                    ? human.getActionablePlays() : null;
+            if (scanned == null) { return; }
+            final java.util.Set<Integer> plays = new java.util.HashSet<>();
+            for (final CardView p : scanned) { plays.add(p.getId()); }
             try {
                 final JsonArray manaOnly = new JsonArray();
                 final JsonArray phaseRestricted = new JsonArray();
@@ -1759,22 +1766,19 @@ public final class PlayBridge {
                     if (cv == null || !seen.add(cv.getId())) { continue; }
                     final forge.game.card.Card c = game.findById(cv.getId());
                     if (c == null) { continue; }
-                    final List<SpellAbility> plays = new ArrayList<>();
-                    for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
-                        if (!sa.isManaAbility()) { plays.add(sa); }
+                    // Offered with no play to make: for its mana, or for the undo of a mana tap.
+                    // Never a reason to hold priority.
+                    if (!plays.contains(cv.getId())) {
+                        manaOnly.add(ref("card", cv.getId()));
+                        continue;
                     }
-                    boolean restricted = false;
-                    final List<SpellAbility> takeable = plays.isEmpty() ? plays : forge.ai.AvailableActions.offered(mine, plays);
-                    for (final SpellAbility sa : takeable) {
-                        if (c.isInPlay() && c.getController() == mine && sa.getRestrictions() != null
-                                && !sa.getRestrictions().getPhases().isEmpty()) {
-                            restricted = true;
+                    if (!c.isInPlay() || c.getController() != mine) { continue; }
+                    for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
+                        if (!sa.isManaAbility() && sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) {
+                            phaseRestricted.add(ref("card", cv.getId()));
+                            break;
                         }
                     }
-                    // Offered with no play to make: for its mana, or for the untap of a mana tap
-                    // Forge can take back. Never a reason to hold priority.
-                    if (takeable.isEmpty()) { manaOnly.add(ref("card", cv.getId())); }
-                    if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);
