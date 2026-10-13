@@ -1243,8 +1243,18 @@
  * ceiling — "a hand card is as tall as its row allows" — and this is the SAME
  * tokens the comment above promises, so it drops the identical ceiling the
  * identical way, never `--card-max` at all any more.
+ *
+ * Keyed on `zone--backs` (what `HiddenHand` renders), not on the side
+ * (2026-10-12): a watcher is shown BOTH hands as backs, the perspective seat's
+ * in the viewer's own hand slot at the bottom. Keyed on `:not([data-viewer])`,
+ * that strip fell through to `card.css`'s bare flex row of half-width backs,
+ * each a fraction of the slot it stood in — the "weirdly squished" hand the
+ * operator saw from the crowd at the first party. The geometry is one rule for
+ * either side; only the lit edge is the side's — at the foot for the seat
+ * across the table, at the top for the one at the bottom, as the viewer's own
+ * hand of faces has it.
  */
-.seat:not([data-viewer]) > .zone--hand {
+.seat > .zone--hand.zone--backs {
   --card-slack: 8px;
   --card-pad: 4px 3px;
   --card-w: calc((var(--zone-h) - var(--card-slack)) / var(--card-tall));
@@ -1257,16 +1267,24 @@
   padding-right: var(--right-gutter);
   background: repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in srgb, var(--ink) 4.5%, transparent) 7px 14px), var(--bg-card);
   border: 1px solid var(--line);
-  border-bottom: 3px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
   overflow: hidden;
   white-space: nowrap;
 }
 
+.seat:not([data-viewer]) > .zone--hand.zone--backs {
+  border-bottom: 3px solid var(--line);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.seat[data-viewer] > .zone--hand.zone--backs {
+  border-top: 3px solid var(--line);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
 /* Backs in the same grid a hand of faces is in: one row, columns that shrink to
    the width down to the floor, `--cols` written by `HiddenHand`. */
-.seat:not([data-viewer]) > .zone--hand > .card-backs {
+.seat > .zone--hand.zone--backs > .card-backs {
   --card-back-w: 100%;
 
   display: grid;
@@ -1280,7 +1298,7 @@
   padding: var(--card-pad);
 }
 
-.seat:not([data-viewer]) > .zone--hand > .card-backs > .card-back + .card-back {
+.seat > .zone--hand.zone--backs > .card-backs > .card-back + .card-back {
   margin-left: 0;
 }
 

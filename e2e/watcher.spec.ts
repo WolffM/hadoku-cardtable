@@ -8,7 +8,7 @@
  *    game controls, and — the done-when's payload clause — receives no card face
  *    from a hand or a library on the wire. Their input is dropped by the server.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch, serverLog } from './play/board.ts';
@@ -152,6 +152,38 @@ test('a third person watches the match from either side with no controls, and no
     await alice.page.waitForTimeout(1000);
     await expect(alice.page.getByTestId('live-says'), 'the watcher changed nothing for the players').toContainText(/play or draw/i);
     await expect(alice.page.getByTestId('live-play-or-draw-play')).toBeEnabled();
+
+    // ── The hands, once dealt: both are backs on a watcher's board, and the
+    // perspective seat's at the bottom is drawn the way the top one is — card-
+    // proportioned, as tall as its slot allows, one row that fits — not the
+    // half-size flex row the operator saw at the first party ("weirdly
+    // squished"). Hands are dealt after play-or-draw, so alice answers it; the
+    // keep question stays open, which is fine: a dealt hand is a count already.
+    await alice.page.getByTestId('live-play-or-draw-play').click();
+    await expect
+      .poll(async () => (await carol.page.getByTestId('hand-count').allTextContents()).map((t) => Number(t.trim())), { timeout: 60_000, message: 'both hands dealt on the watcher’s board' })
+      .toEqual([7, 7]);
+    const bottomHand = carol.page.locator('.seat[data-viewer] > [data-zone="hand"]');
+    const topHand = carol.page.locator('.seat:not([data-viewer]) > [data-zone="hand"]');
+    await expect(bottomHand, 'the bottom hand is the viewer side’s, as the rest of that seat is').toHaveAttribute('data-owner', 'you');
+    await expect(topHand).toHaveAttribute('data-owner', 'them');
+    await expect(bottomHand.locator('.card-backs > .card-back'), 'seven backs at the bottom').toHaveCount(7);
+    await expect(topHand.locator('.card-backs > .card-back'), 'seven backs at the top').toHaveCount(7);
+    const geometry = async (zone: Locator) => {
+      const back = await zone.locator('.card-back').first().boundingBox();
+      const box = await zone.boundingBox();
+      const overflow = await zone.evaluate((el) => el.scrollWidth - el.clientWidth);
+      if (back === null || box === null) throw new Error('the hand or its first back has no box');
+      return { back, box, overflow };
+    };
+    const bottom = await geometry(bottomHand);
+    const top = await geometry(topHand);
+    console.log(`[watcher hand] bottom back ${bottom.back.width.toFixed(1)}x${bottom.back.height.toFixed(1)} in ${bottom.box.width.toFixed(0)}x${bottom.box.height.toFixed(0)} overflow ${bottom.overflow}; top back ${top.back.width.toFixed(1)}x${top.back.height.toFixed(1)} in ${top.box.width.toFixed(0)}x${top.box.height.toFixed(0)} overflow ${top.overflow}`);
+    expect(bottom.back.height / bottom.back.width, 'a bottom back has a card’s proportion').toBeGreaterThan(1.3);
+    expect(bottom.back.height / bottom.back.width, 'a bottom back has a card’s proportion').toBeLessThan(1.5);
+    expect(bottom.back.height, 'a bottom back is as tall as its slot allows, like the top ones').toBeGreaterThan(bottom.box.height * 0.6);
+    expect(Math.abs(bottom.back.height - top.back.height), 'the two strips draw their backs at one size').toBeLessThanOrEqual(4);
+    expect(bottom.overflow, 'the bottom strip fits its slot').toBeLessThanOrEqual(1);
   } finally {
     await stack.stop();
   }

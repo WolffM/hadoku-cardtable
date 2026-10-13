@@ -3777,6 +3777,20 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     expect(backs.querySelectorAll('[data-card-back]')).toHaveLength(them.handCount);
   });
 
+  it('a hidden hand on the VIEWER’s side (a watcher’s perspective seat, 2026-10-12) is the viewer’s strip, sized by the same rule as the top one', () => {
+    const css = styled();
+    const watched = { ...view, players: view.players.map((p) => (p.isViewer ? { ...p, hand: null, handCount: 7 } : p)) };
+    const { zone } = renderBoard(watched);
+    const bottom = zone(0, 'hand');
+    const top = zone(1, 'hand');
+    expect(bottom.getAttribute('data-owner'), 'the viewer side’s, like the rest of that seat').toBe('you');
+    expect(top.getAttribute('data-owner')).toBe('them');
+    expect(bottom.classList.contains('zone--backs') && top.classList.contains('zone--backs'), 'both strips are keyed for the stylesheet').toBe(true);
+    expect(bottom.querySelectorAll('[data-card-back]')).toHaveLength(7);
+    expect(css(bottom, '--card-slack'), 'the same slack as the top strip').toBe(css(top, '--card-slack'));
+    expect(css(bottom.querySelector(':scope > ul.card-backs')!, 'display'), 'the same grid as the top strip').toBe(css(top.querySelector(':scope > ul.card-backs')!, 'display'));
+  });
+
   it('Q13: power/toughness sits in the card’s BOTTOM-right corner, clear of the counters and the marks', () => {
     const css = styled();
     const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, blocking: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
