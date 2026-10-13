@@ -28,18 +28,30 @@ export { SELF_ANSWERING };
  * branch: the X ask can open between those two reads, and the generic default
  * then answers X = 0 (w62-condescend, run 38234802880: Condescend resolved
  * with "(X=0)", so bob was never asked to pay).
+ *
+ * `stack` is for a cast's own drain: answer only while the stack zone's
+ * `data-count` is still this, read in the same step as the prompt. Frames
+ * reach the board in Forge's order, so an ask the spell's resolution opens
+ * (Ponder's `order`, a scry) is only ever on the page once the spell is
+ * counted on the stack — and is left for the caller, never answered by the
+ * loop that was only waiting for the cast to land (order-drag, run
+ * 38381150766: castCard's tick answered Ponder's order 162 ms after it opened).
  */
 export async function answerPrompt(
   page: Page,
-  opts: { leave?: readonly string[]; x?: number } = {},
+  opts: { leave?: readonly string[]; x?: number; stack?: number } = {},
 ): Promise<{ method: string; callId: string } | null> {
-  // Read both attributes in one step: a self-answering prompt can vanish
-  // between two separate reads.
-  const showing = await page
-    .getByTestId('live-prompt')
-    .evaluateAll((els) => els.map((e) => ({ method: e.getAttribute('data-method') ?? '', callId: e.getAttribute('data-call-id') ?? '' })));
-  const top = showing[0];
+  // One step for the prompt's attributes and the stack: a self-answering prompt can vanish between two separate
+  // reads, and a resolution's ask can open between a stack read and a prompt read.
+  const { stack, top } = await page.evaluate(() => {
+    const prompt = document.querySelector('[data-testid="live-prompt"]');
+    return {
+      stack: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? '0'),
+      top: prompt === null ? undefined : { method: prompt.getAttribute('data-method') ?? '', callId: prompt.getAttribute('data-call-id') ?? '' },
+    };
+  });
   if (top === undefined || SELF_ANSWERING.has(top.method)) return null;
+  if (opts.stack !== undefined && stack !== opts.stack) return null;
   if (opts.leave?.includes(top.method)) return null;
   const { method, callId } = top;
   const sheet = page.locator(`[data-testid="live-prompt"][data-call-id="${callId}"]`);

@@ -292,7 +292,8 @@ export async function cancelCast(page: Page, how: 'escape' | 'right-click' = 'es
  * Cost" if the cost isn't free. Waits for the stack to actually change
  * rather than returning on the first sight of anything, so a still-open ask
  * (the click's own round trip not yet landed) is never mistaken for "nothing
- * left to do".
+ * left to do". Only the cast's own asks are answered (`answerPrompt`'s
+ * `stack`): what the spell asks as it resolves is the caller's.
  */
 export async function castCard(page: Page, cardId: number): Promise<void> {
   const stackBefore = await stackCount(page);
@@ -301,7 +302,9 @@ export async function castCard(page: Page, cardId: number): Promise<void> {
     await expect
       .poll(
         async () => {
-          await answerPrompt(page);
+          const now = await stackCount(page);
+          if (now !== stackBefore) return now;
+          await answerPrompt(page, { stack: stackBefore });
           const text = await says(page);
           if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
           return stackCount(page);
@@ -374,7 +377,7 @@ export async function castByDrag(
 }
 
 /**
- * Drain whatever Forge asks next (`answerPrompt`, `clickTargetIfReady`, or
+ * Drain whatever Forge asks next (`answerPrompt` while the stack is unchanged, `clickTargetIfReady`, or
  * `pressPaymentAuto` — never `clickOnce(…, 'ok')`, which can land on the
  * stack's own OK the instant the spell lands) until the stack changes. T6:
  * the one cast-wait loop w51/w56-numbers/w33 wrote by hand; w63-yield's own
@@ -397,7 +400,7 @@ export async function castUntilOnStack(
   const arrived = async (): Promise<boolean> => (await stackCount(page)) !== before || (await landed());
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
   while (!(await arrived()) && Date.now() < deadline) {
-    await answerPrompt(page);
+    await answerPrompt(page, { stack: before });
     if (!(await clickTargetIfReady())) await pressPaymentAuto(page);
     await page.waitForTimeout(40);
   }
