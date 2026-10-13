@@ -1,0 +1,18 @@
+# e2e/ch-choice-tags.spec.ts — the operator, 2026-10-12: "selected a color on prism ring. the
+# selected color should be visible on the card as a tag." Alice (seat 0) holds Prism Ring ("As
+# Prism Ring enters, choose a color") and Pithing Needle ("As Pithing Needle enters, choose a card
+# name") with two untapped Mountains in her main phase; casting each asks her the choice, and the
+# permanent must wear what she chose on both screens. Bob holds Llanowar Elves, the name she picks.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Prism Ring;Pithing Needle
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Llanowar Elves;Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
