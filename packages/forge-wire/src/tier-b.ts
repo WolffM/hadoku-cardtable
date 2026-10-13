@@ -398,6 +398,27 @@ export const SetWeaklySelectableSchema = z.strictObject({
       }),
     )
     .optional(),
+  /**
+   * Ours: what continuous effects change about the cards this seat holds, one
+   * entry per changed card, the whole hand's list (a card that went back to
+   * normal drops out). `cost` is the mana its spell would cost now and `printed`
+   * what it costs unchanged, both `ManaCost.serialize`'d like a view's
+   * `ManaCost`, with `costBy` naming the cards whose statics changed it
+   * (Jace's Sanctum, Thalia). `flashBy` names the card that lets it be cast as
+   * though it had flash (Vedalken Orrery). Absent when the bridge could not
+   * read them.
+   */
+  heldChanges: z
+    .array(
+      z.strictObject({
+        card: CardRefSchema,
+        cost: z.string().optional(),
+        printed: z.string().optional(),
+        costBy: z.array(z.string()).optional(),
+        flashBy: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 
 /** `void restoreOldZones(PlayerView playerView, PlayerZoneUpdates playerZoneUpdates)` — IGuiGame.java:263. */

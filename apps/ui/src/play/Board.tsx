@@ -413,6 +413,12 @@ import './board.css';
 import './card.css';
 
 /** What Forge currently lets the viewer click, and where a click goes. */
+/** One held card's tags (`BoardInteraction.held`): its changed cost as cost tokens, and a granted flash, each with its tooltip. */
+export interface HeldTags {
+  readonly cost?: { readonly tokens: readonly string[]; readonly change: 'less' | 'more' | 'same'; readonly tip: string };
+  readonly flash?: string;
+}
+
 export interface BoardInteraction {
   /** Card ids Forge currently says are selectable (from setSelectables). */
   selectable: ReadonlySet<number>;
@@ -514,6 +520,13 @@ export interface BoardInteraction {
    * **Absent means none.**
    */
   castForbidden?: ReadonlyMap<number, string>;
+  /**
+   * What continuous effects change about this seat's held cards (the bridge's
+   * `heldChanges`): a cost Forge would charge differently now, and a flash an
+   * effect grants, each with the words its tooltip says. Drawn as tags on the
+   * hand card, beside any keyword an effect gave it. **Absent means none.**
+   */
+  held?: ReadonlyMap<number, HeldTags>;
   /**
    * Item 17.2 — *"when playing a card, it should get put in the 'decision
    * area' and the arrow should draw from there."* The id of the hand card
@@ -2123,12 +2136,31 @@ function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
  * creature when they gain flying."* Each evergreen keyword the card has NOW and
  * was not printed with (`keywordTags`), as a capsule down the top-right corner,
  * under the chosen-type label when there is one.
+ *
+ * And on a held card, what an effect changes about it (`BoardInteraction.held`):
+ * the operator, *"can we display modified costs on cards in hand using our
+ * applied overlay tags? should apply to anything that modifies anything in
+ * hand"*. The cost tag comes first and sits over the printed cost it replaces.
  */
-function KeywordTags({ entry }: { entry: BoardCard }) {
+function KeywordTags({ entry, held }: { entry: BoardCard; held?: HeldTags }) {
   const tags = keywordTags(entry.keywords, entry.card.oracleText);
-  if (tags.length === 0) return null;
+  const cost = held?.cost;
+  if (tags.length === 0 && cost === undefined && held?.flash === undefined) return null;
+  const said = [...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]), ...(held?.flash === undefined ? [] : ['Flash']), ...tags];
   return (
-    <ul className="board-card__keywords" aria-label={`${entry.card.name} keywords: ${tags.join(', ')}`}>
+    <ul className="board-card__keywords" aria-label={`${entry.card.name}: ${said.join(', ')}`}>
+      {cost !== undefined && (
+        <li className="board-card__keyword" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
+          {cost.tokens.map((token, i) => (
+            <ManaPip key={`${token}-${i}`} token={token} />
+          ))}
+        </li>
+      )}
+      {held?.flash !== undefined && (
+        <li className="board-card__keyword" data-keyword="flash" data-tip={held.flash}>
+          Flash
+        </li>
+      )}
       {tags.map((tag) => (
         <li key={tag} className="board-card__keyword" data-keyword={tag.toLowerCase()} data-tip={keywordTip(tag)}>
           {tag}
@@ -2422,7 +2454,7 @@ function CardOnBoard({
       {onBattlefield && <StateMarks entry={entry} />}
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
       {onBattlefield && <ChosenTypeLabel entry={entry} />}
-      {onBattlefield && <KeywordTags entry={entry} />}
+      {(onBattlefield || slot === 'hand') && <KeywordTags entry={entry} held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined} />}
       {onBattlefield && <TypePill entry={entry} />}
       {/*
        * NOT gated on `onBattlefield`: the haunting card's own pill reads on

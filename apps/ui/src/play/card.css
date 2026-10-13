@@ -556,6 +556,22 @@
   white-space: nowrap;
 }
 
+/* A held card's changed cost (`Board.tsx`'s `KeywordTags`): its pips, in the P/T badge's own colours — cheaper in the primary, dearer in danger. */
+.board-card__keyword[data-cost] {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 10px;
+}
+
+.board-card__keyword[data-cost-change='less'] {
+  border-color: var(--accent-ink);
+}
+
+.board-card__keyword[data-cost-change='more'] {
+  border-color: var(--danger-ink);
+}
+
 /*
  * A flyer floats: the art lifts off the table and a shadow lies under it. The
  * lift is a `translate` on the art (never `transform`, which the turn rule

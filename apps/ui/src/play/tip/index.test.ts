@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { placeTip, tipAt } from './index.ts';
-import { castForbiddenTip, keywordTip, MARK_TIP } from './words.ts';
+import { castForbiddenTip, costTip, flashTip, keywordTip, MARK_TIP } from './words.ts';
 
 function box(el: Element, left: number, top: number, width: number, height: number): void {
   el.getBoundingClientRect = () => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -96,5 +96,13 @@ describe('words', () => {
     );
     expect(castForbiddenTip({ source: 'Silence', duration: 'EndOfTurn', durationPlayer: 3 }, players, 7)).toBe("Can't be cast: Silence, this turn");
     expect(castForbiddenTip({ source: 'Meddling Mage' }, players, 7)).toBe("Can't be cast: Meddling Mage");
+  });
+
+  it('says what a held card costs now, what it would, and which cards changed it', () => {
+    expect(costTip({ now: ['U'], printed: ['1', 'U'], by: ["Jace's Sanctum"] })).toBe("Costs {U} instead of {1}{U}: Jace's Sanctum");
+    expect(costTip({ now: ['2', 'R'], printed: ['R'], by: ['Thalia, Guardian of Thraben', 'Sphere of Resistance'] })).toBe(
+      'Costs {2}{R} instead of {R}: Thalia, Guardian of Thraben, Sphere of Resistance',
+    );
+    expect(flashTip('Vedalken Orrery')).toBe('Flash: can be cast any time you could cast an instant (from Vedalken Orrery)');
   });
 });

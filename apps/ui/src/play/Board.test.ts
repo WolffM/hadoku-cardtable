@@ -5053,3 +5053,47 @@ describe('your own face stays a circle when it is the way into the settings', ()
     });
   }
 });
+
+/**
+ * The operator, 2026-10-12: *"can we display modified costs on cards in hand
+ * using our applied overlay tags? should apply to anything that modifies
+ * anything in hand"* — `BoardInteraction.held`, the bridge's `heldChanges`.
+ */
+describe('held changes — a changed cost and a granted flash are tags on the hand card', () => {
+  const view = boardFromFixture(fixture);
+  const me = view.players.find((p) => p.isViewer)!;
+  const [changed, plain] = me.hand!;
+  const onField = me.battlefield[0]!;
+  const tags = (container: HTMLElement, id: number) =>
+    container.querySelector<HTMLElement>(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__keywords`);
+
+  function withHeld(held: BoardInteraction['held']) {
+    const { interaction } = spyInteraction([]);
+    return renderBoard(view, { ...interaction, held });
+  }
+
+  it('draws the cost now as pips, says the source on hover, and colours a reduction', () => {
+    const tip = "Costs {U} instead of {1}{U}: Jace's Sanctum";
+    const { container } = withHeld(new Map([[changed!.id, { cost: { tokens: ['U'], change: 'less', tip } }]]));
+    const cost = tags(container, changed!.id)!.querySelector<HTMLElement>(':scope > [data-cost]')!;
+    expect(cost.dataset.cost).toBe('U');
+    expect(cost.dataset.costChange).toBe('less');
+    expect(cost.dataset.tip).toBe(tip);
+    expect([...cost.querySelectorAll('.pip[data-token]')].map((p) => p.getAttribute('data-token'))).toEqual(['U']);
+    expect(tags(container, plain!.id), 'a card nothing changes wears no tag').toBeNull();
+  });
+
+  it('draws a granted flash as a tag with its source', () => {
+    const { container } = withHeld(new Map([[changed!.id, { flash: 'Flash: can be cast any time you could cast an instant (from Vedalken Orrery)' }]]));
+    const flash = tags(container, changed!.id)!.querySelector<HTMLElement>(':scope > [data-keyword="flash"]')!;
+    expect(flash.textContent).toBe('Flash');
+    expect(flash.dataset.tip).toMatch(/Vedalken Orrery/);
+    expect(tags(container, changed!.id)!.querySelector('[data-cost]')).toBeNull();
+  });
+
+  it('is a hand fact: an id on the battlefield draws none of it', () => {
+    const { container } = withHeld(new Map([[onField.id, { cost: { tokens: ['1'], change: 'less', tip: 'x' }, flash: 'y' }]]));
+    expect(container.querySelector(`[data-board-card="${onField.id}"] [data-cost]`)).toBeNull();
+    expect(container.querySelector(`[data-board-card="${onField.id}"] [data-keyword="flash"]`)).toBeNull();
+  });
+});

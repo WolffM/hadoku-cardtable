@@ -832,6 +832,85 @@ public final class PlayBridge {
     static final Map<Thread, SeatGui> CLIENT_THREADS = new ConcurrentHashMap<>();
 
     /** A blocking question waiting on the browser. */
+    /**
+     * {@code CostAdjustment}'s private steps, called one static at a time so the bridge knows which
+     * card changed a held spell's cost ({@code SeatGui.heldChanges}). Forge's public
+     * {@code adjust(ManaCostBeingPaid, …)} runs the same steps but asks the payer as it goes (which
+     * reduction first, delve, convoke) and names no source, so it cannot answer "what would this cost
+     * and why" without a prompt. Resolved once; a Forge that renamed a step fails here, loudly, and the
+     * hand goes without tags.
+     */
+    static final class CostSteps {
+        private static CostSteps instance;
+        private final java.lang.reflect.Method requirement;
+        private final java.lang.reflect.Method raise;
+        private final java.lang.reflect.Method reduce;
+        private final java.lang.reflect.Method set;
+
+        private CostSteps() throws ReflectiveOperationException {
+            final Class<?> ca = forge.game.cost.CostAdjustment.class;
+            final Class<?> st = forge.game.staticability.StaticAbility.class;
+            final Class<?> paid = forge.game.mana.ManaCostBeingPaid.class;
+            requirement = ca.getDeclaredMethod("checkRequirement", SpellAbility.class, st);
+            raise = ca.getDeclaredMethod("applyRaiseCostAbility", forge.game.cost.Cost.class, SpellAbility.class, st);
+            reduce = ca.getDeclaredMethod("applyReduceCostAbility", st, SpellAbility.class, paid, int.class);
+            set = ca.getDeclaredMethod("applySetCostAbility", st, SpellAbility.class, paid);
+            for (final java.lang.reflect.Method m : List.of(requirement, raise, reduce, set)) { m.setAccessible(true); }
+        }
+
+        static synchronized CostSteps get() throws ReflectiveOperationException {
+            if (instance == null) { instance = new CostSteps(); }
+            return instance;
+        }
+
+        /**
+         * The mana {@code sa} would cost its activating player now, in {@code CostAdjustment.adjust}'s
+         * order, from the statics of {@code around} (the battlefield, stack and command zones) and of
+         * the card itself. Every static that changed it is added to {@code by}, by its source's name.
+         */
+        ManaCost cost(final SpellAbility sa, final List<forge.game.card.Card> around, final java.util.Set<String> by)
+                throws ReflectiveOperationException {
+            final forge.game.card.Card host = sa.getHostCard();
+            final List<forge.game.card.Card> cards = new ArrayList<>(around);
+            if (!cards.contains(host)) { cards.add(host); }
+            final List<forge.game.staticability.StaticAbility> raises = new ArrayList<>();
+            final List<forge.game.staticability.StaticAbility> reductions = new ArrayList<>();
+            final List<forge.game.staticability.StaticAbility> sets = new ArrayList<>();
+            for (final forge.game.card.Card c : cards) {
+                for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                    if (st.checkMode(forge.game.staticability.StaticAbilityMode.RaiseCost)) { raises.add(st); }
+                    else if (st.checkMode(forge.game.staticability.StaticAbilityMode.ReduceCost)) { reductions.add(st); }
+                    else if (st.checkMode(forge.game.staticability.StaticAbilityMode.SetCost)) { sets.add(st); }
+                }
+            }
+            final forge.game.cost.Cost raised = sa.getPayCosts().copy();
+            for (final forge.game.staticability.StaticAbility st : raises) {
+                final String before = ManaCost.serialize(raised.getTotalMana());
+                raise.invoke(null, raised, sa, st);
+                if (!before.equals(ManaCost.serialize(raised.getTotalMana()))) { by.add(SeatGui.sourceName(st)); }
+            }
+            final forge.game.mana.ManaCostBeingPaid paid = new forge.game.mana.ManaCostBeingPaid(raised.getTotalMana());
+            int generic = 0;
+            for (final forge.game.staticability.StaticAbility st : reductions) {
+                if (st.hasParam("UpTo") || !(boolean) requirement.invoke(null, sa, st)) { continue; }
+                final String before = paid.toString();
+                final int less = (int) reduce.invoke(null, st, sa, paid, generic);
+                generic += less;
+                if (less > 0 || !before.equals(paid.toString())) { by.add(SeatGui.sourceName(st)); }
+            }
+            paid.decreaseGenericMana(generic);
+            for (final String pip : sa.getPipsToReduce()) {
+                paid.decreaseShard(forge.card.mana.ManaCostShard.parseNonGeneric(pip), 1);
+            }
+            for (final forge.game.staticability.StaticAbility st : sets) {
+                final String before = paid.toString();
+                set.invoke(null, st, sa, paid);
+                if (!before.equals(paid.toString())) { by.add(SeatGui.sourceName(st)); }
+            }
+            return paid.toManaCost();
+        }
+    }
+
     static final class PendingAsk {
         final String callId;
         final String method;
@@ -1471,6 +1550,7 @@ public final class PlayBridge {
             f.add("cards", refs(cards));
             offerFacts(f, cards);
             castForbidden(f);
+            heldChanges(f);
             frame(f);
         }
 
@@ -1506,10 +1586,9 @@ public final class PlayBridge {
                     final forge.game.staticability.StaticAbility by = forbiddenBy(c, mine, statics);
                     if (by == null) { continue; }
                     final forge.game.card.Card host = by.getHostCard();
-                    final forge.game.card.Card source = host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host;
                     final JsonObject o = new JsonObject();
                     o.add("card", ref("card", c.getId()));
-                    o.addProperty("source", source.getName());
+                    o.addProperty("source", sourceName(by));
                     if (host.isImmutable()) {
                         final SpellAbility made = host.getEffectSourceAbility();
                         final String duration = made == null ? null : made.getParamOrDefault("Duration", "EndOfTurn");
@@ -1551,6 +1630,79 @@ public final class PlayBridge {
                 if (first == null) { first = by; }
             }
             return any ? first : null;
+        }
+
+        /** The card a static belongs to as its player knows it: an effect's source card (Reflector Mage's effect is Reflector Mage's), else the static's own card. */
+        private static String sourceName(final forge.game.staticability.StaticAbility st) {
+            final forge.game.card.Card host = st.getHostCard();
+            return (host.isImmutable() && host.getEffectSource() != null ? host.getEffectSource() : host).getName();
+        }
+
+        /**
+         * {@code heldChanges}: what continuous effects change about the cards this seat holds — the
+         * cost of each held spell as Forge would charge it now ({@code RaiseCost}, {@code ReduceCost}
+         * and {@code SetCost} statics: Thalia, Jace's Sanctum, Trinisphere, a card's own affinity), and
+         * a flash a {@code CastWithFlash} static grants a card that has none (Vedalken Orrery). Each
+         * entry names the cards whose statics did it. A card nothing changes is not listed; the list is
+         * the whole hand's, so a cost that went back to printed drops out.
+         *
+         * The cost is {@code CostAdjustment}'s own arithmetic, step by step in its order (raises on the
+         * {@code Cost}, then reductions, then pips, then set costs), called per static so each source is
+         * known. Those steps are private, hence reflection; what is left out is what asks the player
+         * while paying — delve, convoke, improvise, assist, and an "up to" reduction — which change a
+         * cast, not the card.
+         *
+         * Read with the game thread parked on the input that pushed the set, as {@link #castForbidden}
+         * reads, and sent only on this seat's own channel: a hand is never on another seat's wire.
+         * A failure omits the field, which the browser reads as "unchanged".
+         */
+        private void heldChanges(final JsonObject f) {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            if (mine == null) { return; }
+            try {
+                final CostSteps steps = CostSteps.get();
+                final List<forge.game.card.Card> around = new ArrayList<>(game.getCardsIn(ZoneType.Battlefield));
+                around.addAll(game.getCardsIn(ZoneType.Stack));
+                around.addAll(game.getCardsIn(ZoneType.Command));
+                final List<forge.game.staticability.StaticAbility> flash = new ArrayList<>();
+                for (final forge.game.card.Card c : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
+                    for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                        if (st.checkConditions(forge.game.staticability.StaticAbilityMode.CastWithFlash)) { flash.add(st); }
+                    }
+                }
+                final JsonArray out = new JsonArray();
+                for (final forge.game.card.Card c : mine.getCardsIn(ZoneType.Hand)) {
+                    final SpellAbility sa = c.getFirstSpellAbility();
+                    if (sa == null || !sa.isSpell() || sa.getPayCosts() == null) { continue; }
+                    sa.setActivatingPlayer(mine);
+                    final JsonObject o = new JsonObject();
+                    final java.util.LinkedHashSet<String> by = new java.util.LinkedHashSet<>();
+                    final ManaCost printed = new forge.game.mana.ManaCostBeingPaid(sa.getPayCosts().getTotalMana()).toManaCost();
+                    final ManaCost now = steps.cost(sa, around, by);
+                    if (!ManaCost.serialize(now).equals(ManaCost.serialize(printed))) {
+                        o.addProperty("cost", ManaCost.serialize(now));
+                        o.addProperty("printed", ManaCost.serialize(printed));
+                        final JsonArray sources = new JsonArray();
+                        by.forEach(sources::add);
+                        o.add("costBy", sources);
+                    }
+                    if (!c.isInstant() && !c.hasKeyword(forge.game.keyword.Keyword.FLASH)) {
+                        for (final forge.game.staticability.StaticAbility st : flash) {
+                            if (forge.game.staticability.StaticAbilityCastWithFlash.applyWithFlashAbility(st, sa, c, mine)) {
+                                o.addProperty("flashBy", sourceName(st));
+                                break;
+                            }
+                        }
+                    }
+                    if (o.size() == 0) { continue; }
+                    o.add("card", ref("card", c.getId()));
+                    out.add(o);
+                }
+                f.add("heldChanges", out);
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] heldChanges: could not read the held cards' costs (" + e + "); the hand keeps its last tags");
+            }
         }
 
         /**

@@ -263,7 +263,7 @@ import { roomFeed } from '../../rooms/feed.ts';
 import { tablesClient, type RoomTable, type StartOutcome } from '../../screens/tables.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
-import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
+import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
 import { lookupFromState, plainRulesText, promptText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
@@ -327,7 +327,7 @@ import { StopPhaseSchema, type StopPhase } from './transport.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
-import { castForbiddenTip } from '../tip/words.ts';
+import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
 import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
 
@@ -928,6 +928,20 @@ function castForbiddenTips(match: LiveMatch): ReadonlyMap<number, string> | unde
   const players = match.view?.players ?? [];
   const viewer = players[0]?.id ?? null;
   return new Map([...match.castForbidden].map(([id, why]) => [id, castForbiddenTip(why, players, viewer)]));
+}
+
+/** This seat's held cards' tags, each with what its tooltip says. */
+function heldTags(match: LiveMatch): ReadonlyMap<number, HeldTags> | undefined {
+  if (match.heldChanges === null || match.heldChanges.size === 0) return undefined;
+  return new Map(
+    [...match.heldChanges].map(([id, h]) => [
+      id,
+      {
+        ...(h.cost === undefined ? {} : { cost: { tokens: h.cost.now, change: h.cost.change, tip: costTip(h.cost) } }),
+        ...(h.flashBy === undefined ? {} : { flash: flashTip(h.flashBy) }),
+      },
+    ]),
+  );
 }
 
 /**
@@ -2238,6 +2252,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     actionable: offered.selectionOpen ? EMPTY_CARD_IDS : offered.selectable,
     refused: match.refused ?? undefined,
     castForbidden: spectator ? undefined : castForbiddenTips(match),
+    held: spectator ? undefined : heldTags(match),
     /*
      * The operator, Playtest 10: *"hard to tell when i have a card selected
      * because the background for all cards is green."* Forge's own

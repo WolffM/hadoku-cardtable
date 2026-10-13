@@ -65,3 +65,16 @@ export function castForbiddenTip(
   const long = forbidden.duration === undefined ? null : howLong(forbidden.duration, whose);
   return `Can't be cast: ${forbidden.source}${long === null ? '' : `, ${long}`}`;
 }
+
+/** A cost as its symbols read in text: `{1}{U}`. */
+const braced = (tokens: readonly string[]): string => tokens.map((t) => `{${t}}`).join('');
+
+/** A held card's changed cost: what it costs now, what it would, and the cards that changed it. */
+export function costTip(cost: { now: readonly string[]; printed: readonly string[]; by: readonly string[] }): string {
+  return `Costs ${braced(cost.now)} instead of ${braced(cost.printed)}${cost.by.length === 0 ? '' : `: ${cost.by.join(', ')}`}`;
+}
+
+/** A held card an effect lets its owner cast as though it had flash. */
+export function flashTip(source: string): string {
+  return `Flash: can be cast any time you could cast an instant (from ${source})`;
+}

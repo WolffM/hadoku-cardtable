@@ -251,7 +251,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { toBoardView, type BoardView } from '../adapter.ts';
+import { manaCostTokens, toBoardView, type BoardView } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { foldPackets, type PendingTriggers, type WireState } from '../fold.ts';
@@ -481,6 +481,20 @@ export interface CastForbidden {
   readonly durationPlayer?: number;
 }
 
+/** What continuous effects change about a held card (the bridge's `heldChanges`): its cost now, by whom, and a granted flash. */
+export interface HeldChange {
+  /** The cost now and as printed, as cost tokens (`adapter.ts`'s `manaCostTokens`), with the cards that changed it. Absent when unchanged. */
+  readonly cost?: {
+    readonly now: readonly string[];
+    readonly printed: readonly string[];
+    readonly by: readonly string[];
+    /** Whether its mana value went down or up (`same` for a change of colour alone). */
+    readonly change: 'less' | 'more' | 'same';
+  };
+  /** The card that lets it be cast as though it had flash. */
+  readonly flashBy?: string;
+}
+
 export interface LiveMatch {
   readonly matchId: string;
   /** From the snapshot. Null until one lands. */
@@ -587,6 +601,13 @@ export interface LiveMatch {
    * and the next set replaces it. Null when the bridge has not said.
    */
   castForbidden: ReadonlyMap<number, CastForbidden> | null;
+  /**
+   * What continuous effects change about the cards this seat holds, by id, from
+   * the bridge's `heldChanges` on the last `setWeaklySelectable` that carried
+   * it — kept, and replaced, exactly as `castForbidden` is. Null when the
+   * bridge has not said.
+   */
+  heldChanges: ReadonlyMap<number, HeldChange> | null;
   /**
    * The CARDS Forge's current input has marked, from `setHighlighted` — folded,
    * because that frame is incremental: `on: true` adds, `on: false` removes
@@ -909,6 +930,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     weaklySelectable: null,
     weaklySelectableManaOnly: null,
     castForbidden: null,
+    heldChanges: null,
     highlighted: null,
     highlightedPlayers: null,
     says: [],
@@ -2425,6 +2447,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
   match.castForbidden = null;
+  match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
   // The log, like the asks: the server re-sends its kept says after the
@@ -2668,6 +2691,16 @@ export function dismissReveal(match: LiveMatch, callId: string): void {
  */
 const CARDLESS_ASKS: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptionDialog', 'showInputDialog']);
 
+/** One entry of the bridge's `heldChanges`, as the board draws it. */
+function heldChange(h: NonNullable<Extract<ServerFrame, { method: 'setWeaklySelectable' }>['heldChanges']>[number]): HeldChange {
+  if (h.cost === undefined || h.printed === undefined) return h.flashBy === undefined ? {} : { flashBy: h.flashBy };
+  const now = manaCostTokens(h.cost);
+  const printed = manaCostTokens(h.printed);
+  const change = now.manaValue < printed.manaValue ? 'less' : now.manaValue > printed.manaValue ? 'more' : 'same';
+  const cost = { now: now.tokens, printed: printed.tokens, by: h.costBy ?? [], change } as const;
+  return h.flashBy === undefined ? { cost } : { cost, flashBy: h.flashBy };
+}
+
 function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind === 'ask') {
     // Queued, never replacing another: see the module header. The same callId
@@ -2752,6 +2785,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
         frame.castForbidden.map((f) => [f.card.id, { source: f.source, duration: f.duration, durationPlayer: f.durationPlayer?.id }]),
       );
     }
+    if (frame.heldChanges !== undefined) match.heldChanges = new Map(frame.heldChanges.map((h) => [h.card.id, heldChange(h)]));
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'finishGame') {
     match.finished = true;
@@ -2824,6 +2858,7 @@ function discardLocal(match: LiveMatch): void {
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
   match.castForbidden = null;
+  match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
   match.says = [];
