@@ -40,7 +40,7 @@ import { ARRANGEMENT_EVENT, CLIENT_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@
 import { join } from 'node:path';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
-import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
+import { WATCHER_SEAT, createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
 import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 import { MATCH_EVENTS, type ServerEnvelope } from './transport.ts';
@@ -202,6 +202,9 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
     overGraceMs: 60_000,
     emit: (_m, seat, envelope) => {
       emitted.push({ seat, envelope });
+      // The watcher channel: `socket.ts` sends it to the sockets that joined with no seat, and
+      // these two clients are both seated — kept in `emitted`, delivered to nobody.
+      if (seat === WATCHER_SEAT) return;
       const frame = envelope.frame;
       const n = notes[seat]!;
       if (frame.method === 'showPromptMessage') n.prompt = frame;
