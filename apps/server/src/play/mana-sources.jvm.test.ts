@@ -19,7 +19,9 @@
  *    holds nothing but the source while seat 0's Raging Goblin is on the stack. A
  *    source whose every playable ability makes mana is named `manaOnly` by the
  *    bridge and the server passes seat 1 (`nonManaSources`); one with another
- *    ability (Ghost Quarter's, Mishra's Factory's) is a real decision and stops.
+ *    ability the seat can take (Ghost Quarter's, Mishra's Factory's with an Island
+ *    to pay for it) is a real decision and stops. An ability it cannot pay for is
+ *    none: Celestial Colonnade alone is passed.
  *
  * The mana pool is not on the wire (`packages/forge-wire` carries no pool
  * property), so it is not asserted; `tapped`, the offer and the stop are.
@@ -106,7 +108,7 @@ const UNTAP: readonly UntapRow[] = [
 interface HoldRow {
 	source: string;
 	kind: string;
-	/** Seat 1 is stopped in seat 0's spell's window: the source has a playable ability that is not a mana ability. */
+	/** Seat 1 is stopped in seat 0's spell's window: the source has a non-mana ability seat 1 can take. */
 	stops: boolean;
 }
 
@@ -116,7 +118,9 @@ const HOLD: readonly HoldRow[] = [
 	{ kind: 'painland', source: 'Adarkar Wastes', stops: false },
 	{ kind: 'Signet', source: 'Azorius Signet;Island', stops: false },
 	{ kind: 'land with a non-mana ability', source: 'Ghost Quarter', stops: true },
-	{ kind: 'man-land', source: "Mishra's Factory", stops: true },
+	{ kind: 'man-land it can pay to animate', source: "Mishra's Factory;Island", stops: true },
+	// Offered for its mana alone: Forge would not offer the {3}{W}{U} animation on a click.
+	{ kind: 'man-land it cannot pay to animate', source: 'Celestial Colonnade', stops: false },
 ];
 
 describe.skipIf(!available.ok)(title, () => {
