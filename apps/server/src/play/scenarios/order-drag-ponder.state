@@ -1,0 +1,20 @@
+# Ponder ({U} sorcery, "Look at the top three cards of your library, then put
+# them back in any order. You may shuffle. Draw a card.") — seat 0 holds it and
+# two untapped Islands, an uncontested turn-1 Main Phase 1. Three different
+# basics on top, so the order Forge asks for ("Choose order of cards to put into
+# the library", `PlayerControllerHuman.orderMoveToZoneList`) can be told apart,
+# and Ponder's draw shows which card the answer put on top.
+# `e2e/order-drag.spec.ts` drives it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Ponder
+humanbattlefield=Island;Island
+humanlibrary=Plains;Forest;Swamp;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
