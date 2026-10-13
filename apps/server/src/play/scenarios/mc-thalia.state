@@ -1,0 +1,18 @@
+# e2e/mc-hand-costs.spec.ts — an increase is drawn the same way, and so is a granted flash.
+# Seat 1 controls Thalia, Guardian of Thraben (noncreature spells cost {1} more): Alice's
+# Shock ({R}) costs {1}{R}, her Grizzly Bears (a creature) is untouched. Alice's Vedalken
+# Orrery lets her cast spells as though they had flash: the Bears, which has no flash of its
+# own, wears a Flash tag; the Shock, an instant, does not.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Shock;Grizzly Bears
+humanbattlefield=Vedalken Orrery;Mountain;Mountain;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Thalia, Guardian of Thraben;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

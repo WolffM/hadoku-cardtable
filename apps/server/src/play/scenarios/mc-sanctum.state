@@ -1,0 +1,18 @@
+# e2e/mc-hand-costs.spec.ts — a cost an effect changes is drawn on the held card.
+# Seat 0 (human), uncontested Main Phase 1 of its own turn, controls Jace's Sanctum
+# (instant and sorcery spells it casts cost {1} less) and holds Think Twice ({1}{U}),
+# Divination ({2}{U}) and Grizzly Bears ({1}{G}, a creature the Sanctum does not touch).
+# Seat 1 holds a Think Twice too: the Sanctum is Alice's, so his costs what it says.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Think Twice;Divination;Grizzly Bears
+humanbattlefield=Jace's Sanctum;Island;Island;Forest
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Think Twice
+aibattlefield=Island;Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
