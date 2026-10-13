@@ -44,7 +44,8 @@ import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from './screens/route.ts';
 import { setScreenMusic } from './sound/index.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
-import { RoomShell, useWhoami } from './room/RoomShell.tsx';
+import { RoomShell } from './room/RoomShell.tsx';
+import { useWhoami } from './room/whoami.ts';
 
 export type AppProps = ScreenProps;
 

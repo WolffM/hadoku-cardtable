@@ -40,10 +40,9 @@
  * worse than no room.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
-import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
 
 // The watchparty seam's two data answers — which origin serves their sprites,
@@ -51,9 +50,10 @@ import { useHadokuTheme, type Theme } from '@wolffm/themes';
 // evidence beside them. `watchpartyOrigin` used to be a private function here;
 // it moved because `avatarSquareUrl` needs the same string and two derivations
 // of one origin is how the chrome and the faces come to disagree about it.
-import { accountAvatarId, selectedAvatarId, watchpartyOrigin } from './avatar.ts';
-import { watchAvatar } from './avatarWatch.ts';
-import { roomsClient, type RoomIdentityClient } from '../rooms/api.ts';
+import { watchpartyOrigin } from './avatar.ts';
+import { useAvatarAssert } from './avatarAssert.ts';
+import { useWhoami } from './whoami.ts';
+import { roomsClient } from '../rooms/api.ts';
 
 /**
  * The page's resolved theme, handed to the chrome as-is.
@@ -127,13 +127,6 @@ export function watchpartyTheme(theme: string): Theme {
 /** Their contract: `cardtable-<[a-z0-9-]{1,40}>` needs no provisioning. */
 const ROOM_ID = /^[a-z0-9-]{1,40}$/;
 
-export interface Who {
-  userId: string;
-  tier: 'admin' | 'wife' | 'service' | 'friend' | 'public';
-  /** The viewer's display name. Null when the fleet has none for them. */
-  name: string | null;
-}
-
 /**
  * A room key for one of our pods or matches, or null when the id is not a
  * shape watchparty will accept.
@@ -145,89 +138,6 @@ export interface Who {
 export function roomKeyFor(id: string): string | null {
   return ROOM_ID.test(id) ? `cardtable-${id}` : null;
 }
-
-export function useWhoami(): Who | null | 'pending' {
-  const [who, setWho] = useState<Who | null | 'pending'>('pending');
-  useEffect(() => {
-    let live = true;
-    // Same-origin on purpose. `whoami()` defaults to the edge-router origin,
-    // which in production IS this page's origin — but hard-coding it makes the
-    // app reach `https://hadoku.me` from wherever it happens to be served,
-    // which the e2e correctly flags as an off-host request and which would be
-    // wrong for any future preview host. Same-origin gives the identical
-    // answer in production and stays local everywhere else.
-    hadokuWhoami({ whoamiUrl: `${globalThis.location.origin}/session/whoami` })
-      .then((r) => {
-        if (!live) return;
-        setWho({ userId: r.userId, tier: r.userType, name: r.name ?? null });
-      })
-      .catch(() => {
-        if (live) setWho(null);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  return who;
-}
-
-/**
- * Tell our own room which avatar this viewer is wearing, once per room.
- *
- * This is the hop the operator's *"why not?"* was about. The id is watchparty's,
- * read from their prefs cache (`avatar.ts` says why there is no accessor to ask);
- * the row it lands on is decided by the server from the edge's headers, so this
- * can only ever set the caller's own.
- *
- * **A refusal is ignored, deliberately.** `roomId` here is whatever the route
- * carries, which for `#/match/<id>` is a MATCH id. The server resolves that to
- * the lobby room that started the match (`roomOfMatch`); it used to answer 404
- * for both players at every match start (wave 31 P3b). A viewer with no avatar sends nothing at all and keeps the
- * character the room handed them on joining; the server's "clear it"
- * case exists for a viewer who HAD one and dropped it, which only the chrome can
- * tell us about, and it cannot yet.
- */
-function useAvatarAssert(roomId: string | null, userId: string | null, client: RoomIdentityClient): void {
-  useEffect(() => {
-    if (roomId === null || userId === null) return;
-    let live = true;
-    let generation = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const attempt = (avatarId: string, n: number, mine: number = generation): void => {
-      // A refusal is the server saying this viewer is not in that room YET: a
-      // joiner's first screen asserts before the room screen has joined them,
-      // and an avatar that never lands is a seat with no face when the match
-      // starts. Try again a few times, then give up; it is a cosmetic.
-      const retry = (): void => {
-        const delay = AVATAR_RETRY_MS[n];
-        if (live && mine === generation && delay !== undefined) timer = setTimeout(() => attempt(avatarId, n + 1, mine), delay);
-      };
-      // `setAvatar` resolves an outcome rather than rejecting on a refusal.
-      client.setAvatar(roomId, avatarId).then((outcome) => {
-        if (!outcome.ok) retry();
-      }, retry);
-    };
-    // Watched, not read once: a pick made in watchparty's chrome while the match
-    // is open must reach the board (Q6). A newer id supersedes an older id's retries.
-    const stop = watchAvatar({
-      readAccount: () => accountAvatarId(userId),
-      readCache: () => selectedAvatarId(userId),
-      assert: (avatarId) => {
-        clearTimeout(timer);
-        generation += 1;
-        attempt(avatarId, 0);
-      },
-    });
-    return () => {
-      live = false;
-      stop();
-      clearTimeout(timer);
-    };
-  }, [roomId, userId, client]);
-}
-
-/** Waits between re-asserts after a refusal: the joiner's first screen can beat their own join. */
-const AVATAR_RETRY_MS = [1500, 3000, 6000, 12000] as const;
 
 /** One client per mount; the assert effect must not re-fire on every render. */
 const rooms = roomsClient();

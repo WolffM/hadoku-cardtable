@@ -12,12 +12,21 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
 import { toShadowSelector } from '../../vite.embed.config.ts';
 import { eventTarget, hitAt, scopeOf } from '../dom.ts';
-import type { RoomBindClient, RoomOutcome, RoomView } from '../rooms/api.ts';
+import { watchpartyPrefsCacheKey } from '../room/avatar.ts';
+import { AVATAR_POLL_MS } from '../room/avatarWatch.ts';
+import type { RoomBindClient, RoomIdentityClient, RoomOutcome, RoomView } from '../rooms/api.ts';
 import { appLocation, navigate, routeInMemory } from '../screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import { EmbedApp } from './EmbedApp.tsx';
 
 globalThis.Element.prototype.scrollTo ??= function scrollTo() {};
+
+// The fleet's identity, as the edge answers it: NOT the `u` the host context
+// carries, so an avatar asserted under `u-test` proves which path it came by.
+vi.mock('@wolffm/prefs-client', () => ({
+  whoami: () => Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
+  createPrefsClient: () => ({ read: () => Promise.resolve({}) }),
+}));
 
 const ROOM: RoomView = {
   id: 'wp-0123456789abcdef0123',
@@ -46,13 +55,19 @@ function ctx(over: Partial<GameBundleContext> = {}): GameBundleContext {
   };
 }
 
-function binder(outcome: RoomOutcome = { ok: true, room: ROOM }): RoomBindClient & { asked: string[] } {
+function binder(outcome: RoomOutcome = { ok: true, room: ROOM }): RoomBindClient & RoomIdentityClient & { asked: string[]; worn: [string, string | null][] } {
   const asked: string[] = [];
+  const worn: [string, string | null][] = [];
   return {
     asked,
+    worn,
     bindWatchparty: (room) => {
       asked.push(room);
       return Promise.resolve(outcome);
+    },
+    setAvatar: (roomId, avatarId) => {
+      worn.push([roomId, avatarId]);
+      return Promise.resolve({ ok: true, room: ROOM });
     },
   };
 }
@@ -70,6 +85,8 @@ afterEach(() => {
   cleanup();
   releaseRoute();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+  globalThis.localStorage.clear();
 });
 
 describe('EmbedApp', () => {
@@ -100,6 +117,32 @@ describe('EmbedApp', () => {
     expect(screen.queryByTestId('lobby')).toBeNull();
     expect(screen.queryByTestId('rooms')).toBeNull();
     expect(screen.queryByTestId('stats')).toBeNull();
+  });
+
+  /*
+   * The hop a watchparty member's character takes onto their row in OUR room
+   * (`room/avatarAssert.ts`). The standalone app mounts it in `RoomShell`; the
+   * embed renders no shell, and until 2026-10-12 asserted nothing — so every
+   * member of a watchparty room wore the pool's pick ("it assigned default ones").
+   */
+  it('tells the bound room which watchparty character the viewer wears, under the edge’s identity', async () => {
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), JSON.stringify({ blob: { sprite: 'wanderer' }, userVersion: 1, deviceVersion: 0 }));
+    const rooms = binder();
+    render(createElement(EmbedApp, { ctx: ctx(), rooms }));
+    await waitFor(() => expect(rooms.worn).toEqual([[ROOM.id, 'wanderer']]));
+  });
+
+  it('says nothing about an avatar while the viewer has none saved, and the pick made later in watchparty’s chrome', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const rooms = binder();
+    render(createElement(EmbedApp, { ctx: ctx(), rooms }));
+    await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
+    // The watcher is polling once it is installed; a tick with no row sends nothing.
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), JSON.stringify({ blob: { sprite: 'rogue' }, userVersion: 1, deviceVersion: 0 }));
+    await vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(AVATAR_POLL_MS);
+      expect(rooms.worn).toEqual([[ROOM.id, 'rogue']]);
+    });
   });
 
   it('says why when the table cannot be opened', async () => {

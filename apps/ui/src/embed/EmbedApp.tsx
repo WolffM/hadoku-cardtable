@@ -21,6 +21,11 @@
  *   cardtable's server on every request (same origin, so the edge cookie rides
  *   along); no screen takes identity from the client. Using `ctx.identity` for
  *   anything would be a second identity path beside the one that is enforced.
+ *   The one thing the client says about itself is the same thing it says
+ *   standalone: which watchparty character it wears (`useAvatarAssert`, the
+ *   viewer's own `userId` from the edge's whoami, never `ctx.identity`).
+ *   Without it every member of a watchparty room kept the character the pool
+ *   handed them (2026-10-12: "it assigned default ones").
  * - **NOT `isLeader`.** Cardtable's room has its own leader — whoever bound it
  *   first, then whoever has been in it longest — and the server enforces it.
  *   A client-side gate on watchparty's leader would be a second authority that
@@ -41,7 +46,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
 
-import { roomsClient, type RoomBindClient } from '../rooms/api.ts';
+import { useAvatarAssert } from '../room/avatarAssert.ts';
+import { useWhoami } from '../room/whoami.ts';
+import { roomsClient, type RoomBindClient, type RoomIdentityClient } from '../rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '../screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
@@ -52,7 +59,7 @@ const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'play
 export interface EmbedAppProps {
   ctx: GameBundleContext;
   /** Tests pass a stub. Production passes nothing. */
-  rooms?: RoomBindClient;
+  rooms?: RoomBindClient & RoomIdentityClient;
 }
 
 type Binding = { state: 'binding' } | { state: 'bound'; roomId: string } | { state: 'failed'; message: string };
@@ -99,6 +106,8 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   const binding = useBoundRoom(ctx.roomKey, rooms);
   const route = useRoute();
   const theme = useMemo(() => themeValue(ctx.theme), [ctx.theme]);
+  const who = useWhoami();
+  useAvatarAssert(binding.state === 'bound' ? binding.roomId : null, who === 'pending' || who === null ? null : who.userId, rooms);
 
   let body = null;
   if (binding.state === 'failed') {

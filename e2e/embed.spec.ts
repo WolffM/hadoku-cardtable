@@ -23,7 +23,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import { EMBED_HOST_PATH } from './edge.ts';
-import { EDGE_ORIGIN, SESSION_COOKIE } from './identities.ts';
+import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
@@ -152,10 +152,23 @@ async function residue(page: Page): Promise<{ shadowChildren: number; shadowShee
   });
 }
 
+/** The character alice picked in watchparty, as its picker leaves it in the prefs cache (`room/avatar.ts`). */
+const ALICE_SPRITE = 'e2e-sprite-embed';
+
 test('the embed binds one watchparty room to one table and leaves the host page as it found it', async ({ browser }) => {
   const roomKey = `embed-${Date.now()}`;
   const alice = await contextFor(browser, 'alice');
   const bob = await contextFor(browser, 'bob');
+  // The e2e edge stamps identity but serves no `/session/whoami`; answer it the
+  // way hadoku.me does for a friend, because the avatar hop keys on that answer.
+  for (const [context, who] of [[alice, 'alice'], [bob, 'bob']] as const) {
+    await context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: `e2e-${who}-id`, userType: 'friend', name: `e2e-${who}` } }));
+  }
+  // Under alice's OWN user id, the one whoami answers — not the anon row.
+  await alice.addInitScript(
+    (row: string) => localStorage.setItem('prefs-cache:e2e-alice-id:watchparty', row),
+    JSON.stringify({ blob: { sprite: ALICE_SPRITE }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() }),
+  );
   try {
     const a = await alice.newPage();
     await a.goto(hostUrl(EDGE_ORIGIN, roomKey, '&theme=ocean-dark'));
@@ -201,6 +214,20 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     // Since 2026-10-12 the bot button is gated on the SEAT, not the room, so
     // bob arriving does not take it away; the room's member count says he came.
     await expect(a.getByTestId('constructed'), 'alice sees bob join').toHaveAttribute('data-members', '2', { timeout: 30_000 });
+
+    // Each member wears their watchparty character in OUR room: alice the one
+    // she saved, bob (nothing saved) the pool's pick — never alice's, never none
+    // (2026-10-12: "cardtable did not properly load avatars, it assigned default ones").
+    const members = async (): Promise<{ name: string; avatarId?: string }[]> => {
+      const res = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/rooms/${roomId}`);
+      return res.ok() ? ((await res.json()) as { members: { name: string; avatarId?: string }[] }).members : [];
+    };
+    await expect.poll(async () => (await members()).find((m) => m.name === 'e2e-alice')?.avatarId, { timeout: 15_000, message: 'alice wears her saved watchparty character' }).toBe(ALICE_SPRITE);
+    const worn = await members();
+    console.log(`[embed] avatars: ${worn.map((m) => `${m.name}=${m.avatarId ?? '(none)'}`).join(' ')}`);
+    const bobWears = worn.find((m) => m.name === 'e2e-bob')?.avatarId;
+    expect(bobWears, 'bob, with nothing saved, keeps the room’s pick').toBeTruthy();
+    expect(bobWears).not.toBe(ALICE_SPRITE);
 
     // An in-table hash link routes the TABLE, never the host page — and a
     // route that is not a table (here the stats popout, which the standalone
