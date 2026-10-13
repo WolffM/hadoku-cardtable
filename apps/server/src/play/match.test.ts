@@ -399,7 +399,7 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: card }, otherCardViewsToSelect: [], triggerEvent: null }));
 
 		it('is never told to the other seat, however long a loaded browser takes to answer it', () => {
-			// Claws: the browser's reply took 154 and 371 ms, past the grace, and bob read
+			// On the CI runners: the browser's reply took 154 and 371 ms, past the grace, and bob read
 			// "Waiting for Alice to decide…" for a land Alice had already played (e2e/w62-bounce.spec.ts).
 			vi.useFakeTimers();
 			const h = waitingHarness();
