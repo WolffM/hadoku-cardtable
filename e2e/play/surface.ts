@@ -10,6 +10,12 @@
  * Rows carry the wall clock (`Date.now()`): every page of a test runs on this one machine,
  * so rows from alice's and bob's pages, and a time the test itself took, compare directly.
  * They carry the page's own `performance.now()` too, for a gap measured on one page.
+ *
+ * Every surface of a page is read by ONE observer, from the same mutation batch, under one
+ * clock reading taken before any of them is read. One commit that swaps two surfaces (one
+ * unmounted, the other mounted) is then one instant for both, so "never both at once" holds
+ * exactly. An observer per surface stamped each with its own `Date.now()` after its own
+ * forced layout, and read one swap as a 1 ms overlap (w62-condescend, claw run 38402808666).
  */
 
 import type { Page } from '@playwright/test';
@@ -40,6 +46,13 @@ export interface Span {
 
 let installed = 0;
 
+/** A page's one recorder: every surface it watches, read together on each mutation batch. */
+interface Recorder {
+  surfaces: Record<string, { selector: string; attrs: string[]; layout: boolean; rows: SurfaceRow[]; last: string }>;
+  /** Read one surface at the given instant; a row only when what it shows changed. */
+  read(key: string, wall: number, t: number): void;
+}
+
 /**
  * Record the first element matching `selector` on `page`, from now on.
  *
@@ -55,32 +68,37 @@ export async function recordSurface(
   const key = `s${++installed}`;
   await page.evaluate(
     ({ key, selector, attrs, layout }) => {
-      const w = window as unknown as { __surfaces?: Record<string, SurfaceRow[]> };
-      const rows: SurfaceRow[] = [];
-      (w.__surfaces ??= {})[key] = rows;
-      let last = '';
-      const read = (): void => {
-        const el = document.querySelector(selector);
-        const shown = el !== null && (!layout || (el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden'));
-        const row: SurfaceRow = {
-          wall: Date.now(),
-          t: performance.now(),
-          shown,
-          text: el?.textContent?.trim() ?? '',
-          attrs: Object.fromEntries(attrs.map((a) => [a, el?.getAttribute(a) ?? null])),
+      const w = window as unknown as { __surfaces?: Recorder };
+      if (w.__surfaces === undefined) {
+        const rec: Recorder = {
+          surfaces: {},
+          read(k, wall, t) {
+            const s = rec.surfaces[k]!;
+            const el = document.querySelector(s.selector);
+            const shown = el !== null && (!s.layout || (el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden'));
+            const text = el?.textContent?.trim() ?? '';
+            const attrValues = Object.fromEntries(s.attrs.map((a) => [a, el?.getAttribute(a) ?? null]));
+            const sig = JSON.stringify([shown, text, attrValues]);
+            if (sig === s.last) return;
+            s.last = sig;
+            s.rows.push({ wall, t, shown, text, attrs: attrValues });
+          },
         };
-        const sig = JSON.stringify([shown, row.text, row.attrs]);
-        if (sig === last) return;
-        last = sig;
-        rows.push(row);
-      };
-      new MutationObserver(read).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
-      read();
+        w.__surfaces = rec;
+        new MutationObserver(() => {
+          const wall = Date.now();
+          const t = performance.now();
+          for (const k of Object.keys(rec.surfaces)) rec.read(k, wall, t);
+        }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+      }
+      const rec = w.__surfaces;
+      rec.surfaces[key] = { selector, attrs, layout, rows: [], last: '' };
+      rec.read(key, Date.now(), performance.now());
     },
     { key, selector, attrs: [...(opts.attrs ?? [])], layout: opts.shown !== 'present' },
   );
   return {
-    rows: () => page.evaluate((k) => [...((window as unknown as { __surfaces?: Record<string, SurfaceRow[]> }).__surfaces?.[k] ?? [])], key),
+    rows: () => page.evaluate((k) => [...((window as unknown as { __surfaces?: Recorder }).__surfaces?.surfaces[k]?.rows ?? [])], key),
   };
 }
 
