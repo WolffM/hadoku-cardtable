@@ -200,9 +200,19 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     const dark = await paint();
     expect(dark).not.toBe('rgba(0, 0, 0, 0)');
     expect(dark).not.toBe(hostBefore[0]);
+    // The slot itself wears the theme too. It used to keep the fleet's light
+    // default whatever the theme, so it flashed white between the sheet's
+    // adoption and React's first commit (2026-10-12).
+    const slot = a.getByTestId('game-slot');
+    const slotPaint = () => slot.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await expect(slot).toHaveAttribute('data-theme', 'ocean-dark');
+    expect(await slotPaint(), 'the slot paints the table’s colour, not the light default').toBe(dark);
     await a.evaluate(() => (window as unknown as { embedHost: { update(p: object): void } }).embedHost.update({ theme: 'light' }));
     await expect(embed).toHaveAttribute('data-theme', 'light');
     await expect.poll(paint).not.toBe(dark);
+    await expect(slot).toHaveAttribute('data-theme', 'light');
+    // `<main>` fades its background over 0.3s; the slot does not, so wait it out.
+    await expect.poll(async () => (await slotPaint()) === (await paint()), { message: 'the slot follows update()' }).toBe(true);
     console.log(`[embed] room=${roomId} ocean-dark=${dark} light=${await paint()} host=${hostBefore.join(' / ')}`);
 
     // Bob, same watchparty room: same table, and alice is no longer alone.
@@ -274,6 +284,7 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     await a.waitForTimeout(1_000);
     expect((await leaks(a)).frames, 'no animation frame loop outlives the mount').toBe(framesThen);
     expect(await residue(a)).toEqual({ shadowChildren: 0, shadowSheets: 0, documentSheets: 0, hash: '#/host-route' });
+    expect(await a.getByTestId('game-slot').getAttribute('data-theme'), 'unmount takes the theme back off the slot').toBeNull();
 
     // The same slot mounts again, onto the same table.
     await mount(a);

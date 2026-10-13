@@ -7,6 +7,9 @@
  *
  * - **Styles** — fetched once and adopted by the shadow root (`./styles.ts`,
  *   which also says what has to live on the document and why).
+ * - **The theme on `el` itself** (`data-theme`), before the styles land, so the
+ *   host is painted in the host's theme rather than the light default
+ *   (`withHostTheme` in `../../vite.embed.config.ts`). Restored on unmount.
  * - **The route** — in memory (`routeInMemory`); watchparty owns the URL.
  * - **Lookups and hit tests** — `setDocumentScope` points the app's
  *   document-wide queries at the shadow root (`../dom.ts`).
@@ -46,6 +49,15 @@ const STYLESHEET = `${import.meta.env.BASE_URL}embed/cardtable-embed.css`;
 
 let active = false;
 
+/** Put `theme` on the host element. Returns the undo, which restores what was there. */
+function themeHost(el: HTMLElement): { set: (theme: string) => void; undo: () => void } {
+  const before = el.getAttribute('data-theme');
+  return {
+    set: (theme) => el.setAttribute('data-theme', theme),
+    undo: () => (before === null ? el.removeAttribute('data-theme') : el.setAttribute('data-theme', before)),
+  };
+}
+
 /** Route a click on an in-app hash link in memory. Returns the undo. */
 function followHashLinks(shadow: ShadowRoot): () => void {
   const onClick = (event: Event): void => {
@@ -70,6 +82,9 @@ async function mountCardtable(el: HTMLElement, ctx: GameBundleContext): Promise<
     active = false;
   };
   try {
+    const hostTheme = themeHost(el);
+    hostTheme.set(ctx.theme);
+    undo.push(hostTheme.undo);
     const shadow = el.shadowRoot ?? el.attachShadow({ mode: 'open' });
     undo.push(adoptStyles(shadow, await fetchStyles(STYLESHEET)));
 
@@ -95,7 +110,9 @@ async function mountCardtable(el: HTMLElement, ctx: GameBundleContext): Promise<
     let mounted = true;
     return {
       update: (next) => {
-        if (mounted) render(next);
+        if (!mounted) return;
+        hostTheme.set(next.theme);
+        render(next);
       },
       unmount: () => {
         if (!mounted) return;

@@ -26,6 +26,12 @@ import { APP_NAME } from './app-name.ts';
  *   shadow tree, and the fleet's tokens and the table's palette are declared
  *   on `:root`. Rewritten at build time so the shipped sheet is the sheet that
  *   applies.
+ * - **Every theme also themes `:host`.** After the rewrite `:host` carries the
+ *   fleet's DEFAULT (light) tokens and the `body` background, and no
+ *   `[data-theme]` inside the shadow tree can reach the host element. So a bare
+ *   `[data-theme=x]` also emits `:host([data-theme=x])`, and `mount` stamps the
+ *   theme on the host. Without it the host painted `#f8fafc` under every theme,
+ *   a white flash between the sheet's adoption and React's first commit.
  */
 
 /** `:root` / `html` / `body` as a compound's type or pseudo-class → `:host`. */
@@ -33,10 +39,22 @@ export function toShadowSelector(selector: string): string {
   return selector.replace(/:root\b/g, ':host').replace(/(^|[\s,>+~(])(?:html|body)(?![\w-])/g, '$1:host');
 }
 
+const THEME_SELECTOR = /^\[data-theme(?:=[^\]]+)?\]$/;
+
+/** A bare `[data-theme…]` selector also matches the host carrying it. Idempotent — postcss revisits a changed rule. */
+export function withHostTheme(selectors: readonly string[]): string[] {
+  const present = new Set(selectors.map((s) => s.trim()));
+  return selectors.flatMap((s) => {
+    const host = `:host(${s.trim()})`;
+    return THEME_SELECTOR.test(s.trim()) && !present.has(host) ? [s, host] : [s];
+  });
+}
+
 const shadowRootSelectors = {
   postcssPlugin: 'cardtable-shadow-root-selectors',
-  Rule(rule: { selector: string }) {
+  Rule(rule: { selector: string; selectors: string[] }) {
     rule.selector = toShadowSelector(rule.selector);
+    rule.selectors = withHostTheme(rule.selectors);
   },
 };
 

@@ -790,7 +790,9 @@ holds it until then): `mount(el, { roomKey, identity, theme, isLeader, close })`
   the chrome. The match settings get a gear of their own in place of the
   header's.
 - **A shadow root, not the page.** Styles adopted by the shadow root (one
-  build-time sheet, `:root`/`html`/`body` → `:host`), fonts and `@property`
+  build-time sheet, `:root`/`html`/`body` → `:host`, every bare
+  `[data-theme=x]` also as `:host([data-theme=x])` with the theme stamped on
+  the host so it never paints the light default), fonts and `@property`
   lent to the document while mounted, routes in memory, document-wide lookups,
   hit tests and window-level event targets read through the shadow boundary
   (`apps/ui/src/dom.ts`). `unmount()` leaves nothing; `e2e/embed.spec.ts`

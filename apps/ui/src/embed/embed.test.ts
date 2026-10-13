@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
-import { toShadowSelector } from '../../vite.embed.config.ts';
+import { toShadowSelector, withHostTheme } from '../../vite.embed.config.ts';
 import { eventTarget, hitAt, scopeOf } from '../dom.ts';
 import { watchpartyPrefsCacheKey } from '../room/avatar.ts';
 import { AVATAR_POLL_MS } from '../room/avatarWatch.ts';
@@ -206,5 +206,13 @@ describe('the embed stylesheet’s selectors', () => {
     expect(toShadowSelector('body > .x')).toBe(':host > .x');
     expect(toShadowSelector('.prompt__body')).toBe('.prompt__body');
     expect(toShadowSelector('.body-row, tbody')).toBe('.body-row, tbody');
+  });
+
+  it('lets every bare theme selector theme the host too, once', () => {
+    expect(withHostTheme(['[data-theme=dark]'])).toEqual(['[data-theme=dark]', ':host([data-theme=dark])']);
+    expect(withHostTheme([':host', '[data-theme]', '.cardtable-chrome'])).toEqual([':host', '[data-theme]', ':host([data-theme])', '.cardtable-chrome']);
+    expect(withHostTheme(['[data-theme=dark] .x', '.a[data-theme=dark]'])).toEqual(['[data-theme=dark] .x', '.a[data-theme=dark]']);
+    const once = withHostTheme(['[data-theme=light]']);
+    expect(withHostTheme(once), 'postcss revisits a changed rule').toEqual(once);
   });
 });
