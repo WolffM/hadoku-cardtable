@@ -88,7 +88,7 @@ test(titled('an attacker with nothing to play is not stopped again after declari
     const rows = aliceRows(stack, logFrom);
     console.log(`[attack-window] idle: live bar at Declare Attackers ${sawLiveBar}; rows [${rows.join(' | ')}]`);
     expect(sawLiveBar, 'alice was never shown a live OK at Declare Attackers Step').toBe(false);
-    expect(rows, 'the server passed her Declare Attackers priority').toContain('auto-passed Declare Attackers Step');
+    expect(rows, 'the server passed her Declare Attackers priority').toContain('auto-passed Declare Attackers Step nothing-to-do');
   } finally {
     await stack.stop();
   }
