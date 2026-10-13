@@ -268,7 +268,10 @@ Watchparty's `e2e/production/cardtable-party.spec.ts` (`f31f83e2`) ran the
   leader's socket carried 44 card faces and each of the 9 watchers' sockets 0.
   This is read off each watcher's real browser websocket.
 - **`e2e/watcher.spec.ts`'s wire assertion cannot fail as written — please fix
-  it.** It searches `JSON.stringify([ack, ...frames])` for `/"Name":"([^"]+)"/`,
+  it.** *(Fixed 2026-10-13: the spec now walks every payload for a `Name` on an
+  object whose `_type` is not a player's, typed or plain, and runs the same
+  probe on alice's own socket after the deal as the control — 44 faces there,
+  0 on the watcher's, locally against Forge.)* It searches `JSON.stringify([ack, ...frames])` for `/"Name":"([^"]+)"/`,
   but Forge values on the wire are typed (`{ t: 'str'; v: string }`,
   `packages/forge-wire/src/tier-c.ts:128`), so a face serialises as
   `"Name":{"t":"str","v":"Dragonlord Atarka"}` and the regex matches nothing,
@@ -282,4 +285,19 @@ Watchparty's `e2e/production/cardtable-party.spec.ts` (`f31f83e2`) ran the
   intermittently got a 500 from hadoku_site's `GET /prefs/api/v1/cardtable-play`
   (0 in two later runs; a direct burst of 24 GETs never reproduced it). The
   board rendered regardless. Worth confirming cardtable treats a failed prefs
-  read as defaults rather than an error state.
+  read as defaults rather than an error state. *(Confirmed 2026-10-13: `@wolffm/prefs-client`'s
+  `read()` catches a failed GET and answers the defaults; nothing in cardtable
+  surfaces it.)*
+
+## 11. The first party (2026-10-12) — what it found, what landed
+
+The first real game inside watchparty ran on the §9 release. The operator's
+notes, and what each became:
+
+| Note | Cause | Landed |
+| --- | --- | --- |
+| "cardtable did not properly load avatars, it assigned default ones" (reported by watchparty's session) | the avatar hop (`useAvatarAssert`) only ran inside `RoomShell`, which the embed never mounts; every member kept the pool's pick | `1b081422` — the hop lives in `room/avatarAssert.ts` and `EmbedApp` mounts it under the edge's whoami identity; `e2e/embed.spec.ts` reads the room back |
+| spectator: "the selected player's hand looks weirdly squished and only shows cardbacks" | the bottom (perspective) seat's hidden hand rendered as the opponent's strip inside the viewer's hand slot, where none of the backs-strip rules applied | `641f16de` — the strip is keyed on `zone--backs` for either side; `watcher.spec.ts` measures both strips. Cardbacks themselves are the ruling (no over-the-shoulder, §9) |
+| spectator: "card placement on board doesn't update as players move things around" | the client applied every arrangement/placement echo to "the other player" and held one at a time; the arrangement store's key changed with the perspective flip | `9f2125ad` — echoes route by seat through `forge:seats`' player ids, held per seat; `watcher.spec.ts` gains the arrangement scenario from both perspectives |
+| "make it more clear who the game is waiting on … the only way to tell is whether the phase button is lit" | design, not a defect: the `waitingOn` fact is on the wire for both seats (and reaches watchers), drawn today as a small `priority` flag on the face and a pop-out only for decisions | open — see the proposal in the session's report; needs an operator ruling on the treatment |
+

@@ -24,6 +24,33 @@ import { connectSio } from './play/sio.ts';
 test.describe.configure({ mode: 'serial' });
 
 const PREFIX = '/cardtable';
+/**
+ * Every card face in what a socket was sent. A face is a tracked object whose
+ * `_type` is not a player's (1 — players carry a `Name` too) with a `Name`,
+ * which Forge sends TYPED (`{ t: 'str', v }`, `packages/forge-wire/src/tier-c.ts`)
+ * and a fixture may send plain. Walked, not grepped: a string match for
+ * `"Name":"…"` cannot see a typed value and so could never fail.
+ */
+function faceNames(payloads: unknown[]): string[] {
+  const names: string[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    if (typeof node !== 'object' || node === null) return;
+    const o = node as Record<string, unknown>;
+    if ('Name' in o && o._type !== 1) {
+      const n = o.Name;
+      const v = typeof n === 'string' ? n : typeof n === 'object' && n !== null && typeof (n as { v?: unknown }).v === 'string' ? (n as { v: string }).v : null;
+      if (v !== null) names.push(v);
+    }
+    for (const v of Object.values(o)) walk(v);
+  };
+  walk(payloads);
+  return names;
+}
+
 const forge = forgeAvailability();
 
 const seatSit = (page: Page) => page.getByTestId('seat-sit');
@@ -147,9 +174,10 @@ test('a third person watches the match from either side with no controls, and no
       await expect.poll(() => roles, { timeout: 10_000 }).toContainEqual({ matchId, role: 'watcher' });
       await carol.page.waitForTimeout(3000);
       const everything = JSON.stringify([ack, ...frames]);
-      // Every card face on the wire carries `Name`; at the toss nothing is on the
-      // table, so a watcher may be sent none of them.
-      const names = [...everything.matchAll(/"Name":"([^"]+)"/g)].map((m) => m[1]);
+      // At the toss nothing is on the table, so a watcher may be sent no face at
+      // all. (The control that makes this zero mean something is below, once the
+      // hands are dealt: the same probe on a player's own socket finds hers.)
+      const names = faceNames([ack, ...frames]);
       expect(names, `no card face reaches a watcher before a card is played: ${names.slice(0, 5).join(', ')}`).toEqual([]);
       expect(everything, 'no prompt frame reaches a watcher').not.toMatch(/"kind":"(prompt|window|ask)"/);
       // And its input is dropped by the server.
@@ -174,6 +202,31 @@ test('a third person watches the match from either side with no controls, and no
     await expect
       .poll(async () => (await carol.page.getByTestId('hand-count').allTextContents()).map((t) => Number(t.trim())), { timeout: 60_000, message: 'both hands dealt on the watcher’s board' })
       .toEqual([7, 7]);
+
+    // The wire, with fourteen faces in play: a watcher's socket still carries
+    // none, and the SAME probe on alice's own socket (a second tab on her seat,
+    // which sees her hand) finds hers — the control. Watchparty's production run
+    // (§10 of the request doc) found the earlier regex here could not fail:
+    // Forge's values are typed, `"Name":{"t":"str","v":…}`, so a string match
+    // for `"Name":"…"` saw nothing, leaked or not.
+    const probe = async (session: string): Promise<string[]> => {
+      const sock = await connectSio(stack.origin, session);
+      try {
+        const got: unknown[] = [];
+        sock.on('forge:s2c', (p) => got.push(p));
+        const joined = (await sock.request('forge:join', { matchId })) as Record<string, unknown>;
+        expect(joined, `${session}'s join is a snapshot`).not.toHaveProperty('error');
+        await carol.page.waitForTimeout(2000);
+        return faceNames([joined, ...got]);
+      } finally {
+        await sock.close();
+      }
+    };
+    const watcherFaces = await probe('carol');
+    const playerFaces = await probe('alice');
+    console.log(`[watcher wire] faces after the deal: watcher=${watcherFaces.length} player=${playerFaces.length} (${playerFaces.slice(0, 3).join(', ')}…)`);
+    expect(playerFaces.length, 'the probe finds a player’s own dealt hand — else the watcher’s zero proves nothing').toBeGreaterThanOrEqual(7);
+    expect(watcherFaces, `no card face reaches a watcher with both hands dealt: ${watcherFaces.slice(0, 5).join(', ')}`).toEqual([]);
     const bottomHand = carol.page.locator('.seat[data-viewer] > [data-zone="hand"]');
     const topHand = carol.page.locator('.seat:not([data-viewer]) > [data-zone="hand"]');
     await expect(bottomHand, 'the bottom hand is the viewer side’s, as the rest of that seat is').toHaveAttribute('data-owner', 'you');
