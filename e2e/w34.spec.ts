@@ -217,23 +217,7 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
     const handBefore = Number((await myHandCount.getAttribute('aria-label'))?.match(/\d+/)?.[0] ?? '-1');
     const card = (await offered(alice.page))[0]!;
-    // NOT `castCard`: its own drain loop calls the generic `answerPrompt`
-    // every tick, which already knows how to answer an `order` ask (it would
-    // click straight through Ponder's own decision before this test ever got
-    // to look at it — measured directly, this is not hypothetical). This
-    // loop stops the INSTANT an `order` ask is showing, before calling
-    // `answerPrompt` on that tick, leaving it open to inspect below.
-    await clickHandCard(alice.page, card);
-    for (let i = 0; i < 100 && (await promptMethod(alice.page)) !== 'order'; i++) {
-      await alice.page.waitForTimeout(50);
-      // The order ask can open at any instant (Ponder resolves on an
-      // auto-pass), so it is left open by the same read answerPrompt answers
-      // from: a separate check first still left one round trip between the
-      // check and the answer, and CI (37184116178) hit it.
-      await answerPrompt(alice.page, { leave: ['order'] });
-      const text = await says(alice.page);
-      if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
-    }
+    await castCard(alice.page, card);
 
     // The bug (§E2): nothing reaches the browser at all — the stack goes
     // straight from Ponder sitting on it to a fresh, empty-stack priority
