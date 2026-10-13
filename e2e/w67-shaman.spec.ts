@@ -12,7 +12,7 @@
  * stand-in of the card (the lift, the parked ghost, the stack card, the opponent's back, a flight
  * copy, the real battlefield card) and the pointer: alice's own, and bob's drawing of hers. The
  * server's probe-mode trace (`forge-frame`/`forge-command`/`wire-frame`) gives Forge's side.
- * Everything is printed as `[shaman] <run>` lines — a green claw run keeps no artifacts.
+ * Everything is printed as `[shaman] <run>` lines — a green CI runner run keeps no artifacts.
  *
  * Three runs: the Shaman as reported; Grizzly Bears (a vanilla 2/2, no trigger) as the baseline the
  * Shaman's extra cost is read against; and the Shaman with bob holding priority for 2 s while it is
@@ -29,7 +29,7 @@
  * A fourth run makes the race the operator hit (w67, 2026-10-10) happen every time instead of one
  * run in three: bob's socket holds what the server sends him from alice's release until Forge has
  * her spell on the stack, then hands him the placement and, 40 ms after it — early in the back's
- * 300 ms glide into its gap — Forge's frames: Forge answering faster than the glide, as on a quick claw.
+ * 300 ms glide into its gap — Forge's frames: Forge answering faster than the glide, as on a quick CI runner.
  */
 import { expect, test, type Browser, type Page, type WebSocketRoute } from '@playwright/test';
 

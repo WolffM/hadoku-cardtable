@@ -593,7 +593,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
    *
    * Why the stack waits on it: every stack is a fresh server, and `POST /api/play/matches`
    * adopts the spare it is still booting and answers only once Forge is ready, so the
-   * request carried the whole JVM boot. That is 8.4–9.3 s on an idle claw and 15–19 s on a
+   * request carried the whole JVM boot. That is 8.4–9.3 s on an idle CI runner and 15–19 s on a
    * loaded one (run 38117429287, 61 stacks), and past ~19 s Playwright's 20 s request
    * timeout cut it: the M4 `apiRequestContext.post: Timeout 20000ms` reds. Waiting here
    * leaves the request the ~0.5 s it takes a warm spare to open a game.

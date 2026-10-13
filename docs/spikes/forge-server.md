@@ -45,7 +45,7 @@ left it empty:
 ```java
 // these belong to sentry.properties, but somehow some OS/Zip tool discards it?
 if (options.getDsn() == null || options.getDsn().isEmpty())
-    options.setDsn("https://87bc8d329e49441895502737c069067b@sentry.asgardsrealm.net/3");
+    options.setDsn("https://…@sentry.asgardsrealm.net/3");
 ```
 
 So no environment variable, no property and no config file could switch it off.
@@ -69,7 +69,7 @@ $ javap -p -c -constants -cp <2ad70eb4 fat jar> forge.view.Main | grep -ci 'sent
 ```
 
 The reverted side still holds the literal
-`https://87bc8d329e49441895502737c069067b@sentry.asgardsrealm.net/3` as a
+`https://…@sentry.asgardsrealm.net/3` as a
 constant in the class file. **reverted 1 / restored 0** on the DSN,
 **reverted 12 / restored 0** on the string "sentry". A grep that returns 0 on
 both sides would have proved nothing; this one returns 12 on the side where the

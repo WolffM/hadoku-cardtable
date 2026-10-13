@@ -8,7 +8,7 @@
  *  2. A game ends: a new match starts at once, with the finished one still in the only slot.
  *
  * `maxMatches: 1` stands in for production's ceiling (2 then, 10 since): the rule is the same at
- * any ceiling, and one JVM at a time is what a claw has room for.
+ * any ceiling, and one JVM at a time is what a CI runner has room for.
  *
  * Skips visibly without a Forge build, like every `*.jvm.test.ts`:
  *

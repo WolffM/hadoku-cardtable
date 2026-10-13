@@ -1,4 +1,4 @@
-==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+==> compile: ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
 === Wave 7 lane A / phase 1: a real 2-player match over a real socket ===
 forge.deltasync=(unset -> on)
 tierc.remoteClients=1   (mutation: 0)

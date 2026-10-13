@@ -1,10 +1,10 @@
 /**
  * A page's own frame clock, for specs that gate on WHEN something is drawn.
  *
- * A gate in milliseconds on a shared claw measures the claw: the same frame that takes 16 ms idle
+ * A gate in milliseconds on a shared CI runner measures the CI runner: the same frame that takes 16 ms idle
  * takes 50 under three e2e shards, and an absolute bound reds on load while a real hold slips under
  * it on a quick runner. Counted in the page's own animation frames, "drawn on the next frame" and
- * "held for a 150 ms pacer beat" stay apart on any runner: a slow claw's frames are slow for both.
+ * "held for a 150 ms pacer beat" stay apart on any runner: a slow CI runner's frames are slow for both.
  *
  * `installFrameClock` (before the page opens the match) starts a counter that every animation
  * frame advances — first, so a recorder's own rAF tick in the same frame reads the frame it draws —

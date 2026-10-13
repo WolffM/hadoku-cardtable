@@ -180,7 +180,7 @@ clause is quoted so the argument can be checked rather than believed.
 
 **Would we be conveying Forge?** **Yes, and this is new.** `docs/LICENSING.md` §1
 turns on the distinction that *"GPL-3 obligations attach when you convey the
-software — hand someone a binary"*, and concludes that running Forge on hokon and
+software — hand someone a binary"*, and concludes that running Forge on the host and
 letting friends connect is not conveying. **Serving `forge.jar` to a browser is.**
 Every player's browser downloads Forge bytecode from our origin. That is exactly
 the P2 trigger `docs/LICENSING.md` already identified, arriving via a route it did
@@ -309,13 +309,13 @@ surface of `cheerpjInit` is five options
 `tailscaleControlUrl`, `tailscaleDnsIp`, `tailscaleAuthKey`,
 `tailscaleLoginUrlCb`, `tailscaleIpCb` — and nothing else.
 
-To make Forge's Netty client dial hokon through CheerpJ we would have to run:
+To make Forge's Netty client dial the host through CheerpJ we would have to run:
 
 1. a **Tailscale control plane**, or self-hosted **Headscale** (the docs name it:
    *"Headscale is an open-source and self-hosted implementation of the Tailscale
    control server"*),
 2. a **WebSocket-capable Tailscale relay** the browser can reach,
-3. a **tailnet node on hokon** beside the Forge JVM, and
+3. a **tailnet node on the host** beside the Forge JVM, and
 4. **per-player auth keys** minted and handed to browsers.
 
 Our bridge is `@wolffm/rooms-server` — a Node WebSocket server speaking
@@ -344,7 +344,7 @@ to go and names the seam:
 
 In the whole of `forge-gui`, `forge-gui-desktop` and `forge-gui-mobile`, only two
 files name `NioEventLoopGroup`/`NioSocketChannel`: `FGameClient` and
-`FServerManager` (the server side, which stays on hokon). On the client path
+`FServerManager` (the server side, which stays on the host). On the client path
 `FGameClient` is the only one (`FGameClient.java:62` and `:66`), and it is itself an implementation
 of `IToServer`. A CheerpJ build would replace that one class with an `IToServer`
 backed by a browser `WebSocket`, reached through CheerpJ's Java↔JS interop, and
@@ -609,7 +609,7 @@ former even though the brief's "essentially unmodified" premise did not survive.
   upper bound on Forge, never a prediction of it.
 - **Whether 95,746 printings fit in CheerpJ's 2 GB heap.** Untested.
 - **Anything on a quiet host.** `/proc/loadavg` was 32.81 throughout; three other
-  wave-14 lanes were running. Re-run `measure swing` on an idle hokon for figures
+  wave-14 lanes were running. Re-run `measure swing` on an idle the host for figures
   worth quoting to anyone else.
 - **Any browser other than the Playwright Chromium in this repo's pnpm store**
   (`playwright-core@1.62.1`), headless.
@@ -619,14 +619,14 @@ former even though the brief's "essentially unmodified" premise did not survive.
 ```
 $ git submodule status forge
 -2ad70eb447a22efe5b80904c07188311da034a42 forge
-$ git -C /home/hadoku/repos/hadoku-cardtable status --porcelain forge
+$ git -C ~/repos/hadoku-cardtable status --porcelain forge
 $ echo $?
 0
 ```
 
 The leading `-` is correct: the submodule is deliberately uninitialised in this
 worktree (trap 2). Every Forge source quoted here was **read** from
-`/home/hadoku/repos/hadoku-cardtable/forge/`; nothing was written and nothing was
+`~/repos/hadoku-cardtable/forge/`; nothing was written and nothing was
 built there. The spike's own build output lives in `~/.cache/w14b-cheerpj/`, and
 `SPIKE_WITH_SKINS=1` copies `res/skins` out of the vendored clone read-only.
 

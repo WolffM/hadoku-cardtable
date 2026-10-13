@@ -116,7 +116,7 @@ See `requests/WATCHPARTY_ROOM_MODULE.md` for the file-by-file call.
 ## Target topology
 
 ```
-   browser (friend tier)                hokon
+   browser (friend tier)                the host
   ┌────────────────────┐        ┌───────────────────────────┐
   │ ui/  React SPA     │        │ apps/server  Node + WS     │
   │  ├ lobby / pods    │◄──WS──►│  rooms, chat, presence,    │
@@ -257,7 +257,7 @@ a time — each unlocks a class of cards, and an unimplemented prompt degrades t
 **Answered by `FORGE_ANALYSIS.md`:** `TrackableProperty` is a closed 214-constant
 enum (go). `FServerManager` is GUI-free and headless is regression-tested (go).
 Cube draft is first-class with 95 bundled cubes and 94 draft recipes. Maven:
-**no `mvnw` upstream** — only `.mvn/maven.config` — and hokon has no `mvn`, so
+**no `mvnw` upstream** — only `.mvn/maven.config` — and the host has no `mvn`, so
 that's a real prerequisite to install.
 
 Still open:

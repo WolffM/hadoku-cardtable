@@ -1,5 +1,5 @@
 // Loaded before every unit file (root `vitest.config.ts` `setupFiles`). Two
-// knobs, both about a claw running `check` beside three e2e shards and a jvm job.
+// knobs, both about a CI runner running `check` beside three e2e shards and a jvm job.
 import { setImmediate } from 'node:timers';
 
 import { configure } from '@testing-library/dom';
@@ -16,7 +16,7 @@ configure({ asyncUtilTimeout: process.env.CI ? 5_000 : 1_000 });
 // them, so a reply from the main thread to anything the worker asked mid-file —
 // a module a component imports lazily, the runner's own task updates — sits
 // unread until the file ends. Its 60 s RPC timer is read first: Board.test.ts
-// ran 64 s on a claw and threw 13 unhandled `Timeout calling "fetch"` (the lazy
+// ran 64 s on a CI runner and threw 13 unhandled `Timeout calling "fetch"` (the lazy
 // artist table) and `"onTaskUpdate"` errors after every test passed (0b7196e,
 // 2026-10-12). `node:timers` is the real setImmediate, not a test's fake one.
 afterEach(() => new Promise<void>((resolve) => setImmediate(resolve)));

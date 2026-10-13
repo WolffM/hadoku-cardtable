@@ -16,7 +16,7 @@ twice**. That ⚠️ can now come off: the pages are reachable and were read.
 ### 1.1 The 403 was ours, not theirs
 
 **The 403 did not reproduce, and it is not what Scryfall returns for a
-malformed request.** Six probes from hokon, all with `curl`:
+malformed request.** Six probes from the host, all with `curl`:
 
 | # | Request | Status |
 | --- | --- | --- |

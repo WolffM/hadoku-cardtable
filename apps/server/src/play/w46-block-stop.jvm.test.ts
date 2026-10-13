@@ -52,6 +52,7 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
@@ -76,10 +77,7 @@ const title = available.ok
 	: `the defender's clicks around a declared attack, against real Forge — SKIPPED: ${available.reason}`;
 
 const DECKS: [string, string] = [deck('W46C A', ['40 Mountain']), deck('W46C B', ['40 Mountain'])];
-const EVIDENCE_DIR = join(
-	'/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w46-manager',
-	'docs/planning/wave46-evidence/C',
-);
+const EVIDENCE_DIR = join(tmpdir(), 'cardtable-wave46-evidence', 'C');
 
 /**
  * `waitUntil`'s own 25ms poll (`scenario.ts`) turned out to be too coarse for

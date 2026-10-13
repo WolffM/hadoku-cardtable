@@ -10,7 +10,7 @@ of them validated at the other end by the package's own Zod schemas. Netty
 never loads on that branch, so the `UnsatisfiedLinkError:
 Java_sun_nio_ch_EPoll_create` that killed Wave 14's client never happens.
 
-Wave 15 lane A. Measured 2026-09-20 on hokon, `/proc/loadavg` 7.4–8.6 with three
+Wave 15 lane A. Measured 2026-09-20 on the host, `/proc/loadavg` 7.4–8.6 with three
 other lanes running.
 
 The one thing that did **not** survive the crossing is
@@ -341,9 +341,9 @@ throughout.
 ```
 $ git submodule status forge
 -2ad70eb447a22efe5b80904c07188311da034a42 forge
-$ git -C /home/hadoku/repos/hadoku-cardtable submodule status forge
+$ git -C ~/repos/hadoku-cardtable submodule status forge
  2ad70eb447a22efe5b80904c07188311da034a42 forge (heads/master-2-g2ad70eb447a)
-$ git -C /home/hadoku/repos/hadoku-cardtable status --porcelain forge
+$ git -C ~/repos/hadoku-cardtable status --porcelain forge
 $ echo $?
 0
 ```

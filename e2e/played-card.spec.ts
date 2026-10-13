@@ -357,7 +357,7 @@ for (const fast of [true, false]) {
       expect(Math.max(...flight.map((f) => f.stack)), `the caster's stack zone draws nothing\n${timeline(flight)}`).toBe(0);
       // Not vacuous: Forge did have the spell on the stack. Read off the server's record of every
       // priority it decided (`stop-decided`, the probe trace), never off the sampled frames: in Fast
-      // Mode the spell can come and go between two of them (208 → 331 ms on a busy claw).
+      // Mode the spell can come and go between two of them (208 → 331 ms on a busy CI runner).
       const withSpell = serverLog(stack)
         .slice(logFrom)
         .filter((r) => r.evt === 'stop-decided' && r.window === 'priority' && r.stackEmpty === false);

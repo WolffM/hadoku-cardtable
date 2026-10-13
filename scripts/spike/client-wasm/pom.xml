@@ -4,7 +4,7 @@
 
   D7 (docs/spikes/teavm-go-no-go.md) asked whether forge-core + forge-game link
   under TeaVM. They do not: 30 missing APIs, centred on java.util.concurrent.
-  That was the ENGINE. The engine already runs on hokon in a real JVM
+  That was the ENGINE. The engine already runs on the host in a real JVM
   (docs/FORGE_JAR.md), so the browser only ever needs the CLIENT: the 45
   server->client ProtocolMethods landing on IGuiGame, and the 15 client->server
   ones leaving through IGameController.

@@ -14,7 +14,7 @@ real player:
 
   * websockify's WebSocket framing (localhost hop, small)
   * the browser's noVNC decode and canvas paint (~a frame, 8-16 ms)
-  * the network between the player and hokon (the big one - a friend on a
+  * the network between the player and the host (the big one - a friend on a
     50 ms RTT link pays that twice, once for the click and once for the pixels)
 
 Raw encoding only, deliberately: it is the one encoding every server must

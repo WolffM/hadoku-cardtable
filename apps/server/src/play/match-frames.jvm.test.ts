@@ -6,7 +6,7 @@
  * Two creature decks, a driver that plays a land and a creature each main
  * phase and presses OK on every other window it is shown. Nothing attacks, so
  * the game reaches turn 20 by itself. The numbers go to stdout on a
- * `[match-frames]` line, which a green claw run keeps in its job log.
+ * `[match-frames]` line, which a green CI runner run keeps in its job log.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/match-frames \
  *   pnpm exec vitest run apps/server/src/play/match-frames.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true

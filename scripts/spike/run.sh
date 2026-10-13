@@ -9,7 +9,7 @@
 # (decision D2). Nothing here writes to it.
 #
 # Prerequisites, both user-local, no sudo (decision D14):
-#   $JDK_HOME    a real JDK -- hokon ships only openjdk-21-jre, which has no
+#   $JDK_HOME    a real JDK -- the host ships only openjdk-21-jre, which has no
 #                javac and no lib/ct.sym, so --release 17 fails
 #   $MVN_HOME    Apache Maven; upstream Forge ships no mvnw
 # Run `./run.sh bootstrap` to install both.
@@ -65,7 +65,7 @@ cmd_bootstrap() {
     fi
     "$MVN_HOME/bin/mvn" -v
 
-    # hokon has openjdk-21-jre only: no javac, no lib/ct.sym, so
+    # the host has openjdk-21-jre only: no javac, no lib/ct.sym, so
     # `--release 17` fails with "release version 17 not supported".
     if [[ -z "$JDK_HOME" || ! -x "$JDK_HOME/bin/javac" ]]; then
         curl -fsSL -o "$SPIKE_CACHE/jdk21.tar.gz" \

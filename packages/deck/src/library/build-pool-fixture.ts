@@ -5,7 +5,7 @@
  * Run from the repo root:
  *
  *   node --max-old-space-size=6144 packages/deck/src/library/build-pool-fixture.ts \
- *     --cards=/home/hadoku/repos/hadoku-cardtable/packages/carddata/data/cards.jsonl
+ *     --cards=~/repos/hadoku-cardtable/packages/carddata/data/cards.jsonl
  *
  * `--cards` defaults to `packages/carddata/data/cards.jsonl` in this checkout.
  * That path is gitignored (`.gitignore`: `data/`) and is absent from a worktree,

@@ -21,7 +21,7 @@ Life, hand, battlefield, turn/phase — see `forge/forge-gui/res/puzzle/*.pzl`
 in a checkout that has the submodule (this worktree does not); every key below
 was instead read from `forge-build`'s `GameState.java` (the parse-side,
 `parseLine`) and `GameState.applyGameOnThread`/`setupPlayerState` (the apply
-side) in `/home/hadoku/.cache/cardtable-w8/forge-build`.
+side) in `~/.cache/cardtable-w8/forge-build`.
 
 | Key | Applies to | What it does |
 | --- | --- | --- |

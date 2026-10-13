@@ -1,5 +1,5 @@
 $ FORGE_DIR=./forge ./scripts/spike/tierc/run.sh capture
-FORGE_DIR is the vendored forge/ tree (resolved: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/forge).
+FORGE_DIR is the vendored forge/ tree (resolved: ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/forge).
 Refusing: it must stay pristine.
 exit=2
 

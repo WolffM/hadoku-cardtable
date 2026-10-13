@@ -1950,7 +1950,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * ── a card's state is DRAWN (wave 28 §A.15) ──────────────────────────────
  *
  * The operator, 2026-09-28: *"+1/+1 looks really ugly, we need a better way to
- * show that. actually all the shitty text you have written on the card looks
+ * show that. actually all the text you have written on the card looks
  * ugly, we need to find a way to handle all of that with effects."*
  *
  * What was here was one function that turned seven states into STRINGS and

@@ -13,7 +13,7 @@
  * Both pages record every animation frame: the card's stand-ins (alice's parked ghost, bob's back),
  * the stack card (back or face), each Forest's drawn turn, and the creature on the battlefield.
  * Each page's `forge:s2c` frames are stamped as they arrive, with a gist of what each delta changes.
- * Printed as `[tapreveal] <run>` lines — a green claw run keeps no artifacts.
+ * Printed as `[tapreveal] <run>` lines — a green CI runner run keeps no artifacts.
  *
  * The reveal, per screen: on bob's, the first frame her card's face is shown — his stand-in back
  * turned over, the stack card, the copy that carries it to the battlefield, or the creature itself.
@@ -21,11 +21,11 @@
  * stack card, or the creature.
  *
  * The claim, Fast Mode off (the operator's own setting) and on, counted in each page's own animation
- * frames (`frame-clock.ts`) so a loaded claw's slow frames are slow for the gate too:
+ * frames (`frame-clock.ts`) so a loaded CI runner's slow frames are slow for the gate too:
  *  - on both screens the lands are drawn tapped within {@link TAP_HOLD_FRAMES} frames of the page
  *    receiving Forge's frame that taps them — nothing queued in front of the payment (a pacer beat
  *    held them 300 ms once: two game-log lines ahead of the tap, 150 ms each). Measured from the
- *    frame, not the release, so a slow claw's Forge is not counted against the screen;
+ *    frame, not the release, so a slow CI runner's Forge is not counted against the screen;
  *  - on both, no land taps after the card is revealed (one frame's slack): Forge pays before it puts
  *    the spell on its stack (`PlaySpellAbility.java:683-727`), so the taps lead;
  *  - on bob's, the face is shown as soon as it can be: within {@link REVEAL_FRAMES} frames of his

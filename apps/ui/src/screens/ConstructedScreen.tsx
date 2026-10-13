@@ -2105,7 +2105,7 @@ function RoomTableScreen({
                     ) : (
                       <>
                         {/* "Free pick" names itself; the label beside it would wrap
-                            the browse row (found at 1024x700 on the claw's fonts). */}
+                            the browse row (found at 1024x700 on the CI runner's fonts). */}
                         {!freePick && <span className="lobby__field">{poolFieldLabel(pod)}</span>}
                         <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
                           {poolLabel(loaded.formats, poolId)}

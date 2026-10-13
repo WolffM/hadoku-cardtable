@@ -27,7 +27,7 @@
  * Confirmed with Full Control held, the declared block is read at Combat Damage on both screens.
  *
  * Evidence: one `W54-B-EVIDENCE` JSON line, and `[blocks]` lines, per step
- * (claws keep artifacts only on red). Driver: `e2e/play/combat.ts`.
+ * (CI runners keep artifacts only on red). Driver: `e2e/play/combat.ts`.
  */
 
 import { expect, test, type Page } from '@playwright/test';
@@ -316,7 +316,7 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
     /*
      * Full control holds alice's own priority at each combat step: once nobody has anything left to
      * respond with, Declare Blockers → Combat Damage → End of Combat → Main 2 auto-paces in well under
-     * 100 ms (claws run 37584358566), past where Forge's `CombatView` goes null.
+     * 100 ms (CI run 37584358566), past where Forge's `CombatView` goes null.
      */
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');

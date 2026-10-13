@@ -567,7 +567,7 @@ describe('the catalog routes', () => {
 	});
 
 	// Every era against every deck, by the route and one deck at a time: about 21,000 legality
-	// checks. 0.95 s on hokon; past vitest's 5 s default on warm-claw-4 under the full check
+	// checks. 0.95 s on the host; past vitest's 5 s default on a CI runner under the full check
 	// (CI run 37588858089, 2026-10-07). The budget below is the measurement with room, not a pin.
 	it('answers an era’s own legal decks in one call, the same answer as checking each deck', { timeout: 30_000 }, async () => {
 		const h = await boot();

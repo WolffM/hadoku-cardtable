@@ -18,7 +18,7 @@ const resolveDir = (value: string): string =>
 	isAbsolute(value) ? value : resolve(PKG_ROOT, value);
 
 export const CONFIG = {
-	/** Port this server listens on. cloudflared points cardtable.hadoku.me here. */
+	/** Port this server listens on. cloudflared points the tunnel hostname here. */
 	port: parseInt(process.env.CARDTABLE_PORT || '9008', 10),
 
 	/**

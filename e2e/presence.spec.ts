@@ -231,7 +231,7 @@ test(titled('letting go of a held card with no further pointer move takes the ba
     // to the card's own tile copy the moment Memnite is on her battlefield.
     //
     // Watched from BEFORE the release, as a record: the waiting back and the reserved gap live only
-    // until Forge's frame, which on a claw is tens of milliseconds — a locator poll started after
+    // until Forge's frame, which on a CI runner is tens of milliseconds — a locator poll started after
     // `mouse.up()` resolves missed that window outright (wave 60's red at this line, 1 run in 3).
     // The record is printed for the server log's `placement` row to be read against.
     await bob.page.evaluate(() => {

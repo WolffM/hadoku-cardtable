@@ -69,7 +69,7 @@ First attempt, exit **1** in 18 s:
 (default-compile) on project forge-core: Fatal error compiling: error: release version 17 not supported
 ```
 
-**This is not a Forge problem and not a Maven problem.** hokon has
+**This is not a Forge problem and not a Maven problem.** the host has
 `openjdk-21-jre` / `openjdk-21-jre-headless` and **no JDK**:
 
 ```
@@ -366,10 +366,10 @@ proceed with P4 and revisit if TeaVM ships `java.util.concurrent.locks`.**
 ## `forge/` is unmodified
 
 ```
-$ git -C /home/hadoku/repos/hadoku-cardtable/forge status --porcelain
+$ git -C ~/repos/hadoku-cardtable/forge status --porcelain
 $ echo $?
 0
-$ git -C /home/hadoku/repos/hadoku-cardtable/forge log -1 --format='%H %s'
+$ git -C ~/repos/hadoku-cardtable/forge log -1 --format='%H %s'
 2cd497cfbeb6df4e2a013c916aaab9de5ecf9795 Merge pull request #11849 from tjtillman/master
 ```
 

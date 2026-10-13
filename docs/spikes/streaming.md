@@ -38,7 +38,7 @@ NO-GO, this is a two-week path to the real Forge UI in a browser rather than a
 multi-month one, and the cost of the room layer becoming chat-only should be put
 to the operator as a decision, not assumed either way.
 
-Everything below came from a command that ran on hokon on 2026-09-19. Nothing
+Everything below came from a command that ran on the host on 2026-09-19. Nothing
 is estimated unless it says ESTIMATED.
 
 ---
@@ -65,7 +65,7 @@ The image bind-mounts the Forge jar and `forge/forge-gui/res` read-only rather
 than baking them (see the Dockerfile's header for why). `forge/` is untouched:
 
 ```
-$ git -C /home/hadoku/repos/hadoku-cardtable/forge status --porcelain
+$ git -C ~/repos/hadoku-cardtable/forge status --porcelain
 $ echo $?
 0
 $ git submodule status forge
@@ -262,7 +262,7 @@ Say this out loud before quoting 65 ms to anyone:
    browser. To settle it, drive the click from inside the page and time it
    against a `requestAnimationFrame` after the canvas changes; nothing in this
    lane does that yet.
-3. **The network between the player and hokon.** This is the big one and it is
+3. **The network between the player and the host.** This is the big one and it is
    not ours to control. A friend on a 50 ms RTT link pays it **twice** — once
    carrying the click up, once carrying the pixels down — so the same match that
    measures 65 ms here is ~165 ms for them. That is the honest number to put in
@@ -275,7 +275,7 @@ link: the player's click costs one RTT there too, but the UI can respond
 
 ---
 
-## MEASURED: the concurrency ceiling on hokon
+## MEASURED: the concurrency ceiling on the host
 
 Host facts, all read on the day:
 
@@ -313,17 +313,17 @@ JVM that already exists (`docs/FORGE_JAR.md`; ~650–730 MB, capped at `-Xmx1g`)
   both players click continuously — which real players do not — gives 9 matches,
   and the real load is far under that. The spike is cold start: creating N
   matches at once briefly wants 2N cores for 18 s.
-- **Network: UNMEASURED, and probably the real ceiling.** hokon's upstream is
+- **Network: UNMEASURED, and probably the real ceiling.** the host's upstream is
   not measured anywhere in this repo. At 4.6 Mbit/s per match, 4 matches is
   ~18 Mbit/s of sustained upstream. A typical residential uplink does not have
   that. **This is the number that decides it and I did not measure it** — it
-  needs an external throughput test from hokon, e.g.
+  needs an external throughput test from the host, e.g.
   `curl -o /dev/null -w '%{speed_upload}\n' -T /dev/zero <endpoint>` against a
   host the operator controls, or the ISP's stated upstream.
 
 **The practical answer: today's cap of 2 concurrent matches
 (`MAX_CONCURRENT_MATCHES` in `apps/server/src/play/host.ts`) costs ~6.4 GiB,
-~2 cores at full tilt and ~9 Mbit/s upstream. hokon has the RAM and the CPU
+~2 cores at full tilt and ~9 Mbit/s upstream. the host has the RAM and the CPU
 comfortably. The uplink is the open question.**
 
 ---
@@ -382,7 +382,7 @@ container is not a fork.
 
 ## What was NOT verified
 
-- **hokon's upstream bandwidth.** Named above; it is the likely binding
+- **the host's upstream bandwidth.** Named above; it is the likely binding
   constraint and it is unmeasured.
 - **Browser-side click-to-pixel.** The browser path is proven to work (a live
   match rendered in Chrome, 66,147 of 80,000 sampled canvas pixels non-black)
@@ -412,7 +412,7 @@ container is not a fork.
 
 | | |
 | --- | --- |
-| Host | hokon, 12 cores, 61.9 GiB, Linux 6.12.101 |
+| Host | the host, 12 cores, 61.9 GiB, Linux 6.12.101 |
 | Docker | 29.8.1, overlayfs |
 | Base image | `eclipse-temurin:21-jre-noble` |
 | Forge | `2.0.15-SNAPSHOT-09.18`, the jar at `~/.local/share/cardtable/forge.jar` |

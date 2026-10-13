@@ -5,7 +5,7 @@
  *
  * These were CSS size containers (`100cqh`, `@container row-zone (aspect-ratio >= …)`). A size
  * container made ANY layout anywhere on the board — a drop indicator, a hover lift, one changed
- * card name — lay all of the containers' contents out again: 8–25 ms a frame on a claw while a card
+ * card name — lay all of the containers' contents out again: 8–25 ms a frame on a CI runner while a card
  * is dragged, against 0.4 ms measured with the same sizes written as px (the operator, 2026-10-10:
  * "this needs to be buttery smooth, i expect to get at least ~250fps at all times").
  *

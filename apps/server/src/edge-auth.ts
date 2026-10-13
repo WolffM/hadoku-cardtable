@@ -3,7 +3,7 @@
  *
  * edge-router resolves the caller's tier once and stamps every request it
  * proxies with X-Edge-Auth: <EDGE_AUTH_SECRET> plus X-Hadoku-Tier / X-User-Id /
- * X-User-Key. The tunnel host (cardtable.hadoku.me) is reachable DIRECTLY,
+ * X-User-Key. The tunnel hostname is reachable DIRECTLY,
  * bypassing the edge — so a direct hit could forge those headers. We believe
  * them only when the shared secret checks out; otherwise we overwrite them with
  * the most restrictive identity.

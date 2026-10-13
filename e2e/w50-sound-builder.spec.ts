@@ -23,8 +23,8 @@
  * spec wants yesterday's assignment to still be on a cell.
  *
  * **The two "takes" are a few deterministic placeholder bytes, not real
- * audio, and that is deliberate.** CI runs this spec on the fleet's claws
- * (`ci.yml`'s "E2E — two friends draft one pod" job), not on hokon, and
+ * audio, and that is deliberate.** CI runs this spec on the fleet's CI runners
+ * (`ci.yml`'s "E2E — two friends draft one pod" job), not on the host, and
  * nothing establishes that those runners have `ffmpeg` on `PATH` — a spec that
  * shells out to generate a silent Opus file would turn main red on a missing
  * binary that has nothing to do with the product. This spec asserts

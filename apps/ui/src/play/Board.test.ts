@@ -308,7 +308,7 @@ describe('zones', () => {
   });
 
   /*
-   * §A.15: a card's state is DRAWN, not written. The operator: *"all the shitty
+   * §A.15: a card's state is DRAWN, not written. The operator: *"all the
    * text you have written on the card looks ugly."* So `tapped` is the turn
    * `card.css` makes, and the WORD is gone from the card entirely — which is the
    * half a revert would put back, so it is the half asserted.
@@ -3190,7 +3190,7 @@ describe('cards find their place (§A.3, §A.4)', () => {
 
 /**
  * Wave 28's headline. The operator, 2026-09-28: *"+1/+1 looks really ugly, we
- * need a better way to show that. actually all the shitty text you have written
+ * need a better way to show that. actually all the text you have written
  * on the card looks ugly, we need to find a way to handle all of that with
  * effects."*
  *

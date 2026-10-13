@@ -392,8 +392,8 @@ After the run, `liveJvmCount()` is 0 (asserted) and `ps` shows no bridge JVM.
 ### Wave 10's gated run
 
 ```console
-$ CARDTABLE_FORGE_JAR=/home/hadoku/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
-  CARDTABLE_FORGE_RES=/home/hadoku/.cache/w7b-forge/forge-gui/res \
+$ CARDTABLE_FORGE_JAR=~/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
+  CARDTABLE_FORGE_RES=~/.cache/w7b-forge/forge-gui/res \
   pnpm vitest run apps/server/src/play/match.jvm.test.ts ; echo $?
 [jvm] fixed: Spirit Flames v Decay, seed 20260918, cold: running after 4679 ms (JVM up 4533 ms, match start 3924 ms); decks: Spirit Flames v Decay
 [jvm] seat 0: 14 envelopes, 144 secrets, 144 in Forge's raw stream, 0 in what was emitted
@@ -520,8 +520,8 @@ time from `registry.create()`. Host load average 3.1 → 6.3 during the run (oth
 lanes were active); `-Xmx1g`.
 
 ```console
-$ CARDTABLE_FORGE_JAR=/home/hadoku/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
-  CARDTABLE_FORGE_RES=/home/hadoku/.cache/w7b-forge/forge-gui/res \
+$ CARDTABLE_FORGE_JAR=~/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
+  CARDTABLE_FORGE_RES=~/.cache/w7b-forge/forge-gui/res \
   pnpm --filter @hadoku/server exec tsx src/play/dev/spare-bench.ts --runs 5 ; echo $?
 run 1 cold: first event 4649 ms, running 4651 ms, RSS at running 853 MB
 run 1 warm: first event 461 ms, running 462 ms, RSS at running 750 MB, idle spare RSS 633 MB

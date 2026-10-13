@@ -22,7 +22,7 @@
 # mutual kill, and the e2e proof of the CONFIRMED map (`CombatBand.blockers`,
 # read once Forge has moved past declare-blockers) needs both the attacker
 # and the blocker still ON THE BOARD after combat damage is dealt — measured
-# against the real jar (claws run 37584358566): with two Memnites, combat
+# against the real jar (CI run 37584358566): with two Memnites, combat
 # resolves Declare Blockers → Combat Damage → End of Combat → Main 2 in
 # under 100ms once nobody has anything to respond with, and BOTH creatures
 # are already dead by the first priority stop in Combat Damage Step, so

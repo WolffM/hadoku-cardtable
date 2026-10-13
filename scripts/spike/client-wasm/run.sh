@@ -4,7 +4,7 @@
 #
 # D7 (scripts/spike/run.sh, docs/spikes/teavm-go-no-go.md) linked forge-core +
 # forge-game -- the ENGINE -- and died on 30 missing APIs. The engine does not
-# need to be in a browser; it runs on hokon in a real JVM. This driver asks the
+# need to be in a browser; it runs on the host in a real JVM. This driver asks the
 # question nobody asked: what does the CLIENT reach?
 #
 # Everything happens OUTSIDE the repo (decision D2):

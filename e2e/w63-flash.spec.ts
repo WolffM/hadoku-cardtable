@@ -16,7 +16,7 @@
  * clicks anything; the opponent holds and plays nothing, `w63-flash.state`)
  * and the same span reached instead by pressing End Turn (which arms Forge's
  * `skipPhaseDelay` exemption). `[w63-flash]`-tagged rows are printed either
- * way — claws upload evidence on a red run only.
+ * way — CI runners upload evidence on a red run only.
  */
 
 import { expect, test, type Page } from '@playwright/test';
@@ -341,7 +341,7 @@ test(titled('untap/upkeep/draw does not flash the drawn priority holder, same as
     console.log(`[w63-flash] opponent-flag lag behind bob's own real window opening: ${lags.join(', ')} ms`);
     // AE16, measured from the SERVER's own clock: every window the server
     // forwarded to bob's seat (`prompt-forwarded`, seat 1 — the wall-clock `t`
-    // of the row; the claw's one clock serves both browsers and the server)
+    // of the row; the CI runner's one clock serves both browsers and the server)
     // paired, in order, with the next moment alice's screen lit the flag for
     // him. Alice's view of bob's flag follows that server fact, not a state
     // delta queued behind her paced End Turn crawl — so it lights within one

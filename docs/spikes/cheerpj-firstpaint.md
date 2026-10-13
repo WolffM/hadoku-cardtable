@@ -53,7 +53,7 @@ Phase 2 then added three findings that outlive any of the timings:
 > **Starting a purely local game builds a Netty server**, and epoll is not there.
 > One more patch; the blocker was not previously known to be on that path.
 
-Everything below came from a command that ran on hokon on 2026-09-20. Nothing is
+Everything below came from a command that ran on the host on 2026-09-20. Nothing is
 estimated unless it says ESTIMATED. Host load is quoted where it matters: it
 ranged from 2.7 (Phase 1) to 41.4 (late Phase 2), and Phase 2's durations are
 badly distorted by it — see the note in that section.
@@ -105,7 +105,7 @@ The streamed-Forge half needs Wave 14's container. **This lane owns no file unde
 
 ```sh
 export CARDTABLE_FORGE_JAR=$HOME/.local/share/cardtable/forge.jar
-export CARDTABLE_FORGE_RES=/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
+export CARDTABLE_FORGE_RES=~/repos/hadoku-cardtable/forge/forge-gui/res
 scripts/spike/stream/run.sh up 1 && scripts/spike/stream/run.sh prep 1
 
 export PW_CORE=$(ls -d $HOME/repos/hadoku-cardtable/node_modules/.pnpm/playwright-core@*/node_modules/playwright-core | tail -1)
@@ -461,7 +461,7 @@ which budget binds.**
 
 | | streaming | CheerpJ |
 | --- | --- | --- |
-| **what it costs** | **hokon's RAM and CPU** — 1.26 GiB and ~0.5 core per *player*, two players per match, plus the match JVM | **the player's browser** — one JVM's worth of interpretation per tab, plus 19.19 MB of cold download |
+| **what it costs** | **the host's RAM and CPU** — 1.26 GiB and ~0.5 core per *player*, two players per match, plus the match JVM | **the player's browser** — one JVM's worth of interpretation per tab, plus 19.19 MB of cold download |
 | ceiling | ~4 concurrent matches with half the box free; **uplink unmeasured and probably binding** | whatever the player's machine does; we never see it, and we never pay it |
 | cold start | ~17.5 s per container, on our hardware | ~12 s to one component's first paint, on theirs; Forge's own UI unmeasured |
 | per-cold-cache download | 0 | 19.19 MB from a third party we cannot self-host |
@@ -825,7 +825,7 @@ to the other side of the decision:
 
 | | per player |
 | --- | --- |
-| streaming — a container on **hokon** | **1.26 GiB** (`docker stats`; the JVM is 1.21 GiB of it) |
+| streaming — a container on **the host** | **1.26 GiB** (`docker stats`; the JVM is 1.21 GiB of it) |
 | CheerpJ — a tab on **the player's machine** | **1.43 GiB** peak delta, 1.16 GiB settled |
 
 **They cost about the same. The difference is entirely whose machine pays.**
@@ -1205,7 +1205,7 @@ layer (`docs/spikes/streaming.md`, "What is lost").
 
 # PHASE 3 — the number, and the event it is a number of
 
-*Wave 16 lane B. Everything below ran on hokon on 2026-09-20 between 15:45 and
+*Wave 16 lane B. Everything below ran on the host on 2026-09-20 between 15:45 and
 16:49 local, at `/proc/loadavg` **2.3 – 3.9** throughout — a quiet host, unlike
 Phase 2's 12–41.4. Build id on every measurement and every control:
 `…-0e9b04fb53` (the timestamp prefix differs per rebuild; the source hash, which

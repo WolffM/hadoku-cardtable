@@ -466,7 +466,7 @@ const ROWS: readonly AskRow[] = [
   },
 ];
 
-/** Long enough for a loaded claw; each row reaches its ask in one turn. */
+/** Long enough for a loaded CI runner; each row reaches its ask in one turn. */
 const ROW_MS = 90_000;
 
 describe.skipIf(!available.ok)(title, () => {

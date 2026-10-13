@@ -236,7 +236,7 @@ describe('DeckScreen', () => {
 
   // 20_000, not the 5 s default: this builds a 40-card deck out of the real
   // 534-card pool and re-renders the builder for every promotion. It runs in
-  // ~0.4 s here and timed out at 5 s on a contended CI claw (run 36032980118),
+  // ~0.4 s here and timed out at 5 s on a contended CI CI runner (run 36032980118),
   // reddening main on a change that could not touch it. The budget is the
   // machine's, not the test's.
   it('builds 23 drafted cards and 17 basics into a 40-card deck, and checks exactly that text', { timeout: 20_000 }, async () => {

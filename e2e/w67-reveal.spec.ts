@@ -12,7 +12,7 @@
  * The trigger. A trigger's one ability is not a question. Forge asks `getAbilityToPlay` for every
  * trigger it puts on the stack (`PlaySpellAbility.chooseOptionalAdditionalCosts`), with that trigger
  * as the only option; the browser used to answer it, one round trip per trigger (43–107 ms on the
- * claws, the player's RTT in production) with Forge's game thread parked until then. The server
+ * CI runners, the player's RTT in production) with Forge's game thread parked until then. The server
  * answers it now, and the offer never reaches the wire: the trigger resolves (alice loses 1 life for
  * the revealed Genju) with nothing asked of alice. Then she drags the Genju (an Aura) onto her
  * battlefield and clicks her Mountain as its target: her own click is still hers, and the log still

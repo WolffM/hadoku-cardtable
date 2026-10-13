@@ -59,7 +59,7 @@
  *     zone's own height and a card is sized so that `--rows` rows of it fit (a
  *     card is 488 × 680, `card.css`). Not container queries: a size container
  *     made every layout anywhere on the board lay all of it out again — 8–25 ms
- *     a frame on a claw while a card is dragged, against 0.4 ms measured with
+ *     a frame on a CI runner while a card is dragged, against 0.4 ms measured with
  *     the same sizes written as px (the operator, 2026-10-10: "this needs to be
  *     buttery smooth").
  *   - **More rows once one row would be too thin.** `--rows` steps from 1 to 2

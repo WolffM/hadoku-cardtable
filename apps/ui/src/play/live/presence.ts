@@ -1348,7 +1348,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return at;
     });
     // The board draws the reserved gap on its next commit — usually before the next frame, not
-    // always under load (a busy claw left the back at the release point, w67-shaman): looked for
+    // always under load (a busy CI runner left the back at the release point, w67-shaman): looked for
     // again each frame until it is there.
     // A spell that reaches the stack meanwhile waits for the glide (`handoff`'s `settle`).
     glide = 'seeking';

@@ -160,7 +160,7 @@ test(
       /* ── alice casts Remand on Hinder — TWO legal spell targets now (Hinder, Keiga), so this is a real choice, not an auto-answer ── */
       // Under full control, the release opens Forge's lone-ability `getAbilityToPlay` sheet first —
       // "Choose ability to play / Remand / Counter target spell…" — which `@hadoku/shared`'s `selfAnswer`
-      // leaves to the player on purpose (measured on a claw, run 37787781493: the cast went out as
+      // leaves to the player on purpose (measured on a CI runner, run 37787781493: the cast went out as
       // `act selectCard`, the card parked, the sheet sat unanswered — the earlier reds, 37763694613
       // → 37765728857, were this driver gap, never the product). Then the stack-target ask, with TWO
       // legal targets, is answered the way a player answers it: a click on Hinder's placed card
@@ -230,7 +230,7 @@ test(
 
       // The status line of the seat HOLDING priority names the stack; the other seat's reads the
       // T2 banner ("Waiting for Alice…", `LiveBoard.tsx`) — bob's "nothing has left" is his three
-      // placed spells and `stackCount` above (claw run 37788459694 read bob's line for this).
+      // placed spells and `stackCount` above (CI run 37788459694 read bob's line for this).
       await expect(alice.page.getByTestId('live-says'), 'nothing has left: the status line still names three to resolve').toContainText('Stack: 3 to Resolve');
 
       /* ── alice drags Keiga and Hinder's arrow follows, on both screens ── */
@@ -295,7 +295,7 @@ test(
  * stack), then the whole four-item stack is let drain — each departure a
  * separate `data-count` mutation, timestamped in the PAGE by
  * `performance.now()` and read back into Node, which is what actually
- * reaches a claw's job log (`console.log` INSIDE `page.evaluate` writes to
+ * reaches a CI runner's job log (`console.log` INSIDE `page.evaluate` writes to
  * the browser's own console, never this process's stdout).
  */
 test(
@@ -372,7 +372,7 @@ test(
       for (const entry of log) console.log('[w59-chain]', entry.t.toFixed(1), entry.count);
 
       // Every departure (a strictly DECREASING count — the pacer never reorders) is at least ~500 ms
-      // after the one before it: 600 ms minus render/delivery slop, read generously so a real claw's
+      // after the one before it: 600 ms minus render/delivery slop, read generously so a real CI runner's
       // own jitter does not fail this on its own. The exact gaps go in `docs/planning/wave59-evidence/
       // P/chain.md`, read off THIS test's own `[w59-chain]` lines in the job log, not off this bound.
       const departures = log.filter((e) => e.count !== '4').map((e) => e.t);

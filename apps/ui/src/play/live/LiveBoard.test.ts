@@ -1712,7 +1712,7 @@ describe('a prompt belongs where the player is looking', () => {
  * The operator hit a Mana Leak and got `Pay Mana Cost: {3}` buried in the
  * corner's multi-line blob, with the cluster's OK and Cancel underneath it as
  * its answers: *"if an effect happens that is necessary, it should popout into
- * its own popover modal on top of the game not in some shitty text box."*
+ * its own popover modal on top of the game not in some text box."*
  *
  * A payment is not one of Forge's `ask` methods — it is `showPromptMessage`
  * plus `updateButtons`, which is why it had no window. `match.ts`'s

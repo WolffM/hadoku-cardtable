@@ -188,11 +188,11 @@ describe('a member is named by their display name, never their id', () => {
 		const named = (
 			await call(h, 'POST', '/api/rooms', {
 				as: 'alice',
-				headers: { 'x-user-name': 'Matthaus' },
+				headers: { 'x-user-name': 'Carol' },
 				body: { name: 'Named' },
 			})
 		).json() as import('../room/lobby.ts').RoomView;
-		expect(named.members.map((m) => m.name)).toEqual(['Matthaus']);
+		expect(named.members.map((m) => m.name)).toEqual(['Carol']);
 
 		// The regression this pins: the name used to be `userIdOf(req)`, so the
 		// roster showed the opaque registry identifier — a GUID-looking string

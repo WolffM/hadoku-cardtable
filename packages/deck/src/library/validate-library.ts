@@ -5,7 +5,7 @@
  * Run from the repo root:
  *
  *   node --max-old-space-size=6144 packages/deck/src/library/validate-library.ts \
- *     --cards=/home/hadoku/repos/hadoku-cardtable/packages/carddata/data/cards.jsonl
+ *     --cards=~/repos/hadoku-cardtable/packages/carddata/data/cards.jsonl
  *
  * Exit code 0 means every deck is legal in the format it names, on the date it
  * names. Any other code means read the output: it names the deck, the card and

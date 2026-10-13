@@ -132,7 +132,7 @@ Java, debug Java, and hit a compiler that restricts the language. If the goal is
 "I don't want to touch Java", WASM is the wrong lever.
 
 **The architecture already solves that.** Per `FORGE_ANALYSIS.md`, the seam is a
-3-method interface and a closed 60-method protocol. Java stays on hokon; you
+3-method interface and a closed 60-method protocol. Java stays on the host; you
 write TypeScript and React; the only Java you ever touch is:
 
 - one class implementing `IToClient` over WebSocket/JSON
@@ -311,7 +311,7 @@ talks to the server*.
 Time-boxed. Fail fast, in this order — each step is cheap and kills the idea if
 it fails:
 
-1. **Install Maven** (hokon has none; upstream ships no `mvnw`) and get a stock
+1. **Install Maven** (the host has none; upstream ships no `mvnw`) and get a stock
    `mvn install` to pass. Nothing else is possible until this does.
 2. **Stub Sentry** out of the 13 engine call sites behind a no-op.
 3. **Compile `forge-core` + `forge-game` alone** with TeaVM to WASM GC — no UI.

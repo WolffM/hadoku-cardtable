@@ -394,7 +394,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     expect(glow.alice, 'her graveyard pile glows while a card in it is offered').not.toBeNull();
     expect(glow.bob, "never on bob's screen").toBeNull();
 
-    // The claw's own frame floor first: the board idle, the view closed.
+    // The CI runner's own frame floor first: the board idle, the view closed.
     await watchFrames(alice.page);
     await watchCardList(alice.page);
     await alice.page.waitForTimeout(1000);
@@ -416,7 +416,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     expect(Number(first), 'the offered card is the first card of the view').toBe(visions);
     expect(mark?.selectable, 'with the same ring').toBe(true);
     // Opening a sixty-card view is laid out once, and only each card's art and name: what a long task
-    // opening it was made of (a claw's frame floor is 33–50 ms, so its milliseconds are printed, not gated).
+    // opening it was made of (a CI runner's frame floor is 33–50 ms, so its milliseconds are printed, not gated).
     const entries = await cardListEntries(alice.page);
     const drawnText = await view.evaluate((el) => Array.from(el.querySelectorAll('.card__type, .card__rules, .card__foot')).filter((e) => e.getClientRects().length > 0).length);
     console.log(`[pp-deep] the card list was inserted ${JSON.stringify(entries)} (none: it came with the view itself); type lines, rules and print lines laid out in the view: ${drawnText}`);
@@ -427,7 +427,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, 240);
     for (let i = 0; i < 12; i++) await alice.page.mouse.wheel(0, -240);
     const scrolled = await restartFrames(alice.page);
-    // A frame gap on a claw is its software compositor's floor (`idle before`), not this view's work: what a wheel can cost here is a box inside the view that scrolls.
+    // A frame gap on a CI runner is its software compositor's floor (`idle before`), not this view's work: what a wheel can cost here is a box inside the view that scrolls.
     const scrollers = await view.evaluate((el) =>
       Array.from(el.querySelectorAll('*')).filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight).length,
     );

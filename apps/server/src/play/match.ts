@@ -1541,7 +1541,7 @@ export class Match {
 		// The same not-yet-told fact as the timer already pending: let that timer run. Resetting it
 		// on every call turned the 150 ms grace into a debounce — an End Turn crawl re-checks on
 		// almost every frame, so a wait that appeared mid-crawl was told only when the crawl stopped,
-		// ~5 s late (AE16: lags 451, 5045, 837 ms on the claws).
+		// ~5 s late (AE16: lags 451, 5045, 837 ms on the CI runners).
 		if (this.waitingOnTimer !== null && key === this.pendingWaitingOnKey) return;
 		if (this.waitingOnTimer !== null) {
 			clearTimeout(this.waitingOnTimer);

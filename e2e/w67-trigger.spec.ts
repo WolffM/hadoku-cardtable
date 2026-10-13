@@ -10,7 +10,7 @@
  * ~16 ms). Bob's screen records, every animation frame, where it draws each one and whether the
  * chip's own contents were rebuilt or shown as a back: never rebuilt, never a back, gliding between
  * messages like the card (frames moved, against the card's own), never a jump past the card's.
- * How long either stood still is printed — a hold in milliseconds is the claw's as much as the chip's.
+ * How long either stood still is printed — a hold in milliseconds is the CI runner's as much as the chip's.
  *
  * Scenario `w67-trigger`: Eternal Witness's trigger goes on the stack while bob (Full Control)
  * holds priority, so it stays there to be dragged.

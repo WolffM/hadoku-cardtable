@@ -627,7 +627,7 @@
 /*
  * The payment window (wave 25 §C.2). *"If an effect happens that is necessary,
  * it should popout into its own popover modal on top of the game not in some
- * shitty text box."*
+ * text box."*
  *
  * It reuses the confirmation's own look and the prompt host's own placement,
  * because a payment IS a question — the only reason it was not drawn as one is

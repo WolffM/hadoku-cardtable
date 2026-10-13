@@ -281,7 +281,7 @@ prompt can fall back to "open this game in Forge desktop".
    index, and `complete()` likewise. With an untrusted-ish browser peer sending
    arbitrary correlation ids, that's reachable. Harden on our path.
 6. **jUPnP port mapping** must be disabled for a tunneled deployment.
-7. **No Maven on hokon**, and upstream ships **no `mvnw` wrapper** (only
+7. **No Maven on the host**, and upstream ships **no `mvnw` wrapper** (only
    `.mvn/maven.config`). Install Maven or vendor a wrapper before building.
 8. **Reading a JVM's stdout over a fifo with `fs.createReadStream` deadlocks
    Node.** Not a Forge fact — a Node one, and hazard 6 and 7's neighbour because
@@ -614,7 +614,7 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   `getHostCard().getName()` with no id. A face-down card reads
   `"Face-down card (H<hiddenId>)"`. Forge's log is written as a public record:
   a morph cast says "Morph", a discard and a mill name their cards.
-- **VERIFIED (measured, `e2e/lg-gamelog.spec.ts` on the claws)** — the bridge's
+- **VERIFIED (measured, `e2e/lg-gamelog.spec.ts` on the CI runners)** — the bridge's
   `GameLogForward` observes the server's `GameLog` and rewords each entry per
   player with `CardView.canBeShownTo` on the card as it stands when the entry
   is written. One consequence is visible: Unsummon's resolution reads "Return a
@@ -634,7 +634,7 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   it made. A mana ability's `MANA` entry is `source + " - " + sp`
   (`MagicStack.java:321`), one per ability, for a human's clicks and the Auto
   payment alike (`ComputerUtilMana.java:776` adds through the same `MagicStack`).
-- **VERIFIED (measured, `e2e/lg-gamelog.spec.ts` on the claws)** — the bridge's
+- **VERIFIED (measured, `e2e/lg-gamelog.spec.ts` on the CI runners)** — the bridge's
   `GameLogForward` writes those actions into the same stream, held until the
   next entry Forge writes: one line per draw, payment ("Alice taps Island for
   {U}", replacing the per-ability `MANA` lines), untap step, token batch,

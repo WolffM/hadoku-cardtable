@@ -12,7 +12,7 @@
  *
  * **The 150 ms bound below (ledger Y26, wave 53 §E).** This used to be 50 ms,
  * tight enough that general host scheduling noise — this suite runs on
- * `hokon`, which is CI's runner, production, AND shares a desktop session —
+ * the host, which is CI's runner, production, AND shares a desktop session —
  * could trip it on its own, with no pacing bug involved. Measured 2026-10-06,
  * 46 runs total under `taskset -c 0` on this same shared host while it was
  * also running an unrelated, CPU-heavy interactive session: the worst ANY

@@ -74,7 +74,7 @@ let usableMemo: string | null | undefined;
  * Why this machine cannot host a container, or null if it can.
  *
  * Memoised because `afterAll` asks too, and it must reach the same verdict as
- * the tests did — on the fleet's CI claws `docker` is INSTALLED but the runner
+ * the tests did — on the fleet's CI CI runners `docker` is INSTALLED but the runner
  * has no permission on the daemon socket, so a naive teardown shells
  * `docker ps`, gets "permission denied", and reds a run in which every test
  * correctly skipped. That is exactly how this spec first broke CI.

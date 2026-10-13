@@ -15,7 +15,7 @@
  * passing silently. To run it:
  *
  *   export CARDTABLE_FORGE_JAR=~/.local/share/cardtable/forge.jar
- *   export CARDTABLE_FORGE_RES=/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
+ *   export CARDTABLE_FORGE_RES=~/repos/hadoku-cardtable/forge/forge-gui/res
  *   pnpm exec vitest run apps/server/src/play/browser/browser.jvm.test.ts
  *
  * ## The work directory is this suite's own, always

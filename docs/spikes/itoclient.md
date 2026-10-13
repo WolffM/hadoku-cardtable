@@ -34,8 +34,8 @@ java  jpackage  keytool  rmiregistry
 $ find /usr/lib/jvm -name javac ; echo $?
 0                                   # no output — genuinely not there
 $ find "$HOME/.local/opt" -maxdepth 3 -name javac
-/home/hadoku/.local/opt/jdk-21.0.12.1+1/bin/javac
-$ /home/hadoku/.local/opt/jdk-21.0.12.1+1/bin/javac -version ; echo $?
+~/.local/opt/jdk-21.0.12.1+1/bin/javac
+$ ~/.local/opt/jdk-21.0.12.1+1/bin/javac -version ; echo $?
 javac 21.0.12.1
 0
 ```
@@ -52,8 +52,8 @@ no `javac`; Temurin 21 → `~/.local/opt`. D14 amended"* — and
 JDK_HOME="${JDK_HOME:-$(ls -d "$HOME"/.local/opt/jdk-21* 2>/dev/null | head -1)}"
 ```
 
-Maven is real too: `/home/hadoku/.local/bin/mvn`, Apache Maven 3.9.16, also
-Wave 1 lane B. **`CLAUDE.md`'s "Maven ✗ — hokon has no `mvn`" is stale and
+Maven is real too: `~/.local/bin/mvn`, Apache Maven 3.9.16, also
+Wave 1 lane B. **`CLAUDE.md`'s "Maven ✗ — the host has no `mvn`" is stale and
 should be corrected**; the tracker's own queue already carries that as item 4.
 
 `scripts/spike/itoclient/run.sh` defaults `JAVA_HOME` to the user-local JDK for
@@ -536,7 +536,7 @@ with its source, for the manager to place:
 - **VERIFIED** — 15 of 45 SERVER methods block, re-derived from
   `sendAndWait`/`syncAndSendAndWait` call sites in `RemoteClientGuiGame.java`.
   15 + 28 fire-and-forget + 2 dead = 45.
-- **CORRECTION, not about Forge** — `CLAUDE.md`'s "**Maven ✗** — hokon has no
+- **CORRECTION, not about Forge** — `CLAUDE.md`'s "**Maven ✗** — the host has no
   `mvn`" is stale. `mvn` is Apache Maven 3.9.16 at `~/.local/bin/mvn`, and a
   Temurin JDK 21 is at `~/.local/opt/jdk-21.0.12.1+1`, both from Wave 1 lane B
   (`9f6f953`). Neither is on `PATH`, which is why `which javac` finds nothing.

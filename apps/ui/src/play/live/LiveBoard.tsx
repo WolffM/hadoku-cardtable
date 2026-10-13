@@ -135,7 +135,7 @@
  *
  * The operator, on a Mana Leak: *"if an effect happens that is necessary, it
  * should popout into its own popover modal on top of the game not in some
- * shitty text box."* A mana payment is not one of Forge's `ask` methods — it is
+ * text box."* A mana payment is not one of Forge's `ask` methods — it is
  * a STATE of the live match, `showPromptMessage` plus `updateButtons`, which is
  * exactly why its text used to land in the corner with the rest of the prose
  * and its answers were the cluster's own two buttons. `match.ts`'s

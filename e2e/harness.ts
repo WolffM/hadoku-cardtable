@@ -81,7 +81,7 @@ const WEB_DIR = mkdtempSync(join(tmpdir(), 'cardtable-e2e-web-'));
 // `shutdown()` already removed WEB_DIR, but only from SIGTERM and SIGINT. Every
 // other way this process ends — all six `die()` call sites, an uncaught throw,
 // or simply running to completion — left the directory behind, which is how 366
-// `cardtable-e2e-web-*` directories reached /tmp on hokon by 2026-09-28 (part of
+// `cardtable-e2e-web-*` directories reached /tmp on the host by 2026-09-28 (part of
 // a 421,879-entry pile that made `du -sm /tmp/*` fail with E2BIG). 'exit' covers
 // all of those, fires after `shutdown()`'s own removal, and `force: true` makes
 // the second pass a no-op.

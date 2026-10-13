@@ -62,7 +62,7 @@ test(titled('a bounceland played as the only land returns at once; the other sea
  * The same sentence for the other ask a seat's browser answers by itself: a counterspell's lone
  * stack target (`selfAnswer`, Mana Leak's optional "one or none"). Nobody decides it, so the
  * other screen is never told anyone is choosing — however long a loaded browser takes to reply,
- * which is why alice's page runs CPU-throttled here: the claws' 139–371 ms replies, every time.
+ * which is why alice's page runs CPU-throttled here: the CI runners' 139–371 ms replies, every time.
  */
 test(titled('a counterspell\'s lone target answers itself; the other seat is never told to "choose"'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);

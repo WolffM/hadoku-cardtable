@@ -1157,23 +1157,23 @@
   "preNavigation": [
     "awaitcanvas 800x600,900000 OK 800x600",
     "wait 8000",
-    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-home.png",
+    "shot ~/.cache/w15d-firstpaint/shots/measure-home.png",
     "click 485,380",
     "wait 15000",
     "click 702,460",
     "wait 20000",
     "click 407,543",
     "wait 45000",
-    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-after-start.png",
+    "shot ~/.cache/w15d-firstpaint/shots/measure-after-start.png",
     "click 338,362",
     "wait 90000",
-    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-match.png",
+    "shot ~/.cache/w15d-firstpaint/shots/measure-match.png",
     "clickuntil 48,576,180,470,440,90,20,6,20000 -> CONTENT [{\"try\":0,\"std\":88.54,\"mean\":113.99}]",
-    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-hand.png"
+    "shot ~/.cache/w15d-firstpaint/shots/measure-hand.png"
   ],
   "screenshots": [
-    "/home/hadoku/.cache/w15d-firstpaint/shots/measure-measure-start.png",
-    "/home/hadoku/.cache/w15d-firstpaint/shots/measure-measure-end.png"
+    "~/.cache/w15d-firstpaint/shots/measure-measure-start.png",
+    "~/.cache/w15d-firstpaint/shots/measure-measure-end.png"
   ],
   "bootToReadyMs": 51423.89999961853,
   "wallMs": 808051,

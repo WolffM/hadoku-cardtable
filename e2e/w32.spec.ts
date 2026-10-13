@@ -165,8 +165,8 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
     expect(endTurnGaps.length, 'an End Turn passes through several phases to measure').toBeGreaterThanOrEqual(3);
     // "At once": Forge's sleep is a floor under EVERY gap it is taken in, and load only adds to a
     // gap, so a paced End Turn has no gap under FORGE_SLEEP_MS on any runner. One gap under it
-    // proves the sleep was skipped; a loaded claw can stretch some skipped gaps past 200 ms (146 to
-    // 314 ms seen), but not every one. No absolute bound on the longest gap: that measured the claw.
+    // proves the sleep was skipped; a loaded CI runner can stretch some skipped gaps past 200 ms (146 to
+    // 314 ms seen), but not every one. No absolute bound on the longest gap: that measured the CI runner.
     expect(Math.min(...endTurnGaps), `End Turn: the phases pass without Forge's own ${FORGE_SLEEP_MS} ms sleep (gaps ${endTurnGaps.join(', ')} ms)`).toBeLessThan(FORGE_SLEEP_MS);
 
     // ── A pass that is NOT an End Turn: the other seat, on its own turn, presses OK at

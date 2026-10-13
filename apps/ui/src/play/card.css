@@ -310,7 +310,7 @@
 /* ── the state layer: marks, counters, sickness, tokens ─────────── */
 
 /*
- * Wave 28 §A.15, the operator: *"all the shitty text you have written on the
+ * Wave 28 §A.15, the operator: *"all the text you have written on the
  * card looks ugly, we need to find a way to handle all of that with effects."*
  *
  * `Board.tsx` has the table of which state went into which channel and why. What

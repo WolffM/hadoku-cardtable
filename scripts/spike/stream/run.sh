@@ -15,7 +15,7 @@
 #   ./run.sh host-prep             same first-run cleanup, for the host copy
 #   ./run.sh down                  stop and remove everything this script started
 #
-# Host safety, because hokon runs 24 PM2 services (including production
+# Host safety, because the host runs 24 PM2 services (including production
 # cardtable) and is this repo's CI runner:
 #   - display :90 and ports 5990+/6090+ are checked free before use
 #   - nothing is written under /tmp/cardtable-play (that is production's)

@@ -1076,7 +1076,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
 
 /* ── the CLI `forge.yml` runs ─────────────────────────────────────────── */
 
-/** Specs beyond which a run is split across three claws. */
+/** Specs beyond which a run is split across three CI runners. */
 const ONE_SHARD_MAX = 12;
 
 export function outputs(sel: Selection): Record<string, string> {

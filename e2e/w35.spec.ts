@@ -201,8 +201,8 @@ test(titled('the swallowed press — casting Ponder under Full Control, one OK c
       const text = await says(alice.page);
       if (/Pay Mana Cost/i.test(text)) {
         await enabledOk(alice.page).click();
-        // The payment is pressed ONCE: on a slow claw the next tick still read the stale text and
-        // pressed again, and that press was the priority stop's OK (claws runs 37678666255,
+        // The payment is pressed ONCE: on a slow CI runner the next tick still read the stale text and
+        // pressed again, and that press was the priority stop's OK (CI runs 37678666255,
         // 37679032975 — Ponder resolved before the spec looked).
         await expect.poll(() => says(alice.page), { timeout: 10_000, message: 'the payment window gives way' }).not.toMatch(/Pay Mana Cost/i);
         continue;

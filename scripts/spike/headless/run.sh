@@ -22,7 +22,7 @@
 # Environment:
 #   FORGE_DIR   Forge checkout to build in. Required; no default, because the
 #               obvious default is the vendored tree and that must stay clean.
-#   JAVA_HOME   A JDK 21. Required: on hokon the JVM on PATH is a Debian JRE
+#   JAVA_HOME   A JDK 21. Required: on the host the JVM on PATH is a Debian JRE
 #               with no javac, and Maven then fails with the misleading
 #               "release version 17 not supported".
 #   WORK_DIR    Scratch run directory (deck store, Forge profile, logs).

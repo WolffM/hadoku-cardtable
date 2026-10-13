@@ -761,7 +761,7 @@ describe('receiving', () => {
     // hands over to a copy of the card's own tile, which finishes the trip from wherever the back
     // is (`landCastGhost`, the same trip the owner's screen draws) — never cut short: Forge answers
     // a cast faster than the back's 300 ms glide, and taking the back down at once popped the card
-    // into the gap mid-glide (presence.spec's Memnite case, red on a fast claw).
+    // into the gap mid-glide (presence.spec's Memnite case, red on a fast CI runner).
     const li = document.createElement('li');
     li.setAttribute('data-board-card', '77');
     li.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w77" data-testid="card"><span class="card__name">Memnite</span></article></button>';

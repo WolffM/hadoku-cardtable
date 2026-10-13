@@ -1,4 +1,4 @@
-==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+==> compile: ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
 === Wave 7 lane A / phase 2: does a real delta survive a JSON round trip? ===
 tierc.mutate=(none)
 tierc.games=12
@@ -253,6 +253,6 @@ game: turns=19 over=true
     StringListType               3: NotedTypes StoredRolls MarkerText
     StringType                   15: CurrentPlane MergedCards CommanderAltType ChosenType ChosenType2 ChosenNumber ChosenMode Sector CurrentRoom OverlayText FunctionalVariant RulesText AvatarCardImageKey SleeveArtKey OptionalCosts
 
-wrote census.tsv, coverage.tsv, sample-newobjects.json and sample-delta.json into /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/out
+wrote census.tsv, coverage.tsv, sample-newobjects.json and sample-delta.json into ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/out
 
 phase 2: 0 failed / 30 passed  (deltas=658)

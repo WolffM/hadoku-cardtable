@@ -98,7 +98,7 @@ test(titled('AE19: dragging the leftmost card offers every gap to its right, and
     // The scenario is EIGHT lone lands, not five — the first version of this test built its
     // expected arrays with only five slots (`[c1..c5]`) and a sixth-through-eighth card the row
     // genuinely has fell off every comparison. That is a test bug, not a `snapTo` one: the FIRST
-    // claw run's own diff showed the real board produced exactly the right order, with three
+    // CI runner run's own diff showed the real board produced exactly the right order, with three
     // trailing cards this test's own expectation never included. Fixed here by using the whole
     // row and by treating the ACTUAL last card (8th), not the 5th, as "the end".
     const [c1, c2, c3, c4, c5, c6, c7, c8] = all as [string, string, string, string, string, string, string, string];

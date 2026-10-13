@@ -21,7 +21,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,24 +33,24 @@ const SCRIPT = join(HERE, 'forge-bundle.sh');
 // A scratch root for this whole file's fixtures, named for the lane so two
 // concurrent test runs (or a stray leftover) are easy to spot and never
 // collide with another lane's scratch.
-const LANE_SCRATCH = join(tmpdir(), 'forge-claws-A', 'vitest');
+const LANE_SCRATCH = join(tmpdir(), 'forge-runners-A', 'vitest');
 mkdirSync(LANE_SCRATCH, { recursive: true });
 
-// The claws (jdk21 label) carry Temurin 21 here; absent elsewhere. The
+// The CI runners (jdk21 label) carry Temurin 21 here; absent elsewhere. The
 // no-unzip/no-strings test below is skipped, not failed, when this host
 // doesn't have it — it proves the `jar` fallback, not this host's toolchain.
 // FORGE_BUNDLE_TEST_JDK_BIN_DIR is test-only (never the script's own
 // interface): it lets a proof run point this at a path that does not exist,
 // to confirm the skip itself fires correctly, without needing a second host
 // that genuinely lacks the JDK.
-const JDK_BIN_DIR = process.env.FORGE_BUNDLE_TEST_JDK_BIN_DIR ?? '/home/hadoku/.local/opt/jdk-21.0.12.1+1/bin';
+const JDK_BIN_DIR = process.env.FORGE_BUNDLE_TEST_JDK_BIN_DIR ?? join(homedir(), '.local/opt/jdk-21.0.12.1+1/bin');
 const JDK_JAR = join(JDK_BIN_DIR, 'jar');
 const HAS_JDK_JAR = existsSync(JDK_JAR);
 
 let fakeBinDir: string;
 // A PATH with every coreutil the script and its fakes need EXCEPT `unzip`
 // and `strings` — plus the real JDK's `jar` — so extract_main_class() is
-// forced down its `jar xf` fallback, the way it must on a claw.
+// forced down its `jar xf` fallback, the way it must on a CI runner.
 let noUnzipBinDir: string;
 
 function writeExecutable(path: string, contents: string): void {
@@ -60,7 +60,7 @@ function writeExecutable(path: string, contents: string): void {
 
 // `command -v unzip` on the REAL (this-process) PATH, used only for a
 // sanity check that the fixture jar `make-jar.mjs` writes is actually a
-// valid zip — never for anything the script itself does. Absent on a claw,
+// valid zip — never for anything the script itself does. Absent on a CI runner,
 // so that one assertion is skipped there, not failed.
 const REAL_UNZIP = spawnSync('/usr/bin/bash', ['-c', 'command -v unzip || true'], { encoding: 'utf8' }).stdout.trim();
 
@@ -68,7 +68,7 @@ beforeAll(() => {
   fakeBinDir = mkdtempSync(join(LANE_SCRATCH, 'fakebin-'));
 
   // A minimal, pure-Node STORED-method zip writer: one entry,
-  // forge/view/Main.class, bytes "server\n". The claws have no `zip` CLI
+  // forge/view/Main.class, bytes "server\n". The CI runners have no `zip` CLI
   // (and the fake `mvn` below used to shell out to one), so the fixture jar
   // is built with nothing but Node's own `node:zlib` (crc32, Node >=22.2;
   // we run 24) and `node:fs` — no external tool at all.
@@ -196,7 +196,7 @@ exit 0
   // above) call, EXCEPT `unzip` and `strings` — symlinked in individually so
   // nothing from the real /usr/bin leaks back in by accident. No `zip`
   // either: the fixture jar is built by `make-jar.mjs` in pure Node, not a
-  // `zip` CLI, matching the claws exactly (they have neither).
+  // `zip` CLI, matching the CI runners exactly (they have neither).
   noUnzipBinDir = mkdtempSync(join(LANE_SCRATCH, 'no-unzip-bin-'));
   const needed = [
     'awk',
@@ -327,7 +327,7 @@ describe('scripts/forge-bundle.sh', () => {
     expect(existsSync(callLog)).toBe(true);
 
     // Sanity check on the fixture itself, not the script: the real `unzip`
-    // (present on hokon, absent on a claw — hence the guard) confirms
+    // (present on the host, absent on a CI runner — hence the guard) confirms
     // `make-jar.mjs` wrote a genuinely valid zip, not just bytes the
     // script's own tr/grep-based check happens to accept.
     if (REAL_UNZIP) {
@@ -448,8 +448,8 @@ describe('scripts/forge-bundle.sh', () => {
     expect(existsSync(join(cacheRoot, newest))).toBe(true);
   });
 
-  // The claws run forge.yml's jobs with no `unzip` (and almost certainly no
-  // `strings`) on PATH — only hokon is guaranteed to carry them. Only the
+  // The CI runners run forge.yml's jobs with no `unzip` (and almost certainly no
+  // `strings`) on PATH — only the host is guaranteed to carry them. Only the
   // JDK's own `jar` tool is guaranteed there (the `jdk21` runner label).
   // Skipped, not failed, on a host without that exact JDK — it is proving
   // the fallback exists, not this host's toolchain.

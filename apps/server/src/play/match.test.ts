@@ -367,7 +367,7 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 
 	it('an ask the browser answers inside the grace is never told to the other seat — no flash', () => {
 		// The other screen flashed "Waiting for Alice to decide…" twice per land before the grace
-		// (claws run 37842845722).
+		// (CI run 37842845722).
 		vi.useFakeTimers();
 		const h = waitingHarness();
 		h.host.push(...OPENING);
@@ -461,7 +461,7 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 
 	it('a wait that appears is told after the grace even while frames keep re-checking it — the grace is a delay, never a debounce (AE16)', () => {
 		// An End Turn crawl re-checks on almost every frame; resetting the timer each time told the
-		// wait only when the crawl stopped, ~5 s late (claws: 451, 5045, 837 ms).
+		// wait only when the crawl stopped, ~5 s late (CI runners: 451, 5045, 837 ms).
 		vi.useFakeTimers();
 		const h = waitingHarness();
 		h.host.push(...OPENING);

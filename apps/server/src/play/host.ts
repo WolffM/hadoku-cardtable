@@ -646,7 +646,7 @@ export const STREAM_FILE = 'stream.jsonl';
  * The JVM's `java.io.tmpdir`. Forge's lz4-java unpacks a native `.so` there on
  * every boot and only removes it on a clean JVM exit, which a SIGKILLed bridge
  * never has — so under the default `/tmp` every killed match leaked one copy
- * (3,036 of them on hokon's RAM-backed /tmp, 2026-10-10). Inside the run dir it
+ * (3,036 of them on the host's RAM-backed /tmp, 2026-10-10). Inside the run dir it
  * goes wherever the run dir goes: removed on a clean end, pruned on a crash.
  */
 const JVM_TMP_DIR = 'tmp';

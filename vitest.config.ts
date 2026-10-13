@@ -17,7 +17,7 @@ export default defineConfig({
     include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'forge/**', '.claude/**'],
     passWithNoTests: true,
-    // On a claw, `check` shares the node with three forge-e2e shards, forge-jvm
+    // On a CI runner, `check` shares the node with three forge-e2e shards, forge-jvm
     // and every wave's proof dispatches; a unit file that takes 60 s here took
     // 231 s there, and two frame-timing cases reddened the DEPLOY GATE twice on
     // d460e2d (2026-10-08) while 120/120 green locally. The budget under CI is
@@ -26,7 +26,7 @@ export default defineConfig({
     testTimeout: process.env.CI ? 30_000 : 5_000,
     hookTimeout: process.env.CI ? 30_000 : 10_000,
     // The worker count, not only the per-test budget: a worker per core on a
-    // claw already running three e2e shards slows every file, and a file that
+    // CI runner already running three e2e shards slows every file, and a file that
     // runs past 60 s without an event-loop turn lost its worker RPC —
     // `[vitest-worker]: Timeout calling "onTaskUpdate"` after every test passed
     // (51d7d22 and 69ee77b, 2026-10-08, the deploy gate both times). The turn

@@ -17,9 +17,9 @@
 set -euo pipefail
 
 DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
-MAIN=/home/hadoku/repos/hadoku-cardtable
+MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 LOCK=/tmp/claude-1000/land.lock
-NODE_BIN=/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin
+NODE_BIN=$HOME/.local/share/fnm/node-versions/v24.18.0/installation/bin
 
 SRC=$(git rev-parse --show-toplevel)
 BRANCH=$(git -C "$SRC" rev-parse --abbrev-ref HEAD)

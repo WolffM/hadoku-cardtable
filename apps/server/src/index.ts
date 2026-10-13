@@ -5,7 +5,7 @@
  *
  *   browser ──► hadoku.me/cardtable/*
  *            ──► edge-router          tier gate + stripPrefix '/cardtable'
- *            ──► cardtable.hadoku.me  cloudflared
+ *            ──► tunnel hostname      cloudflared
  *            ──► 127.0.0.1:9008    ◄── THIS process
  *
  * Because the edge strips the prefix, this server is handed ROOT paths: `/`,

@@ -94,7 +94,7 @@ describe('the prefs cache key', () => {
    * `userId`, which is exactly what `RoomShell` passes as the `userId` prop.
    */
   it('keys on the userId the chrome was given, and on the shared anon row for nobody', () => {
-    expect(watchpartyPrefsCacheKey('u-matthaus')).toBe('prefs-cache:u-matthaus:watchparty');
+    expect(watchpartyPrefsCacheKey('u-carol')).toBe('prefs-cache:u-carol:watchparty');
     for (const nobody of ['public', '', null, undefined]) {
       expect(watchpartyPrefsCacheKey(nobody)).toBe('prefs-cache:anon:watchparty');
     }
@@ -103,13 +103,13 @@ describe('the prefs cache key', () => {
 
 describe('the viewer’s selected avatar', () => {
   it('is the `sprite` field of watchparty’s own prefs blob', () => {
-    const s = store({ 'prefs-cache:u-matthaus:watchparty': prefsRow({ name: 'Matthaus', sprite: 'wanderer' }) });
-    expect(selectedAvatarId('u-matthaus', s)).toBe('wanderer');
+    const s = store({ 'prefs-cache:u-carol:watchparty': prefsRow({ name: 'Carol', sprite: 'wanderer' }) });
+    expect(selectedAvatarId('u-carol', s)).toBe('wanderer');
   });
 
   it('is null for every shape that is not one, rather than throwing', () => {
     // A viewer who has never opened the chrome on this browser: no row at all.
-    expect(selectedAvatarId('u-matthaus', store({}))).toBeNull();
+    expect(selectedAvatarId('u-carol', store({}))).toBeNull();
     // A row with no sprite in it — they picked a name and nothing else.
     expect(selectedAvatarId('u-x', store({ 'prefs-cache:u-x:watchparty': prefsRow({ name: 'X' }) }))).toBeNull();
     // Blank, which is the one value that must not reach a URL.
@@ -147,8 +147,8 @@ describe('the viewer’s selected avatar', () => {
     // Session present AND named: their own row, so no reason to refuse.
     expect(
       selectedAvatarId(
-        'u-matthaus',
-        store({ ...anonRow, hadoku_session_id: 's-1', 'prefs-cache:u-matthaus:watchparty': prefsRow({ sprite: 'knight' }) }),
+        'u-carol',
+        store({ ...anonRow, hadoku_session_id: 's-1', 'prefs-cache:u-carol:watchparty': prefsRow({ sprite: 'knight' }) }),
       ),
     ).toBe('knight');
   });

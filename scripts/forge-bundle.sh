@@ -4,7 +4,7 @@
 # it is not already cached.
 #
 # No arguments. Run from a checkout root (it reads `git ls-tree HEAD forge`
-# in the current directory). See docs/FORGE_JAR.md, "CI on the claws".
+# in the current directory). See docs/FORGE_JAR.md, "CI on the CI runners".
 #
 # Cache layout: ${CARDTABLE_FORGE_CACHE:-$HOME/.cache/cardtable-forge}/<pin>/
 #   forge.jar
@@ -38,10 +38,10 @@ require_tool() {
 # from the wrong tree fails quietly rather than with a build error — so this
 # greps the compiled class instead of trusting the checkout.
 #
-# The claws have no `unzip` and almost certainly no `strings` on PATH — only
-# hokon is guaranteed to carry them. So the class is extracted by whichever
+# The CI runners have no `unzip` and almost certainly no `strings` on PATH — only
+# the host is guaranteed to carry them. So the class is extracted by whichever
 # of three tools is actually present, in order: `unzip -p` (streams it
-# straight out), the JDK's own `jar` tool (every claw has it via the jdk21
+# straight out), the JDK's own `jar` tool (every CI runner has it via the jdk21
 # label; `jar xf` extracts relative to cwd, so it runs inside its own temp
 # dir with an absolute jar path), then `python3`'s zipfile module. Dying with
 # all three named beats a cryptic failure from whichever one happened to be
@@ -182,7 +182,7 @@ LOCK_DIR="$CACHE_ROOT/.locks"
 mkdir -p "$LOCK_DIR"
 LOCKFILE="$LOCK_DIR/$PIN.lock"
 
-# fd form only — `flock -x L -- cmd` exits 69 on hokon and runs nothing.
+# fd form only — `flock -x L -- cmd` exits 69 on the host and runs nothing.
 exec 9>"$LOCKFILE"
 flock 9
 

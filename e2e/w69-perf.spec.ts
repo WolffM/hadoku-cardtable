@@ -18,13 +18,13 @@
  * driven) layouts, React commits per second, DOM nodes, and the top self-time functions mapped
  * through the UI build's source map.
  *
- * What it asserts, and why no milliseconds: a claw draws in software on a shared CPU — an idle frame
+ * What it asserts, and why no milliseconds: a CI runner draws in software on a shared CPU — an idle frame
  * of this board is ~0.9 ms there, a drag 9–12 ms p95 once nothing on the board lays all of it out,
- * and the same drag 17+ ms when three e2e shards share the node. Measured on claw-8 before the fix
+ * and the same drag 17+ ms when three e2e shards share the node. Measured on CI runner-8 before the fix
  * (main dc06571): hand 29 / 21 ms, arrange 14 / 12, chip 23 / 21 (dragger / other screen), most of it
  * one or more whole-board layouts a frame (17–35 ms each). What regressed is the SHARE of a drag's
  * main-thread work that is layout, and how much of the page each layout touches — both ratios on
- * the runner's own clock, so a loaded claw slows the layout and the rest alike. The milliseconds
+ * the runner's own clock, so a loaded CI runner slows the layout and the rest alike. The milliseconds
  * (and the 4 ms budget, `over4ms=`) are printed as evidence, never gated.
  */
 import { readFileSync, readdirSync } from 'node:fs';

@@ -26,7 +26,7 @@ text, and that's correct.
 ### The obligation triggers on *distribution*, not on *running*
 
 GPL-3 obligations attach when you **convey** the software — hand someone a
-binary. It is **not** the AGPL. Running a modified Forge on hokon and letting
+binary. It is **not** the AGPL. Running a modified Forge on the host and letting
 friends connect over the network is **not** conveying, and triggers no
 source-offer obligation.
 
@@ -126,7 +126,7 @@ Roughly in order of how much attention each attracts:
 | Risk | Us |
 | --- | --- |
 | **Money** — sales, subs, ads, donations, Patreon | **None. Ever.** Not even "buy me a coffee". This is the single brightest line. |
-| **Public availability** — open signup, SEO, app stores | Friend-tier edge gate, no public signup, no indexing |
+| **Public availability** — open signup, SEO, app stores | Friend-tier edge gate, no public signup, no indexing. **The source is public** (since 2026-10-12, a snapshot without the working notes); the running app is not — reading the code gives nobody a way to play. |
 | **Card images at scale** — hosting/mirroring scans | **Card images are shown, loaded from Scryfall's image CDN (`cards.scryfall.io`).** D15 (2026-09-15) also allowed hosting art on `cdn.hadoku.me`; the per-card manifest that would point at it is currently empty, so nothing is served from there today. Either way the art is a replaceable placeholder; §3.1 records the trade. Before D15 this row read *"Never mirror."* |
 | **Looking official** — WotC logos, mana symbols, set symbols, the Magic wordmark, card frames | **Mana and set SYMBOLS ship from Keyrune and Mana** as of 2026-09-27 (D20) — third-party fonts, not WotC's own files; §3.2 records the trade. No WotC **logo**, no Magic **wordmark**, no card **frames**, and the UI still says unofficial. Before that date this row read *"Our own visual language. No WotC marks anywhere in the UI."* |
 | **Scale / visibility** — big playerbase, streams, press | A handful of friends |

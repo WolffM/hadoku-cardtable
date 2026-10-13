@@ -355,7 +355,7 @@ rewriting it.
 
 ## D14 — Maven installs to `~/.local`, no host mutation · settled · 2026-09-11
 
-Forge needs Maven; hokon has none and upstream ships no `mvnw` (only
+Forge needs Maven; the host has none and upstream ships no `mvnw` (only
 `.mvn/maven.config`). Verified: `~/.local/bin` exists and is on `PATH`, `sudo`
 requires a password, and `dlcdn.apache.org` returns 200. So Maven goes in as a
 user-local tarball — **no sudo, no fleet mutation, no operator action needed**.
@@ -364,7 +364,7 @@ Forge targets 17.
 
 ### Amended · 2026-09-12 · Wave 1 lane B — a JRE is not enough
 
-"Java 21 is already present" was true and **misleading**: hokon ships
+"Java 21 is already present" was true and **misleading**: the host ships
 `openjdk-21-jre`, which has **no `javac` and no `lib/ct.sym`**. The stock Forge
 build fails with `error: release version 17 not supported`, which reads like a
 Forge/toolchain version mismatch and is in fact a missing compiler. That cost
@@ -647,7 +647,7 @@ to side-load host the 1gb streaming clients which is awful. on room create the
 room creator can decide the mode."*
 
 Per-user choice fails on resources, and w17's own §0 priced it: a streamed
-player costs **~1.26 GiB + ½ core of hokon**. If any seat in any room could
+player costs **~1.26 GiB + ½ core of the host**. If any seat in any room could
 elect streaming, containers must sit warm for every room in the app. Room-
 scoped, only rooms that chose it ever pay — which is the same shape as the
 friend gate: a small, explicit set of trusted humans, each paying only for

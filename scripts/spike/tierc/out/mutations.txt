@@ -5,7 +5,7 @@
 #   local-AI path: nobody connects, so deltaPacketsReceived is 0
 #   and clientOpenViewCalled is false. Phase 1 must FAIL.
 ############################################################
-==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+==> compile: ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
 === Wave 7 lane A / phase 1: a real 2-player match over a real socket ===
 forge.deltasync=(unset -> on)
 tierc.remoteClients=0   (mutation: 0)
@@ -51,7 +51,7 @@ mutation A (no remote client): exit=1   [expected: non-zero]
 #   (This mutation was first aimed at phase 1 and did not bite:
 #    49 packets arrived anyway. That is why the assertion exists.)
 ############################################################
-==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+==> compile: ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
 === Wave 7 lane A / phase 2: does a real delta survive a JSON round trip? ===
 tierc.mutate=(none)
 tierc.games=1
@@ -193,7 +193,7 @@ mutation B (state arm off): exit=1   [expected: non-zero]
 #   in JsonDelta's decode path. The comparator must then report a
 #   mismatch and phase 2 must FAIL.
 ############################################################
-==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+==> compile: ~/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
 === Wave 7 lane A / phase 2: does a real delta survive a JSON round trip? ===
 tierc.mutate=corrupt-value
 tierc.games=1

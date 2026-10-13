@@ -6,7 +6,7 @@ client is not what stopped the engine, and it is a much smaller thing.**
 D7 (`docs/spikes/teavm-go-no-go.md`) asked whether `forge-core` + `forge-game`
 link under TeaVM. They do not: **30** missing APIs, and it blamed
 `java.util.concurrent.locks`. That was the **engine**. The engine does not need
-to be in a browser — it runs on hokon in a real JVM today
+to be in a browser — it runs on the host in a real JVM today
 (`docs/FORGE_JAR.md`), one child JVM per match. Nobody had measured the
 reachable set from the **client**.
 
@@ -71,7 +71,7 @@ scripts/spike/client-wasm/attribute.py ~/.cache/w14a-spike/link-GuiSurfaceMain.W
 scripts/spike/client-wasm/attribute.py ~/.cache/w14a-spike/link-GuiSurfaceMain.WEBASSEMBLY_GC.log --by-entry
 ```
 
-Timings on hokon, warm `~/.m2`: `mvn install -pl forge-gui-mobile -am
+Timings on the host, warm `~/.m2`: `mvn install -pl forge-gui-mobile -am
 -DskipTests` **21.2 s** (exit 0); the links **6.1 s / 4.8 s / 16.8 s / 19.5 s**
 for `ViewLayerMain`, `GuiSurfaceMinusMain`, `GuiSurfaceMain`, `NetClientMain`.
 Copying the 1.7 GB clone is the slowest step.
@@ -413,7 +413,7 @@ because it is what decides whether the rest is worth paying for.
 
 ```sh
 $ scripts/spike/client-wasm/run.sh verify-pristine
-git -C /home/hadoku/repos/hadoku-cardtable/forge status --porcelain:
+git -C ~/repos/hadoku-cardtable/forge status --porcelain:
 (empty above == unmodified)
 HEAD 2ad70eb447a22efe5b80904c07188311da034a42 Implement `forge server`: host a lobby with no window
 $ git submodule status forge
