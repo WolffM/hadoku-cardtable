@@ -72,11 +72,13 @@
 import { z } from 'zod';
 import {
   FORGE_CHANNEL,
+  PHASE_TYPES,
   PhaseTypeSchema,
   ServerFrameSchema,
   TriggerDecisionSchema,
   safeParseClientFrame,
   type ClientFrame,
+  type PhaseType,
   type ServerFrame,
 } from '@hadoku/forge-wire';
 
@@ -207,13 +209,48 @@ export function autoYieldFrame(matchId: string, on: boolean): AutoYieldRequest {
 }
 
 /**
- * The phases a stop can be put on: every one Forge opens a priority window in.
+ * What a stop can be put on: every phase Forge opens a priority window in, and
+ * `COMBAT`, the rail's one row for the six combat steps outside combat — a stop
+ * on the next combat as a whole, held at the step {@link stopStep} names.
  * Untap never gives priority, and Cleanup only does when something triggers
  * in it (`PhaseHandler.onPhaseBegin`), so a stop on either would wait for a
  * window Forge does not open.
  */
-export const StopPhaseSchema = PhaseTypeSchema.exclude(['UNTAP', 'CLEANUP']);
+export const StopPhaseSchema = z.enum([...PhaseTypeSchema.exclude(['UNTAP', 'CLEANUP']).options, 'COMBAT']);
 export type StopPhase = z.infer<typeof StopPhaseSchema>;
+
+const COMBAT_STEPS: readonly string[] = PHASE_TYPES.filter((p) => p.startsWith('COMBAT_'));
+
+/**
+ * The step a stop holds the seat's priority in, on a turn that is (`myTurn`) or
+ * is not the seat's own. A phase stop is its own phase. `COMBAT` on the seat's
+ * own turn is Beginning of combat, before it declares; on the opponent's it is
+ * Declare attackers, once the attackers are known and before blocks — the
+ * defender's window for a combat trick (the operator, 2026-10-12: a trick cast
+ * at the opponent's Beginning of combat has no attackers to affect).
+ */
+export function stopStep(stop: StopPhase, myTurn: boolean): PhaseType {
+  if (stop !== 'COMBAT') return stop;
+  return myTurn ? 'COMBAT_BEGIN' : 'COMBAT_DECLARE_ATTACKERS';
+}
+
+/** Whether `phase` (a `PhaseType` name) is part of the stop's occurrence: the phase itself, or any combat step for `COMBAT`. */
+export function stopCovers(stop: StopPhase, phase: string): boolean {
+  return stop === 'COMBAT' ? COMBAT_STEPS.includes(phase) : stop === phase;
+}
+
+/**
+ * What a priority window in `phase` does to a pending stop: `hold` it is the
+ * stop's step; `missed` it is a later step of the stop's own occurrence, so the
+ * step went by with no window — Forge gives none in Declare attackers when
+ * nobody attacks (`PhaseHandler.onPhaseBegin`), and the stop is spent with that
+ * combat rather than carried to a later turn; `wait` anything else.
+ */
+export function stopAt(stop: StopPhase, myTurn: boolean, phase: PhaseType): 'hold' | 'missed' | 'wait' {
+  const step = stopStep(stop, myTurn);
+  if (phase === step) return 'hold';
+  return stopCovers(stop, phase) && PHASE_TYPES.indexOf(phase) > PHASE_TYPES.indexOf(step) ? 'missed' : 'wait';
+}
 
 /**
  * `forge:phase-stop` — this seat's stop at the next occurrence of one phase, on

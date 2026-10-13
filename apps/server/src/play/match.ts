@@ -104,11 +104,12 @@ import {
 	type ChoiceOption,
 	type ClientFrame,
 	type GameLogLine,
+	type PhaseType,
 	type ServerFrame,
 	type TriggerDecision,
 	YIELDING,
 } from '@hadoku/forge-wire';
-import { selfAnswer, type RememberedTrigger, type StopPhase } from '@hadoku/shared';
+import { selfAnswer, stopAt, stopCovers, type RememberedTrigger, type StopPhase } from '@hadoku/shared';
 
 import {
 	chosenCostConfirm,
@@ -353,16 +354,17 @@ export interface SeatState {
 	autoYield: { turn: number; on: boolean } | null;
 	/**
 	 * The seat's one-shot stop ({@link Match.setPhaseStop}): its priority is held
-	 * at the next occurrence of `phase`, on either player's turn. `skipTurn` is the
-	 * turn whose occurrence does not count — the stop was set while the game was
-	 * already in that phase, so it is for the next one. Null is no stop.
+	 * at the next occurrence of `phase`, on either player's turn, in the step
+	 * `stopStep` names for that turn. `skipTurn` is the turn whose occurrence does
+	 * not count — the stop was set while the game was already in it, so it is for
+	 * the next one. Null is no stop.
 	 */
 	phaseStop: { phase: StopPhase; skipTurn: number | null } | null;
 	/**
-	 * The phase occurrence a stop fired in: every priority window of the seat in
+	 * The step occurrence a stop fired in: every priority window of the seat in
 	 * it is kept, as full control would keep it, until the game leaves it.
 	 */
-	stopHeld: { turn: number | null; phase: StopPhase } | null;
+	stopHeld: { turn: number | null; phase: PhaseType } | null;
 	/**
 	 * The optional triggers this seat told Forge to answer itself ("Always" on
 	 * the trigger's confirm), by Forge's storage key, oldest first. Forge holds
@@ -2481,8 +2483,9 @@ export class Match {
 	/**
 	 * Hold this seat's priority at the next occurrence of `phase`, on either
 	 * player's turn, once — or, with null, drop the stop it has. Set while the game
-	 * is in `phase`, it is for the phase's next occurrence. Untap and Cleanup are
-	 * not stops (`StopPhaseSchema`): Forge opens no window there to hold.
+	 * is in `phase` (any combat step, for `COMBAT`), it is for the next occurrence.
+	 * Untap and Cleanup are not stops (`StopPhaseSchema`): Forge opens no window
+	 * there to hold.
 	 */
 	setPhaseStop(seat: number, phase: StopPhase | null): ClientOutcome {
 		const s = this.seats[seat];
@@ -2495,7 +2498,7 @@ export class Match {
 			this.deps.log({ evt: 'stop-cleared', matchId: this.id, seat, phase: was, why: 'player' });
 		} else {
 			const now = s.projector.phase();
-			s.phaseStop = { phase, skipTurn: now === phase ? turn : null };
+			s.phaseStop = { phase, skipTurn: now !== null && stopCovers(phase, now) ? turn : null };
 			this.deps.log({ evt: 'stop-set', matchId: this.id, seat, phase, turn, now, ...(was === null ? {} : { replaced: was }) });
 		}
 		this.deps.phaseStopChanged?.(seat, phase);
@@ -2508,8 +2511,10 @@ export class Match {
 
 	/**
 	 * Whether this seat's stop keeps the priority window in `facts`: the first one
-	 * at the stop's phase spends the stop, and every later one in that same
-	 * occurrence of the phase is kept too, as full control would keep it.
+	 * at the stop's step (`stopAt`) spends the stop, and every later one in that
+	 * same occurrence of the step is kept too, as full control would keep it. A
+	 * window later in the stop's occurrence than its step — a combat nobody
+	 * attacked in, on the opponent's turn — spends it unheld.
 	 */
 	private stopHolds(s: SeatState, facts: PromptFacts): boolean {
 		if (facts.window !== 'priority' || !facts.mine || !facts.confirmLive || facts.phase === null) return false;
@@ -2519,11 +2524,17 @@ export class Match {
 			s.stopHeld = null;
 		}
 		const stop = s.phaseStop;
-		if (stop === null || stop.phase !== facts.phase || (stop.skipTurn !== null && stop.skipTurn === turn)) return false;
+		if (stop === null || (stop.skipTurn !== null && stop.skipTurn === turn)) return false;
+		const at = stopAt(stop.phase, facts.myTurn, facts.phase);
+		if (at === 'wait') return false;
 		s.phaseStop = null;
-		s.stopHeld = { turn, phase: stop.phase };
-		this.deps.log({ evt: 'stop-fired', matchId: this.id, seat: s.seat, phase: stop.phase, turn, myTurn: facts.myTurn });
 		this.deps.phaseStopChanged?.(s.seat, null);
+		if (at === 'missed') {
+			this.deps.log({ evt: 'stop-cleared', matchId: this.id, seat: s.seat, phase: stop.phase, why: 'missed', at: facts.phase, turn, myTurn: facts.myTurn });
+			return false;
+		}
+		s.stopHeld = { turn, phase: facts.phase };
+		this.deps.log({ evt: 'stop-fired', matchId: this.id, seat: s.seat, phase: stop.phase, at: facts.phase, turn, myTurn: facts.myTurn });
 		return true;
 	}
 

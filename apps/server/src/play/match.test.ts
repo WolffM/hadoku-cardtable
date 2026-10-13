@@ -2625,6 +2625,71 @@ describe('hold-decide-forward', () => {
 			]);
 		});
 
+		it("the Combat stop on the other seat's turn holds Declare attackers, not Beginning of combat", () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(6, 'MAIN1') });
+			h.match.setPhaseStop(SEAT1_ID, 'COMBAT');
+			const acts = actsSent(h);
+			windowAt(h, 6, 'Seat 1', 'Beginning of Combat Step', 'COMBAT_BEGIN');
+			expect(actsSent(h), 'no attackers yet: passed').toBe(acts + 1);
+			windowAt(h, 6, 'Seat 1', 'Declare Attackers Step', 'COMBAT_DECLARE_ATTACKERS');
+			expect(actsSent(h), 'attackers declared: held').toBe(acts + 1);
+			expect(h.match.phaseStop(SEAT1_ID)).toBeNull();
+			expect(stopLogs(h).map((l) => [l.evt, l.phase, l.at, l.myTurn])).toEqual([
+				['stop-set', 'COMBAT', undefined, undefined],
+				['stop-fired', 'COMBAT', 'COMBAT_DECLARE_ATTACKERS', false],
+			]);
+		});
+
+		it('the Combat stop on the seat’s own turn holds Beginning of combat', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(5, 'MAIN1') });
+			h.match.setPhaseStop(SEAT1_ID, 'COMBAT');
+			const acts = actsSent(h);
+			windowAt(h, 5, 'Seat 2', 'Beginning of Combat Step', 'COMBAT_BEGIN');
+			expect(actsSent(h), 'held').toBe(acts);
+			expect(stopLogs(h).map((l) => [l.evt, l.at, l.myTurn])).toEqual([
+				['stop-set', undefined, undefined],
+				['stop-fired', 'COMBAT_BEGIN', true],
+			]);
+		});
+
+		it('nobody attacks: the Combat stop is spent with that combat, not carried to a later one', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(6, 'MAIN1') });
+			h.match.setPhaseStop(SEAT1_ID, 'COMBAT');
+			const acts = actsSent(h);
+			windowAt(h, 6, 'Seat 1', 'Beginning of Combat Step', 'COMBAT_BEGIN');
+			// Forge gives no Declare attackers window without attackers; End of combat is the next.
+			windowAt(h, 6, 'Seat 1', 'End of Combat Step', 'COMBAT_END');
+			expect(actsSent(h), 'both passed').toBe(acts + 2);
+			expect(h.match.phaseStop(SEAT1_ID)).toBeNull();
+			windowAt(h, 7, 'Seat 2', 'Beginning of Combat Step', 'COMBAT_BEGIN');
+			expect(actsSent(h), 'its own next combat is the default’s again').toBe(acts + 3);
+			expect(h.stops.map((c) => c.phase)).toEqual(['COMBAT', null]);
+			expect(stopLogs(h).map((l) => [l.evt, l.why, l.at])).toEqual([
+				['stop-set', undefined, undefined],
+				['stop-cleared', 'missed', 'COMBAT_END'],
+			]);
+		});
+
+		it('set during combat, the Combat stop is for the next combat', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(6, 'COMBAT_BEGIN') });
+			h.match.setPhaseStop(SEAT1_ID, 'COMBAT');
+			const acts = actsSent(h);
+			windowAt(h, 6, 'Seat 1', 'Declare Attackers Step', 'COMBAT_DECLARE_ATTACKERS');
+			windowAt(h, 6, 'Seat 1', 'End of Combat Step', 'COMBAT_END');
+			expect(actsSent(h), 'this combat is passed').toBe(acts + 2);
+			expect(h.match.phaseStop(SEAT1_ID)).toBe('COMBAT');
+			windowAt(h, 7, 'Seat 2', 'Beginning of Combat Step', 'COMBAT_BEGIN');
+			expect(actsSent(h), 'the next combat is held').toBe(acts + 2);
+		});
+
 		it('cleared before it fires, the phase is passed as ever', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);

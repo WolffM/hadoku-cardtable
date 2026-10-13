@@ -4627,6 +4627,36 @@ describe('a stop on the phase rail', () => {
     await waitFor(() => expect(stopsSent(s)).toEqual(['UPKEEP']));
   });
 
+  it('the collapsed Combat row is a stop on the next combat; in combat, it marks the step it holds this turn', async () => {
+    const { s, m, container } = await liveBoard();
+    fireEvent.click(rowOf(container, 'COMBAT'));
+    await waitFor(() => expect(stopsSent(s)).toEqual(['COMBAT']));
+    expect(rowOf(container, 'COMBAT').hasAttribute('data-stop')).toBe(true);
+
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq: m.view!.seq + 1,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: {},
+            objectDeltas: {
+              [String(deltaKey(WireType.Game, 1))]: { _type: WireType.Game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'COMBAT_BEGIN' } },
+            },
+            events: [],
+          },
+        },
+      }),
+    );
+    await waitFor(() => expect(container.querySelector('[data-testid="live-phases"]')!.hasAttribute('data-combat')).toBe(true));
+    const whose = container.querySelector('[data-testid="live-phases"]')!.getAttribute('data-whose');
+    const marked = [...container.querySelectorAll('[data-testid="live-phases"] li[data-stop]')].map((li) => li.getAttribute('data-phase'));
+    expect(marked).toEqual([whose === 'yours' ? 'COMBAT_BEGIN' : 'COMBAT_DECLARE_ATTACKERS']);
+  });
+
   it('the server’s word is the stop: its echo after a reload marks the row, and a spent stop clears it', async () => {
     const { s, m, container } = await liveBoard();
     s.sendPhaseStop('MAIN2');

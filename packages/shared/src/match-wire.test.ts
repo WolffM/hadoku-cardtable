@@ -28,8 +28,11 @@ import {
   parseServerEnvelope,
   parseStopPreference,
   ServerEnvelopeSchema,
+  StopPhaseSchema,
   StopPreferenceSchema,
+  stopAt,
   stopPreferenceFrame,
+  stopStep,
   parseTriggerDecision,
   parseTriggerDecisions,
   triggerDecisionFrame,
@@ -124,6 +127,30 @@ describe('StopPreferenceSchema / stopPreferenceFrame', () => {
     expect(payload).toEqual({ matchId: 'm1', type: 'stopPreference', stopAtEndStep: true });
     expect(StopPreferenceSchema.safeParse(payload).success).toBe(true);
     expect(parseStopPreference({ matchId: 'm1', type: 'somethingElse', stopAtEndStep: true }).ok).toBe(false);
+  });
+});
+
+describe('a stop and the step it holds', () => {
+  it('COMBAT is a stop; Untap and Cleanup are not', () => {
+    expect(StopPhaseSchema.safeParse('COMBAT').success).toBe(true);
+    expect(StopPhaseSchema.safeParse('UNTAP').success).toBe(false);
+    expect(StopPhaseSchema.safeParse('CLEANUP').success).toBe(false);
+  });
+
+  it('COMBAT holds Beginning of combat on the seat’s own turn, Declare attackers on the opponent’s', () => {
+    expect(stopStep('COMBAT', true)).toBe('COMBAT_BEGIN');
+    expect(stopStep('COMBAT', false)).toBe('COMBAT_DECLARE_ATTACKERS');
+    expect(stopStep('COMBAT_BEGIN', false)).toBe('COMBAT_BEGIN');
+    expect(stopStep('END_OF_TURN', true)).toBe('END_OF_TURN');
+  });
+
+  it('a later step of the stop’s own combat means its step went by: missed; anything else waits', () => {
+    expect(stopAt('COMBAT', false, 'COMBAT_BEGIN')).toBe('wait');
+    expect(stopAt('COMBAT', false, 'COMBAT_DECLARE_ATTACKERS')).toBe('hold');
+    expect(stopAt('COMBAT', false, 'COMBAT_END')).toBe('missed');
+    expect(stopAt('COMBAT', false, 'MAIN2')).toBe('wait');
+    expect(stopAt('COMBAT', true, 'COMBAT_BEGIN')).toBe('hold');
+    expect(stopAt('COMBAT_DECLARE_BLOCKERS', false, 'COMBAT_END')).toBe('wait');
   });
 });
 

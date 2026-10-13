@@ -323,7 +323,7 @@ import {
   type Say,
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
-import { StopPhaseSchema, type StopPhase } from './transport.ts';
+import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
@@ -1302,18 +1302,23 @@ export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponent
 }
 
 /**
- * The phase a click on a rail row puts the seat's stop on: the row's own, or Beginning of combat for the
- * collapsed `Combat` row. Null for Untap and Cleanup, where Forge opens no window to stop in.
+ * The stop a click on a rail row puts the seat's stop on: the row's own — `COMBAT` for the collapsed
+ * row, whose step the server picks by whose turn it fires on (`stopStep`). Null for Untap and Cleanup,
+ * where Forge opens no window to stop in.
  */
 function stopPhaseOf(row: string): StopPhase | null {
-  const parsed = StopPhaseSchema.safeParse(row === COMBAT_ROW ? 'COMBAT_BEGIN' : row);
+  const parsed = StopPhaseSchema.safeParse(row);
   return parsed.success ? parsed.data : null;
 }
 
-/** Whether the rail row stands for the seat's pending stop — any combat step's, on the collapsed row. */
-function rowHoldsStop(row: string, stop: StopPhase | null): boolean {
+/**
+ * Whether the rail row stands for the seat's pending stop: the collapsed row holds any combat stop; with
+ * combat drawn as its six steps, a `COMBAT` stop is on the step it holds this turn.
+ */
+function rowHoldsStop(row: string, stop: StopPhase | null, myTurn: boolean): boolean {
   if (stop === null) return false;
-  return row === COMBAT_ROW ? PHASE_ORDER.some((p) => p.phase === stop && p.group === 'combat') : row === stop;
+  if (row === COMBAT_ROW) return stop === COMBAT_ROW || PHASE_ORDER.some((p) => p.phase === stop && p.group === 'combat');
+  return row === stop || (stop === COMBAT_ROW && row === stopStep(stop, myTurn));
 }
 
 /**
@@ -1368,7 +1373,7 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
         {rows.map(({ phase, group, last }, i) => {
           const current = phase === view.phase;
           const target = onStop === null ? null : stopPhaseOf(phase);
-          const marked = rowHoldsStop(phase, stop);
+          const marked = rowHoldsStop(phase, stop, whose === 'yours');
           return (
             <li
               key={phase}
