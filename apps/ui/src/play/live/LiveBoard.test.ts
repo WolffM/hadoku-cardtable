@@ -3091,7 +3091,7 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
       missingCardIds: [],
     };
   }
-  const matchWithView = (view: BoardView | null): LiveMatch => ({ view }) as unknown as LiveMatch;
+  const matchWithView = (view: BoardView | null): LiveMatch => ({ view, losers: null }) as unknown as LiveMatch;
 
   it('the viewer lost, the opponent did not: Defeat', () => {
     const view = fakeView([
@@ -3141,8 +3141,9 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
       fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true, life: 0 }),
       fakePlayer({ id: 1, name: 'Them' }),
     ]);
-    expect(endingSentence(view)).toBe('You — life total reached 0');
-    expect(endingSentence(fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true })]))).toBeNull();
+    expect(endingSentence(matchWithView(view), view)).toBe('You — life total reached 0');
+    const nobody = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true })]);
+    expect(endingSentence(matchWithView(nobody), nobody)).toBeNull();
   });
 });
 
@@ -3199,6 +3200,18 @@ describe('R16 — the result screen, drawn over the board', () => {
     s.send(parseServerFrame({ kind: 'notify', method: 'finishGame' }));
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'));
     expect(getByTestId('game-result').textContent).toContain('Victory');
+  });
+
+  it('Victory from the end notice alone, when this view never caught up with the end (a concede during the deal)', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const loserId = m.view!.players.find((p) => !p.isViewer)!.id;
+    expect(m.view!.players.some((p) => p.hasLost), 'nobody is drawn as lost').toBe(false);
+    expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(false);
+
+    s.send(parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [loserId] }));
+    await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'));
+    expect(getByTestId('game-result').textContent).toContain('conceding');
+    expect((getByTestId('live-concede') as HTMLButtonElement).disabled, 'a finished game cannot be conceded').toBe(true);
   });
 
   it('Defeat, over the still-visible board, with no known room: Rematch has no table to ready at, Main menu goes to the lobby', async () => {

@@ -31,8 +31,12 @@ export async function twoLegalDecks(api: APIRequestContext, origin: string): Pro
   throw new Error(`no format has two legal library decks (${formats.length} formats, ${decks.length} decks)`);
 }
 
-/** Both friends on a live match board; returns the match id and the room URL they entered by. */
-export async function enterMatch(alice: Friend, bob: Friend, origin: string): Promise<{ matchId: string; roomUrl: string }> {
+/**
+ * Alice makes a room, bob opens it, each loads a legal deck of their own, and alice readies. Bob's
+ * Ready (`ready-toggle`) is the press that starts the match; it is left to the caller, so a spec can
+ * arrange what either screen is doing at the moment the match begins. Returns the room URL.
+ */
+export async function seatBoth(alice: Friend, bob: Friend, origin: string): Promise<string> {
   const choice = await twoLegalDecks(alice.context.request, origin);
   await alice.page.goto(`${origin}${PREFIX}/`);
   await openCreateRoom(alice.page);
@@ -57,6 +61,12 @@ export async function enterMatch(alice: Friend, bob: Friend, origin: string): Pr
   }
   await alice.page.getByTestId('ready-toggle').click();
   await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+  return roomUrl;
+}
+
+/** Both friends on a live match board; returns the match id and the room URL they entered by. */
+export async function enterMatch(alice: Friend, bob: Friend, origin: string): Promise<{ matchId: string; roomUrl: string }> {
+  const roomUrl = await seatBoth(alice, bob, origin);
   await bob.page.getByTestId('ready-toggle').click();
   const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
   await alice.page.waitForURL(matchUrl, { timeout: 120_000 });

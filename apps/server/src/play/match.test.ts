@@ -1732,6 +1732,30 @@ describe('a match that outlives its server', () => {
 		expect(h.sent.slice(before).map((s) => s.envelope.frame.method)).not.toContain('finishGame');
 	});
 
+	it('the game ending tells every seat at once, with who lost, whatever Forge flushes after it', () => {
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		const mark = h.sent.length;
+		// A concede during the deal: Forge sends no `finishGame`, and no frame after the line.
+		h.host.push({ t: 'gameover', winner: 'Seat 1', losers: [1] });
+		expect(h.sent.slice(mark).map((s) => ({ seat: s.seat, frame: s.envelope.frame }))).toEqual([
+			{ seat: 0, frame: { kind: 'notify', method: 'finishGame', losers: [1] } },
+			{ seat: WATCHER_SEAT, frame: { kind: 'notify', method: 'finishGame', losers: [1] } },
+			{ seat: 1, frame: { kind: 'notify', method: 'finishGame', losers: [1] } },
+		]);
+		// Forge's own call, when it does come, is the same news: not told twice.
+		const after = h.sent.length;
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'finishGame' } }, { t: 'frame', seat: 1, frame: { kind: 'notify', method: 'finishGame' } });
+		expect(h.sent.slice(after).map((s) => s.envelope.frame.method)).not.toContain('finishGame');
+		// And a page that reloads, on either seat, is told again.
+		for (const seat of [0, 1]) {
+			h.match.resendAfterSnapshot(seat);
+			expect(h.sent.at(-1)).toMatchObject({ seat, envelope: { frame: { kind: 'notify', method: 'finishGame', losers: [1] } } });
+		}
+	});
+
 	it("a registry whose host cannot re-attach adopts nothing rather than pretending to", () => {
 		const { factory } = replayFactory();
 		const registry = createMatchRegistry({
