@@ -16,13 +16,11 @@
  * `.card` panel the seat actually points at, inside the tile's label — not on
  * some control beside it, because the control beside it was the bug.
  *
- * Ordering by several cards is now a PRESS-DRAG lift — the same
- * gesture the board gives a lifted hand card (`../live/gestures/cast.ts`),
- * not HTML5 `draggable`/`onDrag*`. `dragTo` below fires exactly the pointer
- * events `../live/gestures/gestures.test.ts` fires for the board's own lift:
- * a press, one move far enough past the slop and onto the release target (so
- * the same event both starts the lift and reports what it is over), and a
- * release there. The ↑/↓ nudges moved onto the card's own tile
+ * Ordering by several cards is a press-drag — the board's drag
+ * (`./row-drag.ts`), not HTML5 `draggable`/`onDrag*`. `dragTo` below is
+ * `./testing.ts`'s `dragRow`, pressed on the card's own panel: a press, one
+ * move past the slop onto the release point, and a release there. The ↑/↓
+ * nudges moved onto the card's own tile
  * (`prompt__card-order`); `prompt__row-actions` is `OrderPrompt.tsx`'s now,
  * not drawn here at all.
  */
@@ -30,19 +28,20 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 
-import { CAST_LIFT_ATTR } from '../live/gestures/cast.ts';
+import { GHOST_ATTR } from '../lift.ts';
 import { GLIDE_MS } from '../motion.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 import { askFor } from './fixtures.ts';
-import { expectWireReply, mountPrompt } from './testing.ts';
+import { dragRow, expectWireReply, mountPrompt } from './testing.ts';
 
 afterEach(cleanup);
 
 /** `{ kind: 'card', id }` per id — the wire's own `CardRef`s, in order. */
 const refs = (...ids: number[]) => ids.map((id) => ({ kind: 'card' as const, id }));
 
-/** Far enough past `DRAG_SLOP_PX` that a single move both starts the lift and reports what it is over. */
+/** Far enough past `DRAG_SLOP_PX` to start a drag. */
 const PAST_SLOP = DRAG_SLOP_PX + 20;
+const ghost = () => document.querySelector(`[${GHOST_ATTR}]`);
 
 function mount(overrides: Partial<ReturnType<typeof askFor<'manipulateCardList'>>> = {}) {
   const utils = mountPrompt('manipulateCardList', { ...askFor('manipulateCardList'), ...overrides });
@@ -54,19 +53,8 @@ function mount(overrides: Partial<ReturnType<typeof askFor<'manipulateCardList'>
   const clickCard = (id: number) => fireEvent.click(tile(id).querySelector<HTMLElement>('.card')!);
   /** Is this card ticked as placed at a destination? */
   const ticked = (id: number) => tile(id).querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked;
-  /**
-   * Lift `id` by a press-drag past the slop, releasing over `target` — a row's
-   * own tile, a drop zone, or the list itself for "nowhere this gesture
-   * answers". One move is enough: it both crosses `DRAG_SLOP_PX` (so the lift
-   * starts) and lands on `target` (so the release's hit-test reads it), the
-   * same way a real drag's last move before `pointerUp` would.
-   */
-  const dragTo = (id: number, target: Element) => {
-    const card = tile(id).querySelector<HTMLElement>('.card')!;
-    fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
-    fireEvent.pointerMove(target, { clientX: 0, clientY: PAST_SLOP });
-    fireEvent.pointerUp(target, { clientX: 0, clientY: PAST_SLOP });
-  };
+  /** Drag `id` by its card panel onto `target`: a tile (lands just before it), a drop zone, or anything else (no change). */
+  const dragTo = (id: number, target: Element) => dragRow(tile(id), target, tile(id).querySelector<HTMLElement>('.card')!);
   return { ...utils, list, order, press, tile, clickCard, ticked, dragTo };
 }
 
@@ -134,20 +122,19 @@ describe('manipulateCardList', () => {
     expect(order()).toEqual([47, 54, 17, 46, 60]);
   });
 
-  it('the lift follows the press (`data-cast-lift`), the board’s own attribute, not HTML5 drag', async () => {
-    const { tile } = mount();
+  it('past the slop a phantom follows the pointer while the tile stays put, dimmed; released off every target it glides home', async () => {
+    const { tile, order, container } = mount();
     const card = tile(54).querySelector<HTMLElement>('.card')!;
-    expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull();
     fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(card, { clientX: 0, clientY: 2 });
-    // Under the slop: no lift yet.
-    expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull();
+    expect(ghost(), 'under the slop: no drag yet').toBeNull();
     fireEvent.pointerMove(card, { clientX: 0, clientY: PAST_SLOP });
-    expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBe('lifted');
-    // Released back on itself: nowhere this gesture answers, so it floats home —
-    // awaited so the real timer never outlives this test (as `../live/gestures/gestures.test.ts` does).
-    fireEvent.pointerUp(card, { clientX: 0, clientY: PAST_SLOP });
-    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    expect(ghost()?.getAttribute(GHOST_ATTR)).toBe('54');
+    expect(tile(54).hasAttribute('data-dragging')).toBe(true);
+    fireEvent.pointerUp(container.querySelector('.prompt__title')!, { clientX: 0, clientY: PAST_SLOP });
+    // Awaited so the real timer never outlives this test.
+    await waitFor(() => expect(ghost()).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    expect(order()).toEqual([54, 47, 17, 46, 60]);
   });
 
   it('highlights a drop zone the lift is currently over, before the release', () => {
@@ -161,12 +148,11 @@ describe('manipulateCardList', () => {
     expect(bottom.dataset.over).toBeUndefined();
   });
 
-  it('released nowhere this gesture answers, the row floats home and the pile is unchanged', async () => {
-    const { list, tile, order, dragTo } = mount();
-    dragTo(54, list());
+  it('released nowhere this gesture answers, the phantom glides home and the pile is unchanged', async () => {
+    const { container, order, dragTo } = mount();
+    dragTo(54, container.querySelector('.prompt__title')!);
     expect(order()).toEqual([54, 47, 17, 46, 60]);
-    // The house glide: `floatCastLiftHome`'s own real timer, same as `../live/gestures/gestures.test.ts` awaits it.
-    await waitFor(() => expect(tile(54).getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    await waitFor(() => expect(ghost()).toBeNull(), { timeout: GLIDE_MS + 1000 });
   });
 
   it('reorders by the up/down buttons — the keyboard and click fallback — and still answers correctly', () => {
@@ -252,7 +238,7 @@ describe('manipulateCardList', () => {
     const fixedCard = tile(17).querySelector<HTMLElement>('.card')!;
     fireEvent.pointerDown(fixedCard, { button: 0, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(fixedCard, { clientX: 0, clientY: PAST_SLOP });
-    expect(tile(17).getAttribute(CAST_LIFT_ATTR)).toBeNull();
+    expect(ghost()).toBeNull();
     fireEvent.pointerUp(fixedCard, { clientX: 0, clientY: PAST_SLOP });
   });
 

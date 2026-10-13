@@ -24,6 +24,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { castCard, makeTitled, offered, promptMethod, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { dragRowOnto } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -37,37 +38,6 @@ const namesIn = (list: Locator): Promise<string[]> =>
   rows(list).evaluateAll((els) => els.map((e) => e.querySelector('.card__name')?.textContent?.trim() ?? e.getAttribute('aria-label') ?? '?'));
 const handIds = (page: Page): Promise<number[]> =>
   page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-
-/**
- * The centre of the part of `l` a person can see: its box cut by every
- * clipping ancestor (the sheet scrolls inside a narrow column) and the window.
- */
-const visibleCentre = (l: Locator): Promise<{ x: number; y: number }> =>
-  l.evaluate((el) => {
-    let { left, top, right, bottom } = el.getBoundingClientRect();
-    for (let a = el.parentElement; a !== null; a = a.parentElement) {
-      if (getComputedStyle(a).overflowY === 'visible' && getComputedStyle(a).overflowX === 'visible') continue;
-      const r = a.getBoundingClientRect();
-      left = Math.max(left, r.left);
-      top = Math.max(top, r.top);
-      right = Math.min(right, r.right);
-      bottom = Math.min(bottom, r.bottom);
-    }
-    right = Math.min(right, window.innerWidth);
-    bottom = Math.min(bottom, window.innerHeight);
-    if (right - left < 4 || bottom - top < 4) throw new Error(`nothing of ${el.outerHTML.slice(0, 80)} is visible`);
-    return { x: (left + right) / 2, y: (top + bottom) / 2 };
-  });
-
-/** A real press-drag from what can be seen of `row` to what can be seen of `onto`, in small steps, the way a hand drags. */
-async function drag(page: Page, row: Locator, onto: Locator): Promise<void> {
-  const from = await visibleCentre(row);
-  const to = await visibleCentre(onto);
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.down();
-  await page.mouse.move(to.x, to.y, { steps: 10 });
-  await page.mouse.up();
-}
 
 test(
   titled('Foresee: scry 4 is one prompt — cards on top and on bottom, both reordered by drag, one confirm, and the draws follow the arrangement'),
@@ -103,10 +73,11 @@ test(
       const [a, b, c, d] = looked as [number, number, number, number];
       const row = (id: number): Locator => prompt.locator(`li[data-card-id="${id}"]`);
       // The second card goes to the bottom: a drag into the bottom group's own space.
-      await drag(page, row(b), bottom);
+      await dragRowOnto(page, row(b), bottom);
       await expect(rows(bottom), 'one card on the bottom').toHaveCount(1);
       // The third card goes above the first: a drag within the top group.
-      await drag(page, row(c), row(a));
+      // Onto the upper part of the first card: the half that lands before it.
+      await dragRowOnto(page, row(c), row(a), { x: 0.5, y: 0.25 });
       const arranged = await idsIn(top);
       console.log(`[scry] arranged top ${JSON.stringify(await namesIn(top))} bottom ${JSON.stringify(await namesIn(bottom))}`);
       expect.soft(arranged, 'the top group reorders by drag: the third card now sits first').toEqual([c, a, d]);

@@ -523,17 +523,6 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   return next;
 }
 
-/**
- * "Land just before `before`" as the index `moveItem` wants, given the
- * dragged item's own current index `from`: removing it first shifts
- * everything after it back by one, so a target at or past `from` moves down
- * by one too. `ManipulateCardListPrompt`'s `dropBefore` uses it (`OrderPrompt`
- * moves between its two lists with `moveBetween`).
- */
-export function dropBeforeIndex(from: number, before: number): number {
-  return from < before ? before - 1 : before;
-}
-
 /* ── Ordering ────────────────────────────────────────────────────────── */
 
 /** `order`'s two lists: what is left (`source`) and the answer (`dest`), as keys. */

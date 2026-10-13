@@ -1,0 +1,31 @@
+/*
+ * The look of `./lift.ts`'s phantom and of the bar that says where it will
+ * land — the board's rearrange, the hand and every ordering prompt draw the
+ * same two. Where each sits is the drawer's: the phantom positions itself
+ * (`liftGhost`, inline and fixed), the board places its bar in `board.css`,
+ * a prompt places its own (`prompts/row-drag.ts`).
+ */
+[data-arrange-ghost] {
+  list-style: none;
+  opacity: 0.96;
+  filter: drop-shadow(0 8px 10px var(--shadow));
+  transition: scale 90ms ease-out;
+  scale: 1.08;
+}
+
+[data-arrange-indicator] {
+  z-index: calc(var(--z-popover, 40) + 1);
+  box-sizing: border-box;
+  pointer-events: none;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 1px var(--bg),
+    0 0 8px var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-arrange-ghost] {
+    transition: none;
+  }
+}

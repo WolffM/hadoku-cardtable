@@ -12,9 +12,9 @@
  * this exact jar (`docs/planning/wave62-evidence/S/scry.md`): casting it
  * opens Forge's `order` ask (`OrderPrompt.tsx`'s dual list), never
  * `manipulateCardList` — so this spec drives THAT component's own
- * press-drag lift (`./prompts/scry-drag.ts`, shared with
- * `ManipulateCardListPrompt.tsx`), never an HTML5 `dragstart`/`dragover`/
- * `drop` sequence.
+ * press-drag (`apps/ui/src/play/prompts/row-drag.ts`, the board's phantom,
+ * shared with `ManipulateCardListPrompt.tsx`), never an HTML5
+ * `dragstart`/`dragover`/`drop` sequence.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`);
  * without one the test SKIPS and its title says why.
@@ -24,6 +24,7 @@ import { expect, test } from '@playwright/test';
 
 import { castCard, makeTitled, offered, promptMethod } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { dragRowOnto } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -72,26 +73,21 @@ test(
       let sawLift = false;
       for (let i = 1; i <= steps; i++) {
         await page.mouse.move(fx + ((tx - fx) * i) / steps, fy + ((ty - fy) * i) / steps);
-        if (i === 2) sawLift = (await page.locator('[data-cast-lift="lifted"]').count()) > 0;
+        if (i === 2) sawLift = (await page.locator('[data-arrange-ghost]').count()) > 0;
       }
-      expect(sawLift, 'the lifted row follows the pointer, drawn with the board’s own [data-cast-lift]').toBe(true);
+      expect(sawLift, 'the row’s phantom follows the pointer, the board’s own [data-arrange-ghost]').toBe(true);
       await page.mouse.up();
 
       await expect(source.locator(':scope > li'), 'one card left on top').toHaveCount(1);
       const destRows = dest.locator(':scope > li');
       await expect(destRows, 'one card placed').toHaveCount(1);
       await expect(destRows.first(), 'the dragged card is the one placed').toHaveAttribute('data-key', firstKey!);
-      await expect(page.locator('[data-cast-lift]'), 'the lift attribute is gone once the drag resolves').toHaveCount(0);
+      await expect(page.locator('[data-arrange-ghost]'), 'the phantom is gone once the drag resolves').toHaveCount(0);
 
-      // Drag the SECOND card onto the placed one — lands just before it, so the dest list now has two.
+      // Drag the SECOND card onto the upper half of the placed one — lands just before it, so the dest list now has two.
       const second = source.locator(':scope > li').first();
       const secondKey = await second.getAttribute('data-key');
-      const from2 = (await second.boundingBox())!;
-      const to2 = (await destRows.first().boundingBox())!;
-      await page.mouse.move(from2.x + from2.width / 2, from2.y + from2.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(to2.x + to2.width / 2, to2.y + to2.height / 2, { steps: 8 });
-      await page.mouse.up();
+      await dragRowOnto(page, second, destRows.first(), { x: 0.5, y: 0.25 });
       await expect(destRows, 'both cards are now placed').toHaveCount(2);
       await expect(destRows.first(), 'the second drag landed before the first').toHaveAttribute('data-key', secondKey!);
 

@@ -44,24 +44,16 @@
  * destination, and takes the tick off - so the mark can never claim something
  * the pile does not show.
  *
- * ## The lift is the board's, not HTML5's
+ * ## The drag is the board's
  *
- * The operator, 2026-10-08: "dragging cards for scrying is a bit
- * inconsistent. can we us the same phantom card and placement logic we use for
- * putting cards on the board?" Native `draggable`/`onDrag*` drew the browser's
- * own ghost (platform-dependent, no slop, no "which end is it over" short of
- * `dragover`) - a second drag system beside the board's own. A press on a
- * movable row now starts the SAME pointer-event lift the board gives a lifted
- * hand card - `./scry-drag.ts`'s `usePressDragLift`, the ONE copy of that
- * gesture `OrderPrompt.tsx`'s dual list also uses, built directly on
- * `../live/gestures/cast.ts`'s exported functions. Past `DRAG_SLOP_PX` the row
- * follows the pointer, pinned to the viewer's own battlefield card width
- * exactly as a lifted hand card is; a release over
- * `manipulate-top`/`manipulate-bottom` commits `place`, over another row
- * commits `dropBefore` (unchanged), anywhere else floats the row home with no
- * change - the same three endings `install.ts`'s `resolveLift` gives a cast.
- * A press that never passes the slop is still the plain click the checkbox
- * above answers.
+ * A press on a movable row starts `./row-drag.ts`'s `useRowDrag`, the drag
+ * every ordering prompt shares with the board: the row stays put, dimmed, its
+ * phantom follows the pointer, a bar shows where it will land among the other
+ * tiles, and the tiles slide into place on release. A release over
+ * `manipulate-top`/`manipulate-bottom` commits `place`; between two tiles, the
+ * card lands there (an ordering edit, so the tick comes off); anywhere else the
+ * phantom glides home with no change. A press that never passes `DRAG_SLOP_PX`
+ * is still the plain click the checkbox above answers.
  *
  * And the operator, same note: "when cards have been selected to be put on
  * bottom and we show the up/down arrow for reordering let's display those
@@ -77,11 +69,11 @@ import { useState } from 'react';
 
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
-import { dropBeforeIndex, manipulateProblems, moveItem } from './rules.ts';
-import { rowIdUnder, testIdUnder, usePressDragLift } from './scry-drag.ts';
+import { manipulateProblems, moveItem } from './rules.ts';
+import { useRowDrag } from './row-drag.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
 
-/** Which drop zone the lift is over, for the highlight the layout owes it. */
+/** One end of the pile a card can be put at. */
 type Zone = 'top' | 'bottom';
 
 /** The ends this ask allows a card to be put at, top first — the drawn order. */
@@ -92,16 +84,11 @@ function destinations(ask: AskOf<'manipulateCardList'>): Zone[] {
   return zones;
 }
 
-const ZONE_TESTIDS = ['manipulate-top', 'manipulate-bottom'] as const;
-/** Which drop zone, if either, a point in the gesture is over. */
-function zoneUnder(target: EventTarget | null): Zone | null {
-  const testid = testIdUnder(target, ZONE_TESTIDS);
-  return testid === null ? null : testid === 'manipulate-top' ? 'top' : 'bottom';
-}
+const ZONE_TESTID: Record<Zone, string> = { top: 'manipulate-top', bottom: 'manipulate-bottom' };
+const LIST_TESTID = 'manipulate-list';
 
 export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<'manipulateCardList'>) {
   const [cards, setCards] = useState(() => [...ask.cards]);
-  const [over, setOver] = useState<Zone | null>(null);
   /** The cards a click (or a drop on a destination) put at a destination. */
   const [placed, setPlaced] = useState<number[]>([]);
   /** The card waiting to be told which end, when the ask offers both. */
@@ -127,16 +114,6 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     setCards((pile) => {
       const from = pile.findIndex((c) => c.id === id);
       return from === -1 ? pile : moveItem(pile, from, position);
-    });
-    setPlaced((chosen) => chosen.filter((x) => x !== id));
-    setArmed(null);
-  };
-  /** Drop `id` just before the tile that is currently at `before` (T5). */
-  const dropBefore = (id: number, before: number) => {
-    setCards((pile) => {
-      const from = pile.findIndex((c) => c.id === id);
-      if (from === -1 || from === before) return pile;
-      return moveItem(pile, from, dropBeforeIndex(from, before));
     });
     setPlaced((chosen) => chosen.filter((x) => x !== id));
     setArmed(null);
@@ -179,33 +156,32 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
     setArmed((was) => (was === id ? null : id));
   };
 
-  const lift = usePressDragLift({
+  const drag = useRowDrag({
+    targets: [
+      { testid: ZONE_TESTID.top, rows: false },
+      { testid: ZONE_TESTID.bottom, rows: false },
+      { testid: LIST_TESTID, rows: true },
+    ],
     canLift: (id) => movable.has(id),
-    onMove: (_id, target) => setOver(zoneUnder(target)),
-    onDrop: (id, target) => {
-      setOver(null);
-      const zone = zoneUnder(target);
-      if (zone !== null) {
-        place(id, zone);
+    onDrop: (id, slot) => {
+      if (slot.testid === ZONE_TESTID.top || slot.testid === ZONE_TESTID.bottom) {
+        place(id, slot.testid === ZONE_TESTID.top ? 'top' : 'bottom');
         return true;
       }
-      const overId = rowIdUnder(target);
-      if (overId !== null && overId !== id) {
-        const before = cards.findIndex((c) => c.id === overId);
-        if (before !== -1) {
-          dropBefore(id, before);
-          return true;
-        }
-      }
-      return false;
+      const from = cards.findIndex((c) => c.id === id);
+      const rest = cards.filter((c) => c.id !== id);
+      const to = slot.before === null ? rest.length : rest.findIndex((c) => c.id === slot.before);
+      if (from === -1 || to === -1 || to === from) return false;
+      moveTo(id, to);
+      return true;
     },
   });
 
   const zone = (which: Zone, label: string) => (
     <div
       className="prompt__dropzone"
-      data-testid={which === 'top' ? 'manipulate-top' : 'manipulate-bottom'}
-      data-over={over === which || undefined}
+      data-testid={ZONE_TESTID[which]}
+      data-over={drag.over === ZONE_TESTID[which] || undefined}
       data-live={armed !== null || undefined}
       onClick={() => {
         if (armed !== null) place(armed, which);
@@ -218,7 +194,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
   return (
     <PromptShell method="manipulateCardList" title={ask.title} problems={problems} onSubmit={submit}>
       {ends.includes('top') && zone('top', 'Top of library')}
-      <ol className="prompt__cards" data-testid="manipulate-list" onClickCapture={lift.onListClickCapture}>
+      <ol className="prompt__cards" data-testid={LIST_TESTID}>
         {cards.map((card, i) => {
           const canMove = movable.has(card.id);
           // No end offered at all is an ask with nowhere to put anything. The
@@ -232,9 +208,9 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
               key={card.id}
               data-card-id={card.id}
               data-movable={canMove || undefined}
-              data-dragging={lift.liftedId === card.id || undefined}
+              data-dragging={drag.liftedId === card.id || undefined}
               data-armed={armed === card.id || undefined}
-              onPointerDown={canMove ? lift.onRowPointerDown(card.id) : undefined}
+              onPointerDown={canMove ? drag.onRowPointerDown(card.id) : undefined}
             >
               {clickable ? (
                 <label>

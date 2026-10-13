@@ -10,9 +10,9 @@
  */
 
 import { createElement } from 'react';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { parseClientFrame, REPLY_SCHEMAS } from '@hadoku/forge-wire';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 
 import { PROMPT_COMPONENTS } from './index.ts';
 import { fixtureLookup } from './fixtures.ts';
@@ -81,4 +81,48 @@ export const poolLookup: PromptLookup = {
  */
 export function forgeCardLabel(name: string, forgeId: number): string {
   return `${name} (${forgeId})`;
+}
+
+/** Every ordering prompt's drop targets, in the column order `dragRow` lays them out in. */
+const DROP_TARGETS = ['order-source', 'order-dest', 'manipulate-top', 'manipulate-list', 'manipulate-bottom'];
+const COLUMN_PX = 200;
+const ROW_PX = 44;
+
+/**
+ * A real press-drag of `row` onto `onto` (`./row-drag.ts`): onto another row it
+ * lands just before it; onto a list or a zone, at its end. jsdom has no
+ * layout, and the drag reads where the pointer is among the rows, so for the
+ * length of the gesture every drop target is a column (`DROP_TARGETS`' order)
+ * and its rows a stack down it. `press` is where on the row the press lands —
+ * a child, say, the way a seat presses the card panel. The click a browser
+ * leaves behind a release is fired too, so a test sees what it would.
+ */
+export function dragRow(row: Element, onto: Element, press: Element = row): void {
+  const rowsIn = (list: Element) => [...list.querySelectorAll(':scope > li[data-card-id]')];
+  const column = (el: Element | null) => (el === null ? -1 : DROP_TARGETS.indexOf(el.getAttribute('data-testid') ?? ''));
+  const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    const own = column(this);
+    if (own !== -1) return new DOMRect(own * COLUMN_PX, 0, COLUMN_PX / 2, Math.max(rowsIn(this).length, 1) * ROW_PX);
+    if (this.matches('li[data-card-id]') && column(this.parentElement) !== -1) {
+      return new DOMRect(column(this.parentElement) * COLUMN_PX, rowsIn(this.parentElement!).indexOf(this) * ROW_PX, COLUMN_PX / 2, ROW_PX - 4);
+    }
+    return new DOMRect(0, 0, 0, 0);
+  });
+  try {
+    const from = row.getBoundingClientRect();
+    const start = { clientX: from.left + from.width / 2, clientY: from.top + from.height / 2 };
+    const box = onto.getBoundingClientRect();
+    // Onto a row: its upper quarter, so before it. Onto a list or a zone: far below its last row.
+    const at = onto.matches('li') ? { clientX: box.left + 10, clientY: box.top + box.height / 4 } : { clientX: box.left + 10, clientY: 100_000 };
+    // A browser follows the release with a click on what the press and the release share — found
+    // now, since the release can re-render the pressed row into the other list.
+    let shared: Element | null = press;
+    while (shared !== null && !shared.contains(onto)) shared = shared.parentElement;
+    fireEvent.pointerDown(press, { button: 0, ...start });
+    fireEvent.pointerMove(onto, at);
+    fireEvent.pointerUp(onto, at);
+    if (shared !== null) fireEvent.click(shared, at);
+  } finally {
+    spy.mockRestore();
+  }
 }

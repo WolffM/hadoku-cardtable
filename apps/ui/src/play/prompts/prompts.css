@@ -222,6 +222,24 @@
   border-color: var(--accent);
 }
 
+/*
+ * An ordering prompt's drag (`./row-drag.ts`): a drag is a drag, not a text
+ * selection, for as long as it lasts; a list or zone that takes the drop as a
+ * whole is lit while the card is over it.
+ */
+.prompt[data-row-drag],
+.prompt[data-row-drag] * {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.prompt__cards[data-over],
+.prompt__list[data-over] {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
 /* ── card grids: a prompt's cards are tiles, the board's card look ────── */
 
 /*
@@ -255,20 +273,6 @@
   background: var(--bg-card);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
-}
-
-/*
- * The press-drag lift: `../live/gestures/gestures.css`'s
- * `[data-cast-lift]` rule already draws `position: fixed` and follows the
- * pointer for ANY element carrying the attribute — that part needs no CSS of
- * this file's own. What a board card has and a prompt tile does not is a
- * width that reads `--card-w` while lifted (`.board-card[data-cast-lift=
- * 'lifted']`, `card.css`); neither `ManipulateCardListPrompt.tsx`'s rows nor
- * `OrderPrompt.tsx`'s are a `.board-card`, so both get the same rule here,
- * scoped to this file's own grid.
- */
-.prompt__cards > li[data-cast-lift='lifted'] {
-  width: var(--card-w);
 }
 
 /* A tile keeps a card's proportion whether or not it has art — the rule
@@ -491,6 +495,32 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+/*
+ * Nothing in an ordering prompt's lists is text to select: a press there picks a
+ * card up, and one that starts in a gap between cards must not paint the cards
+ * it is dragged across.
+ */
+.prompt__dual,
+.prompt__cards {
+  user-select: none;
+}
+
+/*
+ * Each list fills its column, so the whole column under its heading is where a
+ * card can be dropped — an empty list included, which would otherwise be one
+ * thin strip beside a full one.
+ */
+.prompt__dual > section {
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt__dual > section > .prompt__cards,
+.prompt__dual > section > .prompt__list {
+  flex: 1 1 auto;
+  align-content: start;
 }
 
 @media (max-width: 560px) {

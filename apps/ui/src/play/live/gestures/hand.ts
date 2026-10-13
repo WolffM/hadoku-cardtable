@@ -55,11 +55,8 @@ import type { DropTarget } from '../../Board.tsx';
 import { commitHandMove } from '../../Board.tsx';
 import { queueHandMove } from '../presence.ts';
 import { clearCastLift } from './cast.ts';
-import { GLIDE_MS } from '../../motion.ts';
+import { centreOf, flip } from '../../lift.ts';
 import './hand.css';
-
-/** The house curve — the same one `./gestures.css`'s `[data-cast-lift='parked'|'returning']` already use. */
-const HOUSE_CURVE = 'cubic-bezier(0.3, 0.7, 0.3, 1)';
 
 /** Set on a hand card while it FLIPs into its new slot; `./hand.css` reads it to keep the card out of the player's way mid-flight. */
 export const HAND_FLIP_ATTR = 'data-hand-flip';
@@ -189,54 +186,25 @@ export function updateHandIndicator(canvas: ParentNode, cardId: number, point: P
   indicator.style.top = `${at.top - boardBox.top}px`;
 }
 
-function centreOf(r: DOMRect): Point {
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-}
-
 /**
- * The FLIP (First, Last, Invert, Play): every hand `<li>` whose centre moved
- * between `before` (captured just ahead of the commit, the dragged card's own
- * last on-screen box included — wherever the pointer let it go, fixed-position
- * and all) and now (after `Board.tsx`'s re-render put the new order on the
- * page) gets an inverse `transform`, with no transition, then the SAME
- * transform cleared WITH one — so the browser animates the delta instead of
- * snapping. Mutation: skip this function and the hand still reorders
- * correctly; only the motion is gone — which is exactly `hand.test`'s own
- * "drop the FLIP" case.
+ * The slide: every hand `<li>` whose centre moved between `before` (captured
+ * just ahead of the commit, the dragged card's own last on-screen box included
+ * — wherever the pointer let it go, fixed-position and all) and now (after
+ * `Board.tsx`'s re-render put the new order on the page) glides there —
+ * `../../lift.ts`'s `flip`, the same slide an ordering prompt gives its rows.
+ * Mutation: skip this function and the hand still reorders correctly; only the
+ * motion is gone — which is exactly `hand.test`'s own "drop the FLIP" case.
  */
 export function flipHand(canvas: ParentNode, before: ReadonlyMap<number, Point>): void {
   const list = ownHandList(canvas);
   if (list === null) return;
-  const moving: HTMLElement[] = [];
+  const moved: (readonly [HTMLElement, Point])[] = [];
   for (const li of list.querySelectorAll<HTMLElement>(':scope > li.board-card')) {
     const raw = li.getAttribute('data-board-card') ?? li.getAttribute('data-card-id');
-    const id = raw === null ? Number.NaN : Number(raw);
-    const prev = before.get(id);
-    if (prev === undefined) continue;
-    const now = centreOf(li.getBoundingClientRect());
-    const dx = prev.x - now.x;
-    const dy = prev.y - now.y;
-    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-    li.setAttribute(HAND_FLIP_ATTR, '');
-    li.style.transition = 'none';
-    li.style.transform = `translate(${dx}px, ${dy}px)`;
-    moving.push(li);
+    const prev = before.get(raw === null ? Number.NaN : Number(raw));
+    if (prev !== undefined) moved.push([li, prev]);
   }
-  if (moving.length === 0) return;
-  // Force the start transform to paint before the next frame swaps in the transition.
-  void list.getBoundingClientRect();
-  requestAnimationFrame(() => {
-    for (const li of moving) {
-      li.style.transition = `transform ${GLIDE_MS}ms ${HOUSE_CURVE}`;
-      li.style.transform = '';
-    }
-    setTimeout(() => {
-      for (const li of moving) {
-        li.style.transition = '';
-        li.removeAttribute(HAND_FLIP_ATTR);
-      }
-    }, GLIDE_MS);
-  });
+  flip(moved, HAND_FLIP_ATTR);
 }
 
 /**
@@ -261,7 +229,7 @@ export function commitHandReorder(canvas: ParentNode, cardId: number, fromIndex:
   for (const li of list.querySelectorAll<HTMLElement>(':scope > li.board-card')) {
     const raw = li.getAttribute('data-board-card') ?? li.getAttribute('data-card-id');
     const id = raw === null ? Number.NaN : Number(raw);
-    if (Number.isFinite(id)) before.set(id, centreOf(li.getBoundingClientRect()));
+    if (Number.isFinite(id)) before.set(id, centreOf(li));
   }
   const order = handOrderIds(canvas);
   const withoutDragged = order.filter((id) => id !== cardId);

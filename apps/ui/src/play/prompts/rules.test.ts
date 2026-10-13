@@ -18,7 +18,6 @@ import {
   combatDamageRules,
   confirmProblems,
   deckFromSideboardAsk,
-  dropBeforeIndex,
   genericAmountProblems,
   manaCombos,
   getChoicesProblems,
@@ -618,11 +617,6 @@ describe('manipulateCardList', () => {
     expect(moveBetween(lists, 'b', 'dest', 'd')).toEqual({ source: ['a', 'c'], dest: ['b', 'd'] });
     expect(moveBetween(lists, 'a', 'dest', null)).toEqual({ source: ['b', 'c'], dest: ['d', 'a'] });
     expect(moveBetween(lists, 'd', 'source', 'a', ['a', 'd', 'b', 'c'])).toEqual({ source: ['a', 'd', 'b', 'c'], dest: [] });
-  });
-  it('dropBeforeIndex shifts the target back by one only when the dragged item sat before it', () => {
-    expect(dropBeforeIndex(0, 3)).toBe(2); // moving from 0: everything after it shifts back
-    expect(dropBeforeIndex(3, 0)).toBe(0); // moving from after the target: target index unchanged
-    expect(moveItem([1, 2, 3, 4], 0, dropBeforeIndex(0, 3))).toEqual([2, 3, 1, 4]); // 1 lands just before 4
   });
 });
 

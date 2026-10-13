@@ -1557,8 +1557,8 @@
  *   - the SOURCE stays where it was, dimmed, so the gap it will leave is legible;
  *   - the GHOST is a clone of the card that follows the pointer, lifted: a scale and a
  *     shadow, with no pointer events of its own (it must never be
- *     what `elementFromPoint` finds). Its position is a `transform`, written on
- *     every move; nothing about its box changes;
+ *     what `elementFromPoint` finds). `../lift.ts` draws it, the same phantom
+ *     every ordering prompt lifts, and `../lift.css` its look;
  *   - the INDICATOR is a bar at the place the card will land — vertical between
  *     two cards or at the end of a row, horizontal where it will stack — and the
  *     column it snapped to is marked (`[data-arrange-target]`, below).
@@ -1576,41 +1576,10 @@
   opacity: 0.35;
 }
 
-/*
- * `.board-card` in the selector on purpose: a card lifted out of a pile is still
- * a `.board-card`, and the pile's own `.board-card[data-pile-size] { position:
- * relative }` is exactly as specific as `.board > [data-arrange-ghost]` was. It
- * won, so that ghost was laid out IN the board as one more row, far below the
- * pointer, and squeezed every row above it (the operator, 2026-10-06: "when
- * dragging a card OFF a stacked set of cards the viewport weirdly changes in
- * size"). `Board.tsx` also strips the pile attributes from the copy.
- */
-.board > .board-card[data-arrange-ghost] {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: calc(var(--z-popover, 40) + 1);
-  margin: 0;
-  list-style: none;
-  pointer-events: none;
-  opacity: 0.96;
-  filter: drop-shadow(0 8px 10px var(--shadow));
-  transition: scale 90ms ease-out;
-  scale: 1.08;
-}
-
 .board > [data-arrange-indicator] {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: calc(var(--z-popover, 40) + 1);
-  box-sizing: border-box;
-  pointer-events: none;
-  background: var(--accent);
-  border-radius: 2px;
-  box-shadow:
-    0 0 0 1px var(--bg),
-    0 0 8px var(--accent);
 }
 
 /*
@@ -1664,12 +1633,6 @@
 .board .board-card[data-arrange-target] > .board-card__face {
   outline: 1px solid var(--accent);
   outline-offset: 1px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .board > .board-card[data-arrange-ghost] {
-    transition: none;
-  }
 }
 
 /*

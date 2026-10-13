@@ -4,21 +4,19 @@
  * fixture (Forge's "Select order for simultaneous abilities", 0 left over
  * allowed, "remember" offered).
  *
- * The drag is now the board's own press-drag lift
- * (`./scry-drag.ts`), not HTML5 `draggable`/`onDrag*` — `dragTo` below fires
- * exactly the pointer events `./manipulate.test.ts`'s own `dragTo` does (one
- * press, one move far enough past the slop and onto the release target, one
- * release there), proving the same gesture answers both prompts.
+ * The drag is the board's (`./row-drag.ts`), not HTML5 `draggable`/`onDrag*`:
+ * `dragRow` (`./testing.ts`) is the same press, move and release
+ * `./manipulate.test.ts` drives, so the same gesture answers both prompts.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 
 import { askFor } from './fixtures.ts';
-import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
+import { dragRow, expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
-import { CAST_LIFT_ATTR } from '../live/gestures/cast.ts';
+import { GHOST_ATTR } from '../lift.ts';
 import { GLIDE_MS } from '../motion.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
@@ -26,8 +24,9 @@ afterEach(cleanup);
 
 const keysIn = (list: HTMLElement) => [...list.querySelectorAll<HTMLElement>(':scope > li')].map((li) => li.dataset.key);
 
-/** Far enough past `DRAG_SLOP_PX` that a single move both starts the lift and reports what it is over. */
+/** Far enough past `DRAG_SLOP_PX` to start a drag. */
 const PAST_SLOP = DRAG_SLOP_PX + 20;
+const ghost = () => document.querySelector(`[${GHOST_ATTR}]`);
 
 function mount() {
   const utils = mountPrompt('order', askFor('order'));
@@ -37,13 +36,7 @@ function mount() {
   const placeAll = () => {
     for (const li of [...source().querySelectorAll<HTMLElement>(':scope > li')]) fireEvent.click(li);
   };
-  /** Lift `row` by a press-drag past the slop, releasing over `target` — another row, or a list itself. */
-  const dragTo = (row: Element, target: Element) => {
-    fireEvent.pointerDown(row, { button: 0, clientX: 0, clientY: 0 });
-    fireEvent.pointerMove(target, { clientX: 0, clientY: PAST_SLOP });
-    fireEvent.pointerUp(target, { clientX: 0, clientY: PAST_SLOP });
-  };
-  return { ...utils, source, dest, place, placeAll, dragTo };
+  return { ...utils, source, dest, place, placeAll, dragTo: dragRow };
 }
 
 describe('order', () => {
@@ -112,21 +105,30 @@ describe('order', () => {
     expectWireReply('order', answers[0]);
   });
 
-  it('the lift follows the press (`data-cast-lift`), the board’s own attribute, not HTML5 drag', async () => {
+  it('past the slop a phantom follows the pointer while the row stays put, dimmed; released on itself it glides home', async () => {
     const { dest, place } = mount();
     place(/Fire Urchin/);
     const urchin = dest().querySelector<HTMLElement>(':scope > li')!;
-    expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBeNull();
     fireEvent.pointerDown(urchin, { button: 0, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(urchin, { clientX: 0, clientY: 2 });
-    // Under the slop: no lift yet.
-    expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBeNull();
+    expect(ghost(), 'under the slop: no drag yet').toBeNull();
     fireEvent.pointerMove(urchin, { clientX: 0, clientY: PAST_SLOP });
-    expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBe('lifted');
-    // Released back on itself: nowhere this gesture answers, so it floats home.
+    expect(ghost(), 'the phantom').not.toBeNull();
+    expect(ghost()!.textContent, 'it is the row, not a browser picture').toBe(urchin.textContent);
+    expect(ghost()!.querySelector('[data-card-id]'), 'carrying no id').toBeNull();
+    expect(urchin.hasAttribute('data-dragging'), 'the row itself stays, dimmed').toBe(true);
+    expect(urchin.closest('.prompt')!.hasAttribute('data-row-drag'), 'the prompt selects no text meanwhile').toBe(true);
     fireEvent.pointerUp(urchin, { clientX: 0, clientY: PAST_SLOP });
-    await waitFor(() => expect(urchin.getAttribute(CAST_LIFT_ATTR)).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    await waitFor(() => expect(ghost()).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    expect(urchin.hasAttribute('data-dragging')).toBe(false);
     expect(keysIn(dest())).toEqual(['sa-9101']);
+  });
+
+  it('the press is cancelled, so a drag never starts a text selection', () => {
+    const { source } = mount();
+    const row = source().querySelector<HTMLElement>(':scope > li')!;
+    expect(fireEvent.pointerDown(row, { button: 0, clientX: 0, clientY: 0 }), 'the pointerdown default is prevented').toBe(false);
+    fireEvent.pointerUp(row, { clientX: 0, clientY: 0 });
   });
 
   it('draws the up/down nudges on the row’s own tile, never a `prompt__row-actions` row', () => {
@@ -230,13 +232,14 @@ describe('order over cards Forge pre-rendered', () => {
     expectWireReply('order', answers[0]);
   });
 
-  it('a press-drag of a CARD lifts it with the board’s own attribute too', () => {
+  it('a press on a CARD drags its row', () => {
     const { getByTestId } = mountPrompt('order', cardsAsk(), poolLookup);
     const first = getByTestId('order-source').querySelector<HTMLElement>(':scope > li')!;
     const card = first.querySelector<HTMLElement>('.card')!;
     fireEvent.pointerDown(card, { button: 0, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(card, { clientX: 0, clientY: PAST_SLOP });
-    expect(first.getAttribute(CAST_LIFT_ATTR)).toBe('lifted');
+    expect(ghost()?.getAttribute(GHOST_ATTR)).toBe(first.dataset.cardId);
+    expect(first.hasAttribute('data-dragging')).toBe(true);
     fireEvent.pointerUp(card, { clientX: 0, clientY: PAST_SLOP });
   });
 });
@@ -267,12 +270,7 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     const top = () => utils.getByTestId('order-source');
     const bottom = () => utils.getByTestId('order-dest');
     const rowsOf = (list: HTMLElement) => [...list.querySelectorAll<HTMLElement>(':scope > li')];
-    const dragTo = (row: Element, target: Element) => {
-      fireEvent.pointerDown(row, { button: 0, clientX: 0, clientY: 0 });
-      fireEvent.pointerMove(target, { clientX: 0, clientY: PAST_SLOP });
-      fireEvent.pointerUp(target, { clientX: 0, clientY: PAST_SLOP });
-    };
-    return { ...utils, top, bottom, rowsOf, dragTo };
+    return { ...utils, top, bottom, rowsOf, dragTo: dragRow };
   };
 
   it('names both groups, every card starts on top in Forge’s order, and OK is ready', () => {
@@ -284,9 +282,8 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     expect(submit().disabled).toBe(false);
   });
 
-  it('lifts its own row when the board also draws that card — a library top under Courser of Kruphix, looked at by the scry', () => {
-    const { top, rowsOf, container } = scry();
-    container.setAttribute('data-testid', 'live-prompt');
+  it('drags its own row when the board also draws that card — a library top under Courser of Kruphix, looked at by the scry', () => {
+    const { top, rowsOf } = scry();
     const board = document.createElement('li');
     board.setAttribute('data-board-card', String(POOL_ID_BASE));
     document.body.prepend(board);
@@ -294,8 +291,9 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
       const row = rowsOf(top())[0]!;
       fireEvent.pointerDown(row, { button: 0, clientX: 0, clientY: 0 });
       fireEvent.pointerMove(row, { clientX: 0, clientY: PAST_SLOP });
-      expect(row.getAttribute(CAST_LIFT_ATTR), 'the prompt row is lifted').toBe('lifted');
-      expect(board.hasAttribute(CAST_LIFT_ATTR), 'never the board copy').toBe(false);
+      expect(row.hasAttribute('data-dragging'), 'the prompt row is the one picked up').toBe(true);
+      expect(ghost()!.textContent, 'its phantom is the prompt row').toBe(row.textContent);
+      expect(board.hasAttribute('data-dragging') || board.hasAttribute('data-cast-lift'), 'never the board copy').toBe(false);
       fireEvent.pointerUp(row, { clientX: 0, clientY: PAST_SLOP });
     } finally {
       board.remove();

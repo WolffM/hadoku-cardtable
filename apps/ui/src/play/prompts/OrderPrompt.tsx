@@ -24,25 +24,20 @@
  * enabled while the left list holds as many items as the ask allows
  * (`rules.ts` `orderProblems`).
  *
- * ## The drag is the board's own lift, not HTML5's
+ * ## The drag is the board's
  *
- * This is the SIBLING of the same complaint `ManipulateCardListPrompt.tsx`
- * answers, and (measured against a real match, `docs/planning/
- * wave62-evidence/S/scry.md`) the component that ask actually reaches: a
- * Scry's own two cards arrive here, as `order`, never as `manipulateCardList`.
- * Native `draggable`/`onDrag*` are gone; a press on EITHER list's row starts
- * `./scry-drag.ts`'s `usePressDragLift` — the same lift
- * `ManipulateCardListPrompt.tsx` uses, so there is exactly one copy of this
- * gesture in the whole app. A row that is not a card (an ability, ordered by
- * words) still lifts: it is handed a small per-mount NEGATIVE "lift id" — see
- * `./scry-drag.ts`'s own header for why that number can never collide with a
- * real card's.
+ * A press on EITHER list's row starts `./row-drag.ts`'s `useRowDrag` — the
+ * board's phantom, its landing bar and the hand's slide, shared with
+ * `ManipulateCardListPrompt.tsx`, so every ordering prompt drags the same way.
+ * A row that is not a card (an ability, ordered by words) still drags: it is
+ * handed a small per-mount NEGATIVE id, which no Forge card id ever is, so it
+ * can never be mistaken for a card's.
  *
- * Release, hit-tested off `event.target` exactly as `install.ts` does it:
- * over a PLACED row → lands just before it; over an UNPLACED row → unplaces
- * the dragged item (a no-op if it was already unplaced); over the dest
- * list's own empty space → appended at the end; over the source list's own
- * empty space → unplaced; anywhere else → floats home, nothing changes.
+ * Where a release lands is where the bar was: between two rows of a list whose
+ * order is the answer (the answer itself, and the source too when its order is
+ * part of the reply, a scry's top); anywhere on an unplaced pile, which takes
+ * the card back. Released anywhere else, the card glides home and nothing
+ * changes.
  *
  * The up/down nudges moved onto each placed row's own tile
  * (`.prompt__card-order`, shared with `ManipulateCardListPrompt.tsx`) —
@@ -54,7 +49,7 @@ import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName, translateTargetWords } from './lookup.ts';
 import { moveBetween, moveItem, orderProblems, type OrderLists } from './rules.ts';
-import { rowIdUnder, testIdUnder, usePressDragLift } from './scry-drag.ts';
+import { useRowDrag } from './row-drag.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 
 const LIST_TESTID = { source: 'order-source', dest: 'order-dest' } as const;
@@ -73,10 +68,10 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   );
   const anyCards = cardIdOf.size > 0;
   /**
-   * Every row's own lift id: a real card's own id where there is one, a
+   * Every row's own drag id: a real card's own id where there is one, a
    * small per-mount negative number (never a real Forge id) where there is
-   * not — `./scry-drag.ts`'s header has the full argument. Stable across
-   * renders: `all` is built from `ask`'s own two arrays, which never change.
+   * not. Stable across renders: `all` is built from `ask`'s own two arrays,
+   * which never change.
    */
   const liftIdOf = new Map(all.map((c, i) => [c.key, cardIdOf.get(c.key) ?? -(i + 1)]));
   const keyOfLiftId = new Map([...liftIdOf].map(([key, id]) => [id, key]));
@@ -101,7 +96,6 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     onAnswer(checkedReply('order', reply));
   };
 
-  const sideOf = (key: string): Side => (lists.dest.includes(key) ? 'dest' : 'source');
   const other = (side: Side): Side => (side === 'dest' ? 'source' : 'dest');
   /** Move `key` to `to`, just before `before`; false when nothing would change. */
   const move = (key: string, to: Side, before: string | null): boolean => {
@@ -112,19 +106,17 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   };
   const nudge = (side: Side, from: number, to: number) => setLists((l) => ({ ...l, [side]: moveItem(l[side], from, to) }));
 
-  const lift = usePressDragLift({
+  const drag = useRowDrag({
+    targets: [
+      { testid: LIST_TESTID.source, rows: fixedSource === undefined },
+      { testid: LIST_TESTID.dest, rows: true },
+    ],
     canLift: () => true,
-    onDrop: (liftId, target) => {
+    onDrop: (liftId, slot) => {
       const key = keyOfLiftId.get(liftId);
       if (key === undefined) return false;
-      const overRowId = rowIdUnder(target);
-      if (overRowId === liftId) return false; // dropped on itself: no change
-      const overKey = overRowId !== null ? keyOfLiftId.get(overRowId) : undefined;
-      // Over a row: just before it, in its list. Over a list's own space: that list's end.
-      if (overKey !== undefined) return move(key, sideOf(overKey), overKey);
-      const list = testIdUnder(target, Object.values(LIST_TESTID));
-      if (list === null) return false;
-      return move(key, list === LIST_TESTID.dest ? 'dest' : 'source', null);
+      const before = slot.before === null ? null : (keyOfLiftId.get(slot.before) ?? null);
+      return move(key, slot.testid === LIST_TESTID.dest ? 'dest' : 'source', before);
     },
   });
 
@@ -148,7 +140,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
         <h4 className="prompt__col-head">
           {heading} <span className="zone__count">{keys.length}</span>
         </h4>
-        <Tag className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={LIST_TESTID[side]} onClickCapture={lift.onListClickCapture}>
+        <Tag className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={LIST_TESTID[side]} data-over={drag.over === LIST_TESTID[side] || undefined}>
           {keys.map((key, i) => (
             <li
               key={key}
@@ -157,8 +149,8 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
               role="button"
               tabIndex={0}
               aria-label={`${side === 'source' ? 'place' : 'unplace'} ${labelOf.get(key)}`}
-              data-dragging={lift.liftedId === liftIdOf.get(key) || undefined}
-              onPointerDown={lift.onRowPointerDown(liftIdOf.get(key)!)}
+              data-dragging={drag.liftedId === liftIdOf.get(key) || undefined}
+              onPointerDown={drag.onRowPointerDown(liftIdOf.get(key)!)}
               onClick={() => move(key, other(side), null)}
               onKeyDown={onKey(() => move(key, other(side), null))}
             >

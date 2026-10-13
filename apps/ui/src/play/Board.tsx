@@ -408,6 +408,7 @@ import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
+import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS } from './motion.ts';
 import './board.css';
@@ -3313,16 +3314,13 @@ function useArrangeDrag(
       readonly slot: ArrangeSlot;
       readonly x: number;
       readonly y: number;
-      ghost: HTMLElement | null;
+      ghost: Ghost | null;
       indicator: HTMLElement | null;
       snap: Snap | null;
       marked: Element[];
-      grab: { x: number; y: number };
     }
     let press: Press | null = null;
     const clicks = clickLatch();
-
-    const boardBox = (): DOMRect => board.getBoundingClientRect();
 
     /** Every slot of the viewer's seat — all zones, so the snap can tell which one the pointer is really over. */
     const geometry = (): SlotGeometry[] => {
@@ -3341,11 +3339,7 @@ function useArrangeDrag(
     };
 
     const draw = (p: Press, x: number, y: number): void => {
-      const box = boardBox();
-      if (p.ghost !== null) {
-        p.ghost.style.left = `${x - box.left - p.grab.x}px`;
-        p.ghost.style.top = `${y - box.top - p.grab.y}px`;
-      }
+      p.ghost?.move({ x, y });
       const found = snapTo(geometry(), x, y, p.cardId);
       /*
        * `p.slot` is never `'hand'` (no hand card is ever arrangeable, so this
@@ -3360,37 +3354,14 @@ function useArrangeDrag(
 
     /** The press has moved far enough to be a drag: draw the ghost and the indicator. */
     const begin = (p: Press, x: number, y: number): void => {
-      const at = p.li.getBoundingClientRect();
-      const ghost = p.li.cloneNode(true) as HTMLElement;
+      const ghost = liftGhost(p.li, board, { x: p.x, y: p.y }, String(p.cardId));
       // A card lifted out of a pile is one card: neither the pile nor its count travels with it.
-      for (const el of ghost.querySelectorAll(':scope > .board-card__pile, :scope > .board-card__copies')) el.remove();
-      for (const el of [ghost, ...ghost.querySelectorAll<HTMLElement>('*')]) {
-        for (const attr of [
-          'data-card-id',
-          'data-board-card',
-          'data-arrange-card',
-          'data-arrange-dragging',
-          'data-arrange-target',
-          'data-selectable',
-          'data-can-act',
-          // A card lifted out of a pile is one card: the pile's own layout rules must not reach its copy.
-          'data-pile-size',
-          'data-pile-depth',
-        ]) {
-          el.removeAttribute(attr);
-        }
-      }
-      ghost.setAttribute('data-arrange-ghost', String(p.cardId));
-      ghost.setAttribute('aria-hidden', 'true');
-      ghost.setAttribute('inert', '');
-      ghost.style.width = `${at.width}px`;
-      ghost.style.setProperty('--card-w', `${at.width}px`);
-      p.grab = { x: x - at.left, y: y - at.top };
+      for (const el of ghost.el.querySelectorAll(':scope > .board-card__pile, :scope > .board-card__copies')) el.remove();
       const indicator = document.createElement('div');
       indicator.setAttribute('data-arrange-indicator', '');
       indicator.setAttribute('aria-hidden', 'true');
       indicator.setAttribute('hidden', '');
-      board.append(ghost, indicator);
+      board.append(indicator);
       p.ghost = ghost;
       p.indicator = indicator;
       p.li.setAttribute('data-arrange-dragging', '');
@@ -3435,7 +3406,6 @@ function useArrangeDrag(
         indicator: null,
         snap: null,
         marked: [],
-        grab: { x: 0, y: 0 },
       };
       window.addEventListener('keydown', onKey, true);
     };
