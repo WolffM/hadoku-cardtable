@@ -12,6 +12,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "0.41.14"
+    "@wolffm/rooms-protocol": "0.41.15"
   }
 }
