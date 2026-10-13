@@ -406,8 +406,12 @@ test(titled('a card let go further right sits in that column, with gaps before i
     expect(pitch, 'the row’s column pitch').toBeGreaterThan(first.width);
     const last = await boxOf(card(lands[7]!));
     const rowBox = (await row.boundingBox())!;
-    const target = { x: last.x + last.width + pitch + 4, y: last.y + last.height / 2 };
-    expect(target.x, 'a column past the last land is still inside the row').toBeLessThan(rowBox.x + rowBox.width);
+    // Two pitches past the last land's left edge is where the column after the spare one starts; 4px into
+    // it, never on its edge (on the edge the release is as near the spare column as this one). The board
+    // counts a column while it starts more than 4px inside the row (`Board.tsx`, `withColumnsToWidth`).
+    const nextStart = last.x + 2 * pitch;
+    const target = { x: nextStart + 4, y: last.y + last.height / 2 };
+    expect(nextStart, 'the column a pitch past the spare one still starts inside the row').toBeLessThan(rowBox.x + rowBox.width - 4);
 
     await pointerDrag(page, card(lands[7]!), target);
     await expect.poll(columns, { message: 'the land sits a column past the row’s end: the column it left and one more are gaps' }).toEqual([
