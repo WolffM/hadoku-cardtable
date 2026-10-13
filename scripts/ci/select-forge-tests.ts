@@ -325,7 +325,7 @@ const BUMP = /^(ui|server) \d+\.\d+\.\d+(, (ui|server) \d+\.\d+\.\d+)?$/;
 
 /** The top-level declarations (TS) or rule selectors (CSS) a diff of `src` touches. */
 export function touchedNames(file: string, src: string, patch: string): string[] {
-  const lines = changedLines(patch);
+  const lines = changedLines(patch, src);
   if (file.endsWith('.css')) return [...new Set(changedSelectors(src, lines).map((s) => s.replace(/\s+/g, ' ')))];
   if (!/\.tsx?$/.test(file)) return [];
   const decls = declarations(src).filter((d) => d.end - d.start < DECL_MAX_LINES);
@@ -419,18 +419,94 @@ function merge(into: Keys, from: Keys): void {
   for (const t of from.classes) into.classes.add(t);
 }
 
-/** New-side line numbers a unified diff touches: added lines, and where a deletion sat. */
-export function changedLines(patch: string): number[] {
-  const out = new Set<number>();
-  let n = 0;
+interface Hunk {
+  /** The new-side line the hunk claims to start at. */
+  start: number;
+  /** Its new-side text: context and added lines, in order. */
+  block: string[];
+  /** Offsets into `block` of the lines it touches: added lines, and where a deletion sat. */
+  touched: number[];
+}
+
+function hunks(patch: string): Hunk[] {
+  const out: Hunk[] = [];
+  let h: Hunk | null = null;
   for (const line of patch.split('\n')) {
-    const h = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line);
-    if (h) n = Number(h[1]);
-    else if (line.startsWith('+')) out.add(n++);
-    else if (line.startsWith('-')) out.add(n);
-    else if (!line.startsWith('\\')) n++;
+    const head = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line);
+    if (head) out.push((h = { start: Number(head[1]), block: [], touched: [] }));
+    else if (!h || line.startsWith('\\')) continue;
+    else if (line.startsWith('-')) h.touched.push(h.block.length);
+    else {
+      if (line.startsWith('+')) h.touched.push(h.block.length);
+      h.block.push(line.slice(1));
+    }
+  }
+  return out;
+}
+
+/** The 1-based line in `lines` where `block` occurs nearest to `near`, or null. */
+function find(lines: string[], block: string[], near: number): number | null {
+  if (block.length === 0) return null;
+  let best: number | null = null;
+  for (let i = 0; i + block.length <= lines.length; i++) {
+    if (!block.every((b, j) => lines[i + j] === b)) continue;
+    if (best === null || Math.abs(i + 1 - near) < Math.abs(best - near)) best = i + 1;
+  }
+  return best;
+}
+
+/**
+ * New-side line numbers a unified diff touches: added lines, and where a deletion sat.
+ *
+ * With `src`, each hunk is read where its text sits in `src` rather than where
+ * the diff says: a diff is only exact against its own post-image, and the file
+ * the selector reads may be a later one (a fixture replayed on today's tree, an
+ * edit above it since). A hunk whose text is gone keeps the diff's numbers.
+ */
+export function changedLines(patch: string, src?: string): number[] {
+  const lines = src?.split('\n');
+  const out = new Set<number>();
+  for (const h of hunks(patch)) {
+    for (const at of anchor(h, lines).values()) out.add(at);
   }
   return [...out];
+}
+
+/** Too little text to find by itself: a run of added lines shorter than this is placed by its neighbours. */
+const ANCHOR_MIN = 16;
+
+/**
+ * Where each of a hunk's touched offsets sits in `lines`: the whole hunk where
+ * its text still is; else each run of added lines where that run still is (the
+ * context around it may have been edited since), and a touch no run places
+ * moved with the nearest run that was placed; else where the diff says.
+ */
+function anchor(h: Hunk, lines: string[] | undefined): Map<number, number> {
+  const out = new Map<number, number>();
+  const place = (delta: number): void => h.touched.forEach((t) => out.set(t, h.start + t + delta));
+  if (!lines || h.block.every((b, j) => lines[h.start - 1 + j] === b)) return (place(0), out);
+  const whole = find(lines, h.block, h.start);
+  if (whole !== null) return (place(whole - h.start), out);
+  const deltas: { at: number; delta: number }[] = [];
+  const added = new Set(h.touched.filter((t) => t < h.block.length));
+  for (let i = 0; i < h.block.length; ) {
+    if (!added.has(i)) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (added.has(j)) j++;
+    const run = h.block.slice(i, j);
+    const found = run.join('').trim().length >= ANCHOR_MIN ? find(lines, run, h.start + i) : null;
+    if (found !== null) deltas.push({ at: i, delta: found - (h.start + i) });
+    i = j;
+  }
+  if (!deltas.length) return (place(0), out);
+  for (const t of h.touched) {
+    const near = deltas.reduce((a, b) => (Math.abs(b.at - t) < Math.abs(a.at - t) ? b : a));
+    out.set(t, h.start + t + near.delta);
+  }
+  return out;
 }
 
 /** The selector of every rule in a stylesheet whose body holds one of `lines`. */
@@ -467,7 +543,7 @@ export function changedSelectors(css: string, lines: number[]): string[] {
 const RADIUS = 12;
 export function cssChangeKeys(repo: Repo, file: string, patch: string | undefined): Reached {
   const css = repo.read(file) ?? '';
-  const direct = patch ? cssKeys(changedSelectors(css, changedLines(patch)).map((s) => `${s}{}`).join('\n')) : cssKeys(css);
+  const direct = patch ? cssKeys(changedSelectors(css, changedLines(patch, css)).map((s) => `${s}{}`).join('\n')) : cssKeys(css);
   const reached = emptyKeys();
   const via: string[] = [];
   if (direct.classes.size === 0) return { direct, reached, via, typesOnly: false };
@@ -665,7 +741,7 @@ export function reachedKeys(
   };
   type Node = { file: string; decl: Decl | null };
   const own = declsOf(file);
-  const lines = patch ? changedLines(patch) : [];
+  const lines = patch ? changedLines(patch, repo.read(file) ?? undefined) : [];
   let touched = own.filter((d) => lines.some((l) => l >= d.start && l <= d.end));
   if (!patch || touched.length === 0) touched = own;
   const start: Node[] = own.length ? touched.filter((d) => !d.isType).map((d) => ({ file, decl: d })) : [{ file, decl: null }];

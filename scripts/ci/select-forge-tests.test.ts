@@ -302,6 +302,19 @@ describe('diff helpers', () => {
     expect(changedLines(patch)).toEqual([2, 5]);
   });
 
+  it('changedLines reads each hunk where its text sits in a later file', () => {
+    const later = ['new 1', 'new 2', 'a', 'B', 'c', 'd', 'E', 'f'].join('\n');
+    expect(changedLines(patch, later)).toEqual([4, 7]);
+    expect(changedLines(patch, after)).toEqual([2, 5]);
+    expect(changedLines(patch, 'nothing of it')).toEqual([2, 5]);
+  });
+
+  it('changedLines finds a run of added lines whose context was edited since', () => {
+    const run = ['@@ -3,2 +3,4 @@', ' ctx', '+.long-enough-selector {', '+  margin: 0;', ' }'].join('\n');
+    const later = ['x', 'x', 'x', 'x', 'x', 'edited ctx', '.long-enough-selector {', '  margin: 0;', '}'].join('\n');
+    expect(changedLines(run, later)).toEqual([7, 8]);
+  });
+
   it('beforePatch rebuilds the old file', () => {
     expect(beforePatch(after, patch)).toBe(['a', 'b', 'c', 'd', 'e', 'f'].join('\n'));
   });
