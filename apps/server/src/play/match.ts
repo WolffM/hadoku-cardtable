@@ -2334,8 +2334,13 @@ export class Match {
 			this.send(s, prompt);
 			if (buttons !== null) this.send(s, buttons);
 		}
-		// A kept window names the rule that kept it (`maybeAutoPass` ran on it: every decider did).
-		const kept = answered || s.lastStop === null ? {} : { rule: s.lastStop.rule, ...('plays' in s.lastStop ? { plays: s.lastStop.plays } : {}) };
+		// A kept window names the rule that kept it (`maybeAutoPass` ran on it: every decider did),
+		// and for `has-play` the cards, by the names this seat sees, so the log answers "why here?".
+		const plays = answered || s.lastStop === null || !('plays' in s.lastStop) ? undefined : s.lastStop.plays;
+		const kept =
+			answered || s.lastStop === null
+				? {}
+				: { rule: s.lastStop.rule, ...(plays === undefined ? {} : { plays: plays.map((id) => ({ id, name: cardName(this.foldedStateOf(s), id) })) }) };
 		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why, ...kept });
 		if (!answered) this.logOffered(s, kind);
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);

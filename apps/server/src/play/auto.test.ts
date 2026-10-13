@@ -879,7 +879,7 @@ describe('T3: the Declare Attackers stop is the declaration — the priority win
 		push(h, 0, buttons(true, me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 		expect(h.logs.filter((l) => l.evt === 'prompt-forwarded')).toEqual([
-			{ evt: 'prompt-forwarded', matchId: h.match.id, seat: 0, kind: 'priority', why: 'kept', rule: 'has-play', plays: [67] },
+			{ evt: 'prompt-forwarded', matchId: h.match.id, seat: 0, kind: 'priority', why: 'kept', rule: 'has-play', plays: [{ id: 67, name: null }] },
 		]);
 	});
 
