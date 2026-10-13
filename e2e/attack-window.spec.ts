@@ -112,7 +112,9 @@ test(titled('an attacker holding an affordable instant keeps the window after de
       .toBe(true);
     const rows = aliceRows(stack, logFrom);
     console.log(`[attack-window] play: rows [${rows.join(' | ')}]`);
-    expect(rows.filter((r) => r.startsWith('prompt-forwarded priority kept has-play')), 'the window was kept for a real play, and the log says so').toHaveLength(1);
+    const kept = rows.filter((r) => r.startsWith('prompt-forwarded priority kept has-play'));
+    expect(kept, 'the window was kept for a real play, and the log says so').toHaveLength(1);
+    expect(kept[0], 'the log names the play').toContain('"name":"Giant Growth"');
     const text = await says(a);
     await clickOnce(a, text, 'ok');
     await expect.poll(async () => (await phaseOf(a))?.phase ?? '', { timeout: 30_000, message: 'one OK takes alice on to Main 2' }).toBe('MAIN2');
