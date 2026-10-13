@@ -45,10 +45,50 @@ export interface Box {
   height: number;
 }
 
+/**
+ * `l`'s box once it has SETTLED: no finite animation or transition running on it, an ancestor
+ * or a descendant, and the same box two frames running. A spec aims a drag from these boxes,
+ * and a box read while a card is still arriving aims at a column the board never draws (the Z8
+ * stacking red: the last land read 59.6px wide mid-arrival against its settled 68.3, so a
+ * release meant for the tenth column landed in the ninth). An infinite animation (a flyer's
+ * float) never finishes, so it does not hold the read back: only what will finish is waited on.
+ */
 export async function boxOf(l: Locator): Promise<Box> {
-  const b = await l.boundingBox();
-  if (b === null) throw new Error(`no box for ${l}`);
-  return b;
+  const settled = await l.evaluate(
+    (el) =>
+      new Promise<{ box: { x: number; y: number; width: number; height: number } | null; busy: string }>((resolve) => {
+        const touches = (a: Animation): boolean => {
+          const target = (a.effect as KeyframeEffect | null)?.target ?? null;
+          return target !== null && (target === el || target.contains(el) || el.contains(target));
+        };
+        let previous: DOMRect | null = null;
+        let steady = 0;
+        let frames = 0;
+        const tick = (): void => {
+          frames += 1;
+          const running = document
+            .getAnimations()
+            .filter((a) => a.playState === 'running' && touches(a))
+            .filter((a) => Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity));
+          const infinite = document.getAnimations().some((a) => a.playState === 'running' && touches(a) && !running.includes(a));
+          const r = el.getBoundingClientRect();
+          const same = previous !== null && r.x === previous.x && r.y === previous.y && r.width === previous.width && r.height === previous.height;
+          steady = running.length === 0 && (same || infinite) ? steady + 1 : 0;
+          previous = r;
+          if (steady >= 2) resolve({ box: { x: r.x, y: r.y, width: r.width, height: r.height }, busy: '' });
+          else if (frames >= 600)
+            resolve({
+              box: null,
+              busy: running.length > 0 ? running.map((a) => (a as CSSAnimation).animationName ?? (a as CSSTransition).transitionProperty ?? a.id).join(', ') : `the box still moving: ${JSON.stringify(r)}`,
+            });
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  if (settled.box === null) throw new Error(`${String(l)}: its box never settled in 600 frames — ${settled.busy}`);
+  if (settled.box.width === 0 && settled.box.height === 0) throw new Error(`no box for ${String(l)}`);
+  return settled.box;
 }
 
 export const centre = (b: Box): { x: number; y: number } => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
