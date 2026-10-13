@@ -816,18 +816,24 @@ export interface LiveMatch {
   perspective: number | null;
   /**
    * The match has ended: the server's `ended` notice (`showErrorDialog`
-   * titled `Match ended`) has arrived, or Forge's own view says `GameOver`.
+   * titled `Match ended`) or its `finishGame` has arrived, or Forge's own view says `GameOver`.
    * Sticky until a snapshot replaces the board, which re-sends the notice.
    */
   over: boolean;
   /**
-   * Forge's own `finishGame()` has arrived: the game is over for certain, even
+   * The server's `finishGame` has arrived: the game is over for certain, even
    * when the view's `GameOver` property never does (its delta is whatever
-   * flush follows the end, and sometimes none does — the loser is drawn as lost
-   * and the result screen never comes; 2026-10-08, `w35` R16 twice). Reset by
-   * a snapshot, which the server follows with the frame again.
+   * flush follows the end, and sometimes none does). The server sends it to
+   * every seat the moment Forge's game is over. Reset by a snapshot, which the
+   * server follows with the frame again.
    */
   finished: boolean;
+  /**
+   * Who lost, by player id, as the end notice told it: the game's result even when this screen's
+   * view never caught up with the end. `null` until a notice that carries it arrives; reset with
+   * `finished`.
+   */
+  losers: ReadonlySet<number> | null;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -954,6 +960,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     perspective: null,
     over: false,
     finished: false,
+    losers: null,
     fullControl: false,
     stopAtEndStep: false,
     autoYield: null,
@@ -2457,6 +2464,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.barHold = null;
   match.over = false;
   match.finished = false;
+  match.losers = null;
   unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
@@ -2789,6 +2797,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'finishGame') {
     match.finished = true;
+    match.over = true;
+    if (frame.losers !== undefined) match.losers = new Set(frame.losers);
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.title === MATCH_ENDED_TITLE) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
     // continue, whatever the board still shows.
@@ -2878,5 +2888,6 @@ function discardLocal(match: LiveMatch): void {
   match.coinToss = null;
   match.over = false;
   match.finished = false;
+  match.losers = null;
   unspend(match);
 }

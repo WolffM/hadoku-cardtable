@@ -309,20 +309,15 @@ export interface SeatState {
 	deck: string | null;
 	/**
 	 * Every end-of-game notice this seat has been told, in resend order — the
-	 * ONE latch wave 64 §S (S7) folded `ended` and `finished` into: two
-	 * `ServerFrame | null` fields with the identical "set once (or, for
-	 * `finished`, at most once per kind), resend after every later snapshot"
-	 * shape, kept apart only by what they carry.
+	 * ONE latch for both kinds: each is sent at most once per seat and resent
+	 * after every later snapshot.
 	 *
-	 *  - `'finished'` is Forge's own `finishGame()` for this seat. The frame
-	 *    that says the game is over for certain: the `GameOver` property on the
-	 *    game view travels in whatever delta happens to flush after the end,
-	 *    and on 2026-10-08 (runs 37818461156, 1a42930's) a seat drew the loser
-	 *    as lost and never received that delta at all — Forge's last flush
-	 *    carried the player's outcome and nothing else followed, so the result
-	 *    screen never came. `finishGame` is a direct call on the seat's GUI, so
-	 *    it always arrives. A later one replaces the earlier entry of the same
-	 *    kind rather than appending (Forge may call it more than once).
+	 *  - `'finished'` is the game being over (`finishGame`, with who lost), told
+	 *    to every seat the moment the bridge's `gameover` line arrives
+	 *    ({@link Match.finishSeat}). Neither the view's `GameOver` property nor
+	 *    Forge's own `finishGame()` call is certain to reach a seat: both need
+	 *    Forge to flush to it after the end (2026-10-08, runs 37818461156; and
+	 *    2026-10-13, a concede during the deal that sent neither to the winner).
 	 *  - `'ended'` is the notice fabricated when the MATCH failed (`endNotice`),
 	 *    sent and recorded at most once per seat.
 	 *
@@ -1997,7 +1992,11 @@ export class Match {
 				this.status = 'over';
 				this.winner = line.winner;
 				this.endedAt = this.now();
-				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner });
+				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner, losers: line.losers });
+				for (const s of this.seats) {
+					if (s.ai || s.playerId === null) continue;
+					this.finishSeat(s, (line.losers === undefined ? { kind: 'notify', method: 'finishGame' } : { kind: 'notify', method: 'finishGame', losers: line.losers }) as ServerFrame);
+				}
 				this.logFrames();
 				if (!this.replaying) this.deps.onGameOver?.();
 				this.overTimer = setTimeout(() => this.host?.stop(), this.deps.overGraceMs);
@@ -2196,15 +2195,10 @@ export class Match {
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.weakly = null;
 		} else if (frame.method === 'finishGame') {
-			// A later `finishGame` replaces the earlier entry of the same kind
-			// rather than appending — Forge may call it more than once.
-			const i = s.endNotices.findIndex((n) => n.kind === 'finished');
-			if (i === -1) s.endNotices.push({ kind: 'finished', frame });
-			else s.endNotices[i] = { kind: 'finished', frame };
+			this.finishSeat(s, frame);
+			return;
 		}
 		this.send(s, frame);
-		// Who won is on the table: the watchers hear `finishGame` from the source seat's copy, after it.
-		if (frame.method === 'finishGame' && s === this.watcherSource()) this.sendWatcher(frame);
 		// `setSelectables`/`clearSelectables` can open or close the
 		// other seat's `waitingOn` fact too — a selection is a live decision
 		// (`myMoveNow`'s own client-side rule, `apps/ui/src/play/live/
@@ -3248,6 +3242,25 @@ export class Match {
 	private tellSeatsItEnded(reason: string): void {
 		const cause = reason.split('; see ')[0] ?? reason;
 		this.endNotice(`Forge stopped, and this match cannot continue: ${cause}.`);
+	}
+
+	/**
+	 * The game is over for this seat: told once, and kept for every snapshot after it.
+	 *
+	 * The bridge's `gameover` line tells every seat with a board at once, with who lost. Forge's own
+	 * `finishGame()` and the view's `GameOver` property are not enough on their own: both travel only
+	 * if Forge happens to flush to that seat after the end, and a game that ends before Forge has
+	 * started it (a concede during the deal) gets no `finishGame` at all and a final delta to one seat
+	 * only — the other screen kept a live board with nothing to say the game was over. Forge's own
+	 * call arrives after the line (`PlayBridge.SeatGui.finishGame` emits the line first), so it is
+	 * the same news and is not sent twice.
+	 */
+	private finishSeat(s: SeatState, frame: ServerFrame): void {
+		if (s.endNotices.some((n) => n.kind === 'finished')) return;
+		s.endNotices.push({ kind: 'finished', frame });
+		this.send(s, frame);
+		// Who won is on the table: the watchers hear it from the source seat's copy, after it.
+		if (s === this.watcherSource()) this.sendWatcher(frame);
 	}
 
 	/** One ending, told once per seat and kept for every snapshot after it. */

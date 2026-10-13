@@ -1572,12 +1572,13 @@ export type GameOutcome = 'victory' | 'defeat' | 'draw';
 /** Victory/Defeat/Draw, from the viewer's own side. `null` while the game is not over. */
 export function gameOutcome(match: LiveMatch): GameOutcome | null {
   const view = match.view;
-  // Forge's `finishGame()` (`match.finished`) is the certain signal; the view's
+  // The server's `finishGame` (`match.finished`) is the certain signal; the view's
   // `GameOver` is the same fact when its delta happens to arrive (see
   // `LiveMatch.finished`). Either one ends the game here.
   if (view === null || !(view.gameOver || match.finished)) return null;
-  const viewerLost = view.players.find((p) => p.isViewer)?.hasLost ?? false;
-  const opponentLost = view.players.find((p) => !p.isViewer)?.hasLost ?? false;
+  const losers = lostPlayers(match, view);
+  const viewerLost = losers.some((p) => p.isViewer);
+  const opponentLost = losers.some((p) => !p.isViewer);
   if (viewerLost === opponentLost) return 'draw';
   return viewerLost ? 'defeat' : 'victory';
 }
@@ -1601,9 +1602,17 @@ export function reasonLost(player: BoardPlayer): GameEndReason {
   return 'concede';
 }
 
+/**
+ * Who lost: the end notice's own list when it carries one (`LiveMatch.losers` — this view may never
+ * have caught up with the end), each player's `hasLost` otherwise.
+ */
+function lostPlayers(match: LiveMatch, view: BoardView): BoardPlayer[] {
+  return view.players.filter((p) => (match.losers === null ? p.hasLost : match.losers.has(p.id)));
+}
+
 /** One sentence per loser (almost always one; a double-loss draw gets both). `null` when nobody lost. */
-export function endingSentence(view: BoardView): string | null {
-  const losers = view.players.filter((p) => p.hasLost);
+export function endingSentence(match: LiveMatch, view: BoardView): string | null {
+  const losers = lostPlayers(match, view);
   if (losers.length === 0) return null;
   return losers.map((p) => `${p.name} — ${END_REASON_WORDS[reasonLost(p)]}`).join(' · ');
 }
@@ -1722,7 +1731,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const outcome = gameOutcome(match)!;
   const viewer = view.players.find((p) => p.isViewer);
   const opponent = view.players.find((p) => !p.isViewer);
-  const ending = endingSentence(view);
+  const ending = endingSentence(match, view);
   const titleId = useId();
   const [leaving, setLeaving] = useState(false);
   const [busy, setBusy] = useState(false);

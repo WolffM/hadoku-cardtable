@@ -822,6 +822,13 @@ public final class PlayBridge {
         final var outcome = game.getOutcome();
         o.addProperty("winner", outcome == null || outcome.getWinningLobbyPlayer() == null
                 ? null : outcome.getWinningLobbyPlayer().getName());
+        // Who lost, by the ids the views carry: the server tells every seat with this
+        // (`Match.finishSeat`), because neither `GameOver` nor `finishGame()` is sure to reach one.
+        final JsonArray losers = new JsonArray();
+        for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
+            if (p.hasLost()) { losers.add(p.getId()); }
+        }
+        o.add("losers", losers);
         emit(o);
     }
 
@@ -1291,7 +1298,11 @@ public final class PlayBridge {
         }
 
         @Override public void afterGameEnd() { frame(notify("afterGameEnd")); }
-        @Override public void finishGame() { frame(notify("finishGame")); }
+        @Override public void finishGame() {
+            // The `gameover` line goes first, so the server has told every seat before this arrives.
+            maybeEmitGameOverFirst();
+            frame(notify("finishGame"));
+        }
         @Override public void clearSelectables() { frame(notify("clearSelectables")); }
 
         @Override public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {

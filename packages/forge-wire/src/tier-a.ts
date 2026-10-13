@@ -68,10 +68,15 @@ export const AfterGameEndSchema = z.strictObject({
   method: z.literal('afterGameEnd'),
 });
 
-/** `void finishGame()` — IGuiGame.java:100. */
+/**
+ * `void finishGame()` — IGuiGame.java:100. `losers`: the player ids Forge has lost when the game
+ * ended (`Player.hasLost`), added by the bridge, so a screen whose view never caught up with the
+ * end still knows who won.
+ */
 export const FinishGameSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('finishGame'),
+  losers: z.array(z.number().int()).optional(),
 });
 
 /** `void clearSelectables()` — IGuiGame.java:273. */

@@ -328,7 +328,11 @@ export type BridgeLine =
 	| { t: 'ready'; forgePort: number; bootMs: number; startMs?: number; seats: { seat: number; ai: boolean; deck: string }[] }
 	| { t: 'frame'; seat: number; frame: unknown }
 	| { t: 'probe'; probeId: string; seat: number; answer?: boolean; ms?: number; error?: string }
-	| { t: 'gameover'; winner: string | null }
+	/**
+	 * `losers`: the player ids Forge has lost (`Player.hasLost`), the same ids the views carry.
+	 * Absent from a line an older bridge wrote, which a resumed match may replay.
+	 */
+	| { t: 'gameover'; winner: string | null; losers?: number[] }
 	/**
 	 * One entry of Forge's own game log (`PlayBridge.GameLogForward`), worded once
 	 * per player: `text` is null when the line names a card that player may not
