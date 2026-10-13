@@ -132,7 +132,11 @@ interface Placement {
   at: Point;
   readonly side: 'you' | 'them';
   committed: boolean;
-  /** `Date.now()` when this was registered, so an unmatched one can expire — see `PLACEMENT_WAIT_MS`. */
+  /**
+   * `Date.now()` when this was last registered, so an unmatched one expires `PLACEMENT_WAIT_MS` after
+   * the last word, never after a first one: a card played again inherits nothing of an earlier release
+   * that never reached the stack.
+   */
   readonly registeredAt: number;
   /** The other seat is dragging it: their moves arrive a message at a time, and it glides between them. */
   gliding: boolean;
@@ -193,7 +197,7 @@ function register(records: Map<number, Placement>, id: number, at: Point, side: 
     at,
     side,
     committed: existing?.committed ?? side === 'you',
-    registeredAt: existing?.registeredAt ?? Date.now(),
+    registeredAt: Date.now(),
     gliding: glide,
   });
   requestRepaint();

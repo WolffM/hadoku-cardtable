@@ -60,7 +60,7 @@ import {
   subscribe,
   type LiveMatch,
 } from '../match.ts';
-import { onSpellMoved } from '../placed.ts';
+import { forgetPlacements, onSpellMoved } from '../placed.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
 import { needsTarget } from './cast.ts';
 import { GLIDE_MS } from '../../motion.ts';
@@ -82,6 +82,7 @@ afterEach(async () => {
   if (server !== null) await server.close();
   server = null;
   document.body.innerHTML = '';
+  forgetPlacements();
   vi.restoreAllMocks();
 });
 
