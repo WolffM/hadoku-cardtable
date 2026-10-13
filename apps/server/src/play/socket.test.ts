@@ -144,10 +144,15 @@ interface Peer {
 	transcript(): string;
 }
 
-function connect(port: number, headers: Record<string, string>, auth?: Record<string, string>): Promise<Peer> {
+function connect(
+	port: number,
+	headers: Record<string, string>,
+	auth?: Record<string, string>,
+	transport: 'polling' | 'websocket' = 'polling',
+): Promise<Peer> {
 	return new Promise((done, fail) => {
 		const socket = ioClient(`http://127.0.0.1:${port}`, {
-			transports: ['polling'],
+			transports: [transport],
 			extraHeaders: headers,
 			forceNew: true,
 			reconnection: false,
@@ -629,6 +634,18 @@ describe('two seats over the socket', () => {
 		alice.send({ matchId, frame: answer });
 		await waitUntil(() => host.commands.length > 0, 'the reply to reach Forge');
 		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	});
+
+	it('carries an act sent right behind the join, before its ack: the seat is held from the moment the join is read', async () => {
+		const { h, matchId, host } = await twoSeats();
+		// A browser's socket: over a websocket the two packets can arrive in one read, and are handled in one tick.
+		const alice = await connect(h.port, edgeHeaders('alice'), undefined, 'websocket');
+		const joined = alice.request('forge:join', { matchId });
+		alice.send({ matchId, frame: { kind: 'act', method: 'concede' } });
+		await joined;
+		await waitUntil(() => host.commands.length > 0, 'the concede to reach Forge');
+		expect(host.commands).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'concede' } }]);
+		expect(harness?.logs.filter((l) => l.evt === 'c2s-not-joined')).toEqual([]);
 	});
 
 	it('keeps the open ask through a refresh and through a departure longer than the grace, and re-asks the returning tab (prod m-dd37bda1c441)', async () => {
