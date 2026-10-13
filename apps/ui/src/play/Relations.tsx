@@ -7,7 +7,7 @@
  *
  * The answer is this file: ONE pill component, drawn from `adapter.ts`'s
  * `BoardCard.relations` — whatever Forge's own relation properties say about
- * a card (haunt, encode, imprint, a chosen-cards effect, a must-block list),
+ * a card (haunt, encode, imprint, a must-block list),
  * read generically off the property table (`adapter.ts`'s `RELATION_PROPS`).
  * A relation Forge adds some day is one more row in that table; nothing here
  * changes per card.
@@ -37,7 +37,6 @@ const WITH_NAMES: Readonly<Record<RelationKind, (names: string) => string>> = {
   haunting: (names) => `Haunting ${names}`,
   encoded: (names) => `Encoded: ${names}`,
   imprinted: (names) => `Imprinted: ${names}`,
-  chosen: (names) => `Chosen: ${names}`,
   mustBlock: (names) => `Must block ${names}`,
 };
 

@@ -67,7 +67,7 @@ function tagsOf(page: Page, id: number): Promise<{ tags: string[]; flying: boole
     const li = document.querySelector<HTMLElement>(`[data-board-card="${cardId}"]`);
     if (li === null) return null;
     return {
-      tags: Array.from(li.querySelectorAll(':scope > .board-card__keywords > .board-card__keyword')).map((t) => t.textContent ?? ''),
+      tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => t.textContent ?? ''),
       flying: li.hasAttribute('data-flying'),
     };
   }, id);

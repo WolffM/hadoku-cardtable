@@ -2,6 +2,7 @@
  * What the board's marks say on hover (`./index.ts`). Our own words, short:
  * what the mark means for play, not the comprehensive rules.
  */
+import type { BoardCardChoice, ChoiceKind } from '../adapter.ts';
 
 /** A corner mark (`Board.tsx`'s `StateMarks`). */
 export const MARK_TIP: Readonly<Record<'sick' | 'blocking' | 'token', string>> = {
@@ -10,7 +11,7 @@ export const MARK_TIP: Readonly<Record<'sick' | 'blocking' | 'token', string>> =
   token: 'Token: made by an effect, not a card. It stops existing when it leaves the battlefield',
 };
 
-/** A keyword tag (`Board.tsx`'s `KeywordTags`), by the lower-case keyword. */
+/** A keyword tag (`Board.tsx`'s `CardTags`), by the lower-case keyword. */
 const KEYWORD_TIP: Readonly<Record<string, string>> = {
   flying: "can't be blocked except by creatures with flying or reach",
   reach: 'can block creatures with flying',
@@ -30,6 +31,27 @@ const KEYWORD_TIP: Readonly<Record<string, string>> = {
 export function keywordTip(tag: string): string {
   const does = KEYWORD_TIP[tag.toLowerCase()];
   return does === undefined ? `${tag} (from an effect)` : `${tag}: ${does} (from an effect)`;
+}
+
+/** What a choice tag (`Board.tsx`'s `CardTags`) is a choice OF, by `ChoiceKind`. */
+const CHOICE_WHAT: Readonly<Record<ChoiceKind, string>> = {
+  color: 'Chosen colour',
+  type: 'Chosen type',
+  notedType: 'Noted type',
+  card: 'Named card',
+  chosenCard: 'Chosen card',
+  player: 'Chosen player',
+  protector: 'Protected by',
+  number: 'Chosen number',
+  mode: 'Chosen mode',
+  direction: 'Chosen direction',
+  evenOdd: 'Chosen',
+  sector: 'Chosen sector',
+};
+
+/** A choice tag's tip: what was chosen, then the choice itself. */
+export function choiceTip(choice: BoardCardChoice): string {
+  return `${CHOICE_WHAT[choice.kind]}: ${choice.values.join(', ')}`;
 }
 
 /** Forge's `Duration` words (`SpellAbilityEffect.addUntilCommand`), as how long, for a player's `whose` ("your", "Alice's"). */

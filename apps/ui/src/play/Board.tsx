@@ -384,13 +384,14 @@ import {
 } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
-import { ManaPip } from '../components/ManaPip.tsx';
+import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
   hasKeyword,
   keywordTags,
   type BoardCard,
+  type BoardCardChoice,
   type BoardPlayer,
   type BoardView,
   type PoolColor,
@@ -398,7 +399,7 @@ import {
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
-import { keywordTip, MARK_TIP } from './tip/words.ts';
+import { choiceTip, keywordTip, MARK_TIP } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
@@ -2108,66 +2109,69 @@ function Counters({
 }
 
 /**
- * T7 (wave 36), the operator's own words: *"Cavern of Souls shows its chosen
- * type."* `adapter.ts`'s `chosenType` is Forge's `ChosenType` — the creature
- * type an `AddType$ ChosenType`-style ability resolved for THIS permanent —
- * and any card that carries it wears the same small label, not only Cavern of
- * Souls by name: the wire names no card, only the property.
+ * The card's top-right tag column, in this order: a held card's changed cost,
+ * what was chosen for a permanent, a flash an effect grants a held card, then
+ * each evergreen keyword the card has NOW and was not printed with.
  *
- * Top-right: the P/T badge has the bottom-right, the marks have the top-left
- * and the counters have the bottom-left (`card.css`'s own corner map), so this
- * is the one corner nothing else claims. The full card — oracle text
- * included, through the SAME inspector every other battlefield card already
- * opens on hover (`data-card-id` on the `<li>` this sits inside) — is what
- * answers "the full text on hover"; this label only needs to say the word.
- */
-function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
-  const chosenType = entry.chosenType;
-  if (chosenType === null || chosenType === undefined) return null;
-  return (
-    <span className="board-card__chosen-type" data-tip={`Chosen type: ${chosenType}`}>
-      {chosenType}
-    </span>
-  );
-}
-
-/**
- * The operator: *"should be able to see that creature is flying … a tag on the
- * creature when they gain flying."* Each evergreen keyword the card has NOW and
- * was not printed with (`keywordTags`), as a capsule down the top-right corner,
- * under the chosen-type label when there is one.
+ *   - Held changes (`BoardInteraction.held`), the operator: *"can we display
+ *     modified costs on cards in hand using our applied overlay tags? should
+ *     apply to anything that modifies anything in hand"*. The cost tag is its
+ *     pips and sits over the printed cost it replaces.
  *
- * And on a held card, what an effect changes about it (`BoardInteraction.held`):
- * the operator, *"can we display modified costs on cards in hand using our
- * applied overlay tags? should apply to anything that modifies anything in
- * hand"*. The cost tag comes first and sits over the printed cost it replaces.
+ *   - Choices, the operator, 2026-10-12: *"any card that selects a color or
+ *     makes a decision that becomes a permanent thing about it on the
+ *     battlefield should recieve a visual indicator."* `adapter.ts`'s
+ *     `choices` — every choice property Forge tracks on the card
+ *     (`CHOICE_PROPS`) — one tag each; a colour is its mana symbol, anything
+ *     else its words.
+ *   - Keywords, the operator: *"a tag on the creature when they gain
+ *     flying."* (`keywordTags`).
+ *
+ * Every tag says on hover (`data-tip`, the board's one tooltip) what it is.
  */
-function KeywordTags({ entry, held }: { entry: BoardCard; held?: HeldTags }) {
-  const tags = keywordTags(entry.keywords, entry.card.oracleText);
+function CardTags({ entry, choices, held }: { entry: BoardCard; choices: readonly BoardCardChoice[]; held?: HeldTags }) {
+  const keywords = keywordTags(entry.keywords, entry.card.oracleText);
   const cost = held?.cost;
-  if (tags.length === 0 && cost === undefined && held?.flash === undefined) return null;
-  const said = [...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]), ...(held?.flash === undefined ? [] : ['Flash']), ...tags];
+  const flash = held?.flash;
+  if (choices.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined) return null;
+  const said = [
+    ...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]),
+    ...choices.map(choiceTip),
+    ...(flash === undefined ? [] : ['Flash']),
+    ...keywords,
+  ];
   return (
-    <ul className="board-card__keywords" aria-label={`${entry.card.name}: ${said.join(', ')}`}>
+    <ul className="board-card__tags" aria-label={`${entry.card.name}: ${said.join('; ')}`}>
       {cost !== undefined && (
-        <li className="board-card__keyword" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
+        <li className="board-card__tag" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
           {cost.tokens.map((token, i) => (
             <ManaPip key={`${token}-${i}`} token={token} />
           ))}
         </li>
       )}
-      {held?.flash !== undefined && (
-        <li className="board-card__keyword" data-keyword="flash" data-tip={held.flash}>
+      {choices.map((choice, i) => (
+        <li key={`${choice.kind}:${i}`} className="board-card__tag" data-choice={choice.kind} data-tip={choiceTip(choice)}>
+          {choice.kind === 'color' ? choice.values.map((word) => <ChoiceWord key={word} word={word} />) : choice.values.join(', ')}
+        </li>
+      ))}
+      {flash !== undefined && (
+        <li className="board-card__tag" data-keyword="flash" data-tip={flash}>
           Flash
         </li>
       )}
-      {tags.map((tag) => (
-        <li key={tag} className="board-card__keyword" data-keyword={tag.toLowerCase()} data-tip={keywordTip(tag)}>
+      {keywords.map((tag) => (
+        <li key={tag} className="board-card__tag" data-keyword={tag.toLowerCase()} data-tip={keywordTip(tag)}>
           {tag}
         </li>
       ))}
     </ul>
   );
+}
+
+/** A chosen colour: the Mana font's own symbol (D20), or the word when it names none. */
+function ChoiceWord({ word }: { word: string }) {
+  const token = colorWordToken(word);
+  return token === null ? <>{word}</> : <ManaPip token={token} />;
 }
 
 /**
@@ -2188,7 +2192,7 @@ function KeywordTags({ entry, held }: { entry: BoardCard; held?: HeldTags }) {
  *
  * Positioned over the type bar — roughly where `CardTile`'s own `.card__type`
  * sits, just under the name row — rather than in a free corner: the marks
- * (top-left), the chosen-type label (top-right), the counters (bottom-left)
+ * (top-left), the tag column (top-right), the counters (bottom-left)
  * and the P/T badge (bottom-right) all stay exactly where they were.
  */
 function TypePill({ entry }: { entry: BoardCard }) {
@@ -2453,8 +2457,13 @@ function CardOnBoard({
       {onBattlefield && <PowerToughness entry={entry} />}
       {onBattlefield && <StateMarks entry={entry} />}
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
-      {onBattlefield && <ChosenTypeLabel entry={entry} />}
-      {(onBattlefield || slot === 'hand') && <KeywordTags entry={entry} held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined} />}
+      {(onBattlefield || slot === 'hand') && (
+        <CardTags
+          entry={entry}
+          choices={onBattlefield ? (entry.choices ?? []) : []}
+          held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined}
+        />
+      )}
       {onBattlefield && <TypePill entry={entry} />}
       {/*
        * NOT gated on `onBattlefield`: the haunting card's own pill reads on

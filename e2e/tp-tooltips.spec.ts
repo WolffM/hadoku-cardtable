@@ -96,7 +96,7 @@ test(titled('the sick mark, the token mark and a keyword tag each show a tooltip
 
     await tipOn(page, `[data-board-card="${giant}"] > .board-card__marks > [data-mark="sick"]`, /summoning sick/i, 'sick mark');
     await tipOn(page, `[data-board-card="${goblin}"] > .board-card__marks > [data-mark="token"]`, /token/i, 'token mark');
-    await tipOn(page, `[data-board-card="${bears}"] > .board-card__keywords > [data-keyword="flying"]`, /^Flying\b.*block/i, 'flying tag');
+    await tipOn(page, `[data-board-card="${bears}"] > .board-card__tags > [data-keyword="flying"]`, /^Flying\b.*block/i, 'flying tag');
 
     // The art of the sick creature is the inspector's, not the sick mark's.
     await hover(page, `[data-board-card="${giant}"] > .board-card__face`);

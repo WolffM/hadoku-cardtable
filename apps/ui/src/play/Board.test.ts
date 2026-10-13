@@ -25,6 +25,7 @@ import {
   toBoardView,
   type ArtIdIndex,
   type BoardCard,
+  type BoardCardChoice,
   type BoardView,
   type StackEntry,
 } from './adapter.ts';
@@ -2917,7 +2918,7 @@ describe('keyword tags and the flyer’s float', () => {
     } as BoardView;
   }
   const tagsOf = (container: HTMLElement) =>
-    [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__keywords > .board-card__keyword')].map((t) => t.textContent);
+    [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__tags > [data-keyword]')].map((t) => t.textContent);
 
   it('tags each evergreen keyword in Forge’s own word, in a fixed order, and floats a flyer', () => {
     const { container } = renderBoard(withKeywords(['Lifelink', 'Flying', 'Affinity:Mountain', 'Hexproof:Card.Black:black']));
@@ -4779,80 +4780,69 @@ describe('wave 34 §B', () => {
  * restore, it passes).
  */
 
-describe('wave 36 §B — T7: a card with ChosenType wears a small label', () => {
+describe('choice tags: a permanent wears what was chosen for it', () => {
   const base = boardFromFixture(fixture);
-  /** The viewer's first battlefield card, with (or without) a chosen type. */
-  const withChosenType = (chosenType: string | null, cardId = 21): BoardView => ({
+  /** The viewer's battlefield card 21, with these choices. */
+  const withChoices = (choices: BoardCardChoice[], cardId = 21): BoardView => ({
     ...base,
     players: base.players.map((p) =>
-      !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === cardId ? { ...c, chosenType } : c)) },
+      !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === cardId ? { ...c, choices } : c)) },
     ),
   });
-  const card = (container: HTMLElement, id = 21) => container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!;
+  const tags = (container: HTMLElement, id = 21) => [...container.querySelectorAll<HTMLElement>(`[data-card-id="${id}"] > .board-card__tags > [data-choice]`)];
 
-  it('Cavern of Souls (stand-in: this fixture’s own battlefield card) shows its chosen type', () => {
-    const { container } = renderBoard(withChosenType('Elf'));
-    const label = card(container).querySelector<HTMLElement>('.board-card__chosen-type')!;
-    expect(label, 'a small label on the card').not.toBeNull();
-    expect(label.textContent).toBe('Elf');
-    // The full rules text stays the inspector's: this label names only the
-    // word, not a second copy of the oracle text the hover already shows.
-    expect(label.dataset.tip).toBe('Chosen type: Elf');
+  it('a chosen colour is its mana symbol, and the tip says what was chosen', () => {
+    const [tag, ...rest] = tags(renderBoard(withChoices([{ kind: 'color', values: ['Blue'] }])).container);
+    expect(rest).toEqual([]);
+    expect(tag!.dataset.choice).toBe('color');
+    expect(tag!.querySelector('.ms')?.className).toMatch(/\bms-u\b/);
+    expect(tag!.textContent, 'the symbol, not the word').toBe('');
+    expect(tag!.dataset.tip).toBe('Chosen colour: Blue');
   });
 
-  it('the label is out of flow and takes no click, like the rest of the state layer', () => {
+  it('every other kind is its words, one tag per choice, before the keyword tags', () => {
+    const view = withChoices([
+      { kind: 'type', values: ['Goblin'] },
+      { kind: 'card', values: ['Llanowar Elves'] },
+      { kind: 'player', values: ['Bob'] },
+    ]);
+    const withKeyword: BoardView = {
+      ...view,
+      players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 21 ? { ...c, keywords: ['Flying'] } : c)) })),
+    };
+    const { container } = renderBoard(withKeyword);
+    expect(tags(container).map((t) => [t.textContent, t.dataset.tip])).toEqual([
+      ['Goblin', 'Chosen type: Goblin'],
+      ['Llanowar Elves', 'Named card: Llanowar Elves'],
+      ['Bob', 'Chosen player: Bob'],
+    ]);
+    const column = [...container.querySelectorAll<HTMLElement>('[data-card-id="21"] > .board-card__tags > li')];
+    expect(column.map((t) => t.dataset.choice ?? t.dataset.keyword)).toEqual(['type', 'card', 'player', 'flying']);
+  });
+
+  it('the column is out of flow, takes no click, and sits in the top-right corner', () => {
     const css = styled();
-    const label = card(renderBoard(withChosenType('Elf')).container).querySelector('.board-card__chosen-type')!;
-    expect(css(label, 'position')).toBe('absolute');
-    expect(css(label, 'pointer-events')).toBe('none');
-    // The one corner the marks (top-left), the P/T badge (bottom-right) and the counters (bottom-left) leave free.
-    expect(['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(label, side)))).toEqual(['top', 'right']);
+    const column = renderBoard(withChoices([{ kind: 'type', values: ['Elf'] }])).container.querySelector('[data-card-id="21"] > .board-card__tags')!;
+    expect(css(column, 'position')).toBe('absolute');
+    expect(css(column, 'pointer-events')).toBe('none');
+    expect(['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(column, side)))).toEqual(['top', 'right']);
   });
 
-  it('a card with nothing chosen (the common case) wears no label at all', () => {
-    const { container } = renderBoard(withChosenType(null));
-    expect(card(container).querySelector('.board-card__chosen-type')).toBeNull();
+  it('a card with nothing chosen and no gained keyword (the common case) wears no column at all', () => {
+    const { container } = renderBoard(withChoices([]));
+    expect(container.querySelector('[data-card-id="21"] > .board-card__tags')).toBeNull();
   });
 
-  /*
-   * The adapter's own half: a blank `ChosenType` on the WIRE normalises to
-   * `null` in `toBoardCard` — never a drawn empty label. (`ChosenTypeLabel`
-   * itself trusts the adapter's normalisation and does not re-check; a
-   * `BoardCard` built by hand with a raw blank string, as the fixture-view
-   * cases above do for `'Elf'` and `null`, is not a shape the adapter would
-   * ever hand it, so this is tested at the layer that actually does the
-   * trimming.)
-   */
-  it('adapter: a blank ChosenType on the wire normalises to null, not an empty string', () => {
-    const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const key = deltaKey(WireType.Card, 21);
-    const view = state.get(key)!;
-    state.set(key, { ...view, ChosenType: { t: 'str', v: '   ' } } as WireObject);
-    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
-    const me = adapted.players.find((p) => p.isViewer)!;
-    expect(me.battlefield.find((c) => c.id === 21)!.chosenType).toBeNull();
-  });
-
-  it('adapter: a real ChosenType on the wire comes through, trimmed', () => {
-    const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const key = deltaKey(WireType.Card, 21);
-    const view = state.get(key)!;
-    state.set(key, { ...view, ChosenType: { t: 'str', v: '  Elf  ' } } as WireObject);
-    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
-    const me = adapted.players.find((p) => p.isViewer)!;
-    expect(me.battlefield.find((c) => c.id === 21)!.chosenType).toBe('Elf');
-  });
-
-  it('is drawn on the battlefield only, not in a hand or a graveyard', () => {
-    const view = withChosenType('Elf');
+  it('is drawn on the battlefield only, not in a hand', () => {
+    const view = withChoices([{ kind: 'type', values: ['Elf'] }]);
     const withHand: BoardView = {
       ...view,
       players: view.players.map((p) =>
-        !p.isViewer || p.hand === null ? p : { ...p, hand: p.hand.map((c, i) => (i === 0 ? { ...c, chosenType: 'Elf' } : c)) },
+        !p.isViewer || p.hand === null ? p : { ...p, hand: p.hand.map((c, i) => (i === 0 ? { ...c, choices: [{ kind: 'type', values: ['Elf'] }] } : c)) },
       ),
     };
     const { zone } = renderBoard(withHand);
-    expect(zone(0, 'hand').querySelector('.board-card__chosen-type'), 'not off the battlefield').toBeNull();
+    expect(zone(0, 'hand').querySelector('.board-card__tags'), 'not off the battlefield').toBeNull();
   });
 });
 
@@ -5065,7 +5055,7 @@ describe('held changes — a changed cost and a granted flash are tags on the ha
   const [changed, plain] = me.hand!;
   const onField = me.battlefield[0]!;
   const tags = (container: HTMLElement, id: number) =>
-    container.querySelector<HTMLElement>(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__keywords`);
+    container.querySelector<HTMLElement>(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__tags`);
 
   function withHeld(held: BoardInteraction['held']) {
     const { interaction } = spyInteraction([]);

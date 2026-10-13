@@ -489,39 +489,15 @@
 }
 
 /*
- * T7 (wave 36), the operator: *"Cavern of Souls shows its chosen type."* The
- * one corner the other three badges leave free — marks are top-left, the P/T
- * badge is bottom-right, the counters are bottom-left (the comments above
- * name all three) — same capsule language as the rest of the state layer: an
- * opaque background over the art, out of flow, clipped to the card, and
- * `pointer-events: none` so it may never eat a click Forge offered or move
- * the card's own box.
+ * The tag column (`Board.tsx`'s `CardTags`): what was chosen for the
+ * permanent, then the keywords it gained. Down the one corner the other
+ * badges leave free — marks are top-left, the P/T badge is bottom-right, the
+ * counters are bottom-left — in the same capsule as the rest of the state
+ * layer: an opaque background over the art, out of flow, clipped to the card,
+ * and `pointer-events: none` so it may never eat a click Forge offered or move
+ * the card's own box. The tip finds a tag by its box (`tip/index.ts`).
  */
-.board-card__chosen-type {
-  position: absolute;
-  z-index: var(--z-card-badge, 1);
-  top: 2px;
-  right: calc(2px + var(--pile-fan));
-  max-width: calc(100% - 4px - var(--pile-fan));
-  padding: 0 4px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink-dim);
-  font-size: 10px;
-  line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/*
- * Keyword tags: *"a tag on the creature when they gain flying."* Down the
- * top-right corner, under the chosen-type label when a card has one, in the
- * same capsule as the rest of the state layer.
- */
-.board-card__keywords {
+.board-card__tags {
   position: absolute;
   z-index: var(--z-card-badge, 1);
   top: 2px;
@@ -537,11 +513,7 @@
   pointer-events: none;
 }
 
-.board-card__chosen-type ~ .board-card__keywords {
-  top: 20px;
-}
-
-.board-card__keyword {
+.board-card__tag {
   max-width: 100%;
   padding: 0 4px;
   background: var(--bg-raised);
@@ -556,19 +528,26 @@
   white-space: nowrap;
 }
 
-/* A held card's changed cost (`Board.tsx`'s `KeywordTags`): its pips, in the P/T badge's own colours — cheaper in the primary, dearer in danger. */
-.board-card__keyword[data-cost] {
+/*
+ * A tag drawn as mana symbols — a held card's changed cost, a chosen colour —
+ * a size up so the glyphs read. A changed cost borders in the P/T badge's own
+ * colours: cheaper in the primary, dearer in danger.
+ */
+.board-card__tag[data-cost],
+.board-card__tag[data-choice='color'] {
   display: inline-flex;
   align-items: center;
   gap: 1px;
+  padding: 1px 2px;
   font-size: 10px;
+  line-height: 1;
 }
 
-.board-card__keyword[data-cost-change='less'] {
+.board-card__tag[data-cost-change='less'] {
   border-color: var(--accent-ink);
 }
 
-.board-card__keyword[data-cost-change='more'] {
+.board-card__tag[data-cost-change='more'] {
   border-color: var(--danger-ink);
 }
 
@@ -610,9 +589,9 @@
 /*
  * R15 (wave 53 T), the operator, Playtest 9: *"put one of our overlay pills
  * over the type bar."* Over the type bar means a new BAND, not a corner — the
- * four existing corners (marks top-left, chosen-type top-right, counters
+ * four existing corners (marks top-left, tag column top-right, counters
  * bottom-left, the P/T badge bottom-right) stay exactly where they were, and
- * this sits between the marks and the chosen-type label, roughly where
+ * this sits between the marks and the tag column, roughly where
  * `CardTile`'s own `.card__type` sits under the name row (that text is
  * covered by art at board scale — see `styles.css`'s `.card__art`'s own
  * `z-index: 1` — so this is a deliberate proportion of the card's own box,
@@ -623,10 +602,10 @@
  * gestures lane's raw `--accent` (an offer) or `--warn` (a danger), so it
  * cannot be misread as either.
  *
- * Centered and clipped exactly like the chosen-type pill: `pointer-events:
+ * Centered and clipped exactly like the tag column: `pointer-events:
  * none` (it may never eat a click Forge offered, nor move the card's own
  * box — `e2e/table-fit.spec.ts`), and `title` carries the printed line for
- * the SAME native hover surface the chosen-type pill already relies on (no
+ * the SAME native hover surface the tag column already relies on (no
  * second, custom hover mechanism).
  */
 .board-card__type-pill {
@@ -654,9 +633,9 @@
  * The operator: *"i played 'Cry of Contrition' which has haunt. i expect to
  * see the 'haunt' keyword on my creature."* `Relations.tsx` draws one pill
  * per relation Forge's wire names generically (haunt, encode, imprint, a
- * chosen-cards effect, a must-block list — `adapter.ts`'s own table).
+ * must-block list — `adapter.ts`'s own table).
  *
- * The four corners are already claimed (marks top-left, chosen-type
+ * The four corners are already claimed (marks top-left, tag column
  * top-right, counters bottom-left, the P/T badge bottom-right — this file's
  * own map, above) and the type-pill band sits at `top: 22%`, so this one
  * centres along the BOTTOM edge instead, between the two bottom corners — a

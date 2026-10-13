@@ -484,17 +484,78 @@ describe('§A.2 #11 — the attachment properties the adapter used to ignore', (
   });
 });
 
+describe('choices, generically', () => {
+  const list = (...v: string[]) => ({ t: 'list', v: v.map((x) => ({ t: 'str', v: x })) });
+
+  it('a card with no choice property (every card in the capture) carries none', () => {
+    for (const card of allCards(adapt(baseState()))) expect(card.choices, `card ${card.id}`).toEqual([]);
+  });
+
+  it('ChosenColors: Forge’s lower-case colour names, capitalised, in Forge’s order', () => {
+    const state = baseState();
+    setCard(state, 21, 'ChosenColors', list('blue', 'red'));
+    expect(cardsById(adapt(state)).get(21)!.choices).toEqual([{ kind: 'color', values: ['Blue', 'Red'] }]);
+  });
+
+  it('every choice property, each read off its own wire shape, in the table’s order', () => {
+    const state = baseState();
+    const bob = baseState().get(deltaKey(WireType.Player, fixture.viewerPlayerId === 0 ? 1 : 0))!;
+    setCard(state, 21, 'ChosenType', { t: 'str', v: ' Goblin ' });
+    setCard(state, 21, 'ChosenType2', { t: 'str', v: 'Elf' });
+    setCard(state, 21, 'NotedTypes', list('Wizard'));
+    setCard(state, 21, 'NamedCard', list('Llanowar Elves'));
+    setCard(state, 21, 'ChosenCards', { t: 'list', v: [{ t: 'int', v: 2 }, { t: 'int', v: 404 }] });
+    setCard(state, 21, 'ChosenPlayer', { t: 'int', v: bob._id });
+    setCard(state, 21, 'ProtectingPlayer', { t: 'int', v: -1 });
+    setCard(state, 21, 'ChosenNumber', { t: 'str', v: '3' });
+    setCard(state, 21, 'ChosenMode', { t: 'str', v: 'Dragons' });
+    setCard(state, 21, 'ChosenDirection', { t: 'enum', c: 'forge.game.Direction', v: 'Left' });
+    setCard(state, 21, 'ChosenEvenOdd', { t: 'enum', c: 'forge.game.EvenOdd', v: 'Odd' });
+    setCard(state, 21, 'Sector', { t: 'str', v: 'Red' });
+    const bobName = String((bob.Name as { v: string }).v);
+    expect(cardsById(adapt(state)).get(21)!.choices).toEqual([
+      { kind: 'type', values: ['Goblin'] },
+      { kind: 'type', values: ['Elf'] },
+      { kind: 'notedType', values: ['Wizard'] },
+      { kind: 'card', values: ['Llanowar Elves'] },
+      { kind: 'chosenCard', values: ["Ral's Staticaster", HIDDEN_CARD_NAME] },
+      { kind: 'player', values: [bobName] },
+      { kind: 'number', values: ['3'] },
+      { kind: 'mode', values: ['Dragons'] },
+      { kind: 'direction', values: ['Left'] },
+      { kind: 'evenOdd', values: ['Odd'] },
+      { kind: 'sector', values: ['Red'] },
+    ]);
+  });
+
+  it('a chosen player is named as the board names the seat, not Forge’s raw name', () => {
+    const state = baseState();
+    const other = fixture.viewerPlayerId === 0 ? 1 : 0;
+    setCard(state, 21, 'ChosenPlayer', { t: 'int', v: other });
+    const view = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, nameByPlayerId: new Map([[other, 'Bob']]) });
+    expect(cardsById(view).get(21)!.choices).toEqual([{ kind: 'player', values: ['Bob'] }]);
+  });
+
+  it('a blank value is Forge’s "nothing chosen" — a cleared ChosenNumber, an empty list — never a tag', () => {
+    const state = baseState();
+    setCard(state, 21, 'ChosenNumber', { t: 'str', v: '' });
+    setCard(state, 21, 'ChosenType', { t: 'str', v: '   ' });
+    setCard(state, 21, 'ChosenColors', list());
+    expect(cardsById(adapt(state)).get(21)!.choices).toEqual([]);
+  });
+});
+
 describe('relations, generically', () => {
   /*
-   * The committed capture has no haunt, encode, imprint, chosen-cards or
-   * must-block relation in it — same proof `AttachedCards` needed above,
-   * read the same way: none of the six relation properties appear in any
+   * The committed capture has no haunt, encode, imprint or must-block
+   * relation in it — same proof `AttachedCards` needed above, read the same
+   * way: none of the five relation properties appear in any
    * packet, so the pairing below is written into the real state by hand.
    */
-  it('the capture carries none of the six relation properties, which is why they had to be written in', () => {
+  it('the capture carries none of the five relation properties, which is why they had to be written in', () => {
     for (const packet of loadPackets(fixture)) {
       const json = JSON.stringify([packet.newObjects, packet.objectDeltas]);
-      for (const key of ['HauntedBy', 'Haunting', 'EncodedCards', 'ImprintedCards', 'ChosenCards', 'MustBlockCards']) {
+      for (const key of ['HauntedBy', 'Haunting', 'EncodedCards', 'ImprintedCards', 'MustBlockCards']) {
         expect(json, key).not.toContain(key);
       }
     }
@@ -522,13 +583,11 @@ describe('relations, generically', () => {
     const state = baseState();
     setCard(state, 21, 'EncodedCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
     setCard(state, 20, 'ImprintedCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
-    setCard(state, 24, 'ChosenCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
     setCard(state, 25, 'MustBlockCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
 
     const by = cardsById(adapt(state));
     expect(by.get(21)!.relations).toEqual([{ kind: 'encoded', ids: [2], names: ["Ral's Staticaster"] }]);
     expect(by.get(20)!.relations).toEqual([{ kind: 'imprinted', ids: [2], names: ["Ral's Staticaster"] }]);
-    expect(by.get(24)!.relations).toEqual([{ kind: 'chosen', ids: [2], names: ["Ral's Staticaster"] }]);
     expect(by.get(25)!.relations).toEqual([{ kind: 'mustBlock', ids: [2], names: ["Ral's Staticaster"] }]);
   });
 

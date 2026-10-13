@@ -238,20 +238,14 @@ export interface BoardCard {
    */
   changedFrom?: { name: string; printed: string } | null;
   /**
-   * Wave 36 T7, the operator: *"Cavern of Souls shows its chosen type."*
-   * Forge's `ChosenType` (`TrackableProperty.java:65`, `StringType`,
-   * `tier-c.ts:353`) is the value an `AddType$ ChosenType`-style ability
-   * resolved at resolution time — Cavern of Souls' creature type, and
-   * anything else that carries the same property. Read off the CardView
-   * (`view`, not the face): it is not part of a printed face, it is a fact
-   * Forge is currently tracking about this permanent, the same shelf
-   * `AttachedCards` and `Tapped` sit on.
-   *
-   * `null` for "nothing chosen" — absent on the wire, or a blank string
-   * (Forge may send either for a card that has not chosen yet, or one with
-   * no such ability at all) — never a drawn empty label.
+   * The operator, 2026-10-12: *"any card that selects a color or makes a
+   * decision that becomes a permanent thing about it on the battlefield should
+   * recieve a visual indicator."* Every choice Forge tracks on this permanent's
+   * `CardView` (`CHOICE_PROPS`: a colour, a creature type, a named card, a
+   * player, a number, a mode…), one entry per property, in that table's order.
+   * Absent/empty for a card that has chosen nothing, which is most cards.
    */
-  chosenType?: string | null;
+  choices?: BoardCardChoice[];
   /**
    * The operator: *"i played 'Cry of Contrition' which has haunt. i expect
    * to see the 'haunt' keyword on my creature … is there an easier way to
@@ -274,7 +268,7 @@ export interface BoardCard {
 
 /**
  * A relation Forge's own wire says this card has to another — haunt, encode,
- * imprint, a chosen-cards effect, a must-block list, and whatever the wire
+ * imprint, a must-block list, and whatever the wire
  * adds next. `ids` is the other side's forge id(s), in Forge's own order;
  * `names` is each one resolved to a name (`nameOfCard`), `HIDDEN_CARD_NAME`
  * for one this seat may not see.
@@ -286,7 +280,32 @@ export interface BoardCardRelation {
 }
 
 /** Every relation kind the board draws a pill for. See `RELATION_PROPS`. */
-export type RelationKind = 'hauntedBy' | 'haunting' | 'encoded' | 'imprinted' | 'chosen' | 'mustBlock';
+export type RelationKind = 'hauntedBy' | 'haunting' | 'encoded' | 'imprinted' | 'mustBlock';
+
+/** What a choice a permanent carries is OF — one per row of `CHOICE_PROPS`' kinds. */
+export type ChoiceKind =
+  | 'color'
+  | 'type'
+  | 'notedType'
+  | 'card'
+  | 'chosenCard'
+  | 'player'
+  | 'protector'
+  | 'number'
+  | 'mode'
+  | 'direction'
+  | 'evenOdd'
+  | 'sector';
+
+/**
+ * One choice Forge says this permanent made or was given: `values` in Forge's
+ * own order, already words — a colour capitalised (`Blue`), a card or player
+ * resolved to its name. Never empty.
+ */
+export interface BoardCardChoice {
+  kind: ChoiceKind;
+  values: string[];
+}
 
 /**
  * How one of a card's two numbers stands: against its printed base (`buffed`,
@@ -1085,7 +1104,6 @@ const RELATION_PROPS: readonly { key: string; kind: RelationKind; single?: true 
   { key: 'Haunting', kind: 'haunting', single: true },
   { key: 'EncodedCards', kind: 'encoded' },
   { key: 'ImprintedCards', kind: 'imprinted' },
-  { key: 'ChosenCards', kind: 'chosen' },
   { key: 'MustBlockCards', kind: 'mustBlock' },
 ];
 
@@ -1158,6 +1176,11 @@ function wireName(view: WireObject | undefined, face: WireObject | undefined): s
  * the creature right back), so building the OTHER card's full `BoardCard` —
  * which computes its own relations in turn — would recurse forever.
  */
+/** A player's name as Forge's own `PlayerView` has it, for a reader with no seat names to hand. */
+function wirePlayerName(state: WireState, pid: number): string {
+  return readStr(state.get(deltaKey(WireType.Player, pid)), 'Name') ?? `player ${pid}`;
+}
+
 function nameOfCard(state: WireState, id: number): string {
   const view = state.get(deltaKey(WireType.Card, id));
   return wireName(view, view === undefined ? undefined : shownFace(state, id, view, false)) ?? HIDDEN_CARD_NAME;
@@ -1196,6 +1219,70 @@ function readRelations(state: WireState, view: WireObject | undefined): BoardCar
   return out;
 }
 
+// ── choices ─────────────────────────────────────────────────────────────
+
+/**
+ * Every choice property Forge's `CardView` tracks (`TrackableProperty.java`,
+ * set by `CardView.updateChosen*`/`updateNamedCard`/`updateSector`…), with how
+ * its value crosses the wire (`tier-c.ts`). A choice Forge adds is one more row
+ * here, never a per-card rule in the board.
+ */
+const CHOICE_PROPS: readonly { key: string; kind: ChoiceKind; read: 'str' | 'strs' | 'enum' | 'player' | 'cards' }[] = [
+  { key: 'ChosenColors', kind: 'color', read: 'strs' },
+  { key: 'ChosenType', kind: 'type', read: 'str' },
+  { key: 'ChosenType2', kind: 'type', read: 'str' },
+  { key: 'NotedTypes', kind: 'notedType', read: 'strs' },
+  { key: 'NamedCard', kind: 'card', read: 'strs' },
+  { key: 'ChosenCards', kind: 'chosenCard', read: 'cards' },
+  { key: 'ChosenPlayer', kind: 'player', read: 'player' },
+  { key: 'ProtectingPlayer', kind: 'protector', read: 'player' },
+  { key: 'ChosenNumber', kind: 'number', read: 'str' },
+  { key: 'ChosenMode', kind: 'mode', read: 'str' },
+  { key: 'ChosenDirection', kind: 'direction', read: 'enum' },
+  { key: 'ChosenEvenOdd', kind: 'evenOdd', read: 'enum' },
+  { key: 'Sector', kind: 'sector', read: 'str' },
+];
+
+/** A `StringListType` value's strings (`{ t: 'list', v: [{ t: 'str', v }] }`). */
+function readStrs(obj: WireObject | undefined, name: string): string[] {
+  const v = prop(obj, name);
+  if (v === undefined || v.t !== 'list' || !Array.isArray(v.v)) return [];
+  return (v.v as (Tagged | null)[]).flatMap((item) => (item !== null && item.t === 'str' && typeof item.v === 'string' ? [item.v] : []));
+}
+
+/** Forge's colour names are lower-case (`MagicColor.Constant`); the board says them as words. */
+const capitalised = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
+
+/**
+ * Every choice this card's `view` carries, generically — `CHOICE_PROPS` is the
+ * whole rule. A blank value is Forge's "nothing chosen" (a cleared
+ * `ChosenNumber` is `""`), never a drawn empty tag.
+ */
+function readChoices(state: WireState, view: WireObject | undefined, playerName: (pid: number) => string): BoardCardChoice[] {
+  const out: BoardCardChoice[] = [];
+  for (const { key, kind, read } of CHOICE_PROPS) {
+    const raw = ((): string[] => {
+      switch (read) {
+        case 'str':
+          return [readStr(view, key) ?? ''];
+        case 'strs':
+          return readStrs(view, key);
+        case 'enum':
+          return [readEnum(view, key) ?? ''];
+        case 'player': {
+          const pid = readEntityId(view, key);
+          return pid === null ? [] : [playerName(pid)];
+        }
+        case 'cards':
+          return readIds(view, key).map((cid) => nameOfCard(state, cid));
+      }
+    })();
+    const values = raw.map((v) => v.trim()).filter((v) => v !== '');
+    if (values.length > 0) out.push({ kind, values: kind === 'color' ? values.map(capitalised) : values });
+  }
+  return out;
+}
+
 /**
  * Forge's live `AbilityText` (`CardStateView.getAbilityText`, the same face
  * `OracleText` reads off), with the gray reminder-text markup
@@ -1223,6 +1310,7 @@ function toBoardCard(
   printedPT: PrintedPTIndex,
   onBattlefield = false,
   printedType: PrintedTypeLineIndex = POOL_PRINTED_TYPE_LINE,
+  playerName: (pid: number) => string = (pid) => wirePlayerName(state, pid),
 ): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return null;
@@ -1275,9 +1363,7 @@ function toBoardCard(
   // Mountain`) only applies there, and a card elsewhere just reads printed.
   const printedLine = onBattlefield ? printedType.get(name.trim().toLowerCase()) : undefined;
   const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name, printed: printedLine } : null;
-  // T7: a blank string is the same "nothing chosen" absence is, never a drawn label.
-  const chosenTypeRaw = readStr(view, 'ChosenType');
-  const chosenType = chosenTypeRaw !== null && chosenTypeRaw.trim() !== '' ? chosenTypeRaw.trim() : null;
+  const choices = readChoices(state, view, playerName);
   const relations = readRelations(state, view);
   const abilityText = readAbilityText(face);
 
@@ -1301,7 +1387,7 @@ function toBoardCard(
     blocking: readBool(view, 'Blocking'),
     token: readBool(view, 'Token'),
     changedFrom,
-    chosenType,
+    choices,
     relations,
     abilityText,
   };
@@ -1379,11 +1465,16 @@ export function toBoardView(
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
+  /** The seat's own name when the room gave one (defensive: only a non-blank string wins), else Forge's. */
+  const playerName = (pid: number): string => {
+    const seatName = nameByPlayerId?.get(pid);
+    return typeof seatName === 'string' && seatName.trim() !== '' ? seatName : wirePlayerName(state, pid);
+  };
 
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
-      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, printedType);
+      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, printedType, playerName);
       if (c === null) missing.push(id);
       else out.push(c);
     }
@@ -1399,14 +1490,9 @@ export function toBoardView(
     const libraryIds = readIds(p, 'Library');
     const top = revealedTop(state, libraryIds, artIds, printedPT, printedType, promptCard);
     const avatarId = avatarByPlayerId?.get(pid);
-    const seatName = nameByPlayerId?.get(pid);
     return {
       id: pid,
-      // Defensive: the seat's name is wire data. Only a non-blank string wins.
-      name:
-        typeof seatName === 'string' && seatName.trim() !== ''
-          ? seatName
-          : (readStr(p, 'Name') ?? `player ${pid}`),
+      name: playerName(pid),
       life: readInt(p, 'Life'),
       isViewer,
       isActive: pid === activePlayerId,

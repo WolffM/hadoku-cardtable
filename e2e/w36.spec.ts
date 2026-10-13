@@ -271,7 +271,7 @@ test(titled('T7 — Cavern of Souls shows the creature type it named, on the car
     await dialog.getByTestId('prompt-submit').click();
     await expect(dialog, 'the ask closed once answered').toHaveCount(0, { timeout: 15_000 });
 
-    const label = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] .board-card__chosen-type');
+    const label = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] .board-card__tags > [data-choice="type"]');
     await expect(label, 'Cavern of Souls draws its chosen type on the card').toBeVisible();
     await expect(label, 'the type drawn is the one picked').toHaveText('Goblin');
     await expect(label, 'the full value is in its tooltip too').toHaveAttribute('data-tip', 'Chosen type: Goblin');

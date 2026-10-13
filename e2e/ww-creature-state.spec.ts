@@ -62,7 +62,7 @@ function afloat(page: Page, id: number): Promise<Afloat | null> {
     if (li === null || li === undefined || art === null || art === undefined) return null;
     const style = getComputedStyle(art);
     return {
-      tags: Array.from(li.querySelectorAll(':scope > .board-card__keywords > .board-card__keyword')).map((t) => t.textContent ?? ''),
+      tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => t.textContent ?? ''),
       flying: li.hasAttribute('data-flying'),
       translate: style.translate,
       animation: style.animationName,

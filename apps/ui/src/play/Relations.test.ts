@@ -49,7 +49,6 @@ describe('relationLabel — the pill’s own text', () => {
 
   it('names a card this seat may not see as the adapter resolved it — "Hidden card"', () => {
     expect(relationLabel({ kind: 'hauntedBy', ids: [404], names: ['Hidden card'] })).toBe('Haunted by Hidden card');
-    expect(relationLabel({ kind: 'chosen', ids: [1, 2], names: ['Hidden card', 'Memnite'] })).toBe('Chosen: Hidden card, Memnite');
   });
 });
 

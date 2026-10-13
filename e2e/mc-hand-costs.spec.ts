@@ -33,7 +33,7 @@ async function held(page: Page, name: string): Promise<number> {
   return id!;
 }
 
-const tagsOf = (id: number): string => `[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__keywords`;
+const tagsOf = (id: number): string => `[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__tags`;
 
 /** The cost tag on a held card: its tokens (`data-cost`) and its pips as drawn, or null when it wears none. */
 async function costTag(page: Page, id: number): Promise<{ cost: string; pips: string[] } | null> {
