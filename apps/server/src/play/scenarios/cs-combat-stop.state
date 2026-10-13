@@ -1,0 +1,18 @@
+# e2e/combat-stop.spec.ts — the defender's Combat stop on the attacker's turn.
+# Bob (seat 1) is in his own Main Phase 1 with an untapped, non-sick Hill Giant (3/3) and
+# nothing pre-declared, so Forge's live InputAttack opens for him. Alice (seat 0) holds
+# Hydrolash ("attacking creatures get -2/-0") and three untapped Islands, and no creature,
+# so nothing blocks: the Giant deals 3, or 1 once Hydrolash has resolved on it.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Hydrolash
+humanbattlefield=Island;Island;Island
+humanlibrary=Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Hill Giant
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
