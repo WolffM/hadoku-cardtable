@@ -584,9 +584,10 @@ export interface LiveMatch {
   weaklySelectable: ReadonlySet<number> | null;
   /**
    * Wave 53 T: w52 §S's `manaOnly`, carried on the SAME `setWeaklySelectable`
-   * frame (`packages/forge-wire/src/tier-b.ts`) — the offered cards whose
-   * every playable ability is a mana ability (a land, or a mana rock like a
-   * Signet), read by the bridge off Forge's abilities, never card text.
+   * frame (`packages/forge-wire/src/tier-b.ts`) — the offered cards with no
+   * non-mana play the seat can make now (a land, a mana rock like a Signet, a
+   * man-land whose animation it cannot pay for), read by the bridge off Forge's
+   * abilities and its affordability test, never card text.
    * `null` the same way `weaklySelectable: null` is: Forge has not said (the
    * field was absent on the frame, or the set was last cleared) — never an
    * empty set standing in for "nothing here is mana-only". Read by

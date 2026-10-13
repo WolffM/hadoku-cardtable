@@ -369,9 +369,10 @@ export const SetWeaklySelectableSchema = z.strictObject({
   method: z.literal('setWeaklySelectable'),
   cards: z.array(CardRefSchema),
   /**
-   * Ours, wave 52 §S: the offered cards whose every playable ability is a mana
-   * ability (a land, a Signet). Read by the bridge off Forge's abilities, never
-   * card text. Absent when the bridge could not read them.
+   * Ours, wave 52 §S: the offered cards with no non-mana play the seat can make
+   * now — offered for their mana (a land, a Signet, a man-land whose animation it
+   * cannot pay for). Read by the bridge off Forge's abilities and Forge's own
+   * affordability test, never card text. Absent when the bridge could not read them.
    */
   manaOnly: z.array(CardRefSchema).optional(),
   /**

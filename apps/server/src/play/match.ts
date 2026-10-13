@@ -115,8 +115,8 @@ import {
 	chosenCostConfirm,
 	decideCancel,
 	decidePay,
-	decideStop,
 	DEFAULT_STOP_POLICY,
+	judgeStop,
 	onlyAnswer,
 	PAY_MANA,
 	paymentCost,
@@ -126,6 +126,7 @@ import {
 	type Payment,
 	type PromptFacts,
 	type SeatNotes,
+	type StopJudgement,
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
@@ -416,6 +417,13 @@ export interface SeatState {
 	/** How many asks were answered for this seat, and how many stops passed. */
 	autoAnswered: number;
 	autoPassed: number;
+	/**
+	 * Why {@link Match.maybeAutoPass} last kept or passed this seat's window: a
+	 * `judgeStop` rule, or the gate in front of it (`stop-at` — the seat's own
+	 * one-shot stop; `auto-yield`; `passed-on`; `gated` — full control, an AI, a
+	 * match not running). The `rule` on the `prompt-forwarded` log line.
+	 */
+	lastStop: Pick<StopJudgement, 'rule' | 'plays'> | { rule: 'stop-at' | 'auto-yield' | 'passed-on' | 'gated' } | null;
 	/** Times this seat pressed Mulligan on the opening Keep/Mulligan bar — read by the match stats. */
 	mulligans: number;
 	/**
@@ -1083,6 +1091,7 @@ export class Match {
 			autoCancelled: null,
 			autoAnswered: 0,
 			autoPassed: 0,
+			lastStop: null,
 			mulligans: 0,
 			says: [],
 			heldLog: [],
@@ -2325,7 +2334,9 @@ export class Match {
 			this.send(s, prompt);
 			if (buttons !== null) this.send(s, buttons);
 		}
-		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why });
+		// A kept window names the rule that kept it (`maybeAutoPass` ran on it: every decider did).
+		const kept = answered || s.lastStop === null ? {} : { rule: s.lastStop.rule, ...('plays' in s.lastStop ? { plays: s.lastStop.plays } : {}) };
+		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why, ...kept });
 		if (!answered) this.logOffered(s, kind);
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
 		// The one place a HELD buttons-first or prompt-first pair is finally
@@ -2786,12 +2797,22 @@ export class Match {
 	private maybeAutoPass(s: SeatState): boolean {
 		// The prompt in hand was already passed on, so these buttons belong to the input
 		// AFTER it (see `SeatState.passedOn`): not ours to press for.
-		if (s.prompt !== null && s.prompt === s.passedOn) return false;
+		s.lastStop = null;
+		if (s.prompt !== null && s.prompt === s.passedOn) {
+			s.lastStop = { rule: 'passed-on' };
+			return false;
+		}
 		const gate = this.autoGateFacts(s);
-		if (gate === null) return false;
+		if (gate === null) {
+			s.lastStop = { rule: 'gated' };
+			return false;
+		}
 		const { facts } = gate;
 		// The seat's own stop outranks every shortcut below, the yield included.
-		if (this.stopHolds(s, facts)) return false;
+		if (this.stopHolds(s, facts)) {
+			s.lastStop = { rule: 'stop-at' };
+			return false;
+		}
 		/*
 		 * The auto-yield override, read ahead of `decideStop`. Gated on
 		 * `decideStop`'s own entry guards plus one new condition, `!facts.myTurn`:
@@ -2808,7 +2829,9 @@ export class Match {
 			facts.confirmLive &&
 			facts.openAsks === 0 &&
 			!facts.myTurn;
-		const phase = yieldsNow ? facts.phaseLabel ?? 'priority' : decideStop(facts, s.policy);
+		const judged = yieldsNow ? null : judgeStop(facts, s.policy);
+		const phase = judged === null ? (facts.phaseLabel ?? 'priority') : judged.pass;
+		s.lastStop = judged === null ? { rule: 'auto-yield' } : { rule: judged.rule, ...(judged.plays === undefined ? {} : { plays: judged.plays }) };
 		/*
 		 * Behind `CARDTABLE_PLAY_PROBE=1` (the e2e harness's servers): every
 		 * decision, kept or passed, with the facts it was made on. 2026-10-03's
@@ -2822,6 +2845,7 @@ export class Match {
 				matchId: this.id,
 				seat: s.seat,
 				decision: phase ?? 'kept',
+				rule: s.lastStop.rule,
 				window: facts.window,
 				phase: facts.phase,
 				myTurn: facts.myTurn,
@@ -2840,7 +2864,7 @@ export class Match {
 		// Forge clears the set as the input stops; drop ours with it so the next
 		// stop is judged on the next answer rather than on this one.
 		s.actionable = null;
-		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase, ...(yieldsNow ? { why: 'auto-yield' } : {}) });
+		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase, rule: s.lastStop.rule, ...(yieldsNow ? { why: 'auto-yield' } : {}) });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
 	}

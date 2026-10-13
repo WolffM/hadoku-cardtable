@@ -333,6 +333,10 @@ export interface StopPolicy {
 	 * priority window is judged by {@link passWhenNothingToDo} like any other
 	 * window: it passes when nothing but mana sources is actionable, and still stops when
 	 * a spell could be cast — a pump after attackers are declared is real play.
+	 * Regressed once (the operator, 2026-10-12: *"theres ALWAYS a second 'next phase'
+	 * click required"*): a land offered for its mana with an unaffordable animation
+	 * beside it (Celestial Colonnade) counted as a play until the bridge's `manaOnly`
+	 * asked Forge's own affordability test ({@link SeatNotes.manaOnlyIds}).
 	 * The attack input itself is not a priority window, so it is never pressed for.
 	 *
 	 * Full control keeps the stop, as it keeps every stop.
@@ -768,10 +772,13 @@ export interface SeatNotes {
 	/** The player id that activated the top stack item, or null (`SeatProjector.stackTopActivator`). */
 	stackTopActivator?: number | null;
 	/**
-	 * The ids among `actionable` that Forge offers ONLY for a mana ability — the
-	 * bridge's `setWeaklySelectable.manaOnly`, read off each card's playable
-	 * abilities, never its type: a Forest or a Signet is in it, a Ghost Quarter or
-	 * a fetchland is not (its sacrifice ability is a real play). The ONE fact
+	 * The ids among `actionable` that are no play — the bridge's
+	 * `setWeaklySelectable.manaOnly`: offered for their mana (or a mana tap's
+	 * undo) with no non-mana ability the seat can take now, read off Forge's own
+	 * abilities and Forge's own affordability test, never the card's type. A
+	 * Forest, a Signet, a Celestial Colonnade whose animation the seat cannot pay
+	 * for are in it; a Ghost Quarter or a fetchland is not (its sacrifice ability
+	 * is a real play). The ONE fact
 	 * {@link PromptFacts.nonManaSources} filters by. Undefined (an older frame,
 	 * or the bridge could not read it) filters nothing, which keeps the stop.
 	 */
@@ -848,10 +855,11 @@ export interface PromptFacts {
 	 */
 	readonly sources: readonly number[] | null;
 	/**
-	 * {@link sources}, minus every MANA SOURCE: an id Forge offers only for a mana
-	 * ability (`SeatNotes.manaOnlyIds`). Decided per ABILITY, never per card type:
-	 * a land with a playable non-mana ability (Ghost Quarter, Rishadan Port, a
-	 * man-land, a fetchland) stays in, exactly as an instant in hand would.
+	 * {@link sources}, minus every card that is no play (`SeatNotes.manaOnlyIds`):
+	 * what is left is what the seat could actually do. Decided per ABILITY, never
+	 * per card type: a land with a non-mana ability the seat can take (Ghost
+	 * Quarter, Rishadan Port, a fetchland, a man-land it can pay for) stays in,
+	 * exactly as an affordable instant in hand would.
 	 * `decideStop`'s "nothing left to do, pass" check reads THIS, never `sources`:
 	 * Forge offers every untapped land and mana rock through the SAME actionable
 	 * set at ordinary priority, so "the set is non-empty" does not mean "there is a
@@ -1119,54 +1127,97 @@ function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
 }
 
 /**
- * The phase label to pass, or null when the player must be asked.
+ * Which rule decided a priority window — the `rule` on the server's
+ * `prompt-forwarded`/`auto-passed` log lines, so "why was I stopped here?" is
+ * read off the log rather than reconstructed from the facts.
+ *
+ * Kept: `open-ask`, `not-mine`, `dead-bar`, `not-priority` (the entry guards);
+ * `stop-phase` (a phase the policy stops in); `stack-held` (`passStackWindows`
+ * off); `every-window` (`passWhenNothingToDo` off); `no-answer` (Forge has not
+ * said what the seat can do); `has-play` (it can do something —
+ * {@link StopJudgement.plays} names the cards).
+ * Passed: `skip-phase`, `own-spell`, `nothing-to-do`.
+ */
+export type StopRule =
+	| 'open-ask'
+	| 'not-mine'
+	| 'dead-bar'
+	| 'not-priority'
+	| 'stop-phase'
+	| 'stack-held'
+	| 'every-window'
+	| 'no-answer'
+	| 'has-play'
+	| 'skip-phase'
+	| 'own-spell'
+	| 'nothing-to-do';
+
+export interface StopJudgement {
+	/** The phase label to pass, or null when the player must be asked. */
+	readonly pass: string | null;
+	readonly rule: StopRule;
+	/** For `has-play`: the offered cards that are a play ({@link PromptFacts.nonManaSources}). */
+	readonly plays?: readonly number[];
+}
+
+const keep = (rule: StopRule): StopJudgement => ({ pass: null, rule });
+const pass = (facts: PromptFacts, rule: StopRule): StopJudgement => ({ pass: facts.phaseLabel ?? 'priority', rule });
+
+/**
+ * Whether to pass a priority window, and the rule that decided it.
  *
  * Pure. There is no pattern in here and no phase spelling: every branch reads a
- * {@link PromptFacts} field or a {@link StopPolicy} field. Null is the safe
- * answer and every doubt returns it.
+ * {@link PromptFacts} field or a {@link StopPolicy} field. Keeping is the safe
+ * answer and every doubt keeps.
  */
-export function decideStop(facts: PromptFacts, policy: StopPolicy): string | null {
+export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement {
 	// A seat with a question open is not idle, and a window that is not this
 	// seat's, or whose button is dead, is not ours to press.
-	if (facts.openAsks > 0) return null;
-	if (!facts.mine) return null;
-	if (!facts.confirmLive) return null;
+	if (facts.openAsks > 0) return keep('open-ask');
+	if (!facts.mine) return keep('not-mine');
+	if (!facts.confirmLive) return keep('dead-bar');
 	// Anything we could not classify — a mulligan, a confirm, a declare step — is
 	// a stop. This is where "when in doubt, ask" lives.
-	if (facts.window !== 'priority') return null;
+	if (facts.window !== 'priority') return keep('not-priority');
 
 	if (facts.stackEmpty) {
 		// The post-declaration priority window of the seat's own attack step, and
 		// the non-active seat's own priority window right after a block is
 		// assigned, are not "think" stops like Main 1 (T3): both fall through to
-		// the nothing-to-do rule below, so each passes only when nothing but
-		// mana sources is actionable.
+		// the nothing-to-do rule below, so each passes only when the seat has a play.
 		if (!attackStopIsDone(policy, facts) && !blockStopIsDone(policy, facts)) {
 			// The phase the player asked to hold priority in. Nothing below overrides it —
 			// except the one stop that exists only so a creature can block (Q10).
-			if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return null;
+			if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return keep('stop-phase');
 			// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
 			// seat could have done there (#20) — unless a permanent on the table can be
 			// used in this phase and no other (w52 §S A), which falls through to the
 			// nothing-to-do rule and stops on that permanent.
-			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts)) return facts.phaseLabel ?? 'priority';
+			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts)) return pass(facts, 'skip-phase');
 		}
 	} else if (!policy.passStackWindows) {
-		return null;
+		return keep('stack-held');
 	} else if (policy.passOwnSpell && facts.stackTopMine) {
 		// Q17: the seat's own spell, back at the caster. Forge hands the caster
 		// priority and this hands it on, whatever else the seat could do — see the field.
-		return facts.phaseLabel ?? 'priority';
+		return pass(facts, 'own-spell');
 	}
 
-	if (!policy.passWhenNothingToDo) return null;
+	if (!policy.passWhenNothingToDo) return keep('every-window');
 	// Forge has not answered "what can this seat do" — never pass on silence. An
 	// EMPTY set is Forge saying "nothing"; `clearWeaklySelectable` is "no answer".
+	if (facts.nonManaSources === null) return keep('no-answer');
 	// `nonManaSources`, not `sources`: Forge offers every untapped land and mana
-	// rock in the SAME actionable set at ordinary priority, and tapping one for
-	// mana is never, by itself, a reason to hold priority — see the field.
-	if (facts.nonManaSources === null || facts.nonManaSources.length > 0) return null;
-	return facts.phaseLabel ?? 'priority';
+	// rock in the SAME actionable set at ordinary priority, and a card offered
+	// with no play beside its mana is never, by itself, a reason to hold priority —
+	// see the field.
+	if (facts.nonManaSources.length > 0) return { pass: null, rule: 'has-play', plays: facts.nonManaSources };
+	return pass(facts, 'nothing-to-do');
+}
+
+/** {@link judgeStop}'s answer alone: the phase label to pass, or null when the player must be asked. */
+export function decideStop(facts: PromptFacts, policy: StopPolicy): string | null {
+	return judgeStop(facts, policy).pass;
 }
 
 /**

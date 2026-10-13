@@ -1721,20 +1721,27 @@ public final class PlayBridge {
          * abilities rather than card text, added to the frame as strict optional fields.
          *
          * <ul>
-         * <li>{@code manaOnly}: the offered cards whose every playable ability is a mana
-         * ability — a Forest, a dual, a Signet ({@code {1},{T}}). The server's "nothing
-         * left to do, pass" reads this and nothing else: tapping for mana is never by
-         * itself a reason to hold priority, but a land with a playable non-mana ability
-         * (Ghost Quarter, a fetchland, a man-land) is not in it, so it holds the window
-         * the way an instant in hand does.</li>
+         * <li>{@code manaOnly}: the offered cards with no non-mana play the seat could make
+         * now — a Forest, a dual, a Signet ({@code {1},{T}}), and a Celestial Colonnade whose
+         * {3}{W}{U} the seat cannot pay. The server's "nothing left to do, pass" reads this and
+         * nothing else: tapping for mana is never by itself a reason to hold priority, but a
+         * land with a non-mana ability the seat can take (Ghost Quarter, a fetchland, a
+         * man-land it can pay for) is not in it, so it holds the window the way an instant in
+         * hand does.</li>
          * <li>{@code phaseRestricted}: the offered permanents this seat controls with a
-         * playable non-mana ability whose {@code ActivationPhases} restriction
+         * non-mana ability it can take now whose {@code ActivationPhases} restriction
          * ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases}) is
-         * met now — Augur of Skulls in its controller's upkeep. Playable means
-         * {@code getAllPossibleAbilities(player, true)} kept it, which runs the
-         * restriction check. Battlefield only, never the hand: the card and its text are
-         * on the table for everyone.</li>
+         * met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
+         * hand: the card and its text are on the table for everyone.</li>
          * </ul>
+         *
+         * "Can take" is {@link forge.ai.AvailableActions#offered}, the fork's own test for the highlight
+         * and for a click's ability list: affordable, targetable, past every restriction and
+         * {@code CantBeCast}/{@code CantBeActivated} static. {@code getAllPossibleAbilities(player,
+         * true)} alone is not that: its {@code canPlay} checks timing and the non-mana costs but
+         * never the mana, so a card Forge offered for its mana tap, with an animation or a token
+         * ability the seat cannot pay for beside it, read as a play and held every window it was
+         * offered in.
          *
          * Read on this seat's channel thread while the game thread is parked on the input
          * that pushed the set, as {@link #legalPlayers} does. A failure omits both fields,
@@ -1752,20 +1759,21 @@ public final class PlayBridge {
                     if (cv == null || !seen.add(cv.getId())) { continue; }
                     final forge.game.card.Card c = game.findById(cv.getId());
                     if (c == null) { continue; }
-                    boolean mana = false;
-                    boolean other = false;
-                    boolean restricted = false;
+                    final List<SpellAbility> plays = new ArrayList<>();
                     for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
-                        if (sa.isManaAbility()) { mana = true; continue; }
-                        other = true;
+                        if (!sa.isManaAbility()) { plays.add(sa); }
+                    }
+                    boolean restricted = false;
+                    final List<SpellAbility> takeable = plays.isEmpty() ? plays : forge.ai.AvailableActions.offered(mine, plays);
+                    for (final SpellAbility sa : takeable) {
                         if (c.isInPlay() && c.getController() == mine && sa.getRestrictions() != null
                                 && !sa.getRestrictions().getPhases().isEmpty()) {
                             restricted = true;
                         }
                     }
-                    // A tapped card offered with nothing playable is offered for its untap (a mana
-                    // tap Forge can take back): mana too, never a reason to hold priority.
-                    if (!other && (mana || c.isTapped())) { manaOnly.add(ref("card", cv.getId())); }
+                    // Offered with no play to make: for its mana, or for the untap of a mana tap
+                    // Forge can take back. Never a reason to hold priority.
+                    if (takeable.isEmpty()) { manaOnly.add(ref("card", cv.getId())); }
                     if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);

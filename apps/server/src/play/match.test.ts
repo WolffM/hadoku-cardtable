@@ -2306,7 +2306,7 @@ describe('hold-decide-forward', () => {
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
 		expect(envelopesFor(h, SEAT1_ID).at(-1)?.frame).toEqual(buttonsFrame(1));
 		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-forwarded')).toEqual([
-			{ evt: 'prompt-forwarded', matchId: h.match.id, seat: SEAT1_ID, kind: 'priority', why: 'kept' },
+			{ evt: 'prompt-forwarded', matchId: h.match.id, seat: SEAT1_ID, kind: 'priority', why: 'kept', rule: 'stop-phase' },
 		]);
 	});
 
@@ -2782,7 +2782,7 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
 			expect(actsSent(h)).toBe(actsBefore + 1);
 			expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed')).toEqual([
-				{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'Main phase, precombat', why: 'auto-yield' },
+				{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'Main phase, precombat', rule: 'auto-yield', why: 'auto-yield' },
 			]);
 		});
 
@@ -2802,7 +2802,7 @@ describe('hold-decide-forward', () => {
 			expect(h.match.setAutoYield(SEAT1_ID, true)).toEqual({ ok: true });
 			expect(actsSent(h)).toBe(actsBefore + 1);
 			expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed')).toEqual([
-				{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'Main phase, precombat', why: 'auto-yield' },
+				{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'Main phase, precombat', rule: 'auto-yield', why: 'auto-yield' },
 			]);
 			// And the already-live bar is corrected, the same disabled correction a window answered inside `decideWindow` gets.
 			const sent = envelopesFor(h, SEAT1_ID).slice(before);

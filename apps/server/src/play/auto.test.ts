@@ -31,6 +31,7 @@ import {
 	decideStop,
 	isOwnMainPhaseEntry,
 	isStopPhase,
+	judgeStop,
 	onlyAnswer,
 	paymentCost,
 	readPromptFacts,
@@ -807,7 +808,7 @@ describe('Q10: the Declare Blockers stop is skipped when the seat controls no cr
 			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
 		]);
 		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
-			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Blockers Step' },
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Blockers Step', rule: 'skip-phase' },
 		]);
 
 		// Now the seat controls a creature — still summoning sick, which does not stop it blocking.
@@ -866,17 +867,52 @@ describe('T3: the Declare Attackers stop is the declaration — the priority win
 			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
 		]);
 		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
-			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Attackers Step' },
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Attackers Step', rule: 'nothing-to-do' },
 		]);
 	});
 
-	it('through the match: a castable spell after the declaration keeps the stop', () => {
+	it('through the match: a castable spell after the declaration keeps the stop, and the log names the rule and the play', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
 		push(h, 0, prompt(MY_ATTACK_MESSAGE, me));
 		push(h, 0, buttons(true, me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'prompt-forwarded')).toEqual([
+			{ evt: 'prompt-forwarded', matchId: h.match.id, seat: 0, kind: 'priority', why: 'kept', rule: 'has-play', plays: [67] },
+		]);
+	});
+
+	/*
+	 * The operator, 2026-10-12: *"theres ALWAYS a second 'next phase' click
+	 * required."* Forge offers a land for its mana tap; a Celestial Colonnade
+	 * whose animation the seat cannot pay for is offered for nothing else, and the
+	 * bridge's `manaOnly` says so. No play there, so the window passes.
+	 */
+	it('through the match: cards offered for nothing but their mana pass the window after the declaration', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		const lands = [{ kind: 'card' as const, id: 70 }, { kind: 'card' as const, id: 71 }];
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: lands, manaOnly: lands });
+		push(h, 0, prompt(MY_ATTACK_MESSAGE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
+	});
+
+	it('judgeStop names the rule: the attacker’s window and the defender’s window after blocks are one rule', () => {
+		const afterBlock = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
+			facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: 1, ...over });
+		for (const window of [after, afterBlock]) {
+			expect(judgeStop(window({ sources: [70], nonManaSources: [] }), DEFAULT_STOP_POLICY).rule).toBe('nothing-to-do');
+			expect(judgeStop(window({ sources: [70, 67], nonManaSources: [67] }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'has-play', plays: [67] });
+			expect(judgeStop(window({ sources: null, nonManaSources: null }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'no-answer' });
+			expect(judgeStop(window(), FULL_CONTROL_POLICY)).toEqual({ pass: null, rule: 'stop-phase' });
+		}
+		expect(judgeStop(facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true }), DEFAULT_STOP_POLICY).rule).toBe('stop-phase');
+		expect(judgeStop(after({ myTurn: false }), DEFAULT_STOP_POLICY).rule).toBe('skip-phase');
+		expect(judgeStop(after({ window: 'other' }), DEFAULT_STOP_POLICY).rule).toBe('not-priority');
+		expect(judgeStop(after({ openAsks: 1 }), DEFAULT_STOP_POLICY).rule).toBe('open-ask');
+		expect(judgeStop(after({ confirmLive: false }), DEFAULT_STOP_POLICY).rule).toBe('dead-bar');
 	});
 });
 
@@ -998,7 +1034,7 @@ describe('a Match with the shortcuts on (the default)', () => {
 		// not, because the phase it named is on the turn bar and the phase rail.
 		expect(says(h, 0)).toEqual([]);
 		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
-			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'End of Combat Step' },
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'End of Combat Step', rule: 'skip-phase' },
 		]);
 		expect(h.match.seats[0]?.autoPassed).toBe(1);
 	});
@@ -1031,7 +1067,7 @@ describe('a Match with the shortcuts on (the default)', () => {
 				{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
 			]);
 			expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
-				{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Upkeep step' },
+				{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Upkeep step', rule: 'skip-phase' },
 			]);
 		}
 	});
