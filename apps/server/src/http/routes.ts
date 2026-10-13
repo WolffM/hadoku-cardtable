@@ -427,6 +427,15 @@ function playersOf(rooms: TablesRooms, room: RoomViewLike): TablePlayer[] {
 }
 
 /**
+ * The `seatedAt` of a seat taken now: after every seat already held, even one taken in this same
+ * millisecond — two sits a clock tick apart would otherwise tie, and the sort would put them in
+ * member order instead of the order people sat.
+ */
+function nextSeatedAt(players: TablePlayer[]): number {
+	return Math.max(Date.now(), ...players.map((p) => p.state.seatedAt + 1));
+}
+
+/**
  * Carry a member's changed avatar to the seat they hold in their room's running
  * match. A member with no seat there (not claimed, no match, match gone) is a
  * no-op: the avatar is already in the room and the next match reads it from there.
@@ -860,7 +869,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			v: 1,
 			deck: { choice: seat, verdict: publicVerdict(verdict), text: verdict.text },
 			ready: false,
-			seatedAt: mine?.state.seatedAt ?? Date.now(),
+			seatedAt: mine?.state.seatedAt ?? nextSeatedAt(players),
 		};
 		if (!rooms.setPlayerState(room.id, me, state)) {
 			notFound(res);
@@ -940,7 +949,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
-		const state: TablePlayerState = { v: 1, deck: null, ready: false, seatedAt: Date.now() };
+		const state: TablePlayerState = { v: 1, deck: null, ready: false, seatedAt: nextSeatedAt(players) };
 		if (!rooms.setPlayerState(room.id, me, state)) {
 			notFound(res);
 			return;

@@ -1520,6 +1520,19 @@ describe('a room table', () => {
 			expect(h.specs).toEqual([]);
 		});
 
+		it('keeps the order people sat when two sit in the same millisecond', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, THREE);
+			const now = vi.spyOn(Date, 'now').mockReturnValue(1_791_900_000_000);
+			try {
+				expect((await sit(h, 'carol')).status).toBe(200);
+				const both = await sit(h, 'bob');
+				expect(players(both.body).map((p) => p.name)).toEqual(['user-carol', 'user-bob']);
+			} finally {
+				now.mockRestore();
+			}
+		});
+
 		it('still reads a seat row written before seats were their own act', async () => {
 			const h = await boot();
 			openRoom(h);
