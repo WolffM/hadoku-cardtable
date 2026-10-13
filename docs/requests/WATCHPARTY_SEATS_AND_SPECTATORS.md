@@ -254,3 +254,32 @@ What the code does now:
 | match | `perspective-flip` | swaps which player is at the bottom; watchers only |
 | match | `live-concede`, `live-button-end-turn` | **absent** for a watcher (the whole `live-buttons` cluster is) |
 | lobby | `play-vs-bot` | drawn while nobody else is seated; the server also refuses a bot start with two seated |
+
+## 10. Production verification from watchparty (2026-10-12)
+
+Watchparty's `e2e/production/cardtable-party.spec.ts` (`f31f83e2`) ran the
+§9 release through `hadoku.me` with distinct signed-in accounts, at 3 and at
+10 bots. All green. What it found:
+
+- **Sit / stand / lock / watcher / flip / vs-AI all hold in production.** A
+  stand from each player once the match is live gets 409 from the server.
+- **No card face reaches a watcher on the wire, with both 7-card hands dealt**
+  (play-or-draw and Keep answered, so hands exist). In a 10-bot room the
+  leader's socket carried 44 card faces and each of the 9 watchers' sockets 0.
+  This is read off each watcher's real browser websocket.
+- **`e2e/watcher.spec.ts`'s wire assertion cannot fail as written — please fix
+  it.** It searches `JSON.stringify([ack, ...frames])` for `/"Name":"([^"]+)"/`,
+  but Forge values on the wire are typed (`{ t: 'str'; v: string }`,
+  `packages/forge-wire/src/tier-c.ts:128`), so a face serialises as
+  `"Name":{"t":"str","v":"Dragonlord Atarka"}` and the regex matches nothing,
+  leaked or not. Players (`_type: 1`) carry a `Name` too. Watchparty's probe
+  decodes each packet and walks it, counting a `Name` on any object whose
+  `_type` is not 1 as a card face (seen as `_type` 0 and 4). It also asserts a
+  **control**: the same probe must find faces on a player's socket, which is
+  what caught watchparty's own first, equally blind, version. Mutation-check
+  yours by pointing it at a player's socket: it should go red.
+- **Not yours, FYI:** in a 10-bot room, 3 or 6 of the 9 watchers
+  intermittently got a 500 from hadoku_site's `GET /prefs/api/v1/cardtable-play`
+  (0 in two later runs; a direct burst of 24 GETs never reproduced it). The
+  board rendered regardless. Worth confirming cardtable treats a failed prefs
+  read as defaults rather than an error state.
