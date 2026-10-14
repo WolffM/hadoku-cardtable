@@ -1039,6 +1039,16 @@ describe('one state, one line', () => {
     expect(getByTestId('live-turn-n').textContent).toBe(String(m.view!.turn));
   });
 
+  it('reconnecting, not connecting: a socket the page had and lost (a deploy mid-game) — and gone again once it is back', async () => {
+    const { m, container, queryByTestId } = await liveBoard();
+    expect(liveStatus(m)).toBe('live');
+    act(() => m.transport.disconnect());
+    await waitFor(() => expect(m.connected).toBe(false));
+    only(container, m, 'reconnecting', 'Reconnecting…');
+    expect(container.querySelector('.board'), 'the table stays drawn under it').not.toBeNull();
+    expect(queryByTestId('live-status')!.dataset.perch).toBe('corner');
+  });
+
   it('the seat number is the snapshot’s seat, not a guess — seat 1 is “Seat 2”', () => {
     // The replay server always seats a client at 0, so the second seat is
     // driven here. `Seat 2, live.` — which `e2e/play.spec.ts` waits on — is the
@@ -3226,6 +3236,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(document.querySelector('.board'), 'the board is still drawn underneath').not.toBeNull();
 
     expect((getByTestId('game-result-rematch') as HTMLButtonElement).disabled).toBe(true);
+    expect((getByTestId('game-result-room') as HTMLButtonElement).disabled, 'no room to go back to').toBe(true);
 
     fireEvent.click(getByTestId('game-result-menu'));
     expect(roomsClientState.leave, 'no room to leave').not.toHaveBeenCalled();
@@ -3324,6 +3335,17 @@ describe('R16 — the result screen, drawn over the board', () => {
     fireEvent.click(getByTestId('game-result-menu'));
     await waitFor(() => expect(roomsClientState.leave).toHaveBeenCalledWith('r-1'));
     await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
+  });
+
+  it('Back to room opens the room and changes nothing at its table: no leave, no ready, no start', async () => {
+    const { getByTestId } = await victoryInRoom();
+    const labels = Array.from(getByTestId('game-result').querySelectorAll('.confirm__actions button')).map((b) => b.textContent);
+    expect(labels).toEqual(['Rematch', 'Back to room', 'Main menu']);
+    fireEvent.click(getByTestId('game-result-room'));
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/room/r-1'));
+    expect(roomsClientState.leave).not.toHaveBeenCalled();
+    expect(tableState.ready).not.toHaveBeenCalled();
+    expect(tableState.startRoom).not.toHaveBeenCalled();
   });
 
   it('Draw: both players hasLost — neither Victory nor Defeat', async () => {

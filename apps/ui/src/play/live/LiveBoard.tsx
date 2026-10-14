@@ -125,8 +125,10 @@
  * match draws no line about itself at all — `statusText` returns `null` for that
  * one state and the element is not rendered.
  *
- * The other five states keep the line, and that is not a hedge: in every one of
- * them there is no board, so the line is the only thing on the page. `Match
+ * The other six states keep the line, and that is not a hedge: in all but one
+ * of them there is no board, so the line is the only thing on the page, and
+ * the one that keeps a board (`reconnecting`) is a table nobody can act on until
+ * the socket is back. `Match
  * gone.` with nothing under it is a player being told what happened; deleting it
  * would leave them a blank screen with nothing on it at all. What the operator
  * was shown, and rejected, was the line on a LIVE table.
@@ -235,7 +237,7 @@
  * makes sense to show all three."* No — they were three lines for one
  * situation, and two of them were hopeful about a match that was already gone.
  *
- * `liveStatus` is the whole state machine (`LiveStatus`: six states, the names
+ * `liveStatus` is the whole state machine (`LiveStatus`: seven states, the names
  * agreed with lane E, which owns what the SERVER says about a gone match). One
  * of them holds, `statusText` gives it one line, and that line is the only one
  * drawn — with one exception, and it is a different kind of thing: while the
@@ -331,7 +333,7 @@ import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
 import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
 
-/* ── Where the match is: six states, one line ─────────────────────────── */
+/* ── Where the match is: seven states, one line ───────────────────────── */
 
 /**
  * The states a live board can be in. Exactly one holds, and exactly one line
@@ -344,6 +346,7 @@ import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
  */
 export type LiveStatus =
   | 'connecting'
+  | 'reconnecting'
   | 'connected-not-seated'
   | 'seated-waiting-for-state'
   | 'live'
@@ -713,11 +716,16 @@ export function isMatchGone(match: LiveMatch): boolean {
  * both, because a join in flight with no seat yet is not a state a player can
  * do anything about; `connected-not-seated` is the one that lasts — the socket
  * is up, nothing is in flight, and no seat came back.
+ *
+ * `reconnecting` is a socket this page HAD and lost — a deploy restarting the
+ * server mid-game is the usual one, and the server holds the seat through it.
+ * It is not `connecting`: that word is for a page that has never reached the
+ * server, and the operator read it over his own open mulligan (2026-10-13).
  */
 export function liveStatus(match: LiveMatch): LiveStatus {
   if (isMatchGone(match)) return 'match-gone';
   if (refusalOf(match) !== null) return 'refused';
-  if (!match.connected) return 'connecting';
+  if (!match.connected) return match.everConnected ? 'reconnecting' : 'connecting';
   if (match.seat === null) return match.awaitingSnapshot ? 'connecting' : 'connected-not-seated';
   if (match.view === null) return 'seated-waiting-for-state';
   return 'live';
@@ -742,6 +750,8 @@ export function statusText(match: LiveMatch): string | null {
   switch (liveStatus(match)) {
     case 'connecting':
       return 'Connecting…';
+    case 'reconnecting':
+      return 'Reconnecting…';
     case 'connected-not-seated':
       return 'Connected, not seated.';
     case 'seated-waiting-for-state':
@@ -1715,6 +1725,11 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * against the bot there is nobody to wait for, so Rematch starts the next bot
  * game at once.
  *
+ * **Back to room** opens the room's own screen and changes nothing at its
+ * table: you stay a member, seated with the deck you played and not ready, so
+ * the other screen's Rematch still has you to agree with — readying in the room
+ * is the same Ready.
+ *
  * **Main menu** leaves the room (`roomsClient().leave`, lane R shape 5) and
  * THEN goes to the lobby — in that order, `finally`, so a leave that fails
  * still lands the player somewhere rather than stranding them on a result
@@ -1725,7 +1740,7 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * Without a known room (`roomId === null` — a `#/match/<id>` link from
  * elsewhere, a match no room started, or a server that could not be reached;
  * see `MatchScreen.tsx`'s own comment on the same fact), there is no table to
- * ready at: Rematch is
+ * ready at: Rematch and Back to room are
  * disabled and Main menu goes straight to the lobby.
  */
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
@@ -1804,6 +1819,11 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     }, unreachable);
   };
 
+  // The room has already let the finished match go (`liveMatchId`), so its screen opens on the table.
+  const onBackToRoom = (): void => {
+    if (roomId !== null) navigate({ kind: 'room', roomId });
+  };
+
   const onMainMenu = (): void => {
     setLeaving(true);
     const left: Promise<unknown> = roomId === null ? Promise.resolve() : roomsClient().leave(roomId);
@@ -1837,6 +1857,9 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
             onClick={onRematch}
           >
             Rematch
+          </button>
+          <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
+            Back to room
           </button>
           <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
             Main menu
@@ -2751,8 +2774,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * none.
        *
        * A LIVE match has no line (§B.5): `statusText` returns `null` for that one
-       * state and nothing is rendered. The five states that keep it are the five
-       * with no board, where this line is the whole page.
+       * state and nothing is rendered. Every other state keeps it: with no board
+       * this line is the whole page, and over a board (`reconnecting`, or an
+       * outcome arriving on a table already up) it is the one thing that changed.
        */}
       {statusLine !== null && (
         <p

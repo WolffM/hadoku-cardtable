@@ -14,7 +14,7 @@
  * cards"* — a tutor choice is the board's card look, never a text list).
  */
 
-import type { ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
@@ -291,5 +291,81 @@ export function OptionButton({
     >
       {children}
     </button>
+  );
+}
+
+/** `item` ticked or unticked; a one-pick list holds at most the one. */
+export function togglePick<T>(list: readonly T[], item: T, single: boolean): T[] {
+  if (list.includes(item)) return list.filter((x) => x !== item);
+  return single ? [item] : [...list, item];
+}
+
+/**
+ * The picks of a pick-then-OK prompt, and the two ways to answer with them.
+ *
+ * `submit` is the OK button: the picks as they stand. `confirm` is a double
+ * click on one row (the operator, 2026-10-13: *"double click to confirm without
+ * needing to click ok"*): the picks WITH that row — the row alone in a one-pick
+ * list — answer at once when `problemsOf` has nothing against them, and
+ * otherwise stay picked for the player to finish, so a double click never sends
+ * what OK would refuse. `answer` is the prompt's own reply for a set of picks.
+ */
+export function usePicks<T>(
+  initial: () => T[],
+  single: boolean,
+  problemsOf: (picks: readonly T[]) => readonly string[],
+  answer: (picks: readonly T[]) => void,
+) {
+  const [chosen, setChosen] = useState<T[]>(initial);
+  return {
+    chosen,
+    setChosen,
+    problems: problemsOf(chosen),
+    pick: (item: T) => setChosen((prev) => togglePick(prev, item, single)),
+    submit: () => answer(chosen),
+    confirm: (item: T) => {
+      const next = single ? [item] : chosen.includes(item) ? chosen : [...chosen, item];
+      if (problemsOf(next).length === 0) answer(next);
+      else setChosen(next);
+    },
+  };
+}
+
+/**
+ * One pickable row of a prompt: the tick (`prompt-choice`, a checkbox or a
+ * radio) and the row's face in one `<label>`, so a click anywhere on the face
+ * ticks it.
+ *
+ * A double click is `onConfirm`. Its first click ticks the row as any click
+ * does; the second click of the pair is not a second toggle (it would untick
+ * what the first just ticked), so the row stays picked for `onConfirm` to answer
+ * with. Nothing here drags, so the ordering prompts' row drag is untouched.
+ */
+export function PickChoice({
+  type,
+  checked,
+  onPick,
+  onConfirm,
+  data,
+  children,
+}: {
+  type: 'checkbox' | 'radio';
+  checked: boolean;
+  onPick: () => void;
+  onConfirm: () => void;
+  /** The input's own `data-*` markers (`data-key`, `data-ref`, `data-card-id`). */
+  data: Record<`data-${string}`, string | number>;
+  children: ReactNode;
+}) {
+  return (
+    <label
+      onClick={(e: MouseEvent) => {
+        if (e.detail > 1) e.preventDefault();
+      }}
+      onDoubleClick={onConfirm}
+    >
+      <input type={type} name={type === 'radio' ? 'prompt-single' : undefined} data-testid="prompt-choice" {...data} checked={checked} onChange={onPick} />
+      {children}
+    </label>
   );
 }

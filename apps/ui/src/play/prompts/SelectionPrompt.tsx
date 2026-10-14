@@ -60,9 +60,11 @@
  * (`sanctum-worldbreaker.jvm.test.ts`).
  */
 
+import { useEffect, useRef, useState } from 'react';
+
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { PromptShell, promptTileFor } from './PromptShell.tsx';
+import { PickChoice, PromptShell, promptTileFor } from './PromptShell.tsx';
 import { promptText, type PromptLookup } from './lookup.ts';
 import { RulesText } from './RulesText.tsx';
 
@@ -136,6 +138,34 @@ export interface SelectionPromptProps {
  */
 export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
   const message = promptText(rawMessage);
+  /*
+   * A double click (`PickChoice`): pick the card and press Done. The picks are
+   * Forge's, so both wait on Forge — Done is pressed once the card is among
+   * the picks AND Forge has enabled Done, which it does only for a legal set;
+   * a set that is not legal yet stays picked for the player to finish. Any
+   * later pick withdraws it. A one-pick selection is answered by the pick
+   * itself and never gets this far.
+   */
+  const [confirming, setConfirming] = useState<number | null>(null);
+  /** The card the last single click toggled, and whether that click took it OUT of the picks. */
+  const lastPick = useRef<{ id: number; unpicked: boolean } | null>(null);
+  const pick = (id: number) => {
+    lastPick.current = { id, unpicked: picked.has(id) };
+    setConfirming(null);
+    onPick(id);
+  };
+  const confirm = (id: number) => {
+    // The double click's first click un-picked a card that was already picked: pick it back.
+    if (lastPick.current?.id === id && lastPick.current.unpicked) onPick(id);
+    lastPick.current = null;
+    setConfirming(id);
+  };
+  const pressDone = confirming !== null && picked.has(confirming) && done !== undefined && done.enabled ? done.onClick : null;
+  useEffect(() => {
+    if (pressDone === null) return;
+    setConfirming(null);
+    pressDone();
+  }, [pressDone]);
   // Forge's own selection prompts (`showPromptMessage`) separate the
   // trigger/source line from the instruction with a blank line — the same
   // two-part shape every other prompt's own `title`/`message` fields
@@ -174,10 +204,9 @@ export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, on
           const tile = promptTileFor(lookup, id);
           return (
             <li key={id} data-card-id={id}>
-              <label>
-                <input type="checkbox" data-testid="prompt-choice" data-card-id={id} checked={picked.has(id)} onChange={() => onPick(id)} />
+              <PickChoice type="checkbox" data={{ 'data-card-id': id }} checked={picked.has(id)} onPick={() => pick(id)} onConfirm={() => confirm(id)}>
                 <CardTile card={tile} />
-              </label>
+              </PickChoice>
             </li>
           );
         })}

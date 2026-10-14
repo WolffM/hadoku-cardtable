@@ -213,16 +213,16 @@
  * live** (wave 26 §B.5): `Seat 1, live.` is deleted, and what replaced it as the
  * turn indicator is the rail's own `live-turn`.
  *
- * So the five states that remain are the five with no board, and `data-perch` is
- * down to one interesting case plus one corner case:
+ * So the states that remain are the ones with no board, plus a dropped socket,
+ * and `data-perch` is down to one interesting case plus one corner case:
  *
  *  - `table`: there is no board — connecting, waiting, refused, gone — so the
  *    line takes the space the board would have had. It is the same box the
  *    "waiting for the game state" line used to be, which is why nothing moves
  *    when the state resolves.
- *  - `corner`: a board IS drawn and the state is still not `live`, which now
- *    means one thing only — a refusal or a gone match arriving on a table that
- *    was already up. It rides over the TOP of the board, out of flow, so it costs
+ *  - `corner`: a board IS drawn and the state is still not `live` — a socket
+ *    that dropped (`reconnecting`, a deploy mid-game), or a refusal or a gone
+ *    match arriving on a table that was already up. It rides over the TOP of the board, out of flow, so it costs
  *    the table no height. Centred, because both edges are taken: the turn bar it
  *    used to ride in is gone (§A), the right-hand end is the overlay gutter's and
  *    the left is the logbook's. A player whose match just ended has to see this.

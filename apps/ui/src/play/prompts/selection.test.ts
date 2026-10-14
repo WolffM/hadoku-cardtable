@@ -168,3 +168,59 @@ describe('SelectionPrompt', () => {
     expect(done).toBe(false);
   });
 });
+
+describe('SelectionPrompt — a double click picks and presses Done', () => {
+  /** Forge's side: each pick toggles its set; Done is enabled once `min` cards are picked. */
+  function forgeSelection(min: number, start: number[] = []) {
+    const picks = new Set<number>(start);
+    const sent: string[] = [];
+    const props = () => ({
+      message: 'Select two cards',
+      cards: [GRAVEYARD_CARD, BOARD_CARD, 67],
+      lookup: fixtureLookup(),
+      picked: new Set(picks),
+      onPick: (id: number) => {
+        sent.push(`pick ${id}`);
+        if (picks.has(id)) picks.delete(id);
+        else picks.add(id);
+      },
+      done: picks.size >= min ? { label: 'OK', enabled: true, onClick: () => sent.push('done') } : undefined,
+    });
+    const utils = render(createElement(SelectionPrompt, props()));
+    /** Forge's answer reaching the page. */
+    const update = () => utils.rerender(createElement(SelectionPrompt, props()));
+    const doubleClick = (i: number) => {
+      const label = utils.getAllByTestId('prompt-choice')[i]!.closest('label')!;
+      fireEvent.click(label, { detail: 1 });
+      fireEvent.click(label, { detail: 2 });
+      fireEvent.dblClick(label, { detail: 2 });
+    };
+    return { sent, update, doubleClick, utils };
+  }
+
+  it('the pick that makes the set legal is followed by Done, once Forge has taken it', () => {
+    const f = forgeSelection(2);
+    f.doubleClick(0);
+    f.update();
+    expect(f.sent, 'one pick of two: no Done').toEqual([`pick ${GRAVEYARD_CARD}`]);
+    f.doubleClick(1);
+    expect(f.sent, 'Done waits for Forge to take the pick').toEqual([`pick ${GRAVEYARD_CARD}`, `pick ${BOARD_CARD}`]);
+    f.update();
+    expect(f.sent).toEqual([`pick ${GRAVEYARD_CARD}`, `pick ${BOARD_CARD}`, 'done']);
+  });
+
+  it('a card already picked is picked back, not dropped, before Done', () => {
+    const f = forgeSelection(1, [BOARD_CARD]);
+    f.doubleClick(1);
+    f.update();
+    expect(f.sent).toEqual([`pick ${BOARD_CARD}`, `pick ${BOARD_CARD}`, 'done']);
+  });
+
+  it('a later single pick withdraws the double click: Done is the player’s again', () => {
+    const f = forgeSelection(2);
+    f.doubleClick(0);
+    fireEvent.click(f.utils.getAllByTestId('prompt-choice')[1]!.closest('label')!, { detail: 1 });
+    f.update();
+    expect(f.sent).toEqual([`pick ${GRAVEYARD_CARD}`, `pick ${BOARD_CARD}`]);
+  });
+});

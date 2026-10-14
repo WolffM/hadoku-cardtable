@@ -21,7 +21,7 @@ import { useMemo, useState, type KeyboardEvent } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { OptionButton, PromptShell, promptTileFor } from './PromptShell.tsx';
+import { OptionButton, PickChoice, PromptShell, promptTileFor, usePicks } from './PromptShell.tsx';
 import { isZoneDividerLabel, plainRulesText, promptText, refName, translateTargetWords, type PromptLookup } from './lookup.ts';
 import { nameIndex, searchNames } from './name-search.ts';
 import { RulesText } from './RulesText.tsx';
@@ -39,11 +39,6 @@ import {
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 import type { CardRef, EntityRef } from '@hadoku/forge-wire';
-
-function toggle<T>(list: readonly T[], item: T, single: boolean): T[] {
-  if (list.includes(item)) return list.filter((x) => x !== item);
-  return single ? [item] : [...list, item];
-}
 
 /** The card an option stands for, when it stands for one. */
 function cardOfOption(ref: EntityRef | null): CardRef | null {
@@ -231,22 +226,26 @@ function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>)
   const bounds = choiceBounds(ask.min, ask.max);
   const known = new Set(ask.choices.map((c) => c.key));
   const range = bounds.max > 0 ? numericChoiceRange(ask) : null;
-  const [chosen, setChosen] = useState<string[]>(() => {
-    const selected = ask.selected.filter((k) => known.has(k));
-    // A slider always shows a value; Forge's own default reading for `getInteger`
-    // (`AbstractGuiGame.java:791-813`) is the range's minimum — `range.keys[0]`
-    // is the WIRE KEY that answers it, never `String(range.min)` (wave 34 §G
-    // item 1: Forge's own key is never the integer — see `NumericChoiceRange`).
-    if (selected.length === 0 && range !== null) return [range.keys[0]!];
-    return selected;
-  });
   // Reply in the order Forge listed the options, not the order they were clicked.
-  const reply = ask.choices.map((c) => c.key).filter((k) => chosen.includes(k));
-  const problems = getChoicesProblems(ask, reply);
-  const submit = () => {
-    assertAnswerable('getChoices', problems);
-    onAnswer(checkedReply('getChoices', reply));
-  };
+  const replyOf = (picks: readonly string[]) => ask.choices.map((c) => c.key).filter((k) => picks.includes(k));
+  const { chosen, setChosen, problems, pick, submit, confirm } = usePicks<string>(
+    () => {
+      const selected = ask.selected.filter((k) => known.has(k));
+      // A slider always shows a value; Forge's own default reading for `getInteger`
+      // (`AbstractGuiGame.java:791-813`) is the range's minimum — `range.keys[0]`
+      // is the WIRE KEY that answers it, never `String(range.min)` (wave 34 §G
+      // item 1: Forge's own key is never the integer — see `NumericChoiceRange`).
+      if (selected.length === 0 && range !== null) return [range.keys[0]!];
+      return selected;
+    },
+    bounds.max === 1,
+    (picks) => getChoicesProblems(ask, replyOf(picks)),
+    (picks) => {
+      const reply = replyOf(picks);
+      assertAnswerable('getChoices', getChoicesProblems(ask, reply));
+      onAnswer(checkedReply('getChoices', reply));
+    },
+  );
 
   if (range !== null) {
     const key = chosen[0] ?? null;
@@ -286,16 +285,9 @@ function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>)
           const name = translateTargetWords(c.label);
           return (
             <li key={c.key} data-card-id={cardRef !== null ? cardRef.id : undefined}>
-              <label>
-                <input
-                  type="checkbox"
-                  data-testid="prompt-choice"
-                  data-key={c.key}
-                  checked={chosen.includes(c.key)}
-                  onChange={() => setChosen((prev) => toggle(prev, c.key, bounds.max === 1))}
-                />
+              <PickChoice type="checkbox" data={{ 'data-key': c.key }} checked={chosen.includes(c.key)} onPick={() => pick(c.key)} onConfirm={() => confirm(c.key)}>
                 {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : <RulesText text={c.label} />}
-              </label>
+              </PickChoice>
             </li>
           );
         })}
@@ -305,13 +297,19 @@ function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>)
 }
 
 export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<'chooseSingleEntityForEffect'>) {
-  const [chosen, setChosen] = useState<number | null>(null);
-  const reply = chosen === null ? null : (ask.optionList[chosen] ?? null);
-  const problems = chooseSingleProblems(ask, reply);
-  const submit = () => {
-    assertAnswerable('chooseSingleEntityForEffect', problems);
-    onAnswer(checkedReply('chooseSingleEntityForEffect', reply));
-  };
+  const replyOf = (picks: readonly number[]) => (picks[0] === undefined ? null : (ask.optionList[picks[0]] ?? null));
+  const { chosen: picks, setChosen, problems, pick, submit, confirm } = usePicks<number>(
+    () => [],
+    true,
+    (p) => chooseSingleProblems(ask, replyOf(p)),
+    (p) => {
+      const reply = replyOf(p);
+      assertAnswerable('chooseSingleEntityForEffect', chooseSingleProblems(ask, reply));
+      onAnswer(checkedReply('chooseSingleEntityForEffect', reply));
+    },
+  );
+  const chosen = picks[0] ?? null;
+  const reply = replyOf(picks);
   // Choosable first, in Forge's order; then what Forge only revealed. One grid,
   // not two — §D.2. `rules.ts` owns the order and the flag.
   const rows = searchRows(ask);
@@ -336,23 +334,21 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
             {row.option === null ? (
               <UnofferedRow row={row} lookup={lookup} />
             ) : (
-              <label>
-                <input
-                  type="radio"
-                  name="prompt-single"
-                  data-testid="prompt-choice"
-                  data-ref={`${row.ref.kind}:${row.ref.id}`}
-                  checked={chosen === row.option}
-                  onChange={() => setChosen(row.option)}
-                />
+              <PickChoice
+                type="radio"
+                data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }}
+                checked={chosen === row.option}
+                onPick={() => pick(row.option!)}
+                onConfirm={() => confirm(row.option!)}
+              >
                 <RowFace entity={row.ref} lookup={lookup} />
-              </label>
+              </PickChoice>
             )}
           </li>
         ))}
       </ul>
       {ask.isOptional && chosen !== null && (
-        <button type="button" className="prompt__link" onClick={() => setChosen(null)}>
+        <button type="button" className="prompt__link" onClick={() => setChosen([])}>
           Clear choice
         </button>
       )}
@@ -362,13 +358,17 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
 
 export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'chooseEntitiesForEffect'>) {
   const bounds = choiceBounds(ask.min, ask.max);
-  const [chosen, setChosen] = useState<number[]>([]);
-  const reply = ask.optionList.filter((_, i) => chosen.includes(i));
-  const problems = chooseEntitiesProblems(ask, reply);
-  const submit = () => {
-    assertAnswerable('chooseEntitiesForEffect', problems);
-    onAnswer(checkedReply('chooseEntitiesForEffect', reply));
-  };
+  const replyOf = (picks: readonly number[]) => ask.optionList.filter((_, i) => picks.includes(i));
+  const { chosen, problems, pick, submit, confirm } = usePicks<number>(
+    () => [],
+    bounds.max === 1,
+    (picks) => chooseEntitiesProblems(ask, replyOf(picks)),
+    (picks) => {
+      const reply = replyOf(picks);
+      assertAnswerable('chooseEntitiesForEffect', chooseEntitiesProblems(ask, reply));
+      onAnswer(checkedReply('chooseEntitiesForEffect', reply));
+    },
+  );
   // Choosable first, then what Forge only revealed — the same one grid §D.2
   // gives the single-choice prompt.
   const rows = searchRows(ask);
@@ -388,16 +388,15 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
             {row.option === null ? (
               <UnofferedRow row={row} lookup={lookup} />
             ) : (
-              <label>
-                <input
-                  type="checkbox"
-                  data-testid="prompt-choice"
-                  data-ref={`${row.ref.kind}:${row.ref.id}`}
-                  checked={chosen.includes(row.option)}
-                  onChange={() => setChosen((prev) => toggle(prev, row.option!, bounds.max === 1))}
-                />
+              <PickChoice
+                type="checkbox"
+                data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }}
+                checked={chosen.includes(row.option)}
+                onPick={() => pick(row.option!)}
+                onConfirm={() => confirm(row.option!)}
+              >
                 <RowFace entity={row.ref} lookup={lookup} />
-              </label>
+              </PickChoice>
             )}
           </li>
         ))}

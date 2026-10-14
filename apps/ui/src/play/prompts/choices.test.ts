@@ -681,3 +681,73 @@ describe('Q16 — a prompt sheet sits at the popover layer', () => {
     expect(PROMPTS_CSS).toMatch(/\n\.prompt \{[^}]*z-index: var\(--z-popover, 40\);/);
   });
 });
+
+/** A person's double click on a row: two clicks (the second one's `detail` is 2), then `dblclick`. */
+function doubleClick(row: HTMLElement): void {
+  const label = row.closest('label')!;
+  fireEvent.click(label, { detail: 1 });
+  fireEvent.click(label, { detail: 2 });
+  fireEvent.dblClick(label, { detail: 2 });
+}
+
+describe('a double click picks a row and answers', () => {
+  it('a one-pick list answers the row double-clicked, OK never pressed', () => {
+    const { getAllByTestId, answers } = mountPrompt('getChoices', askFor('getChoices'));
+    doubleClick(getAllByTestId('prompt-choice')[3]!);
+    expect(answers).toEqual([['red']]);
+  });
+
+  it('a two-pick list: the first double click only picks (one is not an answer), the second answers both', () => {
+    const ask = { ...askFor('getChoices'), min: 2, max: 2 };
+    const { getAllByTestId, answers } = mountPrompt('getChoices', ask);
+    const boxes = getAllByTestId('prompt-choice') as HTMLInputElement[];
+    doubleClick(boxes[2]!);
+    expect(answers, 'one of two is not sent').toEqual([]);
+    expect(boxes.map((b) => b.checked)).toEqual([false, false, true, false, false]);
+    doubleClick(boxes[0]!);
+    expect(answers).toEqual([['white', 'black']]);
+    expectWireReply('getChoices', answers[0]);
+  });
+
+  it('a row already picked stays in the answer: the double click does not untick it', () => {
+    const ask = { ...askFor('getChoices'), min: 1, max: 2 };
+    const { getAllByTestId, answers } = mountPrompt('getChoices', ask);
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[1]!);
+    doubleClick(boxes[1]!);
+    expect(answers).toEqual([['blue']]);
+  });
+
+  it('never sends what OK would refuse: a double click past the max picks nothing new and answers nothing', () => {
+    const ask = { ...askFor('getChoices'), min: 0, max: 2 };
+    const { getAllByTestId, answers, submit } = mountPrompt('getChoices', ask);
+    const boxes = getAllByTestId('prompt-choice') as HTMLInputElement[];
+    fireEvent.click(boxes[0]!);
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(boxes[2]!);
+    expect(submit().disabled).toBe(true);
+    doubleClick(boxes[3]!);
+    expect(answers).toEqual([]);
+  });
+
+  it('a single entity (radio) answers the row double-clicked', () => {
+    const { getAllByTestId, answers } = mountPrompt('chooseSingleEntityForEffect', askFor('chooseSingleEntityForEffect'));
+    doubleClick(getAllByTestId('prompt-choice')[1]!);
+    expect(answers).toEqual([{ kind: 'card', id: 67 }]);
+  });
+
+  it('several entities answer once the double-clicked row makes the set legal, in offer order', () => {
+    const ask = { ...askFor('chooseEntitiesForEffect'), min: 2 };
+    const { getAllByTestId, answers } = mountPrompt('chooseEntitiesForEffect', ask);
+    const boxes = getAllByTestId('prompt-choice');
+    doubleClick(boxes[2]!);
+    expect(answers).toEqual([]);
+    doubleClick(boxes[0]!);
+    expect(answers).toEqual([
+      [
+        { kind: 'card', id: 20 },
+        { kind: 'card', id: 2 },
+      ],
+    ]);
+  });
+});
