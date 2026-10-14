@@ -271,6 +271,52 @@ describe('a modal spell’s targets', () => {
   });
 });
 
+describe('a spell is drawn in one place: the stack lets go when a zone list holds its card', () => {
+  /*
+   * GameView `Stack` and the PlayerView lists arrive in separate deltas: a resolving creature was on
+   * the battlefield one frame before the stack let go of it (st-stack-resolve, the other seat's screen),
+   * and the stack card and the board card were both drawn. The view puts the card in one place.
+   */
+  /** The fixture's first stack item, made a spell: its card is on the stack, so no zone list holds it. */
+  function spellOnStack(state: Map<string, WireObject>): { sid: number; card: number } {
+    const { id: sid, sourceCardId } = adapt(state).stack[0]!;
+    const key = deltaKey(WireType.StackItem, sid);
+    state.set(key, { ...state.get(key)!, Ability: { t: 'bool', v: false } } as WireObject);
+    for (const { id: pid } of adapt(state).players) {
+      for (const zone of ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile']) {
+        setZone(state, pid, zone, listOf(state, pid, zone).filter((id) => id !== sourceCardId));
+      }
+    }
+    const item = adapt(state).stack.find((i) => i.id === sid)!;
+    expect(item.isAbility).toBe(false);
+    return { sid, card: item.sourceCardId! };
+  }
+  const playerOf = (state: WireState, pid: number) => state.get(deltaKey(WireType.Player, pid));
+  const listOf = (state: WireState, pid: number, zone: string): number[] =>
+    ((playerOf(state, pid)?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
+
+  for (const zone of ['Battlefield', 'Graveyard', 'Exile', 'Hand']) {
+    it(`drops a spell whose card the ${zone} list already holds, in the frame before the stack lets go`, () => {
+      const state = baseState();
+      const { sid, card } = spellOnStack(state);
+      const pid = fixture.viewerPlayerId;
+      setZone(state, pid, zone, [...listOf(state, pid, zone), card]);
+      const view = adapt(state);
+      expect(view.stack.map((i) => i.id)).not.toContain(sid);
+      if (zone === 'Battlefield') expect(view.players.find((p) => p.id === pid)!.battlefield.map((c) => c.id)).toContain(card);
+    });
+  }
+
+  it('keeps an ability whose source is on the battlefield — it is an effect of the card, not the card', () => {
+    const state = baseState();
+    const view = adapt(state);
+    const ability = view.stack.find((i) => i.isAbility)!;
+    const pid = fixture.viewerPlayerId;
+    setZone(state, pid, 'Battlefield', [...listOf(state, pid, 'Battlefield'), ability.sourceCardId!]);
+    expect(adapt(state).stack.map((i) => i.id)).toContain(ability.id);
+  });
+});
+
 /* ── §A.2, §A.3, §A.4: what else the wire already carries ─────────────── */
 
 /** Set one property on a `CardView` in place. */
