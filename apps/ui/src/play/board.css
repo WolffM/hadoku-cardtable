@@ -280,6 +280,12 @@
    * on this board may scroll (the operator, 2026-09-19).
    */
   --card-min: 2.75rem;
+  /*
+   * How much darker the side whose turn it is NOT sits (`.board .seat`'s spotlight, below), in
+   * OKLCH lightness: a perceptual unit, so it is the same visible step on a white theme and a
+   * near-black one.
+   */
+  --turn-step: 0.04;
 
   position: relative;
   height: 100dvh;
@@ -452,6 +458,9 @@
    * to `title`/`aria-label`.
    */
   --counts-h: 2.2rem;
+  /* Whose turn it is (below): neither lit nor shaded until the section says so. */
+  --turn-lit: 0;
+  --turn-shade: 0;
 
   display: grid;
   align-items: stretch;
@@ -465,10 +474,17 @@
   min-width: 0;
   min-height: 0;
   padding: 5px 8px 6px;
-  background: var(--bg-raised);
+  background: oklch(from var(--bg-raised) calc(l - var(--turn-shade) * var(--turn-step)) c h);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   font-size: inherit;
+  /* Whose turn it is: the edge light along the seat's own table edge (see below). */
+  box-shadow:
+    inset 0 -3px 0 color-mix(in srgb, var(--turn-edge) calc(var(--turn-lit) * 100%), transparent),
+    inset 0 -22px 18px -12px color-mix(in srgb, var(--accent) calc(var(--turn-lit) * 45%), transparent);
+  transition:
+    --turn-lit 0.9s ease-in-out,
+    --turn-shade 0.9s ease-in-out;
 }
 
 .board .seat:not([data-viewer]) {
@@ -476,10 +492,56 @@
   grid-template-areas:
     'side hand'
     'side field';
+  box-shadow:
+    inset 0 3px 0 color-mix(in srgb, var(--turn-edge) calc(var(--turn-lit) * 100%), transparent),
+    inset 0 22px 18px -12px color-mix(in srgb, var(--accent) calc(var(--turn-lit) * 45%), transparent);
 }
 
 .board .seat[data-viewer] {
   border-color: var(--line);
+}
+
+/*
+ * Whose turn it is, felt rather than read. The operator, 2026-10-14, after an underline on the
+ * active player's name: *"i dont really like the player underline for showing whos turn it is. i
+ * think instead we should consider having some kind of ambient effect on their board"* — and of
+ * five prototypes, the edge light with a subtle spotlight. One source: the section's `data-active`.
+ *
+ * - The EDGE LIGHT: a `--turn-edge` line along the active side's own table edge — the bottom of
+ *   your seat, the top of theirs — with a soft accent glow inward from it. Inset shadows on the
+ *   seat (`.board .seat`, above): they paint in the seat's own padding, under every child, and
+ *   add no size.
+ * - The SPOTLIGHT: while someone is active, the OTHER side's surfaces — the seat, its battlefield,
+ *   its hand tray — sit `--turn-step` darker. Surface colours, not a filter and not a layer: a
+ *   filter would make the seat the containing block of a lifted card's `position: fixed`, and the
+ *   cards themselves keep exactly their own contrast.
+ *
+ * Both ride two registered numbers, so a turn passing eases across; reduced motion is the state.
+ */
+@property --turn-lit {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --turn-shade {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+.board .seat[data-active] {
+  --turn-lit: 1;
+}
+
+.board:has(.seat[data-active]) .seat:not([data-active]) {
+  --turn-shade: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board .seat {
+    transition: none;
+  }
 }
 
 /*
@@ -938,7 +1000,7 @@
   /* The right pad is the overlays' (`--right-gutter`, on the shared rule above). */
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
-  background: var(--bg);
+  background: oklch(from var(--bg) calc(l - var(--turn-shade) * var(--turn-step)) c h);
   /*
    * The operator: a creature ready to attack *"get[s] clipped by the field boundaries … let's make
    * sure they can be on top."* No resting box here may grow to make that room, so the paint gets it
@@ -1058,7 +1120,9 @@
   /* The right pad is the overlays' (`--right-gutter`, on the shared rule above). */
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
-  background: repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in srgb, var(--ink) 4.5%, transparent) 7px 14px), var(--bg-card);
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in srgb, var(--ink) 4.5%, transparent) 7px 14px),
+    oklch(from var(--bg-card) calc(l - var(--turn-shade) * var(--turn-step)) c h);
   border: 1px solid var(--line);
   border-top: 3px solid var(--line);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
@@ -1317,7 +1381,9 @@
   min-width: 0;
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
-  background: repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in srgb, var(--ink) 4.5%, transparent) 7px 14px), var(--bg-card);
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in srgb, var(--ink) 4.5%, transparent) 7px 14px),
+    oklch(from var(--bg-card) calc(l - var(--turn-shade) * var(--turn-step)) c h);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;

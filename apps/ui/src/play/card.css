@@ -1141,17 +1141,6 @@
     0 0 0 6px var(--accent);
 }
 
-/*
- * Whose turn it is: the active player's name plate, never a ring — the ring is
- * priority's. An underline bar and the name's own ink, both inset, so the name's
- * track does not move when the turn passes.
- */
-.board .seat[data-active] .seat__name {
-  color: var(--accent-ink);
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--accent-ink);
-}
-
 .face[data-lost] .face__plate {
   stroke: var(--warn);
 }

@@ -2873,8 +2873,8 @@ function HiddenHand({ player, ownerSide, interaction }: { player: BoardPlayer; o
  * its ANCESTOR `<section data-testid="player">` (`PlayerArea`, below) carries
  * `data-priority`: the seat Forge is waiting on to act (the operator,
  * 2026-10-13: *"the circle around the avatar should indicate priority"*).
- * The active player is marked on the seat's NAME instead (`data-active`,
- * `card.css`), never by a ring. Both hooks are the section's, so an e2e spec
+ * Whose turn it is is the seat's own edge light and the other side's shade
+ * (`data-active`, `board.css`), never a ring. Both hooks are the section's, so an e2e spec
  * selects them without reaching into this component's own markup.
  */
 function PlayerFace({
@@ -3122,8 +3122,8 @@ function PlayerArea({
       data-player-id={player.id}
       data-viewer={player.isViewer || undefined}
       data-selectable={selectable || undefined}
-      // The active player's mark on the name, and the ring of the seat Forge is waiting on
-      // (`card.css`'s `.seat[data-active]` and `.seat[data-priority]`).
+      // The active side's edge light and the other's shade (`board.css`'s `.seat[data-active]`),
+      // and the ring of the seat Forge is waiting on (`card.css`'s `.seat[data-priority]`).
       data-active={player.isActive || undefined}
       data-priority={player.hasPriority || undefined}
       aria-label={player.isViewer ? `${player.name} (you)` : player.name}

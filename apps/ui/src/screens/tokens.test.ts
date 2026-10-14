@@ -223,7 +223,8 @@ describe('no hardcoded colours', () => {
     }
   };
   walk(root, '');
-  const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(|(?<![-\w])(?:white|black|red|blue|green|gray|grey|silver)(?![-\w])/i;
+  // A relative colour derived from a token (`oklch(from var(--bg) …)`) is the theme's own colour, not a literal.
+  const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\((?!from\s+var\()|(?<![-\w])(?:white|black|red|blue|green|gray|grey|silver)(?![-\w])/i;
   const PALETTE = /^\s*--c-(?:white|blue|black|red|green|generic):\s*#[0-9a-f]{6};\s*$/i;
 
   it('finds the app’s stylesheets', () => {
