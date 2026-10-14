@@ -1203,6 +1203,14 @@
 }
 
 /*
+ * A turned pile's `<li>` is its turned card and the fan (`card.css`): the landscape face's
+ * height, and its centring margins make up the rest of the same floor.
+ */
+.board-card[data-pile-size]:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+  min-height: calc(var(--pile-fan) + (var(--card-w) - var(--pile-fan)) / var(--card-tall));
+}
+
+/*
  * The hand's label is a column, so it costs this list no height at all.
  *
  * T6 (wave 36), the operator's own words: *"a hand card is as tall as its

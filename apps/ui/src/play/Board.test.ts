@@ -3289,11 +3289,12 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(css(card(container).querySelector(':scope > .board-card__face > .card')!, 'isolation')).toBe('isolate');
   });
 
-  it('blocking and token are corner marks, and neither is drawn in the accent', () => {
+  it('blocking is a corner mark and is not drawn in the accent; a token wears no mark at all', () => {
     const { container } = renderBoard(withState({ blocking: true, token: true }));
     const marks = [...card(container).querySelectorAll<HTMLElement>('.board-card__mark')].map((m) => m.dataset.mark);
-    expect(marks).toEqual(['blocking', 'token']);
-    expect(card(container).getAttribute('data-token')).toBe('true');
+    // The operator, 2026-10-14: "let's just get rid of the token indicator, its noise."
+    expect(marks).toEqual(['blocking']);
+    expect(card(container).hasAttribute('data-token')).toBe(false);
     // The three outlines a card can already wear belong to the two gesture states
     // and nothing here may add a fourth colour to that conversation. `--accent-ink`
     // (R15's own `changed` mark, below) is a different, legitimate token, so only

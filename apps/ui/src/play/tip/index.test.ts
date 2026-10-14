@@ -19,7 +19,7 @@ function card(): { li: HTMLElement; face: HTMLElement; sick: HTMLElement; member
       <button class="board-card__face"><div class="card">art</div></button>
       <ul class="board-card__marks"><li class="board-card__mark" data-mark="sick" data-tip="sick words"></li></ul>
       <ul class="board-card__pile"><li class="board-card" data-board-card="2"><button class="board-card__face"></button>
-        <ul class="board-card__marks"><li class="board-card__mark" data-mark="token" data-tip="token words"></li></ul></li></ul>
+        <ul class="board-card__marks"><li class="board-card__mark" data-mark="blocking" data-tip="blocking words"></li></ul></li></ul>
     </li>`;
   const li = document.querySelector<HTMLElement>('[data-board-card="1"]')!;
   const face = li.querySelector<HTMLElement>(':scope > .board-card__face')!;
@@ -28,7 +28,7 @@ function card(): { li: HTMLElement; face: HTMLElement; sick: HTMLElement; member
   box(li, 0, 0, 100, 140);
   box(face, 0, 0, 100, 140);
   box(sick, 2, 2, 14, 14);
-  box(member.querySelector('[data-mark="token"]')!, 10, 10, 14, 14);
+  box(member.querySelector('[data-mark="blocking"]')!, 10, 10, 14, 14);
   return { li, face, sick, member };
 }
 
@@ -74,7 +74,6 @@ describe('placeTip', () => {
 describe('words', () => {
   it('names each corner mark', () => {
     expect(MARK_TIP.sick).toMatch(/^Summoning sick/);
-    expect(MARK_TIP.token).toMatch(/^Token/);
     expect(MARK_TIP.blocking).toBe('Blocking');
   });
 

@@ -315,7 +315,7 @@
   background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
 }
 
-/* ── the state layer: marks, counters, sickness, tokens ─────────── */
+/* ── the state layer: marks, counters, sickness ─────────── */
 
 /*
  * Wave 28 §A.15, the operator: *"all the text you have written on the
@@ -945,28 +945,40 @@
  */
 .board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face {
   aspect-ratio: 680 / 488;
-  /*
-   * Centred in the row, not hung from its top (the operator, 2026-10-08:
-   * "let's vertically center tapped cards"). The row keeps the portrait height
-   * (`align-self: start`, `board.css`), so the turned face steps down by half
-   * the difference between the two heights — a percentage of the card's own
-   * width, which is what both heights are, and a margin, which turns with the
-   * tap transition where `align-self` could not.
-   */
-  margin-top: calc((680 / 488 - 488 / 680) / 2 * 100%);
 }
 
 /*
- * And the same step below the card, outside its box, so a turned card still claims a portrait
- * card's height in its row. Without it a row of nothing but turned cards was shorter than a
- * card, and anything that made the row a card tall again — a drag's placement columns, an
- * untapped card joining it — re-centred the row and moved every turned card in it by 11px (the
- * operator, 2026-10-11: "when dragging cards i notice tapped cards shift down slightly"). The
- * card's own box, and every mark drawn against it, is unchanged. A pile's `<li>` is sized by its
- * fan (`board.css`) and is left out.
+ * A turned card's `<li>` IS the turned card: the face is the `<li>`'s whole box, and the step that
+ * centres it in its row (the operator, 2026-10-08: "let's vertically center tapped cards") is a
+ * margin on the `<li>`, above and below. Every overlay the card wears — the corner marks, the tag
+ * column, the counters, the P/T badge, the copies count, the type pill, the relations — is laid out
+ * against the `<li>`, so they all sit on the turned card's own corners and stay upright and
+ * readable. The step used to be a margin on the FACE inside the `<li>`, which left the `<li>` a
+ * portrait box with the card drawn in its lower part: everything anchored to its top (a granted
+ * Deathtouch tag, the summoning-sick mark) hung above the card it belonged to (the operator,
+ * 2026-10-14, asked twice).
+ *
+ * The step is half the difference between the portrait and the landscape heights of the FACE,
+ * whose width is the `<li>`'s less a pile's fan; a margin's percentage is of the containing
+ * block's width, which is the grid column for a card in a row and the pile's own box for a card
+ * stacked in one — the base card's width either way. Below, the same step again, so a turned card
+ * still claims a portrait card's height in its row: without it a row of nothing but turned cards
+ * was shorter than a card, and anything that made the row a card tall again — a drag's placement
+ * columns, an untapped card joining it — re-centred the row and moved every turned card in it by
+ * 11px (the operator, 2026-10-11: "when dragging cards i notice tapped cards shift down
+ * slightly").
  */
-.board-card:not([data-pile-size]):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
-  margin-bottom: calc((680 / 488 - 488 / 680) / 2 * 100%);
+.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+  margin-block: calc((680 / 488 - 488 / 680) / 2 * (100% - var(--pile-fan)));
+}
+
+/*
+ * The cards stacked behind a turned card keep their own place in the row — a step down for each,
+ * from the row's top, as they had before it turned — rather than following its centring step, so a
+ * collar behind an attacking creature still stands inside the row.
+ */
+.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__pile {
+  margin-top: calc((680 / 488 - 488 / 680) / -2 * (100% - var(--pile-fan)));
 }
 
 /*

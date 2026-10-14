@@ -5,10 +5,9 @@
 import type { BoardCardChoice, BoardCardWaiting, ChoiceKind } from '../adapter.ts';
 
 /** A corner mark (`Board.tsx`'s `StateMarks`). */
-export const MARK_TIP: Readonly<Record<'sick' | 'blocking' | 'token', string>> = {
+export const MARK_TIP: Readonly<Record<'sick' | 'blocking', string>> = {
   sick: "Summoning sick: it can't attack or use its tap abilities until its controller's next turn",
   blocking: 'Blocking',
-  token: 'Token: made by an effect, not a card. It stops existing when it leaves the battlefield',
 };
 
 /** A keyword tag (`Board.tsx`'s `CardTags`), by the lower-case keyword. */

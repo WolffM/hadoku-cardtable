@@ -233,8 +233,8 @@
  * `@hadoku/carddata/art`) from the Scryfall id the adapter looked up. No host
  * is named here. A card with no id is the text tile, which is a whole card on
  * its own. The board adds only the state a printed card doesn't have (damage,
- * counters, tapped, attacking, blocking, summoning sickness, whether it is a
- * token) — and since wave 28 §A.15 it DRAWS that state rather than writing it:
+ * counters, tapped, attacking, blocking, summoning sickness) — and since wave
+ * 28 §A.15 it DRAWS that state rather than writing it:
  * see "A card's state is drawn" below. A stack item draws its source card the
  * same way, from `StackEntry.sourceCard`.
  *
@@ -1950,8 +1950,10 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * What was here was one function that turned seven states into STRINGS and
  * dropped them on a ~70px tile over real art: `tapped`, `summoning sick`,
  * `attacking`, `blocking`, `3 damage`, `token`, `1 +1/+1`. Every one of them is
- * now a treatment, and each treatment is in a DIFFERENT CHANNEL, which is the
- * constraint that made this a design problem rather than a CSS one:
+ * now a treatment — or, for `token`, nothing at all (the operator, 2026-10-14:
+ * "let's just get rid of the token indicator, its noise") — and each treatment
+ * is in a DIFFERENT CHANNEL, which is the constraint that made this a design
+ * problem rather than a CSS one:
  *
  * | state | channel | why not something else |
  * | --- | --- | --- |
@@ -1960,7 +1962,6 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
  * | summoning sick | the card DESATURATES | a saturation channel, so it cannot be confused with any outline and says the same thing to a colour-blind viewer |
  * | blocking | a corner mark, a drawn shield, and an outline in the theme's success (`card.css`), as the attacker's is in its danger | the operator asked for its own colour (2026-10-10) |
- * | token | a corner mark and a hatched edge (`card.css`) | ditto, and see item 14 below |
  *
  * **The three outlines already on a card are not ours to add a fourth to.** The
  * gestures lane draws a solid accent ring for "Forge is offering this"
@@ -1976,21 +1977,10 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * opaque capsules on the card's own chrome rather than relying on the tile's
  * background, and the sick treatment is a filter on the whole face, which is the
  * one treatment that cannot be lost under a picture.
- *
- * **Item 14, the token with no art, is answered here rather than in
- * `CardTile`.** `wolf-token` has no row in `art-ids.json`, so `scryfallIdFor`
- * misses and the tile falls back to its TEXT tile — a whole card, name, type and
- * rules, but no picture. Giving tokens art ids means editing
- * `apps/ui/src/draft/art-ids.json` or `packages/carddata/src/art/`, and neither
- * is this lane's file. What IS this lane's is making the artless tile read as
- * deliberate: a token wears the token mark and a hatched edge, so "this is a
- * thing the game made" is the message instead of "the art failed to load". The
- * two halves are compatible — the day a token gets an id, the art arrives under
- * the same mark.
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
-type StateMark = 'sick' | 'blocking' | 'token';
+type StateMark = 'sick' | 'blocking';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
@@ -2002,14 +1992,11 @@ const MARK_ART: Readonly<Record<StateMark, string>> = {
   sick: 'M10.6 2.2a6 6 0 1 0 3.2 9.9A7 7 0 0 1 10.6 2.2Z',
   /* A shield: this one is in the way. */
   blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
-  /* A four-point spark: the game made this one. */
-  token: 'M8 1.2l1.7 5.1 5.1 1.7-5.1 1.7L8 14.8l-1.7-5.1L1.2 8l5.1-1.7Z',
 };
 
 const MARK_WORD: Readonly<Record<StateMark, string>> = {
   sick: 'summoning sick',
   blocking: 'blocking',
-  token: 'token',
 };
 
 /**
@@ -2029,7 +2016,6 @@ function StateMarks({ entry }: { entry: BoardCard }) {
   const marks: StateMark[] = [];
   if (entry.summoningSick) marks.push('sick');
   if (entry.blocking) marks.push('blocking');
-  if (entry.token) marks.push('token');
   if (marks.length === 0) return null;
   return (
     <ul className="board-card__marks" aria-label={`${entry.card.name} status`}>
@@ -2283,7 +2269,7 @@ function CardOnBoard({
    * This card sits in an exile pile. The operator: *"ancestral visions is a
    * card placed into exile with suspend counters. we need a way to visualize
    * cards in exile with counters on them."* Exile is not a battlefield, so
-   * none of the other state marks (summoning sick, attacking, a token) mean
+   * none of the other state marks (summoning sick, attacking, blocking) mean
    * anything there — only the counters do, because a suspended card's time
    * counters are the one fact about it a player needs to see without opening
    * the inspector.
@@ -2378,7 +2364,6 @@ function CardOnBoard({
       data-flying={(onBattlefield && hasKeyword(entry.keywords, 'flying')) || undefined}
       data-sick={entry.summoningSick || undefined}
       data-blocking={entry.blocking || undefined}
-      data-token={entry.token || undefined}
       data-board-card={entry.id}
       data-card-id={entry.id}
       data-selectable={selectable || undefined}

@@ -2,8 +2,9 @@
  * The operator, 2026-10-12:
  *
  *  1. *"when any of our symbols are hovered … show a little tooltip for what it means (summoning
- *     sickness, token, keywords, etc."* Alice hovers the sick mark on her Hill Giant, the token mark
- *     on her Goblin and the Flying tag the aura gave her Grizzly Bears: each says what it means.
+ *     sickness, token, keywords, etc."* Alice hovers the sick mark on her Hill Giant and the Flying
+ *     tag the aura gave her Grizzly Bears: each says what it means. (A token wears no mark since
+ *     2026-10-14: "let's just get rid of the token indicator, its noise.")
  *     Hovering the sick creature's art says nothing — the mark is where the tooltip lives, and the
  *     inspector still opens there.
  *  2. *"Reflector Mage's trigger bounced Sylvan Advocate and locked it from being cast until
@@ -75,7 +76,7 @@ async function tipOn(page: Page, selector: string, want: RegExp, label: string):
   return seen;
 }
 
-test(titled('the sick mark, the token mark and a keyword tag each show a tooltip naming what they mean'), async ({ browser }) => {
+test(titled('the sick mark and a keyword tag each show a tooltip naming what they mean'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -88,14 +89,8 @@ test(titled('the sick mark, the token mark and a keyword tag each show a tooltip
     const page = alice.page;
     const giant = await cardNamed(page, 'battlefield', 'you', 'Hill Giant');
     const bears = await cardNamed(page, 'battlefield', 'you', 'Grizzly Bears');
-    const goblin = await page
-      .locator('[data-zone="battlefield"][data-owner="you"] [data-board-card][data-token]')
-      .first()
-      .getAttribute('data-board-card');
-    expect(goblin, 'alice has a token').not.toBeNull();
 
     await tipOn(page, `[data-board-card="${giant}"] > .board-card__marks > [data-mark="sick"]`, /summoning sick/i, 'sick mark');
-    await tipOn(page, `[data-board-card="${goblin}"] > .board-card__marks > [data-mark="token"]`, /token/i, 'token mark');
     await tipOn(page, `[data-board-card="${bears}"] > .board-card__tags > [data-keyword="flying"]`, /^Flying\b.*block/i, 'flying tag');
 
     // The art of the sick creature is the inspector's, not the sick mark's.
