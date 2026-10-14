@@ -205,9 +205,8 @@ describe('opening', () => {
       hover(theirCard().querySelector('.card')!);
       const shown = document.querySelector<HTMLElement>('[data-inspect]');
       expect(shown, 'the board card still enlarges').not.toBeNull();
-      expect(shown!.parentElement, 'as a sibling of the window, in its container').toBe(live);
-      expect(panel(), 'not in the board overlay').toBeNull();
-      expect(board.contains(shown!)).toBe(false);
+      expect(shown!.parentElement, 'in the zoom layer, above the window').toBe(board.querySelector('[data-board-zoom]'));
+      expect(panel(), 'the one panel').toBe(shown);
       expect(shown!.querySelector('.card__name')!.textContent).toBe('Their Card');
     } finally {
       live.remove();
@@ -230,15 +229,14 @@ describe('opening', () => {
     const modalEl = live.querySelector('.live__prompt')!;
     const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
       ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
-    live.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    board.querySelector<HTMLElement>('[data-board-zoom]')!.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
     modalEl.getBoundingClientRect = () => rect({ left: 600, top: 200, right: 900, bottom: 500 });
     cardEl.getBoundingClientRect = () => rect({ left: 340, top: 250, right: 580, bottom: 380 });
     try {
       hover(cardEl);
       const shown = document.querySelector<HTMLElement>('[data-inspect]');
       expect(shown, 'the board card still enlarges').not.toBeNull();
-      expect(shown!.parentElement).toBe(live);
-      expect(board.contains(shown!)).toBe(false);
+      expect(shown!.parentElement).toBe(board.querySelector('[data-board-zoom]'));
       // `place.test.ts`'s own "card under the pop-up's left edge" case: the
       // panel is pushed to the pop-up's RIGHT instead of its (blocked) left.
       expect(shown!.style.left).toBe('908px');
@@ -260,14 +258,14 @@ describe('opening', () => {
     overlay.appendChild(view);
     const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
       ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
-    overlay.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    board.querySelector<HTMLElement>('[data-board-zoom]')!.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
     view.getBoundingClientRect = () => rect({ left: 125, top: 357, right: 729, bottom: 792 });
     const cardEl = view.querySelector('.card')!;
     cardEl.getBoundingClientRect = () => rect({ left: 300, top: 400, right: 368, bottom: 495 });
     hover(cardEl);
     const shown = document.querySelector<HTMLElement>('[data-inspect]');
     expect(shown, 'the pile card enlarges').not.toBeNull();
-    expect(shown!.parentElement, 'in the overlay, beside the view').toBe(overlay);
+    expect(shown!.parentElement, 'in the zoom layer, beside the view').toBe(board.querySelector('[data-board-zoom]'));
     expect(shown!.querySelector('.card__name')!.textContent).toBe('Think Twice');
     // The view's left has no room (125 px), so the view's RIGHT: 729 + GAP.
     expect(shown!.style.left).toBe('737px');
@@ -295,7 +293,7 @@ describe('opening', () => {
     }
   });
 
-  it('a tile in a pop-up opens BESIDE the pop-up, in its container, not inside the board overlay', () => {
+  it('a tile in a pop-up opens in the zoom layer, above the pop-up', () => {
     // Operator, 2026-10-06: a three-card "put into hand" choice drew the
     // enlargement under the pop-up — the overlay's own layer ranks below it.
     const { panel, board } = mountBoard();
@@ -308,9 +306,8 @@ describe('opening', () => {
       hover(live.querySelector('li')!);
       const shown = document.querySelector<HTMLElement>('[data-inspect]');
       expect(shown).not.toBeNull();
-      expect(shown!.parentElement, 'a sibling of the pop-up').toBe(live);
-      expect(panel(), 'not in the board overlay').toBeNull();
-      expect(board.contains(shown!)).toBe(false);
+      expect(shown!.parentElement, 'in the zoom layer, above the pop-up').toBe(board.querySelector('[data-board-zoom]'));
+      expect(panel(), 'the one panel').toBe(shown);
       expect(shown!.querySelector('.card__name')!.textContent).toBe('Popup Card');
     } finally {
       live.remove();
@@ -542,19 +539,19 @@ describe('touch', () => {
 /* ── the canvas and the mount contract ───────────────────────────────── */
 
 describe('the canvas', () => {
-  /** The board's markup with the overlay emptied — what the canvas IS, minus whatever a lane drew into the overlay. */
+  /** The board's markup with the zoom layer emptied — what the canvas IS, minus what the inspector drew. */
   function withoutOverlay(board: HTMLElement): string {
     const copy = board.cloneNode(true) as HTMLElement;
-    copy.querySelector('[data-board-overlay]')?.replaceChildren();
+    copy.querySelector('[data-board-zoom]')?.replaceChildren();
     return copy.outerHTML;
   }
 
-  it('changes nothing outside the overlay root', () => {
+  it('changes nothing outside the zoom layer', () => {
     const { board, theirCard, panel } = mountBoard();
     const before = withoutOverlay(board);
     hover(theirCard().querySelector('.card')!);
     expect(withoutOverlay(board)).toBe(before);
-    expect(panel()!.closest('[data-board-overlay]')).not.toBeNull();
+    expect(panel()!.closest('[data-board-zoom]')).not.toBeNull();
   });
 
   it('dispose stops it entirely', () => {

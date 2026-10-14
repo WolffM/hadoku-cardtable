@@ -434,3 +434,50 @@ test(titled('a card let go further right sits in that column, with gaps before i
     await stack.stop();
   }
 });
+
+/**
+ * The operator, 2026-10-13: *"when moving the last card onto a stacked pile, the piles moves to the left
+ * one space"*. Their match's log: `[81 79]` at column 5, the lone `80` at column 3 dropped on it, and the
+ * pile came back at column 4. Here: a pile of two Plains at column 2, the lone Plains at column 1 dropped
+ * on it — the pile keeps its column and its place on the table, and the column the card left is a gap,
+ * on both screens.
+ */
+test(titled('a lone card stacked onto the pile to its right leaves its column open: the pile does not move, on either screen'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    const lands = await eightLoneLands(page);
+    const columnsIn = (row: import('@playwright/test').Locator) =>
+      row.locator(':scope > li').evaluateAll((els) => els.map((e) => (e.classList.contains('zone__gap') ? null : e.getAttribute('data-card-id'))));
+    const mine = () => columnsIn(page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-tier="back"]'));
+    const theirs = () => columnsIn(bob.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-tier="back"]'));
+    const card = (id: string) => page.locator(`.seat[data-viewer] li.board-card[data-card-id="${id}"]`);
+    const [l0, l1, l2, l3] = lands as [string, string, string, string];
+
+    // A pile at column 2: the Plains to its right goes onto it.
+    await pointerDrag(page, card(l3), onTopPoint(await boxOf(card(l2))));
+    await expect(card(l2), 'a pile of two at column 2').toHaveAttribute('data-pile-size', '2');
+    const pileAt = await mine();
+    expect(pileAt.indexOf(l2), 'the pile is column 2').toBe(2);
+    const before = await boxOf(card(l2));
+
+    // The operator's move: the lone Plains to its LEFT, onto the pile.
+    await pointerDrag(page, card(l1), onTopPoint(before));
+    await expect(card(l2), 'a pile of three').toHaveAttribute('data-pile-size', '3');
+    const after = await boxOf(card(l2));
+    const columns = await mine();
+    console.log(`[stacking] last loose copy onto pile ${l2}: columns ${pileAt.map((c) => c ?? '_').join(' ')} → ${columns.map((c) => c ?? '_').join(' ')} | x ${before.x.toFixed(1)} → ${after.x.toFixed(1)}`);
+    expect(columns.indexOf(l2), 'the pile is still column 2').toBe(2);
+    expect(columns.slice(0, 2), 'the column the card left is a gap').toEqual([l0, null]);
+    expect(Math.abs(after.x - before.x), 'the pile has not moved on the table').toBeLessThanOrEqual(1);
+    await expect.poll(theirs, { timeout: 10_000, message: 'bob: the same columns, the pile in place' }).toEqual(columns);
+  } finally {
+    await stack.stop();
+  }
+});

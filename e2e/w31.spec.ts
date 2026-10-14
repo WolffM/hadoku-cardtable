@@ -588,7 +588,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
       // pinned handle exercises that already-supported keyboard path instead
       // of working around the pointer one.
       await logNameHandle.focus();
-      const inspected = alice.page.locator('[data-board-overlay] [data-inspect]');
+      const inspected = alice.page.locator('[data-board-zoom] [data-inspect]');
       await expect(inspected, 'the inspector the board already has opens on the log name').toHaveCount(1, { timeout: 5_000 });
       await expect(inspected).toContainText(named);
       await logNameHandle.evaluate((el) => el.blur());

@@ -3005,7 +3005,7 @@ describe('a hasty creature does not claim to be summoning sick (#17)', () => {
  * prop or a piece of markup for it.
  */
 describe('the inspector', () => {
-  it('is booted on the board root, draws into the overlay, and is disposed on unmount', () => {
+  it('is booted on the board root, draws into the zoom layer, and is disposed on unmount', () => {
     inspector.mounts.length = 0;
     const { container, unmount } = renderBoard();
     const board = container.querySelector<HTMLElement>('.board')!;
@@ -3014,13 +3014,14 @@ describe('the inspector', () => {
     expect(inspector.mounts[0]!.disposed).toBe(false);
 
     // Live, and drawing where the contract says: hovering a card enlarges it
-    // into the overlay root and nowhere else on the board. `live/placed.ts`
-    // (§S) is the only other thing that draws there on its own, from this
-    // fixture's two stack items — nothing from the inspector yet.
-    const overlay = board.querySelector<HTMLElement>('[data-board-overlay]')!;
-    expect(overlay.querySelectorAll('[data-inspect]')).toHaveLength(0);
+    // into the zoom layer — the board's top layer, a sibling of the overlay
+    // root — and nowhere else on the board.
+    const zoom = board.querySelector<HTMLElement>('[data-board-zoom]')!;
+    expect(zoom.parentElement, 'at the board’s top level').toBe(board);
+    expect(zoom.className).toBe('board__zoom');
+    expect(zoom.querySelectorAll('[data-inspect]')).toHaveLength(0);
     fireEvent.pointerOver(board.querySelector<HTMLElement>('[data-card-id="8"]')!, { pointerType: 'mouse' });
-    expect(overlay.querySelectorAll('[data-inspect]'), 'the enlargement is in the overlay').toHaveLength(1);
+    expect(zoom.querySelectorAll('[data-inspect]'), 'the enlargement is in the zoom layer').toHaveLength(1);
     expect(board.querySelectorAll('[data-inspect]'), 'and nowhere else').toHaveLength(1);
 
     unmount();
@@ -4012,6 +4013,29 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(snapTo(piled, 40, 20, 1)?.target, 'the base of a two-card pile, dragged: the pile is still a stack target').toEqual({ kind: 'stack', id: 1, onTop: true });
     // The hand's own move, the same case by name: 1 one slot right.
     expect((withHandMove([1, 2, 3, 4], 0, {}, 1, { kind: 'before', id: 3 })[slotKey(0, 'hand')] ?? []).map((p) => p[0])).toEqual([2, 1, 3, 4]);
+  });
+
+  it('withMove: a lone card stacked onto a pile leaves its column open — the pile and every column after it stay where they are', () => {
+    // The operator, 2026-10-13: "when moving the last card onto a stacked pile, the piles moves to the left one space".
+    // Their row (match m-a58ab8a6bb79): [130 125 131 123 134 128] [122] [99 101] [80] [] [81 79] — 80 onto the pile at column 5.
+    const empty = { lands: [], artifacts: [], creatures: [], other: [], front: [], back: [] } as const;
+    const rowOf = (piles: number[][]): Grouped => ({ ...empty, back: piles.map((p) => p.map((id) => ({ id }) as BoardCard)) });
+    const back = (a: Arrangement) => a[slotKey(0, 'back')];
+    const theirs = rowOf([[130, 125], [122], [99, 101], [80], [], [81, 79]]);
+    expect(back(withMove(theirs, 0, {}, 80, 'back', { kind: 'stack', id: 79, onTop: true }, 'single')), 'the pile stays at column 5').toEqual([
+      [130, 125],
+      [122],
+      [99, 101],
+      [],
+      [],
+      [81, 79, 80],
+    ]);
+    // The column it left is to the pile's right: nothing after it moves either, and a trailing one is trimmed as always.
+    expect(back(withMove(rowOf([[1, 2], [3], [4]]), 0, {}, 3, 'back', { kind: 'stack', id: 1, onTop: false }, 'single'))).toEqual([[3, 1, 2], [], [4]]);
+    expect(back(withMove(rowOf([[1, 2], [3]]), 0, {}, 3, 'back', { kind: 'stack', id: 2, onTop: true }, 'single'))).toEqual([[1, 2, 3]]);
+    // A reorder is still a reorder: the card takes a column, so the one it left closes up.
+    expect(back(withMove(rowOf([[1], [2], [3]]), 0, {}, 1, 'back', { kind: 'before', id: 3 }, 'single'))).toEqual([[2], [1], [3]]);
+    expect(back(withMove(rowOf([[1], [2], [3]]), 0, {}, 1, 'back', { kind: 'end' }, 'single'))).toEqual([[2], [3], [1]]);
   });
 
   it('snapTo: an EMPTY slot snaps, the nearest slot wins, and far from every slot is nowhere', () => {

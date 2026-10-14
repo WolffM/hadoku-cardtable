@@ -1667,7 +1667,7 @@ test(LIVE_TITLE, async ({ browser }) => {
      * `boardBefore` / `boardAfter` is the claim that the same board comes back,
      * and it is read with `innerText`, which is everything the board currently
      * DRAWS. The inspector draws inside it: hovering a card clones that card's
-     * tile into lane A's `[data-board-overlay]`, the last element of
+     * tile into the board's `[data-board-zoom]` layer, the last element of
      * `<section class="board">` (`apps/ui/src/play/inspect/index.ts`, wave 20 §D).
      * A preview is POINTER state, not board state, and a reloaded page has had no
      * pointer event over it, so it can never have one — the equality was
@@ -1691,7 +1691,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     const noPreview = async (when: string): Promise<void> => {
       await alice!.page.mouse.move(0, 0);
       await expect(
-        alice!.page.locator('[data-board-overlay] [data-inspect]'),
+        alice!.page.locator('[data-board-zoom] [data-inspect]'),
         `alice: no inspector preview ${when} — the pointer is off the board`,
       ).toHaveCount(0);
     };

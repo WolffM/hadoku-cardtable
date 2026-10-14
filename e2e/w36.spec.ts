@@ -73,7 +73,7 @@ async function castFree(page: Page, cardId: number): Promise<void> {
 }
 
 /** The inspector's own enlargement panel (`inspect/index.ts`'s `[data-inspect]`, `../apps/ui/src/play/inspect/index.ts`). */
-const inspectorPanel = (page: Page): Locator => page.locator('[data-board-overlay] [data-inspect]');
+const inspectorPanel = (page: Page): Locator => page.locator('[data-board-zoom] [data-inspect]');
 
 /** Within a pixel: every number compared here comes off the same real layout. */
 // A few px, not one: real measured gaps between the INNER `.card` face
@@ -405,3 +405,70 @@ test(titled('T1 — the hover zoom sits against the hovered card: a hand card an
 // declaration), so it is the tracker's to plan, per the brief ("write it up
 // ... and stop"), not a spec to pin red in this lane's own suite.
 
+
+/**
+ * The operator, 2026-10-13: *"the hovering a card expand should render on top of everything else.
+ * currently it renders below the phase tracker"*. The panel carried the top z-index, but inside the
+ * board overlay, whose own layer is the rail's (`--z-overlay`) and comes first in the page: the rail
+ * painted over it. Measured here as paint order — with the panel and the rail both made hit-testable
+ * for one synchronous read, the element at a point inside both is the one painted on top.
+ *
+ * Which card's panel reaches the rail depends on the width, so the narrowest of a few common widths
+ * where one does is found first, then proved: every one of the viewer's lands is hovered at each width
+ * until a panel crosses the rail.
+ */
+test(titled('the hover zoom draws over the phase rail'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    const lands = page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
+    await expect(lands, 'the scenario’s eight Plains').toHaveCount(8, { timeout: 30_000 });
+    const rail = page.getByTestId('live-phases');
+    let proved = false;
+    for (const width of [1280, 1152, 1024, 960]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expect(rail).toBeVisible();
+      for (let i = (await lands.count()) - 1; i >= 0 && !proved; i -= 1) {
+        await page.mouse.move(0, 0);
+        await expect(page.locator('[data-inspect]')).toHaveCount(0);
+        await lands.nth(i).locator('.board-card__face').first().hover();
+        await expect(page.locator('[data-inspect]'), 'the hover opens the inspector').toHaveCount(1);
+        const read = await page.evaluate(() => {
+          const panel = document.querySelector<HTMLElement>('[data-inspect]')!;
+          const railEl = document.querySelector<HTMLElement>('[data-testid="live-phases"]')!;
+          const p = panel.getBoundingClientRect();
+          const r = railEl.getBoundingClientRect();
+          const left = Math.max(p.left, r.left);
+          const right = Math.min(p.right, r.right);
+          const top = Math.max(p.top, r.top);
+          const bottom = Math.min(p.bottom, r.bottom);
+          if (right - left < 12 || bottom - top < 12) return null;
+          const x = (left + right) / 2;
+          const y = (top + bottom) / 2;
+          const style = document.createElement('style');
+          style.textContent = '[data-inspect], [data-inspect] *, [data-testid="live-phases"], [data-testid="live-phases"] * { pointer-events: auto !important; }';
+          document.head.append(style);
+          const hit = document.elementFromPoint(x, y);
+          style.remove();
+          return {
+            x: Math.round(x),
+            y: Math.round(y),
+            onTop: hit === null ? 'nothing' : hit.closest('[data-inspect]') ? 'inspector' : hit.closest('[data-testid="live-phases"]') ? 'rail' : `${hit.tagName}.${hit.className.toString()}`,
+          };
+        });
+        if (read === null) continue;
+        console.log(`[w36] zoom over rail: ${width}x800, land #${i}, probe ${read.x},${read.y} → ${read.onTop} on top`);
+        expect(read.onTop, `${width}x800: the enlarged card is painted over the phase rail where they overlap`).toBe('inspector');
+        proved = true;
+      }
+      if (proved) break;
+    }
+    expect(proved, 'some hovered land’s enlargement crossed the rail at one of the widths').toBe(true);
+  } finally {
+    await stack.stop();
+  }
+});

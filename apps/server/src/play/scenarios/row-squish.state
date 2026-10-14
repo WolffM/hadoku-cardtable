@@ -1,0 +1,17 @@
+# A row that squishes before it wraps: seat 0 (human) has eight lands and four
+# Grizzly Bears, each its own pile — twelve columns across the four lanes of
+# the type-separated layout, nothing in hand, an uncontested turn-1 Main Phase 1.
+# `row-squish.spec.ts` reads how many rows the lanes draw at common widths.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Plains;Plains;Island;Island;Swamp;Swamp;Mountain;Forest;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
