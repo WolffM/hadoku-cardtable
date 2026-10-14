@@ -31,6 +31,22 @@
    */
   pointer-events: auto;
   transition: opacity 250ms ease;
+  /*
+   * On the stack, a card is OFF the table: tilted and casting a shadow, where every permanent lies
+   * flat (the operator, 2026-10-13: "needs to be more clear when a card is still on the stack or
+   * whether it has resolved"). Resolving, a permanent lies down flat and its shadow settles
+   * (`[data-stack-settle]`, below); anything else travels into the pile it went to
+   * (`[data-placed-leaving]`). A tilt about its own centre leaves its
+   * centre — the arrows' origin — where it was, and this layer is not a scrolling zone.
+   */
+  rotate: var(--stack-tilt);
+  filter: var(--stack-lift);
+}
+
+/* The stack's look, one definition: the placed card wears it, and a resolved permanent settles from it. */
+:root {
+  --stack-tilt: -3deg;
+  --stack-lift: drop-shadow(0 8px 10px var(--shadow));
 }
 
 /*
@@ -85,9 +101,11 @@
   }
 }
 
-/* A trigger Forge has not put on the stack yet: its chip already, quieter until it is there. */
+/* A trigger Forge has not put on the stack yet: its chip already, quieter — and flat — until it is there. */
 .placed[data-placed-waiting] {
   opacity: 0.7;
+  rotate: none;
+  filter: none;
 }
 
 /* The waiting trigger whose target is being asked for. */
@@ -97,9 +115,50 @@
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-/* A spell resolving to anywhere but a battlefield fades briefly (decision c). An arrival IS a battlefield slot already, and is never faded — it is removed at once instead (`placed.ts`'s own `leave`). */
+/*
+ * A spell resolving to anywhere but a battlefield travels into where it went — its graveyard, an
+ * exile, a hand (`placed.ts`'s `leave` moves its point there) — turning flat, shrinking and fading
+ * as it arrives, in the house glide (`LEAVE_FADE_MS`). An arrival on a battlefield is never this
+ * (`[data-stack-settle]`, below).
+ */
 .placed[data-placed-leaving] {
   opacity: 0;
+  scale: 0.5;
+  rotate: none;
+  filter: none;
+  transition:
+    left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    scale 300ms ease-in,
+    rotate 300ms ease-out,
+    filter 300ms ease-out,
+    opacity 300ms ease-in;
+}
+
+/*
+ * A permanent that just resolved off the stack (`placed.ts`'s `settle`): the stack's shadow under its
+ * face collapses onto the table. A filter, never a transform — a transform on a battlefield card
+ * counts toward its zone's scroll overflow (`card.css`); a shadow does not.
+ */
+/* Not under a landing (`gestures/cast.ts`'s `data-cast-landing` hides the card until its stand-in arrives): the settle is seen from its first frame. */
+.board-card[data-stack-settle]:not([data-cast-landing]) > .board-card__face {
+  animation: stack-settle 300ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+@keyframes stack-settle {
+  from {
+    filter: var(--stack-lift);
+  }
+
+  to {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-stack-settle]:not([data-cast-landing]) > .board-card__face {
+    animation: none;
+  }
 }
 
 /*

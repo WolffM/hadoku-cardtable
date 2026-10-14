@@ -92,7 +92,7 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { artCredit, useArtist } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
-import { PLACEMENT_WAIT_MS } from '../motion.ts';
+import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
@@ -103,12 +103,14 @@ import './placed.css';
 
 export type { Point };
 
-/** How long a resolve-away fade (decision c) takes. Reduced motion skips straight to it. */
-export const LEAVE_FADE_MS = 250;
+/** How long a resolved spell takes to travel into where it went, fading as it arrives — the house glide. Reduced motion skips straight to it. */
+export const LEAVE_FADE_MS = GLIDE_MS;
 /** AE27: the resolving counter's blink, before its target is destroyed. */
 export const RESOLVE_BLINK_MS = 400;
 /** AE27: the countered target's destroy motion, before the counter itself fades. */
 export const COUNTERED_MS = 400;
+/** On a permanent's own board card once it resolves off the stack, until its settle has run (`placed.css`'s `stack-settle`). */
+export const STACK_SETTLE_ATTR = 'data-stack-settle';
 /** One turn of the sheen round a card whose ability resolved with nobody stopping it (`card.css`). */
 export const SHIMMER_MS = 1100;
 
@@ -540,6 +542,9 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   const undrawn = new Map<number, number | null>();
   /** The latest shimmer on each board card, so an earlier one's timer never cuts a fresh one short. */
   const shimmers = new WeakMap<Element, number>();
+  const settles = new WeakMap<Element, number>();
+  /** Spells that left the stack, by card id → when: each settles once Forge draws it on a battlefield. */
+  const resolvedOff = new Map<number, number>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   /**
    * Everything here is sized off the battlefield's card (`card-size.ts`) and a chip off its own text:
@@ -779,8 +784,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   function leave(id: number, cardId: number | null): void {
     const d = drawn.get(id);
     if (d === undefined) return;
+    if (cardId !== null) resolvedOff.set(cardId, Date.now());
     if (cardId !== null && onBattlefieldNow(cardId)) {
-      // AC8's own reservation is already drawing the arrival — nothing to fade.
+      // AC8's own reservation draws the arrival (`gestures/cast.ts`'s `landCastGhost`, on either
+      // screen): one object at a time, so this card goes at once. The permanent settles instead
+      // (`settleArrivals`).
       removeNow(id);
       return;
     }
@@ -790,8 +798,93 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       removeNow(id);
       return;
     }
+    // Into wherever it went — a graveyard, an exile, a hand — and gone there; in place when that is not drawn.
+    const to = cardId === null ? sourceBox(d) : destinationOf(cardId);
+    if (to !== null) {
+      const root = overlay();
+      const p = root === null ? null : overlayPoint(centreOf(to), root.getBoundingClientRect());
+      if (p !== null) {
+        d.el.style.left = `${p.x}px`;
+        d.el.style.top = `${p.y}px`;
+      }
+    }
     d.el.setAttribute('data-placed-leaving', '');
-    schedule(() => removeNow(id), LEAVE_FADE_MS);
+    // Gone once it has arrived — its fade's own end, not a clock that a busy frame outruns — and
+    // at the latest twice the glide, should the browser never report that end.
+    d.el.addEventListener('transitionend', (e) => {
+      if (e.target === d.el && e.propertyName === 'opacity') removeNow(id);
+    });
+    schedule(() => removeNow(id), 2 * LEAVE_FADE_MS);
+  }
+
+  /**
+   * A spell that left the stack and is on a battlefield now settles there — the stack's shadow under
+   * it collapses onto the table (`placed.css`'s `stack-settle`) — whichever frame Forge draws it in,
+   * the one that empties the stack or a later one. At once, so it is never shown flat first, and
+   * again on the next animation frame should `Board` have drawn it as a new element by then (it
+   * moves a placed card into its column after this commit — `gestures/install.ts`'s own landing
+   * waits the same frame).
+   */
+  function settleArrivals(): void {
+    for (const [cardId, at] of resolvedOff) {
+      if (onBattlefieldNow(cardId)) {
+        resolvedOff.delete(cardId);
+        const drawnNow = permanentOf(cardId);
+        settle(drawnNow);
+        requestAnimationFrame(() => {
+          const kept = permanentOf(cardId);
+          if (live && kept !== drawnNow) settle(kept);
+        });
+      } else if (Date.now() - at > PLACEMENT_WAIT_MS) resolvedOff.delete(cardId);
+    }
+  }
+
+  function permanentOf(cardId: number): Element | null {
+    return canvas.querySelector(`[data-zone="battlefield"] [data-card-id="${cardId}"]`);
+  }
+
+  /** A permanent just resolved off the stack: its shadow settles onto the table, once. */
+  function settle(el: Element | null): void {
+    if (el === null || reduced()) return;
+    const turn = (settles.get(el) ?? 0) + 1;
+    settles.set(el, turn);
+    el.removeAttribute(STACK_SETTLE_ATTR);
+    void (el as HTMLElement).offsetWidth;
+    el.setAttribute(STACK_SETTLE_ATTR, '');
+    // The settle runs once the card is shown (`placed.css` holds it while a landing still hides the
+    // card), so it ends on its own `animationend`; the clock is only the backstop for one never shown.
+    el.addEventListener(
+      'animationend',
+      (e) => {
+        if ((e as AnimationEvent).animationName === 'stack-settle' && settles.get(el) === turn) el.removeAttribute(STACK_SETTLE_ATTR);
+      },
+      { once: true },
+    );
+    schedule(() => {
+      if (settles.get(el) === turn) el.removeAttribute(STACK_SETTLE_ATTR);
+    }, PLACEMENT_WAIT_MS);
+  }
+
+  /** The element a resolved spell's card is drawn in now: the card itself, else the pile or hand that holds it. */
+  function destinationOf(cardId: number): Element | null {
+    const own = cardBox(canvas, cardId);
+    if (own !== null) return own;
+    for (const p of lastView?.players ?? []) {
+      const zone = p.graveyard.some((c) => c.id === cardId)
+        ? 'graveyard'
+        : p.exile.some((c) => c.id === cardId)
+          ? 'exile'
+          : (p.hand ?? []).some((c) => c.id === cardId)
+            ? 'hand'
+            : null;
+      if (zone !== null) return canvas.querySelector(`[data-testid="player"][data-player-id="${p.id}"] [data-zone="${zone}"]`);
+    }
+    return null;
+  }
+
+  /** An ability's source card on the battlefield: the effect goes back into what made it. */
+  function sourceBox(d: Drawn): Element | null {
+    return d.sourceCardId === null || !onBattlefieldNow(d.sourceCardId) ? null : cardBox(canvas, d.sourceCardId);
   }
 
   /**
@@ -906,6 +999,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       counter(id, target!);
     }
     for (const [id, d] of departed) leave(id, d.isAbility ? null : d.sourceCardId);
+    settleArrivals();
     for (const [id, sourceCardId] of undrawn) {
       if (currentIds.has(id)) continue;
       undrawn.delete(id);

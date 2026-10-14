@@ -254,7 +254,7 @@ import { normalizeAvatarId } from '../../room/avatar.ts';
 import { manaCostTokens, toBoardView, type BoardView } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
-import { foldPackets, type PendingTriggers, type WireState } from '../fold.ts';
+import { foldPackets, type PendingTriggers, type WaitingEffects, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
@@ -694,6 +694,8 @@ export interface LiveMatch {
   stackTargetSpells: ReadonlyMap<number, number>;
   /** The triggers Forge has collected and not yet put on the stack (`../fold.ts`'s `PendingTriggers`), drawn as chips already. */
   pendingTriggers: PendingTriggers;
+  /** What resolved abilities left waiting on the cards that made them (`../fold.ts`'s `WaitingEffects`), drawn as tags on those cards. */
+  waitingEffects: WaitingEffects;
   /**
    * How many identical triggers still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
@@ -950,6 +952,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     refused: null,
     stackTargetSpells: new Map(),
     pendingTriggers: [],
+    waitingEffects: [],
     promptTargetMore: 0,
     sameTarget: false,
     avatarByPlayerId: null,
@@ -1448,7 +1451,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
       if (selection.players !== null && !selection.players.has(p.id)) continue;
       players.add(p.id);
     }
-  } else if (declaringAttackers(match) && attackWindowLive(match)) {
+  } else if (attackInputLive(match)) {
     // `InputAttack.onPlayerSelected` makes an opponent the current defender.
     for (const p of view.players) if (!p.isViewer && !p.hasLost && !match.spent.players.has(p.id)) players.add(p.id);
   }
@@ -1491,6 +1494,21 @@ function attackWindowLive(match: LiveMatch): boolean {
   const bar = liveBar(match);
   if (bar === null || !(bar.enable1 || bar.enable2)) return false;
   return bar.label2 === CALL_BACK_LABEL || bar.label2 === ALPHA_STRIKE_LABEL;
+}
+
+/**
+ * `InputAttack` is the input running on this seat: its phase, and its own bar. Every click this
+ * module offers on Forge's behalf while attacks are declared — a defender, an opponent, an attacker
+ * to call back — is a click only that input takes; the same step's priority stop
+ * (`InputPassPriority`, OK / End Turn) refuses every one of them.
+ */
+function attackInputLive(match: LiveMatch): boolean {
+  return declaringAttackers(match) && attackWindowLive(match);
+}
+
+/** `InputBlock` is the input running on this seat: the block step, and its current attacker marked (`blockFocusOf`). */
+function blockInputLive(match: LiveMatch): boolean {
+  return blockFocusOf(match) !== null;
 }
 
 /**
@@ -1701,7 +1719,7 @@ export function blockFocusOf(match: LiveMatch): number | null {
  * ordinary actionable set (abilities), which is not this. Empty otherwise.
  */
 export function combatCandidates(match: LiveMatch): ReadonlySet<number> {
-  const live = (declaringAttackers(match) && attackWindowLive(match)) || blockFocusOf(match) !== null;
+  const live = attackInputLive(match) || blockInputLive(match);
   return live && match.weaklySelectable !== null ? match.weaklySelectable : NO_PICKS;
 }
 
@@ -1993,8 +2011,7 @@ export function declaringCombat(match: LiveMatch): boolean {
  * `cardIdsInView`.
  */
 function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
-  if (!declaringBlockers(match)) return null;
-  if (match.highlighted === null || match.highlighted.size === 0) return null;
+  if (!blockInputLive(match)) return null;
   const attackers = new Set<number>();
   for (const p of view.players) {
     if (p.isViewer) continue;
@@ -2032,7 +2049,7 @@ function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | 
  * battlefield, and `boardInteraction` still intersects with `cardIdsInView`.
  */
 function declaredBlockers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
-  if (!declaringBlockers(match)) return null;
+  if (!blockInputLive(match)) return null;
   const me = view.players.find((p) => p.isViewer);
   if (me === undefined) return null;
   const mine = new Set(me.battlefield.map((c) => c.id));
@@ -2078,8 +2095,7 @@ export const CALL_BACK_LABEL = 'Call Back';
  * and `boardInteraction` still intersects with `cardIdsInView`.
  */
 function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
-  if (!declaringAttackers(match)) return null;
-  if (match.buttons === null || match.buttons.label2 !== CALL_BACK_LABEL) return null;
+  if (!attackInputLive(match) || match.buttons?.label2 !== CALL_BACK_LABEL) return null;
   const me = view.players.find((p) => p.isViewer);
   if (me === undefined) return null;
   return new Set(me.battlefield.filter((c) => c.attacking).map((c) => c.id));
@@ -2099,7 +2115,7 @@ function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<numbe
  * seat protects (`:237-258` returns false), so the over-offer costs nothing.
  */
 function attackDefenders(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
-  if (!declaringAttackers(match)) return null;
+  if (!attackInputLive(match)) return null;
   const out = new Set<number>();
   for (const p of view.players) {
     for (const c of p.battlefield) {
@@ -2483,7 +2499,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
  * Rule 1 ("newObjects replace") makes that exact: every object is re-created
  * as it stands, in the order it stands.
  */
-function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readonly (readonly [number, number])[]; pendingTriggers: PendingTriggers } {
+function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readonly (readonly [number, number])[]; pendingTriggers: PendingTriggers; waitingEffects: WaitingEffects } {
   return {
     seq: match.forgeSeq,
     checksum: 0,
@@ -2498,6 +2514,7 @@ function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readon
     // it — but a historical replay might) would wipe what was already known.
     stackTargetSpells: [...match.stackTargetSpells],
     pendingTriggers: match.pendingTriggers,
+    waitingEffects: match.waitingEffects,
   };
 }
 
@@ -2514,7 +2531,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects } = frame.payload;
       packets = [
         {
           seq: sequenceNumber,
@@ -2525,11 +2542,13 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
           events: [],
           stackTargetSpells,
           pendingTriggers,
+          waitingEffects,
         },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      packets.push({ ...frame.payload.packet, stackTargetSpells: frame.payload.stackTargetSpells, pendingTriggers: frame.payload.pendingTriggers });
+      const { stackTargetSpells, pendingTriggers, waitingEffects } = frame.payload;
+      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects });
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2550,6 +2569,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.skippedDeltas += folded.skippedDeltas;
   match.stackTargetSpells = folded.stackTargetSpells;
   match.pendingTriggers = folded.pendingTriggers;
+  match.waitingEffects = folded.waitingEffects;
   redraw(match);
 }
 
@@ -2567,6 +2587,7 @@ function redraw(match: LiveMatch): void {
           nameByPlayerId: match.nameByPlayerId ?? undefined,
           stackTargetSpells: match.stackTargetSpells,
           pendingTriggers: match.pendingTriggers,
+          waitingEffects: match.waitingEffects,
           promptCard: match.promptCard,
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
@@ -2874,6 +2895,7 @@ function discardLocal(match: LiveMatch): void {
   match.refused = null;
   match.stackTargetSpells = new Map();
   match.pendingTriggers = [];
+  match.waitingEffects = [];
   match.promptTargetMore = 0;
   match.sameTarget = false;
   match.avatarByPlayerId = null;

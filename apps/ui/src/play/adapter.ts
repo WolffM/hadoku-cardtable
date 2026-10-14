@@ -164,8 +164,14 @@ import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
-import type { PendingTriggers, WireState } from './fold.ts';
+import type { PendingTriggers, WaitingEffects, WireState } from './fold.ts';
 import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
+
+/** One effect a permanent's resolved ability left waiting — {@link BoardCard.waiting}. */
+export interface BoardCardWaiting {
+  kind: 'trigger' | 'effect';
+  text: string;
+}
 
 export interface BoardCard {
   id: number;
@@ -246,6 +252,13 @@ export interface BoardCard {
    * Absent/empty for a card that has chosen nothing, which is most cards.
    */
   choices?: BoardCardChoice[];
+  /**
+   * The operator, 2026-10-13: *"indicator for active affect of narset -2 effect … maybe on a black
+   * chip on the planes walker?"* What a resolved ability of this permanent left waiting
+   * (`PlayBridge.java`'s `waitingEffects`): a delayed trigger Forge holds until it fires, or an
+   * effect naming this card as its source. Forge's own words; absent for a card with none.
+   */
+  waiting?: BoardCardWaiting[];
   /**
    * The operator: *"i played 'Cry of Contrition' which has haunt. i expect
    * to see the 'haunt' keyword on my creature … is there an easier way to
@@ -653,6 +666,8 @@ export interface AdaptOptions {
   stackTargetSpells?: ReadonlyMap<number, number>;
   /** `PlayBridge.java`'s `pendingTriggers` (`../fold.ts`), read onto `BoardView.pendingTriggers`. */
   pendingTriggers?: PendingTriggers;
+  /** `PlayBridge.java`'s `waitingEffects` (`../fold.ts`), read onto each battlefield source's `BoardCard.waiting`. */
+  waitingEffects?: WaitingEffects;
   /**
    * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):
    * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,
@@ -1460,6 +1475,7 @@ export function toBoardView(
     nameByPlayerId,
     stackTargetSpells,
     pendingTriggers,
+    waitingEffects,
     promptCard = null,
   }: AdaptOptions,
 ): BoardView {
@@ -1471,12 +1487,15 @@ export function toBoardView(
     return typeof seatName === 'string' && seatName.trim() !== '' ? seatName : wirePlayerName(state, pid);
   };
 
+  const waitingOn = new Map<number, BoardCardWaiting[]>();
+  for (const { source, kind, text } of waitingEffects ?? []) waitingOn.set(source, [...(waitingOn.get(source) ?? []), { kind, text }]);
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
       const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, printedType, playerName);
+      const waiting = onBattlefield ? waitingOn.get(id) : undefined;
       if (c === null) missing.push(id);
-      else out.push(c);
+      else out.push(waiting === undefined ? c : { ...c, waiting });
     }
     return out;
   };

@@ -713,6 +713,16 @@ export const PendingTriggersSchema = z.array(
 
 export type PendingTriggers = z.infer<typeof PendingTriggersSchema>;
 
+/**
+ * The bridge's third addition beside the packet: what a resolved ability left waiting on the card
+ * that made it (`PlayBridge.java`'s `waitingEffectsJson`) — a delayed trigger Forge holds until it
+ * fires (`kind: 'trigger'`), or a command-zone effect naming its source (`kind: 'effect'`). `source`
+ * is that card's id, `text` Forge's own description. A full snapshot each time.
+ */
+export const WaitingEffectsSchema = z.array(z.strictObject({ source: JavaInt, text: z.string(), kind: z.enum(['trigger', 'effect']) }));
+
+export type WaitingEffects = z.infer<typeof WaitingEffectsSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -730,6 +740,7 @@ export const SetGameViewSchema = z.strictObject({
     sequenceNumber: SequenceNumber,
     stackTargetSpells: StackTargetSpellsSchema.optional(),
     pendingTriggers: PendingTriggersSchema.optional(),
+    waitingEffects: WaitingEffectsSchema.optional(),
   }),
 });
 
@@ -758,7 +769,12 @@ export const OpenViewSchema = z.strictObject({
 export const ApplyDeltaSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('applyDelta'),
-  payload: z.strictObject({ packet: DeltaPacketSchema, stackTargetSpells: StackTargetSpellsSchema.optional(), pendingTriggers: PendingTriggersSchema.optional() }),
+  payload: z.strictObject({
+    packet: DeltaPacketSchema,
+    stackTargetSpells: StackTargetSpellsSchema.optional(),
+    pendingTriggers: PendingTriggersSchema.optional(),
+    waitingEffects: WaitingEffectsSchema.optional(),
+  }),
 });
 
 /** The three Tier C frames, as the envelope's discriminated union consumes them. */

@@ -361,6 +361,31 @@ describe('pendingTriggers', () => {
 	});
 });
 
+describe('waitingEffects', () => {
+	it('keeps an effect whose source this seat sees, drops one whose source it may not see, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const effects = [
+			{ source: ids(1, 'Battlefield')[0]!, kind: 'trigger' as const, text: 'seen' },
+			{ source: ids(1, 'Hand')[0]!, kind: 'effect' as const, text: 'hidden' },
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, waitingEffects: effects } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.waitingEffects?.map((e) => e.text)).toEqual(['seen']);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, waitingEffects: effects },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.waitingEffects?.map((e) => e.text)).toEqual(['seen', 'hidden']);
+	});
+});
+
 describe('a face-down permanent (real battlefield card, turned face down)', () => {
 	it('shows the table its face-down face and nothing of the card underneath; its controller sees it all', () => {
 		const frames = fixtureFrames();

@@ -2,7 +2,7 @@
  * What the board's marks say on hover (`./index.ts`). Our own words, short:
  * what the mark means for play, not the comprehensive rules.
  */
-import type { BoardCardChoice, ChoiceKind } from '../adapter.ts';
+import type { BoardCardChoice, BoardCardWaiting, ChoiceKind } from '../adapter.ts';
 
 /** A corner mark (`Board.tsx`'s `StateMarks`). */
 export const MARK_TIP: Readonly<Record<'sick' | 'blocking' | 'token', string>> = {
@@ -52,6 +52,11 @@ const CHOICE_WHAT: Readonly<Record<ChoiceKind, string>> = {
 /** A choice tag's tip: what was chosen, then the choice itself. */
 export function choiceTip(choice: BoardCardChoice): string {
   return `${CHOICE_WHAT[choice.kind]}: ${choice.values.join(', ')}`;
+}
+
+/** An effect tag's tip: Forge's own words for what this card's ability left waiting, or still in effect. */
+export function waitingTip(waiting: BoardCardWaiting): string {
+  return `${waiting.kind === 'trigger' ? 'Waiting' : 'In effect'}: ${waiting.text}`;
 }
 
 /** Forge's `Duration` words (`SpellAbilityEffect.addUntilCommand`), as how long, for a player's `whose` ("your", "Alice's"). */

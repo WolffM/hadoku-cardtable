@@ -56,6 +56,14 @@
   color: inherit;
   font: inherit;
   text-align: inherit;
+  /*
+   * The face is always a `<button>` (`Board.tsx`'s R10 note), and every button on the page wears
+   * the pointer (`styles.css`) — so every card on the board, the opponent's planeswalker among them,
+   * read as a click Forge would take. The card's own cursor is its `<li>`'s: a grab where the
+   * arrangement takes the press (`board.css`), and the pointer only where Forge offers the card
+   * (`[data-selectable]`, below).
+   */
+  cursor: inherit;
 }
 
 /*
@@ -541,6 +549,26 @@
   padding: 1px 2px;
   font-size: 10px;
   line-height: 1;
+}
+
+/*
+ * What one of this permanent's resolved abilities left waiting (`Board.tsx`'s `CardTags`, the
+ * operator's "black chip on the planeswalker"): the tag family's one inverted chip — ink on the
+ * card, the card's colour on the glyph — so it reads apart from every word tag beside it.
+ */
+.board-card__tag[data-effect] {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg-card);
+}
+
+.board-card__effect-glyph {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
 }
 
 .board-card__tag[data-cost-change='less'] {

@@ -108,11 +108,14 @@ export type StackTargetSpells = readonly (readonly [number, number])[];
 /** `PlayBridge.java`'s `pendingTriggers` — `packages/forge-wire/src/tier-c.ts`'s `PendingTriggersSchema`. */
 export type PendingTriggers = readonly { id: number; hostCard: number; controller: number; key: string; current?: true }[];
 
+/** `PlayBridge.java`'s `waitingEffects` — `packages/forge-wire/src/tier-c.ts`'s `WaitingEffectsSchema`. */
+export type WaitingEffects = readonly { source: number; text: string; kind: 'trigger' | 'effect' }[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -532,6 +535,13 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return { pendingTriggers: pending.filter((t) => cardVisibility(raw, zones, t.hostCard, who) === 'full') };
 	}
 
+	/** The waiting effects this seat may see: the same rule, by the card that made each one (its words name it). */
+	function effectsSeen(effects: WaitingEffects | undefined): { waitingEffects?: WaitingEffects } {
+		if (effects === undefined) return {};
+		const zones = indexZones(raw);
+		return { waitingEffects: effects.filter((e) => cardVisibility(raw, zones, e.source, who) === 'full') };
+	}
+
 	return {
 		get viewer() {
 			return who;
@@ -572,6 +582,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 								? {}
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
 							...pendingSeen(frame.payload.pendingTriggers),
+							...effectsSeen(frame.payload.waitingEffects),
 						},
 					};
 				}
@@ -585,6 +596,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 								? {}
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
 							...pendingSeen(frame.payload.pendingTriggers),
+							...effectsSeen(frame.payload.waitingEffects),
 						},
 					};
 			}

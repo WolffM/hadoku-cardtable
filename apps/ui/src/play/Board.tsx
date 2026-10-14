@@ -395,6 +395,7 @@ import {
   keywordTags,
   type BoardCard,
   type BoardCardChoice,
+  type BoardCardWaiting,
   type BoardPlayer,
   type BoardView,
   type PoolColor,
@@ -402,7 +403,7 @@ import {
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
-import { choiceTip, keywordTip, MARK_TIP } from './tip/words.ts';
+import { choiceTip, keywordTip, MARK_TIP, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
@@ -2137,12 +2138,23 @@ function Counters({
  *
  * Every tag says on hover (`data-tip`, the board's one tooltip) what it is.
  */
-function CardTags({ entry, choices, held }: { entry: BoardCard; choices: readonly BoardCardChoice[]; held?: HeldTags }) {
+function CardTags({
+  entry,
+  choices,
+  waiting,
+  held,
+}: {
+  entry: BoardCard;
+  choices: readonly BoardCardChoice[];
+  waiting: readonly BoardCardWaiting[];
+  held?: HeldTags;
+}) {
   const keywords = keywordTags(entry.keywords, entry.card.oracleText);
   const cost = held?.cost;
   const flash = held?.flash;
-  if (choices.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined) return null;
+  if (choices.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined) return null;
   const said = [
+    ...waiting.map(waitingTip),
     ...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]),
     ...choices.map(choiceTip),
     ...(flash === undefined ? [] : ['Flash']),
@@ -2150,6 +2162,13 @@ function CardTags({ entry, choices, held }: { entry: BoardCard; choices: readonl
   ];
   return (
     <ul className="board-card__tags" aria-label={`${entry.card.name}: ${said.join('; ')}`}>
+      {waiting.map((w, i) => (
+        <li key={`${w.kind}:${i}`} className="board-card__tag" data-effect={w.kind} data-tip={waitingTip(w)}>
+          <svg className="board-card__effect-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+            <path d="M4 1h8v1.5c0 2-1.4 3.6-3 4.5v2c1.6.9 3 2.5 3 4.5V15H4v-1.5c0-2 1.4-3.6 3-4.5V7C5.4 6.1 4 4.5 4 2.5Z" />
+          </svg>
+        </li>
+      ))}
       {cost !== undefined && (
         <li className="board-card__tag" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
           {cost.tokens.map((token, i) => (
@@ -2469,6 +2488,7 @@ function CardOnBoard({
         <CardTags
           entry={entry}
           choices={onBattlefield ? (entry.choices ?? []) : []}
+          waiting={onBattlefield ? (entry.waiting ?? []) : []}
           held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined}
         />
       )}

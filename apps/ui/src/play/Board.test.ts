@@ -26,6 +26,7 @@ import {
   type ArtIdIndex,
   type BoardCard,
   type BoardCardChoice,
+  type BoardCardWaiting,
   type BoardView,
   type StackEntry,
 } from './adapter.ts';
@@ -4852,6 +4853,67 @@ describe('choice tags: a permanent wears what was chosen for it', () => {
     };
     const { zone } = renderBoard(withHand);
     expect(zone(0, 'hand').querySelector('.board-card__tags'), 'not off the battlefield').toBeNull();
+  });
+});
+
+describe('the pointer is Forge’s offer, on every card of every seat', () => {
+  /*
+   * The operator, 2026-10-13: "enemy planeswalker is showing as clickable". The face is always a
+   * `<button>`, and the page gives every button the pointer (`styles.css`), so a card Forge does not
+   * offer read as clickable all the same. `styles.css`'s own button rule is loaded beside the board's.
+   */
+  function cursorOf(): (el: Element) => string {
+    const sheet = document.createElement('style');
+    sheet.textContent = `button { cursor: pointer; }\n${BOARD_CSS}\n${CARD_CSS}`;
+    document.head.append(sheet);
+    onTestFinished(() => sheet.remove());
+    return (el) => getComputedStyle(el).cursor;
+  }
+
+  it('an opponent’s permanent Forge does not offer has no pointer; one it offers does', () => {
+    const view = boardFromFixture(fixture);
+    const theirs = view.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+    expect(theirs.length).toBeGreaterThan(1);
+    const { interaction } = spyInteraction([theirs[0]!]);
+    const { container } = renderBoard(view, interaction);
+    const cursor = cursorOf();
+    const face = (id: number) => container.querySelector(`[data-card-id="${id}"] > .board-card__face`)!;
+    expect(cursor(face(theirs[0]!)), 'offered').toBe('pointer');
+    for (const id of theirs.slice(1)) expect(cursor(face(id)), `card ${id}, not offered`).not.toBe('pointer');
+  });
+});
+
+describe('effect tags: what a resolved ability left waiting sits on its source until it is used', () => {
+  const base = boardFromFixture(fixture);
+  const withWaiting = (waiting: BoardCardWaiting[], cardId = 21): BoardView => ({
+    ...base,
+    players: base.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === cardId ? { ...c, waiting } : c)) })),
+  });
+  const effects = (container: HTMLElement, id = 21) => [...container.querySelectorAll<HTMLElement>(`[data-card-id="${id}"] > .board-card__tags > [data-effect]`)];
+
+  it('one inverted chip per waiting effect, first in the column, its tip Forge’s own words', () => {
+    const view = withWaiting([
+      { kind: 'trigger', text: 'When you cast your next instant or sorcery spell from your hand this turn, it gains rebound.' },
+      { kind: 'effect', text: 'Creatures you control get +1/+1.' },
+    ]);
+    const withChoice: BoardView = {
+      ...view,
+      players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 21 ? { ...c, choices: [{ kind: 'type', values: ['Elf'] }] } : c)) })),
+    };
+    const { container } = renderBoard(withChoice);
+    expect(effects(container).map((t) => [t.dataset.effect, t.dataset.tip])).toEqual([
+      ['trigger', 'Waiting: When you cast your next instant or sorcery spell from your hand this turn, it gains rebound.'],
+      ['effect', 'In effect: Creatures you control get +1/+1.'],
+    ]);
+    expect(effects(container).every((t) => t.textContent === '' && t.querySelector('svg') !== null), 'a glyph, never words').toBe(true);
+    const column = [...container.querySelectorAll<HTMLElement>('[data-card-id="21"] > .board-card__tags > li')];
+    expect(column.map((t) => t.dataset.effect ?? t.dataset.choice)).toEqual(['trigger', 'effect', 'type']);
+    const css = styled();
+    expect(css(effects(container)[0]!, 'background-color'), 'ink on the card: the family’s one inverted chip').toBe(css(effects(container)[0]!, 'border-color'));
+  });
+
+  it('used up, it is gone: no waiting, no chip', () => {
+    expect(effects(renderBoard(withWaiting([])).container)).toEqual([]);
   });
 });
 

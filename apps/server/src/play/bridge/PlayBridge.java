@@ -637,6 +637,68 @@ public final class PlayBridge {
         payload.add("stackTargetSpells", stackTargetSpellsJson(game));
         final JsonArray pending = pendingTriggersJson(game);
         if (pending != null) { payload.add("pendingTriggers", pending); }
+        final JsonArray effects = waitingEffectsJson(game);
+        if (effects != null) { payload.add("waitingEffects", effects); }
+    }
+
+    /**
+     * What an ability left waiting on the card that made it, once it resolved: every delayed
+     * trigger Forge holds ({@code TriggerHandler}'s private {@code delayedTriggers} and the
+     * {@code playerDefinedDelayedTriggers} still to start — Narset Transcendent's -2, "when you cast
+     * your next instant or sorcery spell…", lives there until it fires), and every effect in a command
+     * zone that names its source ({@code Card.getEffectSource}, an "until end of turn" effect a
+     * permanent created). Neither rides the view: a delayed trigger is on no card and on no stack, and
+     * an effect card is drawn nowhere. {@code source} is the host card's id, {@code text} Forge's own
+     * description; an emblem is a lasting part of its player, not a wait, and is left out.
+     *
+     * <p>Null when the trigger lists cannot be read (the game thread moved them under the read): the
+     * frame then omits the field and the client keeps what it had.
+     */
+    @SuppressWarnings("unchecked")
+    static JsonArray waitingEffectsJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            final forge.game.trigger.TriggerHandler handler = game.getTriggerHandler();
+            final List<forge.game.trigger.Trigger> triggers = new ArrayList<>(
+                    (List<forge.game.trigger.Trigger>) SeatGui.field(handler, forge.game.trigger.TriggerHandler.class, "delayedTriggers"));
+            triggers.addAll(((com.google.common.collect.Multimap<?, forge.game.trigger.Trigger>)
+                    SeatGui.field(handler, forge.game.trigger.TriggerHandler.class, "playerDefinedDelayedTriggers")).values());
+            for (final forge.game.trigger.Trigger t : triggers) {
+                final forge.game.card.Card host = t.getHostCard();
+                final String text = t.toString();
+                if (host == null || text.isEmpty()) { continue; }
+                out.add(waitingEffect(host, text, "trigger"));
+            }
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                for (final forge.game.card.Card c : p.getCardsIn(ZoneType.Command)) {
+                    final forge.game.card.Card source = c.getEffectSource();
+                    if (!c.isImmutable() || c.isEmblem() || source == null) { continue; }
+                    final List<String> said = new ArrayList<>();
+                    for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                        final String d = st.toString();
+                        if (!d.isEmpty()) { said.add(d); }
+                    }
+                    for (final forge.game.trigger.Trigger t : c.getTriggers()) {
+                        final String d = t.toString();
+                        if (!d.isEmpty()) { said.add(d); }
+                    }
+                    out.add(waitingEffect(source, said.isEmpty() ? c.getName() : String.join(" ", said), "effect"));
+                }
+            }
+            return out;
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[bridge] waitingEffects: could not read the delayed triggers (" + e + ")");
+            return null;
+        }
+    }
+
+    private static JsonObject waitingEffect(final forge.game.card.Card source, final String text, final String kind) {
+        final JsonObject o = new JsonObject();
+        o.addProperty("source", source.getId());
+        o.addProperty("text", text);
+        o.addProperty("kind", kind);
+        return o;
     }
 
     /**

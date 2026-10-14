@@ -28,6 +28,7 @@ import {
   PLACED_PENDING_MS,
   RESOLVE_BLINK_MS,
   setChainHalted,
+  STACK_SETTLE_ATTR,
   SHIMMER_MS,
   scatter,
   squareWidth,
@@ -678,7 +679,7 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     handle.dispose();
   });
 
-  it('leaving for anywhere else fades over 250ms, then is gone', () => {
+  it('leaving for anywhere else travels and fades, and is gone when its fade ends', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     placeSpell(301, { x: 400, y: 300 }, 'you');
@@ -687,10 +688,85 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     handle.notify(view([])); // resolved to the graveyard — not on any battlefield
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el.hasAttribute('data-placed-leaving')).toBe(true);
-    vi.advanceTimersByTime(LEAVE_FADE_MS - 1);
-    expect(canvas.querySelector('[data-placed-spell="9"]'), 'still fading').not.toBeNull();
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(LEAVE_FADE_MS);
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'a busy frame’s clock does not cut it short').not.toBeNull();
+    el.dispatchEvent(Object.assign(new Event('transitionend'), { propertyName: 'left' }));
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'not on its travel’s end').not.toBeNull();
+    el.dispatchEvent(Object.assign(new Event('transitionend'), { propertyName: 'opacity' }));
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'on its fade’s').toBeNull();
+    handle.dispose();
+  });
+
+  it('a leaving card whose fade never reports its end is gone at twice the glide', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([]));
+    vi.advanceTimersByTime(2 * LEAVE_FADE_MS);
     expect(canvas.querySelector('[data-placed-spell="9"]')).toBeNull();
+    handle.dispose();
+  });
+
+  it('leaving for the battlefield settles the permanent at once — never shown flat first — until the settle has run', () => {
+    const { canvas } = board();
+    placeSpell(201, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 201 })]));
+    const permanent = canvas.querySelector('[data-card-id="201"]')!;
+    handle.notify(view([], [{ id: 201 }]));
+    expect(permanent.hasAttribute(STACK_SETTLE_ATTR)).toBe(true);
+    permanent.dispatchEvent(Object.assign(new Event('animationend'), { animationName: 'stack-settle' }));
+    expect(permanent.hasAttribute(STACK_SETTLE_ATTR), 'once').toBe(false);
+    handle.dispose();
+  });
+
+  it('a permanent Board draws again as a new element by the next frame settles too', async () => {
+    const { canvas } = board();
+    placeSpell(201, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 201 })]));
+    handle.notify(view([], [{ id: 201 }]));
+    const old = canvas.querySelector('[data-card-id="201"]')!;
+    const fresh = old.cloneNode() as Element;
+    fresh.removeAttribute(STACK_SETTLE_ATTR);
+    old.replaceWith(fresh);
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(fresh.hasAttribute(STACK_SETTLE_ATTR)).toBe(true);
+    handle.dispose();
+  });
+
+  it('a permanent Forge draws on the battlefield a frame after the stack empties settles all the same', async () => {
+    const { canvas } = board();
+    placeSpell(201, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 201 })]));
+    handle.notify(view([]));
+    handle.notify(view([], [{ id: 201 }]));
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(canvas.querySelector('[data-card-id="201"]')!.hasAttribute(STACK_SETTLE_ATTR)).toBe(true);
+    handle.dispose();
+  });
+
+  it('leaving for a graveyard travels into it: its point moves onto the pile that holds the card now', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const seat = document.createElement('div');
+    seat.setAttribute('data-testid', 'player');
+    seat.setAttribute('data-player-id', '0');
+    seat.innerHTML = '<div data-zone="graveyard"></div>';
+    canvas.querySelector('.board')!.append(seat);
+    seat.querySelector<HTMLElement>('[data-zone="graveyard"]')!.getBoundingClientRect = () => rect({ left: 0, top: 600, width: 80, height: 120 });
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    const resolved = view([]);
+    resolved.players[0]!.graveyard = [battlefieldCard(301)];
+    handle.notify(resolved);
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.hasAttribute('data-placed-leaving')).toBe(true);
+    expect([el.style.left, el.style.top], 'the graveyard’s centre').toEqual(['40px', '660px']);
     handle.dispose();
   });
 

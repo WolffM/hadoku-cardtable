@@ -1061,6 +1061,34 @@ describe('item 4 — the avatar reaches the seat, wave 29 §A.6-8', () => {
   });
 });
 
+describe('waiting effects — what a resolved ability left on its source (the bridge’s waitingEffects)', () => {
+  it('rides onto the battlefield source it names, in the bridge’s order, and onto nothing else', () => {
+    const plain = adapt(baseState());
+    const me = plain.players.find((p) => p.isViewer)!;
+    const source = me.battlefield[0]!.id;
+    const handCard = me.hand![0]!.id;
+    const view = toBoardView(baseState(), 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      waitingEffects: [
+        { source, kind: 'trigger', text: 'When you cast your next instant or sorcery spell from your hand this turn, it gains rebound.' },
+        { source, kind: 'effect', text: 'Creatures you control get +1/+1.' },
+        { source: handCard, kind: 'trigger', text: 'Not drawn from a hand.' },
+      ],
+    });
+    const mine = view.players.find((p) => p.isViewer)!;
+    expect(mine.battlefield[0]!.waiting).toEqual([
+      { kind: 'trigger', text: 'When you cast your next instant or sorcery spell from your hand this turn, it gains rebound.' },
+      { kind: 'effect', text: 'Creatures you control get +1/+1.' },
+    ]);
+    expect(mine.battlefield.slice(1).every((c) => c.waiting === undefined)).toBe(true);
+    expect(mine.hand!.every((c) => c.waiting === undefined), 'a hand card wears none').toBe(true);
+  });
+
+  it('with none (the fixture path’s own default) no card carries the key', () => {
+    for (const p of adapt(baseState()).players) for (const c of p.battlefield) expect(c).not.toHaveProperty('waiting');
+  });
+});
+
 /*
  * X1/W14 — `view.combat`, Forge's own `CombatView` read off the single `Game`
  * object (`adapter.ts`'s `readCombat`, `abf705c`'s WIP). `atk`/`def`/`blk` are

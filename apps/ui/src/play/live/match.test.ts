@@ -2095,6 +2095,8 @@ describe('combat, off the state channel: the intent mark and the block target', 
       phase('COMBAT_DECLARE_BLOCKERS', them(m).id),
       prompt('Select a blocker'),
       attacking(attackers),
+      // InputBlock's own signature: its current attacker, marked (`InputBlock.setCurrentAttacker`).
+      highlight([{ kind: 'card', id: attackers[0]! }], true),
     ]);
     expect(declaringBlockers(m)).toBe(true);
     // Not offered before the wire says this creature is blocking anything.
@@ -2112,6 +2114,12 @@ describe('combat, off the state channel: the intent mark and the block target', 
     expect(selectCard(m, mine[0]!)).toBe(true);
     await until('the undo act', () => s.clientFrames().length >= 1);
     expect(s.clientFrames()).toEqual([cardAct(mine[0]!)]);
+
+    // Blocks confirmed: `InputBlock.onOk` unmarks its current attacker. The step's priority stop
+    // that follows takes neither the attacker nor the blocker — nothing of combat is offered.
+    await sendAndApply(s, m, [highlight([{ kind: 'card', id: attackers[0]! }], false)]);
+    expect(boardInteraction(m).selectable.has(mine[0]!), 'the blocker, at priority').toBe(false);
+    expect(boardInteraction(m).selectable.has(attackers[0]!), 'the attacker, at priority').toBe(false);
   });
 });
 
@@ -2206,10 +2214,42 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     await sendAndApply(s, m, [retypePlaneswalker(pw)]);
     expect(them(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker');
 
-    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), actionable([attacker])]);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), attackBar(), actionable([attacker])]);
     expect(declaringAttackers(m)).toBe(true);
     expect(boardInteraction(m).selectable.has(pw)).toBe(true);
     expect(attackAssignment(m, attacker, { kind: 'card', id: pw })).toBe('assign');
+  });
+
+  /*
+   * The operator, 2026-10-13: "enemy planeswalker is showing as clickable". Production match
+   * m-a58ab8a6bb79: at the attacker's own priority stop in declare attackers (OK / End Turn, Forge's
+   * offer naming none of the opponent's cards) the seat clicked the opponent's planeswalker, the board
+   * sent it, and Forge never answered (`act-unanswered`). A defender is InputAttack's click only.
+   */
+  it('the opponent’s planeswalker is not offered at the declare-attackers priority stop, nor under any bar but InputAttack’s', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    const pw = them(m).battlefield[0]!.id;
+    await sendAndApply(s, m, [retypePlaneswalker(pw)]);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), attackBar(true), actionable([attacker])]);
+    expect(boardInteraction(m).selectable.has(pw), 'InputAttack takes it').toBe(true);
+    // Attacks confirmed: the same step's priority — Forge's own OK / End Turn bar and its ordinary offer.
+    const endTurnBar = parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2: 'End Turn',
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+    await sendAndApply(s, m, [prompt('Priority'), endTurnBar, actionable([attacker])]);
+    expect(declaringAttackers(m)).toBe(true);
+    expect(boardInteraction(m).selectable.has(pw), 'the priority stop does not').toBe(false);
+    expect(attackAssignment(m, attacker, { kind: 'card', id: pw })).toBe(null);
+    await sendAndApply(s, m, [yieldSuggestionBar()]);
+    expect(boardInteraction(m).selectable.has(pw), 'nor a yield suggestion').toBe(false);
   });
 
   it('the opponent is offered as a player target while declaring attackers, and attackAssignment says ASSIGN', async () => {
@@ -2260,6 +2300,7 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     await sendAndApply(s, m, [
       phase('COMBAT_DECLARE_ATTACKERS', me(m).id),
       prompt('Declare attackers'),
+      attackBar(true),
       actionable([attacker]),
       stateDelta({
         [GAME_KEY]: {
