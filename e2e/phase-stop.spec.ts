@@ -33,13 +33,21 @@ interface At {
   live: boolean;
 }
 
-async function at(page: Page): Promise<At> {
-  return {
-    phase: (await rail(page).getAttribute('data-phase')) ?? '',
-    whose: (await rail(page).getAttribute('data-whose')) ?? '',
-    turn: Number(await rail(page).getAttribute('data-turn')),
-    live: (await nextPhase(page).count()) > 0 && (await nextPhase(page).isEnabled()),
-  };
+const trace: string[] = [];
+let t0 = Date.now();
+const lastSeen = new Map<Page, string>();
+
+async function at(page: Page, who = 'a'): Promise<At> {
+  const start = Date.now();
+  const phase = (await rail(page).getAttribute('data-phase')) ?? '';
+  const whose = (await rail(page).getAttribute('data-whose')) ?? '';
+  const turn = Number(await rail(page).getAttribute('data-turn'));
+  const live = (await nextPhase(page).count()) > 0 && (await nextPhase(page).isEnabled());
+  const seen = `${turn}:${phase}:${whose}:${String(live)}`;
+  const ms = Date.now() - start;
+  if (seen !== lastSeen.get(page) || ms > 100) trace.push(`+${start - t0} ${who} ${ms}ms ${seen}`);
+  lastSeen.set(page, seen);
+  return { phase, whose, turn, live };
 }
 
 /** A real pointer click in the middle of the rail's row for `phase`. */
@@ -53,7 +61,11 @@ async function clickRow(page: Page, phase: string): Promise<void> {
 async function pressOnce(page: Page, button: Locator, key: string, pressed: Set<string>): Promise<void> {
   if (pressed.has(key) || (await button.count()) === 0 || !(await button.isEnabled())) return;
   pressed.add(key);
-  await button.click({ timeout: 1_000 }).catch(() => pressed.delete(key));
+  const start = Date.now();
+  await button.click({ timeout: 1_000 }).then(
+    () => trace.push(`+${start - t0} press ${key} clicked`),
+    () => trace.push(`+${start - t0} press ${key} timed out`) && pressed.delete(key),
+  );
 }
 
 test(titled('a stop set on the rail holds priority at the next occurrence of that phase, once, on either turn'), async ({ browser }) => {
@@ -65,6 +77,9 @@ test(titled('a stop set on the rail holds priority at the next occurrence of tha
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     const page = alice.page;
     const pressed = new Set<string>();
+    trace.length = 0;
+    lastSeen.clear();
+    t0 = Date.now();
 
     await expect(nextPhase(page), "alice's own Main 1 bar").toBeEnabled({ timeout: 60_000 });
     console.log(`[phase-stop] start ${JSON.stringify(await at(page))}`);
@@ -112,10 +127,11 @@ test(titled('a stop set on the rail holds priority at the next occurrence of tha
       if (now.turn >= 4) break;
       if (now.turn === 3 && now.phase === 'END_OF_TURN' && now.live) heldEndAgain = true;
       if (now.whose === 'yours' && (now.phase === 'MAIN1' || now.phase === 'MAIN2')) await pressOnce(page, nextPhase(page), `${now.turn}:${now.phase}`, pressed);
-      const theirs = await at(bob.page);
+      const theirs = await at(bob.page, 'b');
       if (theirs.whose === 'yours') await pressOnce(bob.page, endTurn(bob.page), `bob:${theirs.turn}`, pressed);
       await page.waitForTimeout(40);
     }
+    console.log(`[phase-stop] trace ${trace.join(' | ')}`);
     console.log(`[phase-stop] turn 3 done ${JSON.stringify(now)}; alice held her end step again: ${String(heldEndAgain)}`);
     expect(now.turn, 'the game reached turn 4').toBeGreaterThanOrEqual(4);
     expect(heldEndAgain, 'a spent stop does not fire again').toBe(false);
