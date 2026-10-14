@@ -1,0 +1,16 @@
+# e2e/end-step-stop.spec.ts — the End step stop on the opponent's turn.
+# Bob (seat 1) is in his own Main Phase 2 with nothing to do. Alice (seat 0) holds Lightning
+# Bolt with an untapped Mountain, so bob's End step is a real play for her: the stop holds it.
+turn=1
+activeplayer=ai
+activephase=MAIN2
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

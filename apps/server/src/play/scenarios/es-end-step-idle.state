@@ -1,0 +1,16 @@
+# `es-end-step-play.state`'s other half: alice (seat 0) holds only a sorcery (Lava Spike),
+# and her Mountain is offered for its mana alone, so bob's End step is no play for her and
+# passes on its own. `e2e/end-step-stop.spec.ts`.
+turn=1
+activeplayer=ai
+activephase=MAIN2
+humanlife=20
+ailife=20
+humanhand=Lava Spike
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
