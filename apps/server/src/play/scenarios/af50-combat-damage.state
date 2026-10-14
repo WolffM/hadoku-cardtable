@@ -1,0 +1,28 @@
+# e2e/af50-combat-damage.spec.ts — the attacker divides its combat damage among
+# several blockers, twice: once without trample, once with it.
+# bob (ai, seat 1) is the active player with two creatures already attacking
+# alice (human, seat 0): Craw Wurm (6/4) and Kodama of the North Tree (6/4,
+# Trample, Shroud — no other ability, so nothing else asks a question).
+# `activephase` lands on Declare ATTACKERS Step, never Declare Blockers itself
+# (README: "Combat, specifically"): bob passes that priority stop through the
+# ordinary main loop, then alice's live block window opens.
+# alice blocks the Wurm with Hill Giant (3/3) and Gray Ogre (2/2) — lethal 3
+# and 2, one point spare — and the Kodama with Grizzly Bears, Runeclaw Bear
+# (2/2 each) and Savannah Lions (2/1) — lethal 2, 2 and 1, one point to
+# trample over. Forge then asks bob twice (`assignCombatDamage`): two recipients
+# for the Wurm, four for the Kodama (three blockers and alice), and the first
+# of the two carries `maySkip` (another attacker is still waiting).
+# Every card here has a row in `art-ids.json`, so every recipient has art.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Hill Giant;Gray Ogre;Grizzly Bears;Runeclaw Bear;Savannah Lions
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Craw Wurm|Attacking;Kodama of the North Tree|Attacking
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
