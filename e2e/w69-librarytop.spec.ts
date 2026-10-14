@@ -11,7 +11,12 @@
  *   2. alice drags Mountain off her library onto her battlefield: it lands, and both screens draw the next
  *      top, Plains;
  *   3. she clicks Plains and clicks her battlefield: it lands too, and both screens draw Serra Angel, which
- *      Forge does not offer (a creature cannot be cast from the top).
+ *      Forge does not offer (a creature cannot be cast from the top);
+ *   4. Divination draws Serra Angel and then the Swamp under it — revealed on top between the two draws —
+ *      and bob's screen keeps both, which it saw, face up in her hand.
+ *
+ * The top card sits under alice's avatar on both screens throughout (the operator, 2026-10-13: "when top
+ * of deck is revealed put it below the avatar") — the mirror of that on bob's, where her seat is across.
  *
  * And the same mark on any card Forge offers outside the hand — the operator, 2026-10-11: *"i played
  * snapcaster mage and it auto-targeted serum visions. i guess thats fine but theres no indicator that that
@@ -30,8 +35,8 @@ import { startScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-/** The library's top card, drawn in its owner's back tier while the screen may see it. */
-const library = (owner: 'you' | 'them') => `.seat [data-zone="battlefield"][data-owner="${owner}"] [data-library-top]`;
+/** The library's top card, drawn under its owner's avatar while the screen may see it. */
+const library = (owner: 'you' | 'them') => `.seat [data-zone="library"][data-owner="${owner}"] [data-library-top]`;
 const field = '.seat[data-viewer] [data-zone="battlefield"]';
 
 /** The name `page` draws for a library's top card. */
@@ -41,11 +46,23 @@ const landsOn = (page: Page, name: string): Promise<number> =>
   page
     .locator(`${field} .card__name`)
     .evaluateAll((els, n) => els.filter((e) => e.closest('[data-library-top]') === null && e.textContent?.trim() === n).length, name);
-/** The names along a back tier on `page`, left to right, the library's top card marked with a `*`. */
-const backTier = (page: Page, owner: 'you' | 'them'): Promise<string[]> =>
-  page
-    .locator(`.seat [data-zone="battlefield"][data-owner="${owner}"] [data-tier="back"] > li[data-board-card]`)
-    .evaluateAll((els) => els.map((e) => `${e.hasAttribute('data-library-top') ? '*' : ''}${e.querySelector('.card__name')?.textContent?.trim() ?? '?'}`));
+/**
+ * `under` when `page` draws `owner`'s library top in that seat's avatar column, on the side away from
+ * the centre line; otherwise where the two are, so a failed poll says what it saw.
+ */
+const underAvatar = (page: Page, owner: 'you' | 'them'): Promise<string> =>
+  page.evaluate((owner) => {
+    const seat = document.querySelector(`.seat${owner === 'you' ? '[data-viewer]' : ':not([data-viewer])'}`);
+    const top = seat?.querySelector('[data-library-top]')?.getBoundingClientRect();
+    const face = seat?.querySelector('[data-player-face]')?.getBoundingClientRect();
+    if (top === undefined || face === undefined) return `top ${top === undefined ? 'missing' : 'found'}, avatar ${face === undefined ? 'missing' : 'found'}`;
+    const ok = top.left < face.right && top.right > face.left && (owner === 'you' ? top.top >= face.bottom - 2 : top.bottom <= face.top + 2);
+    const at = (r: DOMRect) => `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+    return ok ? 'under' : `top@${at(top)} avatar@${at(face)}`;
+  }, owner);
+/** The names `page` draws face up in `owner`'s hand. */
+const handNames = (page: Page, owner: 'you' | 'them'): Promise<string[]> =>
+  page.locator(`.seat [data-zone="hand"][data-owner="${owner}"] .card__name`).allTextContents().then((t) => t.map((s) => s.trim()).sort());
 const life = (page: Page) => page.locator('[data-player-face][data-viewer] [data-testid="life"]').textContent().then((t) => Number(t?.trim()));
 const topId = (page: Page): Promise<number | null> =>
   page.locator(library('you')).first().getAttribute('data-board-card', { timeout: 2_000 }).then(Number).catch(() => null);
@@ -90,6 +107,8 @@ async function passOverStack(page: Page): Promise<void> {
 async function bothShowTop(alice: Page, bob: Page, name: string, why: string): Promise<void> {
   await expect.poll(() => topOf(alice, 'you'), { timeout: 30_000, message: `alice's screen draws ${name} on top of her library (${why})` }).toEqual([name]);
   await expect.poll(() => topOf(bob, 'them'), { timeout: 10_000, message: `bob's screen draws ${name} on top of alice's library (${why})` }).toEqual([name]);
+  await expect.poll(() => underAvatar(alice, 'you'), { timeout: 10_000, message: `under alice's avatar on her screen (${why})` }).toBe('under');
+  await expect.poll(() => underAvatar(bob, 'them'), { timeout: 10_000, message: `under alice's avatar on bob's screen (${why})` }).toBe('under');
 }
 
 test(titled("with Courser of Kruphix the top of alice's library is drawn on both screens, and a land there is played off it like a hand card"), async ({ browser }) => {
@@ -177,20 +196,8 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
     console.log(`[pp-top] Plains landed: battlefield Plains ${await landsOn(alice.page, 'Plains')}, life ${await life(alice.page)}; top now Serra Angel #${angel} on both screens, offered=${offeredAngel}; "Serra Angel" sent to bob ${received(bob, 'Serra Angel')}`);
     expect(offeredAngel, 'Serra Angel on top is shown, never offered').toBeUndefined();
 
-    // ── 4. Not offered, it is moved like any card of her table: to the front of her back tier, the
-    // same on bob's screen; and the next card revealed (Divination draws two) takes its place.
-    const tierBefore = await backTier(alice.page, 'you');
-    const angelBox = (await alice.page.locator(library('you')).boundingBox())!;
-    const firstBox = (await alice.page.locator(`${field} [data-tier="back"] > li[data-board-card]`).first().boundingBox())!;
-    await alice.page.mouse.move(angelBox.x + angelBox.width / 2, angelBox.y + angelBox.height / 2);
-    await alice.page.mouse.down();
-    await alice.page.mouse.move(firstBox.x + 3, firstBox.y + firstBox.height / 2, { steps: 12 });
-    await alice.page.mouse.up();
-    await expect.poll(() => backTier(alice.page, 'you').then((t) => t[0]), { timeout: 5_000, message: 'the revealed card moved to the front of her back tier' }).toBe('*Serra Angel');
-    const moved = await backTier(alice.page, 'you');
-    await expect.poll(() => backTier(bob.page, 'them'), { timeout: 10_000, message: "bob's screen draws her back tier the same" }).toEqual(moved);
-    console.log(`[pp-top] moved the revealed Serra Angel: back tier [${tierBefore.join(', ')}] -> [${moved.join(', ')}]; on bob's screen [${(await backTier(bob.page, 'them')).join(', ')}]`);
-
+    // ── 4. Divination draws Serra Angel and the Swamp under it, both revealed on top before they were
+    // drawn, so bob's screen keeps them face up in her hand; the next card revealed takes the top.
     const divination = (await handCardNamed(alice.page, 'Divination'))!;
     expect(await dragHandCard(alice.page, divination, to), 'Divination is cast').toBe(true);
     await grindPriority([alice.page, bob.page], async () => (await topOf(alice.page, 'you'))[0] === 'Swamp' && (await stackCount(alice.page)) === 0, {
@@ -201,10 +208,11 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
       },
     });
     await bothShowTop(alice.page, bob.page, 'Swamp', 'Divination drew Serra Angel and the Swamp under it');
-    const after = { alice: await backTier(alice.page, 'you'), bob: await backTier(bob.page, 'them') };
-    console.log(`[pp-top] after Divination: back tier on alice's screen [${after.alice.join(', ')}], on bob's [${after.bob.join(', ')}]`);
-    expect(after.alice[0], 'the next top takes the place she gave the last one').toBe('*Swamp');
-    expect(after.bob, 'and bob sees the same').toEqual(after.alice);
+    const herHand = await handNames(bob.page, 'them');
+    console.log(`[pp-top] after Divination: bob's screen draws alice's hand ${JSON.stringify(herHand)}; her own ${JSON.stringify(await handNames(alice.page, 'you'))}`);
+    // Divination draws one card at a time, and Courser reveals each new top: the Swamp was on top, shown
+    // to both, between the two draws — so bob's screen keeps both face up in her hand.
+    expect(herHand, "bob's screen keeps both cards it saw on top face up in her hand").toEqual(['Serra Angel', 'Swamp']);
   } finally {
     await stack.stop();
   }

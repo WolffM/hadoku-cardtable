@@ -730,14 +730,6 @@ export type Arrangement = Readonly<Record<string, readonly (readonly number[])[]
 const NO_ARRANGEMENT: Arrangement = {};
 export const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${slot}`;
 
-/**
- * The library's top card, while the seat may see it (Courser of Kruphix), is a piece of its owner's
- * battlefield arrangement — the operator, 2026-10-11: "let's just make sure that the revealed card is
- * movable". The store names it by this slot id rather than by its card id, so whichever card is on
- * top takes the place the player gave the last one. No Forge id reaches it (ids are small and dense).
- */
-export const LIBRARY_TOP_SLOT = 0x0fffffff;
-
 /** How many cards a row holds, across all its piles. */
 const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
 
@@ -944,9 +936,8 @@ function arrangementFor(key: string, viewerId: number): Arrangement {
  * duplicate a card or lose one. `data-card-id` is unique across the board and
  * three other lanes depend on that.
  */
-export function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout, libraryTop?: BoardCard): Grouped {
+export function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
-  if (libraryTop !== undefined) byId.set(LIBRARY_TOP_SLOT, libraryTop);
   const rows: Record<BoardRow, BoardCard[][]> = emptyRows();
   const placed = new Set<number>();
   for (const row of rowsForLayout(layout)) {
@@ -961,9 +952,7 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
         const card = byId.get(id);
         if (card === undefined || placed.has(id)) continue;
         placed.add(id);
-        // The library's top card is never part of a permanent's pile: it keeps a column of its own.
-        if (id === LIBRARY_TOP_SLOT) rows[row].push([card]);
-        else members.push(card);
+        members.push(card);
       }
       if (members.length > 0) rows[row].push(members);
     }
@@ -971,7 +960,6 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
   for (const card of cards) {
     if (!placed.has(card.id)) rows[visualRow(card, layout)].push([card]);
   }
-  if (libraryTop !== undefined && !placed.has(LIBRARY_TOP_SLOT)) rows[layout === 'single' ? 'back' : visualRow(libraryTop, layout)].push([libraryTop]);
   return withAttachments(rows, cards, layout);
 }
 
@@ -1689,11 +1677,8 @@ export function withMove(
   row: BoardRow,
   target: DropTarget,
   layout: BoardLayout,
-  libraryTopId?: number,
 ): Arrangement {
   const active = rowsForLayout(layout);
-  // The library's top card stacks with nothing, and nothing stacks on it: such a drop goes before.
-  if (target.kind === 'stack' && (cardId === libraryTopId || target.id === libraryTopId)) target = { kind: 'before', id: target.id };
   const piles: Record<BoardRow, number[][]> = emptyRows();
   // A gap the player left stays a gap. So does the column a card leaves within its own row, so that no
   // column of that row moves because another one emptied — a card placed at a column (Z8), or stacked onto
@@ -1731,8 +1716,7 @@ export function withMove(
   // Trailing gaps hold no column anyone can see; only the ones between cards stay.
   for (const r of active) while (piles[r].length > 0 && piles[r][piles[r].length - 1]!.length === 0) piles[r].pop();
   const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
-  const stored = (id: number): number => (id === libraryTopId ? LIBRARY_TOP_SLOT : id);
-  for (const r of active) next[slotKey(playerId, r)] = piles[r].map((p) => p.map(stored));
+  for (const r of active) next[slotKey(playerId, r)] = piles[r];
   return next;
 }
 
@@ -2305,7 +2289,7 @@ function CardOnBoard({
    * the inspector.
    */
   inExile?: boolean;
-  /** The library's top card, drawn in its owner's back tier while the seat may see it — not a permanent. */
+  /** The library's top card, drawn under its owner's avatar while the seat may see it — not a permanent. */
   libraryTop?: boolean;
 }) {
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
@@ -2688,7 +2672,7 @@ function Battlefield({
   arranged: Arrangement;
   layout: BoardLayout;
 }) {
-  const grouped = group(player.battlefield, player.id, arranged, layout, player.libraryTop);
+  const grouped = group(player.battlefield, player.id, arranged, layout);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
     expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
@@ -2696,12 +2680,6 @@ function Battlefield({
       : withExpectedGap(grouped, expected.slot, expected.target);
   const rows = reserved?.rows ?? grouped;
   const isExpectedGap = (row: BoardRow, i: number): boolean => reserved !== null && expected !== undefined && expected.slot === row && reserved.index === i;
-  /**
-   * The library's top card while Forge names it is played (or chosen) by a press, as a hand card is
-   * (`live/gestures/cast.ts`), so it is not arranged then; otherwise it moves like any card here.
-   */
-  const arrangingOf = (card: BoardCard): Arranging | undefined =>
-    card.id === player.libraryTop?.id && interaction?.selectable.has(card.id) === true ? undefined : arranging;
 
   if (layout === 'single') {
     /*
@@ -2743,8 +2721,7 @@ function Battlefield({
                     key={pile[0]!.id}
                     entry={pile[0]!}
                     interaction={interaction}
-                    arranging={arrangingOf(pile[0]!)}
-                    libraryTop={pile[0]!.id === player.libraryTop?.id}
+                    arranging={arranging}
                     slot={tier}
                     pile={pile}
                     pileSize={pile.length}
@@ -2804,8 +2781,7 @@ function Battlefield({
                   key={pile[0]!.id}
                   entry={pile[0]!}
                   interaction={interaction}
-                  arranging={arrangingOf(pile[0]!)}
-                  libraryTop={pile[0]!.id === player.libraryTop?.id}
+                  arranging={arranging}
                   slot={row}
                   pile={pile}
                   pileSize={pile.length}
@@ -2821,9 +2797,11 @@ function Battlefield({
 }
 
 /**
- * Someone else's hand: a count, drawn as that many backs. There is no card
- * here to draw a face from — the adapter never maps these cards. The strip is
- * always in the markup so the slot is one height at nought backs and at ten.
+ * Someone else's hand: a count, drawn as that many backs — except a card this
+ * screen was shown and still knows (`BoardPlayer.handShown`: a Thoughtseize's
+ * look, a revealed top card drawn), which is drawn face up in its place. The
+ * strip is always in the markup so the slot is one height at nought backs and
+ * at ten.
  *
  * Item 12: *"opponents hand should show like real card backs."* A back is a
  * CARD, so it is drawn as one — a card's proportion, a card's radius, a bordered
@@ -2847,7 +2825,7 @@ function Battlefield({
  * `zone--backs` is what the stylesheet sizes the strip by on either side
  * (`board.css`), never the side it happens to be on.
  */
-function HiddenHand({ player, ownerSide }: { player: BoardPlayer; ownerSide: ZoneOwner }) {
+function HiddenHand({ player, ownerSide, interaction }: { player: BoardPlayer; ownerSide: ZoneOwner; interaction: BoardInteraction | undefined }) {
   return (
     <section
       className="zone zone--hand zone--backs"
@@ -2856,10 +2834,15 @@ function HiddenHand({ player, ownerSide }: { player: BoardPlayer; ownerSide: Zon
       data-owner={ownerSide}
       data-count={player.handCount}
     >
-      <ul className="card-backs" aria-hidden="true" style={{ '--cols': player.handCount } as CSSProperties}>
-        {Array.from({ length: player.handCount }, (_, i) => (
-          <li key={i} className="card-back" data-card-back="" />
-        ))}
+      <ul className="card-backs" style={{ '--cols': player.handCount } as CSSProperties}>
+        {Array.from({ length: player.handCount }, (_, i) => {
+          const shown = player.handShown?.[i] ?? null;
+          return shown === null ? (
+            <li key={`back-${i}`} className="card-back" data-card-back="" aria-hidden="true" />
+          ) : (
+            <CardOnBoard key={shown.id} entry={shown} interaction={interaction} />
+          );
+        })}
       </ul>
     </section>
   );
@@ -3215,6 +3198,29 @@ function PlayerArea({
             {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
           </div>
         </div>
+        {player.libraryTop !== undefined && (
+          /*
+           * The library's top card while this screen may see it — revealed (Goblin Guide, Dark
+           * Confidant), standing revealed (Courser of Kruphix) or known since — under its owner's
+           * avatar (the operator, 2026-10-13: "when top of deck is revealed put it below the
+           * avatar"), in the seat's own column: under it on yours, the mirror on theirs. Not a
+           * permanent and not arranged; a land Forge offers from it is played from here like a
+           * hand card (`live/gestures/cast.ts`).
+           */
+          <ZoneShell
+            owner={player.name}
+            ownerSide={side}
+            zone="library"
+            label="Library"
+            count={player.libraryCount}
+            canAct={interaction?.actionable?.has(player.libraryTop.id) === true}
+          >
+            <ul className="zone__cards">
+              {/* Keyed: the next top is another card, never this element reused with the last one's gesture styles. */}
+              <CardOnBoard key={player.libraryTop.id} entry={player.libraryTop} interaction={interaction} libraryTop />
+            </ul>
+          </ZoneShell>
+        )}
         {/*
          * The piles, in the REST of the seat's one left column — under the avatar and
          * the counts, with everything they leave (wave 32 Q9). The opponent's column
@@ -3270,7 +3276,7 @@ function PlayerArea({
           arranging={arranging}
         />
       ) : (
-        <HiddenHand player={player} ownerSide={side} />
+        <HiddenHand player={player} ownerSide={side} interaction={interaction} />
       )}
     </section>
   );
@@ -3701,21 +3707,8 @@ export function Board({
     // Never reached — `slot` narrows `withMove`'s own `BoardRow` for the type checker, the
     // runtime fact being that `useArrangeDrag` never starts a drag from a hand card at all.
     if (slot === 'hand') return;
-    if (!viewer.battlefield.some((c) => c.id === cardId) && viewer.libraryTop?.id !== cardId) return;
-    setArranged(
-      key,
-      viewer.id,
-      withMove(
-        group(viewer.battlefield, viewer.id, arranged, boardLayout, viewer.libraryTop),
-        viewer.id,
-        arranged,
-        cardId,
-        slot,
-        target,
-        boardLayout,
-        viewer.libraryTop?.id,
-      ),
-    );
+    if (!viewer.battlefield.some((c) => c.id === cardId)) return;
+    setArranged(key, viewer.id, withMove(group(viewer.battlefield, viewer.id, arranged, boardLayout), viewer.id, arranged, cardId, slot, target, boardLayout));
     redraw();
   };
   useArrangeDrag(root, viewer !== undefined, commit);
@@ -3763,16 +3756,7 @@ export function Board({
             : player.battlefield.find((c) => !before.has(c.id));
       if (card === undefined) continue;
       PENDING_PLACEMENTS.delete(player.id);
-      next = withMove(
-        group(player.battlefield, player.id, next, boardLayout, player.libraryTop),
-        player.id,
-        next,
-        card.id,
-        pending.slot,
-        pending.target,
-        boardLayout,
-        player.libraryTop?.id,
-      );
+      next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);
       changed = true;
       if (player.id === viewer?.id) ownChanged = true;
     }

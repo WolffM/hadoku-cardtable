@@ -397,6 +397,13 @@ export interface BoardPlayer {
   hasLost: boolean;
   /** `null` for anyone but the viewer: an opponent's hand is a count. */
   hand: BoardCard[] | null;
+  /**
+   * Someone else's hand in Forge's order, a card this seat was shown and still knows (the server's
+   * projection keeps it and names the seat in its `PlayerMayLook` — `apps/server/src/play/
+   * visibility.ts`, "What a seat was shown") in its place and `null` for every other. Absent when
+   * the seat knows none of it, and for the viewer.
+   */
+  handShown?: readonly (BoardCard | null)[];
   handCount: number;
   libraryCount: number;
   /**
@@ -410,7 +417,8 @@ export interface BoardPlayer {
   /**
    * The library's top card, when this seat may see it standing revealed: Forge puts the seat in that
    * card's `PlayerMayLook` (Courser of Kruphix and Future Sight for everyone, Vizier of the Menagerie for
-   * its controller only) and the server's projection then sends its face. Absent otherwise — the
+   * its controller only), or revealed it to the seat (Goblin Guide) and the seat still knows it, and the
+   * server's projection then sends its face. Absent otherwise — the
    * projection sends a library card it may not see as existence only, never a name — and absent while a
    * prompt shows the seat more of its library than the top (`revealedTop`).
    */
@@ -1428,6 +1436,20 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Whether `viewer` may look at a card in someone else's hand: it is in the card's `PlayerMayLook`,
+ * where Forge puts a seat it shows the card to and the server's projection puts a seat that still
+ * knows it. A name alone is not enough — Forge's raw stream names every hand card to everybody.
+ */
+function shownTo(state: WireState, id: number, viewer: number): boolean {
+  return readIds(state.get(deltaKey(WireType.Card, id)), 'PlayerMayLook').includes(viewer);
+}
+
+/** A card the seat may see, or null — the projection sends a card it may not as existence only. */
+function known(card: BoardCard | null): BoardCard | null {
+  return card === null || card.hidden === true ? null : card;
+}
+
+/**
  * The library's top card as a standing reveal, or null.
  *
  * Forge's `PlayerMayLook` (`Card.updateMayLook`, Card.java:3780-3787) is ONE list
@@ -1444,6 +1466,8 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
  * i'm just searching my library"*). So the top is a standing reveal only when
  * the seat may see it and NOT the card under it — and is not the one card a
  * prompt is showing (a scry 1's Top or Bottom, `AdaptOptions.promptCard`).
+ * "May see" includes a top card the seat was shown and still knows (Goblin
+ * Guide's reveal): the server's projection keeps sending it while it stays put.
  */
 function revealedTop(
   state: WireState,
@@ -1454,11 +1478,7 @@ function revealedTop(
   promptCard: number | null,
 ): BoardCard | null {
   if (libraryIds[0] === promptCard) return null;
-  const seen = (id: number | undefined): BoardCard | null => {
-    if (id === undefined) return null;
-    const card = toBoardCard(state, id, artIds, printedPT, false, printedType);
-    return card === null || card.hidden === true ? null : card;
-  };
+  const seen = (id: number | undefined): BoardCard | null => (id === undefined ? null : known(toBoardCard(state, id, artIds, printedPT, false, printedType)));
   const top = seen(libraryIds[0]);
   return top !== null && seen(libraryIds[1]) === null ? top : null;
 }
@@ -1508,6 +1528,7 @@ export function toBoardView(
     const handIds = readIds(p, 'Hand');
     const libraryIds = readIds(p, 'Library');
     const top = revealedTop(state, libraryIds, artIds, printedPT, printedType, promptCard);
+    const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, printedType, playerName)) : null);
     const avatarId = avatarByPlayerId?.get(pid);
     return {
       id: pid,
@@ -1518,6 +1539,7 @@ export function toBoardView(
       hasPriority: readBool(p, 'HasPriority'),
       hasLost: readBool(p, 'HasLost'),
       hand: isViewer ? cardsIn(handIds) : null,
+      ...(shown.some((c) => c !== null) ? { handShown: shown } : {}),
       handCount: handIds.length,
       libraryCount: libraryIds.length,
       libraryIds,

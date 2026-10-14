@@ -1932,6 +1932,15 @@ export class Match {
 		if (s === this.watcherSource()) this.sendWatcher(this.watcher.projector.project(raw) as unknown as ServerFrame);
 	}
 
+	/** Tell `s`'s projector it was shown `cardIds`, and send the seat whatever that newly lets it hold. */
+	private learnShown(s: SeatState, cardIds: readonly number[]): void {
+		const frame = s.projector.learn(cardIds) as unknown as ServerFrame | null;
+		if (frame === null) return;
+		s.history.push(frame);
+		this.send(s, frame);
+		this.releaseLog(s, false);
+	}
+
 	/** The seat whose raw stream feeds the watcher channel: the first human one. */
 	private watcherSource(): SeatState | undefined {
 		return this.seats.find((s) => !s.ai);
@@ -2095,6 +2104,9 @@ export class Match {
 			// Its `choices` are kept a moment longer, in case the very next ask
 			// is the real discard choice they belong to.
 			const reveal = asReveal(frame, (ref) => (ref.kind === 'card' ? cardName(this.foldedStateOf(s), ref.id) : null) ?? `${ref.kind} #${ref.id}`);
+			// What Forge shows this seat it keeps knowing (`visibility.ts`, "What a seat was shown").
+			const shown = reveal !== null ? choiceCardIds(reveal.choices) : 'delayedReveal' in frame ? (frame.delayedReveal?.cards ?? []).map((c) => c.id) : [];
+			if (shown.length > 0) this.learnShown(s, shown);
 			if (reveal !== null) {
 				const ids = choiceCardIds(reveal.choices);
 				if (ids.length > 0 && this.justDiscarded !== null && sameCardSet(ids, this.justDiscarded.ids)) {

@@ -29,9 +29,9 @@ const titled = makeTitled(forge);
 const SEARCH_METHODS = ['chooseSingleEntityForEffect', 'chooseEntitiesForEffect'];
 const search = (page: Page) => page.locator(SEARCH_METHODS.map((m) => `[data-testid="live-prompt"][data-method="${m}"]`).join(', '));
 
-/** Every library card a screen draws on a battlefield, by name. */
+/** Every library card a screen draws on the table, by name. */
 const libraryOnBoard = (page: Page): Promise<string[]> =>
-  page.locator('.seat [data-zone="battlefield"] [data-library-top] .card__name').allTextContents().then((t) => t.map((s) => s.trim()));
+  page.locator('.seat [data-library-top] .card__name').allTextContents().then((t) => t.map((s) => s.trim()));
 
 const handNames = (page: Page): Promise<string[]> =>
   page.locator('[data-zone="hand"][data-owner="you"] .card__name').allTextContents().then((t) => t.map((s) => s.trim()));

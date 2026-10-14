@@ -797,6 +797,30 @@
   max-height: 3.6rem;
 }
 
+/*
+ * The library's top card while this screen may see it, under the avatar's block (the operator,
+ * 2026-10-13: "when top of deck is revealed put it below the avatar") — between it and the piles, so
+ * the mirrored column puts it on the far side of the opponent's avatar from the centre line, as its
+ * graveyard is. One card the column's width, measured like a pile (`zone-box.ts`).
+ */
+.board .seat .zone--library {
+  contain: inline-size style;
+  flex: none;
+  min-height: 0;
+}
+
+.board .seat .zone--library .zone__cards {
+  --card-w: var(--zone-w);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.board .seat .zone--library[data-can-act] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .board .seat .zone--exile[data-count='0'] {
   display: none;
 }
@@ -1664,8 +1688,8 @@
 }
 
 /*
- * The library's top card, drawn in its owner's back tier while the seat may see it (Courser of
- * Kruphix): a card of the table that is not a permanent, so it is edged as one apart.
+ * The library's top card, drawn under its owner's avatar while the seat may see it: a card of the
+ * table that is not a permanent, so it is edged as one apart.
  */
 .board-card[data-library-top] > .board-card__face .card {
   outline: 2px dashed var(--ink-dim);

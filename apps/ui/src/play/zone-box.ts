@@ -20,7 +20,7 @@
  * callbacks, which the observer runs after, so nothing that reads the board in a frame callback
  * (`e2e/table-fit.spec.ts` does, every frame) sees the old sizes for the one frame of a resize.
  */
-export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .zone__row, .seat .zone--graveyard, .seat .zone--exile';
+export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .zone__row, .seat .zone--graveyard, .seat .zone--exile, .seat .zone--library';
 
 /** The bands `board.css` steps on, widest first. */
 const ASPECT_BANDS = [10, 8, 6, 5, 4, 3] as const;

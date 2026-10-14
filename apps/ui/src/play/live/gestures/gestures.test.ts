@@ -2702,7 +2702,7 @@ describe('the top card of the library, offered while the board draws it, is pick
     s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Library: { t: 'list', v: [{ t: 'int', v: card }] } } }));
     s.send(handDelta(hand.slice(1)));
     for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
-    await waitFor(() => expect(canvas.querySelector(`[data-zone="battlefield"][data-owner="you"] [data-library-top][data-board-card="${card}"]`)).not.toBeNull());
+    await waitFor(() => expect(canvas.querySelector(`[data-zone="library"][data-owner="you"] [data-library-top][data-board-card="${card}"]`)).not.toBeNull());
     await waitFor(() => expect(m.weaklySelectable?.has(card)).toBe(true));
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     return { ...board, card, myBattlefield };
@@ -2720,11 +2720,27 @@ describe('the top card of the library, offered while the board draws it, is pick
     await waitFor(() => expect(sent(s)).toEqual([['selectCard', card]]));
   });
 
-  it('is never arrangeable while it is offered — the drag is the play — and arrangeable once it is not', async () => {
+  it('the next top card is drawn fresh under the avatar: nothing of the last one\'s lift stays on it', async () => {
+    const { s, m, canvas, card } = await onLibrary();
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
+    const rest = mineOf(m).hand!.map((c) => c.id);
+    const next = rest[0]!;
+    s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Library: { t: 'list', v: [{ t: 'int', v: next }] } } }));
+    s.send(handDelta(rest.slice(1)));
+    await waitFor(() => expect(canvas.querySelector(`[data-zone="library"] [data-library-top][data-board-card="${next}"]`)).not.toBeNull());
+    const fresh = cardEl(canvas, next);
+    expect(fresh.getAttribute('style') ?? '', 'no inline position carried over').not.toMatch(/left|top|transform/);
+    expect(fresh.hasAttribute('data-cast-lift')).toBe(false);
+  });
+
+  it('is never arranged, offered or not: it sits under the avatar, and a drag of it is only ever the play', async () => {
     const { s: server, canvas, card } = await onLibrary();
-    await waitFor(() => expect(cardEl(canvas, card).hasAttribute('data-arrange-card')).toBe(false));
+    expect(cardEl(canvas, card).hasAttribute('data-arrange-card')).toBe(false);
     for (const f of notify([prompt('Priority'), actionable([])])) server.send(f);
-    await waitFor(() => expect(cardEl(canvas, card).getAttribute('data-arrange-card')).toBe('back'));
+    await waitFor(() => expect(cardEl(canvas, card).hasAttribute('data-can-act')).toBe(false));
+    expect(cardEl(canvas, card).hasAttribute('data-arrange-card')).toBe(false);
   });
 });
 

@@ -39,7 +39,7 @@ describe('a zone’s box, measured instead of queried (the operator, 2026-10-10:
 
   it('a measured zone is size-contained but never layout-contained: a lifted card’s position: fixed stays the window’s', () => {
     const css = rules('board.css');
-    expect(css.match(/contain: [^;]+;/g)).toEqual(['contain: size style;', 'contain: size style;', 'contain: size style;', 'contain: inline-size style;']);
+    expect(css.match(/contain: [^;]+;/g)).toEqual(['contain: inline-size style;', 'contain: size style;', 'contain: size style;', 'contain: size style;', 'contain: inline-size style;']);
   });
 
   it('every band the row count steps on has its rule, on the zones the query used to resolve to', () => {

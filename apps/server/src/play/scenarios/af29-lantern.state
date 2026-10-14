@@ -1,0 +1,18 @@
+# af29-lantern — a card a seat was shown stops being shown once it is shuffled away. Alice has Lantern of
+# Insight ("Players play with the top card of their libraries revealed. {T}, Sacrifice: Target player
+# shuffles."), so both seats are shown bob's top card, Lightning Bolt. She sacrifices it to make bob
+# shuffle: nobody may look at any library after that, and the Lightning Bolt alice was shown must leave
+# her state. Ten cards, so a shuffle that changes nothing is a one-in-millions chance.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Lantern of Insight;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Lightning Bolt;Shock;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -35,6 +35,7 @@ import {
 	cardVisibility,
 	createProjector,
 	csvCardId,
+	foldFrames,
 	keyOf,
 	type DeltaPacketJson,
 	type StateFrame,
@@ -473,7 +474,7 @@ describe("a library's top card that Forge lets players look at", () => {
 		expect(names(opp.gameView, top), 'and is sent nothing that names it').toEqual([]);
 	});
 
-	it('is sent when Forge lets the seat look, and taken back when it stops', () => {
+	it('is sent when Forge lets the seat look, kept while it stays on top, and taken back when the library is shuffled', () => {
 		const { raw, top } = onTop();
 		const key = keyOf(TYPE.card, top);
 		const p = createProjector(0);
@@ -484,7 +485,13 @@ describe("a library's top card that Forge lets players look at", () => {
 		expect(p.visibilityOf(top)).toBe('full');
 		expect(names(shown.newObjects, top).length, 'the card and its face are re-sent whole').toBeGreaterThan(0);
 
-		const gone = (p.project(delta({ [key]: { _type: TYPE.card, _id: top, PlayerMayLook: null } as unknown as WireObj })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		p.project(delta({ [key]: { _type: TYPE.card, _id: top, PlayerMayLook: null } as unknown as WireObj }));
+		expect(p.visibilityOf(top), 'the seat still knows the card it was shown').toBe('full');
+
+		const [, ...under] = idsIn(raw, 1, 'Library');
+		const playerKey = keyOf(TYPE.player, 1);
+		const shuffled = { _type: TYPE.player, _id: 1, Library: mayLook([...under.slice(0, 2), top, ...under.slice(2)]) };
+		const gone = (p.project(delta({ [playerKey]: shuffled })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
 		expect(p.visibilityOf(top)).toBe('hidden');
 		expect((gone.newObjects[key] as WireObj).Name, 'the card is re-sent as existence only').toBeUndefined();
 		const wiped = Object.values(gone.newObjects).filter((o) => o._type === TYPE.cardState && csvCardId(o._id) === top);
@@ -704,5 +711,125 @@ describe('a null viewer: the public table (the watcher channel)', () => {
 		const seen = out[keyOf(TYPE.card, cardId)] as WireObj;
 		expect(seen.Name).toBeUndefined();
 		expect(seen.Facedown).toEqual({ t: 'bool', v: true });
+	});
+});
+
+/**
+ * What a seat was shown, it keeps — while the card stays where it was shown. A small hand-built table:
+ * seat 0 watches player 1's hand (card 10) and library (20 on top of 21, 22). `PlayerMayLook` is how Forge
+ * grants a look; `learn` is a reveal the server answered.
+ */
+describe('a card the seat was shown stays shown while it stays put', () => {
+	const int = (v: number) => ({ t: 'int', v });
+	const list = (ids: readonly number[]) => ({ t: 'list', v: ids.map(int) });
+	const NAMES: Record<number, string> = { 10: 'Goblin Guide', 20: 'Lightning Bolt', 21: 'Shock', 22: 'Mountain' };
+	const card = (id: number, mayLook: readonly number[] = []): WireObj => ({
+		_type: TYPE.card,
+		_id: id,
+		Owner: int(1),
+		Controller: int(1),
+		Name: { t: 'str', v: NAMES[id] },
+		...(mayLook.length === 0 ? {} : { PlayerMayLook: list(mayLook) }),
+	});
+	const player = (id: number, zones: { Hand?: number[]; Library?: number[]; Graveyard?: number[] } = {}): WireObj => ({
+		_type: TYPE.player,
+		_id: id,
+		Hand: list(zones.Hand ?? []),
+		Library: list(zones.Library ?? []),
+		Graveyard: list(zones.Graveyard ?? []),
+	});
+	const opening = (mayLook: Record<number, number[]> = {}): StateFrame => ({
+		kind: 'notify',
+		method: 'setGameView',
+		payload: {
+			sequenceNumber: 1,
+			gameView: Object.fromEntries(
+				[player(0), player(1, { Hand: [10], Library: [20, 21, 22] }), ...[10, 20, 21, 22].map((id) => card(id, mayLook[id]))].map((o) => [keyOf(o._type, o._id), o]),
+			),
+		},
+	});
+	let seq = 1;
+	const delta = (objectDeltas: WireObj[]): StateFrame => ({
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: { seq: ++seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: Object.fromEntries(objectDeltas.map((o) => [keyOf(o._type, o._id), o])), events: [] },
+		},
+	});
+	/** Seat 0's client state after these projected frames: the name it holds for `id`, if any. */
+	const held = (emitted: readonly (StateFrame | null)[], id: number): unknown => foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(keyOf(TYPE.card, id))?.Name;
+
+	it("keeps a hand card Forge let it look at after Forge takes the look back (Thoughtseize's reveal)", () => {
+		const p = createProjector(0);
+		const out = [p.project(opening({ 10: [0] })), p.project(delta([{ _type: TYPE.card, _id: 10, PlayerMayLook: null }]))];
+		expect(p.visibilityOf(10)).toBe('full');
+		expect(held(out, 10)).toEqual({ t: 'str', v: 'Goblin Guide' });
+	});
+
+	it('follows a revealed top card into its holder\'s hand, and never shows the card under it', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening())];
+		expect(held(out, 20)).toBeUndefined();
+		out.push(p.learn([20]));
+		expect(held(out, 20), 'the reveal itself sends the card').toEqual({ t: 'str', v: 'Lightning Bolt' });
+		out.push(p.project(delta([{ ...player(1, { Hand: [10, 20], Library: [21, 22] }) }])));
+		expect(p.visibilityOf(20)).toBe('full');
+		expect(held(out, 20), 'drawn, it is still known').toEqual({ t: 'str', v: 'Lightning Bolt' });
+		expect(held(out, 21)).toBeUndefined();
+		expect(p.learn([20]), 'a card already held needs nothing sent').toBeNull();
+	});
+
+	it('forgets a known library card when the library is shuffled', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([20])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22, 20] }) }])));
+		expect(p.visibilityOf(20)).toBe('hidden');
+		expect(held(out, 20), 'a shuffled card is wiped from the client').toBeUndefined();
+	});
+
+	it('keeps a known library card while cards are only drawn or put on top of it', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([21])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [10, 20], Library: [21, 22] }) }])));
+		out.push(p.project(delta([{ ...player(1, { Hand: [20], Library: [10, 21, 22] }) }])));
+		expect(p.visibilityOf(21)).toBe('full');
+		expect(held(out, 21)).toEqual({ t: 'str', v: 'Shock' });
+		expect(p.visibilityOf(10), 'a known hand card put back into the library is forgotten').toBe('hidden');
+	});
+
+	it('forgets a known hand card that leaves the hand, even for a zone it will be hidden in again', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([10])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [], Library: [20, 21, 22], Graveyard: [10] }) }])));
+		expect(p.visibilityOf(10), 'public in the graveyard').toBe('full');
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
+		expect(p.visibilityOf(10)).toBe('hidden');
+		expect(held(out, 10)).toBeUndefined();
+	});
+
+	it("does not keep a look at the seat's own library (a scry), only a reveal of it", () => {
+		const p = createProjector(1);
+		p.project(opening({ 20: [1] }));
+		expect(p.visibilityOf(20)).toBe('full');
+		p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null }]));
+		expect(p.visibilityOf(20), 'the look ends with the scry').toBe('hidden');
+		expect(p.learn([20]), 'a reveal of it is kept').not.toBeNull();
+		expect(p.visibilityOf(20)).toBe('full');
+	});
+
+	it('keeps a known card through a packet that has it in no zone (taken out and put back on top)', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([20])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22] }) }])));
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
+		expect(p.visibilityOf(20)).toBe('full');
+		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+	});
+
+	it('teaches the table nothing: a watcher is never shown a reveal', () => {
+		const p = createProjector(null);
+		p.project(opening({ 10: [0] }));
+		expect(p.learn([10, 20])).toBeNull();
+		expect(p.visibilityOf(10)).toBe('hidden');
 	});
 });

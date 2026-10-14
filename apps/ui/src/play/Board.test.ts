@@ -37,9 +37,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   copiesIn,
   forgetArrangements,
   forgetPendingPlacements,
-  group,
   handOrder,
-  LIBRARY_TOP_SLOT,
   notePlayedTo,
   previewPlayedTo,
   showPlacementColumns,
@@ -1489,34 +1487,30 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(opened[1], 'then newest first').toBe(7059);
   });
 
-  it("draws a library's top card in its owner's back tier only while the seat may see it, and keeps its place for the next one", () => {
+  it("draws a library's top card under its owner's avatar only while the seat may see it, never on the battlefield", () => {
     const hidden = renderBoard(view, undefined, 'single');
     expect(hidden.container.querySelector('[data-library-top]')).toBeNull();
     hidden.unmount();
     const owner = view.players[1]!;
     const top = { ...owner.battlefield[0]!, id: 8001 };
-    const withTop = (card: typeof top) => ({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: card } : p)) });
-    const shown = renderBoard(withTop(top), undefined, 'single');
-    const back = shown.zone(owner.id, 'battlefield').querySelector('[data-tier="back"]')!;
-    const ids = () => [...back.querySelectorAll(':scope > li[data-board-card]')].map((li) => Number(li.getAttribute('data-board-card')));
-    expect(ids().at(-1), 'it joins the back tier, at its end').toBe(8001);
-    expect(back.querySelector('[data-board-card="8001"]')!.hasAttribute('data-library-top')).toBe(true);
+    const shown = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: top } : p)) }, undefined, 'single');
+    const library = shown.zone(owner.id, 'library');
+    expect(library.querySelector('[data-board-card="8001"]')!.hasAttribute('data-library-top')).toBe(true);
+    expect(library.parentElement!.classList.contains('seat__side'), 'in the seat column, with the avatar').toBe(true);
+    const column = [...library.parentElement!.children];
+    expect(column.indexOf(library), 'right after the avatar block').toBe(column.findIndex((el) => el.classList.contains('seat__who')) + 1);
+    expect(shown.zone(owner.id, 'battlefield').querySelector('[data-board-card="8001"]'), 'not on the battlefield').toBeNull();
     expect(shown.zone(owner.id, 'battlefield').dataset.count, 'not counted as a permanent').toBe(String(owner.battlefield.length));
-    shown.unmount();
-    // Moved to the front of the back tier, by the slot the store keeps for whatever is on top.
-    const first = group(owner.battlefield, owner.id, {}, 'single', top).back[0]![0]!.id;
-    const moved = withMove(group(owner.battlefield, owner.id, {}, 'single', top), owner.id, {}, 8001, 'back', { kind: 'before', id: first }, 'single', 8001);
-    expect(moved[slotKey(owner.id, 'back')]![0], 'the store names the slot, not the card').toEqual([LIBRARY_TOP_SLOT]);
-    const next = { ...top, id: 8002 };
-    expect(group(owner.battlefield, owner.id, moved, 'single', next).back[0]![0]!.id, 'the next top takes the same place').toBe(8002);
-    expect(group(owner.battlefield, owner.id, moved, 'single').back.flat().some((c) => c.id === 8002 || c.id === 8001), 'and with no top revealed it leaves the row').toBe(false);
-    // Dropped onto a land, it goes before it: the top card stacks with no permanent.
-    const stacked = withMove(group(owner.battlefield, owner.id, {}, 'single', top), owner.id, {}, 8001, 'back', { kind: 'stack', id: first, onTop: true }, 'single', 8001);
-    const piles = group(owner.battlefield, owner.id, stacked, 'single', top).back;
-    expect(piles[0]!.map((c) => c.id), 'a column of its own').toEqual([8001]);
-    expect(piles[1]![0]!.id).toBe(first);
-    const forced = group(owner.battlefield, owner.id, { [slotKey(owner.id, 'back')]: [[first, LIBRARY_TOP_SLOT]] }, 'single', top).back;
-    expect(forced.find((p) => p.some((c) => c.id === 8001))!.length, 'even when the store pairs them').toBe(1);
+  });
+
+  it("draws a card of someone else's hand this seat was shown face up in its place, and the rest as backs", () => {
+    const them = view.players.find((p) => !p.isViewer)!;
+    const known = { ...them.battlefield[0]!, id: 8101 };
+    const { zone } = renderBoard({ ...view, players: view.players.map((p) => (p === them ? { ...p, handCount: 3, handShown: [null, known, null] } : p)) });
+    const hand = zone(them.id, 'hand');
+    const slots = [...hand.querySelectorAll('.card-backs > li')].map((li) => (li.hasAttribute('data-card-back') ? 'back' : li.getAttribute('data-board-card')));
+    expect(slots).toEqual(['back', '8101', 'back']);
+    expect(hand.querySelector('[data-board-card="8101"] .card__name')!.textContent).toBe(known.card.name);
   });
 
   it('tells ours from theirs: no visible (you); the seat says data-viewer and its accessible name says (you)', () => {
