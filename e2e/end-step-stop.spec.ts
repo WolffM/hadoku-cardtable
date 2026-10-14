@@ -13,9 +13,10 @@
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
  */
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, makeTitled, says, serverLog } from './play/board.ts';
+import { railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 import { closeSettings, openSettings } from './play/w32.ts';
@@ -23,24 +24,9 @@ import { closeSettings, openSettings } from './play/w32.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-const rail = (page: Page): Locator => page.getByTestId('live-phases');
-const nextPhase = (page: Page): Locator => page.getByTestId('live-button-next-phase');
 
-interface At {
-  phase: string;
-  whose: string;
-  turn: number;
-  live: boolean;
-}
-
-async function at(page: Page): Promise<At> {
-  return {
-    phase: (await rail(page).getAttribute('data-phase')) ?? '',
-    whose: (await rail(page).getAttribute('data-whose')) ?? '',
-    turn: Number(await rail(page).getAttribute('data-turn')),
-    live: (await nextPhase(page).count()) > 0 && (await nextPhase(page).isEnabled()),
-  };
-}
+/** The screen at one instant (`railAt`); an absent rail reads as nowhere, not live. */
+const at = async (page: Page): Promise<RailAt> => (await railAt(page)) ?? { phase: '', whose: '', turn: 0, live: false };
 
 /** Alice's server rows from `from` on, as `evt kind/phase why rule plays`. */
 const aliceRows = (stack: PlayStack, from: number): string[] =>
@@ -49,15 +35,15 @@ const aliceRows = (stack: PlayStack, from: number): string[] =>
     .filter((r) => r.seat === 0 && /auto-passed|prompt-(withheld|forwarded)/.test(String(r.evt)))
     .map((r) => [r.evt, r.kind ?? r.phase, r.why, r.rule, r.plays === undefined ? undefined : JSON.stringify(r.plays)].filter((x) => x !== undefined).join(' '));
 
-const heldAtTheirEnd = (a: At): boolean => a.phase === 'END_OF_TURN' && a.whose === 'theirs' && a.live;
-const atOwnMain = (a: At): boolean => a.phase === 'MAIN1' && a.whose === 'yours' && a.turn === 2;
+const heldAtTheirEnd = (a: RailAt): boolean => a.phase === 'END_OF_TURN' && a.whose === 'theirs' && a.live;
+const atOwnMain = (a: RailAt): boolean => a.phase === 'MAIN1' && a.whose === 'yours' && a.turn === 2;
 
 /**
  * Bob passes his own Main 2; alice is never pressed for. Returns once alice holds a live bar in
  * bob's End step, or once the game has carried her to her own Main 1 — whichever comes first —
  * and whether the End step ever held her.
  */
-async function bobEndsHisTurn({ alice, bob }: ScenarioMatch): Promise<{ held: boolean; last: At }> {
+async function bobEndsHisTurn({ alice, bob }: ScenarioMatch): Promise<{ held: boolean; last: RailAt }> {
   await expect.poll(async () => `${(await at(alice.page)).whose}:${(await at(alice.page)).phase}`, { timeout: 60_000 }).toBe('theirs:MAIN2');
   let held = false;
   let last = await at(alice.page);

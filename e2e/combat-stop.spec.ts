@@ -15,6 +15,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { castCard, clickOnce, enabledOk, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
+import { railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -25,18 +26,11 @@ const ATTACK = /Select creatures to attack/i;
 
 const rail = (page: Page): Locator => page.getByTestId('live-phases');
 const row = (page: Page, phase: string): Locator => rail(page).locator(`li[data-phase="${phase}"]`);
-const nextPhase = (page: Page): Locator => page.getByTestId('live-button-next-phase');
 const ownLife = (page: Page): Locator => page.locator('.seat[data-viewer] [data-testid="life"]');
 const attacking = (page: Page): Locator => page.locator('li.board-card[data-attacking="true"]');
 
-async function at(page: Page): Promise<{ phase: string; whose: string; turn: number; live: boolean }> {
-  return {
-    phase: (await rail(page).getAttribute('data-phase')) ?? '',
-    whose: (await rail(page).getAttribute('data-whose')) ?? '',
-    turn: Number(await rail(page).getAttribute('data-turn')),
-    live: (await nextPhase(page).count()) > 0 && (await nextPhase(page).isEnabled()),
-  };
-}
+/** The screen at one instant (`railAt`); an absent rail reads as nowhere, not live. */
+const at = async (page: Page): Promise<RailAt> => (await railAt(page)) ?? { phase: '', whose: '', turn: 0, live: false };
 
 const decisionText = async (page: Page): Promise<string> => {
   const pop = page.getByTestId('live-decision');

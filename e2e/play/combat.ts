@@ -13,13 +13,39 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, says } from './board.ts';
 
+/** Where the game is on one screen: the rail's phase, whose turn and turn number, and whether Next Phase is pressable. */
+export interface RailAt {
+  phase: string;
+  whose: string;
+  turn: number;
+  live: boolean;
+}
+
+/**
+ * {@link RailAt}, read in ONE `evaluate` — one instant of the DOM. Read field by field (four or five
+ * round trips, 60-300 ms on a claw, more on a busy one) the fields come from different frames: a
+ * phase from one turn beside a turn number and a live bar from a later one, which is how
+ * `phase-stop.spec.ts` once saw alice "held" in an end step the server had passed for her.
+ * Null while the rail is not drawn.
+ */
+export function railAt(page: Page): Promise<RailAt | null> {
+  return page.evaluate(() => {
+    const rail = document.querySelector('[data-testid="live-phases"]');
+    if (rail === null) return null;
+    const next = document.querySelector<HTMLButtonElement>('[data-testid="live-button-next-phase"]');
+    return {
+      phase: rail.getAttribute('data-phase') ?? '',
+      whose: rail.getAttribute('data-whose') ?? '',
+      turn: Number(rail.getAttribute('data-turn')),
+      live: next !== null && !next.disabled,
+    };
+  });
+}
+
 /** The rail's own phase (`BoardView.phase`, a `PhaseType` name) and whose turn it is. */
 export async function phaseOf(page: Page): Promise<{ phase: string; whose: string } | null> {
-  const rail = page.getByTestId('live-phases');
-  if ((await rail.count()) === 0) return null;
-  const phase = await rail.getAttribute('data-phase');
-  const whose = await rail.getAttribute('data-whose');
-  return phase === null ? null : { phase, whose: whose ?? '' };
+  const at = await railAt(page);
+  return at === null ? null : { phase: at.phase, whose: at.whose };
 }
 
 /**
