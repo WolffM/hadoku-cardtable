@@ -1,0 +1,17 @@
+# e2e/fx-effects.spec.ts — the operator, 2026-10-14: "effects like Sorin, Grim Nemesis +1 which
+# reveals a card and then does damage. we need some kind of reveal and then damage dealt animation."
+# Alice (seat 0) has Sorin, Grim Nemesis (with his loyalty — see `w46-b-planeswalker.state`'s
+# header) over a library of Grizzly Bears: the +1 reveals one, puts it in her hand, and bob loses 2.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Sorin, Grim Nemesis|Counters:LOYALTY=6;Plains
+humanlibrary=Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

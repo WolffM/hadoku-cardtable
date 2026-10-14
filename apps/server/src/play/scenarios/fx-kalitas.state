@@ -1,0 +1,17 @@
+# e2e/fx-effects.spec.ts — the operator, 2026-10-14: "i just had Kalitas create a zombie and it was
+# too instant i need to see some animation for stuff like that." Alice (seat 0) has Kalitas, Traitor
+# of Ghet and bolts bob's Grizzly Bears: Kalitas's replacement exiles the Bears and makes alice a
+# 2/2 Zombie, which should arrive from Kalitas.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Kalitas, Traitor of Ghet;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
