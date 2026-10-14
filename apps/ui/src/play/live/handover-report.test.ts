@@ -90,6 +90,23 @@ describe('visibleCopies', () => {
     expect(visibleCopies(document, 121), 'another card’s flight landing meanwhile').toBe(2);
     expect(drawnCopies(document, 7)).toEqual(['handoff@300,200']);
   });
+
+  it('names a resolved spell’s stack card fading out, and does not call it a second copy', () => {
+    const zone = document.createElement('ul');
+    zone.setAttribute('data-zone', 'graveyard');
+    document.body.append(zone);
+    const card = drawn(document.createElement('li'), 40, 600);
+    card.setAttribute('data-board-card', '15');
+    zone.append(card);
+    const placed = drawn(document.createElement('div'), 461, 500);
+    placed.setAttribute('data-placed-card', '15');
+    placed.setAttribute('data-placed-leaving', '');
+    const copies = drawnCopies(document, 15);
+    expect(copies).toEqual(['zone:graveyard', 'placed:leaving']);
+    expect(handoverData({ ...facts, card: 15 }, copies, 1_200)).toMatchObject({ doubled: false, copies: 'zone:graveyard,placed:leaving' });
+    placed.removeAttribute('data-placed-leaving');
+    expect(handoverData({ ...facts, card: 15 }, drawnCopies(document, 15), 1_200).doubled, 'still on the stack: two copies').toBe(true);
+  });
 });
 
 describe('reportHandover', () => {

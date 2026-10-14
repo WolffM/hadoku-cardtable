@@ -73,12 +73,21 @@ export function drawnCopies(root: ParentNode, card: number): string[] {
   const named = (selector: string, name: (el: Element) => string): string[] => [...root.querySelectorAll(selector)].filter(shown).map(name);
   return [
     ...named(`[data-zone] [data-board-card="${card}"]`, (el) => `zone:${el.closest('[data-zone]')?.getAttribute('data-zone') ?? ''}`),
-    ...named(`[data-placed-card="${card}"]`, () => 'placed'),
+    ...named(`[data-placed-card="${card}"]`, (el) => (el.hasAttribute('data-placed-leaving') ? LEAVING : 'placed')),
     ...named(`[data-cast-ghost="${card}"]`, () => 'ghost'),
     ...named(`.presence__back[data-waiting][${PRESENCE_CARD_ATTR}="${card}"]`, (el) => `back${at(el)}`),
     ...named(`.presence__handoff[${PRESENCE_CARD_ATTR}="${card}"]`, (el) => `handoff${at(el)}`),
   ];
 }
+
+/**
+ * A resolved spell's stack card fading out (`placed.ts`'s `data-placed-leaving`) while the card is
+ * already in its new zone: the designed 250 ms exit, not a copy left behind. A spell that resolves
+ * before its stand-in finishes gliding (a Fireball for X=0, nobody holding priority) is handed over
+ * to a stack card already leaving, so it is listed in `copies` and never makes the hand-over
+ * `doubled`.
+ */
+const LEAVING = 'placed:leaving';
 
 /** How many copies of `card` are drawn and visible right now (`drawnCopies`). */
 export function visibleCopies(root: ParentNode, card: number): number {
@@ -87,9 +96,9 @@ export function visibleCopies(root: ParentNode, card: number): number {
 
 /** The event's fields: flat, rounded, and only the ones known (a null is left out). */
 export function handoverData(f: HandoverFacts & { readonly to: Point | null }, copies: readonly string[], now = Date.now()): Record<string, string | number | boolean> {
-  const doubled = copies.length > 1;
+  const doubled = copies.filter((c) => c !== LEAVING).length > 1;
   const data: Record<string, string | number | boolean> = { screen: f.screen, how: f.how, motion: f.motion, doubled };
-  if (doubled) data.copies = copies.join(',').slice(0, 80);
+  if (copies.length > 1) data.copies = copies.join(',').slice(0, 80);
   if (f.card !== null) data.card = f.card;
   if (f.from !== null) {
     data.fromX = Math.round(f.from.x);
