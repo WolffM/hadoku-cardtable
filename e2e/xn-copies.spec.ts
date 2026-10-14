@@ -53,10 +53,10 @@ test(titled('a pile of copies wears ×N on both screens; it follows a card leavi
     const { alice, bob } = await startScenarioMatch(browser, stack, 'xn-copies');
     for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
     const a = alice.page;
-    const goblins = field(a, 'you').locator('li.board-card[data-token]');
+    const goblins = field(a, 'you').locator('li.board-card', { has: a.locator('.card__name', { hasText: 'Goblin' }) });
     await expect(goblins, 'alice’s three Goblin tokens, each its own pile').toHaveCount(3, { timeout: 30_000 });
     const [g1, g2, g3] = (await goblins.evaluateAll((els) => els.map((e) => e.getAttribute('data-card-id')!))) as [string, string, string];
-    const bears = (await field(a, 'you').locator('li.board-card:not([data-token])', { has: a.locator('.card__name', { hasText: 'Grizzly Bears' }) }).getAttribute('data-card-id'))!;
+    const bears = (await field(a, 'you').locator('li.board-card', { has: a.locator('.card__name', { hasText: 'Grizzly Bears' }) }).getAttribute('data-card-id'))!;
     console.log(`[xn] goblins ${g1} ${g2} ${g3}, bears ${bears}`);
     await expect(field(a, 'you').locator('.board-card__copies'), 'nothing piled, nothing counted').toHaveCount(0);
 
