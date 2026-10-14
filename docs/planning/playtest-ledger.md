@@ -508,6 +508,7 @@ Items reported during the 2026-10-11 session and its playtest list. Statuses are
 | AF43 | (2026-10-14) "can we have the 'end turn' do a bigger visual pulse after ~10s of being 'active' (active meaning we decided the player has nothing left to do)" | 1 (related Y28) | open |  | End Turn pulses harder after 10 s of nothing to do; resets on any change | |
 | AF44 | (2026-10-14) "my request about 'deathtouch not following' a card when it taps i notice is still a problem. that should happen for all counters on a card including indicators like summoning sickness." | 2 (the first report never reached this ledger) | open |  | tap a creature with keywords, counters and summoning sickness: every mark stays with the card | |
 | AF45 | (2026-10-14) "let's just get rid of the token indicator, its noise." | 1 | open |  | a token shows no token badge | |
+| AF46 | (2026-10-14) "i need a visual for emblems. let's make it so they go around the player's avatar and hovering the players avatar shows all their emblems." | 1 | open |  | a planeswalker's emblem sits around its owner's avatar; hovering the avatar lists every emblem | |
 
 ## Asks outside a play-test — 2026-10-02
 
