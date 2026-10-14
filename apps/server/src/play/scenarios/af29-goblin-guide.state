@@ -1,0 +1,18 @@
+# af29-goblin-guide (the operator, 2026-10-13): "if goblin guide reveals top of deck. And then that card
+# is drawn, it should be revealed in the hand" and "when top of deck is revealed put it below the avatar".
+# Alice's Goblin Guide (haste) attacks at her own turn 1; its trigger makes bob reveal his top card,
+# Lightning Bolt — not a land, so it stays on top, revealed, until bob draws it on his turn 2. Shock under
+# it is never revealed to anyone. No creature on bob's side, so nothing blocks.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Goblin Guide;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Lightning Bolt;Shock;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
