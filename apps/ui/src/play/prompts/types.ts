@@ -59,7 +59,12 @@ export interface PromptProps<M extends PromptMethod> {
   /** Called once, with a reply that has already passed `REPLY_SCHEMAS[method]`. */
   onAnswer: (reply: ReplyOf<M>) => void;
   /** Names and combat facts for the ids an ask carries. See `lookup.ts`. */
-  lookup: PromptLookup;
+  lookup: PromptLookup;  /**
+   * What the answer being built would do to cards on the board, by card id, for
+   * the board to echo while the prompt is open. Only a prompt with such an
+   * answer calls it (`AssignCombatDamagePrompt`).
+   */
+  onPreview?: (amounts: ReadonlyMap<number, number>) => void;
 }
 
 /** Thrown when a component builds an answer the wire schema rejects — a bug in the component. */

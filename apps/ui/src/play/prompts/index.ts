@@ -59,7 +59,12 @@ export function isPromptMethod(method: string): method is PromptMethod {
 export interface AnyPromptProps {
   ask: AskOf<PromptMethod>;
   onAnswer: (reply: ReplyOf<PromptMethod>) => void;
-  lookup: PromptLookup;
+  lookup: PromptLookup;  /**
+   * What the answer being built would do to cards on the board, by card id, for
+   * the board to echo while the prompt is open. Only a prompt with such an
+   * answer calls it (`AssignCombatDamagePrompt`).
+   */
+  onPreview?: (amounts: ReadonlyMap<number, number>) => void;
 }
 
 /**

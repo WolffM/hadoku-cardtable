@@ -1409,3 +1409,26 @@ button.face__hit:focus-visible .seat__ring {
 .board-card[data-cast-forbidden] > .board-card__face > .card {
   isolation: isolate;
 }
+
+/*
+ * The damage a creature is about to take while its attacker's damage window is
+ * open (`BoardInteraction.damagePreview`): the floating combat number's own
+ * type — `numbers.css`'s `.board-number`, danger ink outlined in `--bg` — held
+ * still in the middle of the face, since nothing has happened yet.
+ */
+.board-card__damage-preview {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-card-badge, 1);
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--danger-ink);
+  -webkit-text-stroke: 3px var(--bg);
+  text-shadow: 0 0 3px var(--bg);
+  paint-order: stroke fill;
+  pointer-events: none;
+}

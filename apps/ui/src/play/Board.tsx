@@ -410,6 +410,7 @@ import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
+import { CheckMark, PlayerMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
 import { liftGhost, type Ghost } from './lift.ts';
@@ -572,6 +573,13 @@ export interface BoardInteraction {
    * `blockFocusOf`) — drawn as the block focus, never as picked. Absent outside the block step.
    */
   blockFocus?: number;
+  /**
+   * The combat damage the viewer's open damage window assigns, by card id
+   * (`live/match.ts`'s `damagePreviewOf`): each card shows the number it is
+   * about to take, in the floating combat numbers' own look (`numbers.css`),
+   * held still for as long as the window is open. Absent with no window open.
+   */
+  damagePreview?: ReadonlyMap<number, number>;
   /**
    * While this seat declares attackers or blockers: its creatures Forge says
    * can attack or block right now (`pushAttackerCandidates` /
@@ -2281,6 +2289,7 @@ function CardOnBoard({
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /** This card is one Forge already marked picked, not merely offered — see `BoardInteraction.highlighted`. */
   const picked = interaction !== undefined && (interaction.highlighted?.has(entry.id) ?? false);
+  const previewed = interaction?.damagePreview?.get(entry.id) ?? 0;
   /*
    * A card Forge is ASKING ABOUT belongs to Forge, and that — not "actionable" —
    * is what the arrangement stands down on.
@@ -2445,12 +2454,15 @@ function CardOnBoard({
       </button>
       {picked && (
         <span className="board-card__picked" aria-hidden="true" data-tip="Picked">
-          <svg className="board-card__picked-art" viewBox="0 0 16 16" focusable="false">
-            <path d="M6 10.8 3.2 8 2.3 8.9 6 12.7 14 4.7 13.1 3.7Z" />
-          </svg>
+          <CheckMark className="board-card__picked-art" />
         </span>
       )}
       {onBattlefield && <PowerToughness entry={entry} />}
+      {onBattlefield && previewed > 0 && (
+        <span className="board-card__damage-preview" data-damage-preview={previewed} aria-label={`${previewed} damage to be dealt`}>
+          {previewed}
+        </span>
+      )}
       {onBattlefield && <StateMarks entry={entry} />}
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
       {(onBattlefield || slot === 'hand') && (
@@ -2892,11 +2904,7 @@ function PlayerFace({
   const mark = (
     <>
       {avatar === null ? (
-        <svg className="face__art" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-          <circle className="face__plate" cx="24" cy="24" r="22.5" />
-          <circle className="face__brow" cx="24" cy="18" r="7.5" />
-          <path className="face__bust" d="M10.5 40.5a13.5 13.5 0 0 1 27 0Z" />
-        </svg>
+        <PlayerMark />
       ) : (
         /* `alt=""`: the seat's name is right beside it and says who this is. */
         <img className="face__art face__avatar" src={avatar} alt="" data-testid="seat-avatar" />

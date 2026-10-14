@@ -287,6 +287,8 @@ import {
   answerAsk,
   answerConfirm,
   blockFocusOf,
+  damagePreviewOf,
+  previewDamage,
   boardInteraction,
   combatCandidates,
   concede,
@@ -817,6 +819,7 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
       // unlabelled offer still draws its "ability #id" fallback.
       lookup={withAbilityLabels(lookupFromState(match.state), abilityLabelsOf(ask))}
       onAnswer={(reply) => answerAsk(match, ask.callId, ask.method, reply)}
+      onPreview={(amounts) => previewDamage(match, ask.callId, amounts)}
     />
   );
 }
@@ -2340,6 +2343,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      */
     highlighted: pickedOf(match),
     blockFocus: blockFocusOf(match) ?? undefined,
+    damagePreview: damagePreviewOf(match),
     combatReady: spectator ? undefined : combatCandidates(match),
     /*
      * Item 17.2's staging area: the hand card this seat clicked to cast,

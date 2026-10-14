@@ -25,13 +25,49 @@ function setAmount(slot: HTMLElement, n: number) {
 }
 
 describe('assignCombatDamage', () => {
-  it('lists the blockers in damage order with their lethal damage, then the defender', () => {
+  it('lists the blockers in damage order, each a card with a meter to its lethal damage, then the defender', () => {
     const { container, getByRole } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
     expect(getByRole('dialog').getAttribute('aria-label')).toBe('Assign damage dealt by Fire Urchin');
-    expect(slots(container).map((s) => s.querySelector('.prompt__amount-label')!.textContent)).toEqual([
-      'Goblin Replicalethal 2',
-      'Vulshok War Boarlethal 5',
-      'Alice (Host AI)past the blockers',
+    const rows = slots(container);
+    expect(rows.map((s) => s.querySelector('.prompt__amount-name')!.textContent)).toEqual(['Goblin Replica', 'Vulshok War Boar', 'Alice (Host AI)']);
+    expect(rows.map((s) => s.querySelector('[data-thumb]')!.getAttribute('data-thumb'))).toEqual(['card', 'card', 'player']);
+    expect(rows.slice(0, 2).map((s) => s.querySelector('[data-thumb]')!.getAttribute('data-card-id'))).toEqual(['67', '99']);
+    expect(rows.map((s) => s.querySelector('[data-testid="damage-meter"]')!.getAttribute('data-lethal'))).toEqual(['2', '5', null]);
+    expect(container.querySelector('[data-testid="damage-attacker"]')!.getAttribute('data-card-id')).toBe('21');
+    expect(container.querySelector('[data-testid="damage-left"]')!.textContent).toBe('5');
+  });
+
+  it('gives every row one stepper — −, the value, + — and no native spinner', () => {
+    const { container } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
+    for (const row of slots(container)) {
+      expect(row.querySelectorAll('.prompt__stepper')).toHaveLength(1);
+      expect(row.querySelectorAll('.prompt__stepper button')).toHaveLength(2);
+      expect(row.querySelectorAll('[role="spinbutton"]')).toHaveLength(1);
+      expect(row.querySelectorAll('input[type="number"]')).toHaveLength(0);
+    }
+  });
+
+  it('steps by the arrow keys, fills the meter to lethal and drains the pool', () => {
+    const { container } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
+    const [replica] = slots(container);
+    const value = within(replica!).getByRole('spinbutton');
+    fireEvent.keyDown(value, { key: 'ArrowUp' });
+    expect(replica!.querySelector('[data-testid="damage-meter"]')!.hasAttribute('data-reached')).toBe(false);
+    fireEvent.keyDown(value, { key: 'ArrowUp' });
+    expect((value as HTMLInputElement).value).toBe('2');
+    expect(replica!.querySelector('[data-testid="damage-meter"]')!.hasAttribute('data-reached')).toBe(true);
+    expect(container.querySelector('[data-testid="damage-left"]')!.textContent).toBe('3');
+    fireEvent.keyDown(value, { key: 'ArrowDown' });
+    expect((value as HTMLInputElement).value).toBe('1');
+  });
+
+  it('hands the board each blocker’s damage as it stands', () => {
+    const previews: ReadonlyMap<number, number>[] = [];
+    const { container } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'), undefined, (m) => previews.push(m));
+    setAmount(slots(container)[0]!, 2);
+    expect([...previews.at(-1)!]).toEqual([
+      [67, 2],
+      [99, 0],
     ]);
   });
 
@@ -72,27 +108,30 @@ describe('assignCombatDamage', () => {
     expectWireReply('assignCombatDamage', answers[0]);
   });
 
-  it('cannot send damage that sums wrong', () => {
+  it('cannot send damage that sums wrong — the pool says it, not a sentence', () => {
     const { container, submit, answers, getByTestId } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
     expect(submit().disabled).toBe(true);
     const [replica, boar] = slots(container);
     setAmount(replica!, 2);
     setAmount(boar!, 4);
     expect(submit().disabled).toBe(true);
-    expect(getByTestId('prompt-problems').textContent).toBe('assign exactly 5 (assigned 6)');
+    expect(getByTestId('damage-left').textContent).toBe('-1');
     fireEvent.click(submit());
     expect(answers).toEqual([]);
   });
 
-  it('cannot send damage past a blocker that lacks lethal', () => {
-    const { container, submit, answers, getByTestId } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
+  it('clears what may not take damage yet, as Forge’s own dialog does, so no order rule is ever a sentence', () => {
+    const { container, submit, answers, queryByTestId } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
     const [replica, boar, alice] = slots(container);
-    setAmount(replica!, 1);
+    setAmount(replica!, 2);
     setAmount(boar!, 2);
-    setAmount(alice!, 2);
+    setAmount(alice!, 1);
+    expect(within(alice!).getByRole('spinbutton')).toHaveProperty('value', '0');
+    setAmount(boar!, 3);
+    setAmount(replica!, 1);
+    expect(within(boar!).getByRole('spinbutton')).toHaveProperty('value', '0');
+    expect(queryByTestId('prompt-problems')).toBeNull();
     expect(submit().disabled).toBe(true);
-    expect(getByTestId('prompt-problems').textContent).toContain('blocker 2 cannot take damage');
-    expect(getByTestId('prompt-problems').textContent).toContain('before any tramples over');
     fireEvent.click(submit());
     expect(answers).toEqual([]);
   });
@@ -104,9 +143,10 @@ describe('assignCombatDamage', () => {
     expect(slots(container)).toHaveLength(2);
   });
 
-  it('says so when Forge would allow a skip it cannot yet express', () => {
-    const { getByTestId } = mountPrompt('assignCombatDamage', { ...askFor('assignCombatDamage'), maySkip: true });
-    expect(getByTestId('prompt-mayskip').textContent).toContain('not supported yet');
+  it('writes no note of its own when Forge would allow a skip', () => {
+    const { queryByTestId, getByRole } = mountPrompt('assignCombatDamage', { ...askFor('assignCombatDamage'), maySkip: true });
+    expect(queryByTestId('prompt-mayskip')).toBeNull();
+    expect(getByRole('dialog').textContent).not.toMatch(/not supported/i);
   });
 });
 

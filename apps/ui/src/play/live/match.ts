@@ -525,6 +525,12 @@ export interface LiveMatch {
    */
   reveal: RevealAsk | null;
   /**
+   * The damage an open `assignCombatDamage` window assigns as it stands, by
+   * card id, keyed to that ask's call — the board echoes it on the cards
+   * ({@link damagePreviewOf}). Stale the moment its ask is no longer open.
+   */
+  damagePreview: { callId: string; amounts: ReadonlyMap<number, number> } | null;
+  /**
    * Forge's current prompt line and button bar, from the `notify` frames
    * `showPromptMessage` and `updateButtons`.
    *
@@ -930,6 +936,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     view: null,
     asks: [],
     reveal: null,
+    damagePreview: null,
     prompt: null,
     promptCard: null,
     promptTrigger: null,
@@ -2699,6 +2706,19 @@ function showReveal(match: LiveMatch, frame: ServerFrame): void {
 }
 
 /** The reveal notice has been seen (its time ran out, or the player clicked it away). */
+/** The open damage window's assignment changed: the board echoes it ({@link damagePreviewOf}). */
+export function previewDamage(match: LiveMatch, callId: string, amounts: ReadonlyMap<number, number>): void {
+  match.damagePreview = { callId, amounts };
+  notify(match);
+}
+
+/** The damage each card is about to take, while the window that assigns it is open; undefined otherwise. */
+export function damagePreviewOf(match: LiveMatch): ReadonlyMap<number, number> | undefined {
+  const preview = match.damagePreview;
+  if (preview === null || !match.asks.some((a) => a.callId === preview.callId)) return undefined;
+  return preview.amounts;
+}
+
 export function dismissReveal(match: LiveMatch, callId: string): void {
   if (match.reveal?.callId !== callId) return;
   match.reveal = null;

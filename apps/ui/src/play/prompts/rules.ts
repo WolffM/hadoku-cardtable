@@ -439,6 +439,25 @@ export function combatDamageProblems(rules: CombatDamageRules, a: CombatAssignme
   return problems;
 }
 
+/**
+ * Forge's own `checkDamageQueue` (VAssignCombatDamage.java:330-348), run after
+ * every change: once a blocker is short of lethal, what comes after it that may
+ * not take damage yet is cleared — every later slot, or with override only the
+ * defender; nothing with divide-as-you-choose. So the order rules are never a
+ * reason OK is disabled: the window cannot hold an assignment that breaks them.
+ */
+export function settleCombatAssignment(rules: CombatDamageRules, a: CombatAssignment): CombatAssignment {
+  if (rules.unordered) return a;
+  let aliveBefore = false;
+  const blockers = rules.blockers.map((b, i) => {
+    const amount = a.blockers[i] ?? 0;
+    if (aliveBefore && !rules.overrideOrder) return 0;
+    aliveBefore ||= amount < b.lethal;
+    return amount;
+  });
+  return { blockers, defender: aliveBefore ? 0 : a.defender };
+}
+
 /** The wire reply for an assignment: every slot, zeros included, as Forge's `getDamageMap` does. */
 export function combatDamageReply(rules: CombatDamageRules, a: CombatAssignment): unknown[] {
   const entries: unknown[] = rules.blockers.map((b, i) => ({

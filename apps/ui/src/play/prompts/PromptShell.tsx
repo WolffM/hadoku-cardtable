@@ -18,6 +18,7 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
+import { PlayerMark } from '../marks.tsx';
 import type { DraftCard } from '@hadoku/shared';
 
 import './prompts.css';
@@ -33,11 +34,19 @@ export interface PromptShellProps {
   label?: string;
   message?: ReactNode;
   problems?: readonly string[];
+  /**
+   * For a sheet whose body DRAWS why it cannot be answered yet instead of
+   * writing it (the damage window's pool): OK is disabled while this is true,
+   * and no reason line is written or reserved.
+   */
+  drawnBlock?: boolean;
   submitLabel?: string;
   /** Omit for a prompt that answers without a button (the zone prompts). */
   onSubmit?: () => void;
   /** Buttons beside submit, e.g. "Decline" on an optional choice. */
   actions?: ReactNode;
+  /** The card the whole question is about, drawn beside the title and the message (`promptThumb`). */
+  face?: ReactNode;
   children?: ReactNode;
 }
 
@@ -85,15 +94,29 @@ export function PromptShell({
   label,
   message,
   problems = [],
+  drawnBlock,
   submitLabel = 'OK',
   onSubmit,
   actions,
+  face,
   children,
 }: PromptShellProps) {
   return (
     <section className="prompt" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
-      <PromptTitle title={title} />
-      {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
+      {face === undefined ? (
+        <>
+          <PromptTitle title={title} />
+          {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
+        </>
+      ) : (
+        <div className="prompt__head">
+          {face}
+          <div className="prompt__head-text">
+            <PromptTitle title={title} />
+            {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
+          </div>
+        </div>
+      )}
       <div className="prompt__body">{children}</div>
       {/*
        * Kept in the layout, empty, on any sheet with an OK: the sheet is centred
@@ -101,7 +124,7 @@ export function PromptShell({
        * pointer — the second click of a double click landed beside the row it
        * meant (measured on a real Cryptic Command's mode sheet).
        */}
-      {(onSubmit !== undefined || problems.length > 0) && (
+      {((onSubmit !== undefined && drawnBlock === undefined) || problems.length > 0) && (
         <ul className="prompt__problems" data-testid="prompt-problems" data-empty={problems.length === 0 || undefined} aria-live="polite">
           {problems.length === 0 ? (
             <li aria-hidden="true">{'\u00a0'}</li>
@@ -118,7 +141,7 @@ export function PromptShell({
               type="button"
               className="prompt__submit"
               data-testid="prompt-submit"
-              disabled={problems.length > 0}
+              disabled={problems.length > 0 || drawnBlock === true}
               onClick={onSubmit}
             >
               {submitLabel}
@@ -255,6 +278,27 @@ export function nameFromForgeLabel(label: string, forgeId: number): string {
 export function cardOrWordsFace(lookup: PromptLookup, cardId: number | undefined, label?: string): ReactNode {
   if (cardId !== undefined) return <CardTile card={promptTileFor(lookup, cardId, label)} />;
   return <span className="prompt__item">{label}</span>;
+}
+
+/**
+ * A card or a player a prompt names, as a small face: the board's own
+ * `CardTile` (art through the same lookup as every prompt tile,
+ * `promptTileFor`) or the seat's own `PlayerMark`. The wrapper carries the bare
+ * forge id, so hovering it opens the one expanded card view as a grid tile does.
+ */
+export function promptThumb(lookup: PromptLookup, ref: { kind: string; id: number }, testId?: string): ReactNode {
+  if (ref.kind === 'player') {
+    return (
+      <span className="prompt__thumb" data-thumb="player" data-player-id={ref.id} data-testid={testId}>
+        <PlayerMark />
+      </span>
+    );
+  }
+  return (
+    <span className="prompt__thumb" data-thumb="card" data-card-id={ref.id} data-testid={testId}>
+      <CardTile card={promptTileFor(lookup, ref.id)} />
+    </span>
+  );
 }
 
 /**

@@ -122,8 +122,7 @@
  * Two signals, never one: the ring FILLS and the row's border changes. A chosen
  * row is not identified by colour alone.
  */
-.prompt__list label,
-.prompt__amount label {
+.prompt__list label {
   display: flex;
   flex: 1;
   align-items: center;
@@ -201,8 +200,7 @@
   gap: 4px;
 }
 
-.prompt__list > li,
-.prompt__amount {
+.prompt__list > li {
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -462,8 +460,7 @@
 }
 
 
-.prompt__item,
-.prompt__amount-label {
+.prompt__item {
   flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -481,14 +478,224 @@
   color: var(--ink-faint);
 }
 
+/*
+ * ── dividing an amount: one row, one line, one stepper ─────────────────
+ *
+ * The operator, 2026-10-14, of the combat damage window: *"a bit ugly"* — one
+ * row inline and the next wrapped, a native spinner AND −/+ on each. A row is
+ * a three-column grid: the face (`promptThumb`), the name over its meter, the
+ * stepper. The stepper is one fixed width, so the steppers of every row stand
+ * in one column; the name gives way (ellipsis) before anything wraps. The
+ * prompt column is narrow (about 216px at 1280×800, `../live/live.css`), and
+ * four recipients fit it whole.
+ */
+.prompt__amount {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 5px 2px 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+.prompt__amount:not([data-has-face]) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: 8px;
+}
+
+.prompt__amount-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 32px;
+}
+
+/* Two lines at most, so a long name never makes its row taller than the others. */
+.prompt__amount-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 13px;
+}
+
 .prompt__stepper {
   display: inline-flex;
-  gap: 4px;
   align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+.prompt__stepper button {
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.prompt__stepper button:disabled {
+  color: var(--ink-faint);
+  cursor: default;
 }
 
 .prompt__stepper input {
-  width: 4em;
+  width: 2em;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-inline: 1px solid var(--line-soft);
+  background: var(--bg-card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.prompt__stepper input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/*
+ * A card or player a prompt names, small: the board's own tile at a card's
+ * proportion, its art covering the text tile underneath.
+ */
+.prompt__thumb {
+  --card-w: 23px;
+
+  display: block;
+  flex: none;
+  width: var(--card-w);
+}
+
+.prompt__thumb .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+  padding: 0;
+  gap: 0;
+  border-radius: 3px;
+  font-size: 4px;
+}
+
+.prompt__thumb[data-thumb='player'] {
+  aspect-ratio: 488 / 680;
+  display: flex;
+  align-items: center;
+}
+
+.prompt__thumb .face__art {
+  width: 100%;
+  height: auto;
+}
+
+/* The question's own card, beside the title. */
+.prompt__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.prompt__head > .prompt__thumb {
+  --card-w: 30px;
+}
+
+.prompt__head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.prompt__head .prompt__title {
+  font-size: 14px;
+}
+
+/*
+ * Damage as pips. A pip is one point; filled is assigned. Reaching lethal is
+ * its own state, and colour is not what says it: the theme's `--success` is an
+ * accent of each theme's own choosing — yellow in dark and coffee, orange in
+ * ocean, pink in pink-light — and reads as a warning as often as as "done". So
+ * every fill is the accent as ink (`--accent-ink`, 4.5:1 or better on a card in
+ * all 18 themes, `screens/tokens.test.ts`), and lethal is the bar complete,
+ * the board's own tick after it and the row outlined in the accent, the
+ * border a chosen row gets everywhere in this file. A point past lethal is
+ * overkill, drawn hollow.
+ */
+.prompt__meter {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 5px;
+  min-width: 0;
+}
+
+.prompt__pip {
+  flex: 1 1 0;
+  max-width: 14px;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.prompt__pip[data-filled] {
+  background: var(--accent-ink);
+}
+
+.prompt__pip[data-over][data-filled] {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--accent-ink);
+}
+
+.prompt__meter-done {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin: -4px 0;
+  fill: var(--accent-ink);
+}
+
+.prompt__amount:has(> .prompt__amount-label [data-reached]) {
+  border-color: var(--accent);
+}
+
+/* The pool still to assign, which drains as damage is placed. */
+.prompt__pool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+}
+
+.prompt__pool .prompt__meter {
+  flex: 1 1 auto;
+}
+
+
+.prompt__pool-left {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt__pool[data-done] .prompt__pool-left {
+  color: var(--accent-ink);
 }
 
 .prompt__dual {

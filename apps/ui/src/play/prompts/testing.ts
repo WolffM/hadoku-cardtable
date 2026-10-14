@@ -20,10 +20,15 @@ import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import type { AskOf, PromptMethod, ReplyOf } from './types.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
 
-export function mountPrompt<M extends PromptMethod>(method: M, ask: AskOf<M>, lookup: PromptLookup = fixtureLookup()) {
+export function mountPrompt<M extends PromptMethod>(
+  method: M,
+  ask: AskOf<M>,
+  lookup: PromptLookup = fixtureLookup(),
+  onPreview?: (amounts: ReadonlyMap<number, number>) => void,
+) {
   const answers: ReplyOf<M>[] = [];
   const component = PROMPT_COMPONENTS[method];
-  const utils = render(createElement(component, { ask, lookup, onAnswer: (r: ReplyOf<M>) => answers.push(r) }));
+  const utils = render(createElement(component, { ask, lookup, onAnswer: (r: ReplyOf<M>) => answers.push(r), onPreview }));
   const submit = () => utils.getByTestId('prompt-submit') as HTMLButtonElement;
   return { ...utils, answers, submit };
 }
