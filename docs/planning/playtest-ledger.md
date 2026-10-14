@@ -503,7 +503,7 @@ Items reported during the 2026-10-11 session and its playtest list. Statuses are
 | AF38 | (2026-10-13) "enemy planeswalker is showing as clickable not sure" | 1 | open |  | the opponent's planeswalker is not drawn as clickable unless it is a legal choice | |
 | AF39 | (2026-10-13) "when moving the last card onto a stacked pile, the piles moves to the left one space" | 1 (related AE15/AE25) | **landed, awaiting operator ✅** (lane LY) |  | a pile stays in its column when its last loose copy joins it | |
 | AF40 | (2026-10-13) "let's squish cards a bit more before we make them take up another row" | 1 | **landed, awaiting operator ✅** (lane LY) |  | a row compresses further before it wraps | |
-| AF41 | (2026-10-13) "let's go further back with the formats, try to back as far as possible." | 1 (related AC3/AE32) | open |  | the format picker reaches the earliest years we can field decks for | |
+| AF41 | (2026-10-13) "let's go further back with the formats, try to back as far as possible." | 1 (related AC3/AE32) | **landed, awaiting operator ✅** (lane FM) |  | the format picker reaches the earliest years we can field decks for | |
 
 ## Asks outside a play-test — 2026-10-02
 
