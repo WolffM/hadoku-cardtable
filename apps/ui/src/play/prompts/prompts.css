@@ -540,6 +540,10 @@
   color: var(--warn);
 }
 
+.prompt__problems[data-empty] {
+  visibility: hidden;
+}
+
 .prompt__actions {
   display: flex;
   flex-wrap: wrap;

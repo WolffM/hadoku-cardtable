@@ -95,11 +95,19 @@ export function PromptShell({
       <PromptTitle title={title} />
       {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
       <div className="prompt__body">{children}</div>
-      {problems.length > 0 && (
-        <ul className="prompt__problems" data-testid="prompt-problems" aria-live="polite">
-          {problems.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
+      {/*
+       * Kept in the layout, empty, on any sheet with an OK: the sheet is centred
+       * in its host, so a reason line coming and going moved every row under the
+       * pointer — the second click of a double click landed beside the row it
+       * meant (measured on a real Cryptic Command's mode sheet).
+       */}
+      {(onSubmit !== undefined || problems.length > 0) && (
+        <ul className="prompt__problems" data-testid="prompt-problems" data-empty={problems.length === 0 || undefined} aria-live="polite">
+          {problems.length === 0 ? (
+            <li aria-hidden="true">{'\u00a0'}</li>
+          ) : (
+            problems.map((p) => <li key={p}>{p}</li>)
+          )}
         </ul>
       )}
       {(onSubmit !== undefined || actions !== undefined) && (

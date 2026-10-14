@@ -55,6 +55,14 @@ describe('PromptShell — OK and Clear sit outside the scroll, always visible', 
     expect(body.contains(problems)).toBe(false);
   });
 
+  it('keeps the problems row in the layout, empty and hidden, while an OK sheet has no problem — the rows do not move when the last one goes', () => {
+    const { container } = render(createElement(PromptShell, { method: 'getChoices', title: 'Choose a mode', onSubmit: () => {}, problems: [] }, createElement('ul', null)));
+    const problems = container.querySelector<HTMLElement>('[data-testid="prompt-problems"]')!;
+    expect(problems.dataset.empty).toBe('true');
+    expect(problems.textContent).toBe('\u00a0');
+    expect(/\.prompt__problems\[data-empty\] \{([^}]*)\}/.exec(PROMPTS_CSS)?.[1]).toMatch(/visibility:\s*hidden/);
+  });
+
   it('a dialog with no children (confirm, showConfirmDialog) still renders an empty body harmlessly', () => {
     const { container } = render(
       createElement(PromptShell, { method: 'confirm', title: 'Question', actions: createElement('button', null, 'Yes') }),
