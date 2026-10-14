@@ -20,9 +20,16 @@
  * revealed card while the notice is up, and a tile rebuilt from it then lost
  * its printing: the art turned into another printing's under the seat's eyes
  * (prompts.jvm's reveal, a TRK Forest redrawn as SOI's).
+ *
+ * It opens with a beat (`data-reveal-beat`, `REVEAL_BEAT_MS`): the card is shown before anything
+ * the reveal causes is drawn — `../live/numbers.ts` holds a resolution's hits until the beat is over
+ * and sends them from this card (the operator, 2026-10-14, on Sorin, Grim Nemesis's +1: *"we need
+ * some kind of reveal and then damage dealt animation"*).
  */
 
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+
+import { noteRevealGone, noteRevealShown, REVEAL_BEAT_MS } from '../motion.ts';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
@@ -39,9 +46,20 @@ export function RevealNotice({ reveal, lookup, onDone }: { reveal: AskOf<'getCho
       card: c.ref?.kind === 'card' ? { id: c.ref.id, tile: promptTileFor(lookup, c.ref.id, nameFromForgeLabel(c.label, c.ref.id)) } : null,
     })),
   );
+  const [beat, setBeat] = useState(true);
+  const cards = useRef<HTMLUListElement>(null);
+  useLayoutEffect(() => {
+    const first = cards.current?.firstElementChild ?? null;
+    noteRevealShown(first);
+    return () => noteRevealGone(first);
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => setBeat(false), REVEAL_BEAT_MS);
+    return () => clearTimeout(timer);
+  }, []);
   return (
-    <div className="reveal-notice" data-testid="live-reveal" data-call-id={reveal.callId} role="status">
-      <ul className="reveal-notice__cards">
+    <div className="reveal-notice" data-testid="live-reveal" data-call-id={reveal.callId} data-reveal-beat={beat ? '' : undefined} role="status">
+      <ul className="reveal-notice__cards" ref={cards}>
         {rows.map((c) =>
           c.card !== null ? (
             <li key={c.key} data-card-id={c.card.id}>

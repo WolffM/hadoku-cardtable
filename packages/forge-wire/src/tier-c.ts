@@ -723,6 +723,15 @@ export const WaitingEffectsSchema = z.array(z.strictObject({ source: JavaInt, te
 
 export type WaitingEffects = z.infer<typeof WaitingEffectsSchema>;
 
+/**
+ * The bridge's fourth addition beside the packet: which card made each token on a battlefield
+ * (`PlayBridge.java`'s `tokenSourcesJson`, off `Card.getTokenSpawningAbility`'s host) as
+ * `[tokenId, sourceId]` pairs — the view itself never says. A full snapshot each time.
+ */
+export const TokenSourcesSchema = z.array(z.tuple([JavaInt, JavaInt]));
+
+export type TokenSources = z.infer<typeof TokenSourcesSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -741,6 +750,7 @@ export const SetGameViewSchema = z.strictObject({
     stackTargetSpells: StackTargetSpellsSchema.optional(),
     pendingTriggers: PendingTriggersSchema.optional(),
     waitingEffects: WaitingEffectsSchema.optional(),
+    tokenSources: TokenSourcesSchema.optional(),
   }),
 });
 
@@ -774,6 +784,7 @@ export const ApplyDeltaSchema = z.strictObject({
     stackTargetSpells: StackTargetSpellsSchema.optional(),
     pendingTriggers: PendingTriggersSchema.optional(),
     waitingEffects: WaitingEffectsSchema.optional(),
+    tokenSources: TokenSourcesSchema.optional(),
   }),
 });
 

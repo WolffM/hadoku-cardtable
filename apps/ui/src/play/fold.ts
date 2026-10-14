@@ -50,11 +50,15 @@ export type PendingTriggers = readonly { id: number; hostCard: number; controlle
  */
 export type WaitingEffects = readonly { source: number; text: string; kind: 'trigger' | 'effect' }[];
 
-/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers} and {@link WaitingEffects} as sibling fields. */
+/** `PlayBridge.java`'s `tokenSources`, the packet's fourth sibling: `[tokenId, sourceId]`, which card made each token (`packages/forge-wire`'s `TokenSourcesSchema`). */
+export type TokenSources = readonly (readonly [number, number])[];
+
+/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects} and {@link TokenSources} as sibling fields. */
 export interface FoldablePacket extends WirePacket {
   stackTargetSpells?: StackTargetSpellPairs;
   pendingTriggers?: PendingTriggers;
   waitingEffects?: WaitingEffects;
+  tokenSources?: TokenSources;
 }
 
 export interface FoldResult {
@@ -77,6 +81,8 @@ export interface FoldResult {
   pendingTriggers: PendingTriggers;
   /** The latest `waitingEffects` snapshot folded — replaced when present, as `stackTargetSpells` is. */
   waitingEffects: WaitingEffects;
+  /** The latest `tokenSources` snapshot folded, as a `tokenId → sourceId` map — replaced when present. */
+  tokenSources: ReadonlyMap<number, number>;
 }
 
 export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
@@ -86,6 +92,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let stackTargetSpells = new Map<number, number>();
   let pendingTriggers: PendingTriggers = [];
   let waitingEffects: WaitingEffects = [];
+  let tokenSources = new Map<number, number>();
 
   for (const packet of packets) {
     if (packet.stackTargetSpells !== undefined) {
@@ -93,6 +100,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     }
     if (packet.pendingTriggers !== undefined) pendingTriggers = packet.pendingTriggers;
     if (packet.waitingEffects !== undefined) waitingEffects = packet.waitingEffects;
+    if (packet.tokenSources !== undefined) tokenSources = new Map(packet.tokenSources);
     for (const [key, obj] of Object.entries(packet.newObjects)) {
       if (isAnnotationKey(key)) continue;
       state.set(key, withoutNulls(obj));
@@ -115,7 +123,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects };
+  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

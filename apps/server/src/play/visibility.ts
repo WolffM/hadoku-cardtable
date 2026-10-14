@@ -149,11 +149,14 @@ export type PendingTriggers = readonly { id: number; hostCard: number; controlle
 /** `PlayBridge.java`'s `waitingEffects` — `packages/forge-wire/src/tier-c.ts`'s `WaitingEffectsSchema`. */
 export type WaitingEffects = readonly { source: number; text: string; kind: 'trigger' | 'effect' }[];
 
+/** `PlayBridge.java`'s `tokenSources` — `packages/forge-wire/src/tier-c.ts`'s `TokenSourcesSchema`: `[tokenId, sourceId]`. */
+export type TokenSources = readonly (readonly [number, number])[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -666,6 +669,13 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return { waitingEffects: effects.filter((e) => cardVisibility(raw, zones, e.source, who) === 'full') };
 	}
 
+	/** Which card made each token, for the sources this seat may see: the pair names that card. */
+	function tokensSeen(tokens: TokenSources | undefined): { tokenSources?: TokenSources } {
+		if (tokens === undefined) return {};
+		const zones = indexZones(raw);
+		return { tokenSources: tokens.filter(([, source]) => cardVisibility(raw, zones, source, who) === 'full') };
+	}
+
 	return {
 		get viewer() {
 			return who;
@@ -708,6 +718,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
+							...tokensSeen(frame.payload.tokenSources),
 						},
 					};
 				}
@@ -722,6 +733,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
+							...tokensSeen(frame.payload.tokenSources),
 						},
 					};
 			}

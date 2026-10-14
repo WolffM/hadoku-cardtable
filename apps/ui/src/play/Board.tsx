@@ -3599,9 +3599,12 @@ export function Board({
   interaction,
   boardLayout = 'single',
   onOpenSettings,
+  onEffect,
 }: {
   view: BoardView;
   interaction?: BoardInteraction;
+  /** What each view's change was drawn as (`live/numbers.ts`'s beats) — the seat's `effect` client event. */
+  onEffect?: (data: Record<string, string | number | boolean>) => void;
   /** The viewer's own face opens the game's settings: `LiveBoard` owns them. */
   onOpenSettings?: (from: Element) => void;
   /**
@@ -3679,10 +3682,12 @@ export function Board({
    * the module diffs it against the one before and spawns whatever changed.
    */
   const numbers = useRef<ReturnType<typeof installNumbers> | null>(null);
+  const reportEffect = useRef(onEffect);
+  reportEffect.current = onEffect;
   useEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
-    const handle = installNumbers(el);
+    const handle = installNumbers(el, { report: (data) => reportEffect.current?.(data) });
     numbers.current = handle;
     return () => {
       numbers.current = null;

@@ -260,6 +260,11 @@ export interface BoardCard {
    */
   waiting?: BoardCardWaiting[];
   /**
+   * The card that made this token (`PlayBridge.java`'s `tokenSources`): the host of the ability that
+   * created it — Kalitas for the Zombie its replacement makes. Absent for a card Forge keeps none for.
+   */
+  createdBy?: number;
+  /**
    * The operator: *"i played 'Cry of Contrition' which has haunt. i expect
    * to see the 'haunt' keyword on my creature … is there an easier way to
    * always get that effect name to popup rather than having to hardcode all
@@ -711,6 +716,8 @@ export interface AdaptOptions {
   pendingTriggers?: PendingTriggers;
   /** `PlayBridge.java`'s `waitingEffects` (`../fold.ts`), read onto each battlefield source's `BoardCard.waiting`. */
   waitingEffects?: WaitingEffects;
+  /** `PlayBridge.java`'s `tokenSources` (`../fold.ts`), read onto each battlefield token's `BoardCard.createdBy`. */
+  tokenSources?: ReadonlyMap<number, number>;
   /**
    * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):
    * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,
@@ -1531,6 +1538,7 @@ export function toBoardView(
     stackTargetSpells,
     pendingTriggers,
     waitingEffects,
+    tokenSources,
     promptCard = null,
   }: AdaptOptions,
 ): BoardView {
@@ -1549,8 +1557,10 @@ export function toBoardView(
     for (const id of ids) {
       const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, printedType, playerName);
       const waiting = onBattlefield ? waitingOn.get(id) : undefined;
+      const createdBy = onBattlefield ? tokenSources?.get(id) : undefined;
       if (c === null) missing.push(id);
-      else out.push(waiting === undefined ? c : { ...c, waiting });
+      else if (waiting === undefined && createdBy === undefined) out.push(c);
+      else out.push({ ...c, ...(waiting === undefined ? {} : { waiting }), ...(createdBy === undefined ? {} : { createdBy }) });
     }
     return out;
   };

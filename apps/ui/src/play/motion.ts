@@ -16,3 +16,47 @@ export const PLACEMENT_WAIT_MS = 15_000;
  * same 300ms in their transitions.
  */
 export const GLIDE_MS = 300;
+
+/*
+ * A resolution's effects, as beats (the operator, 2026-10-14: Kalitas's Zombie and Sorin, Grim
+ * Nemesis's reveal-then-drain were "too instant"). Forge applies a resolution in one frame; the
+ * board draws it in Forge's order — a reveal is shown, then what it caused travels to its target;
+ * a created permanent travels from what made it — each beat short, the whole ≲1.2 s. Nothing here
+ * holds input: an ask that arrives meanwhile is drawn at once, over the motion.
+ */
+
+/** A revealed card's beat in the reveal notice, before anything it caused is drawn. */
+export const REVEAL_BEAT_MS = 450;
+/** A hit (damage, life lost or gained) travelling from its source to the player or creature it changes. */
+export const HIT_MS = 280;
+/** Between two hits, or two created permanents, of one resolution. */
+export const BEAT_STAGGER_MS = 120;
+
+/** The last reveal notice drawn: when, and its first card — the element while it is up, its box once it has gone. */
+export interface RevealBeat {
+  readonly at: number;
+  card: Element | null;
+  box: DOMRect | null;
+}
+
+let lastReveal: RevealBeat | null = null;
+
+/** The reveal notice has just been drawn (`prompts/RevealNotice.tsx`): its beat starts now, from `card`. */
+export function noteRevealShown(card: Element | null, at = Date.now()): void {
+  lastReveal = { at, card, box: null };
+}
+
+/**
+ * The reveal notice is going (a decision took its place, or it was clicked away) — still in the
+ * document, so its card's box is kept: the resolution its reveal belongs to may be drawn after it.
+ */
+export function noteRevealGone(card: Element | null): void {
+  if (lastReveal === null || card === null || lastReveal.card !== card) return;
+  lastReveal.box = card.getBoundingClientRect();
+  lastReveal.card = null;
+}
+
+/** The last reveal notice drawn, or null before any. */
+export function lastRevealBeat(): RevealBeat | null {
+  return lastReveal;
+}

@@ -1989,6 +1989,34 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		expect(other?.envelope.displayOnly).toBeUndefined();
 	});
 
+	it('what Forge did after the reveal reaches the seat after it: every frame but an ask waits behind a held reveal, in order', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-6', [940]) });
+		const life = {
+			kind: 'notify' as const,
+			method: 'applyDelta' as const,
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: {},
+					objectDeltas: { [String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Turn: { t: 'int', v: 7 } } },
+					events: [],
+				},
+			},
+		};
+		const before = envelopesFor(h, 0).length;
+		h.host.push({ t: 'frame', seat: 0, frame: life });
+		expect(envelopesFor(h, 0).length, 'held while the reveal is').toBe(before);
+
+		vi.advanceTimersByTime(1000);
+		const after = envelopesFor(h, 0).slice(before).map((e) => (e.frame.kind === 'ask' ? `reveal ${(e.frame as { callId: string }).callId}` : e.frame.method));
+		expect(after, 'the reveal first, then what its resolution did').toEqual(['reveal x-reveal-6', 'applyDelta']);
+	});
+
 	it('two reveals back to back: the first is shown too, not dropped for the second', () => {
 		vi.useFakeTimers();
 		const h = harness();

@@ -9,7 +9,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
+import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
+import { GLIDE_MS, HIT_MS, noteRevealShown, REVEAL_BEAT_MS } from '../motion.ts';
 import {
   DEATH_FADE_MS,
   DEATH_FADE_START_MS,
@@ -97,25 +98,25 @@ function view(players: BoardPlayer[]): BoardView {
 describe('diffViews', () => {
   it('the first view ever seen diffs to nothing — there is no "before" to compare it against', () => {
     const v = view([player(0, 20), player(1, 20)]);
-    expect(diffViews(null, v)).toEqual({ life: [], damage: [], deaths: [] });
+    expect(diffViews(null, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [] });
   });
 
   it('a life change is reported for the player it happened to, and nobody else', () => {
     const before = view([player(0, 20), player(1, 20)]);
     const after = view([player(0, 17), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], deaths: [] });
+    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], deaths: [], resolved: [], arrivals: [] });
   });
 
   it('a damage change on a creature still on a battlefield is reported, keyed by card id and owner', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [card(7, 1)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], deaths: [] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], deaths: [], resolved: [], arrivals: [] });
   });
 
   it('a creature that leaves the battlefield AND lands in a graveyard in the same view is a death, carrying the damage it last had', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 3)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [], deaths: [{ cardId: 7, ownerId: 0, damage: 3 }] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [], deaths: [{ cardId: 7, ownerId: 0, damage: 3 }], resolved: [], arrivals: [] });
   });
 
   it('a creature that leaves the battlefield and is NOT in any graveyard (bounced to a hand, say) is not a death', () => {
@@ -126,7 +127,7 @@ describe('diffViews', () => {
 
   it('nothing moving at all diffs to nothing', () => {
     const v = view([player(0, 20, { battlefield: [card(7, 2)] }), player(1, 20)]);
-    expect(diffViews(v, v)).toEqual({ life: [], damage: [], deaths: [] });
+    expect(diffViews(v, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [] });
   });
 });
 
@@ -443,5 +444,136 @@ describe('installNumbers: dispose', () => {
     handle.notify(view([player(0, 20, { isViewer: true }), player(1, 10)]));
     vi.advanceTimersByTime(STACK_STAGGER_MS + RISE_MS);
     expect(overlay.querySelectorAll('.board-number')).toHaveLength(0);
+  });
+});
+
+/* ── a resolution's effects, in beats ─────────────────────────────────── */
+
+function item(id: number, sourceCardId: number | null): StackEntry {
+  return { id, description: '', sourceCardId, sourceName: null, sourceCard: null, controllerName: null, isAbility: true };
+}
+
+function withStack(v: BoardView, stack: StackEntry[]): BoardView {
+  return { ...v, stack };
+}
+
+describe('diffViews: what a resolution did', () => {
+  it('an item gone from the stack is resolved; a token from nowhere is an arrival from the card that made it', () => {
+    const before = withStack(view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]), [item(40, 7)]);
+    const zombie = { ...card(50, 0), token: true, createdBy: 7 };
+    const after = view([player(0, 20, { battlefield: [card(7, 0), zombie] }), player(1, 20)]);
+    const diff = diffViews(before, after);
+    expect(diff.resolved.map((i) => i.id)).toEqual([40]);
+    expect(diff.arrivals).toEqual([{ cardId: 50, source: 7 }]);
+  });
+
+  it('a card played from a hand the viewer cannot see is not an arrival — the other seat’s landing draws it', () => {
+    const before = view([player(0, 20), { ...player(1, 20), handCount: 3, libraryCount: 30 }]);
+    const after = view([player(0, 20), { ...player(1, 20, { battlefield: [card(9, 0)] }), handCount: 2, libraryCount: 30 }]);
+    expect(diffViews(before, after).arrivals).toEqual([]);
+  });
+
+  it('a card a resolution put onto a battlefield out of a library is an arrival, maker unknown', () => {
+    const before = withStack(view([{ ...player(0, 20), libraryCount: 30 }, player(1, 20)]), [item(41, null)]);
+    const after = view([{ ...player(0, 20, { battlefield: [card(9, 0)] }), libraryCount: 29 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null }]);
+  });
+
+  it('a board being set up is not an arrival: permanents and tokens no resolution and no maker explain', () => {
+    const before = view([{ ...player(0, 20), libraryCount: 0 }, { ...player(1, 20), libraryCount: 0 }]);
+    const after = view([
+      { ...player(0, 20, { battlefield: [card(9, 0), { ...card(10, 0), token: true }] }), libraryCount: 6 },
+      { ...player(1, 20, { battlefield: [card(11, 0)] }), libraryCount: 6 },
+    ]);
+    expect(diffViews(before, after).arrivals).toEqual([]);
+    const shuffledIn = view([{ ...player(0, 20), libraryCount: 40 }, player(1, 20)]);
+    const dealt = view([{ ...player(0, 20, { battlefield: [card(9, 0)] }), libraryCount: 33 }, player(1, 20)]);
+    expect(diffViews(shuffledIn, dealt).arrivals, 'not even when a library shrank with it').toEqual([]);
+  });
+});
+
+describe('installNumbers: a resolution’s hits', () => {
+  function sorinBoard(): { canvas: HTMLElement; overlay: HTMLElement; face: HTMLElement; life: HTMLElement } {
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="8" data-card-id="8"></li>');
+    canvas.querySelector<HTMLElement>('[data-board-card="8"]')!.getBoundingClientRect = () => rect({ left: 600, top: 500, width: 60, height: 84 });
+    const face = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!;
+    return { canvas, overlay: canvas.querySelector<HTMLElement>('[data-board-overlay]')!, face, life: face.querySelector<HTMLElement>('[data-testid="life"]')! };
+  }
+
+  it('life lost to a resolving ability travels from its source to the face; the number and the counter wait for it to land', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, face, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    life.textContent = '18'; // React draws the new total with the frame
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+
+    const mark = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(mark?.dataset.hit, 'a hit leaves the source at once').toBe('player:1');
+    expect(mark!.style.left, 'aimed at the face').toBe('130px');
+    expect(overlay.querySelectorAll('.board-number'), 'no number before it lands').toHaveLength(0);
+    expect(life.textContent, 'the counter still reads the old total').toBe('20');
+
+    vi.advanceTimersByTime(HIT_MS);
+    expect(overlay.querySelector('.effect-hit'), 'the mark is gone on landing').toBeNull();
+    expect(face.hasAttribute('data-hit-flash'), 'the face flashes').toBe(true);
+    expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    vi.advanceTimersByTime(2 * TICK_STEP_MS);
+    expect(life.textContent).toBe('18');
+    handle.dispose();
+  });
+
+  it('a reveal shown while the item was on the stack goes first: the hit waits out its beat and comes from the revealed card', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    const revealed = document.createElement('li');
+    revealed.getBoundingClientRect = () => rect({ left: 200, top: 300, width: 96, height: 134 });
+    document.body.append(revealed);
+    noteRevealShown(revealed);
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+
+    expect(overlay.querySelector('.effect-hit'), 'nothing travels during the reveal’s beat').toBeNull();
+    vi.advanceTimersByTime(REVEAL_BEAT_MS);
+    const mark = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(mark, 'then the hit').not.toBeNull();
+    // It was placed at the revealed card's centre (248, 367) before being sent on its way.
+    expect(mark!.dataset.hitTravelling).toBe('');
+    vi.advanceTimersByTime(HIT_MS);
+    expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    handle.dispose();
+  });
+
+  it('a token arrives from the card that made it: marked while it travels, hidden in its slot until it lands', () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]));
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="50" data-card-id="50"></li>');
+    const token = canvas.querySelector<HTMLElement>('[data-board-card="50"]')!;
+    token.getBoundingClientRect = () => rect({ left: 700, top: 500, width: 60, height: 84 });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0), { ...card(50, 0), token: true, createdBy: 8 }] }), player(1, 20)]));
+
+    expect(token.getAttribute('data-arriving-from'), 'from the maker').toBe('8');
+    expect(document.querySelector('[data-cast-ghost], [data-cast-lift]'), 'a stand-in travels from Kalitas').not.toBeNull();
+    expect(token.hasAttribute('data-cast-landing'), 'the token itself waits hidden in its slot').toBe(true);
+    vi.advanceTimersByTime(GLIDE_MS);
+    expect(token.hasAttribute('data-arriving-from')).toBe(false);
+    expect(token.hasAttribute('data-cast-landing'), 'and shows once the stand-in is there').toBe(false);
+    handle.dispose();
+  });
+
+  it('reduced motion: nothing travels — the face flashes and the number appears in place', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, face } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => true, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    expect(overlay.querySelector('.effect-hit')).toBeNull();
+    expect(face.hasAttribute('data-hit-flash')).toBe(true);
+    expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    handle.dispose();
   });
 });

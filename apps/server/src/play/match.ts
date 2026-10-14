@@ -501,6 +501,14 @@ export interface SeatState {
 	 */
 	pendingReveal: { frame: RevealFrame; timer: NodeJS.Timeout } | null;
 	/**
+	 * Every frame but an ask Forge sent while {@link pendingReveal} was held, raw and in order: what
+	 * the reveal's resolution did — its state, its log lines, the next bar — comes AFTER the reveal on
+	 * the seat's screen, as it did in Forge. Handled the moment the reveal is shown or folded
+	 * ({@link Match.releaseReveal}) — at most `PENDING_REVEAL_FOLD_MS` late. Without it, Sorin, Grim
+	 * Nemesis's +1 drew bob's life loss before the card that caused it.
+	 */
+	behindReveal: unknown[];
+	/**
 	 * Synthetic asks this seat currently holds, keyed by the SYNTHETIC callId
 	 * (`chooseSingleEntityForEffect`'s own) — each maps back to the TWO real
 	 * Forge `getChoices` asks (the reveal, always answered `[]`, and the real
@@ -1102,6 +1110,7 @@ export class Match {
 			chosenTargets: new Set(),
 			clicked: null,
 			pendingReveal: null,
+			behindReveal: [],
 			mergedChoice: new Map(),
 			restOnTop: null,
 			modesLeft: null,
@@ -2045,6 +2054,10 @@ export class Match {
 		}
 		const head = raw as { kind?: unknown; method?: unknown; callId?: unknown } | null;
 		const askId = head?.kind === 'ask' && typeof head.callId === 'string' ? head.callId : null;
+		if (askId === null && s.pendingReveal !== null) {
+			s.behindReveal.push(raw);
+			return;
+		}
 		if (askId !== null) {
 			if (s.seenAsks.has(askId)) {
 				this.deps.log({ evt: 'ask-duplicate', matchId: this.id, seat, callId: askId, method: head?.method });
@@ -2132,11 +2145,13 @@ export class Match {
 					const orphaned = s.pendingReveal;
 					s.pendingReveal = null;
 					this.showReveal(s, orphaned.frame);
+					this.releaseReveal(s);
 				}
 				const timer = setTimeout(() => {
 					if (s.pendingReveal?.frame !== reveal) return;
 					s.pendingReveal = null;
 					this.showReveal(s, reveal);
+					this.releaseReveal(s);
 				}, PENDING_REVEAL_FOLD_MS);
 				timer.unref();
 				s.pendingReveal = { frame: reveal, timer };
@@ -2158,6 +2173,8 @@ export class Match {
 				s.pendingReveal = null;
 				const chooseIds = frame.method === 'getChoices' ? choiceCardIds(frame.choices) : [];
 				if (frame.method === 'getChoices' && frame.max === 1 && chooseIds.length > 0 && isCardSubset(chooseIds, choiceCardIds(pending.frame.choices))) {
+					// What Forge sent between the reveal and its choice came before the choice.
+					this.releaseReveal(s);
 					this.openMergedChoice(s, pending.frame, frame);
 					return;
 				}
@@ -2167,6 +2184,7 @@ export class Match {
 				// than let it vanish — then `frame` still needs its own ordinary
 				// handling below.
 				this.showReveal(s, pending.frame);
+				this.releaseReveal(s);
 			}
 			this.openAsk(s, frame);
 			return;
@@ -2653,6 +2671,8 @@ export class Match {
 	 * the line named the card on the opponent's screen before its board did.
 	 */
 	private releaseLog(s: SeatState, all: boolean): void {
+		// What Forge wrote after a held reveal waits for it too, like every frame behind it.
+		if (!all && s.pendingReveal !== null) return;
 		while (s.heldLog.length > 0) {
 			const next = s.heldLog[0]!;
 			if (!all && next.log.cards.some((c) => s.projector.visibilityOf(c.id) === 'hidden')) break;
@@ -3243,6 +3263,14 @@ export class Match {
 	 * 2026-10-09: *"why is it necessary for this to require an 'ok' press at
 	 * all?"* — the game never waits on that OK.
 	 */
+	/** The frames held behind a reveal ({@link SeatState.behindReveal}), handled in Forge's order now that it is out. */
+	private releaseReveal(s: SeatState): void {
+		const held = s.behindReveal;
+		s.behindReveal = [];
+		for (const raw of held) this.onFrame(s.seat, raw);
+		this.releaseLog(s, false);
+	}
+
 	private showReveal(s: SeatState, frame: RevealFrame): void {
 		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices) });
 		this.send(s, frame, true);

@@ -2851,7 +2851,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           {alert}
         </p>
       )}
-      {visualView !== null && <Board view={visualView} interaction={interaction} boardLayout={boardLayout} onOpenSettings={settings.toggle} />}
+      {visualView !== null && (
+        <Board
+          view={visualView}
+          interaction={interaction}
+          boardLayout={boardLayout}
+          onOpenSettings={settings.toggle}
+          // A watcher sends none (`reportClient`'s own rule).
+          onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}
+        />
+      )}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && (
         <PhaseRail view={match.view} stop={match.phaseStop} onStop={spectator ? null : (phase) => setPhaseStop(match, phase)} />

@@ -702,6 +702,8 @@ export interface LiveMatch {
   pendingTriggers: PendingTriggers;
   /** What resolved abilities left waiting on the cards that made them (`../fold.ts`'s `WaitingEffects`), drawn as tags on those cards. */
   waitingEffects: WaitingEffects;
+  /** Which card made each token on a battlefield (`../fold.ts`'s `tokenSources`): a created token arrives from it. */
+  tokenSources: ReadonlyMap<number, number>;
   /**
    * How many identical triggers still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
@@ -960,6 +962,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     stackTargetSpells: new Map(),
     pendingTriggers: [],
     waitingEffects: [],
+    tokenSources: new Map(),
     promptTargetMore: 0,
     sameTarget: false,
     avatarByPlayerId: null,
@@ -2507,7 +2510,12 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
  * Rule 1 ("newObjects replace") makes that exact: every object is re-created
  * as it stands, in the order it stands.
  */
-function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readonly (readonly [number, number])[]; pendingTriggers: PendingTriggers; waitingEffects: WaitingEffects } {
+function statePacket(match: LiveMatch): WirePacket & {
+  stackTargetSpells: readonly (readonly [number, number])[];
+  pendingTriggers: PendingTriggers;
+  waitingEffects: WaitingEffects;
+  tokenSources: readonly (readonly [number, number])[];
+} {
   return {
     seq: match.forgeSeq,
     checksum: 0,
@@ -2523,6 +2531,7 @@ function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readon
     stackTargetSpells: [...match.stackTargetSpells],
     pendingTriggers: match.pendingTriggers,
     waitingEffects: match.waitingEffects,
+    tokenSources: [...match.tokenSources],
   };
 }
 
@@ -2539,7 +2548,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources } = frame.payload;
       packets = [
         {
           seq: sequenceNumber,
@@ -2551,12 +2560,13 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
           stackTargetSpells,
           pendingTriggers,
           waitingEffects,
+          tokenSources,
         },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects } = frame.payload;
-      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects });
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources } = frame.payload;
+      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources });
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2578,6 +2588,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.stackTargetSpells = folded.stackTargetSpells;
   match.pendingTriggers = folded.pendingTriggers;
   match.waitingEffects = folded.waitingEffects;
+  match.tokenSources = folded.tokenSources;
   redraw(match);
 }
 
@@ -2596,6 +2607,7 @@ function redraw(match: LiveMatch): void {
           stackTargetSpells: match.stackTargetSpells,
           pendingTriggers: match.pendingTriggers,
           waitingEffects: match.waitingEffects,
+          tokenSources: match.tokenSources,
           promptCard: match.promptCard,
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
@@ -2917,6 +2929,7 @@ function discardLocal(match: LiveMatch): void {
   match.stackTargetSpells = new Map();
   match.pendingTriggers = [];
   match.waitingEffects = [];
+  match.tokenSources = new Map();
   match.promptTargetMore = 0;
   match.sameTarget = false;
   match.avatarByPlayerId = null;

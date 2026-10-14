@@ -33,8 +33,11 @@ export const ClientEventSchema = z
      * `stand-in`: the other seat's back, standing in for a play of theirs, taken
      * down by a clock (`how: 'grace' | 'timeout'`) rather than by its card — how
      * long it stood, so a back left on the board is read from the log.
+     * `effect`: what a view's change was drawn as — a resolution's reveal beat,
+     * its hits and the permanents it made arriving (`live/numbers.ts`), with
+     * how long each waited, so "it was too instant" is read from the log.
      */
-    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect']),
     data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
   })
   .strict();

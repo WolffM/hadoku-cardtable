@@ -886,6 +886,47 @@
   height: auto;
 }
 
+/*
+ * The reveal's beat (`RevealNotice.tsx`, `REVEAL_BEAT_MS`): the card is put in front of both players
+ * before what it causes is drawn — it grows into its place and glows. Never past its own size, so the
+ * scrolling list never overflows for it.
+ */
+.reveal-notice[data-reveal-beat] .reveal-notice__cards > li {
+  animation: reveal-beat 450ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes reveal-beat {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  55% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 18px 6px var(--accent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-notice[data-reveal-beat] .reveal-notice__cards > li {
+    animation: reveal-beat-reduced 450ms linear;
+  }
+}
+
+@keyframes reveal-beat-reduced {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 /* The card a yes/no is about, when the board has none to point at (`ConfirmPrompt.tsx`'s `card`). */
 .confirm__card {
   --card-w: 7rem;

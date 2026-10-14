@@ -65,9 +65,44 @@
  * changes the counter: `tickSteps` is still computed, but applied in one
  * frame instead of stepped — the floating number itself still rises exactly
  * the same.
+ *
+ * ## A resolution's effects, in beats
+ *
+ * Forge applies a resolution in ONE frame: the spell or ability leaves the
+ * stack, the life total moves, the token is on the battlefield (the operator,
+ * 2026-10-14: Kalitas's Zombie "was too instant"; Sorin, Grim Nemesis's +1
+ * "reveals a card and then does damage. we need some kind of reveal and then
+ * damage dealt animation"). In a frame where a stack item resolved
+ * (`ViewDiff.resolved`), what it changed is drawn in Forge's order instead:
+ *
+ *  1. a reveal first — when the reveal notice (`../prompts/RevealNotice.tsx`)
+ *     was drawn while that item was on the stack, nothing below starts until
+ *     its beat (`REVEAL_BEAT_MS`) is over, and its card is where the hits
+ *     come from;
+ *  2. each hit — a player's life or a creature's damage moving — travels from
+ *     that card (else the resolving item's source on the battlefield, else
+ *     where the item was drawn on the stack) to its target as a
+ *     `[data-hit]` mark over `HIT_MS`, staggered `BEAT_STAGGER_MS`; the target
+ *     flashes (`data-hit-flash`) and only then does its number rise and its
+ *     life counter tick;
+ *  3. each permanent that entered from nowhere the viewer could see
+ *     (`ViewDiff.arrivals`: a token, or a card out of a library) travels from
+ *     the card that made it (`BoardCard.createdBy`, the bridge's
+ *     `tokenSources`; else the resolving item, as above) into its slot —
+ *     the played card's own trip, `gestures/cast.ts`'s `landCastGhost` — its
+ *     row element marked `data-arriving-from` while it does. A token made
+ *     outside any resolution (a replacement during combat damage) arrives
+ *     the same way, from its maker. A permanent no resolution and no maker
+ *     explains (a board being set up) is not an arrival.
+ *
+ * Every mark is in the overlay or the stand-in layer, never a transform on a
+ * card in a row (table-fit). Reduced motion: no travel — the target flashes,
+ * an arrival fades in, the number appears in place.
  */
 
-import type { BoardView } from '../adapter.ts';
+import type { BoardView, StackEntry } from '../adapter.ts';
+import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, REVEAL_BEAT_MS } from '../motion.ts';
+import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
 
 /* ── timing and thresholds, as Settled fixed them ────────────────────── */
@@ -84,6 +119,14 @@ export const LIFE_COLOUR_MS = 1500;
 /** Half of `RISE_MS` — the number's own halfway point, where a dying creature's number turns toward the graveyard. */
 export const DEATH_FADE_START_MS = RISE_MS / 2;
 export const DEATH_FADE_MS = 420;
+/** How long what a hit reached flashes (`numbers.css`'s `effect-hit-flash`). */
+export const HIT_FLASH_MS = 360;
+/** An arrival with nowhere to travel from fades in over this long. */
+export const ARRIVE_FADE_MS = 240;
+/** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
+export const ARRIVING_ATTR = 'data-arriving-from';
+/** A reveal drawn in the same paint as the stack item it belongs to can be noted a few ms before the item is. */
+const SAME_PAINT_MS = 150;
 
 /* ── pure: diffing two views ──────────────────────────────────────────── */
 
@@ -114,10 +157,20 @@ export interface DeathChange {
   readonly damage: number;
 }
 
+/** A permanent on a battlefield now that the viewer saw nowhere before: a token, or a card out of a library. */
+export interface Arrival {
+  readonly cardId: number;
+  /** The card that made it (`BoardCard.createdBy`), when Forge keeps one. */
+  readonly source: number | null;
+}
+
 export interface ViewDiff {
   readonly life: readonly LifeChange[];
   readonly damage: readonly DamageChange[];
   readonly deaths: readonly DeathChange[];
+  /** The stack items that left the stack in this view, top first: what resolved (or was countered). */
+  readonly resolved: readonly StackEntry[];
+  readonly arrivals: readonly Arrival[];
 }
 
 function battlefieldDamage(view: BoardView): Map<number, { damage: number; ownerId: number }> {
@@ -139,7 +192,7 @@ function graveyardOwners(view: BoardView): Map<number, number> {
  * the moment the board first mounts, which nothing changed.
  */
 export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
-  if (prev === null) return { life: [], damage: [], deaths: [] };
+  if (prev === null) return { life: [], damage: [], deaths: [], resolved: [], arrivals: [] };
 
   const life: LifeChange[] = [];
   for (const player of next.players) {
@@ -162,7 +215,34 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
     const ownerId = nowInGraveyard.get(cardId);
     if (ownerId !== undefined) deaths.push({ cardId, ownerId, damage: was.damage });
   }
-  return { life, damage, deaths };
+
+  const stillOn = new Set(next.stack.map((item) => item.id));
+  const resolved = prev.stack.filter((item) => !stillOn.has(item.id));
+
+  // Everywhere the viewer could see a card before: a battlefield, a graveyard, an exile, a hand they
+  // see, a library top shown, the stack. A card on a battlefield now and in none of those came from
+  // nowhere visible — a hidden hand excepted: a card played from one is the other seat's landing.
+  const seen = new Set<number>(prevDamage.keys());
+  for (const player of prev.players) {
+    for (const card of [...player.graveyard, ...player.exile, ...(player.hand ?? [])]) seen.add(card.id);
+    if (player.libraryTop !== undefined) seen.add(player.libraryTop.id);
+  }
+  for (const item of prev.stack) if (item.sourceCardId !== null) seen.add(item.sourceCardId);
+  const arrivals: Arrival[] = [];
+  // Something made it: a maker Forge names (Kalitas's Zombie in combat damage), or a resolution in
+  // this same view. Never a board being set up — a match's opening state, a scenario putting its
+  // permanents in place as its libraries fill — which no resolution or maker explains: drawn as
+  // arrivals, every card on the table was hidden until its beat and could not be hovered or dragged.
+  for (const player of next.players) {
+    const before = prev.players.find((p) => p.id === player.id);
+    const fromLibrary = before !== undefined && player.libraryCount < before.libraryCount;
+    for (const card of player.battlefield) {
+      if (seen.has(card.id)) continue;
+      const made = card.createdBy !== undefined || (resolved.length > 0 && (card.token || fromLibrary));
+      if (made) arrivals.push({ cardId: card.id, source: card.createdBy ?? null });
+    }
+  }
+  return { life, damage, deaths, resolved, arrivals };
 }
 
 /* ── pure: stacking (simultaneous numbers at one anchor) ─────────────── */
@@ -210,6 +290,8 @@ export interface NumbersHost {
   readonly reducedMotion?: () => boolean;
   /** Defaults to `false` (paced). */
   readonly fastMode?: () => boolean;
+  /** Told what each view's beats were (the seat's `effect` client event): one call per view that drew any. */
+  readonly report?: (data: Record<string, string | number | boolean>) => void;
 }
 
 export interface NumbersHandle {
@@ -250,6 +332,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * `DamageChange` is applied; read, once, by the death it may precede.
    */
   const lastSeenBox = new Map<number, DOMRect>();
+  /** When each stack item was first drawn here — a reveal shown after it was put there is its reveal. */
+  const firstSeen = new Map<number, number>();
+  /** Where each stack item was drawn as of the last view (`placed.ts`'s cards): a resolved one is gone from there by the next. */
+  const stackBoxes = new Map<number, DOMRect>();
+  /** The marks a beat put on a row card or a face, cleared on dispose. */
+  const marked = new Set<Element>();
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
   const fast = (): boolean => host.fastMode?.() ?? false;
@@ -259,6 +347,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
   function faceEl(playerId: number): HTMLElement | null {
     return canvas.querySelector<HTMLElement>(`[data-player-face][data-player-id="${playerId}"]`);
+  }
+  function battlefieldCard(cardId: number): HTMLElement | null {
+    return canvas.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${cardId}"]`);
   }
   function ptEl(cardId: number): HTMLElement | null {
     return canvas.querySelector<HTMLElement>(`[data-card-id="${cardId}"] .board-card__pt`);
@@ -277,6 +368,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (live) fn();
     }, ms);
     timers.add(timer);
+  }
+
+  /** `fn` now when its beat is now — so a beat with nothing before it starts in the frame that caused it — else at its beat. */
+  function atBeat(fn: () => void, delayMs: number): void {
+    if (delayMs <= 0) fn();
+    else schedule(fn, delayMs);
   }
 
   function bumpActive(key: string, by: 1 | -1): number {
@@ -377,11 +474,128 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     });
   }
 
+  /** The flash a hit leaves on what it reached (a face, a card), once. */
+  function flash(el: Element | null, colour: NumberColour): void {
+    if (el === null) return;
+    el.removeAttribute('data-hit-flash');
+    void (el as HTMLElement).offsetWidth;
+    el.setAttribute('data-hit-flash', colour);
+    marked.add(el);
+    schedule(() => el.removeAttribute('data-hit-flash'), HIT_FLASH_MS);
+  }
+
+  /** Where a resolving item's effects come from: its source on the battlefield, else where it was drawn on the stack. */
+  function sourceOf(item: StackEntry | undefined): Boxed | null {
+    if (item === undefined) return null;
+    const onField = item.sourceCardId === null ? null : battlefieldCard(item.sourceCardId);
+    return onField ?? stackBoxes.get(item.id) ?? null;
+  }
+
+  /** The reveal this resolution made, when its notice was drawn while the item was on the stack: the card, and how long its beat still runs. */
+  function revealOf(item: StackEntry | undefined): { at: Boxed; waitMs: number } | null {
+    const beat = lastRevealBeat();
+    if (item === undefined || beat === null) return null;
+    const put = firstSeen.get(item.id);
+    if (put === undefined || beat.at < put - SAME_PAINT_MS) return null;
+    const at = beat.card?.isConnected === true ? beat.card : beat.box;
+    if (at === null) return null;
+    return { at, waitMs: Math.max(0, beat.at + REVEAL_BEAT_MS - Date.now()) };
+  }
+
+  /** One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn. */
+  function hit(from: Boxed, to: Element, key: string, colour: NumberColour, delayMs: number, land: () => void): void {
+    const root = overlay();
+    if (root === null || reduced()) {
+      atBeat(() => {
+        flash(to, colour);
+        land();
+      }, delayMs);
+      return;
+    }
+    atBeat(() => {
+      if (!to.isConnected) return land();
+      const box = root.getBoundingClientRect();
+      const start = centreIn(from, box);
+      const end = centreIn(to, box);
+      const mark = document.createElement('div');
+      mark.className = 'effect-hit';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.dataset.hit = key;
+      mark.dataset.numberColour = colour;
+      mark.style.left = `${start.x}px`;
+      mark.style.top = `${start.y}px`;
+      root.append(mark);
+      void mark.offsetWidth;
+      mark.style.left = `${end.x}px`;
+      mark.style.top = `${end.y}px`;
+      mark.dataset.hitTravelling = '';
+      schedule(() => {
+        mark.remove();
+        flash(to, colour);
+        land();
+      }, HIT_MS);
+    }, delayMs);
+  }
+
+  /** A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in place when there is nowhere to come from. */
+  function arrive(cardId: number, source: number | null, from: Boxed | null, delayMs: number): void {
+    const el = battlefieldCard(cardId);
+    if (el === null) return;
+    el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+    marked.add(el);
+    const settle = (): void => {
+      el.removeAttribute(ARRIVING_ATTR);
+      el.removeAttribute(CAST_LANDING_ATTR);
+    };
+    if (from === null || reduced()) {
+      // Fades in where it is (`numbers.css`), from the moment its beat comes.
+      el.setAttribute(CAST_LANDING_ATTR, '');
+      atBeat(() => {
+        el.removeAttribute(CAST_LANDING_ATTR);
+        schedule(settle, ARRIVE_FADE_MS);
+      }, delayMs);
+      return;
+    }
+    el.setAttribute(CAST_LANDING_ATTR, '');
+    atBeat(() => {
+      // React may have drawn the row again meanwhile: the card as it is drawn now.
+      const now = el.isConnected ? el : battlefieldCard(cardId);
+      if (now === null) return settle();
+      now.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+      marked.add(now);
+      now.removeAttribute(CAST_LANDING_ATTR);
+      const ghost = parkedGhost(canvas, cardId);
+      if (ghost === null) return settle();
+      ghost.removeAttribute(ARRIVING_ATTR);
+      const r = boxOf(from);
+      landCastGhost(canvas, null, ghost, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, now);
+      schedule(() => now.removeAttribute(ARRIVING_ATTR), GLIDE_MS);
+    }, delayMs);
+  }
+
   function apply(diff: ViewDiff): void {
+    const item = diff.resolved[0];
+    const reveal = revealOf(item);
+    const origin = reveal?.at ?? sourceOf(item);
+    const startMs = reveal?.waitMs ?? 0;
+    let beat = 0;
+    const nextDelay = (): number => startMs + beat++ * BEAT_STAGGER_MS;
+
     for (const change of diff.life) {
-      animateLifeCounter(change.playerId, change.from, change.to);
       const face = faceEl(change.playerId);
-      if (face !== null) spawn({ anchorKey: `face:${change.playerId}`, at: face, kind: 'life', delta: change.to - change.from });
+      if (face === null) continue;
+      const land = (): void => {
+        animateLifeCounter(change.playerId, change.from, change.to);
+        spawn({ anchorKey: `face:${change.playerId}`, at: face, kind: 'life', delta: change.to - change.from });
+      };
+      if (origin === null || item === undefined) {
+        land();
+        continue;
+      }
+      // Until the hit lands, the counter still reads what it read before the resolution.
+      const span = face.querySelector<HTMLElement>('[data-testid="life"]');
+      if (span !== null) span.textContent = String(change.from);
+      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), nextDelay(), land);
     }
     for (const change of diff.damage) {
       const at = ptEl(change.cardId);
@@ -391,7 +605,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // A decrease is a cleanup wipe, never a hit: not an event of its own — the badge already
       // reads less (or no) damage marked now.
       if (delta <= 0) continue;
-      spawn({ anchorKey: `card:${change.cardId}`, at, kind: 'damage', delta });
+      const land = (): void => spawn({ anchorKey: `card:${change.cardId}`, at, kind: 'damage', delta });
+      const card = battlefieldCard(change.cardId);
+      if (origin === null || item === undefined || card === null) land();
+      else hit(origin, card, `card:${change.cardId}`, 'danger', nextDelay(), land);
     }
     for (const death of diff.deaths) {
       // "Nothing for 0": destroyed outright, sacrificed, or simply left the
@@ -409,6 +626,40 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         dying: { ownerId: death.ownerId },
       });
     }
+    let fromMaker = 0;
+    for (const arrival of diff.arrivals) {
+      const maker = arrival.source === null ? null : battlefieldCard(arrival.source);
+      if (maker !== null) fromMaker += 1;
+      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), nextDelay());
+    }
+    if (beat > 0 || reveal !== null) {
+      host.report?.({
+        what: 'beats',
+        resolved: item?.id ?? -1,
+        source: item?.sourceCardId ?? -1,
+        reveal: reveal !== null,
+        revealWaitMs: Math.round(startMs),
+        from: reveal !== null ? 'reveal' : origin === null ? 'none' : 'source',
+        hits: beat - diff.arrivals.length,
+        arrivals: diff.arrivals.length,
+        fromMaker,
+        totalMs: beat === 0 ? 0 : Math.round(startMs + (beat - 1) * BEAT_STAGGER_MS + Math.max(HIT_MS, GLIDE_MS)),
+        motion: !reduced(),
+      });
+    }
+  }
+
+  /** What the next view's diff reads of this one's stack: when each item was first drawn, and where. */
+  function noteStack(view: BoardView): void {
+    const now = Date.now();
+    const ids = new Set(view.stack.map((item) => item.id));
+    for (const id of ids) if (!firstSeen.has(id)) firstSeen.set(id, now);
+    for (const id of [...firstSeen.keys()]) if (!ids.has(id)) firstSeen.delete(id);
+    stackBoxes.clear();
+    for (const el of canvas.querySelectorAll<HTMLElement>('[data-placed-spell]:not([data-placed-leaving])')) {
+      const id = Number(el.getAttribute('data-placed-spell'));
+      if (Number.isFinite(id)) stackBoxes.set(id, el.getBoundingClientRect());
+    }
   }
 
   return {
@@ -417,6 +668,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const diff = diffViews(prevView, view);
       prevView = view;
       apply(diff);
+      noteStack(view);
     },
     dispose() {
       live = false;
@@ -430,6 +682,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       canvas.querySelectorAll<HTMLElement>('[data-testid="life"][data-number-life-colour]').forEach((el) => {
         delete el.dataset.numberLifeColour;
       });
+      overlay()
+        ?.querySelectorAll('.effect-hit')
+        .forEach((el) => el.remove());
+      for (const el of marked) {
+        el.removeAttribute('data-hit-flash');
+        el.removeAttribute(ARRIVING_ATTR);
+      }
+      marked.clear();
     },
   };
 }

@@ -639,6 +639,40 @@ public final class PlayBridge {
         if (pending != null) { payload.add("pendingTriggers", pending); }
         final JsonArray effects = waitingEffectsJson(game);
         if (effects != null) { payload.add("waitingEffects", effects); }
+        final JsonArray tokens = tokenSourcesJson(game);
+        if (tokens != null) { payload.add("tokenSources", tokens); }
+    }
+
+    /**
+     * Which card made each token on a battlefield: {@code [tokenId, sourceId]}, the host of the ability
+     * that created it ({@code Card.getTokenSpawningAbility}, set by {@code TokenEffectBase}) — Kalitas,
+     * Traitor of Ghet for the Zombie its replacement makes, a planeswalker for its loyalty ability's
+     * token. Never on the view: Forge's {@code CardView} has no property for it. A token whose ability
+     * Forge does not keep (a copy, a token made by a game rule) is left out. A full snapshot each time.
+     *
+     * <p>Null when the battlefields cannot be read (the game thread moved them under the read): the
+     * frame then omits the field and the client keeps what it had.
+     */
+    static JsonArray tokenSourcesJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                for (final forge.game.card.Card c : p.getCardsIn(ZoneType.Battlefield)) {
+                    final SpellAbility made = c.isToken() ? c.getTokenSpawningAbility() : null;
+                    final forge.game.card.Card host = made == null ? null : made.getHostCard();
+                    if (host == null || host.getId() == c.getId()) { continue; }
+                    final JsonArray pair = new JsonArray();
+                    pair.add(c.getId());
+                    pair.add(host.getId());
+                    out.add(pair);
+                }
+            }
+            return out;
+        } catch (final RuntimeException e) {
+            System.err.println("[bridge] tokenSources: could not read the battlefields (" + e + ")");
+            return null;
+        }
     }
 
     /**
