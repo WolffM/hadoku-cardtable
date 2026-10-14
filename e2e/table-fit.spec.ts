@@ -2551,11 +2551,11 @@ test(W19_TITLE, async ({ browser }) => {
     const page = alice.page;
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    // The active seat's ring is in the markup for both seats at all times
-    // (`.seat[data-active] .seat__ring` is what `card.css` lights); whichever
-    // one is active this scenario (seat 0, per `activeplayer=human`), both
-    // rings exist in the DOM and both are measured — a clip is a property of
-    // the MARKUP and the bar's clip box, not of which one happens to glow.
+    // The priority ring is in the markup for both seats at all times
+    // (`.seat[data-priority] .seat__ring` is what `card.css` lights); whichever
+    // one Forge is waiting on, both rings exist in the DOM and both are
+    // measured — a clip is a property of the MARKUP and the bar's clip box,
+    // not of which one happens to glow.
     const measurements = await page.evaluate(() => {
       const out: { viewer: string | null; clippedTop: number; clippedBottom: number; clippedLeft: number; clippedRight: number }[] = [];
       for (const ring of Array.from(document.querySelectorAll<HTMLElement>('.seat__ring'))) {

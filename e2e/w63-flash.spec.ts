@@ -6,10 +6,11 @@
  * Measured against a real match (`docs/planning/wave63-evidence/F/flash.md`):
  * the rail's `data-whose`, the control buttons' `disabled` state and End
  * Turn's `data-highlight` never move during an auto-passed
- * `UNTAP`/`UPKEEP`/`DRAW`. What flashes is `Board.tsx`'s own `.seat__flag`
- * ("priority"), fed by Forge's raw per-frame `HasPriority` wire fact. The fix
- * (`LiveBoard.tsx`'s `withGatedPriority`) draws it only while that seat
- * genuinely has something open, without touching `Board.tsx` or `adapter.ts`.
+ * `UNTAP`/`UPKEEP`/`DRAW`. What flashed was the seat's priority mark (the
+ * avatar ring now, the seat section's `data-priority`), fed by Forge's raw
+ * per-frame `HasPriority` wire fact. The fix (`LiveBoard.tsx`'s
+ * `withGatedPriority`) draws it only while that seat genuinely has something
+ * open.
  *
  * This spec watches all three original candidates (as a sanity check) plus
  * the real one, across a NORMAL turn's `UNTAP`/`UPKEEP`/`DRAW` (nobody
@@ -84,18 +85,17 @@ async function watchFlash(page: Page): Promise<void> {
       for (const m of muts) if (m.attributeName === 'disabled') push('next-phase-disabled', String(nextPhase.hasAttribute('disabled')));
     }).observe(nextPhase, { attributes: true, attributeFilter: ['disabled'] });
 
-    // `Board.tsx`'s own `.seat__flag`, fed by `BoardPlayer.hasPriority` —
-    // read-only here (this spec never touches `Board.tsx` or `adapter.ts`);
-    // the fix lives in `LiveBoard.tsx`, the view it hands to `<Board>`.
+    // The seat's priority ring (`data-priority` on its section), fed by
+    // `BoardPlayer.hasPriority` as `LiveBoard.tsx`'s `withGatedPriority` gates it.
     for (const [label, scope] of [
       ['you', '.seat[data-viewer]'],
       ['opp', '.seat:not([data-viewer])'],
     ] as const) {
-      const seat = document.querySelector<HTMLElement>(`${scope} .seat__counts`);
+      const seat = document.querySelector<HTMLElement>(scope);
       if (seat === null) continue;
-      const read = () => String(seat.querySelector('.seat__flag:not(.seat__flag--lost)') !== null);
+      const read = () => String(seat.hasAttribute('data-priority'));
       push(`priority-flag-${label}` as FlashRow['signal'], read());
-      new MutationObserver(() => push(`priority-flag-${label}` as FlashRow['signal'], read())).observe(seat, { childList: true, subtree: true });
+      new MutationObserver(() => push(`priority-flag-${label}` as FlashRow['signal'], read())).observe(seat, { attributes: true, attributeFilter: ['data-priority'] });
     }
   });
 }

@@ -1919,16 +1919,12 @@ export function nothingToDecide(match: LiveMatch): boolean {
 
 /**
  * This seat genuinely has something to decide right now, rather than Forge's
- * raw per-frame `hasPriority` ping-ponging through an auto-passed exchange
- * (T9, from wave 63 lane F's own finding: *"the rail, the control bar and End
- * Turn's highlight never move during an auto-passed UNTAP/UPKEEP/DRAW. What
- * moves is `Board.tsx`'s own `.seat__flag`"*). `LiveBoard.tsx`'s priority-flag
- * gate is the one caller; `ownDecisionOpen` and `waitingForOpponent` are its
- * own `myOwnDecisionOpen`/`isWaitingForOpponent(match)` — both already
- * computed there for the pop-ups themselves, so this is the one place that
- * COMBINES them into the flag's fact, replacing the inline combining step
- * ("F's seam filter") that used to live beside `withGatedPriority`'s call.
- * `withGatedPriority` itself (the view transform) is unchanged.
+ * raw per-frame `hasPriority` ping-ponging through an auto-passed exchange.
+ * `LiveBoard.tsx`'s `withGatedPriority` turns it into the avatar ring;
+ * `ownDecisionOpen` and `waitingForOpponent` are its own
+ * `myOwnDecisionOpen`/`isWaitingForOpponent(match)` — both already computed
+ * there for the pop-ups themselves, so this is the one place that COMBINES
+ * them.
  *
  * `'you'`: that own-decision set, or the bare case neither covers — Forge's
  * bar simply live with nothing else open (an ordinary "your move, nothing on

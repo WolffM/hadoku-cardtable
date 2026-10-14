@@ -1268,32 +1268,34 @@ export function useCrawlGuard(phase: string | null): boolean {
 }
 
 /**
- * The operator: *"i notice priority flashing back and forth in
- * untap/upkeep/draw... can you unify that behavior."* Measured against a
- * real match (`docs/planning/wave63-evidence/F/flash.md`): the rail, the
- * control bar and End Turn's highlight never move during an auto-passed
- * `UNTAP`/`UPKEEP`/`DRAW`. What moves is `Board.tsx`'s own `.seat__flag`
- * ("priority"), fed by `BoardPlayer.hasPriority` — Forge's raw, per-frame
- * wire fact, which ping-pongs through every auto-passed priority exchange
- * whether or not either seat is actually being asked anything.
+ * Who the avatar ring says Forge is waiting on (`Board.tsx`'s `data-priority`,
+ * `card.css`'s `.seat__ring`). The operator, 2026-10-13: *"the circle around
+ * the avatar should indicate priority."*
  *
- * `view`, with each player's `hasPriority` gated on `open` — true only while
- * that seat genuinely has something to decide. An auto-passed window draws
- * no flag at all; a real one draws exactly Forge's own value. The caller
- * passes `match.ts`'s own `genuinelyAsked(match, seat, …)` (T9) for both
- * arguments, which keeps them mutually exclusive, so at most one flag is ever
- * lit. `view` itself, unchanged, when nothing needs correcting.
+ * Not Forge's raw per-frame `HasPriority`: that ping-pongs through every
+ * auto-passed priority exchange whether or not either seat is being asked
+ * anything (*"i notice priority flashing back and forth in
+ * untap/upkeep/draw... can you unify that behavior"*, measured in
+ * `docs/planning/wave63-evidence/F/flash.md`). And not Forge's priority player
+ * either: while the defender declares blockers, Forge's priority player is
+ * still the attacker (`PhaseHandler.java` hands priority to the turn player
+ * before it advances a step, and `InputBlock` runs in the new step's begin,
+ * before anyone is given priority), but the seat it is waiting on is the
+ * defender.
+ *
+ * So each player's `hasPriority` is replaced by `match.ts`'s own
+ * `genuinelyAsked(match, seat, …)`, which the caller passes for both
+ * arguments: the viewer's own open decision or live bar, and the server's
+ * "waiting for them" fact for the opponent — a fact on the seats channel the
+ * pacer never holds, so it is not ~4.8 s late behind an End Turn crawl's phase
+ * frames the way a state delta is. The two are mutually exclusive, so at most
+ * one ring is ever lit, and an auto-passed window lights none. `view` itself,
+ * unchanged, when nothing needs correcting.
  */
 export function withGatedPriority(view: BoardView, viewerOpen: boolean, opponentOpen: boolean): BoardView {
   let changed = false;
   const players = view.players.map((p) => {
-    // The viewer's own flag is Forge's own fact, gated. The OPPONENT's flag is
-    // the server's "waiting for them" fact alone (AE16): that fact rides the
-    // seats channel, which the pacer never holds, while `p.hasPriority` is a
-    // state delta that sits in the paced queue behind an End Turn crawl's
-    // phase frames — measured ~4.8 s late once per match, the pop-out's fact
-    // already lit and the flag still dark. Both read one server fact now.
-    const want = p.isViewer ? viewerOpen && p.hasPriority : opponentOpen;
+    const want = p.isViewer ? viewerOpen : opponentOpen;
     if (p.hasPriority === want) return p;
     changed = true;
     return { ...p, hasPriority: want };
@@ -2198,8 +2200,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * move, nothing on the stack" pass, Forge's bar simply live with no pop-up
    * over it — and, for the other seat, with `waitingForOpponent` (never both
    * at once: see that flag's own note on staleness). `withGatedPriority`
-   * itself is unchanged; this replaces what used to be the inline formula
-   * beside its call ("F's seam filter").
+   * turns the two into the avatar ring.
    */
   const asked = { ownDecisionOpen: myOwnDecisionOpen, waitingForOpponent: opponentHoldsAWindow(match) };
   const viewerOpen = genuinelyAsked(match, 'you', asked);

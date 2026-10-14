@@ -552,7 +552,7 @@
   flex-direction: column;
   align-items: center;
   /*
-   * Room for the turn ring (`card.css`'s `.seat[data-active] .seat__ring`,
+   * Room for the priority ring (`card.css`'s `.seat[data-priority] .seat__ring`,
    * a box-shadow extending 6px past the mark) inside the bar's clip
    * (`.seat__who`, `overflow: hidden`): 6px matches the ring's own extent
    * exactly. Only the VIEWER's own ring actually needs it — their

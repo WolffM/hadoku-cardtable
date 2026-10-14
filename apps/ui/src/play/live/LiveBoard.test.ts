@@ -4402,7 +4402,7 @@ describe('wave 59 §P — "Resolve {name}?" names the top of the stack', () => {
   });
 });
 
-describe('the priority flag is gated on a real decision, not drawn from Forge’s raw per-frame fact', () => {
+describe('the priority ring is gated on a real decision, not drawn from Forge’s raw per-frame fact', () => {
   function fakePlayer(overrides: Partial<BoardPlayer> & Pick<BoardPlayer, 'id' | 'name'>): BoardPlayer {
     return {
       isViewer: false,
@@ -4431,9 +4431,9 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
       expect(out.players.find((p) => !p.isViewer)!.hasPriority).toBe(true);
     });
 
-    it('the viewer’s own flag is false regardless of the gate when Forge’s own fact is false', () => {
+    it('the viewer’s own ring is their open decision alone — lit while they declare blockers, when Forge’s priority player is still the attacker', () => {
       const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasPriority: false })]);
-      expect(withGatedPriority(view, true, true).players[0]!.hasPriority).toBe(false);
+      expect(withGatedPriority(view, true, false).players[0]!.hasPriority).toBe(true);
     });
 
     it('the opponent’s flag is the server’s waiting fact alone — lit while the paced view still says they lack priority (AE16, the ~4.8 s lag behind an End Turn crawl)', () => {
@@ -4458,7 +4458,7 @@ describe('the priority flag is gated on a real decision, not drawn from Forge’
 
   describe('through the real board', () => {
     const seatFlag = (container: HTMLElement, who: 'you' | 'opp'): Element | null =>
-      container.querySelector(who === 'you' ? '.seat[data-viewer] .seat__flag:not(.seat__flag--lost)' : '.seat:not([data-viewer]) .seat__flag:not(.seat__flag--lost)');
+      container.querySelector(who === 'you' ? '.seat[data-viewer][data-priority]' : '.seat:not([data-viewer])[data-priority]');
     const bothFlagsLit = (container: HTMLElement): boolean => seatFlag(container, 'you') !== null && seatFlag(container, 'opp') !== null;
 
     const priorityDelta = (seq: number, playerId: number, v: boolean) =>

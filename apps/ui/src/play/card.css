@@ -1089,17 +1089,16 @@
 }
 
 /*
- * Whose turn it is, on the thing you are already looking at (wave 32 Q1b): a ring
- * around the avatar, the way the operator asked, in place of the words "their
- * turn" in the counts. It adds no size — a seat's tracks do not move when the
- * turn passes.
+ * Who Forge is waiting on, on the thing you are already looking at: a ring
+ * around the avatar (the operator, 2026-10-13: *"the circle around the avatar
+ * should indicate priority"*). It adds no size — a seat's tracks do not move
+ * when priority passes.
  *
- * Wave 33 shape 3: the ring is its OWN element, `.seat__ring`, always in the
- * markup over the avatar's own box (`Board.tsx`'s `PlayerFace`), lit by a
- * box-shadow exactly while this face's SEAT — `<section data-testid="player">`,
- * `.seat[data-active]` — is the active player. It rings the drawn mark and a
- * watchparty character's picture alike, because it sits over `.face__art`
- * rather than being drawn by it.
+ * The ring is its OWN element, `.seat__ring`, always in the markup over the
+ * avatar's own box (`Board.tsx`'s `PlayerFace`), lit by a box-shadow exactly
+ * while this face's SEAT — `<section data-testid="player">` — carries
+ * `data-priority`. It rings the drawn mark and a watchparty character's picture
+ * alike, because it sits over `.face__art` rather than being drawn by it.
  */
 .seat__ring {
   position: absolute;
@@ -1108,15 +1107,21 @@
   pointer-events: none;
 }
 
-.seat[data-active] .seat__ring {
+.seat[data-priority] .seat__ring {
   box-shadow:
     0 0 0 2px var(--bg-raised),
     0 0 0 6px var(--accent);
 }
 
-.face[data-active] .face__plate {
-  stroke: var(--ink-dim);
-  stroke-width: 2;
+/*
+ * Whose turn it is: the active player's name plate, never a ring — the ring is
+ * priority's. An underline bar and the name's own ink, both inset, so the name's
+ * track does not move when the turn passes.
+ */
+.board .seat[data-active] .seat__name {
+  color: var(--accent-ink);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--accent-ink);
 }
 
 .face[data-lost] .face__plate {
@@ -1260,7 +1265,7 @@ button.face__hit:hover .face__art {
  * under it, so an outline on it was a tall box around both, and the face read
  * as a square (the operator, 2026-10-10). Your own face keeps focus after the
  * press that closes the settings, so the next key anyone pressed drew that box
- * (`Board.test.ts`). On your turn the ring is lit, so focus steps
+ * (`Board.test.ts`). While you are asked the ring is lit, so focus steps
  * outside it.
  */
 button.face__hit:focus-visible {
@@ -1272,7 +1277,7 @@ button.face__hit:focus-visible .seat__ring {
   outline-offset: 3px;
 }
 
-.seat[data-active] button.face__hit:focus-visible .seat__ring {
+.seat[data-priority] button.face__hit:focus-visible .seat__ring {
   outline-offset: 8px;
 }
 

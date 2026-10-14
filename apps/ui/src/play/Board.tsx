@@ -2856,15 +2856,16 @@ function HiddenHand({ player, ownerSide }: { player: BoardPlayer; ownerSide: Zon
  * shows. `e2e/play.spec.ts` reads it inside `[data-testid="player"]` and
  * compares it to the view, so its text is the number and nothing else.
  *
- * ## The active-player ring (wave 33 shape 3)
+ * ## The ring: who Forge is waiting on
  *
  * `.seat__ring` is the ring itself — an element that exists on every face,
  * always, drawn over the avatar's own box, lit by `card.css` exactly while
  * its ANCESTOR `<section data-testid="player">` (`PlayerArea`, below) carries
- * `data-active`. That attribute is the section's, not the face's, because
- * that is the hook the wave agreed on and the one an e2e spec can select
- * without reaching into this component's own markup. No test asserted the
- * ring before this; this is what lets one.
+ * `data-priority`: the seat Forge is waiting on to act (the operator,
+ * 2026-10-13: *"the circle around the avatar should indicate priority"*).
+ * The active player is marked on the seat's NAME instead (`data-active`,
+ * `card.css`), never by a ring. Both hooks are the section's, so an e2e spec
+ * selects them without reaching into this component's own markup.
  */
 function PlayerFace({
   player,
@@ -2906,8 +2907,8 @@ function PlayerFace({
         <img className="face__art face__avatar" src={avatar} alt="" data-testid="seat-avatar" />
       )}
       {/*
-       * The ring itself (shape 3): always in the markup, over the avatar's own
-       * box, drawn only while `card.css` sees an active ancestor. Decorative —
+       * The ring itself: always in the markup, over the avatar's own box, drawn
+       * only while `card.css` sees a `data-priority` ancestor. Decorative —
        * the fact is said in words on the seat's own `aria-label`/section, not
        * here — so it is `aria-hidden` and `pointer-events: none`.
        */}
@@ -2924,7 +2925,6 @@ function PlayerFace({
       data-avatar={player.avatarId === undefined ? undefined : player.avatarId}
       data-player-id={player.id}
       data-viewer={player.isViewer || undefined}
-      data-active={player.isActive || undefined}
       data-lost={player.hasLost || undefined}
       data-selectable={selectable || undefined}
     >
@@ -3112,9 +3112,10 @@ function PlayerArea({
       data-player-id={player.id}
       data-viewer={player.isViewer || undefined}
       data-selectable={selectable || undefined}
-      // Wave 33 shape 3: the hook a test asserts the ring from, exactly while
-      // this seat is the active player (`card.css`'s `.seat[data-active]`).
+      // The active player's mark on the name, and the ring of the seat Forge is waiting on
+      // (`card.css`'s `.seat[data-active]` and `.seat[data-priority]`).
       data-active={player.isActive || undefined}
+      data-priority={player.hasPriority || undefined}
       aria-label={player.isViewer ? `${player.name} (you)` : player.name}
     >
       {/*
@@ -3184,7 +3185,6 @@ function PlayerArea({
               <span aria-hidden="true">{player.libraryCount}</span>
             </span>
             <PlayerCounters player={player} />
-            {player.hasPriority && <span className="seat__flag">priority</span>}
             {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
           </div>
         </div>

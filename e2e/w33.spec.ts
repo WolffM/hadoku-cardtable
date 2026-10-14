@@ -436,9 +436,9 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
   }
 });
 
-/* ── 8. Q1b — the active ring is on the active seat, and moves ──────────── */
+/* ── 8. the active player's mark is on the active seat's name, and moves ── */
 
-test(titled('Q1b — the active-player ring is on the active seat\'s section, and moves when the turn does'), async ({ browser }) => {
+test(titled('the active player\'s mark is on the active seat\'s name, never its ring, and moves when the turn does'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -446,11 +446,21 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     const page = alice.page;
+    // The seats whose name the screen paints with the active mark (`card.css`'s `.seat[data-active] .seat__name`).
+    const marked = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]'))
+          .filter((seat) => {
+            const name = seat.querySelector('.seat__name');
+            return name !== null && getComputedStyle(name).boxShadow !== 'none';
+          })
+          .map((seat) => seat.getAttribute('data-player-id')),
+      );
 
     const activeSections = page.locator('[data-testid="player"][data-active]');
     await expect(activeSections, 'exactly one seat section carries data-active').toHaveCount(1, { timeout: 15_000 });
-    await expect(activeSections.locator('.seat__ring'), 'the ring element is inside the active section').toHaveCount(1);
     const firstActive = await activeSections.getAttribute('data-player-id');
+    await expect.poll(marked, { message: 'the active seat’s name, and only it, is marked' }).toEqual([firstActive]);
 
     // Pass the turn along until the OTHER seat becomes active. T6: `board.ts`'s own
     // `grindPriority`, with `passWhatever` (OK-or-Cancel) as its own per-page press.
@@ -463,6 +473,8 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
       { timeoutMs: 2 * 60_000, press: (p) => passWhatever(p) },
     );
     await expect(page.locator('[data-testid="player"][data-active]'), 'still exactly one active seat after it moved').toHaveCount(1);
+    const nowActive = await page.locator('[data-testid="player"][data-active]').getAttribute('data-player-id');
+    await expect.poll(marked, { message: 'the mark moved with the turn' }).toEqual([nowActive]);
   } finally {
     await stack.stop();
   }

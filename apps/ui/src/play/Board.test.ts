@@ -1546,8 +1546,8 @@ describe('the seat’s vertical bar (#9)', () => {
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
       const flags = [...bar.querySelectorAll('.seat__flag')].map((f) => f.textContent);
-      // No "their turn" in words any more: whose turn it is is a ring round the avatar (Q1b).
-      expect(flags, `seat ${p.id}'s flags`).toEqual(['priority', 'lost']);
+      // Neither whose turn it is nor who holds priority is a word: the name's mark and the avatar's ring say those.
+      expect(flags, `seat ${p.id}'s flags`).toEqual(['lost']);
       // Every one of them is in the counts block, never the avatar block.
       for (const f of bar.querySelectorAll('.seat__flag')) {
         expect(f.closest('.seat__counts'), 'a flag is in the counts track').not.toBeNull();
@@ -3802,47 +3802,32 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     expect(anchors('.board-card__marks'), 'marks: the top edge').toContain('top');
   });
 
-  it('Q1b: whose turn it is is a ring round the avatar, and the words are gone', () => {
-    const active: BoardView = { ...view, players: view.players.map((p, i) => ({ ...p, isActive: i === 0 })) };
-    const { container } = renderBoard(active);
-    const faces = [...container.querySelectorAll<HTMLElement>('[data-player-face]')];
-    expect(faces.filter((f) => f.dataset.active === 'true')).toHaveLength(1);
+  it('the ring round the avatar is the seat Forge is waiting on; the active player is marked on the name, not by a ring', () => {
+    // Seat 0 is the active player, seat 1 is asked: the two marks part.
+    const parted: BoardView = { ...view, players: view.players.map((p, i) => ({ ...p, isActive: i === 0, hasPriority: i === 1 })) };
+    const { container, seat } = renderBoard(parted);
+    const [active, asked] = [parted.players[0]!, parted.players[1]!];
     const css = styled();
-    const lit = container.querySelector('[data-testid="player"][data-active] .seat__ring');
-    const unlit = container.querySelector('[data-testid="player"]:not([data-active]) .seat__ring');
-    expect(css(lit!, 'box-shadow'), 'the active seat’s ring is drawn').not.toMatch(/^(none)?$/);
-    expect(css(unlit!, 'box-shadow'), 'the other seat’s is not').toMatch(/^(none)?$/);
-    // A 50% radius is a circle only on a square box (the operator saw an oval, 2026-10-03).
-    expect(css(lit!, 'border-radius')).toBe('50%');
-    expect(css(lit!, 'width'), 'a square box').toBe(css(lit!, 'height'));
-    expect(container.textContent).not.toMatch(/their turn/i);
-  });
-
-  /*
-   * ── wave 33 shape 3: the ring hook ─────────────────────────────────────
-   *
-   * w32 drew the ring but no test asserted the HOOK a selector could use to
-   * find it. This is the hook: the seat's own section carries `data-active`
-   * exactly while `player.isActive`, and the ring is a real element inside
-   * it, `.seat__ring` — not merely a box-shadow nobody can select.
-   */
-  it('wave 33 §B.3: the active seat’s SECTION carries data-active, and .seat__ring lives inside it', () => {
-    const active: BoardView = { ...view, players: view.players.map((p, i) => ({ ...p, isActive: i === 0 })) };
-    const { container, seat } = renderBoard(active);
-    const activePlayer = active.players.find((p) => p.isActive)!;
-    const inactivePlayer = active.players.find((p) => !p.isActive)!;
-    expect(seat(activePlayer.id).dataset.active).toBe('true');
-    expect(seat(inactivePlayer.id).dataset.active).toBeUndefined();
-    // Every seat draws its ring element, whether or not it is lit right now —
-    // the canvas is static, so the hook does not appear only when active.
-    for (const p of active.players) {
+    expect(seat(active.id).dataset.active).toBe('true');
+    expect(seat(asked.id).dataset.active).toBeUndefined();
+    expect(seat(asked.id).dataset.priority).toBe('true');
+    expect(seat(active.id).dataset.priority).toBeUndefined();
+    // Every seat draws its ring element, lit or not, inside the section the hook is on.
+    for (const p of parted.players) {
       const ring = seat(p.id).querySelector('.seat__ring');
-      expect(ring, `seat ${p.id} has a ring element`).not.toBeNull();
+      expect(ring?.closest('[data-testid="player"]'), `seat ${p.id} has a ring element in its own section`).toBe(seat(p.id));
     }
-    // And it really is INSIDE the section the hook promises, not a sibling.
-    const ring = seat(activePlayer.id).querySelector('.seat__ring')!;
-    expect(ring.closest('[data-testid="player"]')).toBe(seat(activePlayer.id));
-    expect(container.textContent).not.toMatch(/their turn/i);
+    const ringOf = (id: number) => seat(id).querySelector('.seat__ring')!;
+    const nameOf = (id: number) => seat(id).querySelector('.seat__name')!;
+    expect(css(ringOf(asked.id), 'box-shadow'), 'the asked seat’s ring is drawn').not.toMatch(/^(none)?$/);
+    expect(css(ringOf(active.id), 'box-shadow'), 'the active seat’s is not').toMatch(/^(none)?$/);
+    expect(css(nameOf(active.id), 'box-shadow'), 'the active seat’s name is marked').not.toMatch(/^(none)?$/);
+    expect(css(nameOf(asked.id), 'box-shadow'), 'the other name is not').toMatch(/^(none)?$/);
+    // A 50% radius is a circle only on a square box (the operator saw an oval, 2026-10-03).
+    const lit = ringOf(asked.id);
+    expect(css(lit, 'border-radius')).toBe('50%');
+    expect(css(lit, 'width'), 'a square box').toBe(css(lit, 'height'));
+    expect(container.textContent).not.toMatch(/their turn|priority/i);
   });
 
   it('Q16: card badges sit on one rung of the shared scale, inside a stacking context of the card’s own', () => {
@@ -5000,12 +4985,12 @@ describe('copiesIn: the ×N a pile of copies wears', () => {
  * *"small bug, i notice that when clicking on my avatar to bring up the settings it causes it to
  * become square instead of circular. why does the circle mask break?"*
  *
- * There is no mask: the circle is the turn ring (`.seat__ring`) around the mark. What drew the
+ * There is no mask: the circle is the priority ring (`.seat__ring`) around the mark. What drew the
  * square was the face button's own focus outline — the press that closes the settings leaves focus
  * on the face, and the next key makes it keyboard focus, which a browser outlines on the BUTTON: a
  * column of the mark and the life under it. So the claim is the cascade on the real markup: with
  * keyboard focus on your face the button overrides the browser's outline and the ring — a circle —
- * carries it, with a character and with the drawn mark, on your turn (outside the lit ring) and off.
+ * carries it, with a character and with the drawn mark, while you are asked (outside the lit ring) and not.
  * jsdom draws no browser defaults, so an outline no rule mentions reads as empty here, not `none`.
  */
 describe('your own face stays a circle when it is the way into the settings', () => {
@@ -5013,7 +4998,7 @@ describe('your own face stays a circle when it is the way into the settings', ()
     ['a character', 'rogue'],
     ['the drawn mark', undefined],
   ] as const) {
-    it(`${who}: keyboard focus rings the mark, never the button, on your turn and off`, () => {
+    it(`${who}: keyboard focus rings the mark, never the button, lit and unlit`, () => {
       const css = styled();
       const base = boardFromFixture(fixture);
       const view = { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, avatarId } : p)) };
@@ -5028,9 +5013,9 @@ describe('your own face stays a circle when it is the way into the settings', ()
       expect(button.matches(':focus-visible'), 'keyboard focus on the face').toBe(true);
 
       const offsets: number[] = [];
-      for (const active of [false, true]) {
-        if (active) seat.setAttribute('data-active', '');
-        else seat.removeAttribute('data-active');
+      for (const lit of [false, true]) {
+        if (lit) seat.setAttribute('data-priority', '');
+        else seat.removeAttribute('data-priority');
         expect(css(button, 'outline'), 'the button (the mark and the life under it) draws no focus outline').toBe('none');
         expect(css(ring, 'outline'), 'focus is drawn on the ring').toMatch(/\bsolid\b/);
         expect(css(ring, 'border-radius'), 'and the ring is a circle').toBe('50%');
@@ -5039,7 +5024,7 @@ describe('your own face stays a circle when it is the way into the settings', ()
         }
         offsets.push(Number.parseFloat(css(ring, 'outline-offset')));
       }
-      expect(offsets[1], 'on your turn the focus ring steps outside the lit ring').toBeGreaterThan(offsets[0]!);
+      expect(offsets[1], 'while lit, the focus ring steps outside the lit ring').toBeGreaterThan(offsets[0]!);
     });
   }
 });

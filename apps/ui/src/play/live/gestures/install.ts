@@ -263,6 +263,7 @@ import {
 } from './hand.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
+import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { playRole } from '../../../sound/index.ts';
 import { boxOf, cardBox, centreOf, targetUnder } from './targets.ts';
@@ -1550,6 +1551,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     event.preventDefault();
   }
 
+  const unguardText = guardTextSelection(canvas);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('click', clicks.swallow, true);
   canvas.addEventListener('contextmenu', onContextMenu);
@@ -1613,6 +1615,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   return {
     dispose(): void {
       live = false;
+      unguardText();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('click', clicks.swallow, true);
       canvas.removeEventListener('contextmenu', onContextMenu);
