@@ -1,0 +1,23 @@
+# The operator, 2026-10-14: "deathtouch not following a card when it taps … that should happen
+# for all counters on a card including indicators like summoning sickness"; and "let's just get rid
+# of the token indicator, its noise." Seat 0's own turn-1 Main Phase 1:
+#   - Llanowar Elves #101 wearing Basilisk Collar (a pile: the collar sits behind it) with a +1/+1
+#     counter: granted Deathtouch and Lifelink tags, a counter badge, a P/T badge.
+#   - Llanowar Elves #102, alone, with two +1/+1 counters.
+#   Both tap for mana on a click and untap on a second one while the mana is unspent.
+#   - Hill Giant, summoning sick, tapped, with a +1/+1 counter: the sick mark on a turned card.
+#   - A Goblin token.
+# `e2e/tg-tapped-overlays.spec.ts` measures every overlay against the drawn card on both screens.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Llanowar Elves|Id:101|Counters:P1P1=1;Basilisk Collar|AttachedTo:101;Llanowar Elves|Id:102|Counters:P1P1=2;Hill Giant|SummonSick|Tapped|Counters:P1P1=1;T:r_1_1_goblin;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
