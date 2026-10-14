@@ -165,9 +165,20 @@ java -jar ~/.local/share/cardtable/jars/$PIN.jar server --help   # prints the us
 sha256sum ~/.local/share/cardtable/jars/$PIN.jar                 # keep this line with the install record
 ```
 
-Installing under `jars/$PIN.jar` is enough for CI (it resolves the pin itself —
-see "Per-pin jars" above) and leaves production untouched. Switching what
-production actually runs is a separate, deliberate step — next.
+Installing under `jars/$PIN.jar` leaves production untouched. CI does not read it:
+every `forge.yml` job resolves its bundle through `scripts/forge-bundle.sh`
+("CI on the CI runners" above), and the claws build a pin they lack themselves.
+hokon cannot: its runner (which takes `forge.yml` jobs when the claws are full)
+has no `mvn` on `PATH`, so a pin missing from hokon's cache dies with
+`forge-bundle: required tool not on PATH: mvn` (2026-10-14, pin `f6f65d7`). So
+seed hokon's cache in the same quiet window as the build:
+
+```sh
+# 5. hokon's CI cache for this pin (from the deploy tree, which carries the new pin).
+cd ~/repos/hadoku-cardtable && bash scripts/forge-bundle.sh   # with step 2's PATH
+```
+
+Switching what production actually runs is a separate, deliberate step — next.
 
 ## Switching production to a new pin
 
