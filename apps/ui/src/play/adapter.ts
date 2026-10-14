@@ -26,6 +26,13 @@
  * that holds it (`NetworkGuiGame.applyPropertyMap`), because the per-card field
  * can lag the lists.
  *
+ * **A spell is on the stack only while no zone list holds its card.** GameView
+ * `Stack` and the PlayerView lists are separate objects, and Forge may send
+ * them in separate deltas: a resolving creature arrives on the battlefield one
+ * frame before the stack lets go of it (st-stack-resolve, the other seat's
+ * screen, ~40 ms apart on a busy runner). Every layer reads one view, so the
+ * view puts the card in one place — the list that holds it.
+ *
  * "Stack is top first" is read from the data, not assumed: in the committed
  * game the stack is `[49, 48]`, where 48 is the spell and 49 the trigger it
  * caused, so the newer item leads.
@@ -1525,6 +1532,9 @@ function revealedTop(
   return top !== null && seen(libraryIds[1]) === null ? top : null;
 }
 
+/** The PlayerView lists a card can be drawn in; a spell whose card one of them holds has left the stack (header). */
+const ZONE_LISTS = ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile'] as const;
+
 export function toBoardView(
   state: WireState,
   seq: number,
@@ -1611,9 +1621,17 @@ export function toBoardView(
   // name the board draws everywhere else, not Forge's raw `PlayerView.Name`.
   const playerNameById = new Map(players.map((p) => [p.id, p.name]));
 
-  const stack: StackEntry[] = readIds(game, 'Stack').map((sid) => {
+  const inAZone = new Set(
+    playerIds.flatMap((pid) => {
+      const p = state.get(deltaKey(WireType.Player, pid));
+      return ZONE_LISTS.flatMap((zone) => readIds(p, zone));
+    }),
+  );
+  const stack: StackEntry[] = readIds(game, 'Stack').flatMap((sid) => {
     const item = state.get(deltaKey(WireType.StackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
+    const isAbility = readBool(item, 'Ability');
+    if (!isAbility && sourceCardId !== null && inAZone.has(sourceCardId)) return [];
     const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT, false, printedType) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     const chain = subInstanceChain(state, item);
@@ -1626,7 +1644,7 @@ export function toBoardView(
       ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
     ];
     const description = readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`;
-    return {
+    return [{
       id: sid,
       description,
       sourceCardId,
@@ -1635,12 +1653,12 @@ export function toBoardView(
       sourceHidden: source?.hidden === true,
       abilityText: abilityTextOf(readStr(item, 'Key'), description, source?.card.name ?? null),
       controllerName: activator === null ? null : nameOfPlayer(activator),
-      isAbility: readBool(item, 'Ability'),
+      isAbility,
       targetCardIds,
       targetPlayerIds,
       targetLabel: targetNames.length > 0 ? targetNames.join(', ') : null,
       targetStackItemId: stackTargetSpells?.get(sid) ?? null,
-    };
+    }];
   });
 
   const waiting: StackEntry[] = (pendingTriggers ?? []).map((t) => {
