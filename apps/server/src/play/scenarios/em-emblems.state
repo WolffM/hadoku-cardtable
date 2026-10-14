@@ -1,0 +1,19 @@
+# e2e/em-emblems.spec.ts — the operator, 2026-10-14: "i need a visual for emblems. let's make it so
+# they go around the player's avatar and hovering the players avatar shows all their emblems."
+# Alice (seat 0) has four planeswalkers, each with loyalty enough for its emblem ability (counters
+# are explicit: see `w46-b-planeswalker.state`'s header), one more than it costs so none dies. Each activation puts a Forge emblem — an
+# effect card with `IsEmblem` — into her Command zone; one loyalty ability per planeswalker a turn,
+# so four emblems in one main phase.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Sorin, Lord of Innistrad|Counters:LOYALTY=3;Gideon, Ally of Zendikar|Counters:LOYALTY=5;Elspeth, Sun's Champion|Counters:LOYALTY=8;Narset Transcendent|Counters:LOYALTY=10
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
