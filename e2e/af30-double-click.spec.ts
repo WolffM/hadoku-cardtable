@@ -76,7 +76,19 @@ test(titled('double-clicking a choice picks it and confirms: a two-mode prompt a
         },
         true,
       );
+      // Every click, double click and tick inside a prompt, as the page saw it after its handlers ran.
+      const w = window as unknown as { __af30Events: string[] };
+      w.__af30Events = [];
+      for (const type of ['click', 'dblclick', 'change']) {
+        document.addEventListener(type, (e) => {
+          const t = e.target as Element | null;
+          if (t?.closest('section[data-prompt]') == null) return;
+          const row = t.closest('li')?.textContent?.slice(0, 24) ?? '-';
+          w.__af30Events.push(`${type}:${(e as MouseEvent).detail ?? '-'}:${t.tagName.toLowerCase()}:${row}${e.defaultPrevented ? ':prevented' : ''}`);
+        });
+      }
     });
+    const events = (): Promise<string[]> => page.evaluate(() => (window as unknown as { __af30Events: string[] }).__af30Events.splice(0));
 
     let modesDone = false;
     let targetDone = false;
@@ -94,7 +106,13 @@ test(titled('double-clicking a choice picks it and confirms: a two-mode prompt a
             console.log(`[af30] mode prompt after double-clicking "Counter target spell": open=${open} checked=${JSON.stringify(held)}`);
             expect(open, 'one of two modes is not an answer: the prompt stays open').toBe(1);
             expect(held.some((t) => t.includes('Counter target spell')), 'the double-clicked mode is picked').toBe(true);
+            console.log(`[af30] events of the first double click: ${(await events()).join(' | ')}`);
             await mode.locator('li', { hasText: 'Draw a card' }).first().locator('label').dblclick();
+            await page.waitForTimeout(500);
+            const still = await mode.count();
+            console.log(
+              `[af30] after double-clicking "Draw a card": open=${still} checked=${JSON.stringify(still > 0 ? await checkedLabels(mode) : [])} problems=${JSON.stringify(still > 0 ? await mode.locator('[data-testid="prompt-problems"]').allTextContents() : [])} events: ${(await events()).join(' | ')}`,
+            );
             await expect(mode, 'the second mode makes it an answer: the prompt is answered').toHaveCount(0, { timeout: 5_000 });
             console.log('[af30] mode prompt answered by double-clicking "Draw a card"');
             modesDone = true;
