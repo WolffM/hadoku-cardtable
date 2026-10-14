@@ -1,0 +1,33 @@
+[metadata]
+Name=Pyromancer Ascension (Max Sjöblom)
+Deck Type=Constructed
+Format=Modern (M12)
+Effective=2011-07-15
+Source URL=https://www.mtgtop8.com/event?e=1989&d=214157&f=MO
+Comment=Pro Tour Philadelphia 2011: Max Sjöblom, 5th-8th, Pyromancer Ascension. Transcribed from mtgtop8 deck 214157.
+[Main]
+6 Island|M12
+4 Misty Rainforest|ZEN
+1 Mountain|M12
+4 Scalding Tarn|ZEN
+3 Steam Vents|GP
+1 Banefire|CFX
+4 Gitaxian Probe|NPH
+1 Grapeshot|TSP
+2 Ideas Unbound|SOK
+4 Lightning Bolt|M11
+4 Manamorphose|SHM
+2 Muddle the Mixture|RAV
+4 Peer Through Depths|CHK
+4 Ponder|M12
+4 Preordain|M11
+4 Pyromancer Ascension|ZEN
+4 Remand|RAV
+4 Rite of Flame|CSP
+[Sideboard]
+3 Blood Moon|9E
+4 Flame Slash|ROE
+1 Shattering Spree|GP
+3 Spell Pierce|ZEN
+3 Vendilion Clique|MOR
+1 Wipe Away|TSP

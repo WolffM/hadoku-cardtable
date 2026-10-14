@@ -1,0 +1,780 @@
+{
+ "era": {
+  "year": 1996,
+  "season_start": "1995-11-01",
+  "start": "1996-07-10",
+  "end": "1996-10-01",
+  "format": "Type 2 (ALL)",
+  "sets": "FEM, 4ED, ICE, CHR, HML, ALL",
+  "banned": [
+   "Amulet of Quoz",
+   "Bronze Tablet",
+   "Channel",
+   "Jeweled Bird",
+   "Mind Twist",
+   "Rebirth",
+   "Tempest Efreet",
+   "Timmerian Fiends"
+  ],
+  "restricted": [
+   "Balance",
+   "Black Vise",
+   "Ivory Tower",
+   "Land Tax",
+   "Zuran Orb"
+  ],
+  "no_fall_rotation": true
+ },
+ "chosen": [
+  {
+   "deck": 434991,
+   "event": 28030,
+   "archetype": "Necropotence",
+   "player": "Dennis Bentley",
+   "event_name": "Nationals - US 1996",
+   "stars": 3,
+   "rank": "1",
+   "date": "1996-06-07",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.97,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 55.0,
+     "R": 5.0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Black Knight": 4,
+     "Hypnotic Specter": 4,
+     "Knight of Stromgald": 2,
+     "Order of the Ebon Hand": 2,
+     "Dark Ritual": 4,
+     "Hymn to Tourach": 4,
+     "Icequake": 4,
+     "Lightning Bolt": 4,
+     "Fireball": 1,
+     "Necropotence": 3,
+     "Black Vise": 1,
+     "Zuran Orb": 1,
+     "Ivory Tower": 1,
+     "Dystopia": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 422111,
+   "event": 28030,
+   "archetype": "Titania's Lock",
+   "player": "George Baxter",
+   "event_name": "Nationals - US 1996",
+   "stars": 3,
+   "rank": "2",
+   "date": "1996-06-07",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 1,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.66,
+    "pips": {
+     "W": 17.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Aeolipile": 3,
+     "Armageddon": 2,
+     "Balance": 1,
+     "Black Vise": 1,
+     "Disenchant": 2,
+     "Divine Offering": 3,
+     "Fellwar Stone": 4,
+     "Icy Manipulator": 4,
+     "Land Tax": 1,
+     "Serrated Arrows": 4,
+     "Swords to Plowshares": 4,
+     "Sylvan Library": 1,
+     "Titania's Song": 2,
+     "Winter Orb": 3,
+     "Wrath of God": 2,
+     "Deadly Insect": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 422107,
+   "event": 28028,
+   "archetype": "Mardu Necropotence",
+   "player": "Oliver Krebs",
+   "event_name": "Nationals - Germany 1996",
+   "stars": 3,
+   "rank": "2",
+   "date": "1996-06-01",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.17,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 30.0,
+     "R": 7.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Hypnotic Specter": 4,
+     "Sengir Vampire": 1,
+     "Ihsan's Shade": 1,
+     "Foul Familiar": 1,
+     "The Rack": 3,
+     "Disrupting Scepter": 1,
+     "Icy Manipulator": 2,
+     "Zuran Orb": 1,
+     "Nevinyrral's Disk": 1,
+     "Hymn to Tourach": 4,
+     "Dark Ritual": 4,
+     "Dance of the Dead": 3,
+     "Dark Banishing": 1,
+     "Lightning Bolt": 3,
+     "Fireball": 1,
+     "Earthquake": 1,
+     "Shatter": 2,
+     "Balance": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 253024,
+   "event": 9238,
+   "archetype": "Blueless Weenie White",
+   "player": "Tom Chanpheng",
+   "event_name": "Worlds 1996 (Seattle)",
+   "stars": 1,
+   "rank": "1",
+   "date": "1996-08-14",
+   "summer": true,
+   "s": 0.6617647058823529,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.86,
+    "pips": {
+     "W": 45.0,
+     "U": 1.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Disenchant": 4,
+     "Balance": 1,
+     "Armageddon": 1,
+     "Sleight of Mind": 1,
+     "Zuran Orb": 1,
+     "Phyrexian War Beast": 2,
+     "White Knight": 4,
+     "Swords to Plowshares": 4,
+     "Serra Angel": 2,
+     "Savannah Lions": 4,
+     "Reprisal": 1,
+     "Reinforcements": 1,
+     "Order of the White Shield": 4,
+     "Order of Leitbur": 4,
+     "Land Tax": 1,
+     "Lodestone Bauble": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 434992,
+   "event": 28030,
+   "archetype": "Turbo Stasis",
+   "player": "Matthew Place",
+   "event_name": "Nationals - US 1996",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1996-06-07",
+   "summer": false,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 2.0,
+     "U": 30.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Arcane Denial": 4,
+     "Boomerang": 4,
+     "Force of Will": 4,
+     "Lim-D\u00fbl's Vault": 4,
+     "Recall": 2,
+     "Howling Mine": 4,
+     "Stasis": 4,
+     "Despotic Scepter": 3,
+     "Kismet": 2,
+     "Ivory Tower": 1,
+     "Zuran Orb": 1,
+     "Feldon's Cane": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 607655,
+   "event": 54861,
+   "archetype": "Sligh",
+   "player": "Paul Sligh",
+   "event_name": "PTQ @ Atlanta (GA)",
+   "stars": 2,
+   "rank": "2",
+   "date": "1996-04-21",
+   "summer": false,
+   "s": 0.5098039215686274,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 1.84,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 44.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Shatter": 1,
+     "Orcish Librarian": 2,
+     "Orcish Cannoneers": 2,
+     "Orcish Artillery": 2,
+     "Lightning Bolt": 4,
+     "Ironclaw Orcs": 4,
+     "Incinerate": 4,
+     "Immolation": 1,
+     "Goblins of the Flarg": 2,
+     "Fireball": 1,
+     "Dwarven Trader": 2,
+     "Dwarven Lieutenant": 3,
+     "Dragon Whelp": 2,
+     "Detonate": 1,
+     "Brothers of Fire": 2,
+     "Brass Man": 4,
+     "Black Vise": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 253188,
+   "event": 9238,
+   "archetype": "Br Nevinyrral's Necro",
+   "player": "Mark Justice",
+   "event_name": "Worlds 1996 (Seattle)",
+   "stars": 1,
+   "rank": "2",
+   "date": "1996-08-14",
+   "summer": true,
+   "s": 0.4411764705882352,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.77,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 53.0,
+     "R": 1.0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Ivory Tower": 1,
+     "Fireball": 1,
+     "Zuran Orb": 1,
+     "Serrated Arrows": 2,
+     "Nevinyrral's Disk": 3,
+     "Drain Life": 3,
+     "Contagion": 3,
+     "Necropotence": 4,
+     "Hymn to Tourach": 4,
+     "Dark Ritual": 4,
+     "Ihsan's Shade": 2,
+     "Black Knight": 3,
+     "Hypnotic Specter": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 253031,
+   "event": 9238,
+   "archetype": "Erhnam Gueddon",
+   "player": "Olle R\u00e5de",
+   "event_name": "Worlds 1996 (Seattle)",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "1996-08-14",
+   "summer": true,
+   "s": 0.3691891927735542,
+   "f": {
+    "spells": 40,
+    "lands": 21,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 17.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Zuran Orb": 1,
+     "Land Tax": 1,
+     "Divine Offering": 1,
+     "Balance": 1,
+     "Armageddon": 2,
+     "Giant Growth": 4,
+     "Disenchant": 4,
+     "Swords to Plowshares": 4,
+     "Fyndhorn Elves": 2,
+     "Llanowar Elves": 2,
+     "Spectral Bears": 2,
+     "Whirling Dervish": 4,
+     "Elvish Archers": 4,
+     "Erhnam Djinn": 4,
+     "Savannah Lions": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 375423,
+   "event": 9238,
+   "archetype": "RG Ponza",
+   "player": "Eric Tam",
+   "event_name": "Worlds 1996 (Seattle)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1996-08-14",
+   "summer": true,
+   "s": 0.3062358703585048,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 2.71,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 0,
+     "R": 27.0,
+     "G": 6.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Black Vise": 1,
+     "Stormbind": 1,
+     "Fireball": 1,
+     "Primitive Justice": 1,
+     "Fellwar Stone": 1,
+     "Balance": 1,
+     "Icy Manipulator": 2,
+     "Elkin Bottle": 2,
+     "Guerrilla Tactics": 2,
+     "Stone Rain": 3,
+     "Lightning Bolt": 4,
+     "Incinerate": 4,
+     "Pillage": 4,
+     "Storm Shaman": 1,
+     "Eron the Relentless": 1,
+     "Deadly Insect": 2,
+     "Erhnam Djinn": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 253133,
+   "event": 9249,
+   "archetype": "GWR Aggro",
+   "player": "Eric Tam",
+   "event_name": "Pro Tour New York 1996",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1996-02-18",
+   "summer": false,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 2,
+    "burn": 5,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 17.0,
+     "U": 1.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 11.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Autumn Willow": 1,
+     "Birds of Paradise": 3,
+     "Blinking Spirit": 1,
+     "Erhnam Djinn": 4,
+     "Orgg": 1,
+     "Serra Angel": 1,
+     "Balance": 1,
+     "Disenchant": 4,
+     "Earthquake": 1,
+     "Fellwar Stone": 3,
+     "Fireball": 2,
+     "Icatian Town": 1,
+     "Icy Manipulator": 3,
+     "Incinerate": 2,
+     "Jayemdae Tome": 1,
+     "Land Tax": 1,
+     "Lightning Bolt": 1,
+     "Stormbind": 2,
+     "Swords to Plowshares": 3,
+     "Wrath of God": 2,
+     "Zuran Orb": 1,
+     "Zur's Weirding": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 253134,
+   "event": 9249,
+   "archetype": "Elkin Bottle Challenge Deck",
+   "player": "Mark Justice",
+   "event_name": "Pro Tour New York 1996",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1996-02-18",
+   "summer": false,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 0,
+     "R": 15.0,
+     "G": 2.0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Balance": 1,
+     "Black Vise": 1,
+     "Detonate": 1,
+     "Earthquake": 1,
+     "Elkin Bottle": 1,
+     "Feldon's Cane": 1,
+     "Fellwar Stone": 3,
+     "Fireball": 3,
+     "Howling Mine": 4,
+     "Icy Manipulator": 4,
+     "Incinerate": 2,
+     "Ivory Tower": 1,
+     "Jester's Cap": 1,
+     "Lightning Bolt": 4,
+     "Shatter": 2,
+     "Stormbind": 2,
+     "Swords to Plowshares": 3,
+     "Winter Orb": 3,
+     "Zuran Orb": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 253140,
+   "event": 9249,
+   "archetype": "Brg Aggro",
+   "player": "George Baxter",
+   "event_name": "Pro Tour New York 1996",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1996-02-18",
+   "summer": false,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 4,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 43.0,
+     "R": 7.0,
+     "G": 4.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Erhnam Djinn": 4,
+     "Lightning Bolt": 4,
+     "Fireball": 3,
+     "Sengir Vampire": 2,
+     "Order of the Ebon Hand": 4,
+     "Knight of Stromgald": 4,
+     "Ihsan's Shade": 1,
+     "Hypnotic Specter": 4,
+     "Hymn to Tourach": 4,
+     "Dark Ritual": 4,
+     "Zuran Orb": 1,
+     "Barbed Sextant": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 12,
+ "rejected_illegal": [
+  {
+   "archetype": "Stormbind Control",
+   "deck": 422106,
+   "player": "Peer Kr\u00f6ger",
+   "why": [
+    "2x Land Tax (restricted)"
+   ]
+  },
+  {
+   "archetype": "Erhnamgeddon",
+   "deck": 422108,
+   "player": "Stephan Valkyser",
+   "why": [
+    "3x Land Tax (restricted)"
+   ]
+  },
+  {
+   "archetype": "4c Prison",
+   "deck": 422109,
+   "player": "Henning Rimkus",
+   "why": [
+    "5x Disenchant (over the four-copy limit)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 253136,
+   "player": "Michael Loconto",
+   "why": [
+    "2x Land Tax (restricted)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 253135,
+   "player": "Shawn Regnier",
+   "why": [
+    "3x Land Tax (restricted)"
+   ]
+  },
+  {
+   "archetype": "WG Aggro",
+   "deck": 253137,
+   "player": "Bertrand Lestr\u00e9e",
+   "why": [
+    "2x Land Tax (restricted)"
+   ]
+  },
+  {
+   "archetype": "WG Aggro",
+   "deck": 253139,
+   "player": "Preston Poulter",
+   "why": [
+    "4x Land Tax (restricted)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "White Weenie",
+   "player": "Bill Macey",
+   "kept": "Blueless Weenie White",
+   "kept_player": "Tom Chanpheng"
+  },
+  {
+   "dropped": "Mono B Nevinyrral's Necro",
+   "player": "Henry Stern",
+   "kept": "Br Nevinyrral's Necro",
+   "kept_player": "Mark Justice"
+  },
+  {
+   "dropped": "Stasis !",
+   "player": "Tommi Hovi",
+   "kept": "Turbo Stasis",
+   "kept_player": "Matthew Place"
+  },
+  {
+   "dropped": "Erhnam-geddon",
+   "player": "Matt Place",
+   "kept": "Titania's Lock",
+   "kept_player": "George Baxter"
+  },
+  {
+   "dropped": "Mono Black Aggro",
+   "player": "Leon Lindb\u00e4ck",
+   "kept": "Br Nevinyrral's Necro",
+   "kept_player": "Mark Justice"
+  }
+ ],
+ "objective": -13.525644525332721,
+ "pool_colors": {
+  "B": 5,
+  "W": 5,
+  "G": 4,
+  "R": 6,
+  "U": 1
+ },
+ "pool_styles": {
+  "midrange": 5,
+  "control": 2,
+  "aggro": 5
+ },
+ "kept_lost": []
+}

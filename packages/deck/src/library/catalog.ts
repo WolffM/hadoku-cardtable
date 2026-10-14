@@ -106,6 +106,299 @@ export function slugifyForLibrary(s: string): string {
 }
 
 /**
+ * The 1995 power summer — `Type 2 (CHR)`, 1995-07-01 to 1995-11-01, the format
+ * in force on August 1st, Worlds’ month — Type 2 had no autumn rotation that
+ * year. 9 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/1995.md` has the full table and the
+ * ones dropped as illegal or near-duplicate); **Thin season: 9 chosen of 9
+ * candidates.** One per archetype, searched for colour and style spread: W 3,
+ * U 1, B 3, R 5, G 3; aggro 2, midrange 4, control 3, combo 0. Red dominated
+ * this era’s candidate pool (33% of its colour pips) and was given extra slots
+ * (5 of 9 chosen).
+ */
+export const POWER_SUMMER_1995_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-1995',
+  directory: `${DECKS_ROOT}/standard-1995`,
+  event: "1995 power summer — Type 2 (CHR), 1995-07-01 → 1995-11-01",
+  format: "Type 2 (CHR)",
+  date: "1995-07-01",
+  source: 'docs/planning/deck-selection/review/1995.md',
+  decks: [
+    { id: "power-1995-1-mark-justice-gruul-aggro", file: "1-mark-justice-gruul-aggro.dck" },
+    { id: "power-1995-2-henry-stern-vice-age", file: "2-henry-stern-vice-age.dck" },
+    { id: "power-1995-3-mike-long-br-land-destruction", file: "3-mike-long-br-land-destruction.dck" },
+    { id: "power-1995-1-alexander-blumke-rack-control", file: "1-alexander-blumke-rack-control.dck" },
+    { id: "power-1995-4-peter-leiher-monoblack-discard", file: "4-peter-leiher-monoblack-discard.dck" },
+    { id: "power-1995-11-scott-burke-disco-counterboat", file: "11-scott-burke-disco-counterboat.dck" },
+    { id: "power-1995-2-marc-hernandez-wr-control", file: "2-marc-hernandez-wr-control.dck" },
+    { id: "power-1995-5-ivan-curina-selesnya-aggro", file: "5-ivan-curina-selesnya-aggro.dck" },
+    { id: "power-1995-5-andrea-redi-pre-sligh", file: "5-andrea-redi-pre-sligh.dck" },
+  ],
+};
+
+/**
+ * The 1996 power summer — `Type 2 (ALL)`, 1996-07-10 to 1996-10-01, the format
+ * in force on August 1st, Worlds’ month — Type 2 had no autumn rotation that
+ * year. 12 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/1996.md` has the full table and the
+ * ones dropped as illegal or near-duplicate); **Thin season: 12 chosen of 12
+ * candidates.** One per archetype, searched for colour and style spread: W 5,
+ * U 1, B 5, R 6, G 4; aggro 5, midrange 5, control 2, combo 0. Red dominated
+ * this era’s candidate pool (29% of its colour pips) and was given extra slots
+ * (6 of 12 chosen).
+ */
+export const POWER_SUMMER_1996_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-1996',
+  directory: `${DECKS_ROOT}/standard-1996`,
+  event: "1996 power summer — Type 2 (ALL), 1996-07-10 → 1996-10-01",
+  format: "Type 2 (ALL)",
+  date: "1996-07-10",
+  source: 'docs/planning/deck-selection/review/1996.md',
+  decks: [
+    { id: "power-1996-1-dennis-bentley-necropotence", file: "1-dennis-bentley-necropotence.dck" },
+    { id: "power-1996-2-george-baxter-titania-s-lock", file: "2-george-baxter-titania-s-lock.dck" },
+    { id: "power-1996-2-oliver-krebs-mardu-necropotence", file: "2-oliver-krebs-mardu-necropotence.dck" },
+    { id: "power-1996-1-tom-chanpheng-blueless-weenie-white", file: "1-tom-chanpheng-blueless-weenie-white.dck" },
+    { id: "power-1996-3-matthew-place-turbo-stasis", file: "3-matthew-place-turbo-stasis.dck" },
+    { id: "power-1996-2-paul-sligh-sligh", file: "2-paul-sligh-sligh.dck" },
+    { id: "power-1996-2-mark-justice-br-nevinyrral-s-necro", file: "2-mark-justice-br-nevinyrral-s-necro.dck" },
+    { id: "power-1996-3-olle-rade-erhnam-gueddon", file: "3-olle-rade-erhnam-gueddon.dck" },
+    { id: "power-1996-5-eric-tam-rg-ponza", file: "5-eric-tam-rg-ponza.dck" },
+    { id: "power-1996-5-eric-tam-gwr-aggro", file: "5-eric-tam-gwr-aggro.dck" },
+    { id: "power-1996-5-mark-justice-elkin-bottle-challenge-deck", file: "5-mark-justice-elkin-bottle-challenge-deck.dck" },
+    { id: "power-1996-5-george-baxter-brg-aggro", file: "5-george-baxter-brg-aggro.dck" },
+  ],
+};
+
+/**
+ * The 1997 power summer — `Standard (WTH)`, 1997-07-01 to 1997-11-01, the last
+ * Standard snapshot before that fall’s rotation. 12 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/1997.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); **Thin season: 12 chosen of
+ * 12 candidates.** One per archetype, searched for colour and style spread:
+ * W 2, U 5, B 4, R 7, G 2; aggro 9, midrange 1, control 2, combo 0. Red
+ * dominated this era’s candidate pool (35% of its colour pips) and was given
+ * extra slots (7 of 12 chosen).
+ */
+export const POWER_SUMMER_1997_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-1997',
+  directory: `${DECKS_ROOT}/standard-1997`,
+  event: "1997 power summer — Standard (WTH), 1997-07-01 → 1997-11-01",
+  format: "Standard (WTH)",
+  date: "1997-07-01",
+  source: 'docs/planning/deck-selection/review/1997.md',
+  decks: [
+    { id: "power-1997-1-justin-gary-ur-aggro", file: "1-justin-gary-ur-aggro.dck" },
+    { id: "power-1997-2-kyle-bigos-4cb", file: "2-kyle-bigos-4cb.dck" },
+    { id: "power-1997-1-cathy-nicoloff-5cgreen", file: "1-cathy-nicoloff-5cgreen.dck" },
+    { id: "power-1997-3-jeff-butz-bone-dancer", file: "3-jeff-butz-bone-dancer.dck" },
+    { id: "power-1997-1-jakub-slemr-black-five", file: "1-jakub-slemr-black-five.dck" },
+    { id: "power-1997-5-jon-finkel-counter-post", file: "5-jon-finkel-counter-post.dck" },
+    { id: "power-1997-2-janosch-kuhn-urw-aggro", file: "2-janosch-kuhn-urw-aggro.dck" },
+    { id: "power-1997-3-svend-sparre-geertsen-stompy", file: "3-svend-sparre-geertsen-stompy.dck" },
+    { id: "power-1997-3-paul-mccabe-ur-control", file: "3-paul-mccabe-ur-control.dck" },
+    { id: "power-1997-5-john-chinnock-beatdown-necro", file: "5-john-chinnock-beatdown-necro.dck" },
+    { id: "power-1997-day-1-undefeated-david-price-deadguy-red", file: "day-1-undefeated-david-price-deadguy-red.dck" },
+    { id: "power-1997-day-1-undefeated-ju-neon-kim-red-deck-wins", file: "day-1-undefeated-ju-neon-kim-red-deck-wins.dck" },
+  ],
+};
+
+/**
+ * The 1998 power summer — `Standard (EXO)`, 1998-07-01 to 1998-11-01, the last
+ * Standard snapshot before that fall’s rotation. 6 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/1998.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); **Thin season: 6 chosen of 6
+ * candidates.** One per archetype, searched for colour and style spread: W 1,
+ * U 2, B 2, R 1, G 3; aggro 2, midrange 3, control 1, combo 0. Green dominated
+ * this era’s candidate pool (33% of its colour pips) and was given extra slots
+ * (3 of 6 chosen).
+ */
+export const POWER_SUMMER_1998_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-1998',
+  directory: `${DECKS_ROOT}/standard-1998`,
+  event: "1998 power summer — Standard (EXO), 1998-07-01 → 1998-11-01",
+  format: "Standard (EXO)",
+  date: "1998-07-01",
+  source: 'docs/planning/deck-selection/review/1998.md',
+  decks: [
+    { id: "power-1998-1-matt-linde-white-weenie", file: "1-matt-linde-white-weenie.dck" },
+    { id: "power-1998-2-mike-long-pros-bloom", file: "2-mike-long-pros-bloom.dck" },
+    { id: "power-1998-3-bryce-currence-stupid-green-deck", file: "3-bryce-currence-stupid-green-deck.dck" },
+    { id: "power-1998-3-jon-finkel-forbidian", file: "3-jon-finkel-forbidian.dck" },
+    { id: "power-1998-1-brian-selden-recurring-survival", file: "1-brian-selden-recurring-survival.dck" },
+    { id: "power-1998-5-andrew-pacifico-cursed-sligh", file: "5-andrew-pacifico-cursed-sligh.dck" },
+  ],
+};
+
+/**
+ * The 1999 power summer — `Standard (UDS)`, 1999-07-01 to 1999-11-01, the last
+ * Standard snapshot before that fall’s rotation. 15 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/1999.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); **Thin season: 15 chosen of
+ * 15 candidates.** One per archetype, searched for colour and style spread:
+ * W 2, U 7, B 7, R 2, G 6; aggro 4, midrange 6, control 5, combo 0. Blue
+ * dominated this era’s candidate pool (29% of its colour pips) and was given
+ * extra slots (7 of 15 chosen). Black dominated this era’s candidate pool (29%
+ * of its colour pips) and was given extra slots (7 of 15 chosen).
+ */
+export const POWER_SUMMER_1999_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-1999',
+  directory: `${DECKS_ROOT}/standard-1999`,
+  event: "1999 power summer — Standard (UDS), 1999-07-01 → 1999-11-01",
+  format: "Standard (UDS)",
+  date: "1999-07-01",
+  source: 'docs/planning/deck-selection/review/1999.md',
+  decks: [
+    { id: "power-1999-1-marc-rajotte-suicide-black", file: "1-marc-rajotte-suicide-black.dck" },
+    { id: "power-1999-1-kyle-rose-white-weenie-white-lightning", file: "1-kyle-rose-white-weenie-white-lightning.dck" },
+    { id: "power-1999-2-gary-krakower-black-control", file: "2-gary-krakower-black-control.dck" },
+    { id: "power-1999-2-john-hunka-enchantress", file: "2-john-hunka-enchantress.dck" },
+    { id: "power-1999-3-bruce-marsan-magpie", file: "3-bruce-marsan-magpie.dck" },
+    { id: "power-1999-3-charles-kornblith-replenish-bargain", file: "3-charles-kornblith-replenish-bargain.dck" },
+    { id: "power-1999-3-jurgen-hahn-trade-blossom", file: "3-jurgen-hahn-trade-blossom.dck" },
+    { id: "power-1999-1-nicolai-herzog-stompy", file: "1-nicolai-herzog-stompy.dck" },
+    { id: "power-1999-1-kai-budde-wildfire", file: "1-kai-budde-wildfire.dck" },
+    { id: "power-1999-5-jeff-cunningham-living-death", file: "5-jeff-cunningham-living-death.dck" },
+    { id: "power-1999-5-gabriel-tsang-bargain", file: "5-gabriel-tsang-bargain.dck" },
+    { id: "power-1999-2-dirk-baberowski-abducted-drake", file: "2-dirk-baberowski-abducted-drake.dck" },
+    { id: "power-1999-5-jamie-parke-mono-red-land-d", file: "5-jamie-parke-mono-red-land-d.dck" },
+    { id: "power-1999-5-jakub-slemr-mono-black-midrange", file: "5-jakub-slemr-mono-black-midrange.dck" },
+    { id: "power-1999-day-1-undefeated-xavier-curto-oath-into-thorn-elemental", file: "day-1-undefeated-xavier-curto-oath-into-thorn-elemental.dck" },
+  ],
+};
+
+/**
+ * The 2000 power summer — `Standard (PCY)`, 2000-07-01 to 2000-11-01, the last
+ * Standard snapshot before that fall’s rotation. 16 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2000.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); **Thin season: 16 chosen of
+ * 16 candidates.** One per archetype, searched for colour and style spread:
+ * W 5, U 5, B 3, R 5, G 5; aggro 3, midrange 10, control 3, combo 0. Midrange
+ * dominated this era’s candidate pool (62% of its decks) and was given extra
+ * slots (10 of 16 chosen).
+ */
+export const POWER_SUMMER_2000_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2000',
+  directory: `${DECKS_ROOT}/standard-2000`,
+  event: "2000 power summer — Standard (PCY), 2000-07-01 → 2000-11-01",
+  format: "Standard (PCY)",
+  date: "2000-07-01",
+  source: 'docs/planning/deck-selection/review/2000.md',
+  decks: [
+    { id: "power-2000-1-john-stevens-trinity-green", file: "1-john-stevens-trinity-green.dck" },
+    { id: "power-2000-1-ryan-fuller-stompy", file: "1-ryan-fuller-stompy.dck" },
+    { id: "power-2000-1-jon-finkel-napster", file: "1-jon-finkel-napster.dck" },
+    { id: "power-2000-2-matt-idoux-magpie", file: "2-matt-idoux-magpie.dck" },
+    { id: "power-2000-3-jeremy-humphrey-replenish", file: "3-jeremy-humphrey-replenish.dck" },
+    { id: "power-2000-2-chris-benafel-ponza", file: "2-chris-benafel-ponza.dck" },
+    { id: "power-2000-1-masaya-mori-angry-hermit", file: "1-masaya-mori-angry-hermit.dck" },
+    { id: "power-2000-1-jon-finkel-tinker", file: "1-jon-finkel-tinker.dck" },
+    { id: "power-2000-5-tanis-tramontin-rebels", file: "5-tanis-tramontin-rebels.dck" },
+    { id: "power-2000-5-dan-campisi-sneak-attack", file: "5-dan-campisi-sneak-attack.dck" },
+    { id: "power-2000-1-jon-finkel-sabre-bargain", file: "1-jon-finkel-sabre-bargain.dck" },
+    { id: "power-2000-5-mike-long-mono-blue-control", file: "5-mike-long-mono-blue-control.dck" },
+    { id: "power-2000-3-ittoku-tanaka-mercenaries", file: "3-ittoku-tanaka-mercenaries.dck" },
+    { id: "power-2000-5-nicolas-labarre-chimera", file: "5-nicolas-labarre-chimera.dck" },
+    { id: "power-2000-5-satoshi-nakamura-squirrel-opposition", file: "5-satoshi-nakamura-squirrel-opposition.dck" },
+    { id: "power-2000-5-alex-sousa-artifact-red", file: "5-alex-sousa-artifact-red.dck" },
+  ],
+};
+
+/**
+ * The 2001 power summer — `Standard (APC)`, 2001-07-01 to 2001-11-01, the last
+ * Standard snapshot before that fall’s rotation. 20 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2001.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); **Thin season: 20 chosen of
+ * 20 candidates.** One per archetype, searched for colour and style spread:
+ * W 4, U 11, B 8, R 11, G 3; aggro 4, midrange 11, control 5, combo 0. Blue
+ * dominated this era’s candidate pool (30% of its colour pips) and was given
+ * extra slots (11 of 20 chosen). Red dominated this era’s candidate pool (30%
+ * of its colour pips) and was given extra slots (11 of 20 chosen). Midrange
+ * dominated this era’s candidate pool (55% of its decks) and was given extra
+ * slots (11 of 20 chosen).
+ */
+export const POWER_SUMMER_2001_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2001',
+  directory: `${DECKS_ROOT}/standard-2001`,
+  event: "2001 power summer — Standard (APC), 2001-07-01 → 2001-11-01",
+  format: "Standard (APC)",
+  date: "2001-07-01",
+  source: 'docs/planning/deck-selection/review/2001.md',
+  decks: [
+    { id: "power-2001-1-terry-tsang-blue-skies", file: "1-terry-tsang-blue-skies.dck" },
+    { id: "power-2001-1-trevor-blackwell-fires", file: "1-trevor-blackwell-fires.dck" },
+    { id: "power-2001-1-reynerio-estacio-jr-counter-rebels", file: "1-reynerio-estacio-jr-counter-rebels.dck" },
+    { id: "power-2001-2-felix-gonzales-orbosition", file: "2-felix-gonzales-orbosition.dck" },
+    { id: "power-2001-2-brian-hegstad-uw-control", file: "2-brian-hegstad-uw-control.dck" },
+    { id: "power-2001-2-stephan-valkyser-red-zone", file: "2-stephan-valkyser-red-zone.dck" },
+    { id: "power-2001-2-laurent-pagorek-counter-crosis", file: "2-laurent-pagorek-counter-crosis.dck" },
+    { id: "power-2001-1-tom-van-de-logt-machinehead", file: "1-tom-van-de-logt-machinehead.dck" },
+    { id: "power-2001-5-jason-simard-nether-go", file: "5-jason-simard-nether-go.dck" },
+    { id: "power-2001-5-ben-raymond-digger", file: "5-ben-raymond-digger.dck" },
+    { id: "power-2001-3-mark-ziegner-rdw", file: "3-mark-ziegner-rdw.dck" },
+    { id: "power-2001-3-masaya-mori-square-void", file: "3-masaya-mori-square-void.dck" },
+    { id: "power-2001-3-david-bachmann-bridge-wildfire", file: "3-david-bachmann-bridge-wildfire.dck" },
+    { id: "power-2001-5-alex-borteh-merfolk-opposition", file: "5-alex-borteh-merfolk-opposition.dck" },
+    { id: "power-2001-5-mark-herrin-dromar-probe-go", file: "5-mark-herrin-dromar-probe-go.dck" },
+    { id: "power-2001-5-bayani-manansala-jr-lovely-sunshine", file: "5-bayani-manansala-jr-lovely-sunshine.dck" },
+    { id: "power-2001-5-yann-hamon-burning-bridge", file: "5-yann-hamon-burning-bridge.dck" },
+    { id: "power-2001-3-victor-galimbertti-ponza", file: "3-victor-galimbertti-ponza.dck" },
+    { id: "power-2001-5-john-ormerod-opposition", file: "5-john-ormerod-opposition.dck" },
+    { id: "power-2001-5-satoshi-nakamura-ug-aggro-opposition", file: "5-satoshi-nakamura-ug-aggro-opposition.dck" },
+  ],
+};
+
+/**
+ * The 2002 power summer — `Standard (JUD)`, 2002-07-01 to 2002-11-01, the last
+ * Standard snapshot before that fall’s rotation. 21 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2002.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); **Thin season: 21 chosen of
+ * 21 candidates.** One per archetype, searched for colour and style spread:
+ * W 6, U 15, B 9, R 12, G 11; aggro 7, midrange 6, control 8, combo 0. Blue
+ * dominated this era’s candidate pool (28% of its colour pips) and was given
+ * extra slots (15 of 21 chosen).
+ */
+export const POWER_SUMMER_2002_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2002',
+  directory: `${DECKS_ROOT}/standard-2002`,
+  event: "2002 power summer — Standard (JUD), 2002-07-01 → 2002-11-01",
+  format: "Standard (JUD)",
+  date: "2002-07-01",
+  source: 'docs/planning/deck-selection/review/2002.md',
+  decks: [
+    { id: "power-2002-1-gabriel-caligaris-psychatog", file: "1-gabriel-caligaris-psychatog.dck" },
+    { id: "power-2002-1-eugene-harvey-squirrel-opposition-ugr", file: "1-eugene-harvey-squirrel-opposition-ugr.dck" },
+    { id: "power-2002-1-jurgen-hahn-rug-madness", file: "1-jurgen-hahn-rug-madness.dck" },
+    { id: "power-2002-1-eric-taylor-trenches", file: "1-eric-taylor-trenches.dck" },
+    { id: "power-2002-1-sylvain-lauriol-white-braids", file: "1-sylvain-lauriol-white-braids.dck" },
+    { id: "power-2002-2-felipe-desiderati-ug-threshold", file: "2-felipe-desiderati-ug-threshold.dck" },
+    { id: "power-2002-2-jon-stern-rg-flashback", file: "2-jon-stern-rg-flashback.dck" },
+    { id: "power-2002-1-sheng-hsun-hsia-hunting-grounds", file: "1-sheng-hsun-hsia-hunting-grounds.dck" },
+    { id: "power-2002-3-yuuki-murakami-burning-tog", file: "3-yuuki-murakami-burning-tog.dck" },
+    { id: "power-2002-5-hiroki-okamoto-mono-black-control", file: "5-hiroki-okamoto-mono-black-control.dck" },
+    { id: "power-2002-5-william-baby-huey-jensen-battle-of-wits", file: "5-william-baby-huey-jensen-battle-of-wits.dck" },
+    { id: "power-2002-5-david-petersen-4-color-braids", file: "5-david-petersen-4-color-braids.dck" },
+    { id: "power-2002-2-mark-ziegner-burningtog", file: "2-mark-ziegner-burningtog.dck" },
+    { id: "power-2002-9-brady-williams-threshold-enforcer", file: "9-brady-williams-threshold-enforcer.dck" },
+    { id: "power-2002-9-anthony-justice-counter-burn", file: "9-anthony-justice-counter-burn.dck" },
+    { id: "power-2002-3-brian-hegstad-enforcer-control", file: "3-brian-hegstad-enforcer-control.dck" },
+    { id: "power-2002-5-rob-dougherty-balancing-tings", file: "5-rob-dougherty-balancing-tings.dck" },
+    { id: "power-2002-other-klaus-huebert-nefarious-lich", file: "other-klaus-huebert-nefarious-lich.dck" },
+    { id: "power-2002-other-gary-krakower-bw-bridge", file: "other-gary-krakower-bw-bridge.dck" },
+    { id: "power-2002-other-brent-heaser-rug-ceta-sanctuary", file: "other-brent-heaser-rug-ceta-sanctuary.dck" },
+    { id: "power-2002-9-franck-canu-five-color-green", file: "9-franck-canu-five-color-green.dck" },
+  ],
+};
+
+/**
  * The 2003 power summer — `Standard (8ED)`, 2003-09-01 to 2003-10-20, the last
  * Standard snapshot before that fall’s rotation. 8 legal, distinct candidate
  * decks (`docs/planning/deck-selection/review/2003.md` has the full table and
@@ -687,8 +980,53 @@ export const POWER_SUMMER_2016_STANDARD: LibraryCollection = {
  * is pinned to that year's Standard era's own dates (Settled): the snapshot
  * is the latest Archived/Modern/ file on or before Standard's `start`, and
  * the season window is Standard's `season_start` -> `end`. Modern was created
- * August 2011, so 2012 is its first power summer.
+ * in August 2011 and its first Pro Tour (Philadelphia, 2011-09-02) falls inside
+ * Standard 2011's window, so 2011 is its first power summer (AF41).
  */
+
+/**
+ * The 2011 Modern power summer — `Modern (M12)`, 2011-07-15 to 2011-09-30,
+ * pinned to Standard 2011’s own dates. 24 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2011.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 12, U 11, B 5, R 14, G 12; aggro 9,
+ * midrange 6, control 6, combo 3.
+ */
+export const POWER_SUMMER_2011_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2011',
+  directory: `${DECKS_ROOT}/modern-2011`,
+  event: "2011 Modern power summer — Modern (M12), 2011-07-15 → 2011-09-30",
+  format: "Modern (M12)",
+  date: "2011-07-15",
+  source: 'docs/planning/deck-selection/review/modern-2011.md',
+  decks: [
+    { id: "power-modern-2011-1-ero-sennin-zoo", file: "1-ero-sennin-zoo.dck" },
+    { id: "power-modern-2011-1-arevalol-affinity", file: "1-arevalol-affinity.dck" },
+    { id: "power-modern-2011-1-d-jdikez-birthing-pod", file: "1-d-jdikez-birthing-pod.dck" },
+    { id: "power-modern-2011-1-j-killa-eldrazi-ramp", file: "1-j-killa-eldrazi-ramp.dck" },
+    { id: "power-modern-2011-1-darking-merfolk", file: "1-darking-merfolk.dck" },
+    { id: "power-modern-2011-1-burton911-g-b-rock", file: "1-burton911-g-b-rock.dck" },
+    { id: "power-modern-2011-1-straca3-no-stick", file: "1-straca3-no-stick.dck" },
+    { id: "power-modern-2011-1-pandote-jund", file: "1-pandote-jund.dck" },
+    { id: "power-modern-2011-1-samuele-estratti-splinter-twin", file: "1-samuele-estratti-splinter-twin.dck" },
+    { id: "power-modern-2011-2-manachuel-burn", file: "2-manachuel-burn.dck" },
+    { id: "power-modern-2011-2-fanboy1-gw-aggro", file: "2-fanboy1-gw-aggro.dck" },
+    { id: "power-modern-2011-2-d-uodax-ad-nauseam", file: "2-d-uodax-ad-nauseam.dck" },
+    { id: "power-modern-2011-2-b-rasi-landfall", file: "2-b-rasi-landfall.dck" },
+    { id: "power-modern-2011-2-mossivo1986-persist-zoo", file: "2-mossivo1986-persist-zoo.dck" },
+    { id: "power-modern-2011-4-popoy-caw-blade", file: "4-popoy-caw-blade.dck" },
+    { id: "power-modern-2011-5-whogshrog-zoo-5c", file: "5-whogshrog-zoo-5c.dck" },
+    { id: "power-modern-2011-2-josh-utter-leyton-counter-cat", file: "2-josh-utter-leyton-counter-cat.dck" },
+    { id: "power-modern-2011-6-d-sinner-bant", file: "6-d-sinner-bant.dck" },
+    { id: "power-modern-2011-6-foxy-faerie", file: "6-foxy-faerie.dck" },
+    { id: "power-modern-2011-7-ero-sennin-infect-combo", file: "7-ero-sennin-infect-combo.dck" },
+    { id: "power-modern-2011-7-s-bullet-hive-mind", file: "7-s-bullet-hive-mind.dck" },
+    { id: "power-modern-2011-8-mattmobius-br-control", file: "8-mattmobius-br-control.dck" },
+    { id: "power-modern-2011-5-max-sjoblom-pyromancer-ascension", file: "5-max-sjoblom-pyromancer-ascension.dck" },
+    { id: "power-modern-2011-5-jesse-hampton-breachpost", file: "5-jesse-hampton-breachpost.dck" },
+  ],
+};
 
 /**
  * The 2012 Modern power summer — `Modern (M13)`, 2012-07-13 to 2012-10-05,
@@ -1426,6 +1764,14 @@ export const POWER_SUMMER_2016_LEGACY: LibraryCollection = {
 
 /** Every collection in the library, oldest era first. */
 export const LIBRARY: readonly LibraryCollection[] = [
+  POWER_SUMMER_1995_STANDARD,
+  POWER_SUMMER_1996_STANDARD,
+  POWER_SUMMER_1997_STANDARD,
+  POWER_SUMMER_1998_STANDARD,
+  POWER_SUMMER_1999_STANDARD,
+  POWER_SUMMER_2000_STANDARD,
+  POWER_SUMMER_2001_STANDARD,
+  POWER_SUMMER_2002_STANDARD,
   POWER_SUMMER_2003_STANDARD,
   POWER_SUMMER_2004_STANDARD,
   POWER_SUMMER_2005_STANDARD,
@@ -1440,6 +1786,7 @@ export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_2014_STANDARD,
   POWER_SUMMER_2015_STANDARD,
   POWER_SUMMER_2016_STANDARD,
+  POWER_SUMMER_2011_MODERN,
   POWER_SUMMER_2012_MODERN,
   POWER_SUMMER_2013_MODERN,
   POWER_SUMMER_2014_MODERN,

@@ -1,5 +1,131 @@
 [
  {
+  "year": 1995,
+  "season_start": "1995-01-10",
+  "start": "1995-07-01",
+  "end": "1995-11-01",
+  "format": "Type 2 (CHR)",
+  "sets": "FEM, 4ED, ICE, CHR",
+  "banned": [
+   "Amulet of Quoz",
+   "Bronze Tablet",
+   "Jeweled Bird",
+   "Rebirth",
+   "Tempest Efreet"
+  ],
+  "restricted": [
+   "Balance",
+   "Channel",
+   "Feldon's Cane",
+   "Ivory Tower",
+   "Mind Twist",
+   "Recall"
+  ],
+  "restricted_legendary": true,
+  "no_fall_rotation": true
+ },
+ {
+  "year": 1996,
+  "season_start": "1995-11-01",
+  "start": "1996-07-10",
+  "end": "1996-10-01",
+  "format": "Type 2 (ALL)",
+  "sets": "FEM, 4ED, ICE, CHR, HML, ALL",
+  "banned": [
+   "Amulet of Quoz",
+   "Bronze Tablet",
+   "Channel",
+   "Jeweled Bird",
+   "Mind Twist",
+   "Rebirth",
+   "Tempest Efreet",
+   "Timmerian Fiends"
+  ],
+  "restricted": [
+   "Balance",
+   "Black Vise",
+   "Ivory Tower",
+   "Land Tax",
+   "Zuran Orb"
+  ],
+  "no_fall_rotation": true
+ },
+ {
+  "year": 1997,
+  "season_start": "1996-10-01",
+  "start": "1997-07-01",
+  "end": "1997-11-01",
+  "format": "Standard (WTH)",
+  "sets": "ICE, HML, ALL, MIR, VIS, 5ED, WTH",
+  "banned": [
+   "Amulet of Quoz",
+   "Timmerian Fiends",
+   "Zuran Orb"
+  ]
+ },
+ {
+  "year": 1998,
+  "season_start": "1997-11-01",
+  "start": "1998-07-01",
+  "end": "1998-11-01",
+  "format": "Standard (EXO)",
+  "sets": "MIR, VIS, 5ED, WTH, TMP, STH, EXO",
+  "banned": []
+ },
+ {
+  "year": 1999,
+  "season_start": "1998-11-01",
+  "start": "1999-07-01",
+  "end": "1999-11-01",
+  "format": "Standard (UDS)",
+  "sets": "TMP, STH, EXO, USG, ULG, 6ED, UDS",
+  "banned": [
+   "Dream Halls",
+   "Earthcraft",
+   "Fluctuator",
+   "Lotus Petal",
+   "Memory Jar",
+   "Mind Over Matter",
+   "Recurring Nightmare",
+   "Time Spiral",
+   "Tolarian Academy",
+   "Windfall"
+  ]
+ },
+ {
+  "year": 2000,
+  "season_start": "1999-11-01",
+  "start": "2000-07-01",
+  "end": "2000-11-01",
+  "format": "Standard (PCY)",
+  "sets": "USG, ULG, 6ED, UDS, MMQ, NMS, PCY",
+  "banned": [
+   "Fluctuator",
+   "Memory Jar",
+   "Time Spiral",
+   "Tolarian Academy",
+   "Windfall"
+  ]
+ },
+ {
+  "year": 2001,
+  "season_start": "2000-11-01",
+  "start": "2001-07-01",
+  "end": "2001-11-01",
+  "format": "Standard (APC)",
+  "sets": "MMQ, NMS, PCY, INV, PLS, 7ED, APC",
+  "banned": []
+ },
+ {
+  "year": 2002,
+  "season_start": "2001-11-01",
+  "start": "2002-07-01",
+  "end": "2002-11-01",
+  "format": "Standard (JUD)",
+  "sets": "INV, PLS, 7ED, APC, ODY, TOR, JUD",
+  "banned": []
+ },
+ {
   "year": 2003,
   "season_start": "2002-11-01",
   "start": "2003-09-01",

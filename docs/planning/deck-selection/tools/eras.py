@@ -24,7 +24,7 @@ SUBTYPE = {'ST': 'Standard', 'MO': 'Modern', 'LE': 'Legacy'}
 # Long-form infix used in every file name except Standard's (kept bare for
 # back-compat with wave 34's files). `None` means "no infix".
 INFIX = {'ST': None, 'MO': 'modern', 'LE': 'legacy'}
-DEFAULT_RANGE = {'ST': (2003, 2016), 'MO': (2012, 2016), 'LE': (2005, 2016)}
+DEFAULT_RANGE = {'ST': (1995, 2016), 'MO': (2011, 2016), 'LE': (2005, 2016)}
 
 
 def infix(fmt):
@@ -68,12 +68,22 @@ def _files(fmt):
 
 def _parse(path):
     txt = open(path).read()
-    banned_m = re.search(r'Banned:(.*)', txt)
-    return {
+    def names(key):
+        m = re.search(rf'^{key}:(.*)', txt, re.M)
+        return [b.strip() for b in (m.group(1).split(';') if m else []) if b.strip()]
+    out = {
         'format': re.search(r'Name:(.*)', txt).group(1).strip(),
         'sets': re.search(r'Sets:(.*)', txt).group(1).strip(),
-        'banned': [b.strip() for b in (banned_m.group(1).split(';') if banned_m else []) if b.strip()],
+        'banned': names('Banned'),
     }
+    # Type 2's restricted list (1995-1996): one copy each. Only written when the
+    # snapshot has one, so the eras that never had it keep their files as they were.
+    if names('Restricted'):
+        out['restricted'] = names('Restricted')
+    # Type 2 until 1995-11: one copy of each legendary card, whatever it is.
+    if re.search(r'^RestrictedLegendary:\s*true', txt, re.M | re.I):
+        out['restricted_legendary'] = True
+    return out
 
 
 def _fall_rotation(dates, y):
@@ -97,16 +107,44 @@ def _fall_rotation(dates, y):
     return max(candidates)
 
 
+def _sets(d, date):
+    return {x.strip() for x in _parse(d + date + '.txt')['sets'].split(',')}
+
+
+def _era_bounds(dates, d, y):
+    """(start, end, rotated) of year `y`'s Standard era: the snapshot in force
+    over the summer, the snapshot that ended it, and whether that was a rotation.
+
+    From 1997 on, the end is `_fall_rotation` and the era is the snapshot just
+    before it. Type 2 in 1995 and 1996 had no fall rotation — no snapshot in the
+    second half of either year drops a set (`1995-11-13` and `1996-11-07` only add
+    Homelands and Mirage) — and both years changed the restricted list between
+    Worlds in August and the autumn set: `1995-11-01` restricted Zuran Orb,
+    `1996-10-01` Hymn to Tourach and Strip Mine. Pinning those years to the file
+    before the autumn set would judge Worlds decks by a list made after Worlds and
+    reject all of them. So a year with no set-dropping rotation takes the format in
+    force on August 1st, the month Worlds was played, and ends at the next snapshot."""
+    fall = _fall_rotation(dates, y)
+    i = dates.index(fall)
+    if _sets(d, dates[i - 1]) - _sets(d, fall):
+        return dates[i - 1], fall, True
+    start = max(dt for dt in dates if dt <= f'{y}-08-01')
+    return start, dates[dates.index(start) + 1], False
+
+
 def _standard_eras(first, last):
     dates, d = _files('ST')
     out = []
     for y in range(first, last + 1):
-        fall = _fall_rotation(dates, y)
-        i = dates.index(fall)
-        start = dates[i - 1]
-        prev_fall = _fall_rotation(dates, y - 1)
+        start, end, rotated = _era_bounds(dates, d, y)
+        # Standard's first year has no era before it: its season opens on the
+        # first Type 2 snapshot Forge has (1995-01-10).
+        season_start = _era_bounds(dates, d, y - 1)[1] if y > int(dates[0][:4]) else dates[0]
         info = _parse(d + start + '.txt')
-        out.append({'year': y, 'season_start': prev_fall, 'start': start, 'end': fall, **info})
+        era = {'year': y, 'season_start': season_start, 'start': start, 'end': end, **info}
+        if not rotated:
+            era['no_fall_rotation'] = True
+        out.append(era)
     return out
 
 
@@ -137,12 +175,13 @@ def _aligned_eras(fmt, first, last, standard_by_year):
 
 def eras(fmt='ST', first=None, last=None):
     """Every era for `fmt`, oldest first. `first`/`last` default to wave 48's
-    Settled ranges (ST 2003-2016, MO 2012-2016, LE 2005-2016)."""
+    ranges (ST 1995-2016, MO 2011-2016, LE 2005-2016 — AF41 took ST and MO back as
+    far as mtgtop8 has decks; LE has none before 2005)."""
     if fmt == 'ST':
         f, l = (first, last) if first and last else DEFAULT_RANGE['ST']
         return _standard_eras(f, l)
     # MO/LE need a Standard anchor covering their own range AND Standard's,
-    # so the full Standard table (2003-2016) is always derived, then narrowed.
+    # so the full Standard table (1995-2016) is always derived, then narrowed.
     std_first, std_last = DEFAULT_RANGE['ST']
     std_by_year = {e['year']: e for e in _standard_eras(std_first, std_last)}
     f, l = (first, last) if first and last else DEFAULT_RANGE[fmt]

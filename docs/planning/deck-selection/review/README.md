@@ -1,12 +1,12 @@
-# Deck selection review — "power summers", Standard 2003–2016, Modern and Legacy
+# Deck selection review — "power summers", Standard 1995–2016, Modern and Legacy
 
-One era per year per format: for Standard, the format in force **just before the fall rotation**, when the old block and the new one are legal together. Modern and Legacy do not rotate, so their eras are pinned to the same year’s Standard era’s own dates (wave 48, Settled) — same season window, snapshot taken from the latest dated Modern/Legacy format file on or before that date.
+One era per year per format: for Standard, the format in force **just before the fall rotation**, when the old block and the new one are legal together. Type 2 in 1995 and 1996 had no autumn rotation and changed its restricted list between Worlds and the autumn set, so those two years take the format in force on August 1st. Modern and Legacy do not rotate, so their eras are pinned to the same year’s Standard era’s own dates (wave 48, Settled) — same season window, snapshot taken from the latest dated Modern/Legacy format file on or before that date.
 
 ## How the decks were chosen
 
 1. **Candidates:** every deck from a competitive-level event (Pro Tour, Worlds, Grand Prix, Nationals, SCG Opens, PTQs; not online dailies) in the season before that fall rotation, from [mtgtop8](https://www.mtgtop8.com). Events inside the summer window count more than earlier ones. A season whose competitive events cannot fill the era also takes mtgtop8’s **regular** events (local tournaments); they carry the fewest stars, so they only ever fill gaps.
 2. **One deck per archetype**, the one that went furthest (a bigger event counts more). **No near-duplicates:** two lists count as the same deck when they share 60% of their cards, or 45% and the same colours, or 30% and the same archetype name.
-3. **Legal in that era**, checked card by card against Forge's own format file (legal sets and bans) — ST's own dated Standard file, MO/LE's latest dated file on or before the era's snapshot date.
+3. **Legal in that era**, checked card by card against Forge's own format file (legal sets, bans, and Type 2's restricted list and one-of-each-legendary rule) — ST's own dated Standard file, MO/LE's latest dated file on or before the era's snapshot date.
 4. **Colour spread:** the chosen decks are searched so each of the five colours is played by about the same number of them (a colour may sit 2 decks off the mean for free). Colours are read from mana costs, not from the archetype name.
 5. **Style spread:** at least 4 decks of each style when the era has them, at most 10 of any one, and the targets lean toward the rarer styles.
 6. **Strength still counts:** within those limits the search maximises how well the decks actually placed. 24 decks per era where the season has them — **thin seasons are reported, not padded** (fewer than 24 legal candidates means a smaller era).
@@ -17,12 +17,20 @@ One era per year per format: for Standard, the format in force **just before the
 
 Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style is a heuristic** (creature count, average cost, counterspells and sweepers, plus archetype names); each format section’s table shows how every deck was judged. Wrong ones can be fixed in `style-overrides.json` (Standard), `style-overrides-modern.json`, `style-overrides-legacy.json`.
 
-**676 decks across 31 eras.**
+**811 decks across 40 eras.**
 
 ## Standard eras
 
 | era | format | window | distinct legal decks to choose from | chosen | W | U | B | R | G | aggro | midrange | control | combo |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [1995](1995.md) | Type 2 (CHR) | 1995-07-01 → 1995-11-01 | 9 | 9 | 3 | 1 | 3 | 5 | 3 | 2 | 4 | 3 | 0 |
+| [1996](1996.md) | Type 2 (ALL) | 1996-07-10 → 1996-10-01 | 12 | 12 | 5 | 1 | 5 | 6 | 4 | 5 | 5 | 2 | 0 |
+| [1997](1997.md) | Standard (WTH) | 1997-07-01 → 1997-11-01 | 12 | 12 | 2 | 5 | 4 | 7 | 2 | 9 | 1 | 2 | 0 |
+| [1998](1998.md) | Standard (EXO) | 1998-07-01 → 1998-11-01 | 6 | 6 | 1 | 2 | 2 | 1 | 3 | 2 | 3 | 1 | 0 |
+| [1999](1999.md) | Standard (UDS) | 1999-07-01 → 1999-11-01 | 15 | 15 | 2 | 7 | 7 | 2 | 6 | 4 | 6 | 5 | 0 |
+| [2000](2000.md) | Standard (PCY) | 2000-07-01 → 2000-11-01 | 16 | 16 | 5 | 5 | 3 | 5 | 5 | 3 | 10 | 3 | 0 |
+| [2001](2001.md) | Standard (APC) | 2001-07-01 → 2001-11-01 | 20 | 20 | 4 | 11 | 8 | 11 | 3 | 4 | 11 | 5 | 0 |
+| [2002](2002.md) | Standard (JUD) | 2002-07-01 → 2002-11-01 | 21 | 21 | 6 | 15 | 9 | 12 | 11 | 7 | 6 | 8 | 0 |
 | [2003](2003.md) | Standard (8ED) | 2003-09-01 → 2003-10-20 | 8 | 8 | 3 | 2 | 2 | 5 | 3 | 3 | 1 | 3 | 1 |
 | [2004](2004.md) | Standard (5DN) | 2004-06-20 → 2004-10-20 | 25 | 24 | 7 | 8 | 6 | 13 | 8 | 5 | 10 | 9 | 0 |
 | [2005](2005.md) | Standard (9ED) | 2005-08-20 → 2005-10-20 | 7 | 7 | 1 | 2 | 1 | 1 | 2 | 4 | 1 | 2 | 0 |
@@ -37,12 +45,123 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | [2014](2014.md) | Standard (M15) | 2014-07-18 → 2014-09-26 | 50 | 24 | 13 | 9 | 13 | 9 | 12 | 7 | 8 | 8 | 1 |
 | [2015](2015.md) | Standard (ORI) | 2015-07-17 → 2015-10-02 | 75 | 24 | 10 | 11 | 11 | 13 | 13 | 8 | 8 | 5 | 3 |
 | [2016](2016.md) | Standard (EMN) | 2016-07-22 → 2016-09-30 | 45 | 24 | 11 | 9 | 9 | 11 | 12 | 8 | 9 | 7 | 0 |
-| **all** | | | | **290** | 124 | 123 | 113 | 131 | 135 | 95 | 87 | 84 | 24 |
+| **all** | | | | **401** | 152 | 170 | 154 | 180 | 172 | 131 | 133 | 113 | 24 |
 
 ### Standard: how each archetype was judged (style)
 
 | era | deck | style | judged by |
 | --- | --- | --- | --- |
+| 1995 | Gruul Aggro | aggro | label |
+| 1995 | Vice Age | midrange | default |
+| 1995 | BR Land Destruction | midrange | default |
+| 1995 | Rack Control | control | label |
+| 1995 | Monoblack Discard | midrange | default |
+| 1995 | Disco Counterboat | control | cards |
+| 1995 | WR Control | control | label |
+| 1995 | Selesnya Aggro | aggro | label |
+| 1995 | Pre-Sligh | midrange | default |
+| 1996 | Necropotence | midrange | default |
+| 1996 | Titania's Lock | control | cards |
+| 1996 | Mardu Necropotence | midrange | default |
+| 1996 | Blueless Weenie White | aggro | label |
+| 1996 | Turbo Stasis | control | cards |
+| 1996 | Sligh | aggro | cards |
+| 1996 | Br Nevinyrral's Necro | midrange | default |
+| 1996 | Erhnam Gueddon | aggro | cards |
+| 1996 | RG Ponza | midrange | default |
+| 1996 | GWR Aggro | aggro | label |
+| 1996 | Elkin Bottle Challenge Deck | midrange | default |
+| 1996 | Brg Aggro | aggro | label |
+| 1997 | UR Aggro | aggro | label |
+| 1997 | 4CB | aggro | cards |
+| 1997 | 5CGreen | aggro | cards |
+| 1997 | Bone Dancer | aggro | cards |
+| 1997 | Black Five | aggro | cards |
+| 1997 | Counter-Post | control | cards |
+| 1997 | URw Aggro | aggro | label |
+| 1997 | Stompy | aggro | cards |
+| 1997 | UR Control | control | label |
+| 1997 | Beatdown Necro | midrange | default |
+| 1997 | Deadguy Red | aggro | cards |
+| 1997 | Red Deck Wins | aggro | label |
+| 1998 | White Weenie | aggro | label |
+| 1998 | Pros Bloom | control | cards |
+| 1998 | Stupid Green Deck | midrange | default |
+| 1998 | Forbidian | midrange | default |
+| 1998 | Recurring Survival | midrange | default |
+| 1998 | Cursed Sligh | aggro | cards |
+| 1999 | Suicide Black | aggro | cards |
+| 1999 | White Weenie (White Lightning) | aggro | label |
+| 1999 | Black Control | control | label |
+| 1999 | Enchantress | midrange | default |
+| 1999 | Magpie | control | cards |
+| 1999 | Replenish Bargain | control | cards |
+| 1999 | Trade Blossom | aggro | cards |
+| 1999 | Stompy | aggro | cards |
+| 1999 | Wildfire | control | cards |
+| 1999 | Living Death | midrange | default |
+| 1999 | Bargain | midrange | default |
+| 1999 | Abducted Drake | midrange | default |
+| 1999 | Mono Red Land D | midrange | default |
+| 1999 | Mono Black Midrange | midrange | default |
+| 1999 | Oath into Thorn Elemental | control | cards |
+| 2000 | Trinity Green | midrange | default |
+| 2000 | Stompy | aggro | cards |
+| 2000 | Napster | midrange | default |
+| 2000 | Magpie | control | cards |
+| 2000 | Replenish | midrange | default |
+| 2000 | Ponza | control | cards |
+| 2000 | Angry Hermit | midrange | default |
+| 2000 | Tinker | midrange | default |
+| 2000 | Rebels | aggro | cards |
+| 2000 | Sneak Attack | midrange | default |
+| 2000 | Sabre Bargain | midrange | default |
+| 2000 | Mono Blue Control | control | label |
+| 2000 | Mercenaries | aggro | cards |
+| 2000 | Chimera | midrange | default |
+| 2000 | Squirrel Opposition | midrange | default |
+| 2000 | Artifact Red | midrange | default |
+| 2001 | Blue Skies | midrange | default |
+| 2001 | Fires | midrange | default |
+| 2001 | Counter Rebels | midrange | default |
+| 2001 | Orbosition | midrange | default |
+| 2001 | UW Control | control | label |
+| 2001 | Red Zone | midrange | default |
+| 2001 | Counter Crosis | control | cards |
+| 2001 | Machinehead | midrange | default |
+| 2001 | Nether Go | control | cards |
+| 2001 | Digger | midrange | default |
+| 2001 | RDW | aggro | label |
+| 2001 | Square Void | midrange | default |
+| 2001 | Bridge Wildfire | control | cards |
+| 2001 | Merfolk Opposition | aggro | cards |
+| 2001 | Dromar Probe Go | control | cards |
+| 2001 | Lovely Sunshine | midrange | default |
+| 2001 | Burning Bridge | aggro | label |
+| 2001 | Ponza | midrange | default |
+| 2001 | Opposition | midrange | default |
+| 2001 | UG Aggro Opposition | aggro | label |
+| 2002 | Psychatog | control | cards |
+| 2002 | Squirrel Opposition UGr | midrange | default |
+| 2002 | RUG Madness | midrange | default |
+| 2002 | Trenches | control | cards |
+| 2002 | White Braids | aggro | cards |
+| 2002 | UG Threshold | control | cards |
+| 2002 | RG Flashback | aggro | cards |
+| 2002 | Hunting Grounds | control | cards |
+| 2002 | Burning Tog | aggro | label |
+| 2002 | Mono-black Control | control | label |
+| 2002 | Battle of Wits | control | cards |
+| 2002 | 4 Color Braids | aggro | cards |
+| 2002 | BurningTog | aggro | label |
+| 2002 | Threshold Enforcer | midrange | default |
+| 2002 | Counter Burn | aggro | label |
+| 2002 | Enforcer Control | control | label |
+| 2002 | Balancing Tings | midrange | default |
+| 2002 | Nefarious Lich | control | cards |
+| 2002 | BW Bridge | midrange | default |
+| 2002 | RUG Ceta Sanctuary | aggro | cards |
+| 2002 | Five-color Green | midrange | default |
 | 2003 | Wake | control | cards |
 | 2003 | UG Madness | midrange | default |
 | 2003 | Black-white Control | control | label |
@@ -338,17 +457,42 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 
 | era | format | window | distinct legal decks to choose from | chosen | W | U | B | R | G | aggro | midrange | control | combo |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [2011](modern-2011.md) | Modern (M12) | 2011-07-15 → 2011-09-30 | 24 | 24 | 12 | 11 | 5 | 14 | 12 | 9 | 6 | 6 | 3 |
 | [2012](modern-2012.md) | Modern (M13) | 2012-07-13 → 2012-10-05 | 59 | 24 | 13 | 13 | 9 | 10 | 10 | 8 | 6 | 6 | 4 |
 | [2013](modern-2013.md) | Modern (M14) | 2013-07-19 → 2013-09-27 | 49 | 24 | 12 | 12 | 9 | 11 | 12 | 9 | 4 | 5 | 6 |
 | [2014](modern-2014.md) | Modern (M15) | 2014-07-18 → 2014-09-26 | 58 | 24 | 10 | 11 | 8 | 11 | 9 | 7 | 6 | 5 | 6 |
 | [2015](modern-2015.md) | Modern (ORI) | 2015-07-17 → 2015-10-02 | 64 | 24 | 10 | 13 | 9 | 9 | 13 | 7 | 6 | 6 | 5 |
 | [2016](modern-2016.md) | Modern (EMN) | 2016-07-22 → 2016-09-30 | 68 | 24 | 11 | 14 | 10 | 14 | 12 | 8 | 6 | 5 | 5 |
-| **all** | | | | **120** | 56 | 63 | 45 | 55 | 56 | 39 | 28 | 27 | 26 |
+| **all** | | | | **144** | 68 | 74 | 50 | 69 | 68 | 48 | 34 | 33 | 29 |
 
 ### Modern: how each archetype was judged (style)
 
 | era | deck | style | judged by |
 | --- | --- | --- | --- |
+| 2011 | Zoo | aggro | label |
+| 2011 | Affinity | aggro | label |
+| 2011 | Birthing Pod | combo | label |
+| 2011 | Eldrazi Ramp | midrange | default |
+| 2011 | Merfolk | aggro | cards |
+| 2011 | G/B Rock | midrange | default |
+| 2011 | No Stick | control | cards |
+| 2011 | Jund | aggro | cards |
+| 2011 | Splinter Twin | combo | label |
+| 2011 | Burn | aggro | label |
+| 2011 | GW Aggro | aggro | label |
+| 2011 | Ad Nauseam! | control | cards |
+| 2011 | Landfall | midrange | default |
+| 2011 | Persist Zoo | aggro | label |
+| 2011 | Caw-Blade | control | cards |
+| 2011 | Zoo 5c | aggro | label |
+| 2011 | Counter-Cat | midrange | default |
+| 2011 | Bant | midrange | default |
+| 2011 | Faerie | aggro | cards |
+| 2011 | Infect Combo | combo | label |
+| 2011 | Hive Mind | control | cards |
+| 2011 | BR control | control | label |
+| 2011 | Pyromancer Ascension | control | cards |
+| 2011 | BreachPost | midrange | default |
 | 2012 | Jund | aggro | cards |
 | 2012 | Twin Exarch | combo | label |
 | 2012 | Gr Tron | control | cards |

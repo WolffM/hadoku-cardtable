@@ -1,0 +1,912 @@
+{
+ "era": {
+  "year": 2000,
+  "season_start": "1999-11-01",
+  "start": "2000-07-01",
+  "end": "2000-11-01",
+  "format": "Standard (PCY)",
+  "sets": "USG, ULG, 6ED, UDS, MMQ, NMS, PCY",
+  "banned": [
+   "Fluctuator",
+   "Memory Jar",
+   "Time Spiral",
+   "Tolarian Academy",
+   "Windfall"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 604974,
+   "event": 54512,
+   "archetype": "Trinity Green",
+   "player": "John Stevens",
+   "event_name": "Amateur Championship 2000 @ Origins (Columbus, Ohio)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2000-07-13",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.17,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 14.0,
+     "G": 28.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Earthquake": 2,
+     "Sowing Salt": 2,
+     "Tangle Wire": 4,
+     "Plow Under": 4,
+     "Arc Lightning": 4,
+     "Rofellos, Llanowar Emissary": 2,
+     "Masticore": 3,
+     "Blastoderm": 3,
+     "Yavimaya Elder": 3,
+     "Birds of Paradise": 4,
+     "Avalanche Riders": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 448174,
+   "event": 32231,
+   "archetype": "Stompy",
+   "player": "Ryan Fuller",
+   "event_name": "Nationals - Canada 2000 @ Vancouver (B.C.)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2000-07-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.87,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 34.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Albino Troll": 2,
+     "Elvish Lyrist": 4,
+     "Pouncing Jaguar": 4,
+     "River Boa": 4,
+     "Uktabi Orangutan": 2,
+     "Vine Dryad": 4,
+     "Wild Dogs": 4,
+     "Giant Growth": 3,
+     "Rancor": 4,
+     "Tangle Wire": 4,
+     "Wild Might": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 252503,
+   "event": 9176,
+   "archetype": "Napster",
+   "player": "Jon Finkel",
+   "event_name": "Nationals - US 2000",
+   "stars": 3,
+   "rank": "1",
+   "date": "2000-06-11",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 9,
+    "counters": 1,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 49.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Engineered Plague": 1,
+     "Eradicate": 1,
+     "Massacre": 1,
+     "Perish": 1,
+     "Persecute": 1,
+     "Stupor": 1,
+     "Unmask": 2,
+     "Vampiric Tutor": 4,
+     "Vicious Hunger": 4,
+     "Yawgmoth's Will": 4,
+     "Duress": 4,
+     "Dark Ritual": 4,
+     "Thrashing Wumpus": 1,
+     "Stromgald Cabal": 1,
+     "Phyrexian Negator": 2,
+     "Skittering Horror": 2,
+     "Skittering Skirge": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 604975,
+   "event": 54512,
+   "archetype": "Magpie",
+   "player": "Matt Idoux",
+   "event_name": "Amateur Championship 2000 @ Origins (Columbus, Ohio)",
+   "stars": 3,
+   "rank": "2",
+   "date": "2000-07-13",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 8,
+    "counters": 16,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.33,
+    "pips": {
+     "W": 0,
+     "U": 48.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Boomerang": 1,
+     "Annul": 2,
+     "Thwart": 2,
+     "Treachery": 4,
+     "Powder Keg": 4,
+     "Foil": 4,
+     "Rethink": 4,
+     "Counterspell": 4,
+     "Morphling": 2,
+     "Masticore": 2,
+     "Thieving Magpie": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 604977,
+   "event": 54512,
+   "archetype": "Replenish",
+   "player": "Jeremy Humphrey",
+   "event_name": "Amateur Championship 2000 @ Origins (Columbus, Ohio)",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2000-07-13",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 0,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.95,
+    "pips": {
+     "W": 27.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Sky Diamond": 1,
+     "Energy Field": 1,
+     "Marble Diamond": 2,
+     "Frantic Search": 3,
+     "Counterspell": 3,
+     "Seal of Cleansing": 3,
+     "Replenish": 4,
+     "Attunement": 4,
+     "Opalescence": 4,
+     "Parallax Tide": 4,
+     "Parallax Wave": 4,
+     "Enlightened Tutor": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 6
+  },
+  {
+   "deck": 252504,
+   "event": 9176,
+   "archetype": "Ponza",
+   "player": "Chris Benafel",
+   "event_name": "Nationals - US 2000",
+   "stars": 3,
+   "rank": "2",
+   "date": "2000-06-11",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 9,
+    "avg_cmc": 2.71,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 41.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Tectonic Break": 2,
+     "Shock": 2,
+     "Cave-In": 3,
+     "Earthquake": 3,
+     "Fire Diamond": 3,
+     "Hammer of Bogardan": 3,
+     "Stone Rain": 4,
+     "Seal of Fire": 4,
+     "Pillage": 4,
+     "Masticore": 3,
+     "Avalanche Riders": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 601336,
+   "event": 54038,
+   "archetype": "Angry Hermit",
+   "player": "Masaya Mori",
+   "event_name": "Continental - Asia Pacific Championship 2000 (APAC) @ Hong Kong",
+   "stars": 1,
+   "rank": "1",
+   "date": "2000-07-07",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.05,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 10.0,
+     "G": 32.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Pillage": 3,
+     "Arc Lightning": 4,
+     "Plow Under": 4,
+     "Tangle Wire": 4,
+     "Skyshroud Poacher": 2,
+     "Masticore": 4,
+     "Llanowar Elves": 4,
+     "Priest of Titania": 4,
+     "Birds of Paradise": 4,
+     "Deranged Hermit": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 253025,
+   "event": 9239,
+   "archetype": "Tinker",
+   "player": "Jon Finkel",
+   "event_name": "Worlds 2000 (Brussels)",
+   "stars": 1,
+   "rank": "1",
+   "date": "2000-08-06",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Tinker": 4,
+     "Brainstorm": 4,
+     "Voltaic Key": 4,
+     "Thran Dynamo": 4,
+     "Tangle Wire": 4,
+     "Phyrexian Processor": 4,
+     "Phyrexian Colossus": 1,
+     "Mishra's Helix": 1,
+     "Metalworker": 4,
+     "Masticore": 4,
+     "Grim Monolith": 4,
+     "Crumbling Sanctuary": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 604980,
+   "event": 54512,
+   "archetype": "Rebels",
+   "player": "Tanis Tramontin",
+   "event_name": "Amateur Championship 2000 @ Origins (Columbus, Ohio)",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2000-07-13",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 51.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Seal of Cleansing": 1,
+     "Glorious Anthem": 1,
+     "Parallax Wave": 2,
+     "Crusade": 3,
+     "Armageddon": 3,
+     "Disenchant": 3,
+     "Enlightened Tutor": 3,
+     "Masticore": 1,
+     "Lin Sivvi, Defiant Hero": 1,
+     "Nightwind Glider": 1,
+     "Ramosian Lieutenant": 1,
+     "Defiant Falcon": 1,
+     "Mother of Runes": 4,
+     "Longbow Archer": 4,
+     "Steadfast Guard": 4,
+     "Ramosian Sergeant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 604978,
+   "event": 54512,
+   "archetype": "Sneak Attack",
+   "player": "Dan Campisi",
+   "event_name": "Amateur Championship 2000 @ Origins (Columbus, Ohio)",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2000-07-13",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 38,
+    "lands": 24,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.89,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 1.0,
+     "R": 22.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Angelic Chorus": 1,
+     "Remembrance": 1,
+     "Phyrexian Reclamation": 1,
+     "Worn Powerstone": 1,
+     "Disenchant": 2,
+     "Claws of Gix": 2,
+     "Grim Monolith": 4,
+     "Sneak Attack": 4,
+     "Crater Hellion": 3,
+     "Serra Avatar": 3,
+     "Academy Rector": 4,
+     "False Prophet": 4,
+     "Shivan Phoenix": 4,
+     "Ghitu Slinger": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 252699,
+   "event": 9198,
+   "archetype": "Sabre Bargain",
+   "player": "Jon Finkel",
+   "event_name": "Invitational 2000 - Standard (Kuala Lumpur, Malaysia)",
+   "stars": 1,
+   "rank": "1",
+   "date": "2000-03-05",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 7.0,
+     "U": 0,
+     "B": 28.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Academy Rector": 4,
+     "Skirge Familiar": 4,
+     "Dark Ritual": 4,
+     "Grim Monolith": 4,
+     "Renounce": 3,
+     "Soul Feast": 4,
+     "Vampiric Tutor": 4,
+     "Tooth of Ramos": 3,
+     "Voltaic Key": 3,
+     "Yawgmoth's Bargain": 3,
+     "Yawgmoth's Will": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 252506,
+   "event": 9176,
+   "archetype": "Mono Blue Control",
+   "player": "Mike Long",
+   "event_name": "Nationals - US 2000",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2000-06-11",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 7,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Opportunity": 1,
+     "Thwart": 1,
+     "Rewind": 1,
+     "Stroke of Genius": 2,
+     "Treachery": 4,
+     "Powder Keg": 4,
+     "Miscalculation": 4,
+     "Grim Monolith": 4,
+     "Counterspell": 4,
+     "Brainstorm": 4,
+     "Palinchron": 1,
+     "Morphling": 2,
+     "Masticore": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 601338,
+   "event": 54038,
+   "archetype": "Mercenaries",
+   "player": "Ittoku Tanaka",
+   "event_name": "Continental - Asia Pacific Championship 2000 (APAC) @ Hong Kong",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2000-07-07",
+   "summer": true,
+   "s": 0.2953513542188434,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 22,
+    "counters": 1,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 48.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Agent of Shauku": 1,
+     "Cateran Brute": 2,
+     "Cateran Persuader": 4,
+     "Delraich": 2,
+     "Flesh Reaver": 2,
+     "Molting Harpy": 2,
+     "Phyrexian Negator": 2,
+     "Phyrexian Plaguelord": 1,
+     "Rampart Crawler": 2,
+     "Rathi Fiend": 1,
+     "Rathi Intimidator": 2,
+     "Stromgald Cabal": 1,
+     "Contamination": 1,
+     "Dark Ritual": 4,
+     "Dark Triumph": 1,
+     "Duress": 4,
+     "Perish": 1,
+     "Snuff Out": 2,
+     "Vampiric Tutor": 2,
+     "Vendetta": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 253028,
+   "event": 9239,
+   "archetype": "Chimera",
+   "player": "Nicolas Labarre",
+   "event_name": "Worlds 2000 (Brussels)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2000-08-06",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.59,
+    "pips": {
+     "W": 11.0,
+     "U": 2.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Academy Rector": 4,
+     "Yawgmoth's Will": 1,
+     "Yawgmoth's Bargain": 1,
+     "Saproling Cluster": 4,
+     "Pattern of Rebirth": 1,
+     "Fecundity": 4,
+     "Confiscate": 1,
+     "Enlightened Tutor": 4,
+     "Whetstone": 1,
+     "Snake Basket": 1,
+     "Ashnod's Altar": 4,
+     "Serra Avatar": 1,
+     "Priest of Titania": 4,
+     "Llanowar Elves": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601343,
+   "event": 54038,
+   "archetype": "Squirrel Opposition",
+   "player": "Satoshi Nakamura",
+   "event_name": "Continental - Asia Pacific Championship 2000 (APAC) @ Hong Kong",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2000-07-07",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 18,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 0,
+     "R": 0,
+     "G": 27.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Power Sink": 2,
+     "Miscalculation": 3,
+     "Opposition": 3,
+     "Rising Waters": 3,
+     "Treachery": 3,
+     "Skyshroud Poacher": 1,
+     "Masticore": 3,
+     "Yavimaya Granger": 3,
+     "Deranged Hermit": 3,
+     "Yavimaya Elder": 4,
+     "Llanowar Elves": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 603638,
+   "event": 54350,
+   "archetype": "Artifact Red",
+   "player": "Alex Sousa",
+   "event_name": "Continental - Latin America Champs 2000 @ Santiago (Chile)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2000-06-23",
+   "summer": false,
+   "s": 0.1959909570294431,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.23,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Worn Powerstone": 2,
+     "Tectonic Break": 2,
+     "Mishra's Helix": 2,
+     "Earthquake": 2,
+     "Temporal Aperture": 3,
+     "Voltaic Key": 4,
+     "Thran Dynamo": 4,
+     "Grim Monolith": 4,
+     "Fire Diamond": 4,
+     "Wildfire": 4,
+     "Karn, Silver Golem": 1,
+     "Masticore": 4,
+     "Covetous Dragon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  }
+ ],
+ "alternates": [],
+ "pool_size": 16,
+ "rejected_illegal": [],
+ "duplicates_dropped": [
+  {
+   "dropped": "Accelerated Blue",
+   "player": "Gab Tsang",
+   "kept": "Magpie",
+   "kept_player": "Matt Idoux"
+  },
+  {
+   "dropped": "Mono-green Stompy",
+   "player": "Noah Boeken",
+   "kept": "Stompy",
+   "kept_player": "Ryan Fuller"
+  },
+  {
+   "dropped": "MUD",
+   "player": "Terry Lau",
+   "kept": "Tinker",
+   "kept_player": "Jon Finkel"
+  },
+  {
+   "dropped": "Rg Aggro",
+   "player": "Michael Turian",
+   "kept": "Trinity Green",
+   "kept_player": "John Stevens"
+  },
+  {
+   "dropped": "Bargain",
+   "player": "Jason The",
+   "kept": "Sabre Bargain",
+   "kept_player": "Jon Finkel"
+  },
+  {
+   "dropped": "Weenie White",
+   "player": "Elliot Fung",
+   "kept": "Rebels",
+   "kept_player": "Tanis Tramontin"
+  },
+  {
+   "dropped": "UW Replenish",
+   "player": "Kyle Rose",
+   "kept": "Replenish",
+   "kept_player": "Jeremy Humphrey"
+  },
+  {
+   "dropped": "Ice Age.dec",
+   "player": "Dominik Hothow",
+   "kept": "Trinity Green",
+   "kept_player": "John Stevens"
+  },
+  {
+   "dropped": "Trinity",
+   "player": "Benedikt Klauser",
+   "kept": "Angry Hermit",
+   "kept_player": "Masaya Mori"
+  },
+  {
+   "dropped": "White Weenie",
+   "player": "Chi Fai Teddy Ng",
+   "kept": "Rebels",
+   "kept_player": "Tanis Tramontin"
+  },
+  {
+   "dropped": "Angry Non-Hermit",
+   "player": "Janosch K\u00fchn",
+   "kept": "Angry Hermit",
+   "kept_player": "Masaya Mori"
+  }
+ ],
+ "objective": -1.3702234700047242,
+ "pool_colors": {
+  "R": 5,
+  "G": 5,
+  "B": 3,
+  "U": 5,
+  "W": 5
+ },
+ "pool_styles": {
+  "midrange": 10,
+  "aggro": 3,
+  "control": 3
+ },
+ "kept_lost": []
+}

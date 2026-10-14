@@ -51,6 +51,16 @@ def legality(main, side, era, banned):
             illegal.append(f'{name} (banned)'); continue
         if not (e['sets'] & sets):
             illegal.append(f'{name} (not in legal sets)')
+    restricted = set(era.get('restricted') or [])
+    copies = Counter()
+    for n, _, name in main + side:
+        copies[name] += n
+    for name, k in copies.items():
+        e = lookup(name)
+        if k > 1 and (name in restricted or (e is not None and e['name'] in restricted)):
+            illegal.append(f'{k}x {name} (restricted)')
+        elif k > 1 and era.get('restricted_legendary') and e is not None and 'Legendary' in (e['type'] or ''):
+            illegal.append(f'{k}x {name} (one of each legendary)')
     return sorted(set(illegal)), sorted(set(unknown))
 
 def over_copy_limit(main, side):

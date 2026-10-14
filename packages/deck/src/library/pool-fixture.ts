@@ -98,6 +98,14 @@ export interface PoolFixture {
    * Both are carried because both are asked.
    */
   readonly colors: Readonly<Record<string, string>>;
+  /**
+   * Names a deck may hold one copy of. Type 2 kept a restricted list until
+   * 1996 and, before 1995-11, allowed one of each legendary card; both are
+   * this one rule, so a snapshot with Forge's `RestrictedLegendary:true` adds
+   * every legendary card in the pool to its `Restricted:` names. Absent when
+   * the snapshot has neither, which is every era from 1997 on.
+   */
+  readonly restricted?: readonly string[];
 }
 
 /** The five real colours, in the order every Magic UI writes them. */
@@ -128,6 +136,13 @@ function manaCostOf(printing: Printing): string {
   return typeof face === 'string' ? face : '';
 }
 
+function isLegendary(printing: Printing): boolean {
+  const own = printing['type_line'];
+  const face = frontFace(printing)?.['type_line'];
+  const line = typeof own === 'string' ? own : typeof face === 'string' ? face : '';
+  return /\bLegendary\b/.test(line);
+}
+
 function colorsOf(printing: Printing): string {
   const own = printing['colors'];
   const face = frontFace(printing)?.['colors'];
@@ -154,6 +169,8 @@ export interface StandardPoolLike {
     readonly source: string;
     readonly setList: readonly string[];
     readonly banned: readonly string[];
+    readonly restricted?: readonly string[];
+    readonly restrictedLegendary?: boolean;
   };
   readonly cards: readonly {
     readonly name: string;
@@ -191,6 +208,10 @@ export function fixtureFromStandardPool(date: string, pool: StandardPoolLike): P
       if (colour.length > 0) colors[key] = colour;
     }
   }
+  const restricted = [
+    ...(pool.format.restricted ?? []),
+    ...(pool.format.restrictedLegendary === true ? pool.cards.filter((c) => isLegendary(c.printing)).map((c) => c.name) : []),
+  ];
   return {
     date,
     name: pool.format.name,
@@ -203,6 +224,7 @@ export function fixtureFromStandardPool(date: string, pool: StandardPoolLike): P
     cards: pool.cards.map((c) => c.name),
     manaCost,
     colors,
+    ...(restricted.length > 0 ? { restricted } : {}),
   };
 }
 
@@ -322,6 +344,7 @@ export function parsePoolFixture(json: unknown): PoolFixture {
   const cards = requireStringArray(raw, 'cards', faults);
   const manaCost = optionalStringMap(raw, 'manaCost', faults);
   const colors = optionalStringMap(raw, 'colors', faults);
+  const restricted = raw['restricted'] === undefined ? undefined : requireStringArray(raw, 'restricted', faults);
 
   if (faults.length === 0 && cards.length === 0) {
     // A pool with no cards passes every shape check and fails every deck. It
@@ -333,7 +356,7 @@ export function parsePoolFixture(json: unknown): PoolFixture {
     throw new PoolFixtureError(`pool fixture is unusable: ${faults.join('; ')}`);
   }
 
-  return { date, name, effective, source, sets, banned, cards, manaCost, colors };
+  return { date, name, effective, source, sets, banned, cards, manaCost, colors, ...(restricted === undefined ? {} : { restricted }) };
 }
 
 /**
@@ -346,9 +369,10 @@ export function parsePoolFixture(json: unknown): PoolFixture {
  * true one; a player whose Jace reads "not in Standard" will go looking for a
  * rotation that never happened.
  *
- * Everything else is left at `format.ts`'s defaults, which are Forge's
- * `Constructed` row: 60 minimum, 15 sideboard, 4 copies. Standard has had no
- * restricted list since 2003 and the snapshots this library uses carry none.
+ * `restricted` is Type 2's one-copy list (with every legendary card added
+ * where the era had that rule — see {@link PoolFixture.restricted}); empty for
+ * every era from 1997 on. Everything else is left at `format.ts`'s defaults,
+ * which are Forge's `Constructed` row: 60 minimum, 15 sideboard, 4 copies.
  */
 /**
  * Snow-covered basics, under the same ordinary names `isBasicLand` already
@@ -384,6 +408,7 @@ export function poolFromFixture(fixture: PoolFixture): FormatPool {
     // See `poolNameKeys`.
     legal: new Set(fixture.cards.flatMap(poolNameKeys)),
     banned: new Set(fixture.banned),
+    restricted: new Set((fixture.restricted ?? []).flatMap(poolNameKeys)),
     anyNumberOf: new Set(SNOW_BASIC_LAND_NAMES),
   };
 }

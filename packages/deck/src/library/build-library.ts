@@ -49,7 +49,7 @@
  * `tools/select_decks.py`'s job, and this script is downstream of its output.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,19 +124,46 @@ const SET_CODE_FIXUPS: ReadonlyMap<string, string> = new Map([['CS', 'CSP']]);
  * now: a card exported as `TSP` that Forge prints in `TSB` and not in `TSP` is
  * the `TSB` printing.
  */
-function timeshiftedOnly(forgeRes: string): ReadonlySet<string> {
-  const names = (file: string): Set<string> => {
-    const text = readFileSync(join(forgeRes, 'editions', file), 'utf8');
-    const cards = text.slice(text.indexOf('[cards]'));
-    const out = new Set<string>();
-    for (const line of cards.split(/\r?\n/)) {
+function timeshiftedOnly(printings: EditionPrintings): ReadonlySet<string> {
+  const main = printings.get('TSP') ?? new Set<string>();
+  return new Set([...(printings.get('TSB') ?? [])].filter((n) => !main.has(n)));
+}
+
+/** Forge set code → the card names its edition file prints. */
+type EditionPrintings = ReadonlyMap<string, ReadonlySet<string>>;
+
+function editionPrintings(forgeRes: string): EditionPrintings {
+  const out = new Map<string, Set<string>>();
+  const dir = join(forgeRes, 'editions');
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith('.txt')) continue;
+    const text = readFileSync(join(dir, file), 'utf8');
+    const code = /^Code=(\S+)$/m.exec(text)?.[1]?.toUpperCase();
+    if (code === undefined) continue;
+    // mtgtop8 spells pre-2003 sets with Forge's two-letter `Code2` (`4E`, `IA`).
+    const code2 = /^Code2=(\S+)$/m.exec(text)?.[1]?.toUpperCase();
+    const names = new Set<string>();
+    for (const line of text.slice(text.indexOf('[cards]')).split(/\r?\n/)) {
       const matched = /^\S+\s+\S+\s+(.+?)(?:\s+@.*)?$/.exec(line.trim());
-      if (matched !== null && line.trim() !== '[cards]') out.add(matched[1] as string);
+      if (matched !== null && line.trim() !== '[cards]') names.add(matched[1] as string);
     }
-    return out;
-  };
-  const main = names('Time Spiral.txt');
-  return new Set([...names('Time Spiral Timeshifted.txt')].filter((n) => !main.has(n)));
+    out.set(code, names);
+    if (code2 !== undefined && !out.has(code2)) out.set(code2, names);
+  }
+  return out;
+}
+
+/**
+ * **A blank or unknown set** — mtgtop8 writes `4 [] Force of Will` when its own
+ * record of the printing is missing, and `[PR]` for a code no Forge edition
+ * carries (both in one 1996 Nationals list). The name is a real card and the
+ * deck was legal in its era, so the card was printed in one of the era's
+ * sets: the newest of them that Forge's edition files print it in is the
+ * printing. A name no era set prints stays an error, like `[] Unknown Card`.
+ */
+function eraPrinting(name: string, eraSets: readonly string[], printings: EditionPrintings): string | null {
+  for (const code of [...eraSets].reverse()) if (printings.get(code)?.has(name) === true) return code;
+  return null;
 }
 
 /** One deck the selection chose, as `selection-<year>.json` records it. */
@@ -150,7 +177,7 @@ interface ChosenDeck {
 }
 
 interface SelectionFile {
-  readonly era: { readonly year: number; readonly format: string; readonly start: string };
+  readonly era: { readonly year: number; readonly format: string; readonly start: string; readonly sets: string };
   readonly chosen: readonly ChosenDeck[];
 }
 
@@ -193,14 +220,21 @@ function deckPageUrl(eventId: number, deckId: number, fmtCode: string): string {
  * One line of an mtgtop8 `.dec` export: `4 [M11] Squadron Hawk`, with sideboard
  * lines prefixed `SB:`. Comments start `//`.
  */
-const DEC_LINE = /^(\d+)\s+\[([A-Za-z0-9]+)\]\s+(\S.*)$/;
+const DEC_LINE = /^(\d+)\s+\[([A-Za-z0-9]*)\]\s+(\S.*)$/;
 
 interface DecList {
   readonly main: DeckEntry[];
   readonly sideboard: DeckEntry[];
 }
 
-function parseDecExport(text: string, what: string, timeshifted: ReadonlySet<string>): DecList {
+interface ExportContext {
+  readonly timeshifted: ReadonlySet<string>;
+  readonly printings: EditionPrintings;
+  /** The era's legal sets, Forge codes, oldest first. */
+  readonly eraSets: readonly string[];
+}
+
+function parseDecExport(text: string, what: string, ctx: ExportContext): DecList {
   const main: DeckEntry[] = [];
   const sideboard: DeckEntry[] = [];
 
@@ -219,7 +253,13 @@ function parseDecExport(text: string, what: string, timeshifted: ReadonlySet<str
     const name = (rawName as string).trim().replace(' / ', ' // ');
     const upperSet = (rawSet as string).toUpperCase();
     const blanketFixed = SET_CODE_FIXUPS.get(upperSet) ?? upperSet;
-    const set = upperSet === 'TSP' && timeshifted.has(name) ? 'TSB' : blanketFixed;
+    const set =
+      upperSet === '' || !ctx.printings.has(blanketFixed)
+        ? eraPrinting(name, ctx.eraSets, ctx.printings)
+        : upperSet === 'TSP' && ctx.timeshifted.has(name)
+          ? 'TSB'
+          : blanketFixed;
+    if (set === null) throw new Error(`${what}: ${JSON.stringify(raw)} names no set, and no set of the era prints ${name}`);
     const entry: DeckEntry = {
       count: Number(count),
       card: {
@@ -336,6 +376,8 @@ interface Job {
   readonly format: string;
   readonly date: string;
   readonly chosen: readonly ChosenDeck[];
+  /** The era's legal sets, Forge codes, as its format file lists them. */
+  readonly eraSets: readonly string[];
   /** The catalogued collection, so file names can be checked for drift — `null` for an era `--family` is transcribing ahead of T's integration step (wave 48 §T step 4). */
   readonly catalogued: LibraryCollection | null;
 }
@@ -352,6 +394,10 @@ interface Job {
  * required (there is no `LIBRARY` entry to discover years from) and may be a
  * comma list: `--family=modern --only=2012,2013`.
  */
+function setsOf(selection: SelectionFile): string[] {
+  return selection.era.sets.split(',').map((code) => code.trim().toUpperCase());
+}
+
 function buildJobs(family: FormatFamily, only: string | null): Job[] {
   if (family === 'standard') {
     const wanted = only === null ? null : only.split(',');
@@ -370,6 +416,7 @@ function buildJobs(family: FormatFamily, only: string | null): Job[] {
         format: c.format,
         date: c.date,
         chosen: selection.chosen,
+        eraSets: setsOf(selection),
         catalogued: c,
       };
     });
@@ -388,6 +435,7 @@ function buildJobs(family: FormatFamily, only: string | null): Job[] {
       format: catalogued?.format ?? selection.era.format,
       date: catalogued?.date ?? selection.era.start,
       chosen: selection.chosen,
+      eraSets: setsOf(selection),
       catalogued,
     };
   });
@@ -403,7 +451,8 @@ async function main(): Promise<void> {
   if (!existsSync(join(forgeRes, 'editions'))) {
     throw new Error(`${forgeRes} has no editions/ — pass --forge-res=<a checkout with forge/>/forge/forge-gui/res`);
   }
-  const timeshifted = timeshiftedOnly(forgeRes);
+  const printings = editionPrintings(forgeRes);
+  const timeshifted = timeshiftedOnly(printings);
   const jobs = buildJobs(family, only);
   const fmtCode = MTGTOP8_FORMAT_CODE[family];
 
@@ -417,7 +466,7 @@ async function main(): Promise<void> {
     for (const source of job.chosen) {
       const what = `${source.player} (mtgtop8 ${String(source.deck)})`;
       const text = await cachedExport(source.deck, cacheDir, fmtCode);
-      const list = parseDecExport(text, what, timeshifted);
+      const list = parseDecExport(text, what, { timeshifted, printings, eraSets: job.eraSets });
       const file = buildDeckFile({ format: job.format, date: job.date }, source, list, fmtCode);
       const fileName = fileNameFor(source);
       if (job.catalogued !== null) {

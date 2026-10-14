@@ -1,0 +1,1270 @@
+{
+ "era": {
+  "year": 2002,
+  "season_start": "2001-11-01",
+  "start": "2002-07-01",
+  "end": "2002-11-01",
+  "format": "Standard (JUD)",
+  "sets": "INV, PLS, 7ED, APC, ODY, TOR, JUD",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 603351,
+   "event": 54311,
+   "archetype": "Psychatog",
+   "player": "Gabriel Caligaris",
+   "event_name": "Grand Prix Sao Paulo 2002",
+   "stars": 3,
+   "rank": "1",
+   "date": "2002-07-12",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.75,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 12.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Deep Analysis": 2,
+     "Upheaval": 2,
+     "Cunning Wish": 3,
+     "Fact or Fiction": 3,
+     "Circular Logic": 3,
+     "Repulse": 3,
+     "Force Spike": 4,
+     "Chainer's Edict": 4,
+     "Counterspell": 4,
+     "Nightscape Familiar": 4,
+     "Psychatog": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 22
+  },
+  {
+   "deck": 601631,
+   "event": 54088,
+   "archetype": "Squirrel Opposition UGr",
+   "player": "Eugene Harvey",
+   "event_name": "Nationals - US 2002",
+   "stars": 3,
+   "rank": "1",
+   "date": "2002-05-31",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.79,
+    "pips": {
+     "W": 0,
+     "U": 23.0,
+     "B": 0,
+     "R": 6.0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Call of the Herd": 2,
+     "Fire // Ice": 3,
+     "Deep Analysis": 4,
+     "Opposition": 4,
+     "Squirrel Nest": 4,
+     "Circular Logic": 4,
+     "Flametongue Kavu": 3,
+     "Llanowar Elves": 3,
+     "Birds of Paradise": 4,
+     "Wild Mongrel": 4,
+     "Merfolk Looter": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 601664,
+   "event": 54092,
+   "archetype": "RUG Madness",
+   "player": "Jurgen Hahn",
+   "event_name": "Nationals - Canada 2002",
+   "stars": 3,
+   "rank": "1",
+   "date": "2002-06-14",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 3,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 0,
+     "U": 15.0,
+     "B": 0,
+     "R": 22.0,
+     "G": 16.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Repulse": 2,
+     "Fiery Temper": 3,
+     "Violent Eruption": 3,
+     "Circular Logic": 4,
+     "Fire // Ice": 4,
+     "Aquamoeba": 1,
+     "Flametongue Kavu": 3,
+     "Basking Rootwalla": 4,
+     "Wild Mongrel": 4,
+     "Merfolk Looter": 4,
+     "Arrogant Wurm": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 301499,
+   "event": 16425,
+   "archetype": "Trenches",
+   "player": "Eric Taylor",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "1",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 0,
+    "counters": 14,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 3,
+    "avg_cmc": 3.12,
+    "pips": {
+     "W": 11.0,
+     "U": 37.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Syncopate": 2,
+     "Wrath of God": 2,
+     "Prophetic Bolt": 3,
+     "Goblin Trenches": 3,
+     "Repulse": 4,
+     "Memory Lapse": 4,
+     "Fire // Ice": 4,
+     "Fact or Fiction": 4,
+     "Counterspell": 4,
+     "Absorb": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 884120,
+   "event": 90128,
+   "archetype": "White Braids",
+   "player": "Sylvain Lauriol",
+   "event_name": "Nationals - France 2002 @ Saint-Denis",
+   "stars": 3,
+   "rank": "1",
+   "date": "2002-04-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.64,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 45.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Spectral Lynx": 3,
+     "Phyrexian Rager": 4,
+     "Vindicate": 4,
+     "Night // Day": 1,
+     "Braids, Cabal Minion": 4,
+     "Chainer's Edict": 3,
+     "Ichorid": 2,
+     "Mesmeric Fiend": 4,
+     "Nantuko Shade": 4,
+     "Shambling Swarm": 2,
+     "Ravenous Rats": 2,
+     "Duress": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 603358,
+   "event": 54311,
+   "archetype": "UG Threshold",
+   "player": "Felipe Desiderati",
+   "event_name": "Grand Prix Sao Paulo 2002",
+   "stars": 3,
+   "rank": "2",
+   "date": "2002-07-12",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 9,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.76,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 0,
+     "R": 0,
+     "G": 19.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Counterspell": 2,
+     "Quiet Speculation": 3,
+     "Memory Lapse": 4,
+     "Careful Study": 4,
+     "Roar of the Wurm": 4,
+     "Deep Analysis": 4,
+     "Temporal Spring": 4,
+     "Wonder": 2,
+     "Sylvan Safekeeper": 3,
+     "Wild Mongrel": 4,
+     "Werebear": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 601665,
+   "event": 54092,
+   "archetype": "RG Flashback",
+   "player": "Jon Stern",
+   "event_name": "Nationals - Canada 2002",
+   "stars": 3,
+   "rank": "2",
+   "date": "2002-06-14",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 22.0,
+     "G": 22.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Meteor Storm": 2,
+     "Engulfing Flames": 2,
+     "Reckless Charge": 3,
+     "Firebolt": 4,
+     "Call of the Herd": 4,
+     "Grim Lavamancer": 3,
+     "Flametongue Kavu": 4,
+     "Basking Rootwalla": 4,
+     "Birds of Paradise": 4,
+     "Yavimaya Barbarian": 4,
+     "Wild Mongrel": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 258618,
+   "event": 10207,
+   "archetype": "Hunting Grounds",
+   "player": "Sheng Hsun Hsia",
+   "event_name": "Grand Prix Taipei 2002",
+   "stars": 1,
+   "rank": "1",
+   "date": "2002-07-14",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 5,
+    "counters": 16,
+    "sweepers": 3,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.14,
+    "pips": {
+     "W": 13.0,
+     "U": 38.0,
+     "B": 0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Genesis": 1,
+     "Mystic Enforcer": 1,
+     "Mystic Snake": 3,
+     "Absorb": 4,
+     "Counterspell": 4,
+     "Deep Analysis": 3,
+     "Exclude": 2,
+     "Fact or Fiction": 4,
+     "Hunting Grounds": 2,
+     "Living Wish": 2,
+     "Memory Lapse": 3,
+     "Repulse": 4,
+     "Wrath of God": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 601675,
+   "event": 54093,
+   "archetype": "Burning Tog",
+   "player": "Yuuki Murakami",
+   "event_name": "Nationals - Japan 2002",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2002-05-31",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 11,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 0,
+     "U": 33.0,
+     "B": 11.0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Upheaval": 2,
+     "Gainsay": 2,
+     "Probe": 2,
+     "Circular Logic": 3,
+     "Terminate": 3,
+     "Fire // Ice": 4,
+     "Fact or Fiction": 4,
+     "Counterspell": 4,
+     "Possessed Aven": 1,
+     "Flametongue Kavu": 2,
+     "Nightscape Familiar": 4,
+     "Psychatog": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 601676,
+   "event": 54093,
+   "archetype": "Mono-black Control",
+   "player": "Hiroki Okamoto",
+   "event_name": "Nationals - Japan 2002",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2002-05-31",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 4,
+    "burn": 7,
+    "avg_cmc": 3.09,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 43.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Duress": 4,
+     "Addle": 2,
+     "Innocent Blood": 4,
+     "Chainer's Edict": 3,
+     "Mutilate": 3,
+     "Diabolic Tutor": 2,
+     "Haunting Echoes": 1,
+     "Mind Sludge": 1,
+     "Corrupt": 4,
+     "Soul Burn": 3,
+     "Planar Portal": 1,
+     "Engineered Plague": 2,
+     "Phyrexian Arena": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 301493,
+   "event": 16425,
+   "archetype": "Battle of Wits",
+   "player": "William \"Baby Huey\" Jensen",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 152,
+    "lands": 92,
+    "creatures": 4,
+    "counters": 32,
+    "sweepers": 4,
+    "draw": 40,
+    "burn": 8,
+    "avg_cmc": 2.82,
+    "pips": {
+     "W": 12.0,
+     "U": 96.0,
+     "B": 60.0,
+     "R": 28.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Dromar's Charm": 4,
+     "Diabolic Tutor": 4,
+     "Counterspell": 4,
+     "Concentrate": 4,
+     "Compulsion": 4,
+     "Chromatic Sphere": 4,
+     "Charcoal Diamond": 4,
+     "Chainer's Edict": 4,
+     "Battle of Wits": 4,
+     "Addle": 4,
+     "Absorb": 4,
+     "Disrupt": 4,
+     "Yawgmoth's Agenda": 4,
+     "Wild Research": 4,
+     "Void": 4,
+     "Urza's Rage": 4,
+     "Terminate": 4,
+     "Tainted Pact": 4,
+     "Syncopate": 4,
+     "Spite // Malice": 4,
+     "Sleight of Hand": 4,
+     "Sky Diamond": 4,
+     "Recoil": 4,
+     "Prophetic Bolt": 4,
+     "Probe": 4,
+     "Peek": 4,
+     "Opt": 4,
+     "Memory Lapse": 4,
+     "Marble Diamond": 4,
+     "Insidious Dreams": 4,
+     "Innocent Blood": 4,
+     "Hobble": 4,
+     "Fire // Ice": 4,
+     "Fact or Fiction": 4,
+     "Exclude": 4,
+     "Duress": 4,
+     "Repulse": 4,
+     "Flametongue Kavu": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 301497,
+   "event": 16425,
+   "archetype": "4 Color Braids",
+   "player": "David Petersen",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.58,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 16.0,
+     "R": 22.0,
+     "G": 16.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Violent Eruption": 3,
+     "Call of the Herd": 4,
+     "Firebolt": 4,
+     "Spiritmonger": 1,
+     "Mystic Enforcer": 1,
+     "Grim Lavamancer": 2,
+     "Kavu Titan": 2,
+     "Blazing Specter": 3,
+     "Mesmeric Fiend": 4,
+     "Llanowar Elves": 4,
+     "Flametongue Kavu": 4,
+     "Braids, Cabal Minion": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 253053,
+   "event": 9241,
+   "archetype": "BurningTog",
+   "player": "Mark Ziegner",
+   "event_name": "Worlds 2002 (Sydney)",
+   "stars": 1,
+   "rank": "2",
+   "date": "2002-08-18",
+   "summer": true,
+   "s": 0.35294117647058826,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 13,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.08,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 7.0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Flametongue Kavu": 4,
+     "Merfolk Looter": 2,
+     "Nightscape Familiar": 4,
+     "Psychatog": 3,
+     "Burning Wish": 3,
+     "Circular Logic": 3,
+     "Deep Analysis": 3,
+     "Fact or Fiction": 4,
+     "Fire // Ice": 4,
+     "Memory Lapse": 3,
+     "Repulse": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 725856,
+   "event": 16425,
+   "archetype": "Threshold Enforcer",
+   "player": "Brady Williams",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "9-16",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.30948224578763334,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 2.0,
+     "U": 19.0,
+     "B": 0,
+     "R": 0,
+     "G": 25.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Arrogant Wurm": 4,
+     "Basking Rootwalla": 4,
+     "Merfolk Looter": 4,
+     "Wild Mongrel": 4,
+     "Aquamoeba": 2,
+     "Mystic Enforcer": 2,
+     "Careful Study": 4,
+     "Aether Burst": 4,
+     "Circular Logic": 4,
+     "Roar of the Wurm": 3,
+     "Disrupt": 1,
+     "Squirrel Nest": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 725857,
+   "event": 16425,
+   "archetype": "Counter Burn",
+   "player": "Anthony Justice",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "9-16",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.30948224578763334,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 0,
+    "counters": 9,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 9,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Fire // Ice": 4,
+     "Sleight of Hand": 4,
+     "Counterspell": 4,
+     "Fact or Fiction": 4,
+     "Repulse": 4,
+     "Firebolt": 3,
+     "Urza's Rage": 3,
+     "Syncopate": 3,
+     "Prophetic Bolt": 3,
+     "Gainsay": 2,
+     "Earthquake": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 604985,
+   "event": 54513,
+   "archetype": "Enforcer Control",
+   "player": "Brian Hegstad",
+   "event_name": "Masters Series - San Diego 2002",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2002-01-09",
+   "summer": false,
+   "s": 0.2362810833750747,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 4,
+    "counters": 13,
+    "sweepers": 3,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 13.0,
+     "U": 37.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Predict": 2,
+     "Absorb": 3,
+     "Disrupt": 3,
+     "Memory Lapse": 3,
+     "Opt": 3,
+     "Wrath of God": 3,
+     "Repulse": 4,
+     "Peek": 4,
+     "Fact or Fiction": 4,
+     "Counterspell": 4,
+     "Mystic Enforcer": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 604986,
+   "event": 54513,
+   "archetype": "Balancing Tings",
+   "player": "Rob Dougherty",
+   "event_name": "Masters Series - San Diego 2002",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2002-01-09",
+   "summer": false,
+   "s": 0.1959909570294431,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 8,
+    "counters": 3,
+    "sweepers": 3,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 11.0,
+     "U": 10.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Orim's Chant": 3,
+     "Fact or Fiction": 3,
+     "Obliterate": 3,
+     "Syncopate": 3,
+     "Balancing Act": 4,
+     "Chromatic Sphere": 4,
+     "Fire // Ice": 4,
+     "Nimble Mongoose": 4,
+     "Terravore": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 725860,
+   "event": 16425,
+   "archetype": "Nefarious Lich",
+   "player": "Klaus Huebert",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "Other",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.1854135911218419,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.39,
+    "pips": {
+     "W": 3.0,
+     "U": 0,
+     "B": 34.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Rampant Growth": 4,
+     "Insidious Dreams": 4,
+     "Duress": 3,
+     "Persecute": 3,
+     "Sickening Dreams": 3,
+     "Skeletal Scrying": 3,
+     "Far Wanderings": 1,
+     "Ensnaring Bridge": 4,
+     "Sungrass Egg": 4,
+     "Chromatic Sphere": 3,
+     "Nefarious Lich": 3,
+     "Overgrown Estate": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 725861,
+   "event": 16425,
+   "archetype": "BW Bridge",
+   "player": "Gary Krakower",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "Other",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.1854135911218419,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 11.0,
+     "U": 0,
+     "B": 27.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Chainer's Edict": 4,
+     "Duress": 4,
+     "Gerrard's Verdict": 4,
+     "Innocent Blood": 4,
+     "Vindicate": 4,
+     "Haunting Echoes": 3,
+     "Death Grasp": 1,
+     "Wrath of God": 1,
+     "Disrupting Scepter": 4,
+     "Ensnaring Bridge": 4,
+     "Millstone": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 725862,
+   "event": 16425,
+   "archetype": "RUG Ceta Sanctuary",
+   "player": "Brent Heaser",
+   "event_name": "Grand Prix Milwaukee 2002",
+   "stars": 3,
+   "rank": "Other",
+   "date": "2002-05-12",
+   "summer": false,
+   "s": 0.1854135911218419,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 5,
+    "avg_cmc": 2.57,
+    "pips": {
+     "W": 0,
+     "U": 6.0,
+     "B": 0,
+     "R": 34.0,
+     "G": 18.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Flametongue Kavu": 4,
+     "Basking Rootwalla": 4,
+     "Grim Lavamancer": 4,
+     "Wild Mongrel": 4,
+     "Yavimaya Barbarian": 4,
+     "Violent Eruption": 4,
+     "Fiery Temper": 3,
+     "Fire // Ice": 2,
+     "Ceta Sanctuary": 4,
+     "Squirrel Nest": 2,
+     "Meteor Storm": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 605029,
+   "event": 54513,
+   "archetype": "Five-color Green",
+   "player": "Franck Canu",
+   "event_name": "Masters Series - San Diego 2002",
+   "stars": 1,
+   "rank": "9-16",
+   "date": "2002-01-09",
+   "summer": false,
+   "s": 0.16384354188757058,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 16,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.86,
+    "pips": {
+     "W": 3.0,
+     "U": 29.0,
+     "B": 3.0,
+     "R": 6.0,
+     "G": 16.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Shadowmage Infiltrator": 3,
+     "Mystic Snake": 3,
+     "Mystic Enforcer": 3,
+     "Flametongue Kavu": 3,
+     "Llanowar Elves": 2,
+     "Fact or Fiction": 4,
+     "Call of the Herd": 4,
+     "Counterspell": 4,
+     "Syncopate": 3,
+     "Fire // Ice": 3,
+     "Opposition": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 21,
+ "rejected_illegal": [
+  {
+   "archetype": "Frog in a Blender",
+   "deck": 884121,
+   "player": "Florent Lefranc",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Unknown Archetype",
+   "deck": 884123,
+   "player": "Julien Zarka",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Unknown Archetype",
+   "deck": 884124,
+   "player": "Franck Canu",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Unknown Archetype",
+   "deck": 884127,
+   "player": "Philippe Mongauze",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Unknown Archetype",
+   "deck": 884126,
+   "player": "St\u00e9phane Damizet",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "BUG Tog with Pernicious",
+   "deck": 884125,
+   "player": "Farid Meraghni",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Bug Psychatog",
+   "player": "Antoine Ruel",
+   "kept": "Psychatog",
+   "kept_player": "Gabriel Caligaris"
+  },
+  {
+   "dropped": "Goblin Trenches Control",
+   "player": "Luis Massaro",
+   "kept": "Trenches",
+   "kept_player": "Eric Taylor"
+  },
+  {
+   "dropped": "Squirrel Opposition",
+   "player": "Patrick Chapin",
+   "kept": "Squirrel Opposition UGr",
+   "kept_player": "Eugene Harvey"
+  },
+  {
+   "dropped": "BW Braids",
+   "player": "Michihisa Onoda",
+   "kept": "White Braids",
+   "kept_player": "Sylvain Lauriol"
+  },
+  {
+   "dropped": "UG Madness",
+   "player": "Rodrigo Castro",
+   "kept": "RUG Madness",
+   "kept_player": "Jurgen Hahn"
+  },
+  {
+   "dropped": "RG Madness",
+   "player": "Andre Barreto",
+   "kept": "RG Flashback",
+   "kept_player": "Jon Stern"
+  },
+  {
+   "dropped": "3 Color Psychatog",
+   "player": "Neil Reeves",
+   "kept": "Psychatog",
+   "kept_player": "Gabriel Caligaris"
+  },
+  {
+   "dropped": "RG Beats",
+   "player": "Yoshitaka Nakano",
+   "kept": "RG Flashback",
+   "kept_player": "Jon Stern"
+  },
+  {
+   "dropped": "UGr Madness",
+   "player": "Boyd Hardie",
+   "kept": "RUG Madness",
+   "kept_player": "Jurgen Hahn"
+  },
+  {
+   "dropped": "UGr Threshold",
+   "player": "Koutarou Ootsuka",
+   "kept": "Squirrel Opposition UGr",
+   "kept_player": "Eugene Harvey"
+  },
+  {
+   "dropped": "UGw Madness",
+   "player": "Mike Long",
+   "kept": "RUG Madness",
+   "kept_player": "Jurgen Hahn"
+  },
+  {
+   "dropped": "Goblin Trenches Aggro",
+   "player": "Peter Jesuale",
+   "kept": "Trenches",
+   "kept_player": "Eric Taylor"
+  },
+  {
+   "dropped": "Rug Madness",
+   "player": "Blake Quelle",
+   "kept": "RUG Madness",
+   "kept_player": "Jurgen Hahn"
+  },
+  {
+   "dropped": "Squirrel Oppo",
+   "player": "Kang Nien Chiang",
+   "kept": "Squirrel Opposition UGr",
+   "kept_player": "Eugene Harvey"
+  },
+  {
+   "dropped": "Squirrel oppo UGr",
+   "player": "Elizabeth Lempicki",
+   "kept": "Squirrel Opposition UGr",
+   "kept_player": "Eugene Harvey"
+  },
+  {
+   "dropped": "RG Reckless Charge",
+   "player": "Brian Kowal",
+   "kept": "RG Flashback",
+   "kept_player": "Jon Stern"
+  },
+  {
+   "dropped": "Red Psychatog",
+   "player": "Albertus Hui Chin Law",
+   "kept": "BurningTog",
+   "kept_player": "Mark Ziegner"
+  },
+  {
+   "dropped": "Goblin Trenches",
+   "player": "Marco Lombardi",
+   "kept": "Trenches",
+   "kept_player": "Eric Taylor"
+  }
+ ],
+ "objective": -7.593075544769751,
+ "pool_colors": {
+  "U": 15,
+  "B": 9,
+  "R": 12,
+  "G": 11,
+  "W": 6
+ },
+ "pool_styles": {
+  "control": 8,
+  "midrange": 6,
+  "aggro": 7
+ },
+ "kept_lost": []
+}

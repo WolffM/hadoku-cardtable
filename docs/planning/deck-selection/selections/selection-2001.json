@@ -1,0 +1,1161 @@
+{
+ "era": {
+  "year": 2001,
+  "season_start": "2000-11-01",
+  "start": "2001-07-01",
+  "end": "2001-11-01",
+  "format": "Standard (APC)",
+  "sets": "MMQ, NMS, PCY, INV, PLS, 7ED, APC",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 603414,
+   "event": 54322,
+   "archetype": "Blue Skies",
+   "player": "Terry Tsang",
+   "event_name": "Nationals - Canada 2001",
+   "stars": 3,
+   "rank": "1",
+   "date": "2001-07-19",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 18,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.21,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Misdirection": 1,
+     "Wash Out": 4,
+     "Gush": 4,
+     "Opt": 4,
+     "Thwart": 4,
+     "Foil": 4,
+     "Waterfront Bouncer": 2,
+     "Spiketail Hatchling": 4,
+     "Troublesome Spirit": 4,
+     "Rootwater Thief": 4,
+     "Rishadan Airship": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 6
+  },
+  {
+   "deck": 601344,
+   "event": 54039,
+   "archetype": "Fires",
+   "player": "Trevor Blackwell",
+   "event_name": "Nationals - US 2001",
+   "stars": 3,
+   "rank": "1",
+   "date": "2001-06-01",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 17.0,
+     "G": 32.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Urza's Rage": 1,
+     "Ghitu Fire": 2,
+     "Fires of Yavimaya": 4,
+     "Saproling Burst": 4,
+     "Thunderscape Battlemage": 2,
+     "Shivan Wurm": 2,
+     "Yavimaya Barbarian": 3,
+     "Thornscape Battlemage": 3,
+     "Flametongue Kavu": 3,
+     "Llanowar Elves": 4,
+     "Birds of Paradise": 4,
+     "Blastoderm": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 19
+  },
+  {
+   "deck": 603748,
+   "event": 54365,
+   "archetype": "Counter Rebels",
+   "player": "Reynerio Estacio Jr.",
+   "event_name": "Nationals - Philippines 2001",
+   "stars": 3,
+   "rank": "1",
+   "date": "2001-05-19",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 25,
+    "creatures": 16,
+    "counters": 8,
+    "sweepers": 5,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.83,
+    "pips": {
+     "W": 35.0,
+     "U": 21.0,
+     "B": 1.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Tsabo's Web": 1,
+     "Dismantling Blow": 2,
+     "Worship": 2,
+     "Wrath of God": 3,
+     "Opt": 4,
+     "Absorb": 4,
+     "Counterspell": 4,
+     "Rebel Informer": 1,
+     "Lightbringer": 1,
+     "Jhovall Queen": 1,
+     "Thermal Glider": 1,
+     "Meddling Mage": 1,
+     "Defiant Vanguard": 2,
+     "Ramosian Sky Marshal": 2,
+     "Lin Sivvi, Defiant Hero": 3,
+     "Defiant Falcon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 8
+  },
+  {
+   "deck": 603749,
+   "event": 54365,
+   "archetype": "Orbosition",
+   "player": "Felix Gonzales",
+   "event_name": "Nationals - Philippines 2001",
+   "stars": 3,
+   "rank": "2",
+   "date": "2001-05-19",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 14,
+    "counters": 15,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.2,
+    "pips": {
+     "W": 0,
+     "U": 51.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Sunken Field": 1,
+     "Thwart": 2,
+     "Opposition": 3,
+     "Foil": 4,
+     "Daze": 4,
+     "Gush": 4,
+     "Rhystic Study": 4,
+     "Static Orb": 4,
+     "Wall of Air": 2,
+     "Glacial Wall": 4,
+     "Spiketail Hatchling": 4,
+     "Indentured Djinn": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 7
+  },
+  {
+   "deck": 601345,
+   "event": 54039,
+   "archetype": "UW Control",
+   "player": "Brian Hegstad",
+   "event_name": "Nationals - US 2001",
+   "stars": 3,
+   "rank": "2",
+   "date": "2001-06-01",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 10,
+    "sweepers": 4,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 22.0,
+     "U": 28.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Foil": 2,
+     "Tsabo's Web": 3,
+     "Story Circle": 3,
+     "Millstone": 3,
+     "Wrath of God": 4,
+     "Fact or Fiction": 4,
+     "Dismantling Blow": 4,
+     "Counterspell": 4,
+     "Accumulated Knowledge": 4,
+     "Absorb": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 601352,
+   "event": 54040,
+   "archetype": "Red Zone",
+   "player": "Stephan Valkyser",
+   "event_name": "Nationals - Germany 2001",
+   "stars": 3,
+   "rank": "2",
+   "date": "2001-05-25",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.76,
+    "pips": {
+     "W": 17.0,
+     "U": 0,
+     "B": 0,
+     "R": 6.0,
+     "G": 27.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Urza's Rage": 2,
+     "Armadillo Cloak": 3,
+     "Tangle Wire": 4,
+     "Wax // Wane": 4,
+     "Shivan Wurm": 1,
+     "Charging Troll": 2,
+     "Llanowar Elves": 2,
+     "Serra Angel": 2,
+     "Thornscape Battlemage": 3,
+     "Flametongue Kavu": 3,
+     "Thornscape Familiar": 4,
+     "Noble Panther": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 329843,
+   "event": 20016,
+   "archetype": "Counter Crosis",
+   "player": "Laurent Pagorek",
+   "event_name": "Nationals - France 2001 @ Avignon",
+   "stars": 3,
+   "rank": "2",
+   "date": "2001-03-01",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 4,
+    "counters": 10,
+    "sweepers": 2,
+    "draw": 10,
+    "burn": 3,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 21.0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Spite // Malice": 2,
+     "Opt": 2,
+     "Void": 2,
+     "Crosis's Charm": 3,
+     "Fact or Fiction": 4,
+     "Accumulated Knowledge": 4,
+     "Lobotomy": 1,
+     "Tsabo's Web": 2,
+     "Cremate": 2,
+     "Urza's Rage": 3,
+     "Undermine": 4,
+     "Counterspell": 4,
+     "Pyre Zombie": 1,
+     "Nether Spirit": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 253037,
+   "event": 9240,
+   "archetype": "Machinehead",
+   "player": "Tom Van de Logt",
+   "event_name": "Worlds 2001 (Toronto)",
+   "stars": 1,
+   "rank": "1",
+   "date": "2001-08-12",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.72,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 28.0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Plague Spitter": 4,
+     "Phyrexian Scuta": 3,
+     "Skizzik": 3,
+     "Flametongue Kavu": 2,
+     "Crypt Angel": 2,
+     "Blazing Specter": 4,
+     "Duress": 4,
+     "Dark Ritual": 4,
+     "Terminate": 4,
+     "Vendetta": 3,
+     "Urza's Rage": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 603419,
+   "event": 54322,
+   "archetype": "Nether Go",
+   "player": "Jason Simard",
+   "event_name": "Nationals - Canada 2001",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2001-07-19",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 3,
+    "counters": 13,
+    "sweepers": 3,
+    "draw": 6,
+    "burn": 3,
+    "avg_cmc": 2.91,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 17.0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Teferi's Response": 2,
+     "Misdirection": 2,
+     "Urza's Rage": 3,
+     "Fact or Fiction": 3,
+     "Force Spike": 3,
+     "Void": 3,
+     "Accumulated Knowledge": 4,
+     "Undermine": 4,
+     "Counterspell": 4,
+     "Recoil": 4,
+     "Nether Spirit": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 9
+  },
+  {
+   "deck": 603421,
+   "event": 54322,
+   "archetype": "Digger",
+   "player": "Ben Raymond",
+   "event_name": "Nationals - Canada 2001",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2001-07-19",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 28,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 32.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Recoil": 4,
+     "Counterspell": 4,
+     "Ravenous Rats": 4,
+     "Crypt Angel": 4,
+     "Vodalian Zombie": 4,
+     "Cavern Harpy": 4,
+     "Doomsday Specter": 4,
+     "Urborg Emissary": 4,
+     "Gravedigger": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601354,
+   "event": 54040,
+   "archetype": "RDW",
+   "player": "Mark Ziegner",
+   "event_name": "Nationals - Germany 2001",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2001-05-25",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 15,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 34.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Ghitu Fire": 3,
+     "Chimeric Idol": 4,
+     "Seal of Fire": 4,
+     "Shock": 4,
+     "Urza's Rage": 4,
+     "Avatar of Fury": 1,
+     "Firebrand Ranger": 3,
+     "Kris Mage": 3,
+     "Rage Weaver": 3,
+     "Flametongue Kavu": 4,
+     "Skizzik": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 603409,
+   "event": 54321,
+   "archetype": "Square Void",
+   "player": "Masaya Mori",
+   "event_name": "Nationals - Japan 2001",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2001-06-02",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 3,
+    "burn": 8,
+    "avg_cmc": 2.86,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 19.0,
+     "R": 23.0,
+     "G": 4.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Plague Spitter": 3,
+     "Pyre Zombie": 4,
+     "Thunderscape Battlemage": 4,
+     "Addle": 1,
+     "Assault // Battery": 4,
+     "Duress": 4,
+     "Moss Diamond": 3,
+     "Terminate": 4,
+     "Tsabo's Web": 3,
+     "Urza's Rage": 4,
+     "Void": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601347,
+   "event": 54039,
+   "archetype": "Bridge Wildfire",
+   "player": "David Bachmann",
+   "event_name": "Nationals - US 2001",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2001-06-01",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 31.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Tectonic Break": 2,
+     "Seal of Fire": 3,
+     "Millstone": 3,
+     "Grafted Skullcap": 3,
+     "Ensnaring Bridge": 4,
+     "Fire Diamond": 4,
+     "Pillage": 4,
+     "Stone Rain": 4,
+     "Wildfire": 4,
+     "Pyroclasm": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 601350,
+   "event": 54039,
+   "archetype": "Merfolk Opposition",
+   "player": "Alex Borteh",
+   "event_name": "Nationals - US 2001",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2001-06-01",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.7,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Counterspell": 4,
+     "Gush": 4,
+     "Opposition": 4,
+     "Thwart": 4,
+     "Static Orb": 4,
+     "Lord of Atlantis": 4,
+     "Merfolk Looter": 4,
+     "Merfolk of the Pearl Trident": 4,
+     "Vodalian Merchant": 4,
+     "Darting Merfolk": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 603753,
+   "event": 54365,
+   "archetype": "Dromar Probe Go",
+   "player": "Mark Herrin",
+   "event_name": "Nationals - Philippines 2001",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2001-05-19",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 4,
+    "counters": 12,
+    "sweepers": 7,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 17.0,
+     "U": 32.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Rout": 1,
+     "Tsabo's Decree": 1,
+     "Millstone": 1,
+     "Dominate": 2,
+     "Rethink": 2,
+     "Exclude": 2,
+     "Dismantling Blow": 2,
+     "Probe": 3,
+     "Tsabo's Web": 3,
+     "Accumulated Knowledge": 4,
+     "Counterspell": 4,
+     "Absorb": 4,
+     "Wrath of God": 4,
+     "Dromar, the Banisher": 1,
+     "Nether Spirit": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 603755,
+   "event": 54365,
+   "archetype": "Lovely Sunshine",
+   "player": "Bayani Manansala Jr.",
+   "event_name": "Nationals - Philippines 2001",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2001-05-19",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 10,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 3.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 15.0,
+     "R": 32.0,
+     "G": 4.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Earthquake": 3,
+     "Void": 3,
+     "Assault // Battery": 4,
+     "Stone Rain": 4,
+     "Terminate": 4,
+     "Pillage": 4,
+     "Despoil": 4,
+     "Tahngarth, Talruum Hero": 1,
+     "Skizzik": 4,
+     "Plague Spitter": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 329846,
+   "event": 20016,
+   "archetype": "Burning Bridge",
+   "player": "Yann Hamon",
+   "event_name": "Nationals - France 2001 @ Avignon",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2001-03-01",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 9,
+    "avg_cmc": 2.41,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 18.0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Charcoal Diamond": 2,
+     "Fire Diamond": 3,
+     "Persecute": 3,
+     "Seal of Fire": 3,
+     "Urza's Rage": 3,
+     "Ghitu Fire": 3,
+     "Ensnaring Bridge": 4,
+     "Grafted Skullcap": 4,
+     "Duress": 4,
+     "Addle": 4,
+     "Pyre Zombie": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 603644,
+   "event": 54351,
+   "archetype": "Ponza",
+   "player": "Victor Galimbertti",
+   "event_name": "Continental - Latin America Champs 2001 @ Buenos Aires (Argentina)",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2001-07-01",
+   "summer": true,
+   "s": 0.2953513542188434,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 10,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 37.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Shock": 3,
+     "Urza's Rage": 3,
+     "Seal of Fire": 4,
+     "Blood Oath": 4,
+     "Tangle Wire": 4,
+     "Stone Rain": 4,
+     "Pillage": 4,
+     "Kris Mage": 3,
+     "Mogg Sentry": 4,
+     "Skizzik": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 253044,
+   "event": 9240,
+   "archetype": "Opposition",
+   "player": "John Ormerod",
+   "event_name": "Worlds 2001 (Toronto)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2001-08-12",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.79,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Blind Seer": 1,
+     "Glacial Wall": 3,
+     "Merfolk Looter": 4,
+     "Spiketail Hatchling": 3,
+     "Temporal Adept": 1,
+     "Thieving Magpie": 4,
+     "Waterfront Bouncer": 2,
+     "Counterspell": 4,
+     "Opposition": 4,
+     "Sleight of Hand": 4,
+     "Static Orb": 4,
+     "Thwart": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601628,
+   "event": 54087,
+   "archetype": "UG Aggro Opposition",
+   "player": "Satoshi Nakamura",
+   "event_name": "Continental - Asia Pacific Championship 2001 (APAC) @ Kuala Lumpur (Malaysia)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2001-06-23",
+   "summer": false,
+   "s": 0.1959909570294431,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.33,
+    "pips": {
+     "W": 0,
+     "U": 16.0,
+     "B": 0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Opposition": 4,
+     "Saproling Burst": 4,
+     "Chimeric Idol": 4,
+     "Gush": 4,
+     "Fact or Fiction": 4,
+     "Blastoderm": 4,
+     "Silt Crawler": 4,
+     "Llanowar Elves": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 20,
+ "rejected_illegal": [
+  {
+   "archetype": "Machine Head",
+   "deck": 603407,
+   "player": "Min-su Kim",
+   "why": [
+    "5x Terminate (over the four-copy limit)"
+   ]
+  },
+  {
+   "archetype": "Netherhaups",
+   "deck": 599597,
+   "player": "Messaoud Bouchaib",
+   "why": [
+    "Crystal Vein (not in legal sets)",
+    "Dread of Night (not in legal sets)",
+    "Dwarven Ruins (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rebels",
+   "deck": 252463,
+   "player": "Kai Budde",
+   "why": [
+    "Armageddon (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "U/w Control",
+   "deck": 601618,
+   "player": "Wei Ren Khoo",
+   "why": [
+    "Recall (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "U/w Control",
+   "deck": 599602,
+   "player": "Yosef Abadi",
+   "why": [
+    "Abduction (not in legal sets)",
+    "Power Sink (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "My Fires",
+   "deck": 252466,
+   "player": "Zvi Mowshowitz",
+   "why": [
+    "Flashfires (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Blue",
+   "deck": 252470,
+   "player": "Jay Elarar",
+   "why": [
+    "Chill (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Counter Rebel",
+   "player": "Daniel Zink",
+   "kept": "Counter Rebels",
+   "kept_player": "Reynerio Estacio Jr."
+  },
+  {
+   "dropped": "Long Fire",
+   "player": "Goro Matsuo",
+   "kept": "Fires",
+   "kept_player": "Trevor Blackwell"
+  },
+  {
+   "dropped": "Dark Fires",
+   "player": "Sam Lount",
+   "kept": "Fires",
+   "kept_player": "Trevor Blackwell"
+  },
+  {
+   "dropped": "No Fires",
+   "player": "Masahiko Morita",
+   "kept": "Fires",
+   "kept_player": "Trevor Blackwell"
+  },
+  {
+   "dropped": "U/W Control",
+   "player": "Olivier Ruel",
+   "kept": "UW Control",
+   "kept_player": "Brian Hegstad"
+  },
+  {
+   "dropped": "Machine Head",
+   "player": "Yudai Yamasaki",
+   "kept": "Machinehead",
+   "kept_player": "Tom Van de Logt"
+  },
+  {
+   "dropped": "Red Deck Wins",
+   "player": "Takamasa Fukata",
+   "kept": "RDW",
+   "kept_player": "Mark Ziegner"
+  },
+  {
+   "dropped": "Mori-katsu Go (Nether  Go)",
+   "player": "Yukihiro Usami",
+   "kept": "Nether Go",
+   "kept_player": "Jason Simard"
+  },
+  {
+   "dropped": "U/W Millstone",
+   "player": "Antoine Ruel",
+   "kept": "UW Control",
+   "kept_player": "Brian Hegstad"
+  },
+  {
+   "dropped": "Merfolk Oppo",
+   "player": "Alex Borteh",
+   "kept": "Merfolk Opposition",
+   "kept_player": "Alex Borteh"
+  },
+  {
+   "dropped": "Ponza Aggro",
+   "player": "Dave Montreuil",
+   "kept": "RDW",
+   "kept_player": "Mark Ziegner"
+  },
+  {
+   "dropped": "Probe Dromar Go",
+   "player": "Tomi Walamies",
+   "kept": "Dromar Probe Go",
+   "kept_player": "Mark Herrin"
+  },
+  {
+   "dropped": "Probe Go",
+   "player": "Tommi Hovi",
+   "kept": "Dromar Probe Go",
+   "kept_player": "Mark Herrin"
+  },
+  {
+   "dropped": "Fires of Yavimaya",
+   "player": "Gert Coeckelbergh",
+   "kept": "Fires",
+   "kept_player": "Trevor Blackwell"
+  }
+ ],
+ "objective": -12.05566433843877,
+ "pool_colors": {
+  "U": 11,
+  "R": 11,
+  "G": 3,
+  "W": 4,
+  "B": 8
+ },
+ "pool_styles": {
+  "midrange": 11,
+  "control": 5,
+  "aggro": 4
+ },
+ "kept_lost": []
+}

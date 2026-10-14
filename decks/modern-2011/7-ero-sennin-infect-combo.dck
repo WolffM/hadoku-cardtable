@@ -1,0 +1,35 @@
+[metadata]
+Name=Infect Combo (Ero-sennin)
+Deck Type=Constructed
+Format=Modern (M12)
+Effective=2011-07-15
+Source URL=https://www.mtgtop8.com/event?e=2005&d=214214&f=MO
+Comment=Magic-league Modern Trial Tournament #1: Ero-sennin, 7th, Infect Combo. Transcribed from mtgtop8 deck 214214.
+[Main]
+1 Snapback|TSP
+1 Pact of Negation|FUT
+1 Summoner's Pact|FUT
+2 Gitaxian Probe|NPH
+3 Disrupting Shoal|BOK
+4 Peer Through Depths|CHK
+4 Spell Pierce|ZEN
+4 Blazing Shoal|BOK
+4 Dragonstorm|TSB
+4 Muddle the Mixture|RAV
+4 Preordain|M11
+4 Ponder|M12
+1 Progenitus|CFX
+4 Blighted Agent|NPH
+1 Watery Grave|RAV
+2 Tolaria West|FUT
+4 Scalding Tarn|ZEN
+4 Inkmoth Nexus|MBS
+8 Island|M12
+[Sideboard]
+2 Trickbind|TSP
+1 Deprive|ROE
+3 Dismember|NPH
+1 Echoing Truth|DS
+1 Slaughter Pact|FUT
+4 Spellskite|NPH
+3 Vendilion Clique|MOR

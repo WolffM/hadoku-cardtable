@@ -1,0 +1,355 @@
+{
+ "era": {
+  "year": 1998,
+  "season_start": "1997-11-01",
+  "start": "1998-07-01",
+  "end": "1998-11-01",
+  "format": "Standard (EXO)",
+  "sets": "MIR, VIS, 5ED, WTH, TMP, STH, EXO",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 599795,
+   "event": 53788,
+   "archetype": "White Weenie",
+   "player": "Matt Linde",
+   "event_name": "Nationals - US 1998",
+   "stars": 3,
+   "rank": "1",
+   "date": "1998-07-03",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 72.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "White Knight": 4,
+     "Warrior en-Kor": 4,
+     "Tithe": 4,
+     "Soul Warden": 4,
+     "Soltari Visionary": 1,
+     "Soltari Priest": 4,
+     "Soltari Monk": 4,
+     "Paladin en-Vec": 3,
+     "Nomads en-Kor": 3,
+     "Empyrial Armor": 4,
+     "Disenchant": 3,
+     "Cataclysm": 4,
+     "Aura of Silence": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 599796,
+   "event": 53788,
+   "archetype": "Pros Bloom",
+   "player": "Mike Long",
+   "event_name": "Nationals - US 1998",
+   "stars": 3,
+   "rank": "2",
+   "date": "1998-07-03",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 0,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 1,
+    "avg_cmc": 2.54,
+    "pips": {
+     "W": 2.0,
+     "U": 15.0,
+     "B": 24.0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Drain Life": 1,
+     "Power Sink": 2,
+     "Memory Lapse": 2,
+     "Abeyance": 2,
+     "Prosperity": 3,
+     "Vampiric Tutor": 3,
+     "Meditate": 4,
+     "Natural Balance": 4,
+     "Infernal Contract": 4,
+     "Squandered Resources": 4,
+     "Impulse": 4,
+     "Cadaverous Bloom": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 599798,
+   "event": 53788,
+   "archetype": "Stupid Green Deck",
+   "player": "Bryce Currence",
+   "event_name": "Nationals - US 1998",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1998-07-03",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.73,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 56.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Survival of the Fittest": 1,
+     "Desert Twister": 3,
+     "Eladamri's Vineyard": 4,
+     "Cursed Scroll": 4,
+     "Creeping Mold": 4,
+     "Uktabi Orangutan": 2,
+     "Wall of Blossoms": 3,
+     "Llanowar Elves": 4,
+     "Spike Feeder": 4,
+     "Spike Weaver": 4,
+     "Stampeding Wildebeests": 4,
+     "Wall of Roots": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 599797,
+   "event": 53788,
+   "archetype": "Forbidian",
+   "player": "Jon Finkel",
+   "event_name": "Nationals - US 1998",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1998-07-03",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 12,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 0,
+     "U": 49.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Mana Leak": 2,
+     "Capsize": 2,
+     "Forbid": 3,
+     "Sapphire Medallion": 4,
+     "Whispers of the Muse": 4,
+     "Legacy's Allure": 4,
+     "Impulse": 4,
+     "Counterspell": 4,
+     "Silver Wyvern": 1,
+     "Tradewind Rider": 3,
+     "Ophidian": 4,
+     "Man-o'-War": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 253013,
+   "event": 9237,
+   "archetype": "Recurring Survival",
+   "player": "Brian Selden",
+   "event_name": "Worlds 1998 (Seattle)",
+   "stars": 1,
+   "rank": "1",
+   "date": "1998-08-16",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.79,
+    "pips": {
+     "W": 1.0,
+     "U": 4.0,
+     "B": 14.0,
+     "R": 3.0,
+     "G": 25.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Verdant Force": 1,
+     "Uktabi Orangutan": 2,
+     "Tradewind Rider": 1,
+     "Thrull Surgeon": 1,
+     "Spirit of the Night": 1,
+     "Spike Weaver": 1,
+     "Spike Feeder": 2,
+     "Orcish Settlers": 1,
+     "Nekrataal": 2,
+     "Man-o'-War": 1,
+     "Cloudchaser Eagle": 1,
+     "Birds of Paradise": 4,
+     "Scroll Rack": 2,
+     "Survival of the Fittest": 4,
+     "Recurring Nightmare": 4,
+     "Lobotomy": 2,
+     "Firestorm": 2,
+     "Wall of Roots": 2,
+     "Wall of Blossoms": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 599799,
+   "event": 53788,
+   "archetype": "Cursed Sligh",
+   "player": "Andrew Pacifico",
+   "event_name": "Nationals - US 1998",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "1998-07-03",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 17,
+    "avg_cmc": 2.23,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 50.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Viashino Sandstalker": 2,
+     "Suq'Ata Lancer": 3,
+     "Sonic Burst": 2,
+     "Shock": 4,
+     "Mogg Flunkies": 4,
+     "Mogg Fanatic": 4,
+     "Jackal Pup": 4,
+     "Incinerate": 4,
+     "Goblin Vandal": 1,
+     "Fireblast": 4,
+     "Cursed Scroll": 3,
+     "Ball Lightning": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 6,
+ "rejected_illegal": [],
+ "duplicates_dropped": [
+  {
+   "dropped": "Deadguy Red",
+   "player": "David Price",
+   "kept": "Cursed Sligh",
+   "kept_player": "Andrew Pacifico"
+  },
+  {
+   "dropped": "Sligh",
+   "player": "Ben Rubin",
+   "kept": "Cursed Sligh",
+   "kept_player": "Andrew Pacifico"
+  },
+  {
+   "dropped": "Weenie White",
+   "player": "Brian Hacker",
+   "kept": "White Weenie",
+   "kept_player": "Matt Linde"
+  }
+ ],
+ "objective": -39.22539335970341,
+ "pool_colors": {
+  "W": 1,
+  "U": 2,
+  "B": 2,
+  "G": 3,
+  "R": 1
+ },
+ "pool_styles": {
+  "aggro": 2,
+  "control": 1,
+  "midrange": 3
+ },
+ "kept_lost": []
+}

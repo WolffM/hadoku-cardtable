@@ -1,0 +1,38 @@
+[metadata]
+Name=Mono Black Midrange (Jakub Slemr)
+Deck Type=Constructed
+Format=Standard (UDS)
+Effective=1999-07-01
+Source URL=https://www.mtgtop8.com/event?e=9189&d=252631&f=ST
+Comment=Worlds 1999 (Yokohama): Jakub Slemr, 5th-8th, Mono Black Midrange. Transcribed from mtgtop8 deck 252631.
+[Main]
+1 Rapid Decay|UD
+1 Vampiric Tutor|6E
+2 Corpse Dance|TE
+2 Stupor|6E
+3 Cursed Scroll|TE
+3 Yawgmoth's Will|US
+4 Powder Keg|UD
+4 Diabolic Edict|TE
+4 Dark Ritual|US
+4 Duress|US
+1 Phyrexian Negator|UD
+1 Bottle Gnomes|TE
+2 Ticking Gnomes|UL
+3 Phyrexian Plaguelord|UL
+3 Ravenous Rats|UD
+1 Volrath's Stronghold|SH
+2 Spawning Pool|UL
+4 Wasteland|TE
+15 Swamp|P3
+[Sideboard]
+1 Stromgald Cabal|6E
+2 Carrion Beetles|US
+1 Evincar's Justice|TE
+1 Hatred|EX
+2 Perish|6E
+1 Persecute|US
+1 Sphere of Resistance|EX
+3 Rapid Decay|UD
+2 Phyrexian Negator|UD
+1 Bottle Gnomes|TE

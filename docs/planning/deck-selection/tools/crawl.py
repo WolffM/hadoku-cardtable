@@ -41,9 +41,11 @@ def crawl(era, fmt='ST', levels='PMC'):
             if not m: continue
             e, d, arch, player, event, stars, rank, date = m.groups()
             dd, mm, yy = date.split('/')
+            # Two-digit years: mtgtop8's archive starts in 1994, so 9x is the 1990s.
+            cc = '19' if yy >= '90' else '20'
             out.append({'deck': int(d), 'event': int(e), 'archetype': html.unescape(arch).strip(), 'player': html.unescape(player).strip(),
                         'event_name': re.sub(r'\s+', ' ', html.unescape(event)).strip(), 'stars': stars.count('star'),
-                        'rank': rank.strip(), 'date': f'20{yy}-{mm}-{dd}', 'summer': f'20{yy}-{mm}-{dd}' >= era['start']})
+                        'rank': rank.strip(), 'date': f'{cc}{yy}-{mm}-{dd}', 'summer': f'{cc}{yy}-{mm}-{dd}' >= era['start']})
             got += 1
         if got == 0 or len(out) >= total or page > 80: break
         page += 1; time.sleep(0.5)

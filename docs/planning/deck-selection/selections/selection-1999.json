@@ -1,0 +1,826 @@
+{
+ "era": {
+  "year": 1999,
+  "season_start": "1998-11-01",
+  "start": "1999-07-01",
+  "end": "1999-11-01",
+  "format": "Standard (UDS)",
+  "sets": "TMP, STH, EXO, USG, ULG, 6ED, UDS",
+  "banned": [
+   "Dream Halls",
+   "Earthcraft",
+   "Fluctuator",
+   "Lotus Petal",
+   "Memory Jar",
+   "Mind Over Matter",
+   "Recurring Nightmare",
+   "Time Spiral",
+   "Tolarian Academy",
+   "Windfall"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 601328,
+   "event": 54037,
+   "archetype": "Suicide Black",
+   "player": "Marc Rajotte",
+   "event_name": "Nationals - Canada 1999",
+   "stars": 3,
+   "rank": "1",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.84,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 44.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Sarcomancy": 4,
+     "Duress": 4,
+     "Hatred": 4,
+     "Cursed Scroll": 4,
+     "Dark Ritual": 4,
+     "Ticking Gnomes": 2,
+     "Dauthi Horror": 4,
+     "Dauthi Slayer": 4,
+     "Carnophage": 4,
+     "Skittering Skirge": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 601709,
+   "event": 54101,
+   "archetype": "White Weenie (White Lightning)",
+   "player": "Kyle Rose",
+   "event_name": "Nationals - US 1999",
+   "stars": 3,
+   "rank": "1",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 56.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Glorious Anthem": 2,
+     "Waylay": 4,
+     "Disenchant": 4,
+     "Crusade": 4,
+     "Masticore": 2,
+     "Warrior en-Kor": 4,
+     "Soul Warden": 4,
+     "Soltari Priest": 4,
+     "Soltari Foot Soldier": 4,
+     "Mother of Runes": 4,
+     "Longbow Archer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 601329,
+   "event": 54037,
+   "archetype": "Black Control",
+   "player": "Gary Krakower",
+   "event_name": "Nationals - Canada 1999",
+   "stars": 3,
+   "rank": "2",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 4,
+    "avg_cmc": 2.3,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 30.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Masticore": 3,
+     "Stronghold Taskmaster": 2,
+     "Skittering Horror": 2,
+     "Western Paladin": 1,
+     "Duress": 4,
+     "Stupor": 4,
+     "Diabolic Edict": 4,
+     "Dark Ritual": 4,
+     "Yawgmoth's Will": 3,
+     "Eradicate": 1,
+     "Rapid Decay": 1,
+     "Cursed Scroll": 4,
+     "Powder Keg": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 601713,
+   "event": 54101,
+   "archetype": "Enchantress",
+   "player": "John Hunka",
+   "event_name": "Nationals - US 1999",
+   "stars": 3,
+   "rank": "2",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 2.0,
+     "U": 11.0,
+     "B": 1.0,
+     "R": 0,
+     "G": 30.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Stroke of Genius": 1,
+     "Sacred Ground": 1,
+     "Yawgmoth's Will": 1,
+     "Flickering Ward": 1,
+     "Worldly Tutor": 2,
+     "Survival of the Fittest": 2,
+     "Exploration": 4,
+     "Eladamri's Vineyard": 4,
+     "Fertile Ground": 4,
+     "Frantic Search": 4,
+     "Wild Growth": 4,
+     "Palinchron": 1,
+     "Verduran Enchantress": 2,
+     "Wall of Blossoms": 2,
+     "Cloud of Faeries": 4,
+     "Argothian Enchantress": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601330,
+   "event": 54037,
+   "archetype": "Magpie",
+   "player": "Bruce Marsan",
+   "event_name": "Nationals - Canada 1999",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 9,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.86,
+    "pips": {
+     "W": 0,
+     "U": 51.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Treachery": 1,
+     "Quash": 2,
+     "Legacy's Allure": 2,
+     "Whispers of the Muse": 3,
+     "Capsize": 3,
+     "Counterspell": 4,
+     "Mana Leak": 4,
+     "Powder Keg": 4,
+     "Forbid": 4,
+     "Morphling": 2,
+     "Masticore": 3,
+     "Thieving Magpie": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 601708,
+   "event": 54101,
+   "archetype": "Replenish Bargain",
+   "player": "Charles Kornblith",
+   "event_name": "Nationals - US 1999",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 0,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 1,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 6.0,
+     "U": 22.0,
+     "B": 6.0,
+     "R": 3.0,
+     "G": 2.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Delusions of Mediocrity": 1,
+     "Peace of Mind": 1,
+     "Sacred Ground": 1,
+     "Seismic Assault": 1,
+     "Yawgmoth's Bargain": 1,
+     "Abundance": 1,
+     "Forbid": 3,
+     "Attunement": 3,
+     "Vampiric Tutor": 4,
+     "Replenish": 4,
+     "Mystical Tutor": 4,
+     "Mox Diamond": 4,
+     "Frantic Search": 4,
+     "Intuition": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 601331,
+   "event": 54037,
+   "archetype": "Trade Blossom",
+   "player": "Jurgen Hahn",
+   "event_name": "Nationals - Canada 1999",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 17,
+    "counters": 9,
+    "sweepers": 8,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.65,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Miscalculation": 2,
+     "Capsize": 2,
+     "Counterspell": 3,
+     "Propaganda": 4,
+     "Whispers of the Muse": 4,
+     "Forbid": 4,
+     "Awakening": 4,
+     "Spike Feeder": 2,
+     "Spike Weaver": 3,
+     "Wall of Blossoms": 4,
+     "Birds of Paradise": 4,
+     "Tradewind Rider": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 264714,
+   "event": 11404,
+   "archetype": "Stompy",
+   "player": "Nicolai Herzog",
+   "event_name": "European Championship 1999",
+   "stars": 1,
+   "rank": "1",
+   "date": "1999-07-11",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.54,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 32.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Albino Troll": 4,
+     "Elvish Lyrist": 4,
+     "Llanowar Elves": 4,
+     "Masticore": 3,
+     "Pouncing Jaguar": 4,
+     "River Boa": 4,
+     "Uktabi Orangutan": 2,
+     "Wild Dogs": 2,
+     "Giant Growth": 4,
+     "Cursed Scroll": 4,
+     "Rancor": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 253016,
+   "event": 9189,
+   "archetype": "Wildfire",
+   "player": "Kai Budde",
+   "event_name": "Worlds 1999 (Yokohama)",
+   "stars": 1,
+   "rank": "1",
+   "date": "1999-08-08",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 3.12,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Grim Monolith": 4,
+     "Fire Diamond": 4,
+     "Cursed Scroll": 4,
+     "Masticore": 3,
+     "Karn, Silver Golem": 1,
+     "Covetous Dragon": 4,
+     "Wildfire": 4,
+     "Worn Powerstone": 2,
+     "Voltaic Key": 4,
+     "Thran Dynamo": 4,
+     "Temporal Aperture": 4,
+     "Mishra's Helix": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 601332,
+   "event": 54037,
+   "archetype": "Living Death",
+   "player": "Jeff Cunningham",
+   "event_name": "Nationals - Canada 1999",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.73,
+    "pips": {
+     "W": 1.0,
+     "U": 4.0,
+     "B": 14.0,
+     "R": 2.0,
+     "G": 26.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Lobotomy": 1,
+     "Living Death": 3,
+     "Survival of the Fittest": 4,
+     "Vampiric Tutor": 4,
+     "Deranged Hermit": 1,
+     "Bone Shredder": 1,
+     "Ghitu Slinger": 1,
+     "Uktabi Orangutan": 1,
+     "Yavimaya Granger": 1,
+     "Spike Weaver": 1,
+     "Phyrexian Plaguelord": 1,
+     "Monk Realist": 1,
+     "Scragnoth": 1,
+     "Avalanche Riders": 1,
+     "Llanowar Elves": 2,
+     "Tradewind Rider": 3,
+     "Wall of Blossoms": 3,
+     "Spike Feeder": 3,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 601333,
+   "event": 54037,
+   "archetype": "Bargain",
+   "player": "Gabriel Tsang",
+   "event_name": "Nationals - Canada 1999",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "1999-07-02",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 1,
+    "avg_cmc": 2.41,
+    "pips": {
+     "W": 0,
+     "U": 17.0,
+     "B": 17.0,
+     "R": 1.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Yawgmoth's Will": 1,
+     "Blaze": 1,
+     "Scroll Rack": 2,
+     "Intuition": 2,
+     "Show and Tell": 3,
+     "Voltaic Key": 4,
+     "Grim Monolith": 4,
+     "Dark Ritual": 4,
+     "Vampiric Tutor": 4,
+     "Yawgmoth's Bargain": 4,
+     "Delusions of Mediocrity": 4,
+     "Turnabout": 4,
+     "Mox Diamond": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 264713,
+   "event": 11404,
+   "archetype": "Abducted Drake",
+   "player": "Dirk Baberowski",
+   "event_name": "European Championship 1999",
+   "stars": 1,
+   "rank": "2",
+   "date": "1999-07-11",
+   "summer": true,
+   "s": 0.35294117647058826,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 5,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.17,
+    "pips": {
+     "W": 0,
+     "U": 18.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Gamekeeper": 4,
+     "Iridescent Drake": 1,
+     "Abduction": 4,
+     "Altar of Dementia": 4,
+     "Duress": 4,
+     "Intuition": 4,
+     "Mana Leak": 1,
+     "Memory Lapse": 1,
+     "Mox Diamond": 4,
+     "Power Sink": 1,
+     "Rescind": 1,
+     "Scroll Rack": 3,
+     "Vampiric Tutor": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 252632,
+   "event": 9189,
+   "archetype": "Mono Red Land D",
+   "player": "Jamie Parke",
+   "event_name": "Worlds 1999 (Yokohama)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1999-08-08",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 39.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Stone Rain": 4,
+     "Shock": 4,
+     "Pillage": 4,
+     "Hammer of Bogardan": 3,
+     "Cursed Scroll": 4,
+     "Arc Lightning": 2,
+     "Mogg Fanatic": 4,
+     "Jackal Pup": 4,
+     "Fireslinger": 3,
+     "Avalanche Riders": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 252631,
+   "event": 9189,
+   "archetype": "Mono Black Midrange",
+   "player": "Jakub Slemr",
+   "event_name": "Worlds 1999 (Yokohama)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1999-08-08",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 3,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 31.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Rapid Decay": 1,
+     "Vampiric Tutor": 1,
+     "Corpse Dance": 2,
+     "Stupor": 2,
+     "Cursed Scroll": 3,
+     "Yawgmoth's Will": 3,
+     "Powder Keg": 4,
+     "Diabolic Edict": 4,
+     "Dark Ritual": 4,
+     "Duress": 4,
+     "Phyrexian Negator": 1,
+     "Bottle Gnomes": 1,
+     "Ticking Gnomes": 2,
+     "Phyrexian Plaguelord": 3,
+     "Ravenous Rats": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 252633,
+   "event": 9189,
+   "archetype": "Oath into Thorn Elemental",
+   "player": "Xavier Curto",
+   "event_name": "Worlds 1999 (Yokohama)",
+   "stars": 1,
+   "rank": "Day 1 undefeated",
+   "date": "1999-08-08",
+   "summer": true,
+   "s": 0.12270017059533656,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 5,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.57,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 1.0,
+     "R": 0,
+     "G": 14.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Spike Weaver": 3,
+     "Thorn Elemental": 2,
+     "Capsize": 1,
+     "Counterspell": 4,
+     "Dismiss": 2,
+     "Forbid": 4,
+     "Intuition": 3,
+     "Mana Leak": 2,
+     "Miscalculation": 2,
+     "Mox Diamond": 3,
+     "Oath of Druids": 4,
+     "Powder Keg": 3,
+     "Scroll Rack": 3,
+     "Vampiric Tutor": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 15,
+ "rejected_illegal": [],
+ "duplicates_dropped": [
+  {
+   "dropped": "Phantom Menace",
+   "player": "Zvi Mowshowitz",
+   "kept": "Bargain",
+   "kept_player": "Gabriel Tsang"
+  },
+  {
+   "dropped": "Mono Green Aggro",
+   "player": "Raffaele Lo Moro",
+   "kept": "Stompy",
+   "kept_player": "Nicolai Herzog"
+  },
+  {
+   "dropped": "Mono Blue Control",
+   "player": "Randy Buehler",
+   "kept": "Magpie",
+   "kept_player": "Bruce Marsan"
+  },
+  {
+   "dropped": "Mono Black Suicide",
+   "player": "Antoine Menard",
+   "kept": "Suicide Black",
+   "kept_player": "Marc Rajotte"
+  }
+ ],
+ "objective": -3.9430538710695515,
+ "pool_colors": {
+  "B": 7,
+  "W": 2,
+  "U": 7,
+  "G": 6,
+  "R": 2
+ },
+ "pool_styles": {
+  "aggro": 4,
+  "control": 5,
+  "midrange": 6
+ },
+ "kept_lost": []
+}

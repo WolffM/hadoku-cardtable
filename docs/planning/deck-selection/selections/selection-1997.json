@@ -1,0 +1,821 @@
+{
+ "era": {
+  "year": 1997,
+  "season_start": "1996-10-01",
+  "start": "1997-07-01",
+  "end": "1997-11-01",
+  "format": "Standard (WTH)",
+  "sets": "ICE, HML, ALL, MIR, VIS, 5ED, WTH",
+  "banned": [
+   "Amulet of Quoz",
+   "Timmerian Fiends",
+   "Zuran Orb"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 272918,
+   "event": 12099,
+   "archetype": "UR Aggro",
+   "player": "Justin Gary",
+   "event_name": "Nationals - US 1997",
+   "stars": 3,
+   "rank": "1",
+   "date": "1997-07-01",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 12,
+    "counters": 12,
+    "sweepers": 5,
+    "draw": 0,
+    "burn": 5,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Incinerate": 2,
+     "Binding Grasp": 2,
+     "Serrated Arrows": 2,
+     "Nevinyrral's Disk": 2,
+     "Wildfire Emissary": 3,
+     "Disintegrate": 3,
+     "Earthquake": 3,
+     "Counterspell": 4,
+     "Dissipate": 4,
+     "Force of Will": 4,
+     "Frenetic Efreet": 1,
+     "Air Elemental": 1,
+     "Rainbow Efreet": 3,
+     "Man-o'-War": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 272919,
+   "event": 12099,
+   "archetype": "4CB",
+   "player": "Kyle Bigos",
+   "event_name": "Nationals - US 1997",
+   "stars": 3,
+   "rank": "2",
+   "date": "1997-07-01",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 26,
+    "counters": 3,
+    "sweepers": 1,
+    "draw": 3,
+    "burn": 5,
+    "avg_cmc": 2.3,
+    "pips": {
+     "W": 0,
+     "U": 7.0,
+     "B": 41.0,
+     "R": 5.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Kaervek's Spite": 1,
+     "Demonic Consultation": 1,
+     "Kaervek's Torch": 1,
+     "Winter Orb": 2,
+     "Bad Moon": 2,
+     "Arcane Denial": 3,
+     "Incinerate": 4,
+     "Crypt Rats": 1,
+     "Shadow Guildmage": 2,
+     "Erg Raiders": 2,
+     "Necratog": 2,
+     "Knight of Stromgald": 3,
+     "Black Knight": 4,
+     "Fallen Askari": 4,
+     "Nekrataal": 4,
+     "Man-o'-War": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 422110,
+   "event": 28029,
+   "archetype": "5CGreen",
+   "player": "Cathy Nicoloff",
+   "event_name": "Florida Regionals 1997",
+   "stars": 2,
+   "rank": "1",
+   "date": "1997-05-01",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 26,
+    "counters": 4,
+    "sweepers": 1,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 3.0,
+     "U": 4.0,
+     "B": 2.0,
+     "R": 4.0,
+     "G": 37.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Granger Guildmage": 4,
+     "Jolrael's Centaur": 2,
+     "Karoo Meerkat": 1,
+     "Maro": 3,
+     "Quirion Ranger": 4,
+     "River Boa": 4,
+     "Whirling Dervish": 4,
+     "Arcane Denial": 4,
+     "Armageddon": 1,
+     "Armor of Thorns": 2,
+     "Disenchant": 2,
+     "Incinerate": 4,
+     "Terror": 2,
+     "Winter Orb": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 272921,
+   "event": 12099,
+   "archetype": "Bone Dancer",
+   "player": "Jeff Butz",
+   "event_name": "Nationals - US 1997",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "1997-07-01",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.61,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 37.0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Firestorm": 1,
+     "Death Spark": 2,
+     "Hammer of Bogardan": 2,
+     "Nevinyrral's Disk": 2,
+     "Incinerate": 4,
+     "Buried Alive": 4,
+     "Shadow Guildmage": 1,
+     "Krovikan Horror": 2,
+     "Bone Dancer": 2,
+     "Suq'Ata Lancer": 3,
+     "Knight of Stromgald": 3,
+     "Ashen Ghoul": 4,
+     "Nether Shadow": 4,
+     "Black Knight": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 252619,
+   "event": 9187,
+   "archetype": "Black Five",
+   "player": "Jakub Slemr",
+   "event_name": "Worlds 1997 (Seattle) *",
+   "stars": 1,
+   "rank": "1",
+   "date": "1997-08-17",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 48.0,
+     "R": 6.0,
+     "G": 2.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Uktabi Orangutan": 2,
+     "Earthquake": 2,
+     "Incinerate": 4,
+     "Man-o'-War": 4,
+     "Contagion": 4,
+     "Choking Sands": 4,
+     "Nekrataal": 4,
+     "Necratog": 1,
+     "Knight of Stromgald": 4,
+     "Black Knight": 4,
+     "Fallen Askari": 4,
+     "Shadow Guildmage": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 272056,
+   "event": 12099,
+   "archetype": "Counter-Post",
+   "player": "Jon Finkel",
+   "event_name": "Nationals - US 1997",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "1997-07-01",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.45,
+    "pips": {
+     "W": 22.0,
+     "U": 31.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Gerrard's Wisdom": 1,
+     "Political Trickery": 1,
+     "Wrath of God": 4,
+     "Abeyance": 4,
+     "Brainstorm": 4,
+     "Counterspell": 4,
+     "Disenchant": 3,
+     "Dissipate": 2,
+     "Force of Will": 2,
+     "Impulse": 4,
+     "Swords to Plowshares": 4,
+     "Soldevi Digger": 1,
+     "Browse": 3,
+     "Circle of Protection: Black": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 252620,
+   "event": 9187,
+   "archetype": "URw Aggro",
+   "player": "Janosch Kuhn",
+   "event_name": "Worlds 1997 (Seattle) *",
+   "stars": 1,
+   "rank": "2",
+   "date": "1997-08-17",
+   "summer": true,
+   "s": 0.35294117647058826,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 8,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 8,
+    "avg_cmc": 2.55,
+    "pips": {
+     "W": 9.0,
+     "U": 24.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Frenetic Efreet": 4,
+     "Disenchant": 2,
+     "Abeyance": 3,
+     "Swords to Plowshares": 4,
+     "Disintegrate": 2,
+     "Pillage": 1,
+     "Hammer of Bogardan": 2,
+     "Incinerate": 4,
+     "Wildfire Emissary": 4,
+     "Force of Will": 4,
+     "Counterspell": 4,
+     "Impulse": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 252618,
+   "event": 9187,
+   "archetype": "Stompy",
+   "player": "Svend Sparre Geertsen",
+   "event_name": "Worlds 1997 (Seattle) *",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "1997-08-17",
+   "summer": true,
+   "s": 0.2953513542188434,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 47.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Bounty of the Hunt": 2,
+     "Giant Growth": 4,
+     "Lhurgoyf": 3,
+     "Jolrael's Centaur": 2,
+     "Uktabi Orangutan": 2,
+     "Whirling Dervish": 2,
+     "Spectral Bears": 4,
+     "Harvest Wurm": 3,
+     "Quirion Ranger": 4,
+     "Rogue Elephant": 4,
+     "Ghazb\u00e1n Ogre": 4,
+     "Fyndhorn Elves": 4,
+     "Winter Orb": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 252621,
+   "event": 9187,
+   "archetype": "UR Control",
+   "player": "Paul McCabe",
+   "event_name": "Worlds 1997 (Seattle) *",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "1997-08-17",
+   "summer": true,
+   "s": 0.2953513542188434,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 18,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 5,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Frenetic Efreet": 2,
+     "Disintegrate": 1,
+     "Pyrokinesis": 2,
+     "Incinerate": 4,
+     "Wildfire Emissary": 1,
+     "Suq'Ata Lancer": 3,
+     "Force of Will": 4,
+     "Abduction": 2,
+     "Counterspell": 4,
+     "Disrupt": 2,
+     "Ophidian": 4,
+     "Man-o'-War": 4,
+     "Cloud Elemental": 4,
+     "Mind Stone": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 253189,
+   "event": 9187,
+   "archetype": "Beatdown Necro",
+   "player": "John Chinnock",
+   "event_name": "Worlds 1997 (Seattle) *",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1997-08-17",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 57.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Nevinyrral's Disk": 4,
+     "Necropotence": 3,
+     "Dark Ritual": 4,
+     "Choking Sands": 2,
+     "Icequake": 4,
+     "Coercion": 4,
+     "Drain Life": 4,
+     "Nekrataal": 4,
+     "Black Knight": 4,
+     "Knight of Stromgald": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 269414,
+   "event": 12099,
+   "archetype": "Deadguy Red",
+   "player": "David Price",
+   "event_name": "Nationals - US 1997",
+   "stars": 3,
+   "rank": "Day 1 undefeated",
+   "date": "1997-07-01",
+   "summer": true,
+   "s": 0.23176698890230235,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 15,
+    "avg_cmc": 2.63,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 60.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Kaervek's Torch": 3,
+     "Fireblast": 4,
+     "Hammer of Bogardan": 4,
+     "Incinerate": 4,
+     "Lava Hounds": 4,
+     "Viashino Sandstalker": 2,
+     "Ball Lightning": 4,
+     "Dwarven Soldier": 2,
+     "Ironclaw Orcs": 4,
+     "Goblin Digging Team": 3,
+     "Goblin Vandal": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 253190,
+   "event": 9187,
+   "archetype": "Red Deck Wins",
+   "player": "Ju-Neon Kim",
+   "event_name": "Worlds 1997 (Seattle) *",
+   "stars": 1,
+   "rank": "Day 1 undefeated",
+   "date": "1997-08-17",
+   "summer": true,
+   "s": 0.12270017059533656,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 1,
+    "burn": 8,
+    "avg_cmc": 3.59,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 54.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Phyrexian Furnace": 1,
+     "Hammer of Bogardan": 2,
+     "Fireblast": 2,
+     "Jokulhaups": 2,
+     "Incinerate": 4,
+     "Pyrokinesis": 4,
+     "Nevinyrral's Disk": 4,
+     "Ball Lightning": 2,
+     "Viashino Sandstalker": 2,
+     "Orgg": 2,
+     "Suq'Ata Lancer": 4,
+     "Brothers of Fire": 4,
+     "Ironclaw Orcs": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  }
+ ],
+ "alternates": [],
+ "pool_size": 12,
+ "rejected_illegal": [
+  {
+   "archetype": "Buried Alive",
+   "deck": 272920,
+   "player": "Bob Maher",
+   "why": [
+    "incomplete list: 60 main, 17 sideboard"
+   ]
+  },
+  {
+   "archetype": "Prison",
+   "deck": 767142,
+   "player": "Justin Schneider",
+   "why": [
+    "Balance (not in legal sets)",
+    "Black Vise (not in legal sets)",
+    "Ivory Tower (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Prison",
+   "deck": 769403,
+   "player": "Jason Zila",
+   "why": [
+    "Balance (not in legal sets)",
+    "Black Vise (not in legal sets)",
+    "Land Tax (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necro Control",
+   "deck": 269351,
+   "player": "Paul McCabe",
+   "why": [
+    "Hymn to Tourach (not in legal sets)",
+    "Hypnotic Specter (not in legal sets)",
+    "Ivory Tower (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "White Trash",
+   "deck": 767143,
+   "player": "Jeremy Baca",
+   "why": [
+    "Aeolipile (not in legal sets)",
+    "Balance (not in legal sets)",
+    "Black Vise (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sligh",
+   "deck": 767144,
+   "player": "Patrick Chapin",
+   "why": [
+    "Black Vise (not in legal sets)",
+    "Dragon Whelp (not in legal sets)",
+    "Goblin Balloon Brigade (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necropotence",
+   "deck": 767145,
+   "player": "Jeff Simoneau",
+   "why": [
+    "Hymn to Tourach (not in legal sets)",
+    "Hypnotic Specter (not in legal sets)",
+    "Ivory Tower (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Black Aggro",
+   "deck": 269352,
+   "player": "Brian Hacker",
+   "why": [
+    "Black Vise (not in legal sets)",
+    "Hymn to Tourach (not in legal sets)",
+    "Hypnotic Specter (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hybrid Necro (Pikulapotence)",
+   "deck": 269353,
+   "player": "Chris Pikula",
+   "why": [
+    "Black Vise (not in legal sets)",
+    "Hymn to Tourach (not in legal sets)",
+    "Hypnotic Specter (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WRG Control",
+   "deck": 767146,
+   "player": "Jason Moungey",
+   "why": [
+    "Balance (not in legal sets)",
+    "Erhnam Djinn (not in legal sets)",
+    "Land Tax (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GR Aggro",
+   "deck": 767147,
+   "player": "Vinnie Falcone",
+   "why": [
+    "Erhnam Djinn (not in legal sets)",
+    "Lightning Bolt (not in legal sets)",
+    "Mishra's Factory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The 1:30 Special",
+   "deck": 767148,
+   "player": "Yubin Tao",
+   "why": [
+    "Balance (not in legal sets)",
+    "Ivory Tower (not in legal sets)",
+    "Land Tax (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WG Control Shroud",
+   "deck": 767149,
+   "player": "Adam Jansen",
+   "why": [
+    "Balance (not in legal sets)",
+    "Concordant Crossroads (not in legal sets)",
+    "Land Tax (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Counter-Hammer",
+   "deck": 422049,
+   "player": "Olle R\u00e5de",
+   "why": [
+    "Balance (not in legal sets)",
+    "Control Magic (not in legal sets)",
+    "Lightning Bolt (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Canadian Style Necropotence",
+   "deck": 769404,
+   "player": "Peter Radonjic",
+   "why": [
+    "Hymn to Tourach (not in legal sets)",
+    "Hypnotic Specter (not in legal sets)",
+    "Ivory Tower (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Budgee",
+   "deck": 769405,
+   "player": "Joseph Tan",
+   "why": [
+    "Balance (not in legal sets)",
+    "Black Vise (not in legal sets)",
+    "Erhnam Djinn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red/green Aggro",
+   "deck": 769406,
+   "player": "Stefano Genestreti",
+   "why": [
+    "Black Vise (not in legal sets)",
+    "Erhnam Djinn (not in legal sets)",
+    "Lightning Bolt (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Irish CounterPost",
+   "player": "Dave Kearney",
+   "kept": "Counter-Post",
+   "kept_player": "Jon Finkel"
+  }
+ ],
+ "objective": -13.628414804430601,
+ "pool_colors": {
+  "U": 5,
+  "R": 7,
+  "B": 4,
+  "G": 2,
+  "W": 2
+ },
+ "pool_styles": {
+  "aggro": 9,
+  "control": 2,
+  "midrange": 1
+ },
+ "kept_lost": []
+}

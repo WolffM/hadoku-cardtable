@@ -1,0 +1,1344 @@
+{
+ "era": {
+  "year": 2011,
+  "season_start": "2010-10-01",
+  "start": "2011-07-15",
+  "end": "2011-09-30",
+  "snapshot_file": "2011-07-15",
+  "format": "Modern (M12)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12",
+  "banned": [
+   "Ancient Den",
+   "Chrome Mox",
+   "Dark Depths",
+   "Golgari Grave-Troll",
+   "Great Furnace",
+   "Seat of the Synod",
+   "Sensei's Divining Top",
+   "Skullclamp",
+   "Sword of the Meek",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Vault of Whispers"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 214010,
+   "event": 1949,
+   "archetype": "Zoo",
+   "player": "Ero-sennin",
+   "event_name": "Magic-League Modern Trial",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-12",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 12.0,
+     "U": 0,
+     "B": 0,
+     "R": 22.0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Grim Lavamancer": 3,
+     "Bloodbraid Elf": 4,
+     "Kird Ape": 4,
+     "Knight of the Reliquary": 4,
+     "Tarmogoyf": 4,
+     "Wild Nacatl": 4,
+     "Incinerate": 3,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 4,
+     "Path to Exile": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 214013,
+   "event": 1950,
+   "archetype": "Affinity",
+   "player": "arevalol",
+   "event_name": "Magic-league Modern Tournament #3",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-25",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 46,
+    "lands": 14,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.91,
+    "pips": {
+     "W": 12.0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Mox Opal": 3,
+     "Tempered Steel": 4,
+     "Thoughtcast": 4,
+     "Springleaf Drum": 4,
+     "Dispatch": 4,
+     "Cranial Plating": 4,
+     "Ornithopter": 3,
+     "Master of Etherium": 4,
+     "Memnite": 4,
+     "Signal Pest": 4,
+     "Frogmite": 4,
+     "Arcbound Ravager": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 213842,
+   "event": 1919,
+   "archetype": "Birthing Pod",
+   "player": "D.Jdikez",
+   "event_name": "Magic-league Modern Tournament #2",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-20",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 16.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Sword of Fire and Ice": 1,
+     "Sword of Feast and Famine": 1,
+     "Venser, the Sojourner": 2,
+     "Path to Exile": 3,
+     "Birthing Pod": 4,
+     "Loaming Shaman": 1,
+     "Ranger of Eos": 1,
+     "Qasali Pridemage": 1,
+     "Acidic Slime": 1,
+     "Dosan the Falling Leaf": 1,
+     "Hero of Bladehold": 1,
+     "Sun Titan": 1,
+     "Primeval Titan": 1,
+     "Elesh Norn, Grand Cenobite": 1,
+     "Loxodon Hierarch": 1,
+     "Reveillark": 2,
+     "Eternal Witness": 2,
+     "Birds of Paradise": 3,
+     "Fauna Shaman": 4,
+     "Noble Hierarch": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 213834,
+   "event": 1918,
+   "archetype": "Eldrazi Ramp",
+   "player": "J.Killa",
+   "event_name": "Magic-league Modern Tournament #1",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 5.06,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Sundering Titan": 2,
+     "Wurmcoil Engine": 3,
+     "Ulamog, the Infinite Gyre": 1,
+     "Kozilek, Butcher of Truth": 1,
+     "Emrakul, the Aeons Torn": 1,
+     "Primeval Titan": 4,
+     "Ancient Stirrings": 4,
+     "Expedition Map": 4,
+     "Karn Liberated": 2,
+     "All Is Dust": 3,
+     "Summoning Trap": 4,
+     "Explore": 4,
+     "Garruk Wildspeaker": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 214208,
+   "event": 2005,
+   "archetype": "Merfolk",
+   "player": "DARKING",
+   "event_name": "Magic-league Modern Trial Tournament #1",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-09",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 24,
+    "counters": 15,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.03,
+    "pips": {
+     "W": 0,
+     "U": 43.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Spell Pierce": 3,
+     "Rune Snag": 4,
+     "Disrupting Shoal": 4,
+     "Aether Vial": 4,
+     "Adaptive Automaton": 4,
+     "Silvergill Adept": 4,
+     "Merrow Reejerey": 4,
+     "Lord of Atlantis": 4,
+     "Merfolk Sovereign": 4,
+     "Cursecatcher": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 214174,
+   "event": 1993,
+   "archetype": "G/B Rock",
+   "player": "Burton911",
+   "event_name": "Magic-League Modern Trial 01/09/2011",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-09-01",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 3.0,
+     "U": 0,
+     "B": 24.0,
+     "R": 0,
+     "G": 29.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Eternal Witness": 2,
+     "Kitchen Finks": 3,
+     "Sakura-Tribe Elder": 3,
+     "Tarmogoyf": 4,
+     "Dismember": 1,
+     "Doom Blade": 1,
+     "Go for the Throat": 1,
+     "Putrefy": 3,
+     "Damnation": 2,
+     "Maelstrom Pulse": 2,
+     "Death Cloud": 3,
+     "Green Sun's Zenith": 4,
+     "Thoughtseize": 4,
+     "Garruk Wildspeaker": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 214130,
+   "event": 1982,
+   "archetype": "No Stick",
+   "player": "straca3",
+   "event_name": "Magic-League Modern Trial 30/08/2011",
+   "stars": 2,
+   "rank": "1",
+   "date": "2011-08-30",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 5,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 4,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 12.0,
+     "U": 31.0,
+     "B": 0,
+     "R": 5.0,
+     "G": 1.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Baneslayer Angel": 1,
+     "Venser, Shaper Savant": 1,
+     "Teferi, Mage of Zhalfir": 3,
+     "Angel's Grace": 1,
+     "Boomerang": 1,
+     "Delay": 1,
+     "Remand": 1,
+     "Repeal": 1,
+     "Research // Development": 1,
+     "Thirst for Knowledge": 1,
+     "Mana Leak": 2,
+     "Muddle the Mixture": 2,
+     "Mystical Teachings": 2,
+     "Silence": 2,
+     "Path to Exile": 3,
+     "Lightning Helix": 4,
+     "Preordain": 4,
+     "Isochron Scepter": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 214134,
+   "event": 1983,
+   "archetype": "Jund",
+   "player": "pandote",
+   "event_name": "Magic-League Master 28/08/2011",
+   "stars": 1,
+   "rank": "1",
+   "date": "2011-08-28",
+   "summer": true,
+   "s": 0.6923076923076923,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.61,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 14.0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 1,
+     "Qasali Pridemage": 1,
+     "Doran, the Siege Tower": 3,
+     "Noble Hierarch": 3,
+     "Dark Confidant": 4,
+     "Spellskite": 4,
+     "Tarmogoyf": 4,
+     "Treefolk Harbinger": 4,
+     "Path to Exile": 4,
+     "Inquisition of Kozilek": 2,
+     "Maelstrom Pulse": 2,
+     "Green Sun's Zenith": 3,
+     "Thoughtseize": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 214162,
+   "event": 1989,
+   "archetype": "Splinter Twin",
+   "player": "Samuele Estratti",
+   "event_name": "Pro Tour Philadelphia 2011",
+   "stars": 1,
+   "rank": "1",
+   "date": "2011-09-03",
+   "summer": true,
+   "s": 0.6923076923076923,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 9,
+    "sweepers": 3,
+    "draw": 12,
+    "burn": 1,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 16.5,
+     "G": 1.5
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Deceiver Exarch": 4,
+     "Kiki-Jiki, Mirror Breaker": 2,
+     "Spellskite": 2,
+     "Dispel": 2,
+     "Disrupting Shoal": 1,
+     "Firespout": 3,
+     "Lightning Bolt": 1,
+     "Pact of Negation": 2,
+     "Pestermite": 3,
+     "Ponder": 4,
+     "Preordain": 4,
+     "Remand": 4,
+     "Sleight of Hand": 1,
+     "Splinter Twin": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 214175,
+   "event": 1993,
+   "archetype": "Burn",
+   "player": "manachuel",
+   "event_name": "Magic-League Modern Trial 01/09/2011",
+   "stars": 2,
+   "rank": "2",
+   "date": "2011-09-01",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 24,
+    "avg_cmc": 1.7,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 40.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Flames of the Blood Hand": 4,
+     "Lightning Bolt": 4,
+     "Magma Jet": 4,
+     "Shard Volley": 4,
+     "Lava Spike": 4,
+     "Rift Bolt": 4,
+     "Hellspark Elemental": 4,
+     "Keldon Marauders": 4,
+     "Mogg Fanatic": 4,
+     "Goblin Guide": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 214131,
+   "event": 1982,
+   "archetype": "GW Aggro",
+   "player": "Fanboy1",
+   "event_name": "Magic-League Modern Trial 30/08/2011",
+   "stars": 2,
+   "rank": "2",
+   "date": "2011-08-30",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 23,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 3,
+    "avg_cmc": 1.85,
+    "pips": {
+     "W": 12.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 34.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Sword of Fire and Ice": 3,
+     "Path to Exile": 3,
+     "Mana Tithe": 3,
+     "Green Sun's Zenith": 4,
+     "Eternal Witness": 1,
+     "Gaddock Teeg": 1,
+     "Memnite": 1,
+     "Qasali Pridemage": 1,
+     "Vengevine": 3,
+     "Birds of Paradise": 4,
+     "Fauna Shaman": 4,
+     "Knight of the Reliquary": 4,
+     "Noble Hierarch": 4,
+     "Scryb Ranger": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 213843,
+   "event": 1919,
+   "archetype": "Ad Nauseam!",
+   "player": "D.Uodax",
+   "event_name": "Magic-league Modern Tournament #2",
+   "stars": 2,
+   "rank": "2",
+   "date": "2011-08-20",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 5,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 4.0,
+     "U": 15.0,
+     "B": 8.0,
+     "R": 5.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Conflagrate": 1,
+     "Into the Roil": 1,
+     "Pact of Negation": 4,
+     "Ponder": 4,
+     "Mystical Teachings": 4,
+     "Preordain": 4,
+     "Lotus Bloom": 4,
+     "Ad Nauseam": 4,
+     "Angel's Grace": 4,
+     "Coalition Relic": 4,
+     "Vendilion Clique": 1,
+     "Simian Spirit Guide": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 213835,
+   "event": 1918,
+   "archetype": "Landfall",
+   "player": "B.Rasi",
+   "event_name": "Magic-league Modern Tournament #1",
+   "stars": 2,
+   "rank": "2",
+   "date": "2011-08-18",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 13,
+    "avg_cmc": 1.59,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 0,
+     "R": 32.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Steppe Lynx": 4,
+     "Goblin Guide": 4,
+     "Plated Geopede": 4,
+     "Grim Lavamancer": 3,
+     "Elspeth, Knight-Errant": 1,
+     "Ajani Vengeant": 1,
+     "Path to Exile": 4,
+     "Lightning Bolt": 4,
+     "Zektar Shrine Expedition": 4,
+     "Searing Blaze": 4,
+     "Lightning Helix": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 214007,
+   "event": 1948,
+   "archetype": "Persist Zoo",
+   "player": "mossivo1986",
+   "event_name": "Magic-League Modern Trial",
+   "stars": 2,
+   "rank": "2",
+   "date": "2011-08-12",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 21,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 7.0,
+     "U": 0,
+     "B": 0,
+     "R": 7.0,
+     "G": 30.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 1,
+     "Birds of Paradise": 3,
+     "Kitchen Finks": 3,
+     "Melira, Sylvok Outcast": 3,
+     "Greater Gargadon": 4,
+     "Knight of the Reliquary": 4,
+     "Lotus Cobra": 4,
+     "Mental Misstep": 3,
+     "Punishing Fire": 3,
+     "Green Sun's Zenith": 4,
+     "Primal Command": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 214016,
+   "event": 1950,
+   "archetype": "Caw-Blade",
+   "player": "popoy",
+   "event_name": "Magic-league Modern Tournament #3",
+   "stars": 2,
+   "rank": "4",
+   "date": "2011-08-25",
+   "summer": true,
+   "s": 0.5,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 10,
+    "counters": 12,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 4.0,
+     "U": 39.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Tarmogoyf": 4,
+     "Teferi, Mage of Zhalfir": 1,
+     "Vendilion Clique": 3,
+     "Venser, Shaper Savant": 2,
+     "Cryptic Command": 4,
+     "Mana Leak": 4,
+     "Preordain": 4,
+     "Spell Snare": 4,
+     "Sword of Feast and Famine": 3,
+     "Threads of Disloyalty": 1,
+     "Vedalken Shackles": 2,
+     "Path to Exile": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 214017,
+   "event": 1950,
+   "archetype": "Zoo 5c",
+   "player": "Whogshrog",
+   "event_name": "Magic-league Modern Tournament #3",
+   "stars": 2,
+   "rank": "5",
+   "date": "2011-08-25",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 35,
+    "lands": 26,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 3.6,
+    "pips": {
+     "W": 22.0,
+     "U": 5.0,
+     "B": 11.0,
+     "R": 16.0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Rhox War Monk": 4,
+     "Bloodbraid Elf": 3,
+     "Enlisted Wurm": 3,
+     "Enigma Sphinx": 1,
+     "Terminate": 1,
+     "Glittering Wish": 4,
+     "Lightning Helix": 3,
+     "Maelstrom Pulse": 3,
+     "Blightning": 3,
+     "Captured Sunlight": 4,
+     "Ajani Vengeant": 3,
+     "Bituminous Blast": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 214158,
+   "event": 1989,
+   "archetype": "Counter-Cat",
+   "player": "Josh Utter-Leyton",
+   "event_name": "Pro Tour Philadelphia 2011",
+   "stars": 1,
+   "rank": "2",
+   "date": "2011-09-03",
+   "summer": true,
+   "s": 0.4615384615384615,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 14,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 20.0,
+     "U": 3.0,
+     "B": 0,
+     "R": 7.0,
+     "G": 25.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Gaddock Teeg": 1,
+     "Knight of the Reliquary": 4,
+     "Noble Hierarch": 4,
+     "Qasali Pridemage": 1,
+     "Tarmogoyf": 4,
+     "Wild Nacatl": 4,
+     "Bant Charm": 3,
+     "Elspeth, Knight-Errant": 2,
+     "Green Sun's Zenith": 4,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 3,
+     "Path to Exile": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 213839,
+   "event": 1918,
+   "archetype": "Bant",
+   "player": "D.Sinner",
+   "event_name": "Magic-league Modern Tournament #1",
+   "stars": 2,
+   "rank": "6",
+   "date": "2011-08-18",
+   "summer": true,
+   "s": 0.4362085839710631,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.89,
+    "pips": {
+     "W": 13.0,
+     "U": 17.0,
+     "B": 0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Bant Charm": 2,
+     "Spell Pierce": 2,
+     "Spell Snare": 2,
+     "Mana Leak": 4,
+     "Green Sun's Zenith": 4,
+     "Path to Exile": 4,
+     "Qasali Pridemage": 1,
+     "Rhox War Monk": 1,
+     "Eternal Witness": 1,
+     "Kitchen Finks": 1,
+     "Vendilion Clique": 3,
+     "Knight of the Reliquary": 4,
+     "Tarmogoyf": 4,
+     "Noble Hierarch": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 214213,
+   "event": 2005,
+   "archetype": "Faerie",
+   "player": "Foxy",
+   "event_name": "Magic-league Modern Trial Tournament #1",
+   "stars": 2,
+   "rank": "6",
+   "date": "2011-09-09",
+   "summer": true,
+   "s": 0.4362085839710631,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 28,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.38,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 0,
+     "R": 0,
+     "G": 15.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Spell Pierce": 2,
+     "Garruk Wildspeaker": 2,
+     "Remand": 4,
+     "Venser, Shaper Savant": 1,
+     "Spellskite": 2,
+     "Vendilion Clique": 3,
+     "Birds of Paradise": 3,
+     "Scion of Oona": 3,
+     "Mistbind Clique": 4,
+     "Noble Hierarch": 4,
+     "Pestermite": 4,
+     "Scryb Ranger": 4,
+     "Spellstutter Sprite": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 214214,
+   "event": 2005,
+   "archetype": "Infect Combo",
+   "player": "Ero-sennin",
+   "event_name": "Magic-league Modern Trial Tournament #1",
+   "stars": 2,
+   "rank": "7",
+   "date": "2011-09-09",
+   "summer": true,
+   "s": 0.41602919535301897,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 5,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 2.0,
+     "U": 37.0,
+     "B": 2.0,
+     "R": 14.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Snapback": 1,
+     "Pact of Negation": 1,
+     "Summoner's Pact": 1,
+     "Gitaxian Probe": 2,
+     "Disrupting Shoal": 3,
+     "Peer Through Depths": 4,
+     "Spell Pierce": 4,
+     "Blazing Shoal": 4,
+     "Dragonstorm": 4,
+     "Muddle the Mixture": 4,
+     "Preordain": 4,
+     "Ponder": 4,
+     "Progenitus": 1,
+     "Blighted Agent": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 213849,
+   "event": 1919,
+   "archetype": "Hive Mind",
+   "player": "S.Bullet",
+   "event_name": "Magic-league Modern Tournament #2",
+   "stars": 2,
+   "rank": "7",
+   "date": "2011-08-20",
+   "summer": true,
+   "s": 0.41602919535301897,
+   "f": {
+    "spells": 42,
+    "lands": 19,
+    "creatures": 8,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 2.0,
+     "U": 16.0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Gitaxian Probe": 2,
+     "Slaughter Pact": 2,
+     "Idyllic Tutor": 2,
+     "Splinter Twin": 4,
+     "Ponder": 4,
+     "Lotus Bloom": 4,
+     "Remand": 4,
+     "Pact of Negation": 4,
+     "Hive Mind": 4,
+     "Pact of the Titan": 4,
+     "Deceiver Exarch": 4,
+     "Simian Spirit Guide": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 214020,
+   "event": 1950,
+   "archetype": "BR control",
+   "player": "MattMobius",
+   "event_name": "Magic-league Modern Tournament #3",
+   "stars": 2,
+   "rank": "8",
+   "date": "2011-08-25",
+   "summer": true,
+   "s": 0.4,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 7,
+    "avg_cmc": 2.2,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 57.0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Go for the Throat": 2,
+     "Doom Blade": 3,
+     "Incinerate": 3,
+     "Phyrexian Arena": 4,
+     "Lightning Bolt": 4,
+     "Terminate": 4,
+     "Kalastria Highborn": 4,
+     "Captivating Vampire": 4,
+     "Vampire Nighthawk": 4,
+     "Gatekeeper of Malakir": 4,
+     "Bloodghast": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 214157,
+   "event": 1989,
+   "archetype": "Pyromancer Ascension",
+   "player": "Max Sj\u00f6blom",
+   "event_name": "Pro Tour Philadelphia 2011",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2011-09-03",
+   "summer": true,
+   "s": 0.32036983360582044,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 0,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 22,
+    "burn": 6,
+    "avg_cmc": 1.5,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 16.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Banefire": 1,
+     "Gitaxian Probe": 4,
+     "Grapeshot": 1,
+     "Ideas Unbound": 2,
+     "Lightning Bolt": 4,
+     "Manamorphose": 4,
+     "Muddle the Mixture": 2,
+     "Peer Through Depths": 4,
+     "Ponder": 4,
+     "Preordain": 4,
+     "Pyromancer Ascension": 4,
+     "Remand": 4,
+     "Rite of Flame": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 214159,
+   "event": 1989,
+   "archetype": "BreachPost",
+   "player": "Jesse Hampton",
+   "event_name": "Pro Tour Philadelphia 2011",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2011-09-03",
+   "summer": true,
+   "s": 0.32036983360582044,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.74,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 27.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Emrakul, the Aeons Torn": 4,
+     "Oracle of Mul Daya": 1,
+     "Overgrown Battlement": 4,
+     "Primeval Titan": 4,
+     "Sakura-Tribe Elder": 1,
+     "Terastodon": 1,
+     "Ulamog, the Infinite Gyre": 1,
+     "Wall of Roots": 4,
+     "Beast Within": 3,
+     "Green Sun's Zenith": 4,
+     "Gruul Signet": 4,
+     "Through the Breach": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 24,
+ "rejected_illegal": [],
+ "duplicates_dropped": [
+  {
+   "dropped": "Merflok",
+   "player": "Trivial",
+   "kept": "Merfolk",
+   "kept_player": "DARKING"
+  },
+  {
+   "dropped": "No stick",
+   "player": "straca3",
+   "kept": "No Stick",
+   "kept_player": "straca3"
+  },
+  {
+   "dropped": "Gr 12post",
+   "player": "kratosIII",
+   "kept": "Eldrazi Ramp",
+   "kept_player": "J.Killa"
+  },
+  {
+   "dropped": "Brozek Deck Wins",
+   "player": "crappeur",
+   "kept": "Landfall",
+   "kept_player": "B.Rasi"
+  },
+  {
+   "dropped": "Doran",
+   "player": "Ryk",
+   "kept": "Jund",
+   "kept_player": "pandote"
+  },
+  {
+   "dropped": "5c Zoo",
+   "player": "snoopster",
+   "kept": "Zoo",
+   "kept_player": "Ero-sennin"
+  },
+  {
+   "dropped": "Moon Zoo",
+   "player": "_Paradox_",
+   "kept": "Zoo",
+   "kept_player": "Ero-sennin"
+  },
+  {
+   "dropped": "Punishing Zoo",
+   "player": "A.Ston",
+   "kept": "Counter-Cat",
+   "kept_player": "Josh Utter-Leyton"
+  },
+  {
+   "dropped": "Mono-Red Affinity",
+   "player": "Chikara Nakajima",
+   "kept": "Affinity",
+   "kept_player": "arevalol"
+  },
+  {
+   "dropped": "Mono-Blue Infect",
+   "player": "Samuel Black",
+   "kept": "Infect Combo",
+   "kept_player": "Ero-sennin"
+  },
+  {
+   "dropped": "Maverick",
+   "player": "Fanboy1",
+   "kept": "GW Aggro",
+   "kept_player": "Fanboy1"
+  },
+  {
+   "dropped": "12post",
+   "player": "JKilla",
+   "kept": "Eldrazi Ramp",
+   "kept_player": "J.Killa"
+  }
+ ],
+ "objective": -2.2425411683334993,
+ "pool_colors": {
+  "W": 12,
+  "R": 14,
+  "G": 12,
+  "U": 11,
+  "B": 5
+ },
+ "pool_styles": {
+  "aggro": 9,
+  "combo": 3,
+  "midrange": 6,
+  "control": 6
+ },
+ "kept_lost": []
+}

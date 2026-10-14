@@ -9,15 +9,26 @@ The code that reads these lives in `packages/deck/src/library/`.
 
 ## What is here
 
-Thirty-one power-summer eras across three formats, 676 decks total. Standard:
-2003-2016, each the Standard in force just **before that year's fall
-rotation** (old block and new block legal together). Modern (2012-2016) and
-Legacy (2005-2016) do not rotate, so each year's era is pinned to the SAME
-dates that year's Standard era uses (wave 48, Settled) — the snapshot is the
-latest Archived/Modern or Archived/Legacy file on or before that date, and
-Modern/Legacy and Standard eras of the same year sit side by side:
+Forty power-summer eras across three formats, 811 decks total. Standard:
+1995-2016, each the Standard in force just **before that year's fall
+rotation** (old block and new block legal together) — except Type 2 in 1995
+and 1996, which had no fall rotation and changed its restricted list between
+Worlds and the autumn set, so those two take the format in force on August
+1st. Modern (2011-2016) and Legacy (2005-2016) do not rotate, so each year's
+era is pinned to the SAME dates that year's Standard era uses (wave 48,
+Settled) — the snapshot is the latest Archived/Modern or Archived/Legacy file
+on or before that date, and Modern/Legacy and Standard eras of the same year
+sit side by side:
 
 ```
+standard-1995/   Type 2 (CHR), 1995-07-01     (9 decks — thin season)
+standard-1996/   Type 2 (ALL), 1996-07-10     (12 decks — thin season)
+standard-1997/   Standard (WTH), 1997-07-01   (12 decks — thin season)
+standard-1998/   Standard (EXO), 1998-07-01   (6 decks — thin season)
+standard-1999/   Standard (UDS), 1999-07-01   (15 decks — thin season)
+standard-2000/   Standard (PCY), 2000-07-01   (16 decks — thin season)
+standard-2001/   Standard (APC), 2001-07-01   (20 decks — thin season)
+standard-2002/   Standard (JUD), 2002-07-01   (21 decks — thin season)
 standard-2003/   Standard (8ED), 2003-09-01   (8 decks — thin season)
 standard-2004/   Standard (5DN), 2004-06-20   (24 decks)
 standard-2005/   Standard (9ED), 2005-08-20   (7 decks — thin season)
@@ -32,6 +43,7 @@ standard-2013/   Standard (M14), 2013-07-19   (24 decks)
 standard-2014/   Standard (M15), 2014-07-18   (24 decks)
 standard-2015/   Standard (ORI), 2015-07-17   (24 decks)
 standard-2016/   Standard (EMN), 2016-07-22   (24 decks)
+modern-2011/     Modern (M12), 2011-07-15     (24 decks)
 modern-2012/     Modern (M13), 2012-07-13     (24 decks)
 modern-2013/     Modern (M14), 2013-07-19     (24 decks)
 modern-2014/     Modern (M15), 2014-07-18     (24 decks)
@@ -104,6 +116,31 @@ Seasons that still have fewer than 24 distinct legal decks on mtgtop8 — its
 competitive events and, for these, its regular ones too — are reported, not
 padded: Standard 2003 (8), 2005 (7) and 2009 (11, most of that season predates
 M10 and plays 10E), Legacy 2005 (9) and 2006 (17).
+
+### 2026-10-13: as far back as the data goes
+
+The operator: *"let's go further back with the formats, try to back as far as
+possible."* What decides how far:
+
+- **Legality data reaches 1993.** Forge's archive has Type 2/Standard from
+  `1995-01-10`, Type 1.5/Legacy from `1996-05-01`, Type 1/Vintage from
+  `1993-08-05` and Extended from `1997-07-01`; the gate can judge any of them.
+- **Decks are the limit.** mtgtop8 — the one source this library uses, so every
+  list stays citable — has Standard events from 1994 (Worlds 1994, before any
+  Type 2 snapshot exists, so not an era), Modern from its first summer (2011),
+  **no Legacy before 2005** (no Type 1.5 event at all) and Vintage from 2002.
+  So Standard now starts at 1995 and Modern at 2011; Legacy stays at 2005.
+- **Every year 1995-2002 is thin.** mtgtop8 holds two to thirteen events a
+  year then (Nationals, Worlds, a Pro Tour or two), and no regular events, so
+  each era has every legal, distinct list it has and no padding.
+- **Type 2's own rules.** 1995 and 1996 had a restricted list, and 1995 a
+  one-of-each-legendary rule; the selection and the pool fixtures both carry
+  them (`restricted` in the fixture), so the gate refuses a fifth Ivory Tower
+  as Forge would.
+- **Two transcription cases** the older exports bring: `[] Force of Will` (no
+  set) and `[PR] Arcane Denial` (a code no Forge edition has), both in one
+  1996 list. `build-library.ts` places either at the newest of the era's legal
+  sets Forge prints the card in (Alliances, for both).
 
 ### Colour and style, per era, and every deck
 

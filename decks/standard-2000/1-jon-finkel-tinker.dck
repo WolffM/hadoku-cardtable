@@ -1,0 +1,30 @@
+[metadata]
+Name=Tinker (Jon Finkel)
+Deck Type=Constructed
+Format=Standard (PCY)
+Effective=2000-07-01
+Source URL=https://www.mtgtop8.com/event?e=9239&d=253025&f=ST
+Comment=Worlds 2000 (Brussels): Jon Finkel, 1st, Tinker. Transcribed from mtgtop8 deck 253025.
+[Main]
+4 Crystal Vein|6E
+4 Tinker|UL
+4 Brainstorm|MM
+4 Voltaic Key|US
+4 Thran Dynamo|UD
+4 Tangle Wire|NE
+4 Phyrexian Processor|US
+1 Phyrexian Colossus|US
+1 Mishra's Helix|US
+4 Metalworker|UD
+4 Masticore|UD
+4 Grim Monolith|UL
+1 Crumbling Sanctuary|MM
+4 Saprazzan Skerry|MM
+4 Rishadan Port|MM
+9 Island|MM
+[Sideboard]
+1 Mishra's Helix|US
+2 Rising Waters|NE
+4 Miscalculation|UL
+4 Chill|6E
+4 Annul|US

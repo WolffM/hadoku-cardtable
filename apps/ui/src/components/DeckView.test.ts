@@ -188,7 +188,8 @@ describe('the frozen Standard pools carry what a colour fold needs', () => {
       const label = `${family} ${date}`;
       // Non-empty: the maps are parsed tolerantly (`pool-fixture.ts` says why),
       // so a generator that stopped emitting them would otherwise be silent.
-      expect(Object.keys(fixture.manaCost).length, label).toBeGreaterThan(900);
+      // The smallest pool is Type 2's 1995 summer: four sets, 886 costed cards.
+      expect(Object.keys(fixture.manaCost).length, label).toBeGreaterThan(800);
       expect(Object.keys(fixture.colors).length, label).toBeGreaterThan(700);
       // Keyed exactly as `poolFromFixture` keys `legal`, which is what lets a
       // `.dck` line naming `Delver of Secrets` find

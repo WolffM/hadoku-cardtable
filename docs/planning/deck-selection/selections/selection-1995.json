@@ -1,0 +1,569 @@
+{
+ "era": {
+  "year": 1995,
+  "season_start": "1995-01-10",
+  "start": "1995-07-01",
+  "end": "1995-11-01",
+  "format": "Type 2 (CHR)",
+  "sets": "FEM, 4ED, ICE, CHR",
+  "banned": [
+   "Amulet of Quoz",
+   "Bronze Tablet",
+   "Jeweled Bird",
+   "Rebirth",
+   "Tempest Efreet"
+  ],
+  "restricted": [
+   "Balance",
+   "Channel",
+   "Feldon's Cane",
+   "Ivory Tower",
+   "Mind Twist",
+   "Recall"
+  ],
+  "restricted_legendary": true,
+  "no_fall_rotation": true
+ },
+ "chosen": [
+  {
+   "deck": 771096,
+   "event": 75256,
+   "archetype": "Gruul Aggro",
+   "player": "Mark Justice",
+   "event_name": "Nationals - US 1995",
+   "stars": 3,
+   "rank": "1",
+   "date": "1995-07-16",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 7,
+    "counters": 2,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 18.0,
+     "G": 21.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Sylvan Library": 1,
+     "Channel": 1,
+     "Tranquility": 1,
+     "Ivory Tower": 1,
+     "Pyroclasm": 2,
+     "Black Vise": 2,
+     "Zuran Orb": 2,
+     "Lifeforce": 2,
+     "Fireball": 4,
+     "Lightning Bolt": 4,
+     "Incinerate": 4,
+     "Crumble": 4,
+     "Johtull Wurm": 1,
+     "Shivan Dragon": 1,
+     "Orgg": 1,
+     "Whirling Dervish": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 771097,
+   "event": 75256,
+   "archetype": "Vice Age",
+   "player": "Henry Stern",
+   "event_name": "Nationals - US 1995",
+   "stars": 3,
+   "rank": "2",
+   "date": "1995-07-16",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 8,
+    "counters": 1,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 2.03,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 27.0,
+     "G": 11.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Channel": 1,
+     "Shatter": 1,
+     "Lifeforce": 1,
+     "Sylvan Library": 1,
+     "Jokulhaups": 2,
+     "Stormbind": 3,
+     "Howling Mine": 4,
+     "Black Vise": 4,
+     "Fireball": 4,
+     "Lightning Bolt": 4,
+     "Incinerate": 4,
+     "Shivan Dragon": 2,
+     "Birds of Paradise": 3,
+     "Orcish Lumberjack": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 771101,
+   "event": 75256,
+   "archetype": "BR Land Destruction",
+   "player": "Mike Long",
+   "event_name": "Nationals - US 1995",
+   "stars": 3,
+   "rank": "3",
+   "date": "1995-07-16",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.16,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 17.0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Fellwar Stone": 2,
+     "Black Vise": 2,
+     "Paralyze": 4,
+     "Lightning Bolt": 4,
+     "Incinerate": 4,
+     "Stone Rain": 4,
+     "Fireball": 2,
+     "Icequake": 2,
+     "Dark Ritual": 4,
+     "Foul Familiar": 4,
+     "Mind Twist": 1,
+     "Orgg": 3,
+     "Icy Manipulator": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 252615,
+   "event": 9185,
+   "archetype": "Rack Control",
+   "player": "Alexander Blumke",
+   "event_name": "Worlds 1995 (Seattle) *",
+   "stars": 1,
+   "rank": "1",
+   "date": "1995-08-01",
+   "summer": true,
+   "s": 0.5294117647058824,
+   "f": {
+    "spells": 38,
+    "lands": 25,
+    "creatures": 6,
+    "counters": 1,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 7.0,
+     "U": 1.0,
+     "B": 33.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "The Rack": 3,
+     "Zuran Orb": 2,
+     "Terror": 2,
+     "Swords to Plowshares": 1,
+     "Spirit Link": 1,
+     "Power Sink": 1,
+     "Pestilence": 1,
+     "Mind Twist": 1,
+     "Land Tax": 1,
+     "Icy Manipulator": 2,
+     "Hymn to Tourach": 4,
+     "Disrupting Scepter": 1,
+     "Disenchant": 3,
+     "Dark Ritual": 4,
+     "Dark Banishing": 1,
+     "Dance of the Dead": 3,
+     "Balance": 1,
+     "Sengir Vampire": 2,
+     "Royal Assassin": 1,
+     "Hypnotic Specter": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 771098,
+   "event": 75256,
+   "archetype": "Monoblack Discard",
+   "player": "Peter Leiher",
+   "event_name": "Nationals - US 1995",
+   "stars": 3,
+   "rank": "4",
+   "date": "1995-07-16",
+   "summer": true,
+   "s": 0.5,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 41.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Black Knight": 4,
+     "Hypnotic Specter": 4,
+     "Thrull Retainer": 3,
+     "Dark Banishing": 2,
+     "Dark Ritual": 4,
+     "Drain Life": 3,
+     "Hymn to Tourach": 4,
+     "Mind Twist": 1,
+     "Aeolipile": 3,
+     "Disrupting Scepter": 2,
+     "Nevinyrral's Disk": 1,
+     "The Rack": 4,
+     "Zuran Orb": 1,
+     "Paralyze": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 771100,
+   "event": 75256,
+   "archetype": "Disco Counterboat",
+   "player": "Scott Burke",
+   "event_name": "Nationals - US 1995",
+   "stars": 3,
+   "rank": "11",
+   "date": "1995-07-16",
+   "summer": true,
+   "s": 0.36633850182726724,
+   "f": {
+    "spells": 35,
+    "lands": 26,
+    "creatures": 9,
+    "counters": 7,
+    "sweepers": 5,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 0,
+     "U": 27.0,
+     "B": 1.0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Hydroblast": 1,
+     "Fireball": 1,
+     "Mind Twist": 1,
+     "Ivory Tower": 1,
+     "Nevinyrral's Disk": 1,
+     "Zuran Orb": 1,
+     "Icy Manipulator": 1,
+     "Control Magic": 2,
+     "Pyroclasm": 2,
+     "Earthquake": 2,
+     "Power Sink": 2,
+     "Shatter": 3,
+     "Lightning Bolt": 4,
+     "Counterspell": 4,
+     "Ghost Ship": 3,
+     "Uthden Troll": 3,
+     "Mahamoti Djinn": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 252613,
+   "event": 9185,
+   "archetype": "WR Control",
+   "player": "Marc Hernandez",
+   "event_name": "Worlds 1995 (Seattle) *",
+   "stars": 1,
+   "rank": "2",
+   "date": "1995-08-01",
+   "summer": true,
+   "s": 0.35294117647058826,
+   "f": {
+    "spells": 42,
+    "lands": 20,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 22.0,
+     "U": 0,
+     "B": 0,
+     "R": 2.0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Balance": 1,
+     "Ivory Tower": 1,
+     "Land Tax": 2,
+     "Island Sanctuary": 2,
+     "Earthquake": 2,
+     "Circle of Protection: Red": 2,
+     "Disenchant": 3,
+     "Fellwar Stone": 3,
+     "Icy Manipulator": 3,
+     "Armageddon": 3,
+     "Swords to Plowshares": 3,
+     "Winter Orb": 3,
+     "Wrath of God": 3,
+     "Zuran Orb": 3,
+     "Howling Mine": 4,
+     "Black Vise": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 253185,
+   "event": 9185,
+   "archetype": "Selesnya Aggro",
+   "player": "Ivan Curina",
+   "event_name": "Worlds 1995 (Seattle) *",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1995-08-01",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 42,
+    "lands": 20,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 41.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Land Tax": 3,
+     "Icy Manipulator": 2,
+     "Hurricane": 2,
+     "Giant Growth": 4,
+     "Fyndhorn Elves": 4,
+     "Force of Nature": 1,
+     "Elvish Archers": 4,
+     "Birds of Paradise": 3,
+     "Armageddon": 2,
+     "Lhurgoyf": 4,
+     "Llanowar Elves": 4,
+     "Nevinyrral's Disk": 2,
+     "Swords to Plowshares": 3,
+     "Whirling Dervish": 2,
+     "Woolly Spider": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 253187,
+   "event": 9185,
+   "archetype": "Pre-Sligh",
+   "player": "Andrea Redi",
+   "event_name": "Worlds 1995 (Seattle) *",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "1995-08-01",
+   "summer": true,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 1,
+    "burn": 10,
+    "avg_cmc": 2.32,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 30.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Detonate": 1,
+     "Fireball": 1,
+     "Icy Manipulator": 1,
+     "Jayemdae Tome": 1,
+     "Jester's Cap": 1,
+     "Millstone": 1,
+     "Disintegrate": 2,
+     "Nevinyrral's Disk": 3,
+     "Incinerate": 4,
+     "Stone Rain": 4,
+     "Black Vise": 4,
+     "Lightning Bolt": 4,
+     "Goblin Mutant": 1,
+     "Orgg": 2,
+     "Orcish Spy": 2,
+     "Goblin Balloon Brigade": 2,
+     "Uthden Troll": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 9,
+ "rejected_illegal": [
+  {
+   "archetype": "(Red Artifact Control)",
+   "deck": 253186,
+   "player": "Mark Justice",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "(Sideboard B)",
+   "deck": 253183,
+   "player": "Henri Schildt",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "(Sideboard C)",
+   "deck": 253184,
+   "player": "Mu Luen Wang",
+   "why": [
+    "60x Unknown Card (over the four-copy limit)",
+    "unknown card: Unknown Card"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Demonic Vice Age",
+   "player": "Derek Rank",
+   "kept": "Vice Age",
+   "kept_player": "Henry Stern"
+  },
+  {
+   "dropped": "RG Control",
+   "player": "Henry Stern",
+   "kept": "Gruul Aggro",
+   "kept_player": "Mark Justice"
+  }
+ ],
+ "objective": -24.14788971756483,
+ "pool_colors": {
+  "R": 5,
+  "G": 3,
+  "B": 3,
+  "W": 3,
+  "U": 1
+ },
+ "pool_styles": {
+  "aggro": 2,
+  "midrange": 4,
+  "control": 3
+ },
+ "kept_lost": []
+}

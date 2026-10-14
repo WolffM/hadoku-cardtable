@@ -1,5 +1,28 @@
 [
  {
+  "year": 2011,
+  "season_start": "2010-10-01",
+  "start": "2011-07-15",
+  "end": "2011-09-30",
+  "snapshot_file": "2011-07-15",
+  "format": "Modern (M12)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12",
+  "banned": [
+   "Ancient Den",
+   "Chrome Mox",
+   "Dark Depths",
+   "Golgari Grave-Troll",
+   "Great Furnace",
+   "Seat of the Synod",
+   "Sensei's Divining Top",
+   "Skullclamp",
+   "Sword of the Meek",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Vault of Whispers"
+  ]
+ },
+ {
   "year": 2012,
   "season_start": "2011-09-30",
   "start": "2012-07-13",

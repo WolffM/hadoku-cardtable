@@ -97,6 +97,7 @@ const CITATION = /^https:\/\/www\.mtgtop8\.com\/event\?e=\d+&d=\d+&f=(ST|MO|LE)$
 // longer is.
 const POWER_SUMMER_2008 = LIBRARY.find((c) => c.id === 'power-summer-2008') as LibraryCollection;
 const RED_DECK_WINS = POWER_SUMMER_2008.decks.find((d) => d.id === 'power-2008-1-michael-jacob-red-deck-wins')!;
+const POWER_1995 = LIBRARY.find((c) => c.id === 'power-summer-1995') as LibraryCollection;
 function redDeckWinsText(): string {
   return read(deckPath(POWER_SUMMER_2008, RED_DECK_WINS));
 }
@@ -269,6 +270,22 @@ describe('the failure path, named card by card', () => {
     expect(issues[0]!.message).toBe('plays 4x Birthing Pod, which is not in Standard (EVE)');
   });
 
+  // Type 2 kept a restricted list until 1996, and until 1995-11 allowed one of each
+  // legendary card. Both ride in the era's fixture as `restricted`, so the gate holds
+  // a 1995 deck to them the way the selection did.
+  it.each([
+    ['1 Ivory Tower|4E', '2 Ivory Tower|4E', 'Ivory Tower'],
+    ['1 Channel|4E', '2 Nicol Bolas|CHR', 'Nicol Bolas'],
+  ])('holds a 1995 deck to Type 2’s one-copy rules: %s → %s', (from, to, name) => {
+    const original = read(deckPath(POWER_1995, POWER_1995.decks.find((d) => d.file === '1-mark-justice-gruul-aggro.dck')!));
+    const tampered = original.replace(from, to);
+    expect(tampered).not.toBe(original);
+    const pool = poolFromFixture(fixture(POWER_1995.date));
+    expect(libraryIssues(loadLibraryDeck(original), pool)).toEqual([]);
+    const issues = libraryIssues(loadLibraryDeck(tampered), pool);
+    expect(issues.map((i) => [i.kind, i.message])).toEqual([['restricted', `plays 2x ${name}, but Type 2 (CHR) restricts it to 1`]]);
+  });
+
   it('reports a copy-limit break by card and by number', () => {
     const original = redDeckWinsText();
     const tampered = original
@@ -348,9 +365,22 @@ describe('the library as a whole', () => {
   // the 338: 676 decks. Thin seasons (fewer than 24 legal, distinct
   // candidates on mtgtop8, competitive and regular events both — not padded):
   // Standard 2003 (8), 2005 (7) and 2009 (11); Legacy 2005 (9) and 2006 (17).
-  // Every other era is 24.
-  it('is thirty-one eras across three families and 676 decks, oldest first within each family', () => {
+  // 2026-10-13 (AF41, the operator: "try to back as far as possible") took
+  // Standard back to Type 2's 1995 summer and Modern back to 2011, the earliest
+  // years mtgtop8 has decks for: 40 eras, 811 decks. Every one of 1995-2002 is
+  // thin — mtgtop8 holds only a few events a year then — 1995 (9), 1996 (12),
+  // 1997 (12), 1998 (6), 1999 (15), 2000 (16), 2001 (20), 2002 (21); Modern
+  // 2011 is 24. Every other era is 24.
+  it('is forty eras across three families and 811 decks, oldest first within each family', () => {
     expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
+      ['power-summer-1995', 'standard', 'Type 2 (CHR)', '1995-07-01', 9],
+      ['power-summer-1996', 'standard', 'Type 2 (ALL)', '1996-07-10', 12],
+      ['power-summer-1997', 'standard', 'Standard (WTH)', '1997-07-01', 12],
+      ['power-summer-1998', 'standard', 'Standard (EXO)', '1998-07-01', 6],
+      ['power-summer-1999', 'standard', 'Standard (UDS)', '1999-07-01', 15],
+      ['power-summer-2000', 'standard', 'Standard (PCY)', '2000-07-01', 16],
+      ['power-summer-2001', 'standard', 'Standard (APC)', '2001-07-01', 20],
+      ['power-summer-2002', 'standard', 'Standard (JUD)', '2002-07-01', 21],
       ['power-summer-2003', 'standard', 'Standard (8ED)', '2003-09-01', 8],
       ['power-summer-2004', 'standard', 'Standard (5DN)', '2004-06-20', 24],
       ['power-summer-2005', 'standard', 'Standard (9ED)', '2005-08-20', 7],
@@ -365,6 +395,7 @@ describe('the library as a whole', () => {
       ['power-summer-2014', 'standard', 'Standard (M15)', '2014-07-18', 24],
       ['power-summer-2015', 'standard', 'Standard (ORI)', '2015-07-17', 24],
       ['power-summer-2016', 'standard', 'Standard (EMN)', '2016-07-22', 24],
+      ['power-summer-modern-2011', 'modern', 'Modern (M12)', '2011-07-15', 24],
       ['power-summer-modern-2012', 'modern', 'Modern (M13)', '2012-07-13', 24],
       ['power-summer-modern-2013', 'modern', 'Modern (M14)', '2013-07-19', 24],
       ['power-summer-modern-2014', 'modern', 'Modern (M15)', '2014-07-18', 24],
@@ -383,8 +414,8 @@ describe('the library as a whole', () => {
       ['power-summer-legacy-2015', 'legacy', 'Legacy (ORI)', '2015-07-17', 24],
       ['power-summer-legacy-2016', 'legacy', 'Legacy (EMN)', '2016-07-22', 24],
     ]);
-    expect(ALL_DECKS).toHaveLength(676);
-    expect(libraryDeckPaths()).toHaveLength(676);
+    expect(ALL_DECKS).toHaveLength(811);
+    expect(libraryDeckPaths()).toHaveLength(811);
   });
 
   it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {
@@ -423,10 +454,12 @@ describe('the library as a whole', () => {
   // Modern has no thin era (every one of its five is 12 decks, all five
   // colours) — wave 48 §M found no season that thin.
   const FIVE_COLOUR_ERAS = new Set([
+    'power-summer-1995', 'power-summer-1996', 'power-summer-1997', 'power-summer-1998', 'power-summer-1999',
+    'power-summer-2000', 'power-summer-2001', 'power-summer-2002',
     'power-summer-2003', 'power-summer-2004', 'power-summer-2005', 'power-summer-2006', 'power-summer-2007',
     'power-summer-2008', 'power-summer-2011', 'power-summer-2012', 'power-summer-2013', 'power-summer-2014',
     'power-summer-2015', 'power-summer-2016',
-    'power-summer-modern-2012', 'power-summer-modern-2013', 'power-summer-modern-2014',
+    'power-summer-modern-2011', 'power-summer-modern-2012', 'power-summer-modern-2013', 'power-summer-modern-2014',
     'power-summer-modern-2015', 'power-summer-modern-2016',
     'power-summer-legacy-2006', 'power-summer-legacy-2007', 'power-summer-legacy-2008', 'power-summer-legacy-2009',
     'power-summer-legacy-2010', 'power-summer-legacy-2011', 'power-summer-legacy-2012', 'power-summer-legacy-2013',
@@ -562,10 +595,11 @@ describe('the library cost map a browser is handed', () => {
     // Legacy's much wider card pools (every paper set ever, for Legacy) were
     // added. The MAP stays small because it is a slice of the library's own
     // played cards, not the pools themselves — the ratio check is the one
-    // that actually matters here.
+    // that actually matters here. 80KB became 100KB when Standard went back
+    // to 1995 and Modern to 2011 (AF41): 2,790 cards, an 87.5KB map.
     const map = read('packages/deck/src/library/deck-costs.generated.ts').length;
     const pools = POOL_FIXTURE_KEYS.reduce((n, { family, date }) => n + read(poolFixturePath(date, family)).length, 0);
-    expect(map).toBeLessThan(80_000);
+    expect(map).toBeLessThan(100_000);
     expect(pools).toBeGreaterThan(20 * map);
   });
 });
