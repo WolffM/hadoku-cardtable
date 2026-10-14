@@ -3798,7 +3798,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     expect(anchors('.board-card__marks'), 'marks: the top edge').toContain('top');
   });
 
-  it('the ring round the avatar is the seat Forge is waiting on; the active player is marked on the name, not by a ring', () => {
+  it('the ring round the avatar is the seat Forge is waiting on; the active player’s side is lit and the other shaded, not by a ring or the name', () => {
     // Seat 0 is the active player, seat 1 is asked: the two marks part.
     const parted: BoardView = { ...view, players: view.players.map((p, i) => ({ ...p, isActive: i === 0, hasPriority: i === 1 })) };
     const { container, seat } = renderBoard(parted);
@@ -3817,8 +3817,15 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     const nameOf = (id: number) => seat(id).querySelector('.seat__name')!;
     expect(css(ringOf(asked.id), 'box-shadow'), 'the asked seat’s ring is drawn').not.toMatch(/^(none)?$/);
     expect(css(ringOf(active.id), 'box-shadow'), 'the active seat’s is not').toMatch(/^(none)?$/);
-    expect(css(nameOf(active.id), 'box-shadow'), 'the active seat’s name is marked').not.toMatch(/^(none)?$/);
-    expect(css(nameOf(asked.id), 'box-shadow'), 'the other name is not').toMatch(/^(none)?$/);
+    // Whose turn it is is the seat's own light and shade (`board.css`), keyed off the section's `data-active`.
+    expect(css(seat(active.id), '--turn-lit'), 'the active side wears the edge light').toBe('1');
+    expect(css(seat(asked.id), '--turn-lit'), 'the other does not').toBe('0');
+    expect(css(seat(asked.id), '--turn-shade'), 'the other side sits in the shade').toBe('1');
+    expect(css(seat(active.id), '--turn-shade'), 'the active side does not').toBe('0');
+    for (const p of parted.players) {
+      expect(css(nameOf(p.id), 'box-shadow'), `seat ${p.id}'s name carries no mark`).toMatch(/^(none)?$/);
+      expect(css(nameOf(p.id), 'font-weight'), `seat ${p.id}'s name is not bolded`).not.toBe('700');
+    }
     // A 50% radius is a circle only on a square box (the operator saw an oval, 2026-10-03).
     const lit = ringOf(asked.id);
     expect(css(lit, 'border-radius')).toBe('50%');

@@ -4,8 +4,10 @@
  * The operator, 2026-10-13: *"the circle around the avatar should indicate
  * priority. we need a different way to indicate active player."* The ring is
  * the seat Forge is waiting on — the same gated fact that used to light the
- * "priority" word (`LiveBoard.tsx`'s `withGatedPriority`) — and the active
- * player is marked on the name, never by a ring. Proven where the two part:
+ * "priority" word (`LiveBoard.tsx`'s `withGatedPriority`). The active player's
+ * side is lit along its own table edge and the other side sits a shade darker
+ * (2026-10-14, after an underline on the name: *"some kind of ambient effect on
+ * their board"*) — never a ring. Proven where the two part:
  * the opponent's turn, in combat, with the viewer asked to block.
  *
  * Same day: *"dragging on the board shouldn't cause a text highlight on the
@@ -19,7 +21,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, turnMarks } from './play/board.ts';
 import { passDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { says, startScenarioMatch } from './play/scenario.ts';
@@ -30,23 +32,24 @@ const titled = makeTitled(forge);
 interface SeatMarks {
   /** Whose seat lights its ring, from this screen: `you`, `them`, or both/neither. */
   ring: string[];
-  /** Whose seat carries the active player's mark on its name. */
-  active: string[];
+  /** Whose side wears the active player's edge light. */
+  lit: string[];
+  /** Whose side sits in the spotlight's shade. */
+  shaded: string[];
 }
 
-/** What the screen PAINTS: a ring with a box-shadow, a name with a marker. One evaluate, one frame. */
-function marksOf(page: Page): Promise<SeatMarks> {
-  return page.evaluate(() => {
-    const out: { ring: string[]; active: string[] } = { ring: [], active: [] };
-    for (const seat of Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]'))) {
-      const who = seat.hasAttribute('data-viewer') ? 'you' : 'them';
-      const ring = seat.querySelector<HTMLElement>('.seat__ring');
-      const name = seat.querySelector<HTMLElement>('.seat__name');
-      if (ring !== null && getComputedStyle(ring).boxShadow !== 'none') out.ring.push(who);
-      if (name !== null && getComputedStyle(name).boxShadow !== 'none') out.active.push(who);
-    }
-    return out;
-  });
+/** What the screen PAINTS: a ring with a box-shadow, the turn's edge light and shade. */
+async function marksOf(page: Page): Promise<SeatMarks> {
+  const ring = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]'))
+      .filter((seat) => {
+        const ring = seat.querySelector<HTMLElement>('.seat__ring');
+        return ring !== null && getComputedStyle(ring).boxShadow !== 'none';
+      })
+      .map((seat) => (seat.hasAttribute('data-viewer') ? 'you' : 'them')),
+  );
+  const turn = await turnMarks(page);
+  return { ring, lit: turn.filter((t) => t.lit).map((t) => t.who), shaded: turn.filter((t) => t.shaded).map((t) => t.who) };
 }
 
 async function expectMarks(page: Page, label: string, want: SeatMarks, message: string): Promise<void> {
@@ -57,7 +60,7 @@ async function expectMarks(page: Page, label: string, want: SeatMarks, message: 
   }
 }
 
-test(titled('the avatar ring follows who Forge is waiting on — the blocker during the opponent’s combat — and the active player is marked on the name, not by a ring'), async ({ browser }) => {
+test(titled('the avatar ring follows who Forge is waiting on — the blocker during the opponent’s combat — and the active player’s side is lit along its edge while the other sits in shade, not by a ring'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -70,8 +73,8 @@ test(titled('the avatar ring follows who Forge is waiting on — the blocker dur
 
     // Forge's priority player is still bob (the active player) while alice declares blockers;
     // the one Forge is WAITING on is alice. The ring says so on both screens; the turn stays bob's.
-    await expectMarks(alice.page, 'alice blocking, alice’s screen', { ring: ['you'], active: ['them'] }, 'alice’s screen: the ring is on alice, who is asked; bob is the active player');
-    await expectMarks(bob.page, 'alice blocking, bob’s screen', { ring: ['them'], active: ['you'] }, 'bob’s screen: the ring is on alice, who is asked; bob is the active player');
+    await expectMarks(alice.page, 'alice blocking, alice’s screen', { ring: ['you'], lit: ['them'], shaded: ['you'] }, 'alice’s screen: the ring is on alice, who is asked; bob is the active player');
+    await expectMarks(bob.page, 'alice blocking, bob’s screen', { ring: ['them'], lit: ['you'], shaded: ['them'] }, 'bob’s screen: the ring is on alice, who is asked; bob is the active player');
   } finally {
     await stack.stop();
   }

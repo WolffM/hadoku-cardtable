@@ -82,6 +82,54 @@ export async function offeredNamed(page: Page, name: string): Promise<number | u
 }
 
 /** The decision-area prompt sheet, if one is showing. */
+/** One seat's turn marks, as painted: the edge light along its own table edge, and the spotlight's shade. */
+export interface SeatTurnMark {
+  id: string;
+  who: 'you' | 'them';
+  /** Its edge light is on: the first (edge) shadow of the seat is drawn at full strength. */
+  lit: boolean;
+  /** Its battlefield is darker than the theme's own ground: the other player's turn. */
+  shaded: boolean;
+}
+
+/**
+ * Whose turn the table says it is (`board.css`'s `--turn-lit` and `--turn-shade`), read off the
+ * paint: each colour is resolved through a 1×1 canvas, so the reading does not depend on how the
+ * browser serialises a mixed or relative colour. One evaluate, one frame.
+ */
+export function turnMarks(page: Page): Promise<SeatTurnMark[]> {
+  return page.evaluate(() => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    const rgba = (colour: string): [number, number, number, number] => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = colour;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      return [r!, g!, b!, a! / 255];
+    };
+    const light = (colour: string): number => {
+      const [r, g, b] = rgba(colour);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const board = document.querySelector<HTMLElement>('.board')!;
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = 'var(--bg)';
+    board.append(probe);
+    const ground = light(getComputedStyle(probe).backgroundColor);
+    probe.remove();
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]')).map((seat) => {
+      const edge = /(?:rgba?|color|oklch|oklab|lab|lch)\([^()]*\)/.exec(getComputedStyle(seat).boxShadow)?.[0];
+      const field = seat.querySelector<HTMLElement>(':scope > [data-zone="battlefield"]');
+      return {
+        id: seat.getAttribute('data-player-id') ?? '?',
+        who: seat.hasAttribute('data-viewer') ? ('you' as const) : ('them' as const),
+        lit: edge !== undefined && rgba(edge)[3] >= 0.9,
+        shaded: field !== null && light(getComputedStyle(field).backgroundColor) < ground - 2,
+      };
+    });
+  });
+}
+
 export const livePrompt = (page: Page): Locator => page.getByTestId('live-prompt');
 
 /** The method of the prompt showing, if any. */

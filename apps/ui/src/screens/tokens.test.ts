@@ -124,6 +124,33 @@ describe('the accent as text', () => {
 });
 
 /*
+ * The active player's edge light (`board.css`, the operator 2026-10-14) is a 3px line: a
+ * non-text mark, so it must clear 3:1 against the seat it is drawn on (`--bg-raised`, the
+ * theme's card colour) in every theme. The raw accent does not (1.56:1 in izakaya-light).
+ */
+describe('the turn’s edge light', () => {
+  const mixOf = /--turn-edge:\s*color-mix\(in srgb,\s*var\(--accent\)\s*(\d+)%,\s*var\(--ink\)\)/.exec(ownCss);
+  const share = mixOf === null ? 1 : Number(mixOf[1]) / 100;
+
+  it('is the accent mixed toward the ink', () => {
+    expect(mixOf).not.toBeNull();
+  });
+
+  it('clears 3:1 on the seat in every theme', () => {
+    const failures: string[] = [];
+    for (const t of themes) {
+      const primary = hex(t.vars.primary);
+      const ink = hex(t.vars.text);
+      if (primary === null || ink === null) continue;
+      const mixed = primary.map((c, i) => Math.round(c * share + ink[i] * (1 - share))) as Rgb;
+      const c = contrast(mixed, t.card);
+      if (c < 3) failures.push(`${t.name}: ${c.toFixed(2)}`);
+    }
+    expect(failures).toEqual([]);
+  });
+});
+
+/*
  * 2026-10-06: the board borrowed the colour-pie's red, green and blue for
  * damage, a life gain and a buffed number. They are the theme's danger, success
  * and primary now, and as TEXT each is a mix toward the ink, like the accent.

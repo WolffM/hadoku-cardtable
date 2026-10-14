@@ -18,7 +18,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount } from './play/board.ts';
+import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount, turnMarks } from './play/board.ts';
 import { assignBlock, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -436,9 +436,9 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
   }
 });
 
-/* ── 8. the active player's mark is on the active seat's name, and moves ── */
+/* ── 8. the active player's side is lit, and the light moves with the turn ── */
 
-test(titled('the active player\'s mark is on the active seat\'s name, never its ring, and moves when the turn does'), async ({ browser }) => {
+test(titled('the active player\'s side wears the edge light and the other sits in shade, and both move when the turn does'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -446,21 +446,19 @@ test(titled('the active player\'s mark is on the active seat\'s name, never its 
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     const page = alice.page;
-    // The seats whose name the screen paints with the active mark (`card.css`'s `.seat[data-active] .seat__name`).
-    const marked = () =>
-      page.evaluate(() =>
-        Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]'))
-          .filter((seat) => {
-            const name = seat.querySelector('.seat__name');
-            return name !== null && getComputedStyle(name).boxShadow !== 'none';
-          })
-          .map((seat) => seat.getAttribute('data-player-id')),
-      );
+    // Which seats the screen paints lit and shaded (`board.css`'s `--turn-lit`, `--turn-shade`).
+    const marked = async () => {
+      const marks = await turnMarks(page);
+      console.log(`[w33-turn] ${JSON.stringify(marks)}`);
+      return { lit: marks.filter((m) => m.lit).map((m) => m.id), shaded: marks.filter((m) => m.shaded).map((m) => m.id) };
+    };
+    const others = async (id: string | null) =>
+      (await page.locator('[data-testid="player"]').evaluateAll((seats) => seats.map((s) => s.getAttribute('data-player-id')))).filter((x) => x !== id);
 
     const activeSections = page.locator('[data-testid="player"][data-active]');
     await expect(activeSections, 'exactly one seat section carries data-active').toHaveCount(1, { timeout: 15_000 });
     const firstActive = await activeSections.getAttribute('data-player-id');
-    await expect.poll(marked, { message: 'the active seat’s name, and only it, is marked' }).toEqual([firstActive]);
+    await expect.poll(marked, { message: 'the active seat, and only it, is lit; the other sits in shade' }).toEqual({ lit: [firstActive], shaded: await others(firstActive) });
 
     // Pass the turn along until the OTHER seat becomes active. T6: `board.ts`'s own
     // `grindPriority`, with `passWhatever` (OK-or-Cancel) as its own per-page press.
@@ -474,7 +472,7 @@ test(titled('the active player\'s mark is on the active seat\'s name, never its 
     );
     await expect(page.locator('[data-testid="player"][data-active]'), 'still exactly one active seat after it moved').toHaveCount(1);
     const nowActive = await page.locator('[data-testid="player"][data-active]').getAttribute('data-player-id');
-    await expect.poll(marked, { message: 'the mark moved with the turn' }).toEqual([nowActive]);
+    await expect.poll(marked, { message: 'the light and the shade moved with the turn' }).toEqual({ lit: [nowActive], shaded: await others(nowActive) });
   } finally {
     await stack.stop();
   }
