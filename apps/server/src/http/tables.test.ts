@@ -603,6 +603,26 @@ describe('the catalog routes', () => {
 		expect(new Set(lists).size).toBe(lists.length);
 	});
 
+	// The operator, 2026-10-13: "let's go further back with the formats, try to back as far as
+	// possible." Type 2's first summer in Forge's archive (1995, Chronicles) and Modern's first
+	// (2011, the summer of its first Pro Tour) are the earliest years mtgtop8 has decks for.
+	it.each([
+		['1995-07-01', 'standard', 'Type 2 (CHR)', 'power-1995-'],
+		['modern-2011-07-15', 'modern', 'Modern (M12)', 'power-modern-2011-'],
+	])('offers %s, the earliest %s year, with its own legal decks', async (id, family, name, prefix) => {
+		const h = await boot();
+		const formats = (await call(h, 'GET', '/api/tables/formats')).body as { formats: { id: string; family: string; name: string }[] };
+		expect(formats.formats.find((f) => f.id === id)).toMatchObject({ family, name });
+		const oldest = formats.formats.filter((f) => f.family === family).map((f) => f.id).sort()[0];
+		expect(oldest, `${family}'s oldest era`).toBe(id);
+		const res = await call(h, 'GET', `/api/tables/legal/${encodeURIComponent(id)}`);
+		expect(res.status).toBe(200);
+		const legal = (res.body as { legal: string[] }).legal;
+		expect(legal.length).toBeGreaterThan(0);
+		for (const deck of legal) expect(deck.startsWith(prefix), deck).toBe(true);
+		expect(legal).toEqual(library.decks.filter((d) => d.era === id).map((d) => d.id));
+	});
+
 	it('offers the whole library on Free pick', async () => {
 		const h = await boot();
 		const res = await call(h, 'GET', '/api/tables/legal/free');

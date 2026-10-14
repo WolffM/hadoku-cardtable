@@ -154,3 +154,39 @@ test('a reload on a Legacy room opens the Legacy tab with its era chosen when th
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
   await expect(select).toHaveValue(firstLegacy);
 });
+
+// The operator, 2026-10-13: "let's go further back with the formats, try to back as far as
+// possible." Type 2's 1995 summer is the earliest Standard era Forge's archive and mtgtop8 both
+// reach; it is offered, it moves the room, and its decks load into the chooser.
+test('the Standard tab reaches back to Type 2’s 1995 summer and its decks load', async ({ browser }) => {
+  const alice = await open(browser, 'alice');
+  await alice.page.goto(`${PREFIX}/`);
+  await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
+  await createRoom(alice, `af41 oldest ${Date.now()}`);
+
+  await expect(alice.page.getByTestId('format-tab-standard')).toHaveAttribute('aria-selected', 'true');
+  const select = alice.page.getByTestId('format');
+  const ids = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).filter((id) => id !== '');
+  console.log(`[af41] Standard eras ${ids.at(-1)} .. ${ids[0]} (${ids.length})`);
+  expect(ids.at(-1), 'the oldest Standard era is the last option').toBe('1995-07-01');
+
+  const patched = alice.page.waitForResponse(
+    (res) => res.request().method() === 'PATCH' && res.url().includes('/api/rooms/') && res.status() === 200,
+  );
+  await select.selectOption('1995-07-01');
+  await patched;
+  await expect(select).toHaveValue('1995-07-01');
+
+  const picker = alice.page.getByTestId('deck-mine');
+  await expect(picker).toBeEnabled();
+  const decks = picker.getByTestId('deck-option');
+  await expect.poll(() => decks.count(), { timeout: 30_000 }).toBeGreaterThan(0);
+  const deckIds = await decks.evaluateAll((els) => els.map((el) => el.getAttribute('data-deck-id') ?? ''));
+  console.log(`[af41] 1995 offers ${deckIds.length} decks: ${deckIds.join(' ')}`);
+  for (const id of deckIds) expect(id.startsWith('power-1995-'), id).toBe(true);
+
+  await decks.first().click();
+  await expect(decks.first()).toHaveAttribute('aria-checked', 'true');
+  await expect(alice.page.getByTestId('ready-toggle')).toBeEnabled();
+  for (const url of alice.blocked) expect(ART_HOSTS.has(new URL(url).hostname), url).toBe(true);
+});
