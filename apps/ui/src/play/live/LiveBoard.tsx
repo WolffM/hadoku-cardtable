@@ -1284,6 +1284,37 @@ export function useCrawlGuard(phase: string | null): boolean {
 }
 
 /**
+ * How long End Turn's "nothing left to decide" highlight stays on, unchanged,
+ * before it escalates to the bigger nudge (`data-nudge`, `live.css`). The
+ * operator, 2026-10-14: *"a bigger visual pulse after ~10s of being 'active'"*.
+ */
+export const END_TURN_NUDGE_MS = 10_000;
+
+/**
+ * True once `on` has held for `after` ms with every value in `state` unchanged
+ * (compared by identity, `Object.is`). Any change — `on` dropping, or any
+ * `state` entry changing while it holds — clears it at once, in that same
+ * render, and starts the wait again from zero.
+ */
+export function useIdleNudge(on: boolean, state: readonly unknown[], after: number = END_TURN_NUDGE_MS): boolean {
+  // Which unchanged span this render belongs to. Advanced during render, not in
+  // an effect, so the render that sees a change already reads "not nudged".
+  const span = useRef<{ on: boolean; state: readonly unknown[]; n: number }>({ on, state, n: 0 });
+  const prev = span.current;
+  if (prev.on !== on || prev.state.length !== state.length || prev.state.some((v, i) => !Object.is(v, state[i]))) {
+    span.current = { on, state, n: prev.n + 1 };
+  }
+  const n = span.current.n;
+  const [nudgedSpan, setNudgedSpan] = useState(-1);
+  useEffect(() => {
+    if (!on) return undefined;
+    const id = setTimeout(() => setNudgedSpan(n), after);
+    return () => clearTimeout(id);
+  }, [on, n, after]);
+  return on && nudgedSpan === n;
+}
+
+/**
  * Who the avatar ring says Forge is waiting on (`Board.tsx`'s `data-priority`,
  * `card.css`'s `.seat__ring`). The operator, 2026-10-13: *"the circle around
  * the avatar should indicate priority."*
@@ -2442,6 +2473,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const yieldMode = whoseTurnNow === 'theirs';
   const autoYieldOn = isAutoYieldOn(match);
+  const endTurnHighlighted = !yieldMode && highlightEndTurn;
+  /*
+   * The highlight held unchanged for `END_TURN_NUDGE_MS` escalates to the
+   * bigger pulse — never while a pop-up of this seat's own is open (a
+   * pass-to-resolve decision can sit under the highlight). Unchanged means the
+   * same Forge state (`forgeSeq`), the same actionable set and the same bar: a
+   * new delta, a new input or a press restarts the wait.
+   */
+  const nudgeEndTurn = useIdleNudge(endTurnHighlighted && !myOwnDecisionOpen, [
+    match.forgeSeq,
+    match.weaklySelectable,
+    match.buttons,
+    match.barHold,
+  ]);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
   const settings = useSettingsPopover();
   /*
@@ -2930,7 +2975,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
          * same 4 buttons in the control box at all times … just grey out the
          * 'Next Phase' and 'End Turn' buttons when they are not relevant."* The
          * labels are ours and never change; every other answer to Forge's bar is
-         * the decision pop-up below. `data-highlight` (R5) is End Turn's.
+         * the decision pop-up below. `data-highlight` (R5) is End Turn's, and
+         * `data-nudge` its escalation once that has held (`useIdleNudge`).
          *
          * The one exception: on the OTHER seat's turn the End Turn slot
          * reads Auto Yield / Cancel Yield instead, same testid and place
@@ -2949,7 +2995,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           type="button"
           className="live__end-turn"
           data-testid="live-button-end-turn"
-          data-highlight={!yieldMode && highlightEndTurn ? '' : undefined}
+          data-highlight={endTurnHighlighted ? '' : undefined}
+          data-nudge={nudgeEndTurn ? '' : undefined}
           data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
           disabled={yieldMode ? spectator : !endTurnEnabled}
           onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : endTurn(match))}

@@ -460,10 +460,42 @@
   }
 }
 
+/*
+ * The same highlight once it has held for `END_TURN_NUDGE_MS`
+ * (`LiveBoard.tsx`'s `useIdleNudge`): a bigger pulse — the button swells and
+ * glows, then rests, and repeats until it is pressed or the state changes.
+ * Transform, filter and background only, so the cluster's box never grows
+ * (table-fit): a 6% scale is ~3px a side on a 104px button, inside the gutter.
+ */
+.live__buttons button[data-highlight][data-nudge] {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-card));
+  animation: live-end-turn-nudge 2.4s ease-in-out infinite;
+}
+
+@keyframes live-end-turn-nudge {
+  0%,
+  45%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  20% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 6px var(--accent));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .live__buttons button[data-highlight],
   .live__result .confirm__actions button[data-highlight] {
     animation: none;
+  }
+
+  /* Nothing moves: a stronger fill and a steady glow instead. */
+  .live__buttons button[data-highlight][data-nudge] {
+    background: color-mix(in srgb, var(--accent) 32%, var(--bg-card));
+    animation: none;
+    filter: drop-shadow(0 0 4px var(--accent));
   }
 }
 

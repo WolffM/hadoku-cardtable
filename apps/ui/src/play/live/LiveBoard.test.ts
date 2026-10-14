@@ -36,6 +36,7 @@ import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import {
   decisionMessage,
+  END_TURN_NUDGE_MS,
   endingSentence,
   gameOutcome,
   isMatchGone,
@@ -50,6 +51,7 @@ import {
   rematchOf,
   statusText,
   useCrawlGuard,
+  useIdleNudge,
   withGatedPriority,
   type LiveStatus,
   tossSounds,
@@ -3016,6 +3018,125 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     await waitFor(() => expect(nothingToDecide(m)).toBe(true));
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
     expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
+  });
+
+  it('the highlight held END_TURN_NUDGE_MS escalates to data-nudge; a new input from Forge restarts the wait', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const { s, m, getByTestId } = await liveBoard();
+    const endTurn = () => getByTestId('live-button-end-turn');
+    s.send(pastAttackers(m));
+    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    s.send(clearSelectables());
+    s.send(bar2('End Turn'));
+    s.send(weaklySelectable([]));
+    await waitFor(() => expect(endTurn().hasAttribute('data-highlight')).toBe(true));
+    // The fixture's stack still holds two items, so the pass-to-resolve pop-up is open
+    // under the highlight: the nudge never fires over a decision.
+    await waitFor(() => expect(getByTestId('live-decision')).toBeTruthy());
+    act(() => {
+      vi.advanceTimersByTime(2 * END_TURN_NUDGE_MS);
+    });
+    expect(endTurn().hasAttribute('data-nudge'), 'not while a decision is open').toBe(false);
+
+    s.send(stackDelta(m));
+    await waitFor(() => expect(m.view!.stack).toEqual([]));
+    await waitFor(() => expect(endTurn().hasAttribute('data-highlight')).toBe(true));
+    expect(endTurn().hasAttribute('data-nudge'), 'not straight away').toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(END_TURN_NUDGE_MS);
+    });
+    await waitFor(() => expect(endTurn().hasAttribute('data-nudge')).toBe(true));
+    expect(getByTestId('live-button-next-phase').hasAttribute('data-nudge'), 'never on Next Phase').toBe(false);
+
+    // Forge shows a new input with the same answer: the highlight stays, the nudge restarts.
+    s.send(weaklySelectable([]));
+    await waitFor(() => expect(endTurn().hasAttribute('data-nudge')).toBe(false));
+    expect(endTurn().hasAttribute('data-highlight')).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(END_TURN_NUDGE_MS);
+    });
+    await waitFor(() => expect(endTurn().hasAttribute('data-nudge')).toBe(true));
+
+    // A real decision appears: highlight and nudge both come off at once.
+    const nonLand = m.view!.players.find((p) => p.isViewer)!.battlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
+    s.send(weaklySelectable([nonLand]));
+    await waitFor(() => expect(endTurn().hasAttribute('data-highlight')).toBe(false));
+    expect(endTurn().hasAttribute('data-nudge')).toBe(false);
+  });
+});
+
+describe('End Turn nudge — the highlight held unchanged escalates (useIdleNudge)', () => {
+  function NudgeProbe({ on, state }: { on: boolean; state: unknown }) {
+    const nudged = useIdleNudge(on, [state]);
+    return createElement('div', { 'data-testid': 'nudge-probe', 'data-nudge': nudged ? '' : undefined });
+  }
+  const probe = (on: boolean, state: unknown) => createElement(NudgeProbe, { on, state });
+  const nudged = (el: HTMLElement) => el.hasAttribute('data-nudge');
+  const advance = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is off until the state has held END_TURN_NUDGE_MS, then on', () => {
+    const { getByTestId } = render(probe(true, 'a'));
+    advance(END_TURN_NUDGE_MS - 1);
+    expect(nudged(getByTestId('nudge-probe')), 'not a moment early').toBe(false);
+    advance(1);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(true);
+    advance(5 * END_TURN_NUDGE_MS);
+    expect(nudged(getByTestId('nudge-probe')), 'and it stays on while nothing changes').toBe(true);
+  });
+
+  it('never fires while the highlight is off', () => {
+    const { getByTestId } = render(probe(false, 'a'));
+    advance(3 * END_TURN_NUDGE_MS);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(false);
+  });
+
+  it('a change of the underlying state clears it in that same render and restarts the full wait', () => {
+    const { getByTestId, rerender } = render(probe(true, 'a'));
+    advance(END_TURN_NUDGE_MS);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(true);
+    rerender(probe(true, 'b'));
+    expect(nudged(getByTestId('nudge-probe')), 'cleared by the render that saw the change').toBe(false);
+    advance(END_TURN_NUDGE_MS - 1);
+    expect(nudged(getByTestId('nudge-probe')), 'the wait started again from zero').toBe(false);
+    advance(1);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(true);
+  });
+
+  it('a change part-way through the wait restarts it', () => {
+    const { getByTestId, rerender } = render(probe(true, 'a'));
+    advance(END_TURN_NUDGE_MS - 100);
+    rerender(probe(true, 'b'));
+    advance(200);
+    expect(nudged(getByTestId('nudge-probe')), 'the first span’s timer did not carry over').toBe(false);
+    advance(END_TURN_NUDGE_MS - 200);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(true);
+  });
+
+  it('the highlight ending clears it at once, and coming back waits the full time again', () => {
+    const { getByTestId, rerender } = render(probe(true, 'a'));
+    advance(END_TURN_NUDGE_MS);
+    rerender(probe(false, 'a'));
+    expect(nudged(getByTestId('nudge-probe'))).toBe(false);
+    rerender(probe(true, 'a'));
+    expect(nudged(getByTestId('nudge-probe')), 'same state, but a new span').toBe(false);
+    advance(END_TURN_NUDGE_MS - 1);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(false);
+    advance(1);
+    expect(nudged(getByTestId('nudge-probe'))).toBe(true);
   });
 });
 
