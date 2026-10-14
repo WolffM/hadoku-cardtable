@@ -6,7 +6,7 @@
  * shallow), except the historical misses, which bring the land they shipped in.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,6 +30,7 @@ import {
   universe,
   versionBumpOnly,
 } from './select-forge-tests.ts';
+import { fixtureSha, snapshotPath } from './snapshot-fixtures.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -65,12 +66,22 @@ class MemRepo extends Repo {
   }
 }
 
-/** This checkout's tree with the given history in place of git's: the same on every machine. */
+/**
+ * This checkout's tree with the given history in place of git's: the same on every machine. Given a
+ * commit, the files a fixture carries for it (`fixtures/at/<sha>/`) are read as they stood there, so a
+ * historical diff is replayed against the file it was cut from, not today's.
+ */
 class Tree extends Repo {
   private readonly history: History;
-  constructor(history: History = NO_HISTORY) {
+  private readonly at: string | undefined;
+  constructor(history: History = NO_HISTORY, at?: string) {
     super(ROOT);
     this.history = history;
+    this.at = at;
+  }
+  override read(path: string): string | null {
+    const snap = this.at === undefined ? null : snapshotPath(this.at, path);
+    return snap !== null && existsSync(snap) ? readFileSync(snap, 'utf8') : super.read(path);
   }
   override lands(): Land[] {
     return this.history.lands;
@@ -357,41 +368,47 @@ describe('the hot-path table', () => {
 
 /** Real ranges landed on main, read against this checkout. */
 describe('real landed ranges', () => {
-  const repo = new Tree();
-  const fixture = (name: string): Change[] => (JSON.parse(readFileSync(join(ROOT, 'scripts/ci/fixtures', `${name}.json`), 'utf8')) as { files: Change[] }).files;
+  const ranges = new Map<string, { range: string; files: Change[] }>();
+  const read = (name: string): { range: string; files: Change[] } => {
+    if (!ranges.has(name)) ranges.set(name, JSON.parse(readFileSync(join(ROOT, 'scripts/ci/fixtures', `${name}.json`), 'utf8')) as { range: string; files: Change[] });
+    return ranges.get(name)!;
+  };
+  const fixture = (name: string): Change[] => read(name).files;
+  /** The tree as it stood at the end of the named range, for the files that range changed. */
+  const treeOf = (name: string): Tree => new Tree(NO_HISTORY, fixtureSha(read(name)));
 
   it('sound pipeline only (4a011ffb): no Forge run', () => {
-    expect(select(repo, fixture('sfx-round5'))).toMatchObject({ e2e: false, jvm: false });
+    expect(select(treeOf('sfx-round5'), fixture('sfx-round5'))).toMatchObject({ e2e: false, jvm: false });
   });
 
   it('the @wolffm auto-update (4f6fd3af): the lockfile moves, everything runs', () => {
-    expect(select(repo, fixture('auto-update-wolffm'))).toMatchObject({ specs: null, jvmFiles: null });
+    expect(select(treeOf('auto-update-wolffm'), fixture('auto-update-wolffm'))).toMatchObject({ specs: null, jvmFiles: null });
   });
 
   it('modal spell arrows through PlayBridge (da8026aa): the new spec, its scenarios\' suite and the engine guards, on a push as on a dispatch', () => {
     for (const deferFull of [false, true]) {
-      const sel = select(repo, fixture('modal-arrows-bridge'), { deferFull });
+      const sel = select(treeOf('modal-arrows-bridge'), fixture('modal-arrows-bridge'), { deferFull });
       expect(sel.specs).toEqual(expect.arrayContaining(['modal-arrows.spec.ts', 'w68-untap.spec.ts', ...SMOKE]));
       expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/modal-targets.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
     }
   });
 
   it('the prompt sheet as one column (da8026aa..ff959d3f): the prompt specs, not every spec; the version bumps and comment edit are ignored', () => {
-    const sel = select(repo, fixture('prompt-sheet'));
+    const sel = select(treeOf('prompt-sheet'), fixture('prompt-sheet'));
     expect(sel.specs).not.toBeNull();
     expect(sel.specs).toEqual(expect.arrayContaining(['prompt-bar.spec.ts', ...SMOKE]));
     expect(sel.reasons).toEqual(expect.arrayContaining(['apps/ui/package.json: a version bump', 'apps/ui/src/play/live/live.css: comments only']));
   });
 
   it('the chat divider in chrome.css (124b096b): the smoke set and the specs drawn through the chrome', () => {
-    const sel = select(repo, fixture('chrome-divider-css'));
+    const sel = select(treeOf('chrome-divider-css'), fixture('chrome-divider-css'));
     expect(sel.specs).not.toBeNull();
     expect(sel.specs).toEqual(expect.arrayContaining([...SMOKE]));
     expect(sel.jvm).toBe(false);
   });
 
   it('flashback picked up from the graveyard (6a7cf395..e0eb075b): its own spec and scenario, not every spec', () => {
-    const sel = select(repo, fixture('flashback-gestures'));
+    const sel = select(treeOf('flashback-gestures'), fixture('flashback-gestures'));
     expect(sel.specs).not.toBeNull();
     expect(sel.specs).toEqual(expect.arrayContaining(['w69-flashback.spec.ts', ...SMOKE]));
   });
@@ -405,6 +422,7 @@ describe('real landed ranges', () => {
  */
 describe('historical misses, replayed as a push', () => {
   interface Miss {
+    commit: string;
     files: Change[];
     land: { commits: { sha: string; files: string[]; touched: Record<string, string[]> }[] } | null;
   }
@@ -415,7 +433,7 @@ describe('historical misses, replayed as a push', () => {
       lands: m.land ? [{ commits: commits.map(({ sha: s, files }) => ({ sha: s, files })) }] : [],
       touched: Object.fromEntries(commits.flatMap((c) => Object.entries(c.touched).map(([f, names]) => [`${c.sha}:${f}`, names]))),
     };
-    return select(new Tree(history), m.files, { deferFull: true });
+    return select(new Tree(history, sha), m.files, { deferFull: true });
   };
 
   it.each([

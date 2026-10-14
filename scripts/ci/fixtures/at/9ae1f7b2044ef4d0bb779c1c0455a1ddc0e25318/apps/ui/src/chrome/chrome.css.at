@@ -1,0 +1,247 @@
+/*
+ * The chrome's own layout. Colour comes from `@wolffm/themes` and nowhere else.
+ *
+ * Every colour below is a semantic token — a token names a ROLE, not a hue, and
+ * the light/dark pair resolves from `data-theme` on <html> (and on this
+ * container, which `HadokuThemeRoot` mirrors it onto). No hex literals, and no
+ * `var(--token, #fallback)` defaults: a fallback hides a broken token instead of
+ * failing loudly.
+ *
+ * `main.tsx` imports the four fleet stylesheets before this one, in that order,
+ * for exactly this reason — the tokens have to be defined before anything reads
+ * them, and ESM evaluates imports in source order.
+ */
+
+/* Explicit colour-scheme per variant. "dark only" also tells Dark Reader to
+   keep its hands off a theme that is already dark. */
+.cardtable-chrome[data-dark-theme='false'] {
+  color-scheme: light;
+}
+
+.cardtable-chrome[data-dark-theme='true'] {
+  color-scheme: dark only;
+}
+
+.cardtable-chrome {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/*
+ * The page never grows with its content on the front page, a room or a match:
+ * the chrome is the window's height, so the document cannot scroll and
+ * watchparty's room frame — its chat aside with it — is never stretched by a
+ * long deck list (the operator, 2026-10-10: *"the watchparty interface should
+ * not be affected by page length"*). A screen opts in by its shell's class.
+ * The sound picker too, so its bin and its grid scroll independently (same day).
+ */
+.cardtable-chrome:has(.shell--fit, .shell--match, .sound-builder) {
+  height: 100dvh;
+  min-height: 0;
+}
+
+/* The header is a fixed row; whatever the route renders takes the rest. The
+   direct-child rule is what lets both possible children grow — `.shell` on a
+   roomless route, and watchparty's `.wp-room-chrome-frame` on a room one, which
+   asks for `height: 100%` and would otherwise sit at content height. */
+.cardtable-chrome__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cardtable-chrome__content > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*
+ * The header bar's edge buffer, and where its numbers come from.
+ *
+ * The operator, 2026-09-26: *"the top header bar has no left, top, or right
+ * edge buffer. i would prefer if we reused the existing css that hadoku_site
+ * ships with child apps for the header bar specifically."*
+ *
+ * What the fleet ships for the header is exactly ONE stylesheet —
+ * `@wolffm/task-ui-components/app-header.css`, which `main.tsx` has imported
+ * since wave 18 — and it deliberately sets no left, right or top spacing at
+ * all: `.app-header` is `padding-bottom: 1rem`, `margin-bottom: 1.5rem` and a
+ * border-bottom, "full width of whatever column the app places it in" (its own
+ * comment). There is no second header stylesheet anywhere in hadoku_site:
+ * `grep -rn '\.app-header' ~/srv/hadoku_site --include=*.css` finds only
+ * `templates/ui-app/src/styles/index.css`, and only to say "no header styles
+ * here — AppHeader owns them".
+ *
+ * In every other child app that column is the app's own content wrapper, and
+ * the header sits INSIDE it: `templates/ui-app/src/App.tsx` and
+ * `templates/tunnel-contained/packages/ui/src/App.tsx` both render
+ * `<AppHeader>` inside `<div className="…">`, whose rule is
+ * `max-width: 1200px; margin: 0 auto; padding: 2rem`. That `2rem` is the
+ * fleet's child-app edge buffer, and it is the only value there is to reuse.
+ *
+ * `templates/game` — the reference for a game like this one — is the template
+ * that does NOT do it: it renders `<AppHeader>` as a direct child of the
+ * unpadded container, OUTSIDE its padded `.{{APP_ID}}` wrapper. That is the
+ * layout the operator reported, and the shell here was written against it.
+ *
+ * So: the fleet's value, on the fleet's element, with no wrapper element.
+ *
+ * `margin` and not `padding`, because the fleet's geometry insets the
+ * border-bottom too — inside a padded wrapper the rule stops short of the
+ * viewport edge rather than running to it. Only the top and the inline axis are
+ * set; `margin-bottom` stays `app-header.css`'s 1.5rem, except beside the chat
+ * (watchparty's stylesheet closes it there) and on the match.
+ *
+ * What is NOT done here: re-insetting the content to match. `screens.css`'s
+ * `.shell` is `max-width: 1400px; padding: 24px`, so on a wide viewport the
+ * centred content and the full-bleed header do not share a left edge. That is
+ * pre-existing, `screens.css` is not this lane's, and the fleet's answer is one
+ * wrapper around both — which is where it should be fixed, not with a third
+ * number here.
+ */
+.cardtable-chrome > .app-header {
+  margin-top: 2rem;
+  margin-inline: 2rem;
+}
+
+/*
+ * ONE page boundary, wherever the room's chat is drawn (wave 31 P6, widened
+ * 2026-10-10).
+ *
+ * The operator, wave 31: *"card table left boundary is slightly escaping the
+ * boundary set by the bar at the top… same thing goes for watchparty chat on
+ * the right."* And 2026-10-10: the chat's vertical separator *"should go all
+ * the way to the top and bottom, so touch the horizontal top bar seperator and
+ * the bottom of the page"*, and in a room the chat *"should respect the right
+ * side page boundary"*.
+ *
+ * The separator is `.wp-room-chrome`'s own `border-left`, on a column that is
+ * the full height of `.wp-room-chrome-frame`. Touching the bar's rule is
+ * watchparty's now (`@wolffm/watchparty-ui`'s `room-chrome.css`): it zeroes
+ * the header's bottom margin wherever a frame follows it, for every app. What
+ * stays here is the page's EDGE, which is ours: the frame is 100% of
+ * `__content`, and the bar is inset by `margin-inline` (above) rather than by a
+ * padded wrapper, so `__content` takes the bar's own `2rem` too and the chat's
+ * right edge lands on the bar's.
+ *
+ * Keyed on the frame, not on a route's shell, so the room, the draft and the
+ * deck builder get it as the match always did; `.shell--match` stays because a
+ * match whose chrome did not mount (no identity) still wants the bar's edges
+ * and the whole height. The header itself does not move — see the next rule —
+ * only the gap BELOW it closes.
+ */
+.cardtable-chrome:has(.shell--match) > .app-header {
+  margin-bottom: 0;
+}
+
+.cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
+  padding-inline: 2rem;
+}
+
+/* A fitted screen beside the chat starts on the bar's left edge, not 24px in
+   from it: `__content`'s inset above is the page's edge now, and `.shell`'s own
+   padding would put a second one inside it. The right side keeps its padding
+   as the gutter against the chat's separator. */
+.wp-room-chrome-frame__content > .shell.shell--fit {
+  padding-left: 0;
+}
+
+/*
+ * The header does NOT move between routes.
+ *
+ * This used to zero `margin-top` on the match route, to give the board back
+ * the 2rem — the chrome is pinned to `100dvh` and every pixel above the table
+ * comes off it. The operator overruled that trade on 2026-09-27: *"match
+ * screen should be the same as lobby screen, the top bar shouldn't move. i
+ * understand it hurts the vertical space a bit, thats okay."* A header that
+ * jumps when you enter a match is worse than a slightly shorter table.
+ *
+ * `margin-bottom` stays zeroed on this route (the boundary rule above): that
+ * tightens the gap BELOW the bar without moving the bar itself, so it costs
+ * nothing the operator asked for and keeps the board what space remains.
+ */
+
+/*
+ * "Card Table", top-left, is the way back to the entry page — the operator,
+ * 2026-09-26: *"'Card Table' at the top should be clickable and bring you back
+ * to the entry page."*
+ *
+ * `App.tsx` passes a real `<a href="#/">` as `AppHeader`'s node title, with the
+ * <h1> inside it. `AppHeader` wraps a node title in its own
+ * `.app-header__title`, which already carries the size, weight and colour — so
+ * all these two rules do is stop the anchor looking like a link and stop the
+ * heading bringing a UA font size and margin of its own.
+ */
+.cardtable-chrome__home {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--hdk-radius-sm);
+}
+
+.cardtable-chrome__home:hover {
+  text-decoration: underline;
+}
+
+.cardtable-chrome__home:focus-visible {
+  outline: none;
+  box-shadow: var(--hdk-shadow-focus);
+}
+
+.cardtable-chrome__home-name {
+  margin: 0;
+  font: inherit;
+}
+
+/*
+ * The table is a dark island inside a themed page, deliberately.
+ *
+ * `styles.css` is the DRAFT TABLE's stylesheet, and `rooms.css`, `board.css`,
+ * `live.css`, `prompts.css` and `spectate.css` are its neighbours. None of them
+ * is this lane's, and all of them paint from the TABLE's palette — `--bg`,
+ * `--bg-raised`, `--ink` — which is dark on purpose and for a reason that is
+ * not taste: a draft is read for forty-five minutes at a stretch, and the
+ * colour-pie hues are desaturated away from the printed ones so a pip reads as
+ * ours.
+ *
+ * Those surfaces set a background and INHERIT their text colour. So letting
+ * `--color-text` reach them would put a light theme's dark ink on a permanently
+ * dark tile — unreadable, and it would be the chrome that broke it.
+ *
+ * Hence this: the roots those stylesheets own re-assert their own palette, and
+ * everything around them — header, lobby chrome, pod bar, deck builder, footer
+ * — is themed. This list is the seam between the themed frame and the table,
+ * and it is the thing to extend when a new dark surface appears (or to delete,
+ * when those sheets move onto semantic tokens too).
+ */
+.cardtable-chrome :is(.app, .draft, .board, .deck, .rooms, .spectate) {
+  background-color: var(--bg);
+}
+
+.cardtable-chrome
+  :is(.app, .draft, .board, .deck, .deckrow, .rooms, .spectate, .conn, .prompt, .confirm) {
+  color: var(--ink);
+}
+
+/*
+ * The other half of the same seam, and the only rule here that is a patch.
+ *
+ * `.pods__title` ("Draft pods", `rooms/rooms.css:183`) sits OUTSIDE the dark
+ * islands above — its section has no background of its own, so it renders
+ * straight onto the themed page — and it paints from the table palette. Against
+ * a light theme that measured 2.44:1, which is not readable, and the chrome is
+ * what put it there.
+ *
+ * This belongs one line up in `rooms.css`, as `--ink-dim` → `--color-text-
+ * secondary`. That file is not this lane's, so the fix lives here until it can
+ * be moved; delete this rule when it is.
+ */
+.cardtable-chrome .pods__title {
+  color: var(--color-text-secondary);
+}

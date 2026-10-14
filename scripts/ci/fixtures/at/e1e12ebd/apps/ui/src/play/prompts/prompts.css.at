@@ -1,0 +1,677 @@
+/*
+ * The prompts' layout. Consumes the palette on `:root` in `styles.css`, like
+ * `board.css`, and defines no colours of its own. Phone first: every list
+ * wraps, the dual lists stack below 560px, and nothing here references an image.
+ *
+ * The card grids (`prompt__cards`) are the wave-20 half of "prompts are
+ * cards": the tiles inside them are the draft's own `.card` panel (styles.css)
+ * with the board's tile classes (`card.css`) reused read-only for proportion
+ * and selection. A prompt styles its own layout; it never restyles a card.
+ */
+
+/*
+ * The sheet is the frame its own boxes live in.
+ *
+ * `position: relative` is not decoration: the hidden ticks below are
+ * `position: absolute`, and with no positioned ancestor inside the prompt their
+ * containing block is the OVERLAY the match mounts this in (`.live__prompt`,
+ * `../live/live.css`) — where the sheet's own `overflow-y: auto` does NOT clip
+ * them, because an `overflow` ancestor clips a positioned descendant only when
+ * it is in that descendant's containing-block chain. So each tick sat at its
+ * tile's static position, and in a scrolled card grid the ones far down the
+ * list sat hundreds of pixels below the window: 1px boxes that grew
+ * `.live__prompt`, then `.live`, then the match shell (measured at 960h > 751h
+ * and 1120h > 719h with a tutor's grid open — `e2e/table-fit.spec.ts`, which
+ * saw the shell overflow while the sheet itself fitted its box exactly).
+ * Positioned, the sheet contains them: they scroll with the grid and are
+ * clipped with it.
+ */
+.prompt {
+  position: relative;
+  /* A popover sits above the table's card labels and the rail (wave 32 Q16, `--z-popover` in `styles.css`). */
+  z-index: var(--z-popover, 40);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  min-width: 0;
+}
+
+/*
+ * Every sheet is a three-part column: the words on top, the body, the buttons
+ * at the foot. *"i have to scroll all the way to the bottom to click 'ok'"*,
+ * and later, over Scapeshift's ten lands: *"why isn't the OK button on the
+ * bottom of this panel and not impacted by the scrolling land box?"*
+ *
+ * The sheet is a flex column of a bounded height (`.live__prompt > .prompt`,
+ * `../live/live.css`). The buttons and the problems list never shrink
+ * (`flex-shrink: 0`): they are always whole, at the foot. The body shrinks
+ * below its content (`min-height: 0`) and scrolls what no longer fits, so a
+ * tall card grid scrolls inside its own box and can never draw over the
+ * buttons. The title and message shrink and scroll the same way, in
+ * proportion to their size: Scapeshift's title is its whole oracle text, and
+ * in the narrow column a title that kept its full height left the ten lands a
+ * 33px window. A sheet that fits shrinks nothing, so no scrollbar appears for
+ * a list with nothing to scroll.
+ */
+.prompt__actions,
+.prompt__problems {
+  flex-shrink: 0;
+}
+
+.prompt__title,
+.prompt__message {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.prompt__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.prompt__title {
+  margin: 0;
+  font-size: 16px;
+}
+
+/*
+ * A title Forge composed as `<what happened> - <what you must do>` (item 8). The
+ * two halves are two lines, and the instruction is the one that carries the
+ * weight — *"i think choose a mode should be on its own line"*.
+ */
+.prompt__title[data-split] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.prompt__title-source {
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* ── a choice in a LIST: the radio is ours, not the browser's ─────── */
+
+/*
+ * The operator, 2026-09-28: *"radio selectors are unstyled which is ugly."*
+ *
+ * The card grid already solved this in wave 20 — there the tick IS the tile's
+ * border and the native control is visually hidden (see `.prompt__cards
+ * input[type='radio']` below). A prompt with no cards in it fell through to a
+ * bare `<input type="radio">` in a `<label>`, which is the browser's own control
+ * in the middle of a surface that has no other browser chrome on it anywhere.
+ *
+ * So the list gets the same treatment in its own shape: the native control is
+ * hidden but still focusable and still clickable through the label (the live
+ * prompt driver drives it, and `choices.test.ts` fires on it by `prompt-choice`),
+ * and the row draws a mark we own — a ring that fills when it is chosen — plus
+ * the accent border the chosen row already gets everywhere else in this file.
+ *
+ * Two signals, never one: the ring FILLS and the row's border changes. A chosen
+ * row is not identified by colour alone.
+ */
+.prompt__list label,
+.prompt__amount label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.prompt__list input[type='radio'],
+.prompt__list input[type='checkbox'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The mark: a ring, and a dot inside it once the row is chosen. */
+.prompt__list label:has(> input[type='radio'])::before,
+.prompt__list label:has(> input[type='checkbox'])::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: var(--bg-card);
+  border: 2px solid var(--ink-faint);
+  border-radius: 999px;
+}
+
+.prompt__list label:has(> input[type='checkbox'])::before {
+  border-radius: 4px;
+}
+
+.prompt__list label:has(> input:checked)::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--bg-card);
+}
+
+.prompt__list > li:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.prompt__list > li:has(input:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.prompt__message,
+.prompt__hint,
+.prompt__reveal {
+  margin: 0;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+
+
+.prompt__list,
+.prompt__amounts {
+  /*
+   * A minimum height even with no rows: `OrderPrompt.tsx`'s own
+   * two lists are both legal drop targets EMPTY — everything placed, or
+   * nothing yet — and a collapsed `<ul>`/`<ol>` with no rows paints nothing
+   * for a real pointer to land on, so a release over "the whole list" could
+   * never be hit-tested at all. The same reason `.prompt__dropzone` already
+   * has one.
+   */
+  min-height: 2.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prompt__list > li,
+.prompt__amount {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+.prompt__list > li[data-dragging] {
+  opacity: 0.5;
+}
+
+.prompt__list > li[data-movable] {
+  border-color: var(--accent);
+}
+
+/* ── card grids: a prompt's cards are tiles, the board's card look ────── */
+
+/*
+ * `--card-w` here is the prompt's own size (the board sizes cards per zone in
+ * `board.css`; a prompt is not a zone and inherits the draft table's 190px,
+ * which is the wrong look for a choice). `auto-fill` + `minmax` is the same
+ * wrap `styles.css` gives the pack: N cards is N columns until they stop
+ * fitting.
+ */
+.prompt__cards {
+  --card-w: 7rem;
+
+  /* A minimum height even with no tiles — see `.prompt__list`'s own rule, same reason. */
+  min-height: 2.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  gap: 6px;
+}
+
+.prompt__cards > li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+/*
+ * The press-drag lift: `../live/gestures/gestures.css`'s
+ * `[data-cast-lift]` rule already draws `position: fixed` and follows the
+ * pointer for ANY element carrying the attribute — that part needs no CSS of
+ * this file's own. What a board card has and a prompt tile does not is a
+ * width that reads `--card-w` while lifted (`.board-card[data-cast-lift=
+ * 'lifted']`, `card.css`); neither `ManipulateCardListPrompt.tsx`'s rows nor
+ * `OrderPrompt.tsx`'s are a `.board-card`, so both get the same rule here,
+ * scoped to this file's own grid.
+ */
+.prompt__cards > li[data-cast-lift='lifted'] {
+  width: var(--card-w);
+}
+
+/* A tile keeps a card's proportion whether or not it has art — the rule
+ * `.board-card .card` applies on the board (`card.css`), same intent. */
+.prompt__cards .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+.prompt__cards > li[data-dragging] {
+  opacity: 0.5;
+}
+
+.prompt__cards > li[data-movable] {
+  border-color: var(--accent);
+  cursor: pointer;
+}
+
+/*
+ * A row the ask REVEALED but did not offer (wave 24 §D.2).
+ *
+ * Forge sends the two lists — the filtered options and the whole pile it is
+ * showing (`rules.ts` `searchRows`) — and this is the "present but visibly not
+ * selectable" half. Three signals, so colour is never the only one: it is
+ * dimmed, it has no tick and therefore can never grow the chosen border, and it
+ * carries the word `not offered`. There is nothing in the row to click, so a
+ * click that appeared to do nothing cannot happen.
+ *
+ * It is NOT `display: none` and never will be — the whole point of the row is
+ * that the seat sees what Forge showed it.
+ */
+.prompt__cards > li[data-choosable='false'],
+.prompt__list > li[data-choosable='false'] {
+  opacity: 0.55;
+  border-style: dashed;
+  cursor: default;
+}
+
+/*
+ * Y18, second half: the zone-group marker `TargetSelection.chooseCardFromList`
+ * splices into a `getChoices` choice list (`"--CARDS ON BATTLEFIELD:--"`, …;
+ * `lookup.ts`'s own header has the full citation) is drawn as a rule between
+ * the real groups — never a caption (the wave's own "no text of ours" rule),
+ * never a tick. `ChoicePrompts.tsx` renders it as an EMPTY `<li
+ * role="separator">`, no border, no background, no padding of its own —
+ * just the line.
+ *
+ * `grid-column: 1 / -1` is what lets one `<li>` span every column of
+ * `.prompt__cards`'s own `grid-template-columns` (above) instead of sitting
+ * inside whichever column it would otherwise fall into.
+ */
+/*
+ * `.prompt__cards > li`/`.prompt__list > li` (above) already set a padded,
+ * bordered, backgrounded box for every row — a higher-specificity selector
+ * (class + element, matching `li.prompt__divider`'s own) is what it takes to
+ * clear all three back off the one row that is a line, not a box.
+ */
+.prompt__cards > li.prompt__divider,
+.prompt__list > li.prompt__divider {
+  grid-column: 1 / -1;
+  height: 0;
+  margin: 2px 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.prompt__cards > li[data-choosable='false'] {
+  /* Already after the offered rows in the DOM; this keeps a dimmed tile from
+     stretching taller than the ones beside it. */
+  align-self: start;
+}
+
+/*
+ * A movable card the seat clicked while the ask offers BOTH ends: it is waiting
+ * to be told which one, and the two destinations below go live with it
+ * (`[data-live]`). One end offered means one click answers and nothing is ever
+ * armed — see the component header.
+ */
+.prompt__cards > li[data-armed] {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+/* The label wraps the hidden input and the tile, so a click anywhere on the
+ * tile chooses it and the keyboard focus lands on the input. */
+.prompt__cards label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prompt__tile {
+  display: block;
+  min-width: 0;
+}
+
+/*
+ * The tick is the border, not a checkbox: visually hidden, never
+ * display:none — the input must stay focusable (keyboard) and clickable
+ * through the label (the live driver drives it too).
+ */
+.prompt__cards input[type='checkbox'],
+.prompt__cards input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prompt__cards > li:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.prompt__cards label:has(input:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── the manipulate destinations: in the layout, not a button label ───── */
+
+.prompt__dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.4rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.prompt__dropzone[data-over] {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* A card is armed, so this end is now a click target, not only a drop target. */
+.prompt__dropzone[data-live] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+
+/*
+ * ↑/↓ drawn ON a row's own tile, top-right (the operator,
+ * 2026-10-08: *"when cards have been selected to be put on bottom and we show
+ * the up/down arrow for reordering let's display those up/down arrows on top
+ * of the card rather than in their own row. that makes it look a bit more
+ * compact."*). Shared by `ManipulateCardListPrompt.tsx`'s pile and
+ * `OrderPrompt.tsx`'s placed list — `prompt__row-actions` is drawn by neither
+ * any more and is gone (it lived beside `.prompt__stepper`, above).
+ */
+.prompt__card-order {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prompt__card-order button {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.prompt__card-order button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+
+.prompt__item,
+.prompt__amount-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.prompt__count {
+  min-width: 2ch;
+  text-align: right;
+  color: var(--ink-dim);
+}
+
+.prompt__tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.prompt__stepper {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.prompt__stepper input {
+  width: 4em;
+}
+
+.prompt__dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .prompt__dual {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prompt__col-head {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.prompt__problems {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--warn);
+}
+
+.prompt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/*
+ * OK (wave 34 §G item 1). `button` (`styles.css`) sets `color: inherit` and
+ * nothing else, so with no rule of its own this drew as the BROWSER's native
+ * button face — light grey on every platform tested — under `--ink`'s pale
+ * text. A dark-theme light-on-light-grey button is "faint" whether or not it
+ * is disabled; w33's screenshot caught it at X=0, but every value showed the
+ * same faint button, `disabled` or not. The fix is the fill-token pair
+ * `styles.css` already uses for the one other "this IS the primary action"
+ * surface in the app (`.fixtures__on`): `--accent` as the fill, `--on-accent`
+ * as the text — the theme package's own token for text ON a `--color-primary`
+ * surface, so it is legible by the theme author's own design, in every theme
+ * (`PromptShell.test.ts` checks the pair's contrast the way `screens/
+ * tokens.test.ts` checks `--accent-ink`'s). `:disabled` keeps the same colours
+ * and only drops opacity (the `.button:disabled` convention), so a genuinely
+ * unanswerable prompt still reads as a real button, dimmed, never as this bug.
+ */
+.prompt__submit {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--on-accent);
+  padding: 6px 14px;
+  font-weight: 600;
+}
+
+.prompt__submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.prompt__choice {
+  width: 100%;
+  text-align: left;
+}
+
+.prompt__link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent-ink);
+  padding: 0;
+  cursor: pointer;
+}
+
+.prompt__input {
+  max-width: 100%;
+}
+
+/*
+ * "Choose X" as a drag, capped by the mana you have (first list item 13): a
+ * native range input rather than a radio list, because the control itself —
+ * not a list of N labelled rows — is the whole of what the operator asked for.
+ */
+.prompt__slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt__slider input[type='range'] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.prompt__slider-value {
+  min-width: 2.5ch;
+  text-align: right;
+  font-weight: 600;
+}
+
+/*
+ * `ConfirmPrompt.tsx`'s own two-button questions (the bar yes/no, the coin
+ * toss, `showConfirmDialog`) render through `../live/live.css`'s `.confirm`
+ * family instead — the same look `LiveBoard.tsx`'s Concede confirmation
+ * already uses, so there is one family for every "big pop-up" question, not
+ * a second one here (wave 38's fold of what used to be `.prompt-confirm` and
+ * `.prompt-playdraw`).
+ */
+
+/*
+ * `RevealNotice.tsx`: a reveal Forge was already answered for. It sits over the
+ * table's middle band — the decision column's own band (`.live__prompt`), left
+ * of it (`--live-col-x`), so it never covers a decision. The box is bounded to
+ * that band whatever it holds: a whole library scrolls inside its card list,
+ * and its OK stays in view under the list.
+ */
+.reveal-notice {
+  position: absolute;
+  z-index: var(--z-popover, 40);
+  top: 24%;
+  left: 18%;
+  max-width: 38%;
+  max-height: 52%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.reveal-notice__cards {
+  --card-w: 6rem;
+
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* Shrinks below its content in the bounded column, and scrolls what does not fit. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.reveal-notice__cards > li {
+  width: var(--card-w);
+  min-width: 0;
+}
+
+.reveal-notice__cards .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+/* The card a yes/no is about, when the board has none to point at (`ConfirmPrompt.tsx`'s `card`). */
+.confirm__card {
+  --card-w: 7rem;
+
+  align-self: center;
+  width: var(--card-w);
+}
+
+.confirm__card .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+.reveal-notice > .prompt__submit {
+  align-self: flex-end;
+}
+
+/* ── naming a card: a search, and the few names that match ────────── */
+
+.prompt__name-search {
+  width: 100%;
+}
+
+.prompt__names > li {
+  cursor: pointer;
+}
+
+.prompt__names > li[data-active] {
+  border-color: var(--accent);
+}

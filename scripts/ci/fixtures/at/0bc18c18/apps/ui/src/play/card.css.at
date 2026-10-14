@@ -1,0 +1,1205 @@
+/*
+ * How one card looks on the board, how a player's face looks, and what
+ * "Forge says you may choose this" looks like on either. Page layout — zone
+ * heights, overflow, how many columns — is `board.css`, not this file.
+ *
+ * Every card size here comes from `--card-w`, so the layout can shrink cards
+ * per zone by setting that one property. The box is a card's own proportion
+ * (488 × 680, Scryfall's `normal`), for text tiles too, so a row of cards is
+ * one height whether or not a given card has art.
+ *
+ * Our chrome only: no card frames, no Magic card back, and a player is a circle
+ * and a bust we drew rather than an avatar we fetched. The art `<img>` itself is
+ * `styles.css`'s `.card__art`, unfiltered.
+ *
+ * Mana, tap and set SYMBOLS are no longer ours and are not styled here: D20
+ * (operator, 2026-09-27) ships them from the Mana and Keyrune fonts, and
+ * `components/ManaPip.tsx` emits the vendored `ms-…` / `ss-…` classes that
+ * `styles.css` imports. They size off the inherited `font-size`, so a board card
+ * shrinking `--card-w` shrinks its pips with it and this file needs no rule for
+ * them. See `docs/LICENSING.md` §3.2 before changing what ships.
+ */
+
+.board-card {
+  /* No pile: no fan, so every `calc` below reads zero on a lone card. */
+  --pile-fan: 0px;
+
+  /*
+   * Q16: every card is its own stacking context, so the marks, the badge and the
+   * counters inside it (`--z-card-badge`, `styles.css`) are ordered among
+   * themselves and can no longer paint over the stack, a prompt or a menu —
+   * their z-indexes used to be 6 on the page's own scale.
+   */
+  isolation: isolate;
+  width: var(--card-w, 5.5rem);
+  max-width: 100%;
+}
+
+
+.board-card__face {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+
+/*
+ * A card tile on the board keeps a card's proportion instead of `--card-h`:
+ * on the battlefield, in a hand, in a pile, and on the stack, where the same
+ * `CardTile` draws the item's source card.
+ */
+.board-card .card,
+.stack__art .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+/* ── a pile: cards stacked, fanned INSIDE one card's box ─────────────── */
+
+/*
+ * The operator, 2026-09-27: *"put cards wherever they want… snap above/below
+ * each other in any order"*, and #11: an equipped creature and its gear draw as
+ * one stack.
+ *
+ * The whole pile occupies exactly the box ONE card would, and that is the
+ * property the static canvas rests on: a lane's `flex-grow` counts piles
+ * (`Board.tsx`), so a stack asks for one card's width and every card on the
+ * battlefield still comes out the same size. Nothing here can overflow its lane:
+ *
+ *   - every card in the pile is narrowed by the whole fan, so the deepest one's
+ *     right edge is `fan + (w - fan)` = `w`, the track's own width;
+ *   - the pile's height is `fan + (w - fan) · 1.3934`, which is SHORTER than one
+ *     card's `w · 1.3934` for any fan (because 1.3934 > 1). A pile is never
+ *     taller than the card it replaces.
+ *
+ * The card the player is looking at is the one on top of the PILE ORDER's
+ * bottom — the `<li>` itself, which for an equip stack is the creature — so it
+ * is drawn whole and in front, and the cards stacked on it peek out behind its
+ * lower-right corner. An equipped creature therefore still shows its own art,
+ * its own P/T badge and its own state marks.
+ *
+ * The fan is capped at Forge's own `UI_MAX_STACK_DEPTH` (default 4,
+ * `ForgePreferences.java:96`): there is no rule for a fourth step below, so a
+ * pile of nine fans exactly as far as a pile of four and stays legible. The
+ * depth itself is NOT capped — refusing a drop the player made is worse than a
+ * tight fan.
+ */
+.board-card[data-pile-size] {
+  --stack-step: 8px;
+  --pile-fan: var(--stack-step);
+
+  /* One stacking context per pile, so the order below is the pile's own
+     business and no card of it can paint over a neighbouring lane. */
+  position: relative;
+  z-index: 0;
+}
+
+.board-card:has(> .board-card__pile > .board-card[data-pile-depth='2']) {
+  --pile-fan: calc(2 * var(--stack-step));
+}
+
+.board-card:has(> .board-card__pile > .board-card[data-pile-depth='3']) {
+  --pile-fan: calc(3 * var(--stack-step));
+}
+
+.board-card[data-pile-size] > .board-card__face {
+  width: calc(100% - var(--pile-fan));
+}
+
+/*
+ * Out of flow and behind the card it is stacked on: the list adds no height.
+ *
+ * And it takes no press. Its box is the whole pile's, laid over the base card's
+ * face, so while it could be hit EVERY click on a pile landed on this list and
+ * on no card's button: a piled land could not be tapped at all (the operator,
+ * 2026-10-06: "lands are not tappable if they are stacked on top of
+ * eachother"), and a drag from anywhere on a pile picked up its base. The
+ * cards in it take their own presses back, in the rule below.
+ */
+.board-card__pile {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__pile > .board-card {
+  /* Deeper than Forge's cap: the last step, for every card past it. */
+  --at: 3;
+
+  position: absolute;
+  top: calc(var(--at) * var(--stack-step));
+  left: calc(var(--at) * var(--stack-step));
+  /* Behind the base card's face, which is at z-index auto in the same context. */
+  z-index: calc(var(--at) * -1);
+  width: calc(100% - var(--pile-fan));
+  max-width: none;
+  pointer-events: auto;
+}
+
+.board-card__pile > .board-card[data-pile-depth='1'] {
+  --at: 1;
+}
+
+.board-card__pile > .board-card[data-pile-depth='2'] {
+  --at: 2;
+}
+
+/*
+ * The state layer needs no fan adjustment: a pile's fan narrows the base card's
+ * face from the RIGHT and offsets the cards behind it down and right, so the
+ * marks (top-left) and the counters (bottom-left) are already inside the face.
+ * Only the P/T badge, which hangs off the right edge, pays the fan — see
+ * `.board-card__pt` below.
+ */
+
+/*
+ * Forge said this card is attached to something (#11) — a second signal beside
+ * the stacking itself, so an equip stack is not merely "two cards near each
+ * other": a lit leading edge, which is ours and is not a colour on its own.
+ */
+.board-card[data-attached] > .board-card__face > .card {
+  border-color: var(--ink-faint);
+  box-shadow: inset 2px 0 0 var(--ink-dim);
+}
+
+/* ── power and toughness, as the board knows them ────────────────────── */
+
+/*
+ * The operator (#12, #18): *"3 (blue) / 1 (red)"* — blue for buffed, red for
+ * hurt. The badge is the board's, not the tile's: the art covers `CardTile`'s
+ * printed `.card__stat`, and the number that matters on a battlefield is the
+ * current one.
+ *
+ * **Colour is never the only signal.** Each state carries three: an ink, a
+ * heavier weight, and a marker glyph (`▲` / `▼`, drawn by `Board.tsx` and hidden
+ * from the accessible name because the name says it in words). Read with no
+ * colour at all, `▲3 / ▼1` still says buffed and hurt. Damaged toughness is
+ * the one without a glyph (the operator: *"just show 4/2(red)"*): the whole
+ * badge's danger rule and tint below are its other signal.
+ *
+ * Out of flow, clipped to the card, and `pointer-events: none`: it may not
+ * change a card's box and it may not eat a click Forge offered.
+ */
+.board-card__pt {
+  position: absolute;
+  /*
+   * Bottom-right, where a printed card has it (Q13, asked twice). The pile's
+   * box is `--pile-fan` taller than its top card's face (the fan hangs below
+   * it), so the badge keeps to the FACE's bottom, not the box's — a piled
+   * creature's P/T drew exactly the fan below its card (table-fit, 2026-10-07).
+   */
+  bottom: calc(2px + var(--pile-fan));
+  right: calc(2px + var(--pile-fan));
+  z-index: var(--z-card-badge, 1);
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  max-width: calc(100% - 4px - var(--pile-fan));
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* A planeswalker's loyalty sits a little further in than a creature's P/T
+   (the operator, 2026-10-10: "shift that left … 1% or 2% of the card width"). */
+.board-card__pt[data-pt='loyalty'] {
+  right: calc(2px + 2% + var(--pile-fan));
+}
+
+.board-card__pt-n {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  color: var(--ink);
+}
+
+/* The operator's "3 (blue) / 1 (red)", in the theme's own primary and danger: blue and red in the default theme, and whatever the theme says elsewhere. */
+.board-card__pt-n[data-pt-state='buffed'] {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.board-card__pt-n[data-pt-state='hurt'] {
+  color: var(--danger-ink);
+  font-weight: 700;
+}
+
+.board-card__pt-n[data-pt-state='damaged'] {
+  color: var(--danger-ink);
+  font-weight: 700;
+}
+
+/* The marker, a shade smaller than the number it qualifies. */
+.board-card__pt-n[data-pt-state] > span {
+  font-size: 8px;
+}
+
+/*
+ * Damage, finished (wave 28 §A.15). The badge already drew the toughness that is
+ * LEFT, in the danger ink; what it did not do was say at a glance
+ * that the card had been hit — that was the `3 damage` chip's job, and the chip
+ * is gone. So the badge itself reads hurt when damage is marked: the hurt ink on
+ * its rule and a tint behind it, over whatever art is underneath.
+ *
+ * The same rule paints the standalone damage badge, which is what a card with
+ * damage and NO readable P/T draws instead (`PowerToughness`).
+ */
+.board-card__pt[data-damage] {
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
+}
+
+/* ── the state layer: marks, counters, sickness, tokens ─────────── */
+
+/*
+ * Wave 28 §A.15, the operator: *"all the shitty text you have written on the
+ * card looks ugly, we need to find a way to handle all of that with effects."*
+ *
+ * `Board.tsx` has the table of which state went into which channel and why. What
+ * this file owes that table:
+ *
+ *   - every mark is a CAPSULE with its own opaque background, because the thing
+ *     underneath is a photograph and an unbacked glyph over art is unreadable;
+ *   - no mark is an outline and no mark is drawn in `--accent`. The accent is
+ *     already spoken for twice on a card — the solid ring is "Forge is offering
+ *     this" and the dashed one is "you pointed at this"
+ *     (`live/gestures/gestures.css`) — and a third meaning in the same hue is how
+ *     a player stops being able to read any of them;
+ *   - nothing here may change a card's box. Every one of these is out of flow and
+ *     clipped to the card, like the P/T badge above, because a battlefield row is
+ *     sized from the cards in it and a status that grew one would move the table.
+ *     A status chip doing exactly that at 11 permanents is the regression
+ *     `e2e/table-fit.spec.ts` was taught to catch.
+ */
+
+/*
+ * The marks, down the card's TOP-LEFT corner — the P/T badge has the bottom-right
+ * and the counters have the bottom-left, so the three never collide.
+ */
+.board-card__marks {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 2px;
+  left: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__mark {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink-dim);
+}
+
+.board-card__mark-art {
+  width: 10px;
+  height: 10px;
+  fill: currentcolor;
+}
+
+/*
+ * The word, for anything that cannot see the picture. Clipped rather than
+ * `display: none`: a hidden element is not in the accessible tree at all, and the
+ * whole point of drawing the state is that the state is still SAID somewhere.
+ */
+.board-card__mark-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Summoning sickness: the card DESATURATES.
+ *
+ * A saturation channel, chosen because it is the one signal that cannot be
+ * mistaken for an outline and says exactly the same thing to a colour-blind
+ * viewer as to anyone else. It reads over art — which is the case that matters,
+ * since a sick creature has just arrived and is the card a player is looking at.
+ * The mark in the corner is the second signal, per the rule the P/T badge set.
+ *
+ * On the FACE, not on the `<li>`: the marks and the badges must stay legible, and
+ * a filter on the list item would grey them out too.
+ */
+.board-card[data-sick] > .board-card__face {
+  filter: grayscale(0.7) brightness(0.82);
+}
+
+.board-card__mark[data-mark='blocking'] {
+  color: var(--ink);
+}
+
+/*
+ * A token (item 14): *"wolf-token has no art."*
+ *
+ * It has no art because it has no row in `art-ids.json`, which is not this lane's
+ * file — so what this lane can do is make the artless tile read as DELIBERATE.
+ * A token wears the spark mark and a dashed edge, which together say "the game
+ * made this" rather than "the picture failed". The day a token gets an id, the
+ * art arrives under the same mark and nothing here changes.
+ */
+.board-card[data-token] > .board-card__face > .card {
+  border-style: dashed;
+  border-color: var(--ink-faint);
+}
+
+/*
+ * Counters, bottom-left: a badge with a number, which is the operator's own
+ * instruction. `+1/+1` is compact and signed (`+3`), `-1/-1` is its mirror, and
+ * anything else falls back to its count and its name, clipped here with the whole
+ * of it in the list's accessible name.
+ *
+ * `+1/+1` takes the buffed blue and `-1/-1` the hurt red, which are the two inks
+ * the P/T badge already uses for the same two directions — a card with three
+ * +1/+1 counters has a blue power and a blue badge, and they agree. The SIGN is
+ * the signal that does not need the colour.
+ *
+ * An exile pile's cards draw this layer too (a suspended card's own
+ * Time counter — `Board.tsx`'s `inExile`), and no rule here has to know
+ * that: the badge is positioned against ITS OWN card box exactly as it is on
+ * the battlefield (`bottom-left`'s own corner, below), and `board.css`'s pile
+ * stacking already keeps each card's box as a real box, newest on top — the
+ * SAME reason the state layer generally "needs no fan adjustment" (this
+ * file's own note above `.board-card[data-pile-size]`) carries over to a
+ * graveyard/exile pile's different stacking shape without a pile-specific
+ * selector here.
+ */
+.board-card__counters {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  /* To the face's bottom, as `.board-card__pt` — the pile box hangs `--pile-fan` below it. */
+  bottom: calc(2px + var(--pile-fan));
+  left: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: calc(100% - 4px - var(--pile-fan));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__counter {
+  max-width: 100%;
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-card__counter[data-counter='plus'] {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  color: var(--accent-ink);
+}
+
+.board-card__counter[data-counter='minus'] {
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
+  color: var(--danger-ink);
+}
+
+/*
+ * T7 (wave 36), the operator: *"Cavern of Souls shows its chosen type."* The
+ * one corner the other three badges leave free — marks are top-left, the P/T
+ * badge is bottom-right, the counters are bottom-left (the comments above
+ * name all three) — same capsule language as the rest of the state layer: an
+ * opaque background over the art, out of flow, clipped to the card, and
+ * `pointer-events: none` so it may never eat a click Forge offered or move
+ * the card's own box.
+ */
+.board-card__chosen-type {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 2px;
+  right: calc(2px + var(--pile-fan));
+  max-width: calc(100% - 4px - var(--pile-fan));
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * R15 (wave 53 T), the operator, Playtest 9: *"put one of our overlay pills
+ * over the type bar."* Over the type bar means a new BAND, not a corner — the
+ * four existing corners (marks top-left, chosen-type top-right, counters
+ * bottom-left, the P/T badge bottom-right) stay exactly where they were, and
+ * this sits between the marks and the chosen-type label, roughly where
+ * `CardTile`'s own `.card__type` sits under the name row (that text is
+ * covered by art at board scale — see `styles.css`'s `.card__art`'s own
+ * `z-index: 1` — so this is a deliberate proportion of the card's own box,
+ * not a live measurement of an element nobody can see).
+ *
+ * `--accent-ink` is the same token wave 35's corner mark used for the same
+ * fact — an existing informational flag's own ink (`.seat__flag`), never the
+ * gestures lane's raw `--accent` (an offer) or `--warn` (a danger), so it
+ * cannot be misread as either.
+ *
+ * Centered and clipped exactly like the chosen-type pill: `pointer-events:
+ * none` (it may never eat a click Forge offered, nor move the card's own
+ * box — `e2e/table-fit.spec.ts`), and `title` carries the printed line for
+ * the SAME native hover surface the chosen-type pill already relies on (no
+ * second, custom hover mechanism).
+ */
+.board-card__type-pill {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 22%;
+  left: 4px;
+  right: calc(4px + var(--pile-fan));
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid color-mix(in srgb, var(--accent-ink) 55%, var(--line));
+  border-radius: 999px;
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * The operator: *"i played 'Cry of Contrition' which has haunt. i expect to
+ * see the 'haunt' keyword on my creature."* `Relations.tsx` draws one pill
+ * per relation Forge's wire names generically (haunt, encode, imprint, a
+ * chosen-cards effect, a must-block list — `adapter.ts`'s own table).
+ *
+ * The four corners are already claimed (marks top-left, chosen-type
+ * top-right, counters bottom-left, the P/T badge bottom-right — this file's
+ * own map, above) and the type-pill band sits at `top: 22%`, so this one
+ * centres along the BOTTOM edge instead, between the two bottom corners — a
+ * relation is rare (most cards carry none, ever) and a card wearing one
+ * rarely also wears a full counters row AND the P/T badge's longest form at
+ * once, so a shared strip there is free in practice without taking either
+ * corner's own space away. Same capsule language as the rest of the state
+ * layer: each `<li>` is `card.css`'s own `.board-card__counter` pill
+ * (reused as-is, not redefined — the brief's own instruction), the wrapper
+ * is out of flow, clipped to the card, and `pointer-events: none` so it may
+ * never eat a click Forge offered nor move the card's own box
+ * (`e2e/table-fit.spec.ts`).
+ */
+.board-card__relations {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  bottom: calc(2px + var(--pile-fan));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(56% - var(--pile-fan));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__relations > .board-card__counter {
+  max-width: 100%;
+}
+
+/*
+ * ── selectable: Forge said this card may be chosen ────────────────────
+ *
+ * R10 (wave 35): `.board-card__face` is always a `<button>` now (it used to
+ * switch between `button` and `div`, which is what caused the flicker this
+ * file's `Board.tsx` comment above `CardOnBoard`'s face explains) — a
+ * `disabled` one when the card is not selectable. So these can no longer key
+ * off the TAG; they key off `[data-selectable]`, the same attribute the `<li>`
+ * already carried, which is unaffected by the element-type fix.
+ */
+.board-card[data-selectable] > .board-card__face {
+  cursor: pointer;
+}
+
+.board-card[data-selectable] > .board-card__face .card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.board-card[data-selectable] > .board-card__face:hover .card {
+  translate: 0 -3px;
+}
+
+.board-card[data-selectable] > .board-card__face:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ── block focus: the attacker the next blocker click goes to ───────────── */
+
+/*
+ * The operator, 2026-10-09: "i just entered 'declare blockers' phase and i see a green checkmark on
+ * one of the attackers? that's weird". It was Forge's current attacker (`InputBlock.setCurrentAttacker`)
+ * drawn as PICKED. It is a focus, not a choice: a ring and glow in the accent, no badge.
+ */
+.board-card[data-block-focus] > .board-card__face {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 12px var(--accent);
+}
+
+/* ── refused: Forge turned this card's play away ────────────────────────── */
+
+/*
+ * The operator, 2026-10-11: a play Forge refused used to come back with nothing said. A short shake
+ * and a ring in the danger colour (`LiveMatch.refused`). The value alternates per refusal so a second
+ * one of the same card restarts the animation.
+ */
+.board-card[data-refused='odd'] > .board-card__face {
+  animation: card-refused-odd 0.6s ease-out;
+}
+
+.board-card[data-refused='even'] > .board-card__face {
+  animation: card-refused-even 0.6s ease-out;
+}
+
+.board-card[data-refused] > .board-card__face .card {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+@keyframes card-refused-odd {
+  0%, 100% { translate: 0 0; }
+  20%, 60% { translate: -4px 0; }
+  40%, 80% { translate: 4px 0; }
+}
+
+@keyframes card-refused-even {
+  0%, 100% { translate: 0 0; }
+  20%, 60% { translate: -4px 0; }
+  40%, 80% { translate: 4px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-refused] > .board-card__face {
+    animation: none;
+  }
+}
+
+/* ── picked: this one of the offer is already chosen ───────────────────── */
+
+/*
+ * The operator, Playtest 10: *"hard to tell when i have a card selected
+ * because the background for all cards is green."* Every offered card —
+ * picked or not — keeps the ring above; Forge still answers a second click
+ * on a picked card the same way it answers the first, so `data-selectable`
+ * stays true for both. What a picked card gets ON TOP is a FILLED accent
+ * badge, in a corner rather than a wash across the whole face: a flat check
+ * glyph the player's own choices leave behind, in the SAME hue as the ring
+ * so it reads as "this offer, taken" rather than a fourth, disagreeing
+ * colour. `--on-accent` is the exact token this repo already keeps around for
+ * writing ON an accent fill (verified 4.5:1 in every theme,
+ * `prompts/PromptShell.test.ts`), not a new one invented here.
+ */
+.board-card__picked {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 2px;
+  right: calc(2px + var(--pile-fan));
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.board-card__picked-art {
+  width: 10px;
+  height: 10px;
+  fill: var(--on-accent);
+}
+
+/* ── can-act: Forge says this card could do something (item 16) ──────── */
+
+/*
+ * The operator: *"things like morbid should be visible when they are active.
+ * the 'orange glow' from hearthstone was always nice."* Only the buildable
+ * half of that request (`Board.tsx`'s `BoardInteraction.actionable` has the
+ * argument for why the other half — a named ability's CONDITION — is not this
+ * wave's to ship): Forge's ACTIONABLE set, drawn as a soft warm BLUR rather
+ * than a fourth outline colour.
+ *
+ * `--warn` is the exact token wave 27 freed when the operator asked for the
+ * old "orange outline" on a refused attack gone (`live/gestures/gestures.css`'s
+ * header quotes it: *"lets get rid of the orange one"*). Reusing it here is
+ * safe rather than a relapse, because the SHAPE of the mark is different on
+ * purpose — a blur has no edge to be mistaken for the ring's or the intent
+ * mark's hard one — and the two can never be read as the same instruction: a
+ * refused attack draws nothing at all (that outline was deleted, not moved).
+ *
+ * Two rules rather than one, because a box-shadow does not merge across
+ * separate declarations — whichever selector wins the cascade replaces the
+ * property outright. `data-can-act` and `data-selectable` are correlated but
+ * not identical (`data-can-act` is unset the instant a real SELECTION opens,
+ * `LiveBoard.tsx`), so both cases are written out rather than assumed.
+ */
+.board-card[data-can-act] .card {
+  box-shadow: 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
+.board-card[data-can-act][data-selectable] > .board-card__face .card {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
+/* ── attacking: a committed attacker is marked, whether or not it taps ── */
+
+/*
+ * The operator, Playtest 10: *"after declaring attackers there is no visible
+ * change (Lightning Angel has vigilance, so nothing turns); mark committed
+ * attackers, e.g. a red border."* The turn rule below draws nothing for a
+ * vigilant attacker on purpose — Forge never taps it — so that alone leaves
+ * exactly the card the operator named with no mark at all. This is a second,
+ * independent rule, keyed on `[data-attacking]` with no `:not([data-vigilant])`,
+ * so EVERY committed attacker gets it: an `outline` (the operator's own "e.g. a
+ * red border"), in the theme's danger token rather than a hardcoded colour, and
+ * never the accent — the accent ring already means "Forge is offering this"
+ * and a third meaning in the same hue is how a player stops being able to read
+ * either. `outline` rather than `box-shadow` so it never collides with the
+ * selectable ring or the item-16 glow, which are both `box-shadow` on the SAME
+ * element and would otherwise replace each other outright.
+ */
+.board-card[data-attacking] > .board-card__face {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+/*
+ * The operator, 2026-10-10: *"when things are assigned as blockers can we give them a different
+ * color? lets make sure we use a color from the theme system."* Forge's own `Blocking`, on both
+ * screens, from the first assignment: the theme's success, which no other card outline uses.
+ */
+.board-card[data-blocking] > .board-card__face {
+  outline: 2px solid var(--success);
+  outline-offset: 2px;
+}
+
+/* ── turned: a quarter turn, inside a landscape box of the same width ─── */
+
+/*
+ * Two facts, one drawing. `data-tapped` is Forge's own `Tapped`; `data-attacking`
+ * is its own `Attacking`, and wave 28 item 6 is the operator asking for the
+ * second to read like the first: *"creatures should tap when they are
+ * attacking"*. Forge taps an attacker itself a moment later, so this is the
+ * board agreeing with the engine early rather than inventing a state.
+ *
+ * Except a creature with vigilance, which Forge never taps for attacking: it
+ * was drawn turned for the whole of combat and "untapped itself" afterwards
+ * (the operator, 2026-10-06, on Lightning Angel). `data-vigilant` is the
+ * card's own `Vigilance` keyword off the wire, so an attacker that will not
+ * tap is not drawn as if it had.
+ *
+ * `:is()` so a card that is both is turned ONCE. The attack-INTENT mark
+ * (`live/gestures/gestures.css`) is still a third thing and still never this:
+ * "you pointed at this" is not "this is attacking".
+ *
+ * The card's OWN face only (`>`): the cards piled behind it are nested inside
+ * its `<li>` (`.board-card__pile`), and a descendant selector turned every
+ * one of them with it — the operator, 2026-10-07: *"when an untapped card is
+ * put behind a tapped card, it displays as tapped."* Each card in a pile is
+ * turned by its own `data-tapped`, nobody else's.
+ *
+ * `data-tapped-pending` (`live/gestures/commit.ts`) draws
+ * the same turn. It is the optimistic mark a box-draw's release puts on
+ * EVERY land it swept at once, before Forge has confirmed any one of them —
+ * the operator, 2026-10-08: *"when drawing a box to tap lands, can we have
+ * them all tap simultaneously rather than one at a time?"* Forge is still
+ * sent one `selectCard` at a time; only the DRAWN state stops waiting on it.
+ */
+.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face {
+  aspect-ratio: 680 / 488;
+  /*
+   * Centred in the row, not hung from its top (the operator, 2026-10-08:
+   * "let's vertically center tapped cards"). The row keeps the portrait height
+   * (`align-self: start`, `board.css`), so the turned face steps down by half
+   * the difference between the two heights — a percentage of the card's own
+   * width, which is what both heights are, and a margin, which turns with the
+   * tap transition where `align-self` could not.
+   */
+  margin-top: calc((680 / 488 - 488 / 680) / 2 * 100%);
+}
+
+/*
+ * And the same step below the card, outside its box, so a turned card still claims a portrait
+ * card's height in its row. Without it a row of nothing but turned cards was shorter than a
+ * card, and anything that made the row a card tall again — a drag's placement columns, an
+ * untapped card joining it — re-centred the row and moved every turned card in it by 11px (the
+ * operator, 2026-10-11: "when dragging cards i notice tapped cards shift down slightly"). The
+ * card's own box, and every mark drawn against it, is unchanged. A pile's `<li>` is sized by its
+ * fan (`board.css`) and is left out.
+ */
+.board-card:not([data-pile-size]):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+  margin-bottom: calc((680 / 488 - 488 / 680) / 2 * 100%);
+}
+
+/*
+ * The card is laid out portrait at the landscape box's HEIGHT, so that turned
+ * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
+ * and w·488/680 tall.
+ */
+.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face > .card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(100% * 488 / 680);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+/* ── an ability that resolved with nobody stopping it ───────────────── */
+
+/*
+ * The operator, 2026-10-09: *"abilities don't really need to go on the stack … if there is no
+ * response. … just making the actual card do a shimmering glow effect as to indicate their effect
+ * triggered would be good."* `live/placed.ts` puts `data-shimmer` on the source card for
+ * `SHIMMER_MS`: an accent sheen runs once round the card's edge (`ae29-options.html`, option 3 — a
+ * conic gradient masked to the border). The face is the box in either orientation, so a tapped card's
+ * sheen follows its landscape edge. Reduced motion: a still glow that fades, never a sweep.
+ */
+@property --shimmer-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.board-card[data-shimmer] > .board-card__face::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  padding: 3px;
+  border-radius: calc(var(--radius) + 3px);
+  background: conic-gradient(from var(--shimmer-angle), transparent, var(--accent), transparent 40%);
+  mask:
+    linear-gradient(var(--accent) 0 0) content-box exclude,
+    linear-gradient(var(--accent) 0 0);
+  pointer-events: none;
+  animation: card-shimmer 1s linear forwards;
+}
+
+@keyframes card-shimmer {
+  0% {
+    --shimmer-angle: 0deg;
+
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    --shimmer-angle: 360deg;
+
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-shimmer] > .board-card__face::after {
+    background: none;
+    box-shadow: 0 0 0 2px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent);
+    animation: card-shimmer-still 1s ease-out forwards;
+  }
+}
+
+@keyframes card-shimmer-still {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── a player's face ─────────────────────────────────────────────────── */
+
+/*
+ * The operator, 2026-09-24: *"i dont even know how to select the opponent. i
+ * guess we need a face in the center middle like arena"*. So: a mark for each
+ * player where you look for one, big enough to hit, with their life on it.
+ *
+ * And 2026-09-25: *"avatar and number looks slick, but confusing which is
+ * which"* — so the mark sits at the outer end of its seat's vertical bar, the
+ * top of the board for the opponent and the bottom for the viewer
+ * (`board.css`). The mark itself is unchanged; in a bar it is `--face-w`
+ * smaller and its life badge is centred under it rather than hung off the
+ * corner, because the bar is narrow and clips.
+ *
+ * `e2e/table-fit.spec.ts` requires min(width, height) of `[data-player-face]`
+ * to be at least 28px — a thing you can aim at — which the `--face-w` below
+ * must keep true.
+ *
+ * DRAWN, not fetched — shapes in an inline `<svg>` that we own. No avatar, no
+ * asset pipeline, and nothing that could be mistaken for a WotC mark.
+ */
+.face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.face__hit {
+  position: relative;
+  display: block;
+  width: var(--face-w, 3.4rem);
+  height: var(--face-w, 3.4rem);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.face__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.face__plate {
+  fill: var(--bg-card);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.face__brow,
+.face__bust {
+  fill: var(--ink-faint);
+}
+
+/* Your own mark reads as yours: the ink is brighter on your side. */
+.face[data-viewer] .face__brow,
+.face[data-viewer] .face__bust {
+  fill: var(--ink-dim);
+}
+
+/*
+ * Whose turn it is, on the thing you are already looking at (wave 32 Q1b): a ring
+ * around the avatar, the way the operator asked, in place of the words "their
+ * turn" in the counts. It adds no size — a seat's tracks do not move when the
+ * turn passes.
+ *
+ * Wave 33 shape 3: the ring is its OWN element, `.seat__ring`, always in the
+ * markup over the avatar's own box (`Board.tsx`'s `PlayerFace`), lit by a
+ * box-shadow exactly while this face's SEAT — `<section data-testid="player">`,
+ * `.seat[data-active]` — is the active player. It rings the drawn mark and a
+ * watchparty character's picture alike, because it sits over `.face__art`
+ * rather than being drawn by it.
+ */
+.seat__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.seat[data-active] .seat__ring {
+  box-shadow:
+    0 0 0 2px var(--bg-raised),
+    0 0 0 6px var(--accent);
+}
+
+.face[data-active] .face__plate {
+  stroke: var(--ink-dim);
+  stroke-width: 2;
+}
+
+.face[data-lost] .face__plate {
+  stroke: var(--warn);
+}
+
+.face[data-lost] .face__art {
+  opacity: 0.5;
+}
+
+.face__life {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  min-width: 1.75rem;
+  padding: 0 5px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.face[data-lost] .face__life {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+/*
+ * In a seat's bar the mark is the bar's width less its padding, and — wave 31
+ * §A.1, the operator's P3 — its life total sits BELOW the mark, in the flow,
+ * rather than over the mark's lower edge. Over it, the number hid the avatar the
+ * watchparty player had picked. `.face__hit` stops being a square box here and
+ * becomes a column of the mark (still `--face-w` square, which is what
+ * `e2e/table-fit.spec.ts`'s 28px aim check reads) and the number under it.
+ */
+.seat__ident .face {
+  --face-w: 2.5rem;
+}
+
+.seat__ident .face__hit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  height: auto;
+}
+
+.seat__ident .face__art {
+  flex: none;
+  width: var(--face-w);
+  height: var(--face-w);
+}
+
+/*
+ * The ring circles the mark, not `.face__hit`: here that box is the mark AND the
+ * life number under it, so `inset: 0` stretched the ring into a tall oval. It
+ * takes the mark's own square, at the top of the column where the mark is.
+ */
+.seat__ident .seat__ring {
+  inset: 0 auto auto 50%;
+  width: var(--face-w);
+  height: var(--face-w);
+  transform: translateX(-50%);
+}
+
+.seat__ident .face__life {
+  position: static;
+  /* Clears the ring's box-shadow glow, which extends a few px past the mark's edge. */
+  margin-top: 6px;
+  min-width: 1.5rem;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.face__name {
+  max-width: 100%;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── a player Forge says may be chosen (a target, say) ───────────────── */
+
+.seat[data-selectable] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* The name, as a control. It lives in the seat's narrow bar, so it clips
+   instead of widening the column. */
+.seat__select {
+  display: block;
+  max-width: 100%;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat__select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+button.face__hit {
+  cursor: pointer;
+}
+
+/* The accent says "Forge is asking for a player". Your own face as the way into the settings is not that. */
+button.face__hit:not(.face__hit--settings) .face__plate {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+button.face__hit:not(.face__hit--settings) .face__brow,
+button.face__hit:not(.face__hit--settings) .face__bust {
+  fill: var(--accent);
+}
+
+button.face__hit:hover .face__art {
+  translate: 0 -2px;
+}
+
+/*
+ * Keyboard focus rings the MARK, on `.seat__ring`'s own circle — never the
+ * button. In a seat's bar the button is a column of the mark and the life number
+ * under it, so an outline on it was a tall box around both, and the face read
+ * as a square (the operator, 2026-10-10). Your own face keeps focus after the
+ * press that closes the settings, so the next key anyone pressed drew that box
+ * (`e2e/w69-avatar.spec.ts`). On your turn the ring is lit, so focus steps
+ * outside it.
+ */
+button.face__hit:focus-visible {
+  outline: none;
+}
+
+button.face__hit:focus-visible .seat__ring {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.seat[data-active] button.face__hit:focus-visible .seat__ring {
+  outline-offset: 8px;
+}
+
+/*
+ * Wave 59 §S: the thumbnail row's own selectable rule (and the carousel's
+ * `.stack__select` button it dressed) is deleted with the row —
+ * `live/placed.css`'s own `.placed[data-selectable]` draws the Q18 outline
+ * now, on the card `live/placed.ts` draws directly, never a button inside it.
+ */
+
+/* ── the back of a card: ours, not Magic's ───────────────────────────── */
+
+.card-backs {
+  --card-back-w: calc(var(--card-w, 5.5rem) * 0.5);
+
+  display: flex;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Item 12: *"opponents hand should show like real card backs."* So a back is
+ * drawn as a CARD and not as a hatched slab: a card's proportion, a card's
+ * radius, a bordered field, an inset panel with its own rule, and one mark in
+ * the middle of that panel. Three layers, none of which needs a child element,
+ * so the strip's geometry is untouched and a back is still one bare `<li>`:
+ *
+ *   - the field, a soft radial that is darkest at the edges, on the element;
+ *   - the panel, an inset rule on `::before`, so the back has a border INSIDE
+ *     its border the way a printed back does;
+ *   - the mark, a lozenge on `::after`.
+ *
+ * It is NOT Magic's back. That is WotC art and this repo draws none of it
+ * (CLAUDE.md): no logo, no wordmark, no frame. This is our pattern, for the same
+ * reason the player mark is a circle and a bust we drew.
+ */
+.card-back {
+  position: relative;
+  flex: none;
+  width: var(--card-back-w);
+  aspect-ratio: 488 / 680;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.75);
+  background: radial-gradient(120% 90% at 50% 38%, var(--bg-raised) 0%, var(--bg-card) 62%, var(--bg) 100%);
+  overflow: hidden;
+}
+
+/* The inset panel: a back has a border inside its border. */
+.card-back::before {
+  content: '';
+  position: absolute;
+  inset: 11%;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius) * 0.5);
+}
+
+/*
+ * The mark in the middle of it — a lozenge, ours. Clipped rather than rotated:
+ * the one rotation in this file is the turned card's quarter turn, and
+ * `Board.test.ts` counts them to keep it that way.
+ */
+.card-back::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: color-mix(in srgb, var(--ink-faint) 34%, transparent);
+}
+
+.card-back + .card-back {
+  margin-left: calc(var(--card-back-w) * -0.6);
+}
+
+/* A card this seat may not see (`BoardCard.hidden`): the same back, filling the card's own box. */
+.card.card-back {
+  --card-back-w: 100%;
+}

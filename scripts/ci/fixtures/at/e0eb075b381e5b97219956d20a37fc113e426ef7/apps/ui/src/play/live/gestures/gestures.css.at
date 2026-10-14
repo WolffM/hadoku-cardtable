@@ -1,0 +1,230 @@
+/*
+ * The pointer layer's own stylesheet (wave 24 §B). Imported from `./install.ts`
+ * so it travels with the module.
+ *
+ * It names NOTHING of another lane's: no `.board`, no `.card`, no `.live`. Every
+ * selector here is either this module's own class (`.targeter`, `.marquee`) or
+ * an attribute this module writes (`data-gesture-canvas`, `data-dragging`,
+ * `data-marquee`, `data-attack-intent`). That is what keeps lane A's markup and
+ * lane C's frame out of this file and this file out of theirs.
+ *
+ * `.targeter*` moved here from `../live.css`, where wave 20 left it.
+ */
+
+/*
+ * The targeter arrow. Ours, drawn: a curved shaft and a plain triangular head.
+ * No card frame, no mana symbol, no tap symbol — nothing of WotC's, here or
+ * anywhere (`CLAUDE.md`). The palette is `styles.css`'s accent, so the arrow
+ * reads as the same affordance a selectable card's outline does.
+ *
+ * It renders into lane A's overlay root and fills it exactly, which is why it
+ * takes no size of its own: the overlay covers the canvas, the SVG covers the
+ * overlay, and every coordinate `./arrow.ts` computes is in that box. It never
+ * takes the pointer — if it did, it would become the element under the cursor
+ * and the drop would land on the arrow instead of the target.
+ *
+ * `overflow: visible` because the head is drawn at the tip: a snap to a card
+ * flush against the canvas edge would otherwise be clipped in half.
+ */
+.targeter {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.targeter__shaft {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.targeter__head {
+  fill: var(--accent);
+}
+
+/* Click targeting (§B.4) is the same arrow, drawn a touch lighter: the player
+   is still choosing and has not committed a gesture to it. */
+.targeter[data-mode='click'] .targeter__shaft {
+  stroke-dasharray: 7 5;
+  opacity: 0.7;
+}
+
+/*
+ * The passive arrow for a target Forge already decided (item 8, `./arrow.ts`'s
+ * `drawAutoTargetArrows`). Lighter still than the click-targeting dash: nobody
+ * is choosing this, it is reporting a fact.
+ */
+.targeter--auto .targeter__shaft {
+  stroke-dasharray: 2 4;
+  opacity: 0.55;
+}
+
+.targeter--auto .targeter__head {
+  opacity: 0.55;
+}
+
+/*
+ * The box-draw (§B.2). A plain rectangle in the overlay's coordinates, the
+ * accent at low opacity so the creatures inside it stay readable.
+ */
+.marquee {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+}
+
+/*
+ * The attack intent (§B.1): "you pointed at this as an attacker", drawn the
+ * moment the click leaves rather than when Forge's declaration lands.
+ *
+ * **Never the tapped style.** Forge's tapped state is lane A's to draw from
+ * `BoardCard.tapped` and this mark says something else, so it is a DASHED
+ * outline where an offer is a solid one — the line style carries the meaning as
+ * well as the colour does, which is §1's accessibility rule.
+ */
+[data-attack-intent] {
+  outline-offset: 2px;
+}
+
+[data-attack-intent='sent'] {
+  outline: 2px dashed var(--accent);
+}
+
+/*
+ * `refused` — Forge answered and did NOT declare it — draws NOTHING, and that is
+ * wave 28 item 6.
+ *
+ * It used to be a dotted warn-coloured outline. The operator, 2026-09-28:
+ * *"theres a weird 'orange' outline around the ghoul in addition to the blue
+ * outline, lets get rid of the orange one, no idea what that even is."* Which is
+ * the finding, not just the instruction: a mark nobody can read is not
+ * communicating. The creature simply not attacking is the signal that remains,
+ * and it is the one the player was reading anyway.
+ *
+ * The VALUE stays on the wire and on the element — `attackIntents` still answers
+ * `refused`, `intent.ts` still writes it, and `gestures.test.ts` still asserts
+ * it. It is a true statement about a disagreement between the player and the
+ * engine, readable in the DOM and by a test; it just does not paint.
+ */
+
+/* Forge agreed. Its own `attacking` drawing takes over, so this adds nothing. */
+[data-attack-intent='declared'] {
+  outline: none;
+}
+
+/*
+ * A hand card, picked up by a press OR a click, follows the pointer
+ * (`./cast.ts`'s `drawCastLift` sets `left`/`top` in client coordinates,
+ * `position: fixed` is what makes those the same units) until the gesture
+ * ends. `'lifted'`: still following the pointer, deciding what a release
+ * would mean. `'parked'`: a card that needed a target has been cast, at the
+ * release, and this is pinned exactly where it was let go while the
+ * targeter arrow (`.targeter` above) moves from there. `'returning'`:
+ * floating back to the hand — see the animation rule below.
+ *
+ * `pointer-events: none` for the reason every other overlay mark has it: a
+ * lifted card must never become the element a drop or a hover resolves to, or
+ * a card could be dropped on itself.
+ */
+[data-cast-lift] {
+  position: fixed;
+  z-index: var(--z-popover, 40);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/*
+ * Lifted: the battlefield's own card size, not the hand's, from the first
+ * frame. `./cast.ts`'s `drawCastLift` sets `--card-w` on the element itself
+ * to the viewer's own battlefield's current value the moment it lifts; this
+ * rule just names the box that reads it, at higher specificity than
+ * `.board-card`'s own `width: var(--card-w, …)` (`card.css`) so the card
+ * resolves THIS `--card-w`, never the hand row's, whichever stylesheet the
+ * bundler happens to order last. No transition: the size is already right,
+ * so there is nothing to glide (unlike the width/height transition below,
+ * which is `install.ts`'s ghost shrinking into the row's reserved gap).
+ */
+.board-card[data-cast-lift='lifted'] {
+  width: var(--card-w);
+}
+
+/* A played card on its way: its stand-in is what is drawn (`./cast.ts`'s `drawCastLift`). */
+[data-cast-lift='carried'] {
+  visibility: hidden;
+}
+/*
+ * Parked: the stand-in waiting in the row's reserved gap while Forge resolves
+ * the play (`./cast.ts`'s `glideIntoGap`). It glides there from the release
+ * point — the same motion the other screen gives its back.
+ */
+[data-cast-lift='parked'] {
+  transition:
+    left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    width 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    height 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-cast-lift='parked'] {
+    transition: none;
+  }
+}
+
+/*
+ * Floating back to the hand — a no-target card released off the viewer's own
+ * battlefield, any card released over the hand, or a cancel. `./cast.ts`'s
+ * `floatCastLiftHome` is what moves `left`/`top` to the home point this
+ * transitions toward; `GLIDE_MS` (`motion.ts`) is this number, so the clean-up
+ * that lets the card go waits for the same animation it is timing.
+ */
+[data-cast-lift='returning'] {
+  transition:
+    left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    width 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    height 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cast-lift='returning'] {
+    transition: none;
+  }
+}
+
+/*
+ * A played card's own element in its row, while its stand-in is still
+ * travelling to it (`./cast.ts`'s `landCastGhost`). Hidden, not absent: the row
+ * is laid out around it from the first frame, so its neighbours move once.
+ */
+[data-cast-landing] {
+  visibility: hidden;
+}
+
+/* The cancel cue on the zone a card was lifted from: ANY lifted card let go over it returns, whatever it is. */
+[data-zone][data-owner='you'][data-cancel-hint] {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+
+/* A drag is a drag, not a text selection. */
+[data-gesture-canvas][data-dragging],
+[data-gesture-canvas][data-marquee] {
+  user-select: none;
+}
+
+[data-gesture-canvas][data-dragging] {
+  cursor: grabbing;
+}
+
+[data-gesture-canvas][data-marquee] {
+  cursor: crosshair;
+}
