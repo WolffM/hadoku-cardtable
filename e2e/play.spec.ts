@@ -124,7 +124,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
-import { createRoom, enabledCancel, enabledOk, serverLog } from './play/board.ts';
+import { E2E_ERA, createRoom, enabledCancel, enabledOk, serverLog } from './play/board.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
@@ -507,7 +507,6 @@ function cardKey(name: string): string {
  */
 async function legalChoice(api: APIRequestContext, origin: string): Promise<Choice> {
   const base = `${origin}${PREFIX}/api/tables`;
-  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string; source: string }[] }).formats;
   const decks = (
     (await (await api.get(`${base}/decks`)).json()) as {
       decks: { id: string; name: string; date: string; main: DeckLine[]; sideboard: DeckLine[] }[];
@@ -516,36 +515,31 @@ async function legalChoice(api: APIRequestContext, origin: string): Promise<Choi
   // Draw-go decks first: Preordain scries, Squadron Hawk and Stoneforge Mystic
   // search — questions Forge ASKS, which is what this test needs to reach.
   decks.sort((a, b) => Number(/Caw/.test(b.name)) - Number(/Caw/.test(a.name)));
-  // What the room's picker offers in an era (`GET /legal/:format`) — legal, AND that era's own.
-  const offeredIn = async (format: string): Promise<Set<string>> =>
-    new Set(((await (await api.get(`${base}/legal/${encodeURIComponent(format)}`)).json()) as { legal: string[] }).legal);
+  // What the room's picker offers in the era (`GET /legal/:format`) — legal, AND that era's own.
+  const offered = new Set(((await (await api.get(`${base}/legal/${encodeURIComponent(E2E_ERA)}`)).json()) as { legal: string[] }).legal);
   const pickOf = (d: (typeof decks)[number]): DeckPick => ({
     id: d.id,
     name: d.name,
     cards: new Set([...d.main, ...d.sideboard].map((l) => cardKey(l.name))),
   });
-  // Eras only: the `format` select offers neither a drafted pool nor Free pick.
-  for (const f of formats.filter((x) => x.source !== 'draft' && x.source !== 'free')) {
-    const offered = await offeredIn(f.id);
-    // A deck is dated by the event it was played at; a format is dated by its pool.
-    const candidates = [...decks.filter((d) => d.date === f.id), ...decks.filter((d) => d.date !== f.id)];
-    let first: DeckPick | null = null;
-    for (const d of candidates) {
-      if (!offered.has(d.id)) continue;
-      const pick = pickOf(d);
-      if (first === null) {
-        first = pick;
-        continue;
-      }
-      const held = first;
-      const onlyFirst = [...held.cards].filter((c) => !pick.cards.has(c));
-      const onlySecond = [...pick.cards].filter((c) => !held.cards.has(c));
-      if (onlyFirst.length === 0 || onlySecond.length === 0) continue;
-      return { format: f.id, decks: [held, pick], onlyFirst, onlySecond };
+  // A deck is dated by the event it was played at; a format is dated by its pool.
+  const candidates = [...decks.filter((d) => d.date === E2E_ERA), ...decks.filter((d) => d.date !== E2E_ERA)];
+  let first: DeckPick | null = null;
+  for (const d of candidates) {
+    if (!offered.has(d.id)) continue;
+    const pick = pickOf(d);
+    if (first === null) {
+      first = pick;
+      continue;
     }
+    const held = first;
+    const onlyFirst = [...held.cards].filter((c) => !pick.cards.has(c));
+    const onlySecond = [...pick.cards].filter((c) => !held.cards.has(c));
+    if (onlyFirst.length === 0 || onlySecond.length === 0) continue;
+    return { format: E2E_ERA, decks: [held, pick], onlyFirst, onlySecond };
   }
   throw new Error(
-    `no format has two legal library decks that hold different cards (${formats.length} formats, ${decks.length} decks)`,
+    `${E2E_ERA} has no two legal library decks that hold different cards (${decks.length} decks)`,
   );
 }
 

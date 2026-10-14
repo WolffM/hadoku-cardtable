@@ -13,12 +13,12 @@ import { readFileSync } from 'node:fs';
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { enterMatch, twoLegalDecks } from './enter.ts';
+import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
 import { createStreamedRoomByApi, openCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerLoneAbility, answerPrompt } from './prompts.ts';
 
-export { enterMatch, twoLegalDecks };
+export { E2E_ERA, enterMatch, twoLegalDecks };
 
 /* ── gating a test on a Forge build ──────────────────────────────────── */
 
