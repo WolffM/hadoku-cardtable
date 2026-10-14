@@ -643,3 +643,17 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   during a resolution goes only to players it names a card to, and a token
   only if the resolution's line (outside reminder text) does not already name
   its kind.
+
+## A resolving spell is in two places for one delta — 2026-10-14 (lane HO)
+
+- **VERIFIED (read)** — `MagicStack.resolveStack` (`forge-game/.../game/zone/MagicStack.java:593`)
+  runs the spell's effect first — a permanent spell's `sa.resolve()` moves its
+  card onto the battlefield — and only then `finishResolving` → `remove(si)`
+  (`:673`, `:791`), whose `game.updateStackForView()` takes the item off
+  `GameView.Stack`. The card's `PlayerView` list and the stack are separate
+  view objects, so a delta flushed in between carries the card in both.
+- **VERIFIED (measured, `e2e/st-stack-resolve.spec.ts` on the claws, runs 38521280591
+  and 38530007159)** — the other seat received those as two `applyDelta`
+  frames 30–40 ms apart, and drew Grizzly Bears on the battlefield and on the
+  stack at once. `apps/ui/src/play/adapter.ts` now drops a spell's stack entry
+  once a zone list holds its card.
