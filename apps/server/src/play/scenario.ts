@@ -21,7 +21,7 @@ import { afterEach } from 'vitest';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostConfig } from './host.js';
 import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
-import type { StopPolicy } from './auto.js';
+import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
 import type { ServerEnvelope } from './transport.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
 
@@ -597,17 +597,20 @@ export function inOwnMain(s: Scenario, seat: number, n: number): boolean {
 }
 
 /**
- * Whether the default policy STOPS the seat at this window — the only windows a
+ * Whether the seat's own policy STOPS it at this window — the only windows a
  * driver may press OK in, because every other one is passed by the server itself
- * and a second press would skip the stop after it.
+ * and a second press would skip the stop after it. A phase that stops only for a
+ * play (`stopWithPlayOnTheirTurn`) counts: a window there that reached the wire
+ * was kept for one.
  */
 export function isStop(msg: string, seat: number, s: Scenario): boolean {
 	if (!msg.startsWith('Priority:') || !/^Stack: Empty$/m.test(msg)) return false;
 	const owner = /Turn: \d+ \(([^)]*)\)/.exec(msg)?.[1];
-	const mine = owner === s.names[seat];
-	const phase = /^Phase: (.+)$/m.exec(msg)?.[1] ?? '';
-	if (mine) return ['Main phase, precombat', 'Main phase, postcombat', 'Declare Attackers Step'].includes(phase);
-	return phase === 'Declare Blockers Step';
+	const phase = PHASE_BY_UI_NAME[/^Phase: (.+)$/m.exec(msg)?.[1] ?? ''];
+	if (phase === undefined) return false;
+	const policy = s.match.stopPolicy(seat);
+	if (owner === s.names[seat]) return policy.stopOnMyTurn.includes(phase);
+	return policy.stopOnTheirTurn.includes(phase) || policy.stopWithPlayOnTheirTurn.includes(phase);
 }
 
 /** Press OK once on every NEW stop of either seat, until `done`. */
