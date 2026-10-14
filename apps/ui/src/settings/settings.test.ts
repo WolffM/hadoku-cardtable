@@ -36,14 +36,14 @@ afterEach(() => {
 
 describe('the gear outside a match', () => {
   it('opens sound and the game section, drawn from what is saved', () => {
-    store.prefs = { boardLayout: 'type-separated', fastMode: true, stopAtEndStep: true };
+    store.prefs = { boardLayout: 'type-separated', fastMode: true, endStepStop: false };
     render(createElement(SettingsGear));
     fireEvent.click(screen.getByTestId('settings-gear'));
     const dialog = screen.getByTestId('settings');
     expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
     expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Sound', 'Game']);
     expect((screen.getByTestId('live-settings-fast-mode') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByTestId('live-settings-stop-end-step') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId('live-settings-stop-end-step') as HTMLInputElement).checked).toBe(false);
     expect((dialog.querySelector('input[name="board-layout"][value="type-separated"]') as HTMLInputElement).checked).toBe(true);
     // A match's remembered triggers are its own: none outside one.
     expect(screen.queryByTestId('live-settings-trigger')).toBeNull();
@@ -55,6 +55,6 @@ describe('the gear outside a match', () => {
     fireEvent.click(screen.getByTestId('live-settings-fast-mode'));
     fireEvent.click(screen.getByTestId('live-settings-stop-end-step'));
     fireEvent.click(screen.getByTestId('settings').querySelector('input[name="board-layout"][value="type-separated"]')!);
-    expect(store.saved).toEqual([{ fastMode: true }, { stopAtEndStep: true }, { boardLayout: 'type-separated' }]);
+    expect(store.saved).toEqual([{ fastMode: true }, { endStepStop: false }, { boardLayout: 'type-separated' }]);
   });
 });

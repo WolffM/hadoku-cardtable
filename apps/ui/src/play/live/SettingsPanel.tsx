@@ -9,7 +9,8 @@
  *   - **Board layout** — single (default) or type-separated. Client-only, and
  *     MINE only: it is `Board`'s `boardLayout` prop for the viewer's own side
  *     (*"my board preference should not change the opponent's board"*).
- *   - **Always stop at end step** — default off. This ONE control sends a
+ *   - **End step** — default on: the opponent's End step holds this seat's
+ *     priority when it has a real play there. This ONE control sends a
  *     message: `sendStopPreference` (`./match.ts`), on the shape
  *     `docs/planning/wave30-evidence/A-stop-pref-message.md` records.
  *   - **Fast Mode** (wave 47) — default off (paced). Client-only, like board
@@ -44,8 +45,8 @@ export interface SettingsPanelProps {
    * match's own and are not drawn.
    */
   match?: LiveMatch;
-  /** Outside a match, the saved "always stop at end step"; inside, the match's own echo is the truth. */
-  stopAtEndStep?: boolean;
+  /** Outside a match, the saved End step checkbox; inside, the match's own value is the truth. */
+  endStepStop?: boolean;
   /** A watching window: the one setting that reaches the server is refused. */
   inert?: boolean;
   /** The board's CURRENT layout — `LiveBoard`'s own state, passed to `<Board>`. */
@@ -67,7 +68,7 @@ const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
 
 export function SettingsPanel({
   match,
-  stopAtEndStep = false,
+  endStepStop = true,
   inert = false,
   boardLayout,
   onBoardLayoutChange,
@@ -99,15 +100,15 @@ export function SettingsPanel({
         <input
           type="checkbox"
           data-testid="live-settings-stop-end-step"
-          checked={match === undefined ? stopAtEndStep : match.stopAtEndStep}
+          checked={match === undefined ? endStepStop : match.stopAtEndStep}
           disabled={inert}
           onChange={(event) => {
             const next = event.currentTarget.checked;
             if (match !== undefined) sendStopPreference(match, next);
-            onSave({ stopAtEndStep: next });
+            onSave({ endStepStop: next });
           }}
         />
-        Always stop at end step
+        Stop at their end step when I can act
       </label>
       <label className="ct-settings__option">
         <input

@@ -39,8 +39,8 @@
  *                    hatch (Wave 19 lane C's `play/auto.ts`); carries nothing
  *                    about the game, and no ack: the server only logs a refusal
  *   client → server  `forge:stop-preference`  `{ matchId, type: 'stopPreference',
- *                    stopAtEndStep }` — item 2/6 (wave 30), the settings
- *                    panel's *"always stop at end step"*. Client → server
+ *                    stopAtEndStep }` — the settings panel's End step
+ *                    checkbox (on by default). Client → server
  *                    only, same as full control's own no-ack shape.
  *   client → server  `forge:auto-yield`  `{ matchId, on }` — the Auto
  *                    Yield / Cancel Yield toggle. Client → server only, no ack.

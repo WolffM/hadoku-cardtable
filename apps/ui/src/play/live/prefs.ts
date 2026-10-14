@@ -3,7 +3,7 @@
  * and is the fleet's preference service — prefer it over localStorage, which
  * does not follow a player to another browser."* This is the one client for
  * the settings panel's preferences — board layout (item 11),
- * always-stop-at-end-step (item 2/6), and Fast Mode (wave 47) — persisted per
+ * the End step stop (on by default), and Fast Mode (wave 47) — persisted per
  * VIEWER (the API's `user` scope, `createPrefsClient`'s default `save`
  * scope), so a preference set on one browser is there the next time the same
  * player signs in on another. `@wolffm/prefs-client` DOES hold an app-scoped
@@ -67,7 +67,8 @@ const BoardLayoutPrefSchema = borrowed.nonEmptyString.refine(
 export const PlayPrefsSchema = borrowed.emptyObject
   .extend({
     boardLayout: BoardLayoutPrefSchema.optional(),
-    stopAtEndStep: borrowed.boolean.optional(),
+    /** The opponent's End step held for a real play. On by default. */
+    endStepStop: borrowed.boolean.optional(),
     /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
     fastMode: borrowed.boolean.optional(),
   })
@@ -77,7 +78,7 @@ export interface PlayPrefs {
   /** `usePrefs`'s own generic bound (`T extends Record<string, unknown>`) — no field of this app's is ever read off the index signature itself. */
   [key: string]: unknown;
   boardLayout?: BoardLayout;
-  stopAtEndStep?: boolean;
+  endStepStop?: boolean;
   fastMode?: boolean;
 }
 
@@ -99,9 +100,9 @@ function fastModeDefaultOverride(): boolean {
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; stopAtEndStep: boolean; fastMode: boolean } = {
+export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean } = {
   boardLayout: 'single',
-  stopAtEndStep: false,
+  endStepStop: true,
   fastMode: fastModeDefaultOverride(),
 };
 
@@ -155,11 +156,24 @@ const schemaAcrossZodInstances = PlayPrefsSchema as any;
  */
 let instance: PrefsClient<PlayPrefs> | null = null;
 
+/**
+ * `stopAtEndStep` was wave 30's unconditional End step stop, off by default. Its
+ * successor, `endStepStop`, holds the End step only for a real play and is on by
+ * default, so a saved `false` from the old checkbox must not switch the new one off:
+ * the old field is dropped on read rather than renamed. The schema is `.strict()`,
+ * so without this a blob that still carries it would fail to parse whole.
+ */
+export function dropRetiredStopAtEndStep(blob: Record<string, unknown>): Record<string, unknown> {
+  const { stopAtEndStep: _retired, ...rest } = blob;
+  return rest;
+}
+
 export function getPlayPrefsClient(): PrefsClient<PlayPrefs> {
   instance ??= createPrefsClient({
     appId: 'cardtable-play',
     schema: schemaAcrossZodInstances,
     defaults: PLAY_PREFS_DEFAULTS,
+    migrations: [dropRetiredStopAtEndStep],
   }) as unknown as PrefsClient<PlayPrefs>;
   return instance;
 }

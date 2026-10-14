@@ -2433,7 +2433,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * hands this seat a freshly-created-or-recovered server `StopPolicy` with
    * no memory of an earlier preference, gets the stored value re-sent too.
    * `force: true` because the persisted value may already equal the
-   * client's own default (`false`) while the server still needs telling —
+   * client's own initial value (`true`) while the server still needs telling —
    * `sendStopPreference`'s own doc comment has the full case.
    */
   const { prefs, save: savePrefs } = usePrefs(getPlayPrefsClient());
@@ -2485,7 +2485,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     // then fire AGAIN the moment the real join lands (`stats.snapshots`
     // 0 → 1), which is a real double-send and not merely a wasted one.
     if (spectator || prefs === null || match.stats.snapshots === 0) return;
-    sendStopPreference(match, prefs.stopAtEndStep ?? PLAY_PREFS_DEFAULTS.stopAtEndStep, true);
+    sendStopPreference(match, prefs.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop, true);
     // `match.stats.snapshots` (not `match.stats` itself, which is a mutated-in-place
     // object with a stable identity) is the join/resync trigger; see the block comment above.
   }, [match, prefs, spectator, match.stats.snapshots]);

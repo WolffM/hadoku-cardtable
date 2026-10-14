@@ -216,6 +216,24 @@ export interface StopPolicy {
 	/** Phases the player wants priority in on any OTHER player's turn. */
 	readonly stopOnTheirTurn: readonly PhaseType[];
 	/**
+	 * Phases on any OTHER player's turn that hold priority **only when the seat has a
+	 * real play there** — the {@link PromptFacts.nonManaSources} test the attack and
+	 * block windows use: an affordable instant or non-mana ability, never a land or
+	 * rock offered for its mana. With nothing to do the phase is skipped like any
+	 * other outside {@link stopOnTheirTurn}. Kept windows log `play-stop`.
+	 *
+	 * The operator, 2026-10-13: *"End step always stop if something can be used. on
+	 * by default it should be checked on in the settings, and it can be turned
+	 * off."* — the opponent's End step, the classic window for a held instant. This
+	 * is a stop conditioned on what the seat holds, which the file header explains
+	 * wave 28 refused for what it tells the table; the operator chose the window
+	 * over that leak, and the settings checkbox (`socket.ts`'s
+	 * `forge:stop-preference`) takes `END_OF_TURN` out of this set for a seat that
+	 * would rather not. It replaced wave 30's unconditional End step stop
+	 * (`stopOnTheirTurn`), which held a seat with nothing to do.
+	 */
+	readonly stopWithPlayOnTheirTurn: readonly PhaseType[];
+	/**
 	 * Whether a phase outside the stop sets is passed **regardless of what the
 	 * seat could do there** — Forge's `skipPhases`, and the whole of item #20.
 	 *
@@ -432,9 +450,9 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// Wave 30, item 2 removes `END_OF_TURN`: *"i played a land and clicked 'end
 	// turn' and the phase counter stopped at endstep… it always waits on opponent
 	// at endstep now, that wasn't happening before and it's not a desired
-	// behavior."* The trade wave 28 made — a stop here is the window for a held
-	// instant — is real and is NOT reversed; it is handed to the player instead
-	// of assumed. `COMBAT_DECLARE_BLOCKERS` stays: the operator objected to the
+	// behavior."* The window for a held instant came back on 2026-10-13 as
+	// `stopWithPlayOnTheirTurn` below, which holds the End step only when the
+	// seat has a play there. `COMBAT_DECLARE_BLOCKERS` stays: the operator objected to the
 	// END-STEP wait specifically, and blocking IS a decision a seat must make —
 	// the DECLARATION is never passed, whatever it holds (it is not even a
 	// `Priority:` window). The ordinary priority window Forge opens right after
@@ -442,12 +460,11 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// unconditionally too, with nothing to do there — see
 	// `blockStopIsTheDeclaration`, the non-active seat's mirror of
 	// `attackStopIsTheDeclaration` just below. The escape the operator named
-	// is `FULL_CONTROL_POLICY`, which still keeps every stop; the dial is the
-	// per-seat `StopPolicy` a settings toggle now moves (`socket.ts`'s
-	// `forge:stop-preference`) — a held instant on the opponent's turn is castable
-	// again the moment that preference is on, same mechanism, the player's choice
-	// rather than the default's.
+	// is `FULL_CONTROL_POLICY`, which still keeps every stop.
 	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS'],
+	// AF28, 2026-10-13. *"End step always stop if something can be used."* The
+	// settings checkbox moves it (`socket.ts`'s `forge:stop-preference`).
+	stopWithPlayOnTheirTurn: ['END_OF_TURN'],
 	// Item 5, wave 28: *"upkeep stops like this should not happen unless in full
 	// control mode. it's stopping everywhere, super annoying."* — and the leak
 	// argument above, which is the part that outlives the annoyance.
@@ -530,6 +547,7 @@ export const EVERY_PRIORITY_POLICY: StopPolicy = {
 export const FULL_CONTROL_POLICY: StopPolicy = {
 	stopOnMyTurn: PHASE_TYPES,
 	stopOnTheirTurn: PHASE_TYPES,
+	stopWithPlayOnTheirTurn: [],
 	skipNonStopPhases: 'never',
 	passWhenNothingToDo: false,
 	interruptsRestoreStops: true,
@@ -545,6 +563,17 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	passOwnSpell: false,
 	orderSimultaneous: 'ask',
 };
+
+/**
+ * `policy` with the End step stop for a play ({@link StopPolicy.stopWithPlayOnTheirTurn})
+ * on or off, every other field untouched — the settings checkbox, `forge:stop-preference`.
+ * The same object back when it already agrees, so a caller can skip a no-op.
+ */
+export function withEndStepStop(policy: StopPolicy, on: boolean): StopPolicy {
+	if (policy.stopWithPlayOnTheirTurn.includes('END_OF_TURN') === on) return policy;
+	const rest = policy.stopWithPlayOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
+	return { ...policy, stopWithPlayOnTheirTurn: on ? [...rest, 'END_OF_TURN'] : rest };
+}
 
 /**
  * The policies a NAME can select — the whole of what wave 27 §C added here.
@@ -1121,6 +1150,11 @@ function blockStopIsDone(policy: StopPolicy, facts: PromptFacts): boolean {
 	);
 }
 
+/** An empty-stack window on another player's turn, in a phase that stops for a real play ({@link StopPolicy.stopWithPlayOnTheirTurn}). */
+function playStopPhase(policy: StopPolicy, facts: PromptFacts): boolean {
+	return facts.stackEmpty && !facts.myTurn && facts.phase !== null && policy.stopWithPlayOnTheirTurn.includes(facts.phase);
+}
+
 /** A permanent the seat controls can be used now and only in this phase ({@link StopPolicy.stopForPhaseAbility}). */
 function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
 	return policy.stopForPhaseAbility && facts.phaseRestricted.length > 0;
@@ -1135,7 +1169,8 @@ function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
  * `stop-phase` (a phase the policy stops in); `stack-held` (`passStackWindows`
  * off); `every-window` (`passWhenNothingToDo` off); `no-answer` (Forge has not
  * said what the seat can do); `has-play` (it can do something —
- * {@link StopJudgement.plays} names the cards).
+ * {@link StopJudgement.plays} names the cards); `play-stop` (the same, in a
+ * phase that stops only for a play — {@link StopPolicy.stopWithPlayOnTheirTurn}).
  * Passed: `skip-phase`, `own-spell`, `nothing-to-do`.
  */
 export type StopRule =
@@ -1148,6 +1183,7 @@ export type StopRule =
 	| 'every-window'
 	| 'no-answer'
 	| 'has-play'
+	| 'play-stop'
 	| 'skip-phase'
 	| 'own-spell'
 	| 'nothing-to-do';
@@ -1156,7 +1192,7 @@ export interface StopJudgement {
 	/** The phase label to pass, or null when the player must be asked. */
 	readonly pass: string | null;
 	readonly rule: StopRule;
-	/** For `has-play`: the offered cards that are a play ({@link PromptFacts.nonManaSources}). */
+	/** For `has-play` and `play-stop`: the offered cards that are a play ({@link PromptFacts.nonManaSources}). */
 	readonly plays?: readonly number[];
 }
 
@@ -1191,9 +1227,9 @@ export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement
 			if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return keep('stop-phase');
 			// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
 			// seat could have done there (#20) — unless a permanent on the table can be
-			// used in this phase and no other (w52 §S A), which falls through to the
-			// nothing-to-do rule and stops on that permanent.
-			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts)) return pass(facts, 'skip-phase');
+			// used in this phase and no other (w52 §S A), or the phase stops for a play
+			// (AF28), each of which falls through to the nothing-to-do rule.
+			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts) && !playStopPhase(policy, facts)) return pass(facts, 'skip-phase');
 		}
 	} else if (!policy.passStackWindows) {
 		return keep('stack-held');
@@ -1211,7 +1247,7 @@ export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement
 	// rock in the SAME actionable set at ordinary priority, and a card offered
 	// with no play beside its mana is never, by itself, a reason to hold priority —
 	// see the field.
-	if (facts.nonManaSources.length > 0) return { pass: null, rule: 'has-play', plays: facts.nonManaSources };
+	if (facts.nonManaSources.length > 0) return { pass: null, rule: playStopPhase(policy, facts) ? 'play-stop' : 'has-play', plays: facts.nonManaSources };
 	return pass(facts, 'nothing-to-do');
 }
 

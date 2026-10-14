@@ -919,14 +919,14 @@ describe('full control survives a refresh', () => {
 });
 
 /*
- * Wave 30 §B item 2/6: *"i think by default this should be off, but can be
- * turned on in settings (always stop at endstep)."* `forge:stop-preference` is
- * the wire half — client → server only, over REAL sockets — of moving the
- * seat's OWN `StopPolicy` (`Match.setStopPolicy`, wave 26 §E); the shortcut
- * decision itself is `auto.test.ts`'s "item 2" case.
+ * The settings' End step checkbox (AF28: *"on by default … and it can be turned
+ * off"*). `forge:stop-preference` is the wire half — client → server only, over
+ * REAL sockets — of moving the seat's OWN `StopPolicy` (`Match.setStopPolicy`,
+ * wave 26 §E); the shortcut decision itself is `auto.test.ts`'s "the opponent’s
+ * End step stops only for a real play" case.
  */
-describe('the stop-at-end-step preference (item 2/6)', () => {
-	it('toggles END_OF_TURN in and out of stopOnTheirTurn, and only this seat’s', async () => {
+describe('the End step stop preference', () => {
+	it('toggles END_OF_TURN out of and back into stopWithPlayOnTheirTurn, and only this seat’s', async () => {
 		const h = await boot();
 		const { body } = await startMatch(h);
 		const matchId = body.matchId as string;
@@ -936,22 +936,21 @@ describe('the stop-at-end-step preference (item 2/6)', () => {
 		await bob.request('forge:join', { matchId });
 		const match = h.handle.matches.get(matchId);
 
-		// The default: off, exactly `DEFAULT_STOP_POLICY` (wave 30 item 2 dropped
-		// END_OF_TURN from it already), for both seats.
+		// The default: on, exactly `DEFAULT_STOP_POLICY`, for both seats.
 		expect(match?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
 		expect(match?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
 
-		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
-		await waitUntil(() => match?.stopPolicy(0).stopOnTheirTurn.includes('END_OF_TURN') === true, 'seat 0 to hold the setting');
-		expect(match?.stopPolicy(0)).toEqual({ ...DEFAULT_STOP_POLICY, stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'] });
+		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: false });
+		await waitUntil(() => match?.stopPolicy(0).stopWithPlayOnTheirTurn.includes('END_OF_TURN') === false, 'seat 0 to drop the stop');
+		expect(match?.stopPolicy(0)).toEqual({ ...DEFAULT_STOP_POLICY, stopWithPlayOnTheirTurn: [] });
 		// Bob never asked for it — a preference of the person in the seat, exactly
 		// like full control.
 		expect(match?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
 
-		// Flipping it off again restores the default exactly — not a field wiped,
+		// Flipping it on again restores the default exactly — not a field wiped,
 		// a value re-derived from whatever the seat was already on.
-		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: false });
-		await waitUntil(() => match?.stopPolicy(0).stopOnTheirTurn.includes('END_OF_TURN') === false, 'seat 0 to drop the setting');
+		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
+		await waitUntil(() => match?.stopPolicy(0).stopWithPlayOnTheirTurn.includes('END_OF_TURN') === true, 'seat 0 to hold the stop again');
 		expect(match?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
 	});
 
@@ -969,12 +968,12 @@ describe('the stop-at-end-step preference (item 2/6)', () => {
 			const match = h.handle.matches.get(matchId);
 			expect(match?.stopPolicy(0)).toEqual(STRICT_PAYMENT_POLICY);
 
-			alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
-			await waitUntil(() => match?.stopPolicy(0).stopOnTheirTurn.includes('END_OF_TURN') === true, 'the setting to land');
+			alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: false });
+			await waitUntil(() => match?.stopPolicy(0).stopWithPlayOnTheirTurn.includes('END_OF_TURN') === false, 'the setting to land');
 			// Every OTHER field of the seat's starting policy survives —
 			// `unambiguousPayment` stays `'auto'`, not reset to the module default's
 			// `'forgeAuto'`.
-			expect(match?.stopPolicy(0)).toEqual({ ...STRICT_PAYMENT_POLICY, stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'] });
+			expect(match?.stopPolicy(0)).toEqual({ ...STRICT_PAYMENT_POLICY, stopWithPlayOnTheirTurn: [] });
 		} finally {
 			if (original === undefined) delete process.env[STOP_POLICY_ENV];
 			else process.env[STOP_POLICY_ENV] = original;

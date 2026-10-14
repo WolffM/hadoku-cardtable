@@ -2352,42 +2352,42 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     expect(captured.boardLayout).toBe('single');
   });
 
-  it('always-stop-at-end-step: off by default, the checkbox sends forge:stop-preference and persists the change', async () => {
+  it('the End step stop: on by default, the checkbox sends forge:stop-preference and persists the change', async () => {
     const { s, m, getByTestId } = await liveBoard(0, true);
-    expect(m.stopAtEndStep).toBe(false);
+    expect(m.stopAtEndStep).toBe(true);
     const checkbox = getByTestId('live-settings-stop-end-step') as HTMLInputElement;
-    expect(checkbox.checked).toBe(false);
-
-    fireEvent.click(checkbox);
-    await waitFor(() => expect(m.stopAtEndStep).toBe(true));
-    const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
-    expect(prefsState.saved).toContainEqual({ stopAtEndStep: true });
     expect(checkbox.checked).toBe(true);
 
     fireEvent.click(checkbox);
     await waitFor(() => expect(m.stopAtEndStep).toBe(false));
+    const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false });
+    expect(prefsState.saved).toContainEqual({ endStepStop: false });
+    expect(checkbox.checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(m.stopAtEndStep).toBe(true));
     expect(s.received.filter((r) => r.event === 'forge:stop-preference')).toHaveLength(2);
     // A preference, not a Forge frame: none of it crossed forge:c2s.
     expect(s.clientFrames()).toEqual([]);
   });
 
   it('a persisted preference is sent to the server on join, without the panel ever opening — the manager’s own instruction', async () => {
-    prefsState.prefs = { boardLayout: 'type-separated', stopAtEndStep: true };
+    prefsState.prefs = { boardLayout: 'type-separated', endStepStop: false };
     const { s, m } = await liveBoard();
-    await waitFor(() => expect(m.stopAtEndStep).toBe(true));
+    await waitFor(() => expect(m.stopAtEndStep).toBe(false));
     expect(captured.boardLayout).toBe('type-separated');
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
+    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false });
     // The settings were never opened in this test.
   });
 
   it('the seat’s settings go to the match log as client telemetry once read, and again on every change', async () => {
     // The operator, 2026-10-08: "you should always confirm everything with telemetry" — a report about
     // what a seat saw is read from the log's `client` events, never deduced from the code's defaults.
-    prefsState.prefs = { boardLayout: 'type-separated', stopAtEndStep: true, fastMode: false };
+    prefsState.prefs = { boardLayout: 'type-separated', endStepStop: true, fastMode: false };
     const { s, getByTestId } = await liveBoard(0, true);
     const infos = () => s.received.filter((r) => r.event === 'forge:client' && (r.payload as { kind: string }).kind === 'info');
     await waitFor(() => expect(infos()).toHaveLength(1));
@@ -2418,11 +2418,11 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     for (const r of s.received.filter((x) => x.event === 'forge:client')) expect(ClientEventSchema.safeParse(r.payload).success).toBe(true);
   });
 
-  it('a persisted OFF preference is still sent on join — force, because off already matches the client default', async () => {
-    prefsState.prefs = { stopAtEndStep: false };
+  it('a persisted ON preference is still sent on join — force, because on already matches the client default', async () => {
+    prefsState.prefs = { endStepStop: true };
     const { s, m } = await liveBoard();
     await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:stop-preference')).toHaveLength(1));
-    expect(m.stopAtEndStep).toBe(false);
+    expect(m.stopAtEndStep).toBe(true);
   });
 });
 

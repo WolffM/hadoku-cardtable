@@ -109,7 +109,7 @@ export const MATCH_EVENTS = {
    */
   phaseStop: 'forge:phase-stop',
   /**
-   * Wave 30 §B item 2/6: *"always stop at end step — default off"*. Client →
+   * The settings' End step checkbox (on by default since 2026-10-13). Client →
    * server only, same no-ack shape as `forge:full-control`. See
    * {@link StopPreferenceSchema}.
    */
@@ -267,9 +267,10 @@ export function phaseStopFrame(matchId: string, phase: StopPhase | null): PhaseS
 }
 
 /**
- * `forge:stop-preference` — wave 30 §B item 6: *"a settings surface, holding
- * at least two preferences… always stop at end step — default off."* This is
- * that one preference, travelling from the settings panel to the seat's own
+ * `forge:stop-preference` — the settings' End step checkbox: *"End step always
+ * stop if something can be used. on by default"* (the operator, 2026-10-13;
+ * wave 30's unconditional, default-off stop before it). This is that one
+ * preference, travelling from the settings panel to the seat's own
  * `StopPolicy` (`apps/server/src/play/auto.ts`) through the ALREADY-EXISTING
  * per-seat setter, `Match.setStopPolicy` (wave 26 §E) — nothing here is a
  * second mechanism.

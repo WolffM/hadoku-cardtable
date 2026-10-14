@@ -132,7 +132,7 @@ function SavedGameSettings() {
       onBoardLayoutChange={() => undefined}
       fastMode={prefs?.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode}
       onFastModeChange={() => undefined}
-      stopAtEndStep={prefs?.stopAtEndStep ?? PLAY_PREFS_DEFAULTS.stopAtEndStep}
+      endStepStop={prefs?.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop}
       onSave={persist}
     />
   );

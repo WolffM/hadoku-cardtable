@@ -35,6 +35,7 @@ import {
 	onlyAnswer,
 	paymentCost,
 	readPromptFacts,
+	withEndStepStop,
 	type SeatNotes,
 	type StopPolicy,
 } from './auto.js';
@@ -338,9 +339,9 @@ const PRIORITY_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nS
  *
  * `THEIR_STOP_MESSAGE` named the END step until wave 30 item 2 took it out of
  * `stopOnTheirTurn` (*"it always waits on opponent at endstep now… not a
- * desired behavior"*) — declare-blockers is the phase that stayed, and the one
- * dedicated test for the end step's new behaviour is
- * "item 2 — the opponent's end step is passed by default; blockers are not".
+ * desired behavior"*) — declare-blockers is the phase that stayed. The end
+ * step now stops only for a play (`stopWithPlayOnTheirTurn`); its dedicated
+ * test is "the opponent’s End step stops only for a real play".
  */
 const THEIR_STOP_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: Declare Blockers Step\nStack: Empty';
 const MY_STOP_MESSAGE = 'Priority: A\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: Empty';
@@ -1691,10 +1692,11 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(decideStop({ ...unknown, sources: [], nonManaSources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
-	it('the default policy is Arena’s stop set, field by field — wave 28, item 5, minus the end step wave 30 removed', () => {
+	it('the default policy is Arena’s stop set, field by field — wave 28, item 5, with the End step held only for a play', () => {
 		expect(DEFAULT_STOP_POLICY).toEqual({
 			stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
 			stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS'],
+			stopWithPlayOnTheirTurn: ['END_OF_TURN'],
 			skipNonStopPhases: 'always',
 			passWhenNothingToDo: true,
 			interruptsRestoreStops: true,
@@ -1840,33 +1842,40 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 	});
 
 	/*
-	 * Item 2, wave 30: *"i played a land and clicked 'end turn' and the phase
-	 * counter stopped at endstep… it always waits on opponent at endstep now,
-	 * that wasn't happening before and it's not a desired behavior."*
+	 * AF28, the operator, 2026-10-13: *"End step always stop if something can be
+	 * used. on by default it should be checked on in the settings, and it can be
+	 * turned off."* Wave 30 item 2's complaint (*"i played a land and clicked 'end
+	 * turn' and the phase counter stopped at endstep"*) still holds: a seat with
+	 * nothing but mana is passed.
 	 *
-	 * The mutation target: put `END_OF_TURN` back into
-	 * `DEFAULT_STOP_POLICY.stopOnTheirTurn` and the first assertion goes red.
-	 *
-	 * `COMBAT_DECLARE_BLOCKERS` is deliberately in the SAME window and deliberately
-	 * untouched, field by field against the same facts, so one test proves both
-	 * halves of the operator's ask at once: the end step stops being a stop, and
-	 * blocking — a decision, not a wait — still is.
+	 * The mutation target: empty `DEFAULT_STOP_POLICY.stopWithPlayOnTheirTurn` and
+	 * the kept window goes red; put `END_OF_TURN` into `stopOnTheirTurn` and the
+	 * idle one does.
 	 */
-	it('item 2 — the opponent’s end step is passed by default; blockers are not', () => {
-		const theirEndStep = facts({ phase: 'END_OF_TURN', phaseLabel: 'End step', myTurn: false, sources: [61] });
-		expect(decideStop(theirEndStep, DEFAULT_STOP_POLICY)).toBe('End step');
-		const theirBlockers = facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, sources: [61] });
+	it('the opponent’s End step stops only for a real play, and the setting turns it off', () => {
+		const theirEnd = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
+			facts({ phase: 'END_OF_TURN', phaseLabel: 'End step', myTurn: false, ...over });
+		// A Mountain offered for its mana alone: passed, judged by the play test.
+		expect(judgeStop(theirEnd({ sources: [70], nonManaSources: [] }), DEFAULT_STOP_POLICY)).toEqual({ pass: 'End step', rule: 'nothing-to-do' });
+		// An affordable instant: kept, and the rule and the play are named.
+		expect(judgeStop(theirEnd({ sources: [70, 61], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'play-stop', plays: [61] });
+		// Forge has not said: never pass on silence.
+		expect(judgeStop(theirEnd({ sources: null, nonManaSources: null }), DEFAULT_STOP_POLICY).rule).toBe('no-answer');
+		// The seat's OWN End step is not this stop: skipped whatever it holds.
+		expect(judgeStop(theirEnd({ myTurn: true, sources: [61], nonManaSources: [61] }), DEFAULT_STOP_POLICY).rule).toBe('skip-phase');
+		// The setting off: the End step is skipped whatever the seat holds.
+		const off = withEndStepStop(DEFAULT_STOP_POLICY, false);
+		expect(off).toEqual({ ...DEFAULT_STOP_POLICY, stopWithPlayOnTheirTurn: [] });
+		expect(judgeStop(theirEnd({ sources: [70, 61], nonManaSources: [61] }), off)).toEqual({ pass: 'End step', rule: 'skip-phase' });
+		expect(withEndStepStop(off, true)).toEqual(DEFAULT_STOP_POLICY);
+		// Already agreeing: the same object, so the caller skips a no-op.
+		expect(withEndStepStop(DEFAULT_STOP_POLICY, true)).toBe(DEFAULT_STOP_POLICY);
+		// Blocking is a decision, not a wait: still a stop, play or none.
+		const theirBlockers = facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, sources: [], nonManaSources: [] });
 		expect(decideStop(theirBlockers, DEFAULT_STOP_POLICY)).toBeNull();
-		// A held instant still has a window on the opponent's turn — item 5's own
-		// trade, unreversed: it moved from "always open" to "declare-blockers only".
-		expect(decideStop({ ...theirBlockers, sources: [], nonManaSources: [] }, DEFAULT_STOP_POLICY)).toBeNull();
-		// The setting §A's panel writes through `Match.setStopPolicy` turns the end
-		// step back into a stop, same mechanism as every other preference here —
-		// not a second code path, a wider `stopOnTheirTurn`.
-		const alwaysStopAtEndStep: StopPolicy = { ...DEFAULT_STOP_POLICY, stopOnTheirTurn: [...DEFAULT_STOP_POLICY.stopOnTheirTurn, 'END_OF_TURN'] };
-		expect(decideStop(theirEndStep, alwaysStopAtEndStep)).toBeNull();
-		// Full control still keeps it whatever the default or the setting say.
-		expect(decideStop(theirEndStep, FULL_CONTROL_POLICY)).toBeNull();
+		// Full control keeps it whatever the default or the setting say.
+		expect(decideStop(theirEnd({ sources: [] }), FULL_CONTROL_POLICY)).toBeNull();
+		expect(decideStop(theirEnd({ sources: [] }), withEndStepStop(FULL_CONTROL_POLICY, false))).toBeNull();
 	});
 });
 

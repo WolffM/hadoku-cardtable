@@ -11,16 +11,16 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FAST_MODE_DEFAULT_GLOBAL, PLAY_PREFS_DEFAULTS, PlayPrefsSchema } from './prefs.ts';
+import { FAST_MODE_DEFAULT_GLOBAL, PLAY_PREFS_DEFAULTS, PlayPrefsSchema, dropRetiredStopAtEndStep } from './prefs.ts';
 
 describe('PlayPrefsSchema', () => {
   it('accepts a full, valid blob', () => {
-    const result = PlayPrefsSchema.safeParse({ boardLayout: 'single', stopAtEndStep: true, fastMode: true });
+    const result = PlayPrefsSchema.safeParse({ boardLayout: 'single', endStepStop: true, fastMode: true });
     expect(result.success).toBe(true);
   });
 
   it('accepts the other board layout too', () => {
-    expect(PlayPrefsSchema.safeParse({ boardLayout: 'type-separated', stopAtEndStep: false }).success).toBe(true);
+    expect(PlayPrefsSchema.safeParse({ boardLayout: 'type-separated', endStepStop: false }).success).toBe(true);
   });
 
   it('accepts an empty blob — every field is optional, a fresh viewer has none', () => {
@@ -32,8 +32,15 @@ describe('PlayPrefsSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects a non-boolean stopAtEndStep', () => {
-    expect(PlayPrefsSchema.safeParse({ stopAtEndStep: 'on' }).success).toBe(false);
+  it('rejects a non-boolean endStepStop', () => {
+    expect(PlayPrefsSchema.safeParse({ endStepStop: 'on' }).success).toBe(false);
+  });
+
+  it('a blob saved with the retired stopAtEndStep parses once migrated, its other fields kept and the End step stop at its default', () => {
+    const saved = { boardLayout: 'type-separated', stopAtEndStep: false, fastMode: true };
+    expect(PlayPrefsSchema.safeParse(saved).success).toBe(false);
+    const migrated = PlayPrefsSchema.safeParse({ ...PLAY_PREFS_DEFAULTS, ...dropRetiredStopAtEndStep(saved) });
+    expect(migrated.success && migrated.data).toEqual({ boardLayout: 'type-separated', endStepStop: true, fastMode: true });
   });
 
   it('rejects a non-boolean fastMode', () => {
@@ -46,8 +53,8 @@ describe('PlayPrefsSchema', () => {
 });
 
 describe('PLAY_PREFS_DEFAULTS', () => {
-  it('matches Board’s own default (item 11: single), item 2/6’s default (off), and Fast Mode’s (off — paced)', () => {
-    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', stopAtEndStep: false, fastMode: false });
+  it('matches Board’s own default (item 11: single), the End step stop’s (on), and Fast Mode’s (off — paced)', () => {
+    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false });
   });
 
   it('parses through its own schema — the defaults are themselves valid prefs', () => {

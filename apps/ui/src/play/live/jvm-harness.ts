@@ -40,6 +40,7 @@ import { ARRANGEMENT_EVENT, CLIENT_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@
 import { join } from 'node:path';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
+import { withEndStepStop } from '../../../../server/src/play/auto.ts';
 import { WATCHER_SEAT, createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
 import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
@@ -274,10 +275,9 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
           return;
         }
         /*
-         * Item 2/6 (wave 30): the settings panel's own preference, routed the
-         * same way full control is above and `socket.ts`'s own handler is —
-         * the CURRENT `StopPolicy` read back, `END_OF_TURN` toggled in or out
-         * of `stopOnTheirTurn`, and the rest of the policy left untouched.
+         * The settings' End step checkbox, routed the same way full control
+         * is above and `socket.ts`'s own handler is — `withEndStepStop` on the
+         * CURRENT `StopPolicy`, the rest of the policy left untouched.
          * `LiveBoard.tsx`'s join/resync effect sends this on EVERY mount that
          * reaches a snapshot (not only when the settings panel is opened), so
          * every jar-gated scenario that mounts `LiveBoard` emits it once —
@@ -288,12 +288,9 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
           const stopAtEndStep = (payload as { stopAtEndStep?: unknown }).stopAtEndStep === true;
           later(() => {
             const current = match.stopPolicy(seat);
-            const has = current.stopOnTheirTurn.includes('END_OF_TURN');
-            if (stopAtEndStep === has) return;
-            const stopOnTheirTurn = stopAtEndStep
-              ? [...current.stopOnTheirTurn, 'END_OF_TURN' as const]
-              : current.stopOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
-            const outcome = match.setStopPolicy(seat, { ...current, stopOnTheirTurn });
+            const next = withEndStepStop(current, stopAtEndStep);
+            if (next === current) return;
+            const outcome = match.setStopPolicy(seat, next);
             if (!outcome.ok) throw new Error(`seat ${seat} could not set stop preference: ${outcome.error}`);
           });
           return;

@@ -98,7 +98,7 @@ import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
 import { AVATAR_ID_MAX } from '../room/lobby.js';
 import { artOf } from './art.js';
-import { namedStopPolicy, STOP_POLICY_NAMES, type StopPolicy } from './auto.js';
+import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import {
@@ -985,13 +985,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		});
 
 		/*
-		 * Wave 30 §B item 2/6: *"always stop at end step — default off"*, moved
-		 * through the per-seat `StopPolicy` that already exists (wave 26 §E) rather
-		 * than a second mechanism. This does not REPLACE the seat's policy — it
-		 * reads the CURRENT one and toggles `END_OF_TURN` in or out of
-		 * `stopOnTheirTurn`, so any other preference already on the seat (a name
-		 * from `CARDTABLE_PLAY_STOP_POLICY`, or a later field nobody has added yet)
-		 * survives the toggle untouched.
+		 * The settings' End step checkbox (AF28: on by default, the opponent's End
+		 * step held only for a real play), moved through the per-seat `StopPolicy`
+		 * (wave 26 §E) rather than a second mechanism. This does not REPLACE the
+		 * seat's policy — `withEndStepStop` toggles `END_OF_TURN` in or out of
+		 * `stopWithPlayOnTheirTurn` on the CURRENT one, so any other preference
+		 * already on the seat (a name from `CARDTABLE_PLAY_STOP_POLICY`) survives.
 		 */
 		socket.on(MATCH_EVENTS.stopPreference, (raw: unknown) => {
 			const parsed = parseStopPreference(raw);
@@ -1010,11 +1009,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			const current = match.stopPolicy(seat);
-			const wants = parsed.value.stopAtEndStep;
-			const has = current.stopOnTheirTurn.includes('END_OF_TURN');
-			if (wants === has) return;
-			const stopOnTheirTurn = wants ? [...current.stopOnTheirTurn, 'END_OF_TURN' as const] : current.stopOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
-			const outcome = match.setStopPolicy(seat, { ...current, stopOnTheirTurn });
+			const next = withEndStepStop(current, parsed.value.stopAtEndStep);
+			if (next === current) return;
+			const outcome = match.setStopPolicy(seat, next);
 			if (!outcome.ok) log({ evt: 'stop-preference-refused', participantId, matchId: match.id, seat, error: outcome.error });
 		});
 
