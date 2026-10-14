@@ -89,7 +89,8 @@ test(titled("Nissa's Forest search lists only the Forests, says so in one clean 
     await watchBoards('during the search');
 
     // 1. The list is only what she may choose.
-    const rows = await sheet.locator('ul > li').evaluateAll((els) =>
+    // The search's own rows: the sheet's other lists (its problems row, which keeps a placeholder line) are not choices.
+    const rows = await sheet.locator(':is(.prompt__cards, .prompt__list) > li').evaluateAll((els) =>
       els.map((e) => `${e.querySelector('.card__name')?.textContent?.trim() ?? e.textContent?.trim() ?? '?'}${e.getAttribute('data-choosable') === 'false' ? ' (not offered)' : ''}`),
     );
     console.log(`[w70-nissa] search rows: [${rows.join(', ')}]`);
