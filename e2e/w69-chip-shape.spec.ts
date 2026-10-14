@@ -23,6 +23,7 @@ import { makeTitled } from './play/board.ts';
 import { triggerOnStack } from './play/chip.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { installSizeOf, type SizeOfWindow } from './play/w32.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -54,19 +55,21 @@ interface Shape {
   text: number;
 }
 
-/** The chip's drawn box, the screen's own battlefield card width, and whether the chip is on the board. */
+/** The chip's own size, the screen's own battlefield card width, and whether the chip's drawn box is on the board. */
 async function shapeOf(page: Page): Promise<Shape> {
+  await installSizeOf(page);
   return page.evaluate(() => {
     const el = document.querySelector('[data-placed-spell]:has([data-ability-chip])')!;
     const chip = el.getBoundingClientRect();
+    const size = (window as unknown as SizeOfWindow).__sizeOf(el);
     const sizedFrom = Number.parseFloat(getComputedStyle(el).getPropertyValue('--card-w'));
     const overlay = document.querySelector('[data-board-overlay]')!.getBoundingClientRect();
     const card = document.querySelector('[data-zone="battlefield"] li.board-card')?.getBoundingClientRect().width ?? 0;
     const inside = chip.left >= overlay.left - 0.5 && chip.right <= overlay.right + 0.5 && chip.top >= overlay.top - 0.5 && chip.bottom <= overlay.bottom + 0.5;
     const text = el.querySelector('.placed__chip-text')?.textContent?.length ?? 0;
     return {
-      w: Math.round(chip.width),
-      h: Math.round(chip.height),
+      w: Math.round(size.width),
+      h: Math.round(size.height),
       card: Math.round(card),
       max: Math.round(Math.min(card * 3, overlay.width / 3)),
       sizedFrom: Math.round(sizedFrom),

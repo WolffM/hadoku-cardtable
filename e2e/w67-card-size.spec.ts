@@ -10,14 +10,16 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled, offeredNamed, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { installSizeOf, type SizeOfWindow } from './play/w32.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 /** Records, every animation frame, the widest card-sized thing drawn off the rows. */
 async function recordWidths(page: Page): Promise<void> {
+  await installSizeOf(page);
   await page.evaluate(() => {
-    const w = window as unknown as { __widths: { t: number; what: string; width: number }[] };
+    const w = window as unknown as SizeOfWindow & { __widths: { t: number; what: string; width: number }[] };
     w.__widths = [];
     const t0 = performance.now();
     const tick = () => {
@@ -27,9 +29,9 @@ async function recordWidths(page: Page): Promise<void> {
         ['back', '.presence__back'],
       ] as const) {
         for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
-          // The held back is drawn tilted 3°, which widens its bounding box (68×95 → 73): its layout
-          // width is its size. Everything else by its drawn box, so a scale transform would still count.
-          const width = what === 'back' ? el.offsetWidth : el.getBoundingClientRect().width;
+          // The held back and the stack card are drawn tilted, which widens their bounding boxes
+          // (68×95 → 73): their own size is what this measures. The lift by its drawn box.
+          const width = what === 'lifted' ? el.getBoundingClientRect().width : w.__sizeOf(el).width;
           if (width > 0) w.__widths.push({ t: Math.round(performance.now() - t0), what, width: Math.round(width * 10) / 10 });
         }
       }

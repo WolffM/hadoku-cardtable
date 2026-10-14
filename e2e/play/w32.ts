@@ -93,6 +93,39 @@ export async function boxOf(l: Locator): Promise<Box> {
 
 export const centre = (b: Box): { x: number; y: number } => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
+/** What {@link installSizeOf} puts on the page's `window`. */
+export interface SizeOfWindow {
+  __sizeOf: (el: Element) => { width: number; height: number };
+}
+
+/**
+ * Puts `window.__sizeOf(el)` on `page`: an element's own size — its border box as laid out, with
+ * no transform on it or an ancestor applied. A card's size and shape are what a spec asserts there;
+ * a presentation transform (the stack's tilt, a float, a scale-in) does not change them, but it does
+ * change `getBoundingClientRect`, the axis-aligned box AROUND the drawn shape: a 120×78 chip tilted
+ * 3° reads 124×84. Positions — where a card is, whether it is on the board — stay on the drawn box.
+ * Fractional, unlike `offsetWidth`. Safe to call again; a navigation needs it again.
+ */
+export async function installSizeOf(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const px = (v: string): number => Number.parseFloat(v) || 0;
+    (window as unknown as SizeOfWindow).__sizeOf = (el) => {
+      const s = getComputedStyle(el);
+      const width = Number.parseFloat(s.width);
+      const height = Number.parseFloat(s.height);
+      if (!Number.isFinite(width) || !Number.isFinite(height)) {
+        const h = el as HTMLElement;
+        return { width: h.offsetWidth, height: h.offsetHeight };
+      }
+      if (s.boxSizing === 'border-box') return { width, height };
+      return {
+        width: width + px(s.paddingLeft) + px(s.paddingRight) + px(s.borderLeftWidth) + px(s.borderRightWidth),
+        height: height + px(s.paddingTop) + px(s.paddingBottom) + px(s.borderTopWidth) + px(s.borderBottomWidth),
+      };
+    };
+  });
+}
+
 /**
  * A point inside `b`'s big "stack ON TOP" zone: dead centre horizontally —
  * comfortably inside `Board.tsx`'s thin edge-reorder strip's margin either
