@@ -1916,7 +1916,10 @@ test(LIVE_TITLE, async ({ browser }) => {
               battlefield: byId(p.battlefield.map((c) => c.id)),
               graveyard: p.graveyard.map((c) => c.id),
               exile: p.exile.map((c) => c.id),
-              hand: (p.hand ?? []).map((c) => c.id),
+              // The opponent's hand draws the cards this seat was shown and still knows (a Cunning
+              // Wish's revealed instant, Thoughtseize's look) face up, and only those: the adapter's
+              // `handShown`, off the same server objects.
+              hand: (p.hand ?? (p.handShown ?? []).filter((c) => c !== null)).map((c) => c.id),
             },
           }))
           .sort((a, b) => a.id - b.id),
