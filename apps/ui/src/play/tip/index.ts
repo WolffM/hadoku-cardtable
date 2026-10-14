@@ -23,7 +23,7 @@
  * Off the cards, the nearest `data-tip` ancestor of the pointer's target (the
  * phase rail's stop).
  *
- * The tip is drawn in the board overlay at the pointer, takes no pointer events
+ * The tip is drawn in the board's zoom layer at the pointer, takes no pointer events
  * and never steals focus; a press puts it away. Keyboard focus on an element
  * with `data-tip` shows it the same way.
  */
@@ -84,7 +84,7 @@ export function mountTips(root: HTMLElement): () => void {
 
   function show(host: HTMLElement, x: number, y: number): void {
     const text = host.dataset.tip ?? '';
-    const layer = root.querySelector<HTMLElement>('[data-board-overlay]');
+    const layer = root.querySelector<HTMLElement>('[data-board-zoom]');
     if (text === '' || layer === null) {
       hide();
       return;

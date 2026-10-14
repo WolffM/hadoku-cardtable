@@ -70,10 +70,13 @@
  *
  * ## Where it draws, and what it may never cover
  *
- * Only into lane A's `[data-board-overlay]` root — looked up, never moved —
+ * Only into the board's `[data-board-zoom]` layer — looked up, never moved —
  * which is `position: absolute; inset: 0; pointer-events: none` over the whole
- * canvas (`../board.css`, `.board__overlay`). The panel is absolutely
- * positioned in the overlay's own coordinate space, so it is out of flow and
+ * canvas at `--z-zoom` (`../board.css`, `.board__zoom`): the one layer above
+ * everything on the table, the phase rail, the controls and a decision window
+ * included (the operator, 2026-10-13: *"the hovering a card expand should render
+ * on top of everything else. currently it renders below the phase tracker"*).
+ * The panel is absolutely positioned in the layer's own coordinate space, so it is out of flow and
  * cannot move a track: nothing about the canvas layout changes when it
  * appears (`e2e/table-fit.spec.ts` is that proof). This subtree re-enables no
  * pointer-events, so it can never become the element under the pointer —
@@ -240,7 +243,7 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
 
 /**
  * Where the enlarged card goes, in client coordinates (the caller subtracts
- * the overlay's origin — the overlay covers the canvas exactly, so its box is
+ * the zoom layer's origin — the layer covers the canvas exactly, so its box is
  * the board's box). Pure, and every caller-visible "never" lives here:
  *
  *   - never over the viewer's own hand: the panel's bottom stays a `GAP`
@@ -439,7 +442,7 @@ const activeMounts = new WeakMap<ParentNode, () => void>();
 
 /**
  * Boot the inspector on a board. `root` is the board lane A mounted; the only
- * thing looked up inside it is the overlay root (and the viewer's hand zone,
+ * thing looked up inside it is the zoom layer (and the viewer's hand zone,
  * for placement) — every card is found through the document, because prompt
  * grids render outside the board. Returns the dispose: listeners off, panel
  * gone. Idempotent — including across a re-mount that already superseded it.
@@ -465,7 +468,7 @@ export function mountInspector(root: ParentNode): () => void {
   /** The card a press or Escape put the preview away on: it opens nothing until the pointer or focus leaves it. */
   let quiet: Element | null = null;
 
-  const overlay = (): HTMLElement | null => root.querySelector('[data-board-overlay]');
+  const layer = (): HTMLElement | null => root.querySelector('[data-board-zoom]');
 
   /** The viewer's own hand — the one zone the panel may never cover. */
   const handRect = (): Rect | null => {
@@ -492,8 +495,8 @@ export function mountInspector(root: ParentNode): () => void {
   const inQuiet = (node: EventTarget | null): boolean => quiet !== null && node instanceof Node && quiet.contains(node);
 
   function show(target: InspectTarget): void {
-    const overlayEl = overlay();
-    if (overlayEl === null) return;
+    const host = layer();
+    if (host === null) return;
     if (current !== null && current.card === target.card && current.trigger === target.trigger) return;
     dismiss();
     current = target;
@@ -508,20 +511,13 @@ export function mountInspector(root: ParentNode): () => void {
     if (art !== null) art.setAttribute('loading', 'eager');
 
     const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
-    // A window is open: the panel is a SIBLING of it, in its own positioned
-    // container, because inside the board overlay (`--z-overlay`) its
-    // `--z-zoom` only ranks it within that layer and a pop-up (`--z-popover`)
-    // painted over it. Beside the window, never on it. A pop-up's parent is
-    // `.live` (`position: relative`); a pile view's is the board overlay. The
-    // hovered card's own window when it is in one; otherwise the one that is
-    // open (`OPEN_WINDOW`). Never for a card in the viewer's own
-    // hand: that one enlarges above the hand whatever is on screen (the
-    // operator, 2026-10-07: "this type of hover expand should not be
-    // affected by whats on the screen").
+    // A window is open: the panel stands beside it, never on it — the hovered
+    // card's own window when it is in one; otherwise the one that is open
+    // (`OPEN_WINDOW`). Never for a card in the viewer's own hand: that one
+    // enlarges above the hand whatever is on screen (the operator, 2026-10-07:
+    // "this type of hover expand should not be affected by whats on the screen").
     const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
     const modal = target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : scope.querySelector(OPEN_WINDOW));
-    const modalBox = modal?.parentElement ?? null;
-    const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
     const hostR = rectOf(host.getBoundingClientRect());
     const spot =
       modal !== null ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR) : placeInspector(hoverR, hostR, handRect());

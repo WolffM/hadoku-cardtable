@@ -3,13 +3,13 @@
  * BIG it is, is computed in `index.ts` (`placeInspector`) and set inline; this
  * file is the look, plus the two guarantees the look must keep:
  *
- *   - **the subtree enables no pointer-events.** The overlay root is already
- *     `pointer-events: none` (`../board.css`, `.board__overlay`), so having
+ *   - **the subtree enables no pointer-events.** The zoom layer is already
+ *     `pointer-events: none` (`../board.css`, `.board__zoom`), so having
  *     nothing to re-enable is the whole trick: the panel can never become the
  *     element under the pointer, dismiss-on-leave simply works, and no click
  *     the game needs is ever blocked. The declaration below is belt and
  *     braces against a future rule re-enabling it by accident.
- *   - **the panel is out of flow.** `position: absolute` in the overlay's
+ *   - **the panel is out of flow.** `position: absolute` in the zoom layer's
  *     coordinate space — it cannot move a grid track, so the canvas layout
  *     does not change when it appears (`e2e/table-fit.spec.ts` is the proof).
  *
@@ -21,15 +21,14 @@
  * `.card__art`), without it the text tile fills the same box.
  *
  * The board's tighter tile type (`.board .card` in `../board.css`) applies to
- * the clone too, because the overlay is inside `.board`; it is undone here so
+ * the clone too, because the zoom layer is inside `.board`; it is undone here so
  * the no-art text tile — a complete card on its own — reads at the draft
  * tile's size rather than the board's.
  */
 
 .inspect {
+  /* Above every other layer because the zoom layer it is drawn in is (`.board__zoom`). */
   position: absolute;
-  /* Above every other layer, the control bar and prompts included (`--z-zoom` in `styles.css`). */
-  z-index: var(--z-zoom, 60);
   /* The floor; `index.ts` sets the real width inline from the placement math. */
   width: 20.625rem;
   /* Never the element under the pointer — see the header. */

@@ -1188,10 +1188,10 @@
  * so the rail changes no box the fit spec measures; only a row that can take
  * the seat's stop (`.live__step[data-stoppable]`, below) takes the pointer.
  *
- * `z-index: 1` puts it over the table's own cards (they are positioned with
- * `z-index: auto`, which paints below any positive layer) and UNDER lane A's
- * overlay root at z 2 — so the inspector's enlarged card still comes out on
- * top of the rail, which is the operator's #4 in the other direction.
+ * `--z-overlay` puts it over the table's own cards (they are positioned with
+ * `z-index: auto`, which paints below any positive layer) and under the
+ * board's zoom layer (`--z-zoom`, `board.css` `.board__zoom`) — so the
+ * inspector's enlarged card comes out on top of the rail.
  */
 .live__phases {
   position: absolute;

@@ -346,12 +346,15 @@
  *     `BoardInteraction.selectionOpen`;
  *   - `data-board-overlay` is a positioned root covering the canvas exactly,
  *     at the board's top level, for those lanes to render into. This file adds
- *     no pointer handler to it and draws nothing in it.
+ *     no pointer handler to it and draws nothing in it;
+ *   - `data-board-zoom` is the same box one layer up (`--z-zoom`): the
+ *     inspector and the tooltip draw there, above everything on the table —
+ *     the phase rail, the controls and a decision window included.
  *
  * The inspector (`inspect/index.ts`) is BOOTED here — one mount effect on the
  * board's root element, disposed on unmount — and that is the whole of this
  * file's involvement with it: it attaches its own listeners, by delegation,
- * and renders into the overlay root. No handler, prop or markup here is for
+ * and renders into the zoom layer. No handler, prop or markup here is for
  * it.
  *
  * ## Hidden information
@@ -677,8 +680,9 @@ function visualRow(card: BoardCard, layout: BoardLayout): BoardRow {
  * drawn as an empty column (`.zone__gap`), counts toward `--cols`, and is a
  * place a card can be dropped. Only the player makes one — by dropping a card
  * at a column past the row's end, or by moving the only card out of a column
- * to such a place; a pile that empties because its card left the battlefield
- * closes up, as it always did. Trailing gaps are trimmed at every write.
+ * onto a pile or a column of the same row (`withMove`); a pile that empties
+ * because its card left the battlefield closes up, as it always did. Trailing
+ * gaps are trimmed at every write.
  */
 type Pile = readonly BoardCard[];
 
@@ -1690,13 +1694,16 @@ export function withMove(
   // The library's top card stacks with nothing, and nothing stacks on it: such a drop goes before.
   if (target.kind === 'stack' && (cardId === libraryTopId || target.id === libraryTopId)) target = { kind: 'before', id: target.id };
   const piles: Record<BoardRow, number[][]> = emptyRows();
+  // A gap the player left stays a gap. So does the column a card leaves within its own row, so that no
+  // column of that row moves because another one emptied — a card placed at a column (Z8), or stacked onto
+  // a pile (the operator, 2026-10-13: a lone card stacked onto the pile to its right moved the pile one
+  // column left). Only a reorder closes it up: the card takes a column of its own in the row (`before`,
+  // `end`), so the row is the same columns re-ordered. A card that leaves the row closes its column too.
+  const keepsColumn = target.kind !== 'before' && target.kind !== 'end';
   for (const r of active) {
-    // A gap the player left stays a gap. A pile the move empties closes up —
-    // unless the card is being placed at a column of its own row (Z8): then the
-    // column it left stays open, which is what "move it further right" means.
     piles[r] = rows[r]
       .map((p) => ({ was: p.length, ids: p.map((c) => c.id).filter((id) => id !== cardId) }))
-      .filter((p) => p.was === 0 || p.ids.length > 0 || (target.kind === 'at' && r === row))
+      .filter((p) => p.was === 0 || p.ids.length > 0 || (keepsColumn && r === row))
       .map((p) => p.ids);
   }
   const into = piles[row];
@@ -3843,6 +3850,7 @@ export function Board({
           </PileView>
         )}
       </div>
+      <div className="board__zoom" data-board-zoom="" />
     </section>
   );
 }

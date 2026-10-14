@@ -355,6 +355,23 @@
   overflow: clip;
 }
 
+/*
+ * The top layer: the overlay's box, at `--z-zoom`. The inspector's enlarged card
+ * and the board's tooltip draw here and nowhere else, so they are above every
+ * other layer on the table — the phase rail and the controls (`--z-overlay`,
+ * which the overlay above shares and, drawn after it, the rail won), a decision
+ * window (`--z-popover`) — by this one declaration, not by a number each of
+ * them carries. It is a sibling of the overlay, not inside it: inside, any
+ * z-index only ranks within the overlay's own layer.
+ */
+.board__zoom {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-zoom, 60);
+  pointer-events: none;
+  overflow: clip;
+}
+
 .board__opponents {
   grid-area: them;
   display: grid;
@@ -1180,9 +1197,20 @@
  *
  * With the zone W wide and H tall, one row of N cards is min(0.718·H, W/N) wide
  * and two rows are min(0.359·H, 2W/N), so a second row gives bigger cards once
- * N > 2.79·W/H and a third beats two once N > 8.37·W/H. The shape W/H is the
- * zone's `data-zone-aspect` (the band `zone-box.ts` measured: 3, 4, 5, 6, 8 or
- * 10 and wider) and each band of shapes uses its midpoint's thresholds; N is
+ * N > 2.79·W/H and a third beats two once N > 8.37·W/H. A row does not take
+ * the next one the moment that would be bigger, though: it squishes first, down
+ * to THREE QUARTERS of the card the extra row would draw (the operator,
+ * 2026-10-13: "let's squish cards a bit more before we make them take up
+ * another row"). So the steps are 4/3 of those break-evens — N > 3.72·W/H for
+ * two rows, N > 11.2·W/H for three. Further than that runs into `--card-min`:
+ * measured live at 1280×800 in the four-lane layout (a 786×200 battlefield,
+ * band 3), twelve columns used to be two rows of 63px cards and are one row
+ * at `--card-min`; a thirteenth in the same row would be 41px, under it, and
+ * names stop reading. A shape narrower than band 3 (a phone, a tall window)
+ * keeps the bare break-even: its row has no width to squish into, and a hand
+ * there wraps at seven as it did. The shape W/H is the zone's
+ * `data-zone-aspect` (the band `zone-box.ts` measured: 3, 4, 5, 6, 8 or 10
+ * and wider) and each band of shapes uses its midpoint's thresholds; N is
  * `--cols`, which `Board.tsx` writes.
  *
  * **Per battlefield, not per lane** (wave 27 §A.1). Wave 26 let each lane choose
@@ -1206,27 +1234,27 @@
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='3'] > :is(.zone__rows, .zone__cards) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 9, 1) + clamp(0, var(--cols, 0) - 29, 1));
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 39, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='4'] > :is(.zone__rows, .zone__cards) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 37, 1));
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 16, 1) + clamp(0, var(--cols, 0) - 49, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='5'] > :is(.zone__rows, .zone__cards) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 15, 1) + clamp(0, var(--cols, 0) - 46, 1));
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 20, 1) + clamp(0, var(--cols, 0) - 61, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='6'] > :is(.zone__rows, .zone__cards) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 19, 1) + clamp(0, var(--cols, 0) - 58, 1));
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 77, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='8'] > :is(.zone__rows, .zone__cards) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 75, 1));
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 33, 1) + clamp(0, var(--cols, 0) - 100, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='10'] > :is(.zone__rows, .zone__cards) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 30, 1) + clamp(0, var(--cols, 0) - 92, 1));
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 40, 1) + clamp(0, var(--cols, 0) - 123, 1));
 }
 
 /*
