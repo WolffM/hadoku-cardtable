@@ -1,0 +1,19 @@
+# e2e/st-enemy-clickable.spec.ts — the operator, 2026-10-13: "enemy planeswalker is showing as
+# clickable not sure". Alice (seat 0) attacks with Memnite and holds Giant Growth with a Forest
+# up, so she keeps her own priority stop in declare attackers once the attack is confirmed. Bob
+# holds one permanent of each non-creature type: a planeswalker (with its loyalty — see
+# `w46-b-planeswalker.state`'s header), an artifact, an enchantment and a land. Forge names none
+# of them at alice's priority stop, so none of them may be drawn clickable on her screen.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Giant Growth
+humanbattlefield=Memnite;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Jace Beleren|Counters:LOYALTY=3;Sol Ring;Glorious Anthem;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

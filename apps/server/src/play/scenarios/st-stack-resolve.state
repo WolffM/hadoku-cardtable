@@ -1,0 +1,18 @@
+# e2e/st-stack-resolve.spec.ts — the operator, 2026-10-13: "needs to be more clear when a card is
+# still on the stack or whether it has resolved". Alice (seat 0) casts Grizzly Bears (a permanent:
+# it resolves onto her battlefield) and then Divination (it resolves into her graveyard). Bob holds
+# Brainstorm with an Island up, so he keeps a priority stop over each — the moment both screens
+# show the spell ON the stack — and his OK is what resolves it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Grizzly Bears;Divination
+humanbattlefield=Forest;Forest;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Brainstorm
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

@@ -1,0 +1,19 @@
+# e2e/st-narset-effect.spec.ts — the operator, 2026-10-13: "indicator for active affect of narset
+# -2 effect … maybe on a black chip on the planes walker? either that or we can leave the ability
+# chip on the board until it gets consumed." Alice (seat 0) has Narset Transcendent (with her
+# loyalty — see `w46-b-planeswalker.state`'s header) and Opt with an Island up. Narset's -2 is
+# Forge's DelayedTrigger ("When you cast your next instant or sorcery spell from your hand this
+# turn, it gains rebound"): it waits on Narset until Opt is cast, then is used up.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Opt
+humanbattlefield=Narset Transcendent|Counters:LOYALTY=6;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
