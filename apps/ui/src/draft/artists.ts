@@ -42,11 +42,14 @@ function lookup(t: ArtistTable, artId: string): string | null {
   return i === undefined ? null : (t.names[i] ?? null);
 }
 
-/** The artist of `artId`: `undefined` while the table loads, `null` if it has none. */
-export function useArtist(artId: string | null): string | null | undefined {
+/**
+ * Who drew each art id, once the table has loaded: `undefined` while it loads, and nothing is
+ * asked for while `wanted` is false. For a component crediting several pieces of art at once.
+ */
+export function useArtistLookup(wanted: boolean): ((artId: string) => string | null) | undefined {
   const [, setLoaded] = useState(table !== null);
   useEffect(() => {
-    if (table !== null || artId === null) return;
+    if (table !== null || !wanted) return;
     let live = true;
     void load().then((loaded) => {
       if (live && loaded !== null) setLoaded(true);
@@ -54,9 +57,16 @@ export function useArtist(artId: string | null): string | null | undefined {
     return () => {
       live = false;
     };
-  }, [artId]);
+  }, [wanted]);
+  const loaded = table;
+  return loaded === null ? undefined : (artId) => lookup(loaded, artId);
+}
+
+/** The artist of `artId`: `undefined` while the table loads, `null` if it has none. */
+export function useArtist(artId: string | null): string | null | undefined {
+  const artistOf = useArtistLookup(artId !== null);
   if (artId === null) return null;
-  return table === null ? undefined : lookup(table, artId);
+  return artistOf === undefined ? undefined : artistOf(artId);
 }
 
 /** The credit line under cropped art. */

@@ -289,6 +289,48 @@ describe('players', () => {
   });
 });
 
+/*
+ * The operator, 2026-10-14: *"i need a visual for emblems. let's make it so they go around the
+ * player's avatar and hovering the players avatar shows all their emblems."*
+ */
+describe('emblems around the avatar', () => {
+  const emblem = (id: number, source: string, text: string) => ({ id, source, text });
+  const withEmblems = (n: number) => {
+    const base = boardFromFixture(fixture);
+    const all = [
+      emblem(1, 'Sorin, Lord of Innistrad', 'Creatures you control get +1/+0.'),
+      emblem(2, 'Gideon, Ally of Zendikar', 'Creatures you control get +1/+1.'),
+      emblem(3, 'Elspeth, Sun’s Champion', 'Creatures you control get +2/+2 and have flying.'),
+      emblem(4, 'Narset Transcendent', "Your opponents can't cast noncreature spells."),
+      emblem(5, 'Venser, the Sojourner', 'Whenever you cast a spell, exile target permanent.'),
+    ].slice(0, n);
+    return { ...base, players: base.players.map((p) => (p.isViewer ? p : { ...p, emblems: all })) };
+  };
+
+  it('draws one medallion per emblem around their owner’s avatar, and the avatar and each medallion tip every emblem', () => {
+    const { seat } = renderBoard(withEmblems(2));
+    expect(seat(0).querySelectorAll('[data-emblem]'), 'none on the other seat').toHaveLength(0);
+    expect(seat(0).querySelector('[data-player-face]')!.hasAttribute('data-tip'), 'and no tip on their avatar').toBe(false);
+    const medallions = Array.from(seat(1).querySelectorAll<HTMLElement>('[data-emblem]'));
+    expect(medallions.map((m) => m.dataset.slot)).toEqual(['0', '1']);
+    const tip = seat(1).querySelector<HTMLElement>('[data-player-face]')!.dataset.tip!;
+    expect(tip.split('\n').slice(0, 2)).toEqual([
+      'Emblem — Sorin, Lord of Innistrad: Creatures you control get +1/+0.',
+      'Emblem — Gideon, Ally of Zendikar: Creatures you control get +1/+1.',
+    ]);
+    for (const m of medallions) expect(m.dataset.tip).toBe(tip);
+  });
+
+  it('past four, three medallions and a fourth that counts the rest', () => {
+    const { seat } = renderBoard(withEmblems(5));
+    expect(seat(1).querySelectorAll('[data-emblem]')).toHaveLength(3);
+    const more = seat(1).querySelector<HTMLElement>('[data-emblem-more]')!;
+    expect(more.textContent).toBe('+2');
+    expect(more.dataset.slot).toBe('3');
+    expect(more.dataset.tip!.split('\n').filter((l) => l.startsWith('Emblem — '))).toHaveLength(5);
+  });
+});
+
 describe('zones', () => {
   it('lays out each battlefield with the fixture’s permanents, grouped by what they are', () => {
     const { zone, cardNames } = renderBoard();

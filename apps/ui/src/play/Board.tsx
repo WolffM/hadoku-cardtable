@@ -388,6 +388,8 @@ import {
 
 import { CardTile } from '../components/CardTile.tsx';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
+import { useArtistLookup } from '../draft/artists.ts';
+import { cardImageUrl } from '../draft/cardImage.ts';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
@@ -396,6 +398,7 @@ import {
   type BoardCard,
   type BoardCardChoice,
   type BoardCardWaiting,
+  type BoardEmblem,
   type BoardPlayer,
   type BoardView,
   type PoolColor,
@@ -403,7 +406,7 @@ import {
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
-import { choiceTip, keywordTip, MARK_TIP, waitingTip } from './tip/words.ts';
+import { choiceTip, emblemsTip, keywordTip, MARK_TIP, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
@@ -2901,6 +2904,12 @@ function PlayerFace({
    * in `live/parity.test.ts` under `react-dom/server`, where there is none.
    */
   const avatar = player.avatarId === undefined ? null : avatarSquareUrl(player.avatarId);
+  const emblems = player.emblems ?? [];
+  const artistOf = useArtistLookup(emblems.some((e) => e.scryfallId !== undefined));
+  /** Who drew an emblem's medallion art, once it can be credited — the medallion shows no art before. */
+  const credited = (e: BoardEmblem): string | null => (e.scryfallId === undefined || artistOf === undefined ? null : artistOf(e.scryfallId));
+  const drawn = new Set(medallionsOf(emblems));
+  const emblemTip = emblems.length === 0 ? undefined : emblemsTip(emblems, (e) => (drawn.has(e) && cardImageUrl(e.scryfallId) !== null ? credited(e) : null));
   const mark = (
     <>
       {avatar === null ? (
@@ -2930,6 +2939,7 @@ function PlayerFace({
       data-viewer={player.isViewer || undefined}
       data-lost={player.hasLost || undefined}
       data-selectable={selectable || undefined}
+      data-tip={emblemTip}
     >
       {selectable ? (
         <button
@@ -2955,8 +2965,60 @@ function PlayerFace({
       ) : (
         <div className="face__hit">{mark}</div>
       )}
+      {emblemTip === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} credited={credited} />}
       <span className="face__name">{player.name}</span>
     </div>
+  );
+}
+
+/** One medallion: its source's art, or the drawn mark when there is none or it fails to load. */
+function EmblemMedallion({ emblem, slot, tip, art }: { emblem: BoardEmblem; slot: number; tip: string; art: string | null }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <span className="face__emblem" data-emblem={emblem.id} data-slot={slot} data-tip={tip}>
+      {art === null || broken ? (
+        <svg className="face__emblem-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" />
+        </svg>
+      ) : (
+        <img className="face__emblem-art" src={art} alt="" aria-hidden="true" onError={() => setBroken(true)} />
+      )}
+    </span>
+  );
+}
+
+/** The medallions one avatar has room for around it (`card.css`'s `.face__emblem` slots). */
+const EMBLEM_SLOTS = 4;
+
+/** The emblems that get a medallion of their own: all of them while they fit, else all but the slot that counts the rest. */
+function medallionsOf(emblems: readonly BoardEmblem[]): readonly BoardEmblem[] {
+  return emblems.length > EMBLEM_SLOTS ? emblems.slice(0, EMBLEM_SLOTS - 1) : emblems;
+}
+
+/**
+ * A player's emblems, as medallions around their avatar — the operator, 2026-10-14: *"i need a
+ * visual for emblems. let's make it so they go around the player's avatar and hovering the players
+ * avatar shows all their emblems."* One medallion per emblem in fixed slots outside the priority
+ * ring (`card.css`), so an emblem arriving moves nothing; past the slots, the last one counts the
+ * rest. Each medallion carries the same tip as the avatar (`tip/`): every emblem, in Forge's words.
+ *
+ * A medallion shows its source's art cropped to the illustration, once that art can be credited
+ * (the credit is in the tip; `../draft/artists.ts`), else a drawn emblem mark.
+ */
+function SeatEmblems({ emblems, tip, credited }: { emblems: readonly BoardEmblem[]; tip: string; credited: (e: BoardEmblem) => string | null }) {
+  const shown = medallionsOf(emblems);
+  const rest = emblems.length - shown.length;
+  return (
+    <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={tip}>
+      {shown.map((e, slot) => (
+        <EmblemMedallion key={e.id} emblem={e} slot={slot} tip={tip} art={credited(e) === null ? null : cardImageUrl(e.scryfallId)} />
+      ))}
+      {rest === 0 ? null : (
+        <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={EMBLEM_SLOTS - 1} data-tip={tip}>
+          +{rest}
+        </span>
+      )}
+    </span>
   );
 }
 

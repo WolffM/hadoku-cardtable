@@ -1090,6 +1090,59 @@ describe('waiting effects — what a resolved ability left on its source (the br
 });
 
 /*
+ * Emblems — the operator, 2026-10-14. The shape is the bridge's own, read off a real Forge game
+ * (`e2e/em-emblems.spec.ts`'s red run, Sorin, Lord of Innistrad's -2): an `EFFECT` card with
+ * `IsEmblem`, named `Emblem — <source>`, its face's `SetCode` the emblem's printing and its
+ * `AbilityText` the static's own words, listed in its owner's `Command`.
+ */
+describe('emblems — a player’s IsEmblem cards in their Command zone', () => {
+  function putInCommand(state: Map<string, WireObject>, playerId: number, cards: { id: number; name: string; text: string; emblem: boolean }[]): void {
+    for (const c of cards) {
+      state.set(deltaKey(WireType.Card, c.id), {
+        _type: WireType.Card,
+        _id: c.id,
+        Owner: { t: 'int', v: playerId },
+        Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: 'Command' },
+        GamePieceType: { t: 'enum', c: 'forge.card.GamePieceType', v: 'EFFECT' },
+        IsEmblem: { t: 'bool', v: c.emblem },
+        CurrentState: { t: 'int', v: 0 },
+        Name: { t: 'str', v: c.name },
+      } as WireObject);
+      state.set(cardStateKey(c.id, 0), {
+        _type: WireType.CardState,
+        _id: c.id * 16,
+        Name: { t: 'str', v: c.name },
+        SetCode: { t: 'str', v: 'LCC' },
+        AbilityText: { t: 'str', v: c.text },
+      } as WireObject);
+    }
+    setZone(state, playerId, 'Command', cards.map((c) => c.id));
+  }
+
+  it('reads each emblem with its source, its words and the source’s art id, for both seats; a non-emblem effect is not one', () => {
+    const state = baseState();
+    putInCommand(state, 0, [
+      { id: 9001, name: 'Emblem — Sorin, Lord of Innistrad', text: 'Creatures you control get +1/+0.', emblem: true },
+      { id: 9002, name: "Sorin, Lord of Innistrad's Effect", text: 'Prevent all damage.', emblem: false },
+      { id: 9003, name: 'Emblem — Narset Transcendent', text: "Your opponents can't cast noncreature spells.", emblem: true },
+    ]);
+    const view = adapt(state);
+    const owner = view.players.find((p) => p.id === 0)!;
+    expect(owner.emblems?.map(({ id, source, text }) => ({ id, source, text }))).toEqual([
+      { id: 9001, source: 'Sorin, Lord of Innistrad', text: 'Creatures you control get +1/+0.' },
+      { id: 9003, source: 'Narset Transcendent', text: "Your opponents can't cast noncreature spells." },
+    ]);
+    // The source's art, by its bare name: the emblem's own printing (LCC) has no row.
+    expect(owner.emblems?.every((e) => e.scryfallId !== undefined && resolveArtUrl(e.scryfallId, MANIFEST) !== null)).toBe(true);
+    expect(view.players.find((p) => p.id === 1)!, 'the other player has none').not.toHaveProperty('emblems');
+  });
+
+  it('a player with none carries no key', () => {
+    for (const p of adapt(baseState()).players) expect(p).not.toHaveProperty('emblems');
+  });
+});
+
+/*
  * X1/W14 — `view.combat`, Forge's own `CombatView` read off the single `Game`
  * object (`adapter.ts`'s `readCombat`, `abf705c`'s WIP). `atk`/`def`/`blk` are
  * three parallel lists; `def[i]` is `[marker, id]` with 0 = card (a

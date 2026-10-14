@@ -16,5 +16,7 @@
   color: var(--ink);
   font-size: 12px;
   line-height: 1.35;
+  /* A tip of several lines (a player's emblems) says them one per line. */
+  white-space: pre-line;
   pointer-events: none;
 }

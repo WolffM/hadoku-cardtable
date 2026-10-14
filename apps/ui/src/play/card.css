@@ -1240,6 +1240,92 @@
   white-space: nowrap;
 }
 
+/*
+ * A player's emblems (`Board.tsx`'s `SeatEmblems`): medallions on an orbit around the avatar, past
+ * the priority ring's 6px with a pixel to spare, so neither covers the other. The layer is the
+ * avatar's own square at the top of the face; every slot is fixed, so an emblem arriving moves
+ * nothing. Four slots, at 33° above and below the avatar's middle on either side: what a 4.5rem bar
+ * holds beside a 2.5rem avatar without the bar's clip cutting a medallion, and clear of the life
+ * number centred under it. The opponent's seat is the same geometry: only its tracks are mirrored.
+ */
+.face {
+  position: relative;
+  --emblem-d: 14px;
+  --emblem-orbit: calc(var(--face-w, 3.4rem) / 2 + 7px + var(--emblem-d) / 2);
+}
+
+.face__emblems {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--face-w, 3.4rem);
+  height: var(--face-w, 3.4rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.face__emblem {
+  position: absolute;
+  left: calc(50% + var(--dx) - var(--emblem-d) / 2);
+  top: calc(50% + var(--dy) - var(--emblem-d) / 2);
+  display: grid;
+  place-items: center;
+  width: var(--emblem-d);
+  height: var(--emblem-d);
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-ink);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px var(--shadow);
+  color: var(--accent-ink);
+  pointer-events: auto;
+}
+
+.face__emblem[data-slot='0'] {
+  --dx: calc(var(--emblem-orbit) * 0.839);
+  --dy: calc(var(--emblem-orbit) * -0.545);
+}
+
+.face__emblem[data-slot='1'] {
+  --dx: calc(var(--emblem-orbit) * -0.839);
+  --dy: calc(var(--emblem-orbit) * -0.545);
+}
+
+.face__emblem[data-slot='2'] {
+  --dx: calc(var(--emblem-orbit) * 0.839);
+  --dy: calc(var(--emblem-orbit) * 0.545);
+}
+
+.face__emblem[data-slot='3'] {
+  --dx: calc(var(--emblem-orbit) * -0.839);
+  --dy: calc(var(--emblem-orbit) * 0.545);
+}
+
+/* The illustration, not the card: the card image scaled up about its art box's middle. */
+.face__emblem-art {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 240%;
+  max-width: none;
+  transform: translate(-50%, -33%);
+  /* The medallion is the hover target; the image is never picked up. */
+  pointer-events: none;
+}
+
+.face__emblem-mark {
+  width: 80%;
+  height: 80%;
+  fill: currentColor;
+}
+
+.face__emblem--more {
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── a player Forge says may be chosen (a target, say) ───────────────── */
 
 .seat[data-selectable] {
@@ -1320,7 +1406,7 @@ button.face__hit:focus-visible .seat__ring {
 /* ── the back of a card: ours, not Magic's ───────────────────────────── */
 
 .card-backs {
-  --card-back-w: calc(var(--card-w, 5.5rem) * 0.5);
+  --card-back-w: calc(var(--card-w, 5.5rem) * 0.545);
 
   display: flex;
   margin: 0 0 4px;
@@ -1361,7 +1447,7 @@ button.face__hit:focus-visible .seat__ring {
   position: absolute;
   inset: 11%;
   border: 1px solid var(--line-soft);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: calc(var(--radius) * 0.545);
 }
 
 /*

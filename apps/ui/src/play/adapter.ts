@@ -458,6 +458,13 @@ export interface BoardPlayer {
    */
   counters?: readonly { name: string; count: number }[];
   /**
+   * The operator, 2026-10-14: *"i need a visual for emblems. let's make it so they go around the
+   * player's avatar and hovering the players avatar shows all their emblems."* Every emblem this
+   * player has, in Forge's order: an effect card with `IsEmblem` in the player's `Command` zone,
+   * which the projection sends both seats in full (a public zone). Absent for a player with none.
+   */
+  emblems?: readonly BoardEmblem[];
+  /**
    * The watchparty character this seat picked, as an id — wave 28 item 4's
    * render half, populated for real as of wave 29 §A.6-8.
    *
@@ -480,6 +487,34 @@ export interface BoardPlayer {
    * so one null check is the whole fallback.
    */
   avatarId?: string;
+}
+
+/** One emblem a player has — {@link BoardPlayer.emblems}. */
+export interface BoardEmblem {
+  id: number;
+  /** The card that made it: Forge names an emblem `Emblem — <source>`. */
+  source: string;
+  /** What it does, in Forge's own words (its `AbilityText`); its name when Forge sent none. */
+  text: string;
+  /** The source's art id, when the art index knows the source. */
+  scryfallId?: string;
+}
+
+/** Forge's emblem name, `Emblem — Sorin, Lord of Innistrad`, to the card that made it. */
+const EMBLEM_NAME = /^Emblem\s*[—–-]\s*/;
+
+/** The emblems in a player's `Command` zone — a commander or a non-emblem effect card there is not one. */
+function readEmblems(state: WireState, player: WireObject | undefined, artIds: ArtIdIndex, printedPT: PrintedPTIndex): BoardEmblem[] {
+  const out: BoardEmblem[] = [];
+  for (const id of readIds(player, 'Command')) {
+    if (!readBool(state.get(deltaKey(WireType.Card, id)), 'IsEmblem')) continue;
+    const c = toBoardCard(state, id, artIds, printedPT);
+    if (c === null || c.hidden === true) continue;
+    const source = c.card.name.replace(EMBLEM_NAME, '');
+    const scryfallId = scryfallIdFor(artIds, source, c.card.setCode);
+    out.push({ id, source, text: c.abilityText ?? c.card.name, ...(scryfallId === undefined ? {} : { scryfallId }) });
+  }
+  return out;
 }
 
 export interface StackEntry {
@@ -1530,6 +1565,7 @@ export function toBoardView(
     const top = revealedTop(state, libraryIds, artIds, printedPT, printedType, promptCard);
     const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, printedType, playerName)) : null);
     const avatarId = avatarByPlayerId?.get(pid);
+    const emblems = readEmblems(state, p, artIds, printedPT);
     return {
       id: pid,
       name: playerName(pid),
@@ -1549,6 +1585,7 @@ export function toBoardView(
       exile: cardsIn(readIds(p, 'Exile')),
       manaPool: readManaPool(p, 'Mana'),
       counters: countersOf(p),
+      ...(emblems.length === 0 ? {} : { emblems }),
       // The key must be ABSENT for a seat with none — never `avatarId:
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).
