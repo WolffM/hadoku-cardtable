@@ -47,6 +47,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, grindPriority, makeTitled, says } from './play/board.ts';
+import { phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -102,13 +103,6 @@ const eight = (b: Box): Point[] => {
   return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));
 };
 
-/** `data-testid="live-phases"`'s own `data-phase`/`data-whose` (`LiveBoard.tsx`) — a structured fact, never prose. */
-async function phaseOf(page: Page): Promise<string | null> {
-  const rail = page.getByTestId('live-phases');
-  if ((await rail.count()) === 0) return null;
-  return rail.getAttribute('data-phase');
-}
-
 /**
  * Press OK once for the attacker's own Main Phase 1 priority stop, then wait
  * for Forge's own live `InputAttack` to open for real — `w33.spec.ts`'s
@@ -141,7 +135,7 @@ async function passUntilPhase(pages: readonly Page[], phase: RegExp, timeoutMs =
     async () => {
       for (const page of pages) {
         const current = await phaseOf(page);
-        if (current !== null && phase.test(current)) return true;
+        if (current !== null && phase.test(current.phase)) return true;
       }
       return false;
     },
