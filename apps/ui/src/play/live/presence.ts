@@ -85,7 +85,7 @@ import { expectPlacement, pendingPlacementFor, renewPlacement } from '../Board.t
 import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
-import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../card-size.ts';
+import { handCardWidth, sizeAsCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { hitAt, scopeOf } from '../../dom.ts';
@@ -863,10 +863,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
   /** The one back, at `at` (its centre): made if missing, sized like a card in their hand. */
   function standBack(root: HTMLElement, box: DOMRect, at: Point): void {
-    if (back === null) back = backElement(root);
-    // A battlefield card's size — the size their lifted card is drawn at (AD2) and the size it lands
-    // at — from the one measure (`card-size.ts`); never a hand card's, never a stylesheet guess.
-    sizeAsBattlefieldCard(back, battlefieldCardWidth(canvas, 'them') ?? battlefieldCardWidth(canvas, 'you'));
+    // A hand card's size — the size their lifted card is drawn at and the size its stack card is —
+    // from the one measure (`card-size.ts`; their hand of backs is drawn at this screen's own hand
+    // size), once per back, not per move; only its landing shrinks it into its slot.
+    if (back === null) {
+      back = backElement(root);
+      sizeAsCard(back, handCardWidth(canvas));
+    }
     back.style.left = `${at.x - box.left}px`;
     back.style.top = `${at.y - box.top}px`;
     backAt = at;
@@ -1281,7 +1284,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
     ghost.setAttribute(PRESENCE_CARD_ATTR, String(card));
-    sizeAsBattlefieldCard(ghost, battlefieldCardWidth(canvas, 'them'));
+    // From the size its stand-in was drawn at — the back, the stack card: a hand card's — down to its slot's.
+    sizeAsCard(ghost, handCardWidth(canvas));
     ghost.setAttribute('aria-hidden', 'true');
     const copy = tile.cloneNode(true) as HTMLElement;
     for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
@@ -1369,7 +1373,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       backAt = { x: gap.left + gap.width / 2, y: gap.top + gap.height / 2 };
       standIn.style.left = `${backAt.x - box2.left}px`;
       standIn.style.top = `${backAt.y - box2.top}px`;
-      standIn.style.width = `${gap.width}px`;
       play.glideStartedAt = Date.now();
       glide = Date.now() + GLIDE_MS;
       afterSeek?.();

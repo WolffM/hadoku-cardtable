@@ -811,8 +811,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
         if (isPlaced(source)) placeSpell(source, me.at, 'you');
         ghost.style.left = `${me.at.x}px`;
         ghost.style.top = `${me.at.y}px`;
-        ghost.style.width = `${gap.width}px`;
-        ghost.style.height = `${gap.height}px`;
         me.glideStartedAt = Date.now();
         // Its stack card, if Forge puts it there meanwhile, waits for the glide to end (`endGlide`).
         if (options.motion?.() === true && !me.ghostHandedOff) {

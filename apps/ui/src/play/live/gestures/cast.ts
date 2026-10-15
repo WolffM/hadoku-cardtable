@@ -20,7 +20,7 @@
  */
 import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
 import type { LiveMatch } from '../match.ts';
-import { battlefieldCardWidth, sizeAsBattlefieldCard } from '../../card-size.ts';
+import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS } from '../../motion.ts';
 import { cardBox } from './targets.ts';
 import type { Point } from './types.ts';
@@ -129,31 +129,31 @@ function cancelReturnTimer(id: number): void {
  * shockland that enters tapped is tapped a frame or two before it changes
  * zone, and drew tapped in mid-air. No text is drawn on the card in any state.
  *
- * `'lifted'` also pins `--card-w` to the viewer's own battlefield's CURRENT
- * value (`.board-card`'s own rule, `card.css`, already draws off this
- * property — nothing else has to change). A hand row's own `--card-w` has no
- * `--card-max` ceiling (`board.css`'s T6 comment: *"a hand card is as tall as
- * its row allows"*), so a card lifted straight out of a loose hand could
- * otherwise draw bigger than any card on the board (the operator, ledger
- * AD2: *"sometimes cards in hand can display bigger"*). Snapshotting it once,
- * at the lift, means nothing shrinks later — a `'parked'` or `'carried'` card
- * (the same element, or `parkedGhost`'s clone of it) keeps the value this set.
- * Read with `getComputedStyle` rather than the zone's own source formula,
- * so this needs no second copy of it and stays correct if that formula
- * changes; empty only where there is no battlefield zone to read (a fixture
- * with no `Board` mounted around it), and then the hand's own size is left
- * standing rather than writing a blank custom property.
+ * `'lifted'` also pins `--card-w` to the hand's own card width as the hand
+ * draws it now (`card-size.ts`'s `handCardWidth`; `.board-card`'s own rule,
+ * `card.css`, already draws off this property). A card being cast is a hand
+ * card's size from the lift to the stack, and only its landing shrinks it into
+ * its battlefield slot (the operator, 2026-10-15: "casting cards are just as
+ * big as hand cards and shrink down to card size once they resolve") — out of
+ * the hand's grid it would otherwise draw at the row's uncapped `--card-w`,
+ * wider than a crowded hand's narrowed column. Set once, at the lift (not on
+ * every move: the measure is a layout), so nothing changes size later — a `'parked'` or `'carried'` card
+ * (the same element, or `parkedGhost`'s clone of it) keeps the value this
+ * set. Measured, not the zone's source formula; empty only where there is no
+ * hand or battlefield to read (a fixture with no `Board` mounted around it),
+ * and then the card's own size is left standing.
  */
 export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lifted' | 'parked' | 'carried'): void {
   const el = cardBox(root, id);
   if (!(el instanceof HTMLElement)) return;
   cancelReturnTimer(id);
+  const lifting = mode === 'lifted' && el.getAttribute(CAST_LIFT_ATTR) !== 'lifted';
   el.setAttribute(CAST_LIFT_ATTR, mode);
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
-  if (mode === 'lifted') {
-    const width = battlefieldCardWidth(root, 'you');
-    if (width !== null) sizeAsBattlefieldCard(el, width);
+  if (lifting) {
+    const width = handCardWidth(root);
+    if (width !== null) sizeAsCard(el, width);
   }
 }
 
@@ -281,26 +281,37 @@ export const CAST_LANDING_ATTR = 'data-cast-landing';
  * `arrived` is then a back in their hand, and `id` null — see
  * `floatCastLiftHome`.
  *
- * A stand-in already standing where the card is drawn (it waited in the gap the
- * card took) does not travel: it is a swap in place. The trip it used to make
- * there — the gap to itself, 300 ms with the real card hidden under it — was on
- * every landing (the Viridian Shaman recording, 2026-10-09: `dx: 0, dy: 0`).
+ * A stand-in already standing where the card is drawn, at the size it is drawn
+ * (it waited in the gap the card took), does not travel: it is a swap in place.
+ * The trip it used to make there — the gap to itself, 300 ms with the real card
+ * hidden under it — was on every landing (the Viridian Shaman recording,
+ * 2026-10-09: `dx: 0, dy: 0`). A cast card waits over its gap at a hand card's
+ * size, so its landing is the shrink into the slot, in place.
  */
 export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement): void {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-  if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX) {
+  const turned = arrived.hasAttribute('data-tapped');
+  const size = { width: turned ? box.height : box.width, height: turned ? box.width : box.height };
+  ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
+  ghost.style.left = `${from.x}px`;
+  ghost.style.top = `${from.y}px`;
+  if (!ghost.isConnected) (root.querySelector('.board') ?? (root as Element)).appendChild(ghost);
+  // The start — its point and the size it is drawn at, in px, so the shrink has two lengths to run
+  // between — has to be a painted style before the end replaces it, or there is no transition to run.
+  const start = ghost.getBoundingClientRect();
+  const sameSize = !(start.width > 0) || (Math.abs(start.width - size.width) < IN_PLACE_PX && Math.abs(start.height - size.height) < IN_PLACE_PX);
+  if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX && sameSize) {
     ghost.remove();
     if (id !== null) clearCastLift(root, id);
     arrived.removeAttribute(CAST_LANDING_ATTR);
     return;
   }
-  ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
-  ghost.style.left = `${from.x}px`;
-  ghost.style.top = `${from.y}px`;
-  if (!ghost.isConnected) (root.querySelector('.board') ?? (root as Element)).appendChild(ghost);
   arrived.setAttribute(CAST_LANDING_ATTR, '');
-  // The start point has to be a painted style before the end point replaces it, or there is no transition to run.
+  if (start.width > 0 && start.height > 0) {
+    ghost.style.width = `${start.width}px`;
+    ghost.style.height = `${start.height}px`;
+  }
   void ghost.getBoundingClientRect();
   floatCastLiftHome(
     root,
@@ -316,9 +327,8 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
   // card's box is the card turned on its side, so its sides are swapped back:
   // the stand-in stays upright for the whole trip.
   if (box.width > 0 && box.height > 0) {
-    const turned = arrived.hasAttribute('data-tapped');
-    ghost.style.width = `${turned ? box.height : box.width}px`;
-    ghost.style.height = `${turned ? box.width : box.height}px`;
+    ghost.style.width = `${size.width}px`;
+    ghost.style.height = `${size.height}px`;
   }
 }
 

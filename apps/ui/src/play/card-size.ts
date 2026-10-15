@@ -48,8 +48,31 @@ export function battlefieldCardWidth(root: ParentNode, owner: 'you' | 'them'): n
   return list === null ? null : cardWidthIn(list);
 }
 
-/** Size an element drawn off the rows as a battlefield card: `--card-w` in px, which `card.css` and the layers' own CSS read. */
-export function sizeAsBattlefieldCard(el: HTMLElement, width: number | null): void {
+/**
+ * The card width the viewer's own hand draws at — its row's `--card-w`, the size a card has there
+ * while the hand is not so full that its columns narrow — and the battlefield's where there is no
+ * hand to read. A card being cast is drawn at this size from the lift to the stack, and only the
+ * landing shrinks it into its battlefield slot (the operator, 2026-10-15: "casting cards are just as
+ * big as hand cards and shrink down to card size once they resolve"). The row's value, not a drawn
+ * card's: it holds still while the cast card leaves the hand and the others close up. A watcher's
+ * bottom hand is backs, the same size. Measured with a probe that reads `--card-w` where the hand's
+ * cards do (one layout); a caller on a pointer's every move measures once, not per move.
+ */
+export function handCardWidth(root: ParentNode): number | null {
+  const list = root.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"] :is(.zone__cards, .card-backs)');
+  if (list === null) return battlefieldCardWidth(root, 'you') ?? battlefieldCardWidth(root, 'them');
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position: absolute; visibility: hidden; width: var(--card-w); height: 0';
+  list.append(probe);
+  let width = probe.getBoundingClientRect().width;
+  // No layout (a test DOM): the probe's own inherited `--card-w`, when it is already a px value, is the same answer.
+  if (!(width > 0)) width = Number.parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 0;
+  probe.remove();
+  return width > 0 ? width : (battlefieldCardWidth(root, 'you') ?? battlefieldCardWidth(root, 'them'));
+}
+
+/** Size an element drawn off the rows as a card `width` wide: `--card-w` in px, which `card.css` and the layers' own CSS read. */
+export function sizeAsCard(el: HTMLElement, width: number | null): void {
   if (width === null) el.style.removeProperty('--card-w');
   else el.style.setProperty('--card-w', `${width}px`);
 }

@@ -64,9 +64,10 @@
     top 90ms linear;
 }
 /*
- * Waiting in the gap their release reserved (`presence.ts`): it glides there
- * from the release point and sits upright at the row's card size — the same
- * motion their own screen's stand-in makes. A spell's is handed to `placed.ts`,
+ * Waiting over the gap their release reserved (`presence.ts`): it glides there
+ * from the release point and sits upright, a hand card's size until its
+ * landing shrinks it into the slot — the same motion their own screen's
+ * stand-in makes. A spell's is handed to `placed.ts`,
  * which turns it over at the same point.
  *
  * `[data-gliding]` (J3, wave 64) is the SAME transition for a different fact
@@ -79,8 +80,7 @@
   transform: translate(-50%, -50%);
   transition:
     left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
-    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
-    width 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
 }
 @media (prefers-reduced-motion: reduce) {
   .presence__back[data-waiting],

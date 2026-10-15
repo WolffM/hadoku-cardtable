@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { battlefieldCardWidth } from './card-size.ts';
+import { battlefieldCardWidth, handCardWidth } from './card-size.ts';
 import { installPlaced } from './live/placed.ts';
 import type { BoardView, StackEntry } from './adapter.ts';
 
@@ -46,21 +46,31 @@ describe('one source of truth for a card’s size (the operator, 2026-10-09)', (
     expect(battlefieldCardWidth(document.createElement('div'), 'you')).toBeNull();
   });
 
-  it('a stack card is drawn at that width — never a size of its own (the release flash: a hardcoded 6.5rem)', () => {
+  it('a hand card’s width is the hand row’s own, adding nothing that stays — else the battlefield’s', () => {
     const canvas = board();
+    expect(handCardWidth(canvas), 'no hand: the battlefield’s').toBe(64);
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<div data-zone="hand" data-owner="you"><ul class="zone__cards" style="--card-w: 92px"><li class="board-card"></li></ul></div>');
+    expect(handCardWidth(canvas)).toBe(92);
+    expect(canvas.querySelectorAll('[data-zone="hand"] .zone__cards > *')).toHaveLength(1);
+  });
+
+  it('a spell on the stack is drawn at a hand card’s width, an ability’s chip off a battlefield card’s (the operator, 2026-10-15)', () => {
+    const canvas = board();
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<div data-zone="hand" data-owner="you"><ul class="zone__cards" style="--card-w: 92px"></ul></div>');
     const handle = installPlaced(canvas);
-    const item: StackEntry = {
-      id: 9, description: 'Bolt', sourceCardId: 109, sourceName: 'Bolt', sourceCard: null, controllerName: 'Alice', isAbility: false,
-      targetCardIds: [], targetPlayerIds: [], targetStackItemId: null,
-    } as StackEntry;
+    const entry = (id: number, isAbility: boolean): StackEntry =>
+      ({
+        id, description: 'Bolt', sourceCardId: 100 + id, sourceName: 'Bolt', sourceCard: null, controllerName: 'Alice', isAbility,
+        targetCardIds: [], targetPlayerIds: [], targetStackItemId: null,
+      }) as StackEntry;
     const view = {
       seq: 1, title: 't', turn: 1, phase: null, phaseLabel: '', activePlayerId: null,
       players: [{ id: 0, name: 'Alice', isViewer: true, battlefield: [] }, { id: 1, name: 'Bob', isViewer: false, battlefield: [] }],
-      stack: [item],
+      stack: [entry(9, false), entry(10, true)],
     } as unknown as BoardView;
     handle.notify(view);
-    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect(el.style.getPropertyValue('--card-w')).toBe('64px');
+    expect(canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!.style.getPropertyValue('--card-w')).toBe('92px');
+    expect(canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!.style.getPropertyValue('--card-w')).toBe('64px');
     handle.dispose();
   });
 });

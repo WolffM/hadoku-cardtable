@@ -17,7 +17,7 @@
   position: absolute;
   z-index: var(--z-overlay, 20);
   translate: -50% -50%;
-  /* `placed.ts` sets `--card-w` from the battlefield's own measured card (`card-size.ts`); the fallback is `card.css`'s. An ability's chip gets its own near-square width there (`squareChip`). */
+  /* `placed.ts` sets `--card-w` (`card-size.ts`): a spell is a hand card's size, an ability's chip is squared off a battlefield card's (`squareChip`); the fallback is `card.css`'s. */
   width: var(--card-w, 5.5rem);
   /*
    * Unlike an arrow or a floating number — guidance, never a claim — a
@@ -124,6 +124,34 @@
     --stack-hover: none;
 
     filter: var(--stack-lift);
+  }
+}
+
+/*
+ * A spell held in the air is seen through a haze (`placed.ts`'s `HAZE_FILTER_ID`: noise that
+ * displaces the face a pixel or two, slowly breathing) and a little more saturated than the table
+ * (the operator, 2026-10-15: "a visual distortion shimmer and maybe a slight saturation change").
+ * On the face, inside `.placed__hover`, whose own filter is the lift's shadow. Both drop off as it
+ * leaves; an ability's chip has neither, and a reduced-motion screen keeps only the colour.
+ */
+.placed__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.placed__hover > :is(.placed__tile, .placed__back) {
+  filter: url('#placed-haze') saturate(1.16);
+}
+
+.placed:is([data-placed-leaving], [data-placed-countered]) > .placed__hover > * {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placed__hover > :is(.placed__tile, .placed__back) {
+    filter: saturate(1.16);
   }
 }
 
