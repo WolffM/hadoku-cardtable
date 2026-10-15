@@ -1,0 +1,18 @@
+# Cavern of Souls played from the hand, and its creature-type question left
+# open. Alice (`human…`, seat 0) holds only Cavern of Souls on an uncontested
+# turn-1 Main Phase 1. Playing it raises "As Cavern of Souls enters, choose a
+# creature type" (`K:ETBReplacement:Other:ChooseCT`, a `ChooseType` replacement
+# Forge runs while the land is still in her hand) as a `getChoices` ask.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Cavern of Souls
+humanbattlefield=
+humanlibrary=Goblin Guide;Goblin Guide;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
