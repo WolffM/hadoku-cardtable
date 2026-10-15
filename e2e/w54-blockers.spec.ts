@@ -212,6 +212,12 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
 
     await passDeclareAttackers(bob.page);
     await expect.poll(() => says(alice.page), { timeout: 90_000, message: 'the block window is open for alice — the scenario sets up' }).toMatch(/select creatures to block/i);
+    // The operator, 2026-10-15: not "Select creatures to block Ravager of the Fells or select another attacker to declare blockers for." —
+    // "just make it 'Select creatures to block.'" On the line and in the decision pop-up alike.
+    const decisionText = alice.page.locator('[data-testid="live-decision"] .confirm__message');
+    await expect(decisionText, 'the decision pop-up says the block line short').toHaveText('Select creatures to block.');
+    console.log(`[bw-block-prompt] says "${await says(alice.page)}" | pop-up "${(await decisionText.textContent())?.trim()}"`);
+    expect(await says(alice.page), 'the line says the block line short').toBe('Select creatures to block.');
     await logStep(alice.page, 'declare-blockers opened', blockerX, attackerA);
 
     let mark = bob.captures.length;

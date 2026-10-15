@@ -206,6 +206,25 @@ describe('the life-payment line', () => {
   });
 });
 
+describe('the combat prompts, on every surface', () => {
+  // The operator, 2026-10-15: "'Select creatures to block Ravager of the Fells or select another attacker to declare blockers for.'
+  // why does this text specify Ravager of the Fells? let's simplify this, just make it 'Select creatures to block.'"
+  it('shortens Forge’s declare-blockers line, whichever attacker it names', () => {
+    const operators = 'Select creatures to block Ravager of the Fells or select another attacker to declare blockers for.';
+    // `InputBlock.java:83` as Forge sends it: the attacker's id, then a space before " or".
+    const raw = 'Select creatures to block Ravager of the Fells (47)  or select another attacker to declare blockers for.';
+    for (const say of [plainRulesText, promptText]) {
+      expect(say(operators)).toBe('Select creatures to block.');
+      expect(say(raw)).toBe('Select creatures to block.');
+      expect(say(`${raw}\nStack: Empty`)).toBe('Select creatures to block.\nStack: Empty');
+    }
+  });
+
+  it('the decision pop-up’s words say the attack line short too', () => {
+    expect(promptText('Select creatures to attack Sorin, Grim Nemesis (47) or select player/card you wish to attack.')).toBe('Select creatures to attack.');
+  });
+});
+
 describe('selectionText — an exact pick says its count', () => {
   const brainstorm = 'Brainstorm - put two cards back.\n\nSelect up to 2 cards from your hand';
   it('says N for "up to N" when the selection takes exactly N', () => {
