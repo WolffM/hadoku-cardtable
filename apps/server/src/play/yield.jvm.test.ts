@@ -191,8 +191,13 @@ describe.skipIf(!available.ok)(title, () => {
 					(f) => f.method === 'showPromptMessage' && /^Priority: alice/.test(f.message ?? '') && /Stack: 1 to Resolve/.test(f.message ?? ''),
 				);
 				expect(aliceOffered, "Forge never gave alice a window with bob's spell on the stack").toBe(true);
-				// The claim: the yield passed that window under full control, and it never reached alice's wire.
-				expect(aliceBars(s, sentMark), "alice's own wire carried no bar for bob's spell").toEqual([]);
+				// The claim: the yield passed that window under full control — no live bar reached alice's
+				// wire (full control still forwards Forge's dead bars, which ask nothing).
+				const live = aliceBars(s, sentMark).filter((x) => {
+					const f = (x as { envelope: { frame: { enable1?: boolean; enable2?: boolean } } }).envelope.frame;
+					return f.enable1 === true || f.enable2 === true;
+				});
+				expect(live, "alice's own wire carried no live bar for bob's spell").toEqual([]);
 				expect(
 					s.logs.some((l) => l.evt === 'auto-passed' && l.seat === ALICE && l.why === 'auto-yield'),
 					'the window was passed for the yield',

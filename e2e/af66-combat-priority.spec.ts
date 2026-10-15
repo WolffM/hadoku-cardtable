@@ -100,7 +100,8 @@ test(titled("the defender holding Swords to Plowshares gets priority once attack
     // She uses it: Swords to Plowshares on the attacking Giant, so nothing hits her.
     const swords = await handCardNamed(m.alice.page, 'Swords to Plowshares');
     expect(swords, 'Swords to Plowshares is in alice’s hand').toBeDefined();
-    const giant = m.alice.page.locator('li.board-card[data-attacking="true"]').first();
+    const giantId = await m.alice.page.locator('li.board-card[data-attacking="true"]').first().getAttribute('data-board-card');
+    const giant = m.alice.page.locator(`[data-board-card="${giantId}"]`);
     await clickHandCard(m.alice.page, swords!);
     await castUntilOnStack(m.alice.page, stack, async () => {
       const ready = (await giant.getAttribute('data-selectable')) === 'true';
