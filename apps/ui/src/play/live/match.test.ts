@@ -2204,6 +2204,25 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     });
   }
 
+  it('a creature given every creature type reads (All), as Forge’s own type line does', async () => {
+    const { s, m } = await fullGame();
+    const creature = them(m).battlefield.find((c) => c.card.typeLine.startsWith('Creature'))!;
+    const sub = creature.card.typeLine.split(' — ')[1]?.split(' ') ?? [];
+    const allTypes = (exc: string[]) =>
+      stateDelta({
+        [deltaKey(WireType.CardState, creature.id * 16)]: {
+          _type: WireType.CardState,
+          _id: creature.id * 16,
+          Type: { t: 'cardtype', sup: [], core: ['Creature'], sub, all: true, exc },
+        },
+      });
+    await sendAndApply(s, m, [allTypes([])]);
+    const all = them(m).battlefield.find((c) => c.id === creature.id)!;
+    expect(all.card.typeLine).toBe([`Creature —`, ...sub, '(All)'].join(' '));
+    await sendAndApply(s, m, [allTypes(['Elf'])]);
+    expect(them(m).battlefield.find((c) => c.id === creature.id)!.card.typeLine).toMatch(/\(All except Elf\)$/);
+  });
+
   it('combatCandidates: Forge’s attack candidates while InputAttack is live, and nothing at the same step’s priority', async () => {
     const { s, m } = await fullGame();
     const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;

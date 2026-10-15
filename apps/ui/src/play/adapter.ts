@@ -1065,11 +1065,26 @@ function colorsOf(enumName: string | null): ManaColor[] {
   return WUBRG.filter((c) => enumName.includes(c));
 }
 
+/**
+ * A face's type line, in the shape Forge's own `CardType.toString` gives it:
+ * a card with every creature type (Maskwood Nexus, Changeling) carries
+ * `all`, not a list, and reads `(All)` after its subtypes — `(All except …)`
+ * when some are excluded. Without it such a card read as printed, and its
+ * type pill never showed.
+ */
 function typeLineOf(t: Tagged | undefined): string {
   if (t === undefined || t.t !== 'cardtype') return '';
   const ct = t as Extract<Tagged, { t: 'cardtype' }>;
   const head = [...ct.sup, ...ct.core].join(' ');
-  return ct.sub.length > 0 ? `${head} — ${ct.sub.join(' ')}` : head;
+  const all = ct.all ? [ct.exc.length > 0 ? `(All except ${ct.exc.join(' ')})` : '(All)'] : [];
+  const tail = [...ct.sub, ...all];
+  return tail.length > 0 ? `${head} — ${tail.join(' ')}` : head;
+}
+
+/** A printed type line as Forge draws it for a card whose own Changeling gives it every creature type. */
+function withChangeling(printed: string | undefined, keywords: readonly string[]): string | undefined {
+  if (printed === undefined || !hasKeyword(keywords, 'changeling')) return printed;
+  return printed.includes(' — ') ? `${printed} (All)` : `${printed} — (All)`;
 }
 
 function coreTypes(t: Tagged | undefined): string[] {
@@ -1449,7 +1464,10 @@ function toBoardCard(
   // our own data knows for its (unchanged) name. Scoped to the battlefield —
   // a continuous type-changing effect (Magus of the Moon's `AddType$
   // Mountain`) only applies there, and a card elsewhere just reads printed.
-  const printedLine = onBattlefield ? printedType.get(name.trim().toLowerCase()) : undefined;
+  // Changeling is a printed characteristic-defining ability (Forge's
+  // `AddAllCreatureTypes`), so its `(All)` is part of the printed line: only
+  // an outside effect — Maskwood Nexus — counts as a change.
+  const printedLine = onBattlefield ? withChangeling(printedType.get(name.trim().toLowerCase()), keywords) : undefined;
   const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name, printed: printedLine } : null;
   const choices = readChoices(state, view, playerName);
   const relations = readRelations(state, view);

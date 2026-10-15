@@ -3458,6 +3458,39 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(fireUrchin.changedFrom, 'a graveyard card is never "changed"').toBeNull();
   });
 
+  /**
+   * AF74: Maskwood Nexus gives a creature every creature type, which crosses
+   * as the cardtype's `all` flag rather than a list. The type line reads it
+   * as Forge does (`(All)`), so it disagrees with the printed line and the
+   * pill shows; a changeling's own `(All)` is printed and shows nothing.
+   */
+  it("AF74: a creature given every creature type is changed; a changeling's own every-type is printed", () => {
+    // The fixture's Izzet Guildgate (id 8, on the viewer's battlefield) stands in, retyped on the wire
+    // the way R15's test above swaps the printed side: only the shape of the cardtype matters here.
+    const gateId = 8;
+    const printedType = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Creature — Elemental' }]);
+    const viewWith = (all: boolean, keywords: string[]) => {
+      const state = new Map(foldPackets(loadPackets(fixture)).state);
+      const key = cardStateKey(gateId, 0);
+      state.set(key, {
+        ...state.get(key)!,
+        Type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all, exc: [] },
+        Keywords: { t: 'keywords', v: keywords },
+      } as WireObject);
+      return toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType }).players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === gateId)!;
+    };
+
+    expect(viewWith(false, []).changedFrom, 'a precondition: the printed line agrees').toBeNull();
+
+    const nexus = viewWith(true, []);
+    expect(nexus.card.typeLine).toBe('Creature — Elemental (All)');
+    expect(nexus.changedFrom).toEqual({ name: 'Izzet Guildgate', printed: 'Creature — Elemental' });
+    const { container } = renderBoard(withState({ card: nexus.card, changedFrom: nexus.changedFrom }));
+    expect(card(container).querySelector('.board-card__type-pill')?.textContent).toBe('Creature — Elemental (All)');
+
+    expect(viewWith(true, ['Changeling']).changedFrom, 'its own Changeling is printed, not a change').toBeNull();
+  });
+
   it('counters are a badge with a number: +1/+1 is compact, a named counter falls back to its name', () => {
     const { container } = renderBoard(
       withState({ counters: [{ name: '+1/+1', count: 3 }, { name: '-1/-1', count: 1 }, { name: 'charge', count: 2 }] }),
