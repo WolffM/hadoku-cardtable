@@ -580,14 +580,88 @@
 }
 
 /*
- * A flyer floats: the art lifts off the table and a shadow lies under it. The
- * lift is a `translate` on the art (never `transform`, which the turn rule
- * owns) and only ever upward, so it adds no scrollable overflow; the shadow
- * sits in the strip of face the lift uncovers.
+ * A flyer is on the wing: the operator, 2026-10-15, *"for the card movement i'm envisioning a
+ * side-ways 8 pattern. it should be a consistent movement sway, however still subtle. the card
+ * distortion should be a diagonal tilt"* — read apart from a spell on the stack, which bobs and
+ * drifts (`live/placed.css`).
+ *
+ * The path is a lemniscate, the 1:2 Lissajous figure: x = A·sin θ, y = B·sin 2θ — across once while
+ * it rises and falls twice, one steady loop. Each sine is a half-cycle eased with easeInOutSine
+ * (`cubic-bezier(0.37, 0, 0.63, 1)`, a sine to within a percent) run `alternate`, so the curve is
+ * continuous with no keyframe corners. The rise runs on half the sway's period and an eighth of a
+ * loop behind it, which is what crosses the loop into an 8 rather than folding it into an arc.
+ *
+ * The tilt is the card-tilt effect (vanilla-tilt, Atropos): a small rotateX/rotateY seen through a
+ * `perspective`, so one corner comes forward and grows while the opposite one recedes. Here the tilt
+ * follows the path's velocity — the corner leading the way comes forward — so it turns diagonally
+ * round the card as the loop goes: rotateY with the speed across (cos θ), rotateX with the speed up
+ * and down (cos 2θ). The two angles are one `rotate` about the axis (tilt-x, tilt-y, 0) by their
+ * length, which to a few degrees is exactly rotateX·rotateY. The perspective is about three card
+ * widths, as vanilla-tilt's 1000px is to the cards it is used on.
+ *
+ * Each motion is its own registered property, so they ADD (two animations of `translate` would not:
+ * the later one wins). Never `transform`, which the turn rule owns: the individual properties apply
+ * outside it, so a tapped flyer loops and tilts in the screen's frame and its quarter turn stays
+ * intact. The art moves inside its own `<li>`, which never moves — layout, drag, arrange and every
+ * overlay on the `<li>` stand still — and the battlefield clips without scrolling (`board.css`), so
+ * a sideways step at the edge of the table makes no scrollbar.
+ *
+ * A shadow lies in the strip of face the lift uncovers, drifting against the sway and narrowing as
+ * the card rises. `--fly-phase` (`Board.tsx`, from the card's id) sets where in the loop each card
+ * starts, so a row of flyers never moves in unison; every flyer keeps the same steady period.
  */
+@property --fly-x {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fly-y {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fly-lift {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.5;
+}
+
+/* Degrees, as numbers: they are the `rotate` axis as well as its length. */
+@property --fly-tilt-x {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --fly-tilt-y {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+.board-card[data-flying] {
+  --fly-loop: 5.6s;
+  /* Always a whole loop or more in the past, so every offset below stays a negative delay. */
+  --fly-start: calc(-1 * var(--fly-loop) * (1 + var(--fly-phase, 0)));
+  --fly-ease: cubic-bezier(0.37, 0, 0.63, 1);
+  --fly-path:
+    fly-across calc(var(--fly-loop) / 2) var(--fly-ease) var(--fly-start) infinite alternate,
+    fly-rise calc(var(--fly-loop) / 4) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 8) infinite alternate;
+}
+
+.board-card[data-flying] > .board-card__face {
+  perspective: 15rem;
+}
+
 .board-card[data-flying] > .board-card__face > .card {
-  translate: 0 -3px;
-  animation: card-float 2.6s ease-in-out infinite alternate;
+  translate: var(--fly-x) calc(-3px + var(--fly-y));
+  rotate: var(--fly-tilt-x) var(--fly-tilt-y) 0 calc(hypot(var(--fly-tilt-x), var(--fly-tilt-y)) * 1deg);
+  animation:
+    var(--fly-path),
+    fly-tilt-across calc(var(--fly-loop) / 2) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 4) infinite alternate,
+    fly-tilt-rise calc(var(--fly-loop) / 4) var(--fly-ease) var(--fly-start) infinite alternate;
 }
 
 .board-card[data-flying] > .board-card__face::after {
@@ -601,15 +675,46 @@
   border-radius: 50%;
   background: radial-gradient(closest-side, var(--shadow), transparent);
   pointer-events: none;
+  translate: calc(var(--fly-x) * -0.4) 0;
+  scale: calc(1.08 - var(--fly-lift) * 0.16) 1;
+  opacity: calc(1 - var(--fly-lift) * 0.35);
+  animation: var(--fly-path);
 }
 
-@keyframes card-float {
-  from { translate: 0 -2px; }
-  to { translate: 0 -5px; }
+/* x = −A·cos(ωt): across and back once a loop. */
+@keyframes fly-across {
+  from { --fly-x: -3.5px; }
+  to { --fly-x: 3.5px; }
+}
+
+/* y = B·sin(2ωt) (an eighth of a loop late): down and up twice a loop, crossing the middle as the sway does. */
+@keyframes fly-rise {
+  from {
+    --fly-y: 1.25px;
+    --fly-lift: 0;
+  }
+
+  to {
+    --fly-y: -1.25px;
+    --fly-lift: 1;
+  }
+}
+
+/* Moving right, the right side comes forward (rotateY < 0): −sin(ωt), against the sway's speed. */
+@keyframes fly-tilt-across {
+  from { --fly-tilt-y: -4; }
+  to { --fly-tilt-y: 4; }
+}
+
+/* Moving down, the bottom comes forward (rotateX > 0): cos(2ωt), the rise's speed. */
+@keyframes fly-tilt-rise {
+  from { --fly-tilt-x: 3; }
+  to { --fly-tilt-x: -3; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board-card[data-flying] > .board-card__face > .card {
+  .board-card[data-flying] > .board-card__face > .card,
+  .board-card[data-flying] > .board-card__face::after {
     animation: none;
   }
 }

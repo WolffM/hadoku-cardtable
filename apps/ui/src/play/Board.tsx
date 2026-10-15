@@ -2353,13 +2353,23 @@ function CardOnBoard({
    */
   const pileFan = pileSize === undefined || pileSize <= 1 ? 0 : Math.min(pileSize - 1, MAX_FAN_DEPTH) * STACK_STEP;
   const copies = pile === undefined ? null : copiesIn(pile);
+  const flying = onBattlefield && hasKeyword(entry.keywords, 'flying');
+  /** Where in its loop a flyer is (`card.css`'s `--fly-phase`, 0–1): from its id, so two never move in step, and the same on both screens. */
+  const flyPhase = flying ? (((entry.id * 0.618034) % 1) + 1) % 1 : undefined;
   /** An effect forbids casting this held card (`BoardInteraction.castForbidden`): drawn greyed, and its tip says why. */
   const forbidden = onBattlefield ? undefined : interaction?.castForbidden?.get(entry.id);
 
   return (
     <li
       className="board-card"
-      style={pileFan > 0 ? ({ '--pile-fan': `${pileFan}px` } as CSSProperties) : undefined}
+      style={
+        pileFan > 0 || flyPhase !== undefined
+          ? ({
+              ...(pileFan > 0 && { '--pile-fan': `${pileFan}px` }),
+              ...(flyPhase !== undefined && { '--fly-phase': flyPhase.toFixed(4) }),
+            } as CSSProperties)
+          : undefined
+      }
       /*
        * Forge's own `Tapped`, unchanged and still its alone. `data-attacking` is
        * beside it rather than folded into it (item 6: *"creatures should tap when
@@ -2372,8 +2382,8 @@ function CardOnBoard({
       data-attacking={entry.attacking || undefined}
       /* Attacking does not tap it, so `card.css` does not turn it for attacking. */
       data-vigilant={hasKeyword(entry.keywords, 'vigilance') || undefined}
-      /* Floats (`card.css`): a flyer, by Forge's current keywords. */
-      data-flying={(onBattlefield && hasKeyword(entry.keywords, 'flying')) || undefined}
+      /* Loops on the wing (`card.css`): a flyer, by Forge's current keywords. */
+      data-flying={flying || undefined}
       data-sick={entry.summoningSick || undefined}
       data-blocking={entry.blocking || undefined}
       data-board-card={entry.id}

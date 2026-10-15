@@ -1383,13 +1383,15 @@ describe('no rotated text (operator, 2026-09-26)', () => {
   it('sets no text sideways in board.css, and rotates only a CARD in card.css', () => {
     expect(withoutComments(BOARD_CSS).match(SIDEWAYS), 'board.css turns nothing on its side').toBeNull();
     /*
-     * card.css keeps exactly one rotation and it is not a word: a tapped
-     * permanent is turned a quarter inside a landscape box, which is the
-     * operator's own affordance and stays. If a second one appears, this is the
-     * test that says so.
+     * card.css keeps exactly two rotations and neither is a word: a flyer's
+     * tilt, a few degrees in depth as it loops (the operator, 2026-10-15: "the
+     * card distortion should be a diagonal tilt"), and a tapped permanent
+     * turned a quarter inside a landscape box, which is the operator's own
+     * affordance and stays. If a third one appears, this is the test that says
+     * so.
      */
     const inCards = withoutComments(CARD_CSS).match(SIDEWAYS) ?? [];
-    expect(inCards, 'the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate(']);
+    expect(inCards, 'a flyer’s tilt, then the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate:', 'rotate(']);
   });
 
   it('draws the lane labels that are left horizontally, with their counts', () => {
@@ -2997,19 +2999,23 @@ describe('keyword tags and the flyer’s float', () => {
   const tagsOf = (container: HTMLElement) =>
     [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__tags > [data-keyword]')].map((t) => t.textContent);
 
-  it('tags each evergreen keyword in Forge’s own word, in a fixed order, and floats a flyer', () => {
+  it('tags each evergreen keyword in Forge’s own word, in a fixed order, and sways a flyer from its own phase', () => {
     const { container } = renderBoard(withKeywords(['Lifelink', 'Flying', 'Affinity:Mountain', 'Hexproof:Card.Black:black']));
     expect(tagsOf(container)).toEqual(['Flying', 'Lifelink']);
-    expect(container.querySelector('[data-card-id="99"]')!.hasAttribute('data-flying')).toBe(true);
+    const li = container.querySelector<HTMLElement>('[data-card-id="99"]')!;
+    expect(li.hasAttribute('data-flying')).toBe(true);
+    expect(li.style.getPropertyValue('--fly-phase')).toBe(((99 * 0.618034) % 1).toFixed(4));
   });
 
-  it('draws no tag and no float when the keyword goes', () => {
+  it('draws no tag and no sway when the keyword goes', () => {
     const { container } = renderBoard(withKeywords([]));
     expect(tagsOf(container)).toEqual([]);
-    expect(container.querySelector('[data-card-id="99"]')!.hasAttribute('data-flying')).toBe(false);
+    const li = container.querySelector<HTMLElement>('[data-card-id="99"]')!;
+    expect(li.hasAttribute('data-flying')).toBe(false);
+    expect(li.style.getPropertyValue('--fly-phase')).toBe('');
   });
 
-  it('the float stands still for reduced motion', () => {
+  it('the sway and its shadow stand still for reduced motion', () => {
     // jsdom evaluates no media query, so this one reads the rule.
     expect(withoutComments(CARD_CSS)).toMatch(/prefers-reduced-motion: reduce\) \{[^@]*\[data-flying\][^}]*\{\s*animation: none;/);
   });
