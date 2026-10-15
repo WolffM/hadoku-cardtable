@@ -252,7 +252,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { manaCostTokens, toBoardView, type BoardView } from '../adapter.ts';
+import { manaCostTokens, toBoardView, type BoardView, type DamageHit } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { foldPackets, type PendingTriggers, type WaitingEffects, type WireState } from '../fold.ts';
@@ -708,6 +708,14 @@ export interface LiveMatch {
   /** The battlefield creatures that can't block (`../fold.ts`'s `cantBlock`), drawn as a mark on each. */
   cantBlock: ReadonlySet<number>;
   /**
+   * The latest damage hits each `applyDelta` carried (`PlayBridge.java`'s `damage`), numbered as they
+   * came (`DamageHit.seq`) and kept to the last {@link HITS_KEPT}: an event, never folded into state,
+   * so a view drawn after several frames at once still holds every one of their hits.
+   */
+  hits: readonly DamageHit[];
+  /** The `seq` the next hit gets. */
+  nextHitSeq: number;
+  /**
    * How many identical triggers or copies of one spell still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
    * "same target for all".
@@ -969,6 +977,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     waitingEffects: [],
     tokenSources: new Map(),
     cantBlock: new Set(),
+    hits: [],
+    nextHitSeq: 1,
     promptTargetMore: 0,
     sameTarget: false,
     avatarByPlayerId: null,
@@ -2594,8 +2604,9 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock } = frame.payload;
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, damage } = frame.payload;
       packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock });
+      if (damage !== undefined) noteHits(match, damage);
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2622,6 +2633,14 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   redraw(match);
 }
 
+/** How many damage hits a match keeps: far more than one resolution deals, and still bounded. */
+const HITS_KEPT = 64;
+
+function noteHits(match: LiveMatch, damage: readonly (readonly [number, number, number])[]): void {
+  const added = damage.map(([cardId, sourceId, amount]) => ({ seq: match.nextHitSeq++, cardId, sourceId: sourceId >= 0 ? sourceId : null, amount }));
+  match.hits = [...match.hits, ...added].slice(-HITS_KEPT);
+}
+
 function redraw(match: LiveMatch): void {
   const viewerPlayerId = viewerPlayerIdOf(match);
   match.view =
@@ -2639,6 +2658,7 @@ function redraw(match: LiveMatch): void {
           waitingEffects: match.waitingEffects,
           tokenSources: match.tokenSources,
           cantBlock: match.cantBlock,
+          hits: match.hits,
           promptCard: match.promptCard,
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
@@ -2963,6 +2983,7 @@ function discardLocal(match: LiveMatch): void {
   match.waitingEffects = [];
   match.tokenSources = new Map();
   match.cantBlock = new Set();
+  match.hits = [];
   match.promptTargetMore = 0;
   match.sameTarget = false;
   match.avatarByPlayerId = null;

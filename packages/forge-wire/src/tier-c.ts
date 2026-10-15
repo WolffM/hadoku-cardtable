@@ -742,6 +742,17 @@ export const CantBlockSchema = z.array(JavaInt);
 
 export type CantBlock = z.infer<typeof CantBlockSchema>;
 
+/**
+ * The bridge's sixth addition beside the packet: the damage dealt to cards since the seat's last
+ * state frame (`PlayBridge.java`'s `DamageJournal`, Forge's own `GameEventCardDamaged`), oldest
+ * first, as `[targetId, sourceId, amount]` — `sourceId` -1 when Forge names none. An event list, not
+ * a snapshot, and only on `applyDelta`: a creature killed by it is in its graveyard, its damage
+ * wiped, by the time the frame is built, so the view alone never says it was hit.
+ */
+export const DamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt]));
+
+export type Damage = z.infer<typeof DamageSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -797,6 +808,7 @@ export const ApplyDeltaSchema = z.strictObject({
     waitingEffects: WaitingEffectsSchema.optional(),
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
+    damage: DamageSchema.optional(),
   }),
 });
 

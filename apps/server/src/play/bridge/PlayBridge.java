@@ -1124,6 +1124,24 @@ public final class PlayBridge {
          */
         volatile Boolean lastToldMulligan;
 
+        /** The first {@link BridgeGui.DamageJournal} hit this seat has not been sent. */
+        private long damageFrom = BridgeGui.DamageJournal.INSTANCE.head();
+
+        /**
+         * The damage that landed since this seat's last state frame, added to {@code payload} as
+         * {@code damage} when there is any. A snapshot ({@code setGameView}) passes {@code false}:
+         * it skips past them, since what it draws is the board after.
+         */
+        void damageSince(final JsonObject payload, final boolean send) {
+            final BridgeGui.DamageJournal journal = BridgeGui.DamageJournal.INSTANCE;
+            final long head = journal.head();
+            if (send && head > damageFrom) {
+                final JsonArray hits = journal.since(damageFrom);
+                if (!hits.isEmpty()) { payload.add("damage", hits); }
+            }
+            damageFrom = head;
+        }
+
         /**
          * Wave 32, Q5 — whether Forge's phase-pacing sleep is OFF for this seat, which is
          * true from an End Turn click until the yield it started is over, and never else.
@@ -1298,6 +1316,7 @@ public final class PlayBridge {
             payload.add("gameView", objectTable(full.getNewObjects()));
             payload.addProperty("sequenceNumber", sequenceNumber);
             addStackFacts(payload);
+            damageSince(payload, false);
             f.add("payload", payload);
             frame(f);
         }
@@ -1332,6 +1351,7 @@ public final class PlayBridge {
                 final JsonObject payload = new JsonObject();
                 payload.add("packet", packetJson(packet));
                 addStackFacts(payload);
+                damageSince(payload, true);
                 f.add("payload", payload);
                 frame(f);
             }
@@ -2675,6 +2695,7 @@ public final class PlayBridge {
             }
             hm.setStartGameHook(() -> {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
+                hm.getGame().subscribeToEvents(DamageJournal.INSTANCE.reset());
                 final GameLogForward log = GameLogForward.install(hm.getGame());
                 ModeCounts.install(hm.getGame());
                 if (state == null) {
@@ -2687,6 +2708,57 @@ public final class PlayBridge {
                 refreshActionable(hm.getGame());
             });
             return hm;
+        }
+
+        /**
+         * Every point of damage dealt to a card, as Forge fires it ({@code GameEventCardDamaged},
+         * {@code Card.java:6229}): {@code [targetId, sourceId, amount]}, numbered as it lands.
+         * Never on the view: a creature that takes lethal damage is in its graveyard, its damage
+         * wiped, by the time the resolution's delta is built, so the view alone cannot say it was
+         * hit (the operator, 2026-10-15: Slagstorm and five creatures "instantly went to the
+         * graveyard"). Each seat sends what landed since its own last state frame
+         * ({@link SeatGui#damageSince}), so the hits ride the frame that shows what they did.
+         * A bounded window: a seat that has not sent a frame for {@link #KEEP} hits loses the oldest.
+         */
+        static final class DamageJournal {
+            static final DamageJournal INSTANCE = new DamageJournal();
+            static final int KEEP = 256;
+            private final java.util.ArrayDeque<long[]> hits = new java.util.ArrayDeque<>();
+            private long next = 1;
+
+            /** A new game: nothing landed yet. Returns itself, to subscribe. */
+            synchronized DamageJournal reset() {
+                hits.clear();
+                return this;
+            }
+
+            @Subscribe
+            public void cardDamaged(final forge.game.event.GameEventCardDamaged ev) {
+                if (ev.card() == null || ev.amount() <= 0) { return; }
+                synchronized (this) {
+                    hits.addLast(new long[] { next++, ev.card().getId(), ev.source() == null ? -1 : ev.source().getId(), ev.amount() });
+                    while (hits.size() > KEEP) { hits.removeFirst(); }
+                }
+            }
+
+            /** The number the next hit will get: a cursor past everything landed so far. */
+            synchronized long head() {
+                return next;
+            }
+
+            /** Every hit numbered at or after {@code from}, oldest first, as {@code [target, source, amount]}. */
+            synchronized JsonArray since(final long from) {
+                final JsonArray out = new JsonArray();
+                for (final long[] h : hits) {
+                    if (h[0] < from) { continue; }
+                    final JsonArray hit = new JsonArray();
+                    hit.add((int) h[1]);
+                    hit.add((int) h[2]);
+                    hit.add((int) h[3]);
+                    out.add(hit);
+                }
+                return out;
+            }
         }
 
         /**

@@ -10,9 +10,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { GLIDE_MS, HIT_MS, noteRevealShown, REVEAL_BEAT_MS } from '../motion.ts';
+import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, noteRevealShown, RESOLVE_BLINK_MS, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
+import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import {
   DEATH_FADE_MS,
+  EXIT_AFTER_HIT_MS,
   DEATH_FADE_START_MS,
   LIFE_COLOUR_MS,
   POP_MS,
@@ -98,25 +100,26 @@ function view(players: BoardPlayer[]): BoardView {
 describe('diffViews', () => {
   it('the first view ever seen diffs to nothing — there is no "before" to compare it against', () => {
     const v = view([player(0, 20), player(1, 20)]);
-    expect(diffViews(null, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [] });
+    expect(diffViews(null, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 
   it('a life change is reported for the player it happened to, and nobody else', () => {
     const before = view([player(0, 20), player(1, 20)]);
     const after = view([player(0, 17), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], deaths: [], resolved: [], arrivals: [] });
+    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 
   it('a damage change on a creature still on a battlefield is reported, keyed by card id and owner', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [card(7, 1)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], deaths: [], resolved: [], arrivals: [] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 
   it('a creature that leaves the battlefield AND lands in a graveyard in the same view is a death, carrying the damage it last had', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 3)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [], deaths: [{ cardId: 7, ownerId: 0, damage: 3 }], resolved: [], arrivals: [] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [], deaths: [{ cardId: 7, ownerId: 0, damage: 3 }], resolved: [], arrivals: [], hits: [],
+      departures: [{ cardId: 7, playerId: 0, to: 'graveyard', toPlayerId: 0, card: card(7, 3), index: 0 }] });
   });
 
   it('a creature that leaves the battlefield and is NOT in any graveyard (bounced to a hand, say) is not a death', () => {
@@ -127,7 +130,7 @@ describe('diffViews', () => {
 
   it('nothing moving at all diffs to nothing', () => {
     const v = view([player(0, 20, { battlefield: [card(7, 2)] }), player(1, 20)]);
-    expect(diffViews(v, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [] });
+    expect(diffViews(v, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 });
 
@@ -574,6 +577,134 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(overlay.querySelector('.effect-hit')).toBeNull();
     expect(face.hasAttribute('data-hit-flash')).toBe(true);
     expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    handle.dispose();
+  });
+});
+
+describe('diffViews: Forge’s own hits and what left the battlefield', () => {
+  it('a view’s hits are the ones above the last seq already seen, on a card that was or is on a battlefield', () => {
+    const before = { ...view([player(0, 20, { battlefield: [card(7, 0), card(9, 0)] }), player(1, 20)]), hits: [{ seq: 1, cardId: 7, sourceId: 40, amount: 2 }] };
+    const after = {
+      ...view([player(0, 20, { battlefield: [card(9, 0)], graveyard: [card(7, 0)] }), player(1, 20)]),
+      hits: [
+        { seq: 1, cardId: 7, sourceId: 40, amount: 2 },
+        { seq: 2, cardId: 7, sourceId: 41, amount: 3 },
+        { seq: 3, cardId: 9, sourceId: null, amount: 1 },
+        { seq: 4, cardId: 99, sourceId: 41, amount: 1 },
+      ],
+    };
+    expect(diffViews(before, after).hits.map((h) => h.seq), 'seq 1 was drawn already; card 99 was never on a battlefield').toEqual([2, 3]);
+  });
+
+  it('a permanent that left every battlefield is a departure, wherever it went; one that changed control is not', () => {
+    const before = view([player(0, 20, { battlefield: [card(7, 0), card(8, 0), card(9, 0), card(10, 0)] }), player(1, 20)]);
+    const after = view([
+      { ...player(0, 20, { graveyard: [card(7, 0)] }), exile: [card(8, 0)] },
+      player(1, 20, { battlefield: [card(10, 0)] }),
+    ]);
+    expect(diffViews(before, after).departures.map((d) => [d.cardId, d.to, d.toPlayerId, d.index])).toEqual([
+      [7, 'graveyard', 0, 0],
+      [8, 'exile', 0, 1],
+      [9, 'gone', 0, 2],
+    ]);
+  });
+});
+
+describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', () => {
+  /** Two of my creatures, 7 and 9, and Slagstorm (item 40, card 131) drawn on the stack. */
+  function sweeperBoard(): { canvas: HTMLElement; overlay: HTMLElement } {
+    const { canvas } = board();
+    const field = canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!;
+    field.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
+    field.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"><span class="board-card__pt"></span></li>');
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    overlay.insertAdjacentHTML('beforeend', '<div data-placed-spell="40"></div>');
+    overlay.querySelector<HTMLElement>('[data-placed-spell="40"]')!.getBoundingClientRect = () => rect({ left: 450, top: 350, width: 96, height: 134 });
+    return { canvas, overlay };
+  }
+
+  /** What `Board.tsx` draws in the commit Forge's frame lands in: each creature's place kept as a gap. */
+  function keepPlaces(canvas: HTMLElement): void {
+    for (const [id, left] of [
+      [7, 300],
+      [9, 380],
+    ] as const) {
+      const gap = document.createElement('li');
+      gap.className = 'zone__gap';
+      gap.setAttribute(LEAVING_GAP_ATTR, String(id));
+      gap.getBoundingClientRect = () => rect({ left, top: 400, width: 60, height: 84 });
+      canvas.querySelector(`[data-board-card="${id}"]`)!.replaceWith(gap);
+    }
+  }
+
+  const before = withStack(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0), card(9, 0)] }), player(1, 20)]), [
+    { ...item(40, 131), isAbility: false },
+  ]);
+  const after: BoardView = {
+    ...view([player(0, 20, { isViewer: true, graveyard: [card(7, 0), card(9, 0)] }), player(1, 20)]),
+    hits: [
+      { seq: 1, cardId: 7, sourceId: 131, amount: 3 },
+      { seq: 2, cardId: 9, sourceId: 131, amount: 3 },
+    ],
+  };
+
+  it('the spell blinks, a hit flies to each creature, each takes its -3, then both are destroyed together — and the spell may fade only after', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sweeperBoard();
+    const left: [Departure, number][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d, ms) => left.push([d, ms]) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    const at = Date.now();
+    handle.notify(after);
+
+    expect(overlay.querySelector('.effect-hit'), 'nothing flies while the spell blinks').toBeNull();
+    const lastLands = RESOLVE_BLINK_MS + BEAT_STAGGER_MS + HIT_MS;
+    const exitAt = lastLands + EXIT_AFTER_HIT_MS;
+    expect(left.map(([d, ms]) => [d.cardId, d.to, ms]), 'both go together, once the last hit has landed').toEqual([
+      [7, 'graveyard', exitAt],
+      [9, 'graveyard', exitAt],
+    ]);
+    expect(takeResolutionEffects(40), 'the spell fades once the creatures are gone').toBe(at + exitAt + EXIT_MOTIONS.crumple.ms);
+
+    vi.advanceTimersByTime(RESOLVE_BLINK_MS);
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first hit leaves the spell').toBe('card:7');
+    vi.advanceTimersByTime(HIT_MS);
+    expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'where it stands flashes').toBe(true);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-3']);
+    vi.advanceTimersByTime(BEAT_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-3', '-3']);
+    handle.dispose();
+  });
+
+  it('destroyed with no damage (no hits): the creatures go as the spell’s effects start, after its blink', () => {
+    vi.useFakeTimers();
+    const { canvas } = sweeperBoard();
+    const left: [number, number][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d, ms) => left.push([d.cardId, ms]) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    handle.notify({ ...after, hits: [] });
+    expect(left).toEqual([
+      [7, RESOLVE_BLINK_MS],
+      [9, RESOLVE_BLINK_MS],
+    ]);
+    handle.dispose();
+  });
+
+  it('Fast Mode: no blink, and nothing waits to leave', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sweeperBoard();
+    const left: [number, number][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true, leave: (d, ms) => left.push([d.cardId, ms]) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    handle.notify(after);
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first hit leaves at once').toBe('card:7');
+    expect(left).toEqual([
+      [7, 0],
+      [9, 0],
+    ]);
     handle.dispose();
   });
 });

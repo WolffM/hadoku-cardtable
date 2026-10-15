@@ -172,11 +172,14 @@ export type TokenSources = readonly (readonly [number, number])[];
 /** `PlayBridge.java`'s `cantBlock` — `packages/forge-wire/src/tier-c.ts`'s `CantBlockSchema`: battlefield creature ids. */
 export type CantBlock = readonly number[];
 
+/** `PlayBridge.java`'s `damage` — `packages/forge-wire/src/tier-c.ts`'s `DamageSchema`: `[targetId, sourceId, amount]`, sourceId -1 for none. */
+export type Damage = readonly (readonly [number, number, number])[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
 	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; damage?: Damage } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -799,6 +802,19 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return { cantBlock: ids.filter((id) => cardVisibility(raw, zones, id, who) !== 'hidden') };
 	}
 
+	/**
+	 * The damage dealt, for the cards this seat is sent at all — a battlefield creature is public, so
+	 * in practice every hit — with a source this seat may not see named as none (-1).
+	 */
+	function damageSeen(hits: Damage | undefined): { damage?: Damage } {
+		if (hits === undefined) return {};
+		const zones = indexZones(raw);
+		const seen = hits.filter(([target]) => cardVisibility(raw, zones, target, who) !== 'hidden');
+		return seen.length === 0
+			? {}
+			: { damage: seen.map(([target, source, amount]) => [target, source >= 0 && cardVisibility(raw, zones, source, who) !== 'hidden' ? source : -1, amount] as const) };
+	}
+
 	return {
 		get viewer() {
 			return who;
@@ -862,6 +878,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
+							...damageSeen(frame.payload.damage),
 						},
 					};
 			}

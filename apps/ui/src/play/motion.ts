@@ -60,3 +60,25 @@ export function noteRevealGone(card: Element | null): void {
 export function lastRevealBeat(): RevealBeat | null {
   return lastReveal;
 }
+
+/**
+ * A resolving spell's blink on the stack (`placed.css`'s `placed-resolve`), before anything it does is
+ * drawn: the operator, 2026-10-15, of Slagstorm and five creatures going to the graveyard in one
+ * frame — "we should have seen it be played and then seen an animation for my cards being destroyed".
+ */
+export const RESOLVE_BLINK_MS = 400;
+
+/** When each resolved stack item's drawn effects end (epoch ms), so its spell fades after them. */
+const effectsUntil = new Map<number, number>();
+
+/** `live/numbers.ts` has scheduled what stack item `itemId` did: the last of it is drawn by `until`. */
+export function noteResolutionEffects(itemId: number, until: number): void {
+  effectsUntil.set(itemId, until);
+}
+
+/** When what `itemId` did is drawn by, once — `live/placed.ts` reads it as the item leaves; null when it did nothing drawn. */
+export function takeResolutionEffects(itemId: number): number | null {
+  const until = effectsUntil.get(itemId);
+  effectsUntil.delete(itemId);
+  return until ?? null;
+}

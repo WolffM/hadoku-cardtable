@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardView, StackEntry } from '../adapter.ts';
-import { PLACEMENT_WAIT_MS } from '../motion.ts';
+import { noteResolutionEffects, PLACEMENT_WAIT_MS } from '../motion.ts';
 import {
   besideSource,
   commitSpell,
@@ -836,6 +836,39 @@ describe('installPlaced: an ability is drawn only when the chain halts over it',
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(9)]));
     expect(canvas.querySelector('[data-placed-spell="9"]')).not.toBeNull();
+    handle.dispose();
+  });
+});
+
+describe('installPlaced: a resolution with something to draw (the operator’s Slagstorm, 2026-10-15)', () => {
+  it('the spell blinks as it takes effect and stays until what it did is drawn, then fades', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    noteResolutionEffects(9, Date.now() + 1500); // `numbers.ts` drew hits and creatures leaving, in this same commit
+    handle.notify(view([]));
+    const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(spell.hasAttribute('data-placed-resolving'), 'it blinks').toBe(true);
+    expect(spell.hasAttribute('data-placed-leaving'), 'it does not go yet').toBe(false);
+    vi.advanceTimersByTime(1499);
+    expect(spell.hasAttribute('data-placed-leaving'), 'it stays while its effects play').toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(spell.hasAttribute('data-placed-resolving')).toBe(false);
+    expect(spell.hasAttribute('data-placed-leaving'), 'then it fades').toBe(true);
+    handle.dispose();
+  });
+
+  it('a resolution that drew nothing fades at once, as before', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([]));
+    const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(spell.hasAttribute('data-placed-resolving')).toBe(false);
+    expect(spell.hasAttribute('data-placed-leaving')).toBe(true);
     handle.dispose();
   });
 });

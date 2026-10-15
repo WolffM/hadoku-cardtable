@@ -100,8 +100,9 @@
  * an arrival fades in, the number appears in place.
  */
 
-import type { BoardView, StackEntry } from '../adapter.ts';
-import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, REVEAL_BEAT_MS } from '../motion.ts';
+import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
+import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, RESOLVE_BLINK_MS, REVEAL_BEAT_MS } from '../motion.ts';
+import { departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
 
@@ -125,6 +126,8 @@ export const HIT_FLASH_MS = 360;
 export const ARRIVE_FADE_MS = 240;
 /** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
 export const ARRIVING_ATTR = 'data-arriving-from';
+/** After the last hit of a resolution lands, before the creatures it killed start to go. */
+export const EXIT_AFTER_HIT_MS = 120;
 /** A reveal drawn in the same paint as the stack item it belongs to can be noted a few ms before the item is. */
 const SAME_PAINT_MS = 150;
 
@@ -171,7 +174,13 @@ export interface ViewDiff {
   /** The stack items that left the stack in this view, top first: what resolved (or was countered). */
   readonly resolved: readonly StackEntry[];
   readonly arrivals: readonly Arrival[];
+  /** The damage Forge dealt since the last view (`BoardView.hits` above the last `seq` seen), to a card that was or is on a battlefield. */
+  readonly hits: readonly DamageHit[];
+  /** The permanents that left every battlefield in this view (`departures.ts`). */
+  readonly departures: readonly Departure[];
 }
+
+const NO_DIFF: ViewDiff = { life: [], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] };
 
 function battlefieldDamage(view: BoardView): Map<number, { damage: number; ownerId: number }> {
   const out = new Map<number, { damage: number; ownerId: number }>();
@@ -192,7 +201,7 @@ function graveyardOwners(view: BoardView): Map<number, number> {
  * the moment the board first mounts, which nothing changed.
  */
 export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
-  if (prev === null) return { life: [], damage: [], deaths: [], resolved: [], arrivals: [] };
+  if (prev === null) return NO_DIFF;
 
   const life: LifeChange[] = [];
   for (const player of next.players) {
@@ -242,7 +251,10 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
       if (made) arrivals.push({ cardId: card.id, source: card.createdBy ?? null });
     }
   }
-  return { life, damage, deaths, resolved, arrivals };
+  const lastHit = Math.max(0, ...(prev.hits ?? []).map((h) => h.seq));
+  const nowOnField = new Set(nextDamage.keys());
+  const hits = (next.hits ?? []).filter((h) => h.seq > lastHit && (prevDamage.has(h.cardId) || nowOnField.has(h.cardId)));
+  return { life, damage, deaths, resolved, arrivals, hits, departures: departuresOf(prev, next) };
 }
 
 /* ── pure: stacking (simultaneous numbers at one anchor) ─────────────── */
@@ -292,6 +304,8 @@ export interface NumbersHost {
   readonly fastMode?: () => boolean;
   /** Told what each view's beats were (the seat's `effect` client event): one call per view that drew any. */
   readonly report?: (data: Record<string, string | number | boolean>) => void;
+  /** A permanent left the battlefield: draw it leaving, from `delayMs` on (`departures.ts`'s `leave`). */
+  readonly leave?: (departure: Departure, delayMs: number) => void;
 }
 
 export interface NumbersHandle {
@@ -573,13 +587,31 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }, delayMs);
   }
 
+  /** Where a card's hit lands and its number rises: its row card, else the gap its row keeps while it leaves. */
+  function hitTarget(cardId: number): { card: HTMLElement; at: Boxed } | null {
+    const card = battlefieldCard(cardId);
+    if (card !== null) return { card, at: ptEl(cardId) ?? card };
+    const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
+    return gap === null ? null : { card: gap, at: gap };
+  }
+
   function apply(diff: ViewDiff): void {
     const item = diff.resolved[0];
     const reveal = revealOf(item);
     const origin = reveal?.at ?? sourceOf(item);
-    const startMs = reveal?.waitMs ?? 0;
+    const hitIds = new Set(diff.hits.map((h) => h.cardId));
+    const effects =
+      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
+    // A spell blinks on the stack before what it does is drawn (`motion.ts`'s `RESOLVE_BLINK_MS`, `placed.ts`).
+    const blink = item !== undefined && effects && stackBoxes.has(item.id) && !fast() && !reduced() ? RESOLVE_BLINK_MS : 0;
+    const startMs = Math.max(reveal?.waitMs ?? 0, blink);
     let beat = 0;
     const nextDelay = (): number => startMs + beat++ * BEAT_STAGGER_MS;
+    /** When the last beat drawn so far is over. */
+    let endMs = 0;
+    const leaving = new Map(diff.departures.map((d) => [d.cardId, d]));
+    /** When the last hit on a card that is leaving lands: those go together, after it. */
+    let lastFatalLand = -1;
 
     for (const change of diff.life) {
       const face = faceEl(change.playerId);
@@ -595,9 +627,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // Until the hit lands, the counter still reads what it read before the resolution.
       const span = face.querySelector<HTMLElement>('[data-testid="life"]');
       if (span !== null) span.textContent = String(change.from);
-      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), nextDelay(), land);
+      const delay = nextDelay();
+      endMs = Math.max(endMs, delay + HIT_MS);
+      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land);
     }
     for (const change of diff.damage) {
+      // Forge said who hit it (`diff.hits`, below): drawn from that, never twice.
+      if (hitIds.has(change.cardId)) continue;
       const at = ptEl(change.cardId);
       if (at === null) continue;
       lastSeenBox.set(change.cardId, at.getBoundingClientRect());
@@ -608,13 +644,38 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const land = (): void => spawn({ anchorKey: `card:${change.cardId}`, at, kind: 'damage', delta });
       const card = battlefieldCard(change.cardId);
       if (origin === null || item === undefined || card === null) land();
-      else hit(origin, card, `card:${change.cardId}`, 'danger', nextDelay(), land);
+      else {
+        const delay = nextDelay();
+        endMs = Math.max(endMs, delay + HIT_MS);
+        hit(origin, card, `card:${change.cardId}`, 'danger', delay, land);
+      }
+    }
+    /*
+     * Forge's own hits (`PlayBridge.java`'s `damage`): a creature that took lethal damage is already in
+     * its graveyard in this view, so this is the only word that it was hit. From what resolved, else
+     * from the source on a battlefield (an attacker, a blocker), else where it lands.
+     */
+    for (const h of diff.hits) {
+      const target = hitTarget(h.cardId);
+      if (target === null) continue;
+      const departure = leaving.get(h.cardId);
+      const dying = departure !== undefined && departure.to === 'graveyard' ? { ownerId: departure.toPlayerId } : undefined;
+      const box = 'getBoundingClientRect' in target.at ? target.at.getBoundingClientRect() : target.at;
+      const land = (): void => spawn({ anchorKey: `card:${h.cardId}`, at: box, kind: 'damage', delta: h.amount, dying });
+      const from = origin ?? (h.sourceId === null ? null : (hitTarget(h.sourceId)?.card ?? null));
+      const delay = nextDelay();
+      const landsAt = from === null ? delay : delay + HIT_MS;
+      if (departure !== undefined) lastFatalLand = Math.max(lastFatalLand, landsAt);
+      endMs = Math.max(endMs, landsAt);
+      if (from === null) atBeat(land, delay);
+      else hit(from, target.card, `card:${h.cardId}`, 'danger', delay, land);
     }
     for (const death of diff.deaths) {
       // "Nothing for 0": destroyed outright, sacrificed, or simply left the
       // battlefield with no damage marked draws no number — there is nothing
-      // to say and nowhere this module ever saw it hit from.
-      if (death.damage <= 0) continue;
+      // to say and nowhere this module ever saw it hit from. A hit this view
+      // carries was drawn above.
+      if (death.damage <= 0 || hitIds.has(death.cardId)) continue;
       const box = lastSeenBox.get(death.cardId);
       lastSeenBox.delete(death.cardId);
       if (box === undefined) continue;
@@ -630,9 +691,21 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     for (const arrival of diff.arrivals) {
       const maker = arrival.source === null ? null : battlefieldCard(arrival.source);
       if (maker !== null) fromMaker += 1;
-      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), nextDelay());
+      const delay = nextDelay();
+      endMs = Math.max(endMs, delay + GLIDE_MS);
+      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay);
     }
-    if (beat > 0 || reveal !== null) {
+    /*
+     * What left the battlefield goes at its beat: what a hit killed once the last such hit has landed,
+     * everything else (destroyed, sacrificed, exiled) as the effects start.
+     */
+    for (const departure of diff.departures) {
+      const delay = fast() ? 0 : hitIds.has(departure.cardId) && lastFatalLand >= 0 ? lastFatalLand + EXIT_AFTER_HIT_MS : startMs;
+      endMs = Math.max(endMs, delay + exitMs(departure));
+      host.leave?.(departure, delay);
+    }
+    if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
+    if (beat > 0 || reveal !== null || diff.departures.length > 0) {
       host.report?.({
         what: 'beats',
         resolved: item?.id ?? -1,
@@ -641,9 +714,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         revealWaitMs: Math.round(startMs),
         from: reveal !== null ? 'reveal' : origin === null ? 'none' : 'source',
         hits: beat - diff.arrivals.length,
+        forgeHits: diff.hits.length,
         arrivals: diff.arrivals.length,
         fromMaker,
-        totalMs: beat === 0 ? 0 : Math.round(startMs + (beat - 1) * BEAT_STAGGER_MS + Math.max(HIT_MS, GLIDE_MS)),
+        departures: diff.departures.length,
+        totalMs: Math.round(endMs),
         motion: !reduced(),
       });
     }

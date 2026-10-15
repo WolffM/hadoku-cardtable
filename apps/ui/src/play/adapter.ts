@@ -649,6 +649,19 @@ export interface StackEntry {
   current?: true;
 }
 
+/**
+ * One hit of damage on a card, as Forge dealt it (`PlayBridge.java`'s `damage`, beside the frame that
+ * shows what it did). `seq` rises across a match and never repeats, so a view's newest hits are the
+ * ones above the last `seq` already drawn. `sourceId` is null when Forge named no source or this
+ * seat may not see it.
+ */
+export interface DamageHit {
+  readonly seq: number;
+  readonly cardId: number;
+  readonly sourceId: number | null;
+  readonly amount: number;
+}
+
 export interface BoardView {
   seq: number;
   title: string;
@@ -675,6 +688,8 @@ export interface BoardView {
   gameOver: boolean;
   /** Ids a zone named whose object never arrived. A non-empty list is a bug upstream. */
   missingCardIds: number[];
+  /** The latest damage hits (`DamageHit`), oldest first: what `live/numbers.ts` draws as hits. Absent on a view typed out by hand. */
+  hits?: readonly DamageHit[];
 }
 
 /** Who a band attacks: a player, or a planeswalker or battle (a card). */
@@ -749,6 +764,8 @@ export interface AdaptOptions {
   tokenSources?: ReadonlyMap<number, number>;
   /** `PlayBridge.java`'s `cantBlock` (`../fold.ts`), read onto each battlefield creature's `BoardCard.cantBlock`. */
   cantBlock?: ReadonlySet<number>;
+  /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
+  hits?: readonly DamageHit[];
   /**
    * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):
    * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,
@@ -1598,6 +1615,7 @@ export function toBoardView(
     waitingEffects,
     tokenSources,
     cantBlock,
+    hits,
     promptCard = null,
   }: AdaptOptions,
 ): BoardView {
@@ -1756,5 +1774,6 @@ export function toBoardView(
     pendingTriggers: waiting,
     gameOver: readBool(game, 'GameOver'),
     missingCardIds: missing,
+    ...(hits === undefined || hits.length === 0 ? {} : { hits }),
   };
 }

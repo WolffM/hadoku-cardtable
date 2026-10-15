@@ -15,6 +15,7 @@ import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
+import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import poolData from '../draft/pool.json';
 import {
@@ -4420,14 +4421,27 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       expect(tier(container, 'back')).toEqual([25, 8, 24, null, null, 6]);
     });
 
-    it('a card that leaves the battlefield closes its column: only the player makes a gap', () => {
+    it('a card that leaves the battlefield keeps its column while it is drawn leaving, then the column closes: only the player makes a gap', () => {
+      vi.useFakeTimers();
+      onTestFinished(() => void vi.useRealTimers());
       const { container, rerender } = renderBoard(view, undefined, 'single');
       dragCard(container, 25, { point: column(container, 'back', 6) });
       expect(tier(container, 'back')).toEqual([8, 24, 6, null, null, null, 25]);
       const me = view.players.find((p) => p.isViewer)!;
       const without: BoardView = { ...view, players: view.players.map((p) => (p === me ? { ...p, battlefield: p.battlefield.filter((c) => c.id !== 6) } : p)) };
       rerender(createElement(Board, { view: without, boardLayout: 'single' }));
+      expect(tier(container, 'back'), 'its place is kept while it leaves').toEqual([8, 24, null, null, null, null, 25]);
+      expect(container.querySelector(`.seat[data-viewer] [data-tier="back"] > li:nth-child(3)`)?.getAttribute(LEAVING_GAP_ATTR)).toBe('6');
+      act(() => void vi.advanceTimersByTime(EXIT_MOTIONS.crumple.ms));
       expect(tier(container, 'back'), 'its column closed; the player’s own gaps stay').toEqual([8, 24, null, null, null, 25]);
+    });
+
+    it('in Fast Mode a card that leaves the battlefield closes its column at once', () => {
+      const { container, rerender } = renderBoard(view, undefined, 'single');
+      const me = view.players.find((p) => p.isViewer)!;
+      const without: BoardView = { ...view, players: view.players.map((p) => (p === me ? { ...p, battlefield: p.battlefield.filter((c) => c.id !== 6) } : p)) };
+      rerender(createElement(Board, { view: without, boardLayout: 'single', fastMode: true }));
+      expect(tier(container, 'back')).toEqual([8, 24, 25]);
     });
 
     it('an empty row takes a card at a column past its start too', () => {

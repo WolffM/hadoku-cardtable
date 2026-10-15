@@ -411,6 +411,7 @@ import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
+import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { CheckMark, PlayerMark } from './marks.tsx';
@@ -2690,6 +2691,22 @@ function ZoneShell({
  * Both are the default ordering plus the player's own arrangement on top of
  * it; `arranging` is present only on the viewer's own side.
  */
+const NOTHING_LEAVING: readonly Departure[] = [];
+
+/**
+ * A battlefield's cards with the ones still drawn leaving put back where they were — each at its
+ * old index, and holding nothing: whatever was attached to it is a permanent of its own now.
+ */
+function withLeaving(cards: readonly BoardCard[], leaving: readonly Departure[]): readonly BoardCard[] {
+  if (leaving.length === 0) return cards;
+  const out = [...cards];
+  for (const d of [...leaving].sort((a, b) => a.index - b.index)) {
+    if (out.some((c) => c.id === d.cardId)) continue;
+    out.splice(Math.min(d.index, out.length), 0, { ...d.card, attachedCardIds: [] });
+  }
+  return out;
+}
+
 function Battlefield({
   player,
   ownerSide,
@@ -2697,6 +2714,7 @@ function Battlefield({
   arranging,
   arranged,
   layout,
+  leaving = NOTHING_LEAVING,
 }: {
   player: BoardPlayer;
   ownerSide: ZoneOwner;
@@ -2704,8 +2722,11 @@ function Battlefield({
   arranging: Arranging | undefined;
   arranged: Arrangement;
   layout: BoardLayout;
+  /** This battlefield's permanents still drawn leaving (`live/departures.ts`): their places are kept as gaps. */
+  leaving?: readonly Departure[];
 }) {
-  const grouped = group(player.battlefield, player.id, arranged, layout);
+  const leavingIds = new Set(leaving.map((d) => d.cardId));
+  const grouped = group(withLeaving(player.battlefield, leaving), player.id, arranged, layout);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
     expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
@@ -2713,6 +2734,20 @@ function Battlefield({
       : withExpectedGap(grouped, expected.slot, expected.target);
   const rows = reserved?.rows ?? grouped;
   const isExpectedGap = (row: BoardRow, i: number): boolean => reserved !== null && expected !== undefined && expected.slot === row && reserved.index === i;
+  /** One column: a gap the player left, the place a leaving card keeps, or a pile — less any card of it that is leaving. */
+  const pileItem = (whole: Pile, row: BoardRow, i: number) => {
+    if (whole.length === 0) {
+      return <li key={`gap-${i}`} className="zone__gap" data-gap="" data-expected={isExpectedGap(row, i) ? '' : undefined} aria-hidden="true" />;
+    }
+    const pile = whole.filter((c) => !leavingIds.has(c.id));
+    if (pile.length === 0) {
+      const id = whole[0]!.id;
+      return <li key={`leaving-${id}`} className="zone__gap" data-gap="" {...{ [LEAVING_GAP_ATTR]: id }} aria-hidden="true" />;
+    }
+    return (
+      <CardOnBoard key={pile[0]!.id} entry={pile[0]!} interaction={interaction} arranging={arranging} slot={row} pile={pile} pileSize={pile.length} />
+    );
+  };
 
   if (layout === 'single') {
     /*
@@ -2746,21 +2781,7 @@ function Battlefield({
               style={{ '--cols': cols(rows, layout) } as CSSProperties}
               data-arrange-slot={arranging === undefined ? undefined : tier}
             >
-              {rows[tier].map((pile, i) =>
-                pile.length === 0 ? (
-                  <li key={`gap-${i}`} className="zone__gap" data-gap="" data-expected={isExpectedGap(tier, i) ? '' : undefined} aria-hidden="true" />
-                ) : (
-                  <CardOnBoard
-                    key={pile[0]!.id}
-                    entry={pile[0]!}
-                    interaction={interaction}
-                    arranging={arranging}
-                    slot={tier}
-                    pile={pile}
-                    pileSize={pile.length}
-                  />
-                ),
-              )}
+              {rows[tier].map((pile, i) => pileItem(pile, tier, i))}
             </ul>
           ))}
         </div>
@@ -2806,21 +2827,7 @@ function Battlefield({
               {ROW_LABEL[row]} <span className="zone__count">{cardsIn(rows[row])}</span>
             </h5>
             <ul className="zone__cards">
-              {rows[row].map((pile, i) =>
-                pile.length === 0 ? (
-                  <li key={`gap-${i}`} className="zone__gap" data-gap="" data-expected={isExpectedGap(row, i) ? '' : undefined} aria-hidden="true" />
-                ) : (
-                <CardOnBoard
-                  key={pile[0]!.id}
-                  entry={pile[0]!}
-                  interaction={interaction}
-                  arranging={arranging}
-                  slot={row}
-                  pile={pile}
-                  pileSize={pile.length}
-                />
-              ),
-              )}
+              {rows[row].map((pile, i) => pileItem(pile, row, i))}
             </ul>
           </li>
         ))}
@@ -3210,6 +3217,7 @@ function PlayerArea({
   arranging,
   arranged,
   layout,
+  leaving,
   onOpenPile,
   onOpenSettings,
 }: {
@@ -3218,6 +3226,7 @@ function PlayerArea({
   arranging: Arranging | undefined;
   arranged: Arrangement;
   layout: BoardLayout;
+  leaving: readonly Departure[];
   onOpenPile: (zone: PileZone) => void;
   onOpenSettings?: (from: Element) => void;
 }) {
@@ -3372,6 +3381,7 @@ function PlayerArea({
         arranging={arranging}
         arranged={arranged}
         layout={layout}
+        leaving={leaving}
       />
       {player.hand !== null ? (
         <Zone
@@ -3660,8 +3670,11 @@ export function Board({
   boardLayout = 'single',
   onOpenSettings,
   onEffect,
+  fastMode = false,
 }: {
   view: BoardView;
+  /** Fast Mode (`live/prefs.ts`): nothing that left the battlefield is drawn leaving, and a resolution does not blink first. */
+  fastMode?: boolean;
   interaction?: BoardInteraction;
   /** What each view's change was drawn as (`live/numbers.ts`'s beats) — the seat's `effect` client event. */
   onEffect?: (data: Record<string, string | number | boolean>) => void;
@@ -3744,17 +3757,77 @@ export function Board({
   const numbers = useRef<ReturnType<typeof installNumbers> | null>(null);
   const reportEffect = useRef(onEffect);
   reportEffect.current = onEffect;
+  const fastNow = useRef(fastMode);
+  fastNow.current = fastMode;
+  /*
+   * What left a battlefield is drawn leaving (`live/departures.ts`): its row keeps its place
+   * (`leaving`, below — the same diff `numbers` makes), a copy of it plays its exit motion over that
+   * place at the beat `numbers` gives it, and then the place closes. Layout effects, all three of
+   * these, and in this order: `numbers` decides the beats (and when a resolving spell may fade, which
+   * `placed` reads below), and `departures` is told what each card looked like only after.
+   */
+  const [shown, setShown] = useState<{ view: BoardView; leaving: ReadonlyMap<number, { departure: Departure; at: number }> }>(() => ({
+    view,
+    leaving: new Map(),
+  }));
+  let leaving = shown.leaving;
+  if (shown.view !== view) {
+    const next = new Map(leaving);
+    for (const id of next.keys()) if (view.players.some((p) => p.battlefield.some((c) => c.id === id))) next.delete(id);
+    if (!fastMode) for (const departure of departuresOf(shown.view, view)) next.set(departure.cardId, { departure, at: Date.now() });
+    leaving = next;
+    setShown({ view, leaving: next });
+  }
+  const departed = useCallback((cardId: number) => {
+    setShown((s) => {
+      if (!s.leaving.has(cardId)) return s;
+      const next = new Map(s.leaving);
+      next.delete(cardId);
+      return { ...s, leaving: next };
+    });
+  }, []);
+  // A departure whose beat never came — nothing drew it — gives its place back all the same.
   useEffect(() => {
+    if (leaving.size === 0) return undefined;
+    const oldest = Math.min(...[...leaving.values()].map((l) => l.at));
+    const timer = setTimeout(
+      () => {
+        for (const [id, l] of leaving) if (Date.now() - l.at >= DEPARTURE_MAX_MS) departed(id);
+      },
+      Math.max(0, oldest + DEPARTURE_MAX_MS - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [leaving, departed]);
+  const leavingOn = (playerId: number): readonly Departure[] => {
+    const out = [...leaving.values()].filter((l) => l.departure.playerId === playerId).map((l) => l.departure);
+    return out.length === 0 ? NOTHING_LEAVING : out;
+  };
+  const departures = useRef<ReturnType<typeof installDepartures> | null>(null);
+  useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
-    const handle = installNumbers(el, { report: (data) => reportEffect.current?.(data) });
+    const handle = installDepartures(el, { onDone: departed });
+    departures.current = handle;
+    return () => {
+      departures.current = null;
+      handle.dispose();
+    };
+  }, [departed]);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (el === null) return undefined;
+    const handle = installNumbers(el, {
+      report: (data) => reportEffect.current?.(data),
+      fastMode: () => fastNow.current,
+      leave: (departure, delayMs) => departures.current?.leave(departure, delayMs),
+    });
     numbers.current = handle;
     return () => {
       numbers.current = null;
       handle.dispose();
     };
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     numbers.current?.notify(view);
   }, [view]);
 
@@ -3786,6 +3859,10 @@ export function Board({
       interaction === undefined ? undefined : { isSelectable: (cardId) => interaction.selectable.has(cardId), onSelect: interaction.onSelectCard },
     );
   }, [view, interaction]);
+  // Last, every commit: how each battlefield card is drawn now, for the next commit's departures.
+  useLayoutEffect(() => {
+    departures.current?.snapshot();
+  });
 
   /*
    * The player's arrangement, out of the module store rather than React state
@@ -3901,6 +3978,7 @@ export function Board({
             arranged={arranged}
             /* Mine only (Q15c): the opponent's board is always the default one. */
             layout="single"
+            leaving={leavingOn(p.id)}
             onOpenPile={openPileOf(p.id)}
           />
         ))}
@@ -3932,6 +4010,7 @@ export function Board({
           arranging={arranging}
           arranged={arranged}
           layout={boardLayout}
+          leaving={leavingOn(viewer.id)}
           onOpenPile={openPileOf(viewer.id)}
           onOpenSettings={onOpenSettings}
         />

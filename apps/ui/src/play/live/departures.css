@@ -1,0 +1,59 @@
+/*
+ * A permanent leaving the battlefield (`departures.ts`): a copy of the card, stood in the board's
+ * overlay over the gap its row keeps, holding still until its beat (`data-exit-go`) and then playing
+ * its exit motion. Each motion is one rule below, under its name from `EXIT_MOTIONS`; its length
+ * there and its keyframe here must agree.
+ */
+.board-departure {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.board-departure > .board-card {
+  margin: 0;
+  list-style: none;
+}
+
+/* Destroyed: the countered spell's own motion (`placed.css`'s `placed-countered`) — a shudder, then it crumples away. */
+.board-departure[data-exit='crumple'][data-exit-go] {
+  animation: board-exit-crumple 400ms ease-in forwards;
+}
+
+@keyframes board-exit-crumple {
+  0% {
+    rotate: 0deg;
+  }
+
+  15% {
+    rotate: -5deg;
+  }
+
+  30% {
+    rotate: 5deg;
+  }
+
+  45% {
+    rotate: -3deg;
+    scale: 1;
+    opacity: 1;
+  }
+
+  100% {
+    rotate: 12deg;
+    scale: 0.4;
+    opacity: 0;
+  }
+}
+
+/* Exiled, or back to a hand: it lifts a little and fades. */
+.board-departure[data-exit='fade'][data-exit-go] {
+  animation: board-exit-fade 300ms ease-out forwards;
+}
+
+@keyframes board-exit-fade {
+  100% {
+    translate: 0 -8px;
+    opacity: 0;
+  }
+}

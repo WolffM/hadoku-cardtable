@@ -2925,6 +2925,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           view={visualView}
           interaction={interaction}
           boardLayout={boardLayout}
+          fastMode={fastMode}
           onOpenSettings={settings.toggle}
           // A watcher sends none (`reportClient`'s own rule).
           onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}

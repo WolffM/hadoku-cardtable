@@ -22,6 +22,7 @@ import type { z } from 'zod';
 import {
   ApplyDeltaSchema,
   CantBlockSchema,
+  DamageSchema,
   DECLARED_TYPE_SCHEMAS,
   DELTA_OBJECT_TYPES,
   DeltaPacketSchema,
@@ -521,5 +522,25 @@ describe('Tier C — cantBlock', () => {
     const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, cantBlock: [101] } });
     expect(delta.success && delta.data.payload.cantBlock).toEqual([101]);
     expect(ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet } }).success).toBe(true);
+  });
+});
+
+describe('Tier C — damage', () => {
+  it('accepts [target, source, amount] triples and rejects anything else', () => {
+    expect(DamageSchema.safeParse([]).success).toBe(true);
+    expect(DamageSchema.safeParse([[101, 131, 3], [102, -1, 1]]).success).toBe(true);
+    expect(DamageSchema.safeParse([[101, 131]]).success).toBe(false);
+    expect(DamageSchema.safeParse([101]).success).toBe(false);
+  });
+
+  it('is optional on applyDelta and carried when present; a snapshot never carries it', () => {
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, damage: [[101, 131, 3]] } });
+    expect(delta.success && delta.data.payload.damage).toEqual([[101, 131, 3]]);
+    const view = SetGameViewSchema.safeParse({
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, damage: [[101, 131, 3]] },
+    });
+    expect(view.success).toBe(false);
   });
 });

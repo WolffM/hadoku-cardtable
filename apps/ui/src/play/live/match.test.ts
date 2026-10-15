@@ -2539,6 +2539,30 @@ describe('cantBlock — the bridge’s own wire fact', () => {
   });
 });
 
+describe('damage — the bridge’s own hits', () => {
+  function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload },
+    });
+  }
+
+  it('each hit is numbered as it comes onto LiveMatch.hits and BoardView.hits, a source of -1 is none, and a delta without any keeps them', async () => {
+    const { s, m } = await fullGame();
+    expect(m.view!.hits, 'no hits before any frame carries one').toBeUndefined();
+    const id = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+    await sendAndApply(s, m, [applyDeltaWith({ damage: [[id, 131, 3]] }), applyDeltaWith({ damage: [[id, -1, 1]] })]);
+    expect(m.view!.hits).toEqual([
+      { seq: 1, cardId: id, sourceId: 131, amount: 3 },
+      { seq: 2, cardId: id, sourceId: null, amount: 1 },
+    ]);
+    await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
+    expect(m.view!.hits?.map((h) => h.seq), 'an event list: kept, and never drawn twice (numbers reads above the last seq)').toEqual([1, 2]);
+  });
+});
+
 describe('full control, restored after a refresh', () => {
   /*
    * `cursor` is seq 1 with no frames in it, which the contract allows and the
