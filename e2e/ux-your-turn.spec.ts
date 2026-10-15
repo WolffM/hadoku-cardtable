@@ -1,10 +1,10 @@
 /**
  * The operator, 2026-10-14: *"'your turn' pop up on the screen"*.
  *
- * Against real Forge: `nothing-left.state` opens on alice's own turn 1 with nothing to do. A screen
- * that opens mid-turn announces nothing (the turn was not seen to begin). Alice ends her turn: bob's
- * screen shows "Your turn" for turn 2 and alice's shows nothing; bob ends his: alice's shows it for
- * turn 3. Each cue is recorded by a MutationObserver installed before the board loads, so the test
+ * Against real Forge: `nothing-left.state` opens on alice's own turn 1 with nothing to do (her
+ * screen may see that first turn begin, and cue it). Alice ends her turn: bob's screen shows "Your
+ * turn" for turn 2 and alice's shows nothing; bob ends his: alice's shows it for turn 3. Alice then
+ * reloads mid-turn, and the reloaded screen announces nothing. Each cue is recorded by a MutationObserver installed before the board loads, so the test
  * waits on the cue's appearance, never on a sleep. While it shows it takes no pointer and covers
  * neither the hand nor the control box, and it is gone again within two seconds.
  *
@@ -68,11 +68,14 @@ test(titled('“Your turn” shows on the screen whose turn just began, once, cl
     const b = bob.page;
     const aliceEnd = a.getByTestId('live-button-end-turn');
     await expect(aliceEnd, 'alice can end her turn').toBeEnabled({ timeout: 30_000 });
-    expect(await cueTurns(a), 'a screen that opened mid-turn announces nothing').toEqual([]);
+    const atStart = await cueTurns(a);
+    console.log(`[ux-your-turn] alice at the start: ${JSON.stringify(atStart)} bob: ${JSON.stringify(await cueTurns(b))}`);
+    expect([[], [1]], 'at most the first turn, which alice’s screen saw begin').toContainEqual(atStart);
+    expect(await cueTurns(b), 'nothing on bob’s screen during alice’s turn').toEqual([]);
 
     await aliceEnd.click();
     await expect.poll(() => cueTurns(b), { timeout: 30_000, message: 'bob’s screen: “Your turn” for turn 2' }).toEqual([2]);
-    expect(await cueTurns(a), 'alice’s screen: nothing on bob’s turn').toEqual([]);
+    expect(await cueTurns(a), 'alice’s screen: nothing on bob’s turn').toEqual(atStart);
     await expect(b.getByTestId('turn-cue'), 'the cue goes by itself').toHaveCount(0, { timeout: 2_000 });
 
     // Bob ends his turn if Forge stops him in it; a turn with nothing to do may pass by itself.
@@ -81,11 +84,17 @@ test(titled('“Your turn” shows on the screen whose turn just began, once, cl
       if (await bobEnd.isEnabled().catch(() => false)) await bobEnd.click().catch(() => undefined);
       await a.waitForTimeout(250);
     }
-    await expect.poll(() => cueTurns(a), { timeout: 30_000, message: 'alice’s screen: “Your turn” for turn 3' }).toEqual([3]);
+    await expect.poll(() => cueTurns(a), { timeout: 30_000, message: 'alice’s screen: “Your turn” for turn 3' }).toEqual([...atStart, 3]);
     expect(await cueTurns(b), 'bob’s screen: still only his own turn').toEqual([2]);
+    const seenBeforeReload = { alice: await cues(a), bob: await cues(b) };
 
-    for (const [who, page] of [['alice', a], ['bob', b]] as const) {
-      for (const c of await cues(page)) {
+    await a.reload();
+    await expect(a.getByTestId('live-turn-n'), 'the reloaded board is up').toHaveText(/^3$/, { timeout: 30_000 });
+    await expect(a.getByTestId('live-button-end-turn'), 'alice’s turn 3 resumes').toBeEnabled({ timeout: 30_000 });
+    expect(await cueTurns(a), 'a screen reloaded mid-turn announces nothing').toEqual([]);
+
+    for (const who of ['alice', 'bob'] as const) {
+      for (const c of seenBeforeReload[who]) {
         console.log(`[ux-your-turn] ${who} ${JSON.stringify(c)}`);
         expect(c.text, `${who}: the words`).toBe('Your turn');
         expect(c.pointer, `${who}: takes no pointer`).toBe('none');
