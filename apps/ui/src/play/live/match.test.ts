@@ -1759,6 +1759,25 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     expect(payingMana(m)).toBe(true);
   });
 
+  it('a payment Forge says takes life makes the viewer’s own player a click, and only that payment', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const me = m.view!.players.find((p) => p.isViewer)!.id;
+    const them = m.view!.players.find((p) => !p.isViewer)!.id;
+    // `InputPayManaOfCostPayment.getMessage`: the Phyrexian line, under a cost no land can pay.
+    await sendAndApply(s, m, [payBar(false), promptFor('Gitaxian Probe\n\nPay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)', mine[0]!), actionable([])]);
+    expect([...boardInteraction(m).selectablePlayers]).toEqual([me]);
+    expect(selectPlayer(m, them)).toBe(false);
+    expect(selectPlayer(m, me)).toBe(true);
+    // Spent until Forge's next frame: {B/P}{B/P} is two clicks, each answered first.
+    expect(boardInteraction(m).selectablePlayers.has(me)).toBe(false);
+    await sendAndApply(s, m, [payBar(false), promptFor('Pay Mana Cost: {U/P} (2 life paid)\n(Click on your life total to pay life for phyrexian mana.)', mine[0]!), actionable([])]);
+    expect(boardInteraction(m).selectablePlayers.has(me)).toBe(true);
+    // A payment with no life line takes no player.
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay Mana Cost: {1}{U}', mine[0]!), actionable([mine[0]!])]);
+    expect([...boardInteraction(m).selectablePlayers]).toEqual([]);
+  });
+
   it('THE STALE BAR: an Auto bar that outlived its payment is not a payment', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);

@@ -1406,7 +1406,8 @@ function nothingClickable(match: LiveMatch): LiveClickables {
  *    selection input will take;
  *  - otherwise Forge's actionable set (`setWeaklySelectable`) union the cards
  *    it has MARKED (`setHighlighted`) union — while `GameView.Mulligan` is up —
- *    this seat's OWN hand → those cards, and no player;
+ *    this seat's OWN hand → those cards, and no player, except the opponents
+ *    while attacks are declared and the viewer while a payment takes life;
  *  - Forge has named none of the four → nothing.
  *
  * ## Why `highlighted` sits BESIDE `selectables` and is not folded into it
@@ -1464,6 +1465,10 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   } else if (attackInputLive(match)) {
     // `InputAttack.onPlayerSelected` makes an opponent the current defender.
     for (const p of view.players) if (!p.isViewer && !p.hasLost && !match.spent.players.has(p.id)) players.add(p.id);
+  } else if (lifePayable(match)) {
+    // `InputPayManaOfCostPayment.onPlayerSelected` takes the payer: 2 life for one Phyrexian shard.
+    const me = view.players.find((p) => p.isViewer);
+    if (me !== undefined && !match.spent.players.has(me.id)) players.add(me.id);
   }
   return { selectable: offered, selectablePlayers: players, selectionOpen: selection !== null };
 }
@@ -1804,6 +1809,19 @@ export function payingMana(match: LiveMatch): boolean {
   if (match.selectables !== null) return false;
   if (match.promptCard === null) return false;
   return match.buttons !== null && match.buttons.label1 === AUTO_PAY_LABEL;
+}
+
+/**
+ * Forge's payment input naming the payer's own life total as a way to pay
+ * (`InputPayManaOfCostPayment.getMessage`, the `lblClickOnYourLifeTotalToPayLife…`
+ * line): a Phyrexian shard, or black mana under "pay life instead". The server
+ * reads the same line (`apps/server/src/play/auto.ts`'s `LIFE_INSTEAD`).
+ */
+const LIFE_PAYMENT = /^\(?Click on your life total to pay life for /m;
+
+/** A payment is open that the viewer may pay with life, by clicking their own life total. */
+function lifePayable(match: LiveMatch): boolean {
+  return payingMana(match) && LIFE_PAYMENT.test(match.prompt ?? '');
 }
 
 /**
