@@ -13,10 +13,9 @@
  * was a hard stop whatever the defender could do there — `idle-blocker.json`'s
  * original run showed it `kept` with `sources: 0, nonManaSources: 0` and
  * `buttons: [true, true]`, a second OK for a seat holding nothing. The window
- * the tracker actually named, `COMBAT_DECLARE_ATTACKERS`, was already correct:
- * it is outside `stopOnTheirTurn` and `skipsThisTurn` skips it whatever the
- * seat could do there, confirmed in both variants below and pinned in
- * `auto.test.ts`.
+ * the tracker actually named, `COMBAT_DECLARE_ATTACKERS`, passes for a
+ * defender with nothing to play (the idle variant below); a defender holding a
+ * play is held there (see the reactive variant).
  *
  * The fix is `StopPolicy.blockStopIsTheDeclaration` (`auto.ts`), the
  * non-active seat's mirror of `attackStopIsTheDeclaration`: the block-select
@@ -31,16 +30,15 @@
  *    blocker and nothing else. ONE click: declare the block. The priority
  *    window right after is silently auto-passed.
  *  - **reactive** (`w46-c-blocker-reactive.state`) — the defender ALSO holds
- *    Lightning Bolt and an untapped Mountain. TWO clicks: declare the block,
- *    then the priority window right after — correct Magic, a held response is
- *    still castable once blocks are locked in.
+ *    Lightning Bolt and an untapped Mountain. THREE clicks: its priority once
+ *    the attack is declared, the block, then the priority window right after —
+ *    a held response is castable before blocks and once they are locked in.
  *
- * Neither variant ever shows a stop during `COMBAT_DECLARE_ATTACKERS`, before
- * the block-select window opens — confirmed directly from the `stop-decided`
- * trace (`docs/planning/wave46-evidence/C/*.json`): that window is
- * `'auto-passed'` for the defender in both variants, even in the reactive one
- * where `sources: 2, nonManaSources: 1` prove Lightning Bolt and its Mountain
- * really were offered there too.
+ * The idle defender is never stopped during `COMBAT_DECLARE_ATTACKERS`. The
+ * reactive one is, since 2026-10-14 (the operator: *"my opponent attacked and i
+ * had swords to plowshares in my hand, it never gave me priority in combat"*):
+ * `stopWithPlayOnTheirTurn` holds that window for a real play in a combat
+ * somebody attacked in.
  *
  * Probe mode (`CARDTABLE_PLAY_PROBE=1`, set by the suite) makes `match.ts`'s `TRACE_STOPS` emit a
  * `stop-decided` log line for every window the server evaluates (kept or
@@ -143,7 +141,7 @@ async function driveAttackDeclaration(s: Scenario, attacker: number, creatureId:
 }
 
 interface Click {
-	/** `pre-block priority` (a bug if it ever appears), `block declare` or `post-block priority`. */
+	/** `pre-block priority` (only for a defender with a play), `block declare` or `post-block priority`. */
 	kind: string;
 	phase: string | null;
 	message: string;
@@ -215,9 +213,8 @@ async function driveDefenderThroughBlock(s: Scenario, defender: number, blockerI
 		}
 
 		if (!selected) {
-			// A real stop BEFORE the block-select window ever opened — the window
-			// the tracker's own read named; confirmed elsewhere never to fire, but
-			// if it ever does, this is the bug and this harness still catches it.
+			// A real stop BEFORE the block-select window opened: the defender's priority once the
+			// attack is declared, kept only when it has a play there.
 			if (/^Priority:/.test(msg) && buttons?.enable1 === true) {
 				clicks.push({ kind: 'pre-block priority', phase, message: msg });
 				s.ok(defender);
@@ -252,11 +249,6 @@ function writeEvidence(name: string, result: DriveResult): void {
 /** Nothing castable: exactly ONE click, the block declare — the fix's whole point. */
 function expectOneStop(result: DriveResult): void {
 	expect(result.clicks.map((c) => c.kind), `clicks: ${JSON.stringify(result.clicks)}`).toEqual(['block declare']);
-}
-
-/** Something castable: the block declare, then the real priority stop that follows it — correct Magic. */
-function expectTwoStops(result: DriveResult): void {
-	expect(result.clicks.map((c) => c.kind), `clicks: ${JSON.stringify(result.clicks)}`).toEqual(['block declare', 'post-block priority']);
 }
 
 /** The pre-block `COMBAT_DECLARE_ATTACKERS` window was silently auto-passed for the defender — never a real stop. */
@@ -314,7 +306,7 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
-		'reactive defender: a held instant with mana up is still a real stop after the block — correct Magic, two clicks',
+		'reactive defender: a held instant with mana up is a real stop once the attack is declared and again after the block — three clicks',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 4602, decks: DECKS, scenario: scenarioText('w46-c-blocker-reactive') });
@@ -342,23 +334,25 @@ describe.skipIf(!available.ok)(title, () => {
 				if (blocker === undefined) throw new Error("no creature on seat 1's battlefield");
 				expect(s.zone(1, 'Hand').some((c) => c.name === 'Lightning Bolt'), 'the defender holds the scripted instant').toBe(true);
 
-				await driveAttackDeclaration(s, 0, attackerCreature.id, () => /^Select creatures to block/.test(s.prompt(1)));
+				// The defender is held once the attack is declared (its Bolt is a play), so the attacker's
+				// drive ends at that window or at the block select, whichever comes.
+				await driveAttackDeclaration(
+					s,
+					0,
+					attackerCreature.id,
+					() => /^Select creatures to block/.test(s.prompt(1)) || (/^Priority:[\s\S]*Declare Attackers Step/.test(s.prompt(1)) && s.buttons(1)?.enable1 === true),
+				);
 				const result = await driveDefenderThroughBlock(s, 1, blocker.id);
 				writeEvidence('reactive-defender', result);
 
-				expectPreBlockAutoPassed(result);
-				// The precondition that makes "still auto-passed" non-vacuous: Forge
-				// really did offer the instant and its land as actionable right there.
-				// `maybeAutoPass` is consulted on both `updateButtons` and
-				// `showPromptMessage` (`match.ts:1344-1356`), so this phase can log
-				// either one `stop-decided` line (the facts already settled by the
-				// first trigger) or two (an interim `'kept'` read before Forge named
-				// the sources, then the real decision) — read the LAST one, which is
-				// always the one the facts (and the eventual pass) were decided on.
+				// The operator, 2026-10-14: *"my opponent attacked and i had swords to plowshares in my hand,
+				// it never gave me priority in combat."* The held Bolt is a play once the attack is declared:
+				// that window is kept, and the log says why. Read the LAST decision of the phase — an
+				// interim `no-answer` can precede Forge naming the sources.
 				const preBlockDecisions = result.decisions.filter((d) => d.phase === 'COMBAT_DECLARE_ATTACKERS');
 				expect(preBlockDecisions.length, JSON.stringify(result.decisions)).toBeGreaterThan(0);
-				expect(preBlockDecisions.at(-1)?.nonManaSources, `nonManaSources: ${JSON.stringify(result.decisions)}`).toBeGreaterThan(0);
-				expectTwoStops(result);
+				expect(preBlockDecisions.at(-1), JSON.stringify(result.decisions)).toMatchObject({ decision: 'kept', rule: 'play-stop' });
+				expect(result.clicks.map((c) => c.kind), `clicks: ${JSON.stringify(result.clicks)}`).toEqual(['pre-block priority', 'block declare', 'post-block priority']);
 			} finally {
 				await s.stop();
 			}

@@ -152,16 +152,14 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	/*
-	 * S13, wave 64 — "full control wins over auto-yield wins over the stop
-	 * policy" was pinned only with synthetic frames (`match.test.ts`'s
-	 * `maybeAutoPass` cases). S5 folded the four auto-decision gates onto one
-	 * guard (`Match.autoGateFacts`, which checks `s.fullControl` BEFORE
-	 * anything else — `match.ts`'s own code is the precedence, this is its
-	 * jar pin), so this is the one case synthetic frames cannot stand in for:
-	 * the SAME seat with BOTH preferences on at once, against a real match.
+	 * The precedence of the seat's two own preferences, against a real match: Auto Yield
+	 * outranks full control. The operator, 2026-10-14, in full control with a stack item held:
+	 * *"auto-yield should work even for things already on the stack."* Pressing it is the seat's
+	 * word for this turn; full control is a standing "ask me". The SAME seat with BOTH on at
+	 * once is the one case synthetic frames cannot stand in for.
 	 */
 	it(
-		"full control keeps the window open even with auto-yield also on — the escape hatch wins",
+		"auto-yield passes bob's Bolt for alice even with full control also on — her word for this turn wins",
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, {
@@ -178,9 +176,7 @@ describe.skipIf(!available.ok)(title, () => {
 					20_000,
 					s,
 				);
-				// Both on, same seat, same turn — the order they were set in must not
-				// matter either, since `autoGateFacts` reads `s.fullControl` fresh
-				// every call, never a value latched at set-time.
+				// Both on, same seat, same turn — the order they were set in must not matter.
 				expect(s.match.setAutoYield(ALICE, true)).toEqual({ ok: true });
 				expect(s.match.setFullControl(ALICE, true)).toEqual({ ok: true });
 
@@ -195,13 +191,12 @@ describe.skipIf(!available.ok)(title, () => {
 					(f) => f.method === 'showPromptMessage' && /^Priority: alice/.test(f.message ?? '') && /Stack: 1 to Resolve/.test(f.message ?? ''),
 				);
 				expect(aliceOffered, "Forge never gave alice a window with bob's spell on the stack").toBe(true);
-				// The claim: full control's window reached alice's own wire —
-				// auto-yield did NOT hide it, even though it is also on.
-				expect(aliceBars(s, sentMark).length, "full control's window must reach alice's wire despite auto-yield").toBeGreaterThan(0);
+				// The claim: the yield passed that window under full control, and it never reached alice's wire.
+				expect(aliceBars(s, sentMark), "alice's own wire carried no bar for bob's spell").toEqual([]);
 				expect(
-					s.logs.some((l) => l.evt === 'auto-passed' && l.seat === ALICE),
-					'full control must never auto-pass for this seat',
-				).toBe(false);
+					s.logs.some((l) => l.evt === 'auto-passed' && l.seat === ALICE && l.why === 'auto-yield'),
+					'the window was passed for the yield',
+				).toBe(true);
 			} finally {
 				await s.stop();
 			}
