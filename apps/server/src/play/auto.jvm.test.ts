@@ -1063,8 +1063,9 @@ describe.skipIf(!available.ok)(title, () => {
 
 			/** The payment rows: Forge's own `Auto` bar, live or dead. */
 			const paymentRows = (): RawRow[] => rows().filter((r) => r.label1 === 'Auto' && /^Pay Mana Cost: /m.test(r.message));
-			/** Item 6's window: `{R}`, with more than one card in Forge's actionable set. */
-			const blastRows = (): RawRow[] => paymentRows().filter((r) => r.enable1 && r.actionable !== null && new Set(r.actionable).size > 1);
+			/** Item 6's window: Galvanic Blast's `{R}`, Auto live, with the highlight Forge sent for it. */
+			const blastRows = (): RawRow[] =>
+				paymentRows().filter((r) => r.enable1 && r.actionable !== null && r.actionable.length > 0 && /^Pay Mana Cost: \{R\}$/m.test(r.message));
 			/** Item 7's window, if this run happens to produce one: a payment Forge's own Auto is DEAD for. */
 			const deadAutoRows = (): RawRow[] => paymentRows().filter((r) => !r.enable1);
 
@@ -1179,13 +1180,13 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[lane-d] readPromptFacts: ${JSON.stringify(readPromptFacts(notesFrom(row)))}`);
 			}
 
-			expect(blastRows().length, `no {R} payment offered more than one card: ${JSON.stringify(paymentRows().map((r) => [r.message, r.actionable]))}`).toBeGreaterThan(0);
+			expect(blastRows().length, `no {R} payment with a highlight: ${JSON.stringify(paymentRows().map((r) => [r.message, r.actionable]))}`).toBeGreaterThan(0);
 			/*
-			 * The evidence, by NAME. Forge offered two cards for a `{R}` cost: the
-			 * Mountain that can pay it and the Island that cannot. That is item 6 —
-			 * `sources` is Forge's actionable highlight set (every card with a playable
-			 * mana ability, `PlayerControllerHuman.java:1565-1573`), not the cards that
-			 * can pay THIS cost — and it is why `decidePay`'s source-count arm asked.
+			 * The evidence, by NAME. Forge used to offer two cards for this `{R}`: the
+			 * Mountain that can pay it and the Island that cannot (every card with a
+			 * playable mana ability), which is why `decidePay`'s source-count arm asked.
+			 * The payment highlight now offers only a source the payment would take
+			 * (`InputPayMana.paysWith`), so the Island is left out and the one source pays.
 			 */
 			const board = new Map(zone(0, 'Battlefield').map((c) => [c.id, c.name]));
 			for (const row of blastRows()) {
@@ -1194,15 +1195,11 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(facts.cost).toBe('{R}');
 				const offered = [...new Set(row.actionable!)].map((id) => board.get(id) ?? `#${id}`).sort();
 				console.log(`[lane-d] item 6: Forge offered ${JSON.stringify(offered)} for ${String(facts.cost)}`);
-				expect(offered).toEqual(['Island', 'Mountain']);
-				// The guard, as it stands: two sources and no auto-tap plan on the wire.
-				expect(facts.sources).toHaveLength(2);
-				expect(facts.plannedSources).toEqual([]);
-				// The strict value is the one this claim belongs to — see the #22 block
-				// above for why this line named the default until wave 28.
-				expect(decidePay(facts, STRICT_PAYMENT_POLICY)).toBeNull();
-				// And the value that stops asking, over the same real frames, which has
-				// been the DEFAULT since 2026-09-27: that is what closes item 6.
+				expect([...board.values()], 'the Island is on the board, untapped or not').toContain('Island');
+				expect(offered).toEqual(['Mountain']);
+				expect(facts.sources).toHaveLength(1);
+				// One source for the cost: even the strict policy pays it.
+				expect(decidePay(facts, STRICT_PAYMENT_POLICY)).toBe('{R}');
 				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBe('{R}');
 				expect(decidePay(facts, FULL_CONTROL_POLICY)).toBeNull();
 				// Not an unpayable cost: Forge's Auto is live, so it can be paid.
