@@ -253,7 +253,7 @@
  * new wire shape changes.
  */
 
-import { Component, memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard } from '@hadoku/shared';
 import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
@@ -280,6 +280,7 @@ import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
 import { deriveSoundEvents } from './sound-events.ts';
+import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
@@ -471,7 +472,7 @@ function listField(items: readonly string[]): string {
  * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
  * `muted` says the last.
  */
-function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'priority' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
+function reportSound(match: LiveMatch, why: 'view' | 'phase' | 'decision' | 'priority' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
   if (events.length === 0) return;
   reportClient(match.transport, match.matchId, 'sound', {
     why,
@@ -645,6 +646,22 @@ export function opponentHoldsAWindow(match: LiveMatch): boolean {
   const view = match.view;
   if (view === null || view.gameOver) return false;
   return match.waitingOn.has(match.seat === 0 ? 1 : 0);
+}
+
+/**
+ * The windows open on this screen right now, by identity: the viewer's oldest ask, the viewer's live bar and the
+ * other seat's reported window. Each is a fresh object when it opens, which is what lets `./phase-sound.ts` tell a
+ * window that opened in this phase from one left over from the phase before.
+ */
+function openWindows(match: LiveMatch): object[] {
+  const open: object[] = [];
+  const ask = currentAsk(match);
+  if (ask !== null) open.push(ask);
+  const bar = liveBar(match);
+  if (bar !== null && bar.enable1) open.push(bar);
+  const theirs = match.seat === null ? undefined : match.waitingOn?.get(match.seat === 0 ? 1 : 0);
+  if (theirs !== undefined) open.push(theirs);
+  return open;
 }
 
 /*
@@ -2034,6 +2051,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   }, []);
   const soundView = match.view;
   const lastSoundView = useRef<BoardView | null>(null);
+  // A phase's sound waits for the phase to hold, so a step Forge passes straight through makes none (./phase-sound.ts).
+  const phaseSound = useMemo(
+    () =>
+      phaseSoundGate((event, phase, how) => {
+        playSoundEvents([event]);
+        reportSound(match, 'phase', [event], { phase, how });
+      }),
+    [match],
+  );
+  useEffect(() => () => phaseSound.drop(), [phaseSound]);
   useEffect(() => {
     if (soundView === null) return;
     const prev = lastSoundView.current;
@@ -2041,7 +2068,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (spectator && !watcher) return;
     try {
       const ending = stillEndingTurn(match, soundView);
-      const events = deriveSoundEvents(prev, soundView).filter((e) => !(ending && e.role === 'g.phase'));
+      const all = deriveSoundEvents(prev, soundView);
+      const phase = all.find((e) => e.role === 'g.phase');
+      if (ending || (prev !== null && soundView.turn !== prev.turn)) phaseSound.drop();
+      if (phase !== undefined && !ending) phaseSound.enter(soundView.phase ?? '', phase, openWindows(match));
+      const events = all.filter((e) => e.role !== 'g.phase');
       playSoundEvents(events);
       reportSound(match, 'view', events, { prevSeq: prev?.seq ?? -1 });
     } catch (err) {
@@ -2049,6 +2080,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       console.error('[cardtable] sound events for this view failed', err);
     }
   }, [soundView, spectator, watcher, match]);
+  // Every redraw: a window that opened since the phase began is the phase holding, and its sound plays now.
+  useEffect(() => {
+    phaseSound.hold(openWindows(match));
+  });
   /*
    * One answer is no question (§B, items 4 and 9). `@hadoku/shared`'s `selfAnswer`
    * is the only place that decides it — the server reads the same rule for the other seat's banner; here it is sent, and the prompt that

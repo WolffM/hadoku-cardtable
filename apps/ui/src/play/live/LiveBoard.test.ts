@@ -75,6 +75,7 @@ import { FLIP_MS } from './CoinToss.tsx';
 import type { PlayPrefs } from './prefs.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
+import { PHASE_SETTLE_MS } from './phase-sound.ts';
 
 /*
  * `../../rooms/api.ts` (lane R) is mocked here so R16's "Main menu" path can
@@ -2899,7 +2900,37 @@ describe('End Turn goes straight to the other turn', () => {
         | undefined;
     await waitFor(() => expect(endTurnLine()?.data.phases, 'the log says how many phases End Turn passed').toBe(2));
     s.send(phaseDelta(m, 'UPKEEP', them.id));
-    await waitFor(() => expect(soundCalls.map((e) => e.role)).toContain('g.phase'));
+    await waitFor(() => expect(soundCalls.map((e) => e.role)).toContain('g.phase'), { timeout: PHASE_SETTLE_MS + 1000 });
+  });
+});
+
+/*
+ * The operator, 2026-10-15: "can we make it so skipped phases dont trigger the 'next phase' sound? i notice i
+ * hear it through every combat phase which is annoying."
+ */
+describe('a phase passed straight through makes no sound', () => {
+  it('combat steps nobody stops in are silent; the phase a window opens in sounds at once', async () => {
+    const { s, m } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    soundCalls.length = 0;
+    for (const step of ['COMBAT_BEGIN', 'COMBAT_DECLARE_ATTACKERS', 'COMBAT_END']) {
+      s.send(phaseDelta(m, step, me.id));
+      await waitFor(() => expect(m.view!.phase).toBe(step));
+    }
+    s.send(phaseDelta(m, 'MAIN2', me.id));
+    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    expect(soundCalls.map((e) => e.role), 'no step so far has held').not.toContain('g.phase');
+
+    s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority', card: null }));
+    s.send(
+      parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'End Turn', enable1: true, enable2: true, focus1: true }),
+    );
+    await waitFor(() => expect(soundCalls.filter((e) => e.role === 'g.phase')).toHaveLength(1), { timeout: 400 });
+    const phaseLine = () =>
+      s.received.find((r) => r.event === 'forge:client' && (r.payload as { data: Record<string, unknown> }).data.why === 'phase')?.payload as
+        | { data: Record<string, unknown> }
+        | undefined;
+    await waitFor(() => expect(phaseLine()?.data, 'the sound log names the phase and why it sounded').toMatchObject({ phase: 'MAIN2', how: 'held' }));
   });
 });
 
