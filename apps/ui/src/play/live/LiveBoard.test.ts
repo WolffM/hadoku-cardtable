@@ -3230,7 +3230,7 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
       missingCardIds: [],
     };
   }
-  const matchWithView = (view: BoardView | null): LiveMatch => ({ view, losers: null }) as unknown as LiveMatch;
+  const matchWithView = (view: BoardView | null, lost: LiveMatch['lost'] = null): LiveMatch => ({ view, losers: null, lost }) as unknown as LiveMatch;
 
   it('the viewer lost, the opponent did not: Defeat', () => {
     const view = fakeView([
@@ -3283,6 +3283,16 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
     expect(endingSentence(matchWithView(view), view)).toBe('You — life total reached 0');
     const nobody = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true })]);
     expect(endingSentence(matchWithView(nobody), nobody)).toBeNull();
+  });
+
+  it("endingSentence words Forge's own reason when the end notice carries one, over the board's guess", () => {
+    const decked = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true, libraryCount: 0 }), fakePlayer({ id: 1, name: 'Them' })]);
+    expect(endingSentence(matchWithView(decked, new Map([[0, { player: 0, reason: 'Milled' }]])), decked)).toBe('You — had to draw from an empty library');
+    // An empty library is not always why: an effect that ends the game names its card.
+    expect(endingSentence(matchWithView(decked, new Map([[0, { player: 0, reason: 'SpellEffect', source: 'Door to Nothingness' }]])), decked)).toBe(
+      'You — lost to Door to Nothingness',
+    );
+    expect(endingSentence(matchWithView(decked), decked), "without Forge's reason, the board's").toBe('You — had to draw from an empty library');
   });
 });
 
@@ -3349,8 +3359,16 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     s.send(parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [loserId] }));
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'));
-    expect(getByTestId('game-result').textContent).toContain('conceding');
+    expect(getByTestId('game-result').textContent).toContain('conceded');
     expect((getByTestId('live-concede') as HTMLButtonElement).disabled, 'a finished game cannot be conceded').toBe(true);
+  });
+
+  it("the end notice's own reason is the one the result screen words: a decked player had to draw", async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    s.send(parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [viewerId], lost: [{ player: viewerId, reason: 'Milled' }] }));
+    await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('defeat'));
+    expect(getByTestId('game-result').textContent).toContain('had to draw from an empty library');
   });
 
   it('Defeat, over the still-visible board, with no known room: Rematch has no table to ready at, Main menu goes to the lobby', async () => {

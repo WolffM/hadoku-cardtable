@@ -1739,11 +1739,11 @@ describe('a match that outlives its server', () => {
 		h.host.push(...OPENING);
 		const mark = h.sent.length;
 		// A concede during the deal: Forge sends no `finishGame`, and no frame after the line.
-		h.host.push({ t: 'gameover', winner: 'Seat 1', losers: [1] });
+		h.host.push({ t: 'gameover', winner: 'Seat 1', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] });
 		expect(h.sent.slice(mark).map((s) => ({ seat: s.seat, frame: s.envelope.frame }))).toEqual([
-			{ seat: 0, frame: { kind: 'notify', method: 'finishGame', losers: [1] } },
-			{ seat: WATCHER_SEAT, frame: { kind: 'notify', method: 'finishGame', losers: [1] } },
-			{ seat: 1, frame: { kind: 'notify', method: 'finishGame', losers: [1] } },
+			{ seat: 0, frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } },
+			{ seat: WATCHER_SEAT, frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } },
+			{ seat: 1, frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } },
 		]);
 		// Forge's own call, when it does come, is the same news: not told twice.
 		const after = h.sent.length;
@@ -1752,7 +1752,7 @@ describe('a match that outlives its server', () => {
 		// And a page that reloads, on either seat, is told again.
 		for (const seat of [0, 1]) {
 			h.match.resendAfterSnapshot(seat);
-			expect(h.sent.at(-1)).toMatchObject({ seat, envelope: { frame: { kind: 'notify', method: 'finishGame', losers: [1] } } });
+			expect(h.sent.at(-1)).toMatchObject({ seat, envelope: { frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } } });
 		}
 	});
 

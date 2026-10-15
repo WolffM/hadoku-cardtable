@@ -921,10 +921,21 @@ public final class PlayBridge {
         // Who lost, by the ids the views carry: the server tells every seat with this
         // (`Match.finishSeat`), because neither `GameOver` nor `finishGame()` is sure to reach one.
         final JsonArray losers = new JsonArray();
+        // Why each of them lost, in Forge's own terms (`PlayerOutcome.lossState`, `GameLossReason`), so a
+        // screen says what Forge decided instead of guessing it from the board.
+        final JsonArray lost = new JsonArray();
         for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
-            if (p.hasLost()) { losers.add(p.getId()); }
+            if (!p.hasLost()) { continue; }
+            losers.add(p.getId());
+            final forge.game.player.PlayerOutcome why = p.getOutcome();
+            final JsonObject l = new JsonObject();
+            l.addProperty("player", p.getId());
+            l.addProperty("reason", why.lossState.name());
+            if (why.loseConditionSpell != null) { l.addProperty("source", why.loseConditionSpell); }
+            lost.add(l);
         }
         o.add("losers", losers);
+        o.add("lost", lost);
         emit(o);
     }
 

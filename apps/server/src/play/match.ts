@@ -2022,7 +2022,7 @@ export class Match {
 				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner, losers: line.losers });
 				for (const s of this.seats) {
 					if (s.ai || s.playerId === null) continue;
-					this.finishSeat(s, (line.losers === undefined ? { kind: 'notify', method: 'finishGame' } : { kind: 'notify', method: 'finishGame', losers: line.losers }) as ServerFrame);
+					this.finishSeat(s, { kind: 'notify', method: 'finishGame', ...(line.losers === undefined ? {} : { losers: line.losers }), ...(line.lost === undefined ? {} : { lost: line.lost }) } as ServerFrame);
 				}
 				this.logFrames();
 				if (!this.replaying) this.deps.onGameOver?.();

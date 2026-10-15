@@ -264,7 +264,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import type { AbortReasonSchema, ClientAction, GameLogLine, SendYieldUpdate } from '@hadoku/forge-wire';
+import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
 /* ── What a host is ──────────────────────────────────────────────────── */
 
@@ -331,8 +331,9 @@ export type BridgeLine =
 	/**
 	 * `losers`: the player ids Forge has lost (`Player.hasLost`), the same ids the views carry.
 	 * Absent from a line an older bridge wrote, which a resumed match may replay.
+	 * `lost`: why each of them lost, as Forge decided it (`PlayerOutcome.lossState`); absent likewise.
 	 */
-	| { t: 'gameover'; winner: string | null; losers?: number[] }
+	| { t: 'gameover'; winner: string | null; losers?: number[]; lost?: Loss[] }
 	/**
 	 * One entry of Forge's own game log (`PlayBridge.GameLogForward`), worded once
 	 * per player: `text` is null when the line names a card that player may not

@@ -69,14 +69,27 @@ export const AfterGameEndSchema = z.strictObject({
 });
 
 /**
+ * Why a player lost, as Forge decided it: `reason` is `PlayerOutcome.lossState`, a `GameLossReason`
+ * name (`Milled`, `LifeReachedZero`, `Poisoned`, `Conceded`, `SpellEffect`, `OpponentWon`, …);
+ * `source` is `loseConditionSpell`, the card behind a loss to an effect.
+ */
+export const LossSchema = z.strictObject({
+  player: z.number().int(),
+  reason: z.string(),
+  source: z.string().optional(),
+});
+export type Loss = z.infer<typeof LossSchema>;
+
+/**
  * `void finishGame()` — IGuiGame.java:100. `losers`: the player ids Forge has lost when the game
- * ended (`Player.hasLost`), added by the bridge, so a screen whose view never caught up with the
- * end still knows who won.
+ * ended (`Player.hasLost`), and `lost` why each of them did, both added by the bridge, so a screen
+ * whose view never caught up with the end still knows who won and how.
  */
 export const FinishGameSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('finishGame'),
   losers: z.array(z.number().int()).optional(),
+  lost: z.array(LossSchema).optional(),
 });
 
 /** `void clearSelectables()` — IGuiGame.java:273. */

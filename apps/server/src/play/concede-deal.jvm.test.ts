@@ -80,7 +80,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await new Promise((r) => setImmediate(r));
 			}
 			await waitUntil(() => over(s), 'Forge ends the game', 30_000, s).catch(() => undefined);
-			const gameover = s.lines.find((l) => l.t === 'gameover') as { losers?: number[] } | undefined;
+			const gameover = s.lines.find((l) => l.t === 'gameover') as { losers?: number[]; lost?: unknown[] } | undefined;
 			const stderr = stderrOf(s);
 			const died = [...stderr.matchAll(/InvocationTargetException in concede[^\n]*/g)].map((m) => m[0]);
 			const received = [...stderr.matchAll(/Received: GuiGameEvent \d+: concede /g)].length;
@@ -89,6 +89,7 @@ describe.skipIf(!available.ok)(title, () => {
 			);
 			expect(died, 'no concede died walking cards something else on the game was moving').toEqual([]);
 			expect(gameover?.losers, 'the game is over and seat 1 lost it').toEqual([1]);
+			expect(gameover?.lost, "and Forge's own reason says how").toEqual([{ player: 1, reason: 'Conceded' }]);
 		} finally {
 			await s.stop();
 		}

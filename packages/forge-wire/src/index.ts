@@ -96,6 +96,8 @@ export {
   TIER_A_REPLIES,
   AfterGameEndSchema,
   FinishGameSchema,
+  LossSchema,
+  type Loss,
   ClearSelectablesSchema,
   ClearWeaklySelectableSchema,
   FlashIncorrectActionSchema,

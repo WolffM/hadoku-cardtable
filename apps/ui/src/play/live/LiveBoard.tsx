@@ -1609,21 +1609,16 @@ const INERT_CLICKABLES: LiveClickables = {
  * (the operator's own three-way split). A spectator reads the SEAT they are
  * watching, same as everywhere else in this file.
  *
- * ## How it ended — read off the board, not asked of Forge
+ * ## How it ended — Forge's own reason
  *
- * Nothing on today's wire tells a browser WHY a player lost — `winner` is a
- * name on a REST poll (`apps/server/src/play/socket.ts`'s `/matches/:id`), not
- * a reason, and reaches neither this file nor `match.ts`; `GameEventGameOutcome`
- * (`packages/forge-wire`'s `outcomeStrings`) is modelled but never leaves the
- * bridge (`PlayBridge.java` sends `"events": []` on every delta — see this
- * file's own header on why). Magic has exactly four ways a player loses, and
- * three of them are already visible facts on the SAME `BoardPlayer` `hasLost`
- * comes from: life at or below zero, ten-plus poison counters, and an empty
- * library (the "drawn from nothing" shape — Forge marks the loss the moment a
- * draw fails, so a decked player's library reads 0 here). A loser with none of
- * those is the fourth way: conceding changes nothing else about their board,
- * so it is the one case left once the other three are ruled out — not a
- * guess, a complete partition of the four causes this wave scopes to.
+ * The end notice (`finishGame`'s `lost`, `LiveMatch.lost`) carries why each
+ * loser lost as Forge decided it (`PlayerOutcome.lossState`), and the sentence
+ * words that rule: a player who had to draw with no library left lost to the
+ * draw, which is worth saying when a deck that replaces draws (Dredge needs at
+ * least its number of cards in the library) is not offered the replacement.
+ * A notice without it (written by an older bridge, replayed on resume) falls
+ * back to the board: life at or below zero, ten-plus poison counters, an empty
+ * library, and otherwise a concede.
  */
 export type GameOutcome = 'victory' | 'defeat' | 'draw';
 
@@ -1641,14 +1636,26 @@ export function gameOutcome(match: LiveMatch): GameOutcome | null {
   return viewerLost ? 'defeat' : 'victory';
 }
 
-/** The four ways a Magic game modelled here ends. See the section header for the derivation. */
+/** The ways the board alone can tell a game ended, for a notice that does not say. */
 export type GameEndReason = 'life' | 'poison' | 'decking' | 'concede';
 
-const END_REASON_WORDS: Readonly<Record<GameEndReason, string>> = {
-  life: 'life total reached 0',
-  poison: '10 or more poison counters',
-  decking: 'an empty library',
-  concede: 'conceding',
+/** Forge's `GameLossReason` names, each as the rule that ended the game. */
+const LOSS_WORDS: Readonly<Partial<Record<string, (source: string | undefined) => string>>> = {
+  LifeReachedZero: () => 'life total reached 0',
+  Poisoned: () => '10 or more poison counters',
+  Milled: () => 'had to draw from an empty library',
+  Conceded: () => 'conceded',
+  SpellEffect: (source) => (source === undefined ? 'lost to an effect' : `lost to ${source}`),
+  OpponentWon: (source) => (source === undefined ? 'an opponent won' : `an opponent won with ${source}`),
+  CommanderDamage: () => '21 or more commander damage',
+  IntentionalDraw: () => 'agreed to a draw',
+};
+
+const BOARD_REASON: Readonly<Record<GameEndReason, string>> = {
+  life: 'LifeReachedZero',
+  poison: 'Poisoned',
+  decking: 'Milled',
+  concede: 'Conceded',
 };
 
 /** Why THIS player lost, read off facts already on their `BoardPlayer`. Exported for its own test. */
@@ -1672,7 +1679,13 @@ function lostPlayers(match: LiveMatch, view: BoardView): BoardPlayer[] {
 export function endingSentence(match: LiveMatch, view: BoardView): string | null {
   const losers = lostPlayers(match, view);
   if (losers.length === 0) return null;
-  return losers.map((p) => `${p.name} — ${END_REASON_WORDS[reasonLost(p)]}`).join(' · ');
+  return losers
+    .map((p) => {
+      const loss = match.lost?.get(p.id);
+      const words = LOSS_WORDS[loss?.reason ?? BOARD_REASON[reasonLost(p)]];
+      return words === undefined ? p.name : `${p.name} — ${words(loss?.source)}`;
+    })
+    .join(' · ');
 }
 
 const OUTCOME_TITLE: Readonly<Record<GameOutcome, string>> = {

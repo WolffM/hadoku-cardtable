@@ -243,6 +243,7 @@ import {
   type BlockingMethod,
   type ClientAbort,
   type GameLogLine,
+  type Loss,
   type ServerFrame,
   YIELDING,
 } from '@hadoku/forge-wire';
@@ -846,6 +847,8 @@ export interface LiveMatch {
    * `finished`.
    */
   losers: ReadonlySet<number> | null;
+  /** Why each loser lost, by player id, as Forge decided it (`finishGame`'s `lost`). `null` like `losers`. */
+  lost: ReadonlyMap<number, Loss> | null;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -976,6 +979,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     over: false,
     finished: false,
     losers: null,
+    lost: null,
     fullControl: false,
     stopAtEndStep: true,
     autoYield: null,
@@ -2505,6 +2509,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.over = false;
   match.finished = false;
   match.losers = null;
+  match.lost = null;
   unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
@@ -2866,6 +2871,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.finished = true;
     match.over = true;
     if (frame.losers !== undefined) match.losers = new Set(frame.losers);
+    if (frame.lost !== undefined) match.lost = new Map(frame.lost.map((l) => [l.player, l]));
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.title === MATCH_ENDED_TITLE) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
     // continue, whatever the board still shows.
@@ -2958,5 +2964,6 @@ function discardLocal(match: LiveMatch): void {
   match.over = false;
   match.finished = false;
   match.losers = null;
+  match.lost = null;
   unspend(match);
 }
