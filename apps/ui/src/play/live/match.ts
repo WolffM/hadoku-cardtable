@@ -706,7 +706,7 @@ export interface LiveMatch {
   /** Which card made each token on a battlefield (`../fold.ts`'s `tokenSources`): a created token arrives from it. */
   tokenSources: ReadonlyMap<number, number>;
   /**
-   * How many identical triggers still wait for their targets behind the open target question
+   * How many identical triggers or copies of one spell still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
    * "same target for all".
    */

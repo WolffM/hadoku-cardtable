@@ -1,13 +1,15 @@
 /**
- * A batch of identical triggers, asked once.
+ * A batch of identical triggers, or of one spell's copies, asked once.
  *
  * Forge puts simultaneous triggers on the stack one at a time and asks each
  * one's targets in turn (`PlayerControllerHuman.orderAndPlaySimultaneousSa`):
- * six Valakut triggers are six identical target questions. The bridge names
- * the trigger an open target selection is for (`targetAbility`: the ability,
- * the trigger of its card, how many identical ones still wait). A seat that
+ * six Valakut triggers are six identical target questions. A storm spell's
+ * copies go through the same method, each asking for its new target: a Brain
+ * Freeze with storm 17 is seventeen. The bridge names the group an open target
+ * selection belongs to (`targetAbility`: the ability, the trigger of its card or
+ * the spell it copies, how many of the group are still to ask). A seat that
  * answers one with "same target for all" (`sameTarget` on its select act) has
- * answered the rest: each following question for the same trigger is answered
+ * answered the rest: each following question of the same group is answered
  * here with the same target, for as long as Forge still offers it.
  *
  * And a target the seat chose is a "yes" already: an effect that asks on

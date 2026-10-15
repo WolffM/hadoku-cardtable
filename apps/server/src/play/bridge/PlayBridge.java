@@ -829,6 +829,40 @@ public final class PlayBridge {
         return sa.getHostCard().getId() + ":" + sa.getTrigger().getId();
     }
 
+    /** The copies of one spell: every copy one effect makes of it shares this. */
+    static String copyKey(final forge.game.card.Card original) {
+        return "copy:" + original.getId();
+    }
+
+    /**
+     * How many more copies of {@code original} will still be asked for targets after the one asked now;
+     * 0 when that cannot be told.
+     *
+     * Storm and every other "copy it N times" ({@code CopySpellAbilityEffect.resolve}) makes all its
+     * copies at once and hands them to {@code orderAndPlaySimultaneousSa}, which asks each copy's new
+     * targets in turn ({@code SpellAbility.setupNewTargets}). The stack is frozen while the effect
+     * resolves ({@code MagicStack.resolveStack}), so the effect is still the top of the stack and each
+     * copy already answered waits in {@code MagicStack.frozenStack}: the copies still to ask are the
+     * effect's own count, less those, less the one open now. A copy made by anything else (an effect
+     * that is not the resolving one) is 0, and asked on its own as before.
+     */
+    @SuppressWarnings("unchecked")
+    static int copiesStillToTarget(final Game game, final forge.game.card.Card original) throws ReflectiveOperationException {
+        final forge.game.zone.MagicStack stack = game.getStack();
+        if (stack.isEmpty()) { return 0; }
+        final SpellAbility top = stack.peekAbility();
+        SpellAbility effect = top instanceof WrappedAbility w ? w.getWrappedAbility() : top;
+        while (effect != null && effect.getApi() != forge.game.ability.ApiType.CopySpellAbility) { effect = effect.getSubAbility(); }
+        if (effect == null) { return 0; }
+        final int total = effect.hasParam("Amount") ? forge.game.ability.AbilityUtils.calculateAmount(effect.getHostCard(), effect.getParam("Amount"), effect) : 1;
+        int answered = 0;
+        for (final SpellAbilityStackInstance si : new ArrayList<>((java.util.Collection<SpellAbilityStackInstance>) SeatGui.field(stack, forge.game.zone.MagicStack.class, "frozenStack"))) {
+            final forge.game.card.Card host = si.getSpellAbility().getHostCard();
+            if (host != null && host.isCopiedSpell() && host.getCopiedPermanent() != null && host.getCopiedPermanent().getId() == original.getId()) { answered += 1; }
+        }
+        return Math.max(0, total - answered - 1);
+    }
+
     /**
      * The live {@code Game}, straight off {@link #LOBBY} — the same access
      * {@link SeatGui#liveMulliganFlag()} uses, and for the same reason: this
@@ -1434,26 +1468,38 @@ public final class PlayBridge {
         }
 
         /**
-         * The trigger an open target selection is for, or null for any other prompt.
+         * The trigger or spell copy an open target selection is for, or null for any other prompt.
          *
          * {@code abilityId} is the targeted ability itself, unwrapped from its trigger: the
          * same {@code SpellAbility} an effect later hands {@code confirmAction} on resolution
          * ({@code DamageDealEffect.java:180-184}'s "Do you want to deal ..."), so the server can
-         * tell a confirm for a target this seat already chose. {@code trigger} names the
-         * trigger of its card ({@link #triggerKey}), shared by identical instances, and
-         * {@code more} counts the instances still waiting behind this one, and {@code players}
-         * the players this selection accepts.
+         * tell a confirm for a target this seat already chose. {@code trigger} names the group
+         * the question belongs to — the trigger of its card ({@link #triggerKey}), shared by
+         * identical instances, or the spell a copy was made of ({@link #copyKey}), shared by
+         * every copy one effect makes — {@code more} counts the questions of that group still to
+         * come behind this one, and {@code players} the players this selection accepts.
          */
         private JsonObject targetAbility() {
-            final forge.game.player.Player mine = liveSelf(liveGame());
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
             if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
             try {
                 final SpellAbility sa = targetedAbility(human);
-                if (sa == null || sa.getHostCard() == null || !sa.getRootAbility().isTrigger() || sa.getRootAbility().getTrigger() == null) { return null; }
-                final String key = triggerKey(sa.getRootAbility());
+                if (sa == null || sa.getHostCard() == null) { return null; }
+                final SpellAbility root = sa.getRootAbility();
+                final String key;
                 int more = 0;
-                for (final WrappedAbility w : pendingTriggers(liveGame())) {
-                    if (w.getWrappedAbility() != sa.getRootAbility() && triggerKey(w).equals(key)) { more += 1; }
+                if (root.isTrigger() && root.getTrigger() != null) {
+                    key = triggerKey(root);
+                    for (final WrappedAbility w : pendingTriggers(game)) {
+                        if (w.getWrappedAbility() != root && triggerKey(w).equals(key)) { more += 1; }
+                    }
+                } else if (root.isCopied() && root.getHostCard().isCopiedSpell() && root.getHostCard().getCopiedPermanent() != null) {
+                    final forge.game.card.Card original = root.getHostCard().getCopiedPermanent();
+                    key = copyKey(original);
+                    more = copiesStillToTarget(game, original);
+                } else {
+                    return null;
                 }
                 final JsonObject o = new JsonObject();
                 o.add("hostCard", ref("card", sa.getHostCard().getId()));

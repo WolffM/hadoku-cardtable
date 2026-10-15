@@ -2192,7 +2192,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     if (!confirmPrompt) setAlways(false);
   }, [confirmPrompt]);
-  /* "Same target for all" on a trigger's target question while identical ones wait behind it (the operator, 2026-10-11). */
+  /* "Same target for all" on a trigger's or a spell copy's target question while identical ones wait behind it (the operator, 2026-10-11 and 2026-10-14). */
   const sameTargetCheck =
     !spectator && match.promptTargetMore > 0 && match.inputLive
       ? { label: 'Same target for all', testId: 'live-same-target', checked: match.sameTarget, onChange: (on: boolean) => setSameTarget(match, on) }

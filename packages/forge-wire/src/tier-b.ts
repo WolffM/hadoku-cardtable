@@ -265,10 +265,11 @@ export const ShowPromptMessageSchema = z.strictObject({
     })
     .optional(),
   /**
-   * Ours: the trigger an open target selection is for (`PlayBridge.java`'s `targetAbility`).
-   * `abilityId` is the targeted ability, the same one a "Do you want to …" confirm names on
-   * resolution; `trigger` is shared by identical triggers of one card; `more` counts those still
-   * waiting for their targets behind this one; `players` the players this selection accepts, read
+   * Ours: the trigger or spell copy an open target selection is for (`PlayBridge.java`'s
+   * `targetAbility`). `abilityId` is the targeted ability, the same one a "Do you want to …" confirm
+   * names on resolution; `trigger` is shared by identical triggers of one card, or by the copies one
+   * effect makes of one spell (storm); `more` counts those still to be asked for their targets
+   * behind this one; `players` the players this selection accepts, read
    * while it is the open input (absent when unreadable). Absent on every other prompt.
    */
   targetAbility: z
@@ -783,7 +784,7 @@ export const SelectPlayerSchema = z.strictObject({
   method: z.literal('selectPlayer'),
   player: PlayerRefSchema,
   triggerEvent: TriggerEventSchema.nullable(),
-  /** Ours: the same target for every identical trigger still waiting (`targetAbility.more`). The server keeps it; Forge never sees it. */
+  /** Ours: the same target for every identical trigger or spell copy still to ask (`targetAbility.more`). The server keeps it; Forge never sees it. */
   sameTarget: z.literal(true).optional(),
 });
 
