@@ -1,0 +1,18 @@
+# e2e/af66-combat-priority.spec.ts — the attacker with an ability it can use after blocks gets
+# priority in its own Declare Blockers step. Alice (seat 0) is in her own Main Phase 1 with
+# Quirion Ranger ("Return a Forest you control to its owner's hand: Untap target creature.
+# Activate only once each turn.") and two Forests, all untapped and non-sick. Bob (seat 1) has no
+# creature, so nobody blocks.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Quirion Ranger;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

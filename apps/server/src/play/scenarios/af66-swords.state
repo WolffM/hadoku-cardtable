@@ -1,0 +1,18 @@
+# e2e/af66-combat-priority.spec.ts — the defender holding a removal spell gets priority in the
+# attacker's combat. Bob (seat 1) is in his own Main Phase 1 with an untapped, non-sick Hill Giant
+# (3/3); Forge's live InputAttack opens for him. Alice (seat 0) holds Swords to Plowshares with an
+# untapped Plains and has no creature, so nothing blocks: the operator's own match, where the
+# Declare Attackers window was skipped and the Declare Blockers one passed for "no creatures".
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Swords to Plowshares
+humanbattlefield=Plains
+humanlibrary=Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Hill Giant
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
