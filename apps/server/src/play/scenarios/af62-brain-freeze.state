@@ -1,0 +1,19 @@
+# e2e/af62-brain-freeze.spec.ts — the operator, 2026-10-14: "brain freeze choose the same". A storm
+# spell's copies each ask for a new target (`CopySpellAbilityEffect` → `orderAndPlaySimultaneousSa` →
+# `setupNewTargets`), one question per copy.
+# Alice holds her main phase with three Ornithopters (free) and Brain Freeze, two Islands to pay for it.
+# Three Ornithopters cast first make storm 3: Brain Freeze and three copies, each "target player mills
+# three cards". Bob's library is twenty Plains, so four hits leave eight.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Ornithopter;Ornithopter;Ornithopter;Brain Freeze
+humanbattlefield=Island;Island
+humanlibrary=Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
