@@ -182,7 +182,7 @@
   z-index: var(--z-card-badge, 1);
   top: calc((100% - var(--pile-fan)) / 2);
   left: calc((100% - var(--pile-fan)) / 2);
-  translate: -50% -50%;
+  transform: translate(-50%, -50%);
   padding: 0 6px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
@@ -602,9 +602,17 @@
  * Each motion is its own registered property, so they ADD (two animations of `translate` would not:
  * the later one wins). Never `transform`, which the turn rule owns: the individual properties apply
  * outside it, so a tapped flyer loops and tilts in the screen's frame and its quarter turn stays
- * intact. The art moves inside its own `<li>`, which never moves — layout, drag, arrange and every
- * overlay on the `<li>` stand still — and the battlefield clips without scrolling (`board.css`), so
- * a sideways step at the edge of the table makes no scrollbar.
+ * intact. The `<li>` itself never moves — layout, drag and arrange stand still — and the battlefield
+ * clips without scrolling (`board.css`), so a sideways step at the edge of the table makes no
+ * scrollbar.
+ *
+ * The path runs ONCE, on the `<li>`: it animates only the inherited `--fly-x`/`--fly-y`/`--fly-lift`,
+ * which move nothing there. Everything drawn on the card reads them — the art, and every overlay
+ * the `<li>` lays out (marks, tags, counters, P/T, the type pill, copies, relations, picked) — so
+ * the pills ride the card on the same clock, mounted whenever (the operator, 2026-10-15: "i just
+ * want to make sure the pills are actually on the card"). Their `translate` is the path's, so an
+ * overlay centres itself with `transform`, never `translate`. The tilt is the art's own lean in its
+ * face's depth; the overlays ride flat on it, within a pixel of where the leaning art is drawn.
  *
  * A shadow lies in the strip of face the lift uncovers, drifting against the sway and narrowing as
  * the card rises. `--fly-phase` (`Board.tsx`, from the card's id) sets where in the loop each card
@@ -612,19 +620,19 @@
  */
 @property --fly-x {
   syntax: '<length>';
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
 
 @property --fly-y {
   syntax: '<length>';
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
 
 @property --fly-lift {
   syntax: '<number>';
-  inherits: false;
+  inherits: true;
   initial-value: 0.5;
 }
 
@@ -646,7 +654,7 @@
   /* Always a whole loop or more in the past, so every offset below stays a negative delay. */
   --fly-start: calc(-1 * var(--fly-loop) * (1 + var(--fly-phase, 0)));
   --fly-ease: cubic-bezier(0.37, 0, 0.63, 1);
-  --fly-path:
+  animation:
     fly-across calc(var(--fly-loop) / 2) var(--fly-ease) var(--fly-start) infinite alternate,
     fly-rise calc(var(--fly-loop) / 4) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 8) infinite alternate;
 }
@@ -655,11 +663,15 @@
   perspective: 15rem;
 }
 
-.board-card[data-flying] > .board-card__face > .card {
+/* The art and everything the card wears: not the face (the shadow lies on it) and not the cards piled behind, each its own. */
+.board-card[data-flying] > .board-card__face > .card,
+.board-card[data-flying] > :not(.board-card__face, .board-card__pile) {
   translate: var(--fly-x) calc(-3px + var(--fly-y));
+}
+
+.board-card[data-flying] > .board-card__face > .card {
   rotate: var(--fly-tilt-x) var(--fly-tilt-y) 0 calc(hypot(var(--fly-tilt-x), var(--fly-tilt-y)) * 1deg);
   animation:
-    var(--fly-path),
     fly-tilt-across calc(var(--fly-loop) / 2) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 4) infinite alternate,
     fly-tilt-rise calc(var(--fly-loop) / 4) var(--fly-ease) var(--fly-start) infinite alternate;
 }
@@ -678,7 +690,6 @@
   translate: calc(var(--fly-x) * -0.4) 0;
   scale: calc(1.08 - var(--fly-lift) * 0.16) 1;
   opacity: calc(1 - var(--fly-lift) * 0.35);
-  animation: var(--fly-path);
 }
 
 /* x = −A·cos(ωt): across and back once a loop. */
@@ -713,8 +724,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board-card[data-flying] > .board-card__face > .card,
-  .board-card[data-flying] > .board-card__face::after {
+  .board-card[data-flying],
+  .board-card[data-flying] > .board-card__face > .card {
     animation: none;
   }
 }

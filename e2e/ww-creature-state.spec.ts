@@ -65,7 +65,8 @@ function afloat(page: Page, id: number): Promise<Afloat | null> {
       tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => t.textContent ?? ''),
       flying: li.hasAttribute('data-flying'),
       translate: style.translate,
-      animation: style.animationName,
+      // The loop's path runs on the `<li>` (everything the card wears rides it), the tilt on the art.
+      animation: [getComputedStyle(li), style].map((cs) => cs.animationName).join(', '),
     };
   }, id);
 }
