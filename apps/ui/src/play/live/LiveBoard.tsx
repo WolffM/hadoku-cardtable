@@ -2285,7 +2285,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const theirName = match.view?.players.find((p) => !p.isViewer)?.name ?? null;
   /** R11: the turn counter moved off the rail and into the logbook. */
   const whoseTurnNow = match.view === null ? 'nobody' : whoseTurn(match.view);
-  const turnCue = useYourTurnCue(match.view, !spectator);
+  const turnCue = useYourTurnCue(match.view, !spectator, match.matchId);
   const offered = spectator ? INERT_CLICKABLES : boardInteraction(match);
   const interaction: BoardInteraction = {
     /*

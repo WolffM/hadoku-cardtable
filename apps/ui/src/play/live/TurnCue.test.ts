@@ -28,7 +28,7 @@ describe('useYourTurnCue', () => {
   });
 
   const mount = (first: BoardView | null, enabled = true) =>
-    renderHook(({ v, on }: { v: BoardView | null; on: boolean }) => useYourTurnCue(v, on), { initialProps: { v: first, on: enabled } });
+    renderHook(({ v, on, m }: { v: BoardView | null; on: boolean; m?: string }) => useYourTurnCue(v, on, m ?? 'm-1'), { initialProps: { v: first, on: enabled } as { v: BoardView | null; on: boolean; m?: string } });
 
   it('cues your turn as it begins, then clears by itself', () => {
     const hook = mount(view(1, 1));
@@ -68,6 +68,25 @@ describe('useYourTurnCue', () => {
     });
     hook.rerender({ v: { ...view(2, 0) }, on: true });
     expect(hook.result.current, 'and not again for the same turn').toBeNull();
+  });
+
+  it('the next game of the match starts over: its turn 1 is cued, even after game one’s', () => {
+    const hook = mount(view(0, 0));
+    hook.rerender({ v: view(1, 0), on: true });
+    expect(hook.result.current).toBe(1);
+    act(() => {
+      vi.advanceTimersByTime(TURN_CUE_MS);
+    });
+    hook.rerender({ v: view(9, 1), on: true });
+    hook.rerender({ v: view(0, 0), on: true });
+    hook.rerender({ v: view(1, 0), on: true });
+    expect(hook.result.current).toBe(1);
+  });
+
+  it('another match is a screen seen fresh: its first turn is not cued', () => {
+    const hook = mount(view(1, 1));
+    hook.rerender({ v: view(7, 0), on: true, m: 'm-2' });
+    expect(hook.result.current).toBeNull();
   });
 
   it('a watcher’s screen is never cued', () => {
