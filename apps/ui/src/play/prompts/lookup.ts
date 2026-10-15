@@ -165,12 +165,13 @@ export function selectionText(text: string, selection: { min: number; max: numbe
 const CARD_ID_SUFFIX = /\s\(\d{1,5}\)/g;
 
 /**
- * {@link translateTargetWords}, with the card-id suffix and {@link LIFE_PAYMENT_LINE}
- * stripped — nothing else. For text that will still draw through `RulesText`
- * itself (braces and all), rather than through plain prose.
+ * {@link translateTargetWords}, with the card-id suffix stripped and Forge's
+ * lines this table says differently rewritten ({@link PROMPT_REWRITES}). For
+ * text that will still draw through `RulesText` itself (braces and all), rather
+ * than through plain prose.
  */
 export function promptText(text: string): string {
-  return translateTargetWords(text).replace(CARD_ID_SUFFIX, '').replace(LIFE_PAYMENT_LINE, '');
+  return PROMPT_REWRITES.reduce((said, [line, instead]) => said.replace(line, instead), translateTargetWords(text).replace(CARD_ID_SUFFIX, ''));
 }
 
 /**
@@ -178,21 +179,12 @@ export function promptText(text: string): string {
  * is a WotC mark (CLAUDE.md), so a prompt that shows an ability's text says it
  * in words and letters instead. Same rule `CardTile` follows for card text.
  *
- * Also runs {@link translateTargetWords} (this module's own "Y18" section,
- * below) first, so any raw `ValidTgts$`-shaped expression a card's text or a
- * prompt's title happens to carry — `Card.inZoneStack` and the rest — reads
- * as words too. A string with no such expression in it passes through
- * unchanged, so doing this unconditionally is safe everywhere this already runs.
- *
- * Strips the card-id suffix too (T4, a drift fix: the operator's "Dragonskull
- * Summit (31)… just the name" rule, AD-era, now holds on this path as well as
- * {@link promptText}'s).
+ * Runs {@link promptText} first, so the target words (this module's "Y18"
+ * section, below), the card-id suffix and the combat lines read the same here
+ * as in every `RulesText`.
  */
 export function plainRulesText(text: string): string {
-  return translateTargetWords(text)
-    .replace(CARD_ID_SUFFIX, '')
-    .replace(ATTACK_PROMPT, 'Select creatures to attack.')
-    .replace(LIFE_PAYMENT_LINE, '')
+  return promptText(text)
     .replace(/\{T\}/g, 'Tap')
     .replace(/\{Q\}/g, 'Untap')
     .replace(/\{([^}]{1,5})\}/g, '$1');
@@ -208,6 +200,14 @@ export function plainRulesText(text: string): string {
 const ATTACK_PROMPT = /^Select creatures to attack [^\n]*? or select player\/card you wish to attack\.$/m;
 
 /**
+ * `InputBlock`'s twin (`InputBlock.java:83`): `lblSelectBlocker`, the current
+ * attacker, `lblOrSelectBlockTarget`. The operator, 2026-10-15: *"why does this
+ * text specify Ravager of the Fells? … just make it 'Select creatures to
+ * block.'"* The block focus ring already marks the attacker.
+ */
+const BLOCK_PROMPT = /^Select creatures to block [^\n]*? or select another attacker to declare blockers for\.$/m;
+
+/**
  * `InputPayManaOfCostPayment.getMessage`'s last line, `(Click on your life total
  * to pay life for phyrexian mana.)` and its black-mana variants
  * (`lblClickOnYourLifeTotalToPayLife…`), with the newline before it. The
@@ -215,6 +215,13 @@ const ATTACK_PROMPT = /^Select creatures to attack [^\n]*? or select player\/car
  * just show a button on the card decision modal"*), so the sentence goes.
  */
 const LIFE_PAYMENT_LINE = /\n?^\(?Click on your life total to pay life for [^\n]*$/m;
+
+/** Forge's lines and what every surface says instead — display only; the wire keeps Forge's words. */
+const PROMPT_REWRITES: readonly (readonly [RegExp, string])[] = [
+  [ATTACK_PROMPT, 'Select creatures to attack.'],
+  [BLOCK_PROMPT, 'Select creatures to block.'],
+  [LIFE_PAYMENT_LINE, ''],
+];
 
 /*
  * ── Y18: Forge's raw target-type expressions, in words ─────────────────
