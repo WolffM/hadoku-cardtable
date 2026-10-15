@@ -1,0 +1,17 @@
+# A Phyrexian cost paid with life from the payment window. Alice (`human…`,
+# seat 0) holds Gitaxian Probe ({U/P}) and no land at all, an uncontested
+# turn-1 Main Phase 1: the only way to pay is 2 life, by clicking her own
+# life total, which is how Forge's payment input takes it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Gitaxian Probe
+humanbattlefield=
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Island
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

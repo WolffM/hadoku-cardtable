@@ -1,0 +1,17 @@
+# A "you may pay" offered to a player who cannot pay it. Alice (`human…`,
+# seat 0) holds Chain Lightning and one Mountain, an uncontested turn-1 Main
+# Phase 1. Bob (`ai…`, seat 1) has no mana source at all, so the
+# {R}{R} Chain Lightning offers him once it resolves can never be paid.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Chain Lightning
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

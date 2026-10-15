@@ -1,0 +1,18 @@
+# A spell whose second target depends on its first. Alice (`human…`, seat 0)
+# holds Searing Blaze ({R}{R}: target player or planeswalker, then target
+# creature THAT player controls) and a Mountain to play for landfall, with two
+# untapped Mountains out, an uncontested turn-1 Main Phase 1. Bob (`ai…`,
+# seat 1) controls a Grizzly Bears, the creature it can hit.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Searing Blaze;Mountain
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
