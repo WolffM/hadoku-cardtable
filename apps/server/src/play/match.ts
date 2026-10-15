@@ -344,8 +344,8 @@ export interface SeatState {
 	 * still equals `s.projector.turnNumber()`, `maybeAutoPass` passes every
 	 * priority window that is NOT this seat's own turn. Null is "never
 	 * toggled"; `setAutoYield(seat, false)` leaves `{ turn, on: false }`
-	 * rather than null, which reads the same way. Checked AFTER
-	 * {@link fullControl}, never instead of it.
+	 * rather than null, which reads the same way. It outranks
+	 * {@link fullControl}: pressed, it is the seat's own word for this turn.
 	 */
 	autoYield: { turn: number; on: boolean } | null;
 	/**
@@ -2700,6 +2700,7 @@ export class Match {
 				? {
 						manaOnlyIds: s.weakly.manaOnly === undefined ? undefined : new Set(s.weakly.manaOnly.map((c) => c.id)),
 						phaseRestrictedIds: s.weakly.phaseRestricted?.map((c) => c.id),
+						...(s.weakly.attackers === undefined ? {} : { attackers: s.weakly.attackers }),
 					}
 				: {}),
 		};
@@ -2839,23 +2840,22 @@ export class Match {
 			s.lastStop = { rule: 'passed-on' };
 			return false;
 		}
-		const gate = this.autoGateFacts(s);
-		if (gate === null) {
+		if (s.ai || this.status !== 'running') {
 			s.lastStop = { rule: 'gated' };
 			return false;
 		}
-		const { facts } = gate;
-		// The seat's own stop outranks every shortcut below, the yield included.
-		if (this.stopHolds(s, facts)) {
-			s.lastStop = { rule: 'stop-at' };
-			return false;
-		}
+		const facts = readPromptFacts(this.notesOf(s));
 		/*
-		 * The auto-yield override, read ahead of `decideStop`. Gated on
-		 * `decideStop`'s own entry guards plus one new condition, `!facts.myTurn`:
-		 * every priority window on the OTHER seat's turn is passed. Declare
-		 * Blockers' block-assignment ask is never `window === 'priority'`, so
-		 * it is untouched regardless.
+		 * The auto-yield override: every priority window on the OTHER seat's turn
+		 * is passed — a stack with their spell on it included, the window already
+		 * open when it was pressed included — on `decideStop`'s own entry guards.
+		 * Declare Blockers' block-assignment ask is never `window === 'priority'`,
+		 * so it is untouched regardless.
+		 *
+		 * It outranks full control: pressing Auto Yield is the seat saying so for
+		 * this turn, and full control is a standing "ask me". The operator,
+		 * 2026-10-14, in full control with a stack item held: *"auto-yield should
+		 * work even for things already on the stack."*
 		 */
 		const yieldsNow =
 			s.autoYield !== null &&
@@ -2866,6 +2866,15 @@ export class Match {
 			facts.confirmLive &&
 			facts.openAsks === 0 &&
 			!facts.myTurn;
+		if (s.fullControl && !yieldsNow) {
+			s.lastStop = { rule: 'gated' };
+			return false;
+		}
+		// The seat's own stop outranks every shortcut below, the yield included.
+		if (this.stopHolds(s, facts)) {
+			s.lastStop = { rule: 'stop-at' };
+			return false;
+		}
 		const judged = yieldsNow ? null : judgeStop(facts, s.policy);
 		const phase = judged === null ? (facts.phaseLabel ?? 'priority') : judged.pass;
 		s.lastStop = judged === null ? { rule: 'auto-yield' } : { rule: judged.rule, ...(judged.plays === undefined ? {} : { plays: judged.plays }) };
@@ -2891,6 +2900,7 @@ export class Match {
 				sources: facts.sources?.length ?? null,
 				nonManaSources: facts.nonManaSources?.length ?? null,
 				phaseRestricted: facts.phaseRestricted.length,
+				attackers: facts.attackers,
 				openAsks: facts.openAsks,
 				buttons: s.buttons !== null && s.buttons.method === 'updateButtons' ? [s.buttons.enable1, s.buttons.enable2] : null,
 			});

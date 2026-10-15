@@ -382,6 +382,11 @@ export const SetWeaklySelectableSchema = z.strictObject({
    */
   phaseRestricted: z.array(CardRefSchema).optional(),
   /**
+   * Ours: how many creatures attack in the game's current combat, 0 outside one — read by the
+   * bridge off the live game in the same window as the two facts above.
+   */
+  attackers: z.number().int().nonnegative().optional(),
+  /**
    * Ours: the cards this seat holds that an effect forbids it to cast (a
    * `CantBeCast` static — Reflector Mage's effect, Silence's), read by the
    * bridge the way Forge refuses the cast. `source` is the card that made the

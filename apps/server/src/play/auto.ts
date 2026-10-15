@@ -234,6 +234,22 @@ export interface StopPolicy {
 	 */
 	readonly stopWithPlayOnTheirTurn: readonly PhaseType[];
 	/**
+	 * {@link stopWithPlayOnTheirTurn} for the seat's OWN turn: phases that hold its priority
+	 * with an empty stack only when it has a real play there. Kept windows log `play-stop`.
+	 *
+	 * A combat step in either set holds only in a combat somebody attacked in
+	 * ({@link PromptFacts.attackers}): Forge opens Declare Attackers whether or not anything
+	 * attacks, and an instant held for a combat has nothing to answer in an empty one.
+	 *
+	 * The operator, 2026-10-14: *"wasn't given priority in blockers even though they could
+	 * activate quirion. actually it happened again, my opponent attacked and i had swords to
+	 * plowshares in my hand, it never gave me priority in combat."* The defender's Declare
+	 * Attackers was outside every stop set, its Declare Blockers stop is dropped for a seat with
+	 * no creature ({@link skipEmptyBlockStop}), and the attacker's own Declare Blockers was outside
+	 * {@link stopOnMyTurn} — each skipped as `skip-phase` before the play test was ever read.
+	 */
+	readonly stopWithPlayOnMyTurn: readonly PhaseType[];
+	/**
 	 * Whether a phase outside the stop sets is passed **regardless of what the
 	 * seat could do there** — Forge's `skipPhases`, and the whole of item #20.
 	 *
@@ -464,7 +480,9 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS'],
 	// AF28, 2026-10-13. *"End step always stop if something can be used."* The
 	// settings checkbox moves it (`socket.ts`'s `forge:stop-preference`).
-	stopWithPlayOnTheirTurn: ['END_OF_TURN'],
+	stopWithPlayOnTheirTurn: ['COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+	// The attacker's window after blocks, for a pump or an untap (Quirion Ranger).
+	stopWithPlayOnMyTurn: ['COMBAT_DECLARE_BLOCKERS'],
 	// Item 5, wave 28: *"upkeep stops like this should not happen unless in full
 	// control mode. it's stopping everywhere, super annoying."* — and the leak
 	// argument above, which is the part that outlives the annoyance.
@@ -548,6 +566,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	stopOnMyTurn: PHASE_TYPES,
 	stopOnTheirTurn: PHASE_TYPES,
 	stopWithPlayOnTheirTurn: [],
+	stopWithPlayOnMyTurn: [],
 	skipNonStopPhases: 'never',
 	passWhenNothingToDo: false,
 	interruptsRestoreStops: true,
@@ -817,6 +836,8 @@ export interface SeatNotes {
 	 * seat's offered permanents with an ability restricted to the current phase.
 	 */
 	phaseRestrictedIds?: readonly number[];
+	/** The bridge's `setWeaklySelectable.attackers`: creatures attacking in the current combat, 0 outside one. */
+	attackers?: number;
 }
 
 /* ── The structured facts the decisions are made on ──────────────────── */
@@ -928,6 +949,11 @@ export interface PromptFacts {
 	 * "not mine", which keeps the stop. Off the board, not the prompt.
 	 */
 	readonly stackTopMine: boolean;
+	/**
+	 * Creatures attacking in the game's current combat, 0 outside one; null when the bridge has
+	 * not said, which a combat play-stop reads as an attack (a doubt keeps).
+	 */
+	readonly attackers: number | null;
 }
 
 /* ── THE ONE ADAPTER ─────────────────────────────────────────────────── */
@@ -1028,6 +1054,7 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	openAsks: 0,
 	creatures: null,
 	stackTopMine: false,
+	attackers: null,
 };
 
 /** Ids that appear more than once in Forge's weighted multiset, deduplicated. */
@@ -1087,6 +1114,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		openAsks: notes.openAsks,
 		creatures: notes.creatures ?? null,
 		stackTopMine: notes.playerId !== null && notes.stackTopActivator === notes.playerId,
+		attackers: notes.attackers ?? null,
 	};
 }
 
@@ -1150,9 +1178,23 @@ function blockStopIsDone(policy: StopPolicy, facts: PromptFacts): boolean {
 	);
 }
 
-/** An empty-stack window on another player's turn, in a phase that stops for a real play ({@link StopPolicy.stopWithPlayOnTheirTurn}). */
+const COMBAT_STEPS: ReadonlySet<PhaseType> = new Set<PhaseType>([
+	'COMBAT_DECLARE_ATTACKERS',
+	'COMBAT_DECLARE_BLOCKERS',
+	'COMBAT_FIRST_STRIKE_DAMAGE',
+	'COMBAT_DAMAGE',
+	'COMBAT_END',
+]);
+
+/**
+ * An empty-stack window in a phase that stops for a real play on this turn
+ * ({@link StopPolicy.stopWithPlayOnMyTurn}, {@link StopPolicy.stopWithPlayOnTheirTurn}) — a
+ * combat step only in a combat somebody attacked in.
+ */
 function playStopPhase(policy: StopPolicy, facts: PromptFacts): boolean {
-	return facts.stackEmpty && !facts.myTurn && facts.phase !== null && policy.stopWithPlayOnTheirTurn.includes(facts.phase);
+	if (!facts.stackEmpty || facts.phase === null) return false;
+	if (!(facts.myTurn ? policy.stopWithPlayOnMyTurn : policy.stopWithPlayOnTheirTurn).includes(facts.phase)) return false;
+	return !(COMBAT_STEPS.has(facts.phase) && facts.attackers === 0);
 }
 
 /** A permanent the seat controls can be used now and only in this phase ({@link StopPolicy.stopForPhaseAbility}). */

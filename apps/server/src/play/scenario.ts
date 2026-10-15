@@ -600,7 +600,7 @@ export function inOwnMain(s: Scenario, seat: number, n: number): boolean {
  * Whether the seat's own policy STOPS it at this window — the only windows a
  * driver may press OK in, because every other one is passed by the server itself
  * and a second press would skip the stop after it. A phase that stops only for a
- * play (`stopWithPlayOnTheirTurn`) counts: a window there that reached the wire
+ * play (`stopWithPlayOnMyTurn`, `stopWithPlayOnTheirTurn`) counts: a window there that reached the wire
  * was kept for one.
  */
 export function isStop(msg: string, seat: number, s: Scenario): boolean {
@@ -609,7 +609,7 @@ export function isStop(msg: string, seat: number, s: Scenario): boolean {
 	const phase = PHASE_BY_UI_NAME[/^Phase: (.+)$/m.exec(msg)?.[1] ?? ''];
 	if (phase === undefined) return false;
 	const policy = s.match.stopPolicy(seat);
-	if (owner === s.names[seat]) return policy.stopOnMyTurn.includes(phase);
+	if (owner === s.names[seat]) return policy.stopOnMyTurn.includes(phase) || policy.stopWithPlayOnMyTurn.includes(phase);
 	return policy.stopOnTheirTurn.includes(phase) || policy.stopWithPlayOnTheirTurn.includes(phase);
 }
 

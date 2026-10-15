@@ -2734,6 +2734,8 @@ describe('hold-decide-forward', () => {
 			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: gameFrame(6, 'COMBAT_BEGIN') });
 			h.match.setPhaseStop(SEAT1_ID, 'COMBAT');
 			const acts = actsSent(h);
+			// Nobody attacks in this combat, so its Declare Attackers holds nobody for a play.
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setWeaklySelectable', cards: [], manaOnly: [], phaseRestricted: [], attackers: 0 } });
 			windowAt(h, 6, 'Seat 1', 'Declare Attackers Step', 'COMBAT_DECLARE_ATTACKERS');
 			windowAt(h, 6, 'Seat 1', 'End of Combat Step', 'COMBAT_END');
 			expect(actsSent(h), 'this combat is passed').toBe(acts + 2);
@@ -2870,7 +2872,30 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
 		});
 
-		it('full control still wins: an escape-hatch seat is asked even with auto-yield on', () => {
+		it('outranks full control: a window already held over their spell is passed when it is pressed, and so is the next one', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+			h.match.setFullControl(SEAT1_ID, true);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			const actsBefore = actsSent(h);
+			const logsBefore = h.logs.length;
+			h.match.setAutoYield(SEAT1_ID, true);
+			expect(actsSent(h)).toBe(actsBefore + 1);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+			expect(actsSent(h)).toBe(actsBefore + 2);
+			expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed').map((l) => l.why)).toEqual(['auto-yield', 'auto-yield']);
+		});
+
+		it('under full control, a window on the seat’s own turn is still asked with auto-yield on', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);
 			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
@@ -2878,7 +2903,7 @@ describe('hold-decide-forward', () => {
 			h.match.setAutoYield(SEAT1_ID, true);
 			const before = envelopesFor(h, SEAT1_ID).length;
 			h.host.push(
-				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow.replace('Turn: 5 (Seat 1)', 'Turn: 5 (Seat 2)')) },
 				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
 			);
 			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);

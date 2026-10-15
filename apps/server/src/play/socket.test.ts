@@ -942,7 +942,7 @@ describe('the End step stop preference', () => {
 
 		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: false });
 		await waitUntil(() => match?.stopPolicy(0).stopWithPlayOnTheirTurn.includes('END_OF_TURN') === false, 'seat 0 to drop the stop');
-		expect(match?.stopPolicy(0)).toEqual({ ...DEFAULT_STOP_POLICY, stopWithPlayOnTheirTurn: [] });
+		expect(match?.stopPolicy(0)).toEqual({ ...DEFAULT_STOP_POLICY, stopWithPlayOnTheirTurn: ['COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS'] });
 		// Bob never asked for it — a preference of the person in the seat, exactly
 		// like full control.
 		expect(match?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
@@ -973,7 +973,7 @@ describe('the End step stop preference', () => {
 			// Every OTHER field of the seat's starting policy survives —
 			// `unambiguousPayment` stays `'auto'`, not reset to the module default's
 			// `'forgeAuto'`.
-			expect(match?.stopPolicy(0)).toEqual({ ...STRICT_PAYMENT_POLICY, stopWithPlayOnTheirTurn: [] });
+			expect(match?.stopPolicy(0)).toEqual({ ...STRICT_PAYMENT_POLICY, stopWithPlayOnTheirTurn: ['COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS'] });
 		} finally {
 			if (original === undefined) delete process.env[STOP_POLICY_ENV];
 			else process.env[STOP_POLICY_ENV] = original;

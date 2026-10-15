@@ -115,9 +115,17 @@ test(titled('an attacker holding an affordable instant keeps the window after de
     const kept = rows.filter((r) => r.startsWith('prompt-forwarded priority kept has-play'));
     expect(kept, 'the window was kept for a real play, and the log says so').toHaveLength(1);
     expect(kept[0], 'the log names the play').toContain('"name":"Giant Growth"');
-    const text = await says(a);
-    await clickOnce(a, text, 'ok');
-    await expect.poll(async () => (await phaseOf(a))?.phase ?? '', { timeout: 30_000, message: 'one OK takes alice on to Main 2' }).toBe('MAIN2');
+    await clickOnce(a, await says(a), 'ok');
+    // Her Giant Growth is still a play after blocks: her own Declare Blockers holds her once more.
+    await expect
+      .poll(async () => /^Priority:[\s\S]*Declare Blockers Step/i.test(await says(a)) && (await enabledOk(a).count()) > 0, {
+        timeout: 20_000,
+        message: 'alice holds a live OK at her own Declare Blockers Step',
+      })
+      .toBe(true);
+    expect(aliceRows(stack, logFrom).filter((r) => r.startsWith('prompt-forwarded priority kept play-stop')), 'kept for the play after blocks').toHaveLength(1);
+    await clickOnce(a, await says(a), 'ok');
+    await expect.poll(async () => (await phaseOf(a))?.phase ?? '', { timeout: 30_000, message: 'the next OK takes alice on to Main 2' }).toBe('MAIN2');
   } finally {
     await stack.stop();
   }

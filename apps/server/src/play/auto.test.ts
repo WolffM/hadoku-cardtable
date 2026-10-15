@@ -794,22 +794,22 @@ describe('Q10: the Declare Blockers stop is skipped when the seat controls no cr
 		// A policy that does not skip it, and full control, keep it.
 		expect(decideStop(at(0), { ...DEFAULT_STOP_POLICY, skipEmptyBlockStop: false })).toBeNull();
 		expect(decideStop(at(0), FULL_CONTROL_POLICY)).toBeNull();
-		// Not a leak of the hand: Forge naming something castable does not change the answer.
-		expect(decideStop(facts({ creatures: 0, sources: [67, 68] }), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
+		// No block to make, but a real play: held for the play (`stopWithPlayOnTheirTurn`), not for a block.
+		expect(judgeStop(facts({ creatures: 0, sources: [67, 68] }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'play-stop', plays: [67, 68] });
 	});
 
 	it('through the match: a seat with no creature passes its Declare Blockers step; one with a creature is stopped', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
-		// The recorded opening has nothing on either battlefield.
-		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		// The recorded opening has nothing on either battlefield; card 67 is offered for its mana alone.
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }], manaOnly: [{ kind: 'card', id: 67 }], phaseRestricted: [], attackers: 1 });
 		push(h, 0, prompt(THEIR_STOP_MESSAGE, me));
 		push(h, 0, buttons(true, me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
 			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
 		]);
 		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
-			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Blockers Step', rule: 'skip-phase' },
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Blockers Step', rule: 'nothing-to-do' },
 		]);
 
 		// Now the seat controls a creature — still summoning sick, which does not stop it blocking.
@@ -905,12 +905,19 @@ describe('T3: the Declare Attackers stop is the declaration — the priority win
 			facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: 1, ...over });
 		for (const window of [after, afterBlock]) {
 			expect(judgeStop(window({ sources: [70], nonManaSources: [] }), DEFAULT_STOP_POLICY).rule).toBe('nothing-to-do');
-			expect(judgeStop(window({ sources: [70, 67], nonManaSources: [67] }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'has-play', plays: [67] });
+			// The defender's Declare Blockers is a play-stop phase too, so its kept window says so.
+			expect(judgeStop(window({ sources: [70, 67], nonManaSources: [67] }), DEFAULT_STOP_POLICY)).toEqual({
+				pass: null,
+				rule: window === after ? 'has-play' : 'play-stop',
+				plays: [67],
+			});
 			expect(judgeStop(window({ sources: null, nonManaSources: null }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'no-answer' });
 			expect(judgeStop(window(), FULL_CONTROL_POLICY)).toEqual({ pass: null, rule: 'stop-phase' });
 		}
 		expect(judgeStop(facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true }), DEFAULT_STOP_POLICY).rule).toBe('stop-phase');
-		expect(judgeStop(after({ myTurn: false }), DEFAULT_STOP_POLICY).rule).toBe('skip-phase');
+		// The opponent's Declare Attackers is judged by the play test once something attacks, and skipped when nothing does.
+		expect(judgeStop(after({ myTurn: false }), DEFAULT_STOP_POLICY).rule).toBe('nothing-to-do');
+		expect(judgeStop(after({ myTurn: false, attackers: 0, sources: [67] }), DEFAULT_STOP_POLICY).rule).toBe('skip-phase');
 		expect(judgeStop(after({ window: 'other' }), DEFAULT_STOP_POLICY).rule).toBe('not-priority');
 		expect(judgeStop(after({ openAsks: 1 }), DEFAULT_STOP_POLICY).rule).toBe('open-ask');
 		expect(judgeStop(after({ confirmLive: false }), DEFAULT_STOP_POLICY).rule).toBe('dead-bar');
@@ -1581,6 +1588,7 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		openAsks: 0,
 		creatures: null,
 		stackTopMine: false,
+		attackers: null,
 		...over,
 	};
 }
@@ -1696,7 +1704,8 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(DEFAULT_STOP_POLICY).toEqual({
 			stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
 			stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS'],
-			stopWithPlayOnTheirTurn: ['END_OF_TURN'],
+			stopWithPlayOnTheirTurn: ['COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+			stopWithPlayOnMyTurn: ['COMBAT_DECLARE_BLOCKERS'],
 			skipNonStopPhases: 'always',
 			passWhenNothingToDo: true,
 			interruptsRestoreStops: true,
@@ -1801,13 +1810,16 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 	 * `skipsThisTurn` skips it whatever the seat could do there — confirmed in
 	 * both variants of the same real-Forge suite.
 	 */
-	it('wave 46 §C — the Declare Blockers priority AFTER a block passes when nothing is left to do; Declare Attackers Step stays always-skipped', () => {
-		const theirAttackStep = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: false };
-		// Untouched by this field: always skipped, castable instant or not.
+	it('wave 46 §C — the Declare Blockers priority AFTER a block passes when nothing is left to do; their Declare Attackers Step holds only for a play in an attack', () => {
+		const theirAttackStep = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: false, attackers: 1 };
+		// Untouched by this field: passed with nothing to play, held for a real play once something attacks.
 		expect(decideStop(facts({ ...theirAttackStep, sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
-		expect(decideStop(facts({ ...theirAttackStep, sources: [61, 62], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toBe(
-			'Declare Attackers Step',
-		);
+		expect(judgeStop(facts({ ...theirAttackStep, sources: [61, 62], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toEqual({ pass: null, rule: 'play-stop', plays: [61] });
+		// A combat nobody attacked in: skipped whatever the seat holds.
+		expect(judgeStop(facts({ ...theirAttackStep, attackers: 0, sources: [61, 62], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toEqual({
+			pass: 'Declare Attackers Step',
+			rule: 'skip-phase',
+		});
 
 		// The fix: the ordinary priority window right AFTER a block is assigned
 		// (a known, non-zero creature count — the declaration already happened).
@@ -1823,12 +1835,11 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		// Full control keeps the stop, as it keeps every stop.
 		expect(decideStop(afterBlock({ sources: [] }), FULL_CONTROL_POLICY)).toBeNull();
 
-		// Q10's own invariant is untouched: no creature at all is a DIFFERENT
-		// shape (no declaration ever happened) and stays unconditional, whatever
-		// `blockStopIsTheDeclaration` says.
+		// Q10: no creature at all is a DIFFERENT shape (no declaration ever happened):
+		// no block stop, whatever `blockStopIsTheDeclaration` says — only a real play holds it.
 		expect(
 			decideStop(
-				facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: 0, sources: [61, 62] }),
+				facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: 0, sources: [61, 62], nonManaSources: [] }),
 				DEFAULT_STOP_POLICY,
 			),
 		).toBe('Declare Blockers Step');
@@ -1865,7 +1876,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(judgeStop(theirEnd({ myTurn: true, sources: [61], nonManaSources: [61] }), DEFAULT_STOP_POLICY).rule).toBe('skip-phase');
 		// The setting off: the End step is skipped whatever the seat holds.
 		const off = withEndStepStop(DEFAULT_STOP_POLICY, false);
-		expect(off).toEqual({ ...DEFAULT_STOP_POLICY, stopWithPlayOnTheirTurn: [] });
+		expect(off).toEqual({ ...DEFAULT_STOP_POLICY, stopWithPlayOnTheirTurn: ['COMBAT_DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS'] });
 		expect(judgeStop(theirEnd({ sources: [70, 61], nonManaSources: [61] }), off)).toEqual({ pass: 'End step', rule: 'skip-phase' });
 		expect(withEndStepStop(off, true)).toEqual(DEFAULT_STOP_POLICY);
 		// Already agreeing: the same object, so the caller skips a no-op.

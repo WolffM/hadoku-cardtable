@@ -1829,6 +1829,9 @@ public final class PlayBridge {
          * restriction ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases})
          * is met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
          * hand: the card and its text are on the table for everyone.</li>
+         * <li>{@code attackers}: how many creatures attack in the game's current combat, 0
+         * outside one — whether a combat step is one anybody attacked in. Read off the live
+         * game in the same window, so it never trails the prompt the way a state delta can.</li>
          * </ul>
          *
          * "A play" is the fork's {@code AvailableActions.Scan#plays}, which the game thread
@@ -1878,6 +1881,8 @@ public final class PlayBridge {
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);
+                final forge.game.combat.Combat combat = game.getCombat();
+                f.addProperty("attackers", combat == null ? 0 : combat.getAttackers().size());
             } catch (final RuntimeException e) {
                 System.err.println("[bridge] offerFacts: could not read the offered abilities (" + e + "); the window keeps its stop");
             }
