@@ -88,20 +88,34 @@ function types(entry: BoardCard): string {
 
 const isType = (entry: BoardCard, t: string): boolean => types(entry).includes(t);
 
+const ALL_COLOURS = ['W', 'U', 'B', 'R', 'G'];
+const BASIC_TYPE = /\b(Plains|Island|Swamp|Mountain|Forest)\b/g;
+const basicTypeColours = (text: string): string[] => [...text.matchAll(BASIC_TYPE)].map((m) => BASIC_LAND[m[1]!]!);
+
 /**
- * A land's colours, which it has none of as a card: its basic land types (a
- * Plains, a Steam Vents) and the mana its own text adds (`Add {W}`, `Add {B} or
- * {R}`). "Any color" is all five.
+ * A land's colours, which it has none of as a card. All read off the face in
+ * play (a modal double-faced card played as its land is that face), from:
+ * - its basic land types (a Plains, a Steam Vents);
+ * - the mana its text adds (`Add {W}`, `Add {B} or {R}`); "any color" is all five;
+ * - the basic land types it fetches (`Search your library for an Island or
+ *   Mountain card`); "a basic land card" is any basic, so all five. Another
+ *   player's search ("their library") is not this land's;
+ * - the basic land types it grants (`Each land is a Swamp`);
+ * - the basic land type it chose (Multiversal Passage's `ChosenType`).
+ * A type it only checks for ("unless you control a Mountain") is no colour.
  */
 function landColours(entry: BoardCard): string[] {
-  const found = new Set(
-    Object.entries(BASIC_LAND)
-      .filter(([name]) => entry.card.typeLine.includes(name))
-      .map(([, letter]) => letter),
-  );
-  const text = entry.card.oracleText;
-  if (/\bany (?:one )?colou?r\b/i.test(text)) return ['W', 'U', 'B', 'R', 'G'];
+  const { typeLine, oracleText: text } = entry.card;
+  if (/\bany (?:one )?colou?r\b/i.test(text)) return ALL_COLOURS;
+  const found = new Set(basicTypeColours(typeLine));
   for (const clause of text.matchAll(/\bAdd\b[^.]*/g)) for (const m of clause[0].matchAll(/\{([WUBRG])\}/g)) found.add(m[1]!);
+  for (const clause of text.matchAll(/\bsearch your library for\b[^.]*?\bcard\b/gi)) {
+    const fetched = basicTypeColours(clause[0]);
+    if (fetched.length === 0 && /\bbasic land card\b/i.test(clause[0])) return ALL_COLOURS;
+    for (const c of fetched) found.add(c);
+  }
+  for (const clause of text.matchAll(/\bis an? (?:Plains|Island|Swamp|Mountain|Forest)\b/g)) for (const c of basicTypeColours(clause[0])) found.add(c);
+  for (const choice of entry.choices ?? []) if (choice.kind === 'type') for (const v of choice.values) for (const c of basicTypeColours(v)) found.add(c);
   return [...found];
 }
 
