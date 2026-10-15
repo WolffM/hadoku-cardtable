@@ -307,6 +307,14 @@ const lines = (container: HTMLElement): string[] =>
 const currentStep = (container: HTMLElement): HTMLElement | null =>
   container.querySelector<HTMLElement>('.live__step[data-current] .live__step-name');
 
+
+/**
+ * `.live`'s children by class, less the "Your turn" cue (`TurnCue.tsx`): the fixture replays a turn
+ * beginning, so the cue is up for its 1.2 s or not depending on how fast a test runs, and it is a
+ * passing moment, not part of the layout these cases pin.
+ */
+const standingChildren = (live: Element): string[] => [...live.children].map((el) => el.className).filter((c) => c !== 'live__turn-cue');
+
 describe('the board follows the stream', () => {
   it('waits, then draws the game as the frames arrive', async () => {
     const s = (server = await startReplayServer());
@@ -1232,7 +1240,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     // the opponent's own `waitingOn` fact, sent above, is what makes it draw
     // — see `isWaitingForOpponent`'s own test.
     const live = container.querySelector('.live')!;
-    expect([...live.children].map((el) => el.className)).toEqual([
+    expect(standingChildren(live)).toEqual([
       'board',
       'live__phases',
       'live__logbook',
@@ -1706,7 +1714,7 @@ describe('a prompt belongs where the player is looking', () => {
     await waitFor(() => getByTestId('live-prompt'));
     // No `live__status`: a live board draws no line about itself (§B.5). The log's
     // button is its own child of `.live` now, not the cluster's (§B.4).
-    expect([...container.querySelector('.live')!.children].map((el) => el.className)).toEqual([
+    expect(standingChildren(container.querySelector('.live')!)).toEqual([
       'board',
       'live__phases',
       'live__logbook',
