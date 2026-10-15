@@ -20,7 +20,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
-import { triggerOnStack } from './play/chip.ts';
+import { chipOf, triggerOnStack } from './play/chip.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { installSizeOf, type SizeOfWindow } from './play/w32.ts';
@@ -124,8 +124,7 @@ for (const c of CASES) {
 
       // Hover: the one expanded view, with the ability's whole text — on both screens.
       for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
-        const text = page.locator('[data-placed-spell]:has([data-ability-chip]) .placed__chip-text');
-        await text.hover();
+        await chipOf(page).hover();
         const panel = page.locator('[data-inspect] [data-ability-chip]');
         await expect(panel, `${who}: hovering the chip opens the expanded view`).toHaveCount(1);
         await expect(panel.locator('.placed__chip-text'), `${who}: with the ability's text`).toContainText(c.reads);

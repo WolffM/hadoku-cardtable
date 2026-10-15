@@ -11,7 +11,11 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { clickHandCard, offeredNamed, pressPaymentAuto } from './board.ts';
 import { answerPrompt } from './prompts.ts';
 
-/** The placed element of the (one) ability chip on `page`. */
+/**
+ * The placed element of the (one) ability chip on `page`. Point at THIS, never at a part of the chip
+ * inside it: the chip hovers on the stack (`placed.css`), and Playwright's pointer actions wait for
+ * their target to stop moving, which a part of the hovering face never does; this box stays put.
+ */
 export const chipOf = (page: Page): Locator => page.locator('[data-placed-spell]:has([data-ability-chip])');
 
 /** Bob takes Full Control, alice casts `creature`, and both screens draw its trigger as the chip. */

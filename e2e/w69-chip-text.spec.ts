@@ -76,7 +76,7 @@ for (const c of CASES) {
         expect(text, `${who}: and none of Forge’s stack notes`).not.toMatch(NOTES);
         if (c.target !== null) expect(label, `${who}: the target is still named, on the chip’s accessible name`).toContain(`→ ${c.target}`);
 
-        await chip.locator('.placed__chip-text').hover();
+        await chip.hover();
         const panel = page.locator('[data-inspect] [data-ability-chip] .placed__chip-text');
         await expect(panel, `${who}: hovering the chip opens the expanded view`).toHaveCount(1);
         const enlarged = ((await panel.textContent()) ?? '').trim();
