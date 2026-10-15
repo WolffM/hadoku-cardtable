@@ -93,6 +93,10 @@ interface UntapRow {
 	kind: string;
 	/** Anything else the source needs to be activated (a Signet's {1}). */
 	with?: string;
+	/** Seat 1's battlefield, when the source reads it (Fellwar Stone reflects its lands' colours). */
+	opponent?: string;
+	/** Seat 0's hand. */
+	hand?: string;
 }
 
 const UNTAP: readonly UntapRow[] = [
@@ -103,6 +107,32 @@ const UNTAP: readonly UntapRow[] = [
 	{ kind: 'man-land', source: "Mishra's Factory" },
 	{ kind: 'land with a non-mana ability', source: 'Ghost Quarter' },
 	{ kind: 'Signet', source: 'Azorius Signet', with: 'Island' },
+	{ kind: 'mana rock reflecting an opponent\'s lands', source: 'Fellwar Stone', opponent: 'Plains' },
+	// Production's Fellwar Stone (m-dba8233ce2ed): a spell in hand the highlight prices with the AI
+	// payer, whose mana prediction once made every reflecting source not undoable.
+	{ kind: 'mana rock, a spell in hand priced', source: 'Fellwar Stone', with: 'Plains', hand: 'Winter Orb', opponent: 'Swamp' },
+	// Nothing coloured to reflect: the tap makes no mana, and there is nothing to take back.
+	{ kind: 'mana rock with nothing to reflect', source: 'Fellwar Stone', opponent: 'Strip Mine' },
+];
+
+interface ActivateRow {
+	source: string;
+	kind: string;
+	/** What the activation leaves behind once Forge took it. */
+	done: (s: Scenario, id: number) => boolean;
+	/** In seat 0's hand, for a cost that discards it. */
+	hand?: string;
+}
+
+/** Mana abilities with a cost besides {T} and mana: offered at your own main phase like any other source. */
+const ACTIVATE: readonly ActivateRow[] = [
+	{ kind: 'land that costs life', source: 'Mana Confluence', done: (s, id) => tappedOn(s, id) },
+	{
+		kind: 'artifact sacrificed for mana',
+		source: "Lion's Eye Diamond",
+		hand: 'Forest',
+		done: (s, id) => s.zone(0, 'Graveyard').some((c) => c.id === id),
+	},
 ];
 
 interface HoldRow {
@@ -116,6 +146,7 @@ const HOLD: readonly HoldRow[] = [
 	{ kind: 'basic land', source: 'Island', stops: false },
 	{ kind: 'mana creature', source: 'Llanowar Elves', stops: false },
 	{ kind: 'painland', source: 'Adarkar Wastes', stops: false },
+	{ kind: 'land that costs life', source: 'Mana Confluence', stops: false },
 	{ kind: 'Signet', source: 'Azorius Signet;Island', stops: false },
 	{ kind: 'land with a non-mana ability', source: 'Ghost Quarter', stops: true },
 	{ kind: 'man-land it can pay to animate', source: "Mishra's Factory;Island", stops: true },
@@ -128,7 +159,7 @@ describe.skipIf(!available.ok)(title, () => {
 		it(`untap: a ${row.kind} (${row.source}) tapped at priority untaps on a click, before a Forest tapped after it`, async () => {
 			if (!available.ok) return;
 			const field0 = [row.source, ...(row.with === undefined ? [] : [row.with]), 'Forest'].join(';');
-			const s = await startScenario(available.config, { seed: 6501, decks: DECKS, scenario: state({ field0, field1: 'Island' }) });
+			const s = await startScenario(available.config, { seed: 6501, decks: DECKS, scenario: state({ hand0: row.hand, field0, field1: row.opponent ?? 'Island' }) });
 			try {
 				await finishMulligan(s);
 				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, "seat 0's main phase with the scripted board", 60_000, s);
@@ -178,6 +209,69 @@ describe.skipIf(!available.ok)(title, () => {
 			await tap(s, river.id, 'the River for {B}');
 			await untap('for {B} after a land drop');
 			console.log('[mana-sources] River of Tears: {U} tap undone, {B} tap after a land drop undone');
+		} finally {
+			await s.stop();
+		}
+	}, 120_000);
+
+	for (const row of ACTIVATE) {
+		it(`activate: a ${row.kind} (${row.source}) is offered at your own main phase and a click takes its mana ability`, async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, {
+				seed: 6501,
+				decks: DECKS,
+				scenario: state({ hand0: row.hand, field0: row.source, field1: 'Island' }),
+			});
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, "seat 0's main phase with the scripted board", 60_000, s);
+				const source = s.zone(0, 'Battlefield').find((c) => c.name === row.source)!;
+				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1) && offeredTo(s, 0).includes(source.id); }, `${row.source} offered at priority`, 20_000, s);
+				s.select(0, source.id);
+				try {
+					await waitUntil(() => { s.answerAsks(); return row.done(s, source.id) && inOwnMain(s, 0, 1); }, `${row.source}'s mana ability taken`, 20_000, s);
+				} catch (e) {
+					const names = (zone: 'Hand' | 'Battlefield' | 'Graveyard') => s.zone(0, zone).map((c) => `${c.id}:${c.name}${c.tapped ? '(T)' : ''}`);
+					console.log(
+						`[mana-sources] activate ${row.source} stuck: prompt ${JSON.stringify(s.prompt(0))}, bar ${JSON.stringify(s.buttons(0))}, ` +
+							`field ${JSON.stringify(names('Battlefield'))}, hand ${JSON.stringify(names('Hand'))}, graveyard ${JSON.stringify(names('Graveyard'))}, ` +
+							`asks ${JSON.stringify(s.asks.map((a) => a.method))}`,
+					);
+					throw e;
+				}
+				console.log(`[mana-sources] activate ${row.source}: offered at own main, taken on a click`);
+			} finally {
+				await s.stop();
+			}
+		}, 120_000);
+	}
+
+	// High Tide's extra {U} is a mana ability's trigger (TapsForMana, Static$ True): it resolves
+	// inside the Island's activation, adding to the same pool. Untapping the Island takes back
+	// both — the Island's {U} and the {U} High Tide added for it — while both still float.
+	it('untap: an Island tapped under a resolved High Tide untaps on a click, taking back both {U}', async () => {
+		if (!available.ok) return;
+		const s = await startScenario(available.config, { seed: 6501, decks: DECKS, scenario: state({ hand0: 'High Tide', field0: 'Island;Island', field1: 'Island' }) });
+		try {
+			await finishMulligan(s);
+			await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, "seat 0's main phase with the scripted board", 60_000, s);
+			const tide = s.zone(0, 'Hand').find((c) => c.name === 'High Tide')!;
+			await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1) && offeredTo(s, 0).includes(tide.id); }, 'High Tide offered', 20_000, s);
+			s.select(0, tide.id);
+			const pay = landPayer(s, 0);
+			await waitUntil(
+				() => { s.answerAsks(); pay(); return s.zone(0, 'Graveyard').some((c) => c.id === tide.id) && inOwnMain(s, 0, 1); },
+				'High Tide resolved',
+				45_000,
+				s,
+			);
+			const island = s.zone(0, 'Battlefield').find((c) => c.name === 'Island' && !c.tapped)!;
+			await tap(s, island.id, 'the untapped Island under High Tide');
+			console.log(`[mana-sources] High Tide: Island ${island.id} tapped, bar ${JSON.stringify(s.buttons(0))}, offered ${JSON.stringify(offeredTo(s, 0))}`);
+			await waitUntil(() => { s.answerAsks(); return offeredTo(s, 0).includes(island.id); }, 'the Island, tapped under High Tide, offered for the untap click', 20_000, s);
+			s.select(0, island.id);
+			await waitUntil(() => { s.answerAsks(); return !tappedOn(s, island.id) && inOwnMain(s, 0, 1); }, 'the Island untapped by the click', 20_000, s);
+			expect(s.buttons(0)?.label2, 'nothing left to undo: both {U} were taken back with the Island').not.toMatch(/^Undo/);
 		} finally {
 			await s.stop();
 		}

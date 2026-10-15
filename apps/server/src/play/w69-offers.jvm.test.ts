@@ -5,7 +5,8 @@
  *
  * The operator, 2026-10-11 (match m-70cba9014f79): Serra Avenger highlighted on turns it cannot be
  * cast ("it went back to my hand"), and Rishadan Port's "{1},{T}: Tap target land" offered with
- * nothing to pay its {1} ("had no way to pay it and then it untapped"). `e2e/w69-offers.spec.ts`
+ * nothing to pay its {1} ("had no way to pay it and then it untapped"). And the other way: Searing
+ * Blaze, whose second target depends on its first, was never offered (2026-10-14). `e2e/w69-offers.spec.ts`
  * plays the same scenarios on two screens.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/w69-offers \
@@ -133,4 +134,44 @@ describe.skipIf(!available.ok)(title, () => {
 		},
 		240_000,
 	);
+
+	// Searing Blaze's second target is "target creature that player controls"
+	// (Creature.ControlledBy ParentTargetedController): its candidates exist only once the first
+	// target is picked. The operator, 2026-10-14: "searing blaze appeared to never be playable".
+	for (const row of [
+		{ field1: 'Grizzly Bears', offered: true, what: 'with a creature to hit' },
+		{ field1: 'Plains', offered: false, what: 'with no creature to hit' },
+	]) {
+		it(
+			`Searing Blaze ${row.what} is ${row.offered ? '' : 'not '}offered at its caster's own main phase`,
+			async () => {
+				if (!available.ok) return;
+				const state = [
+					'turn=1',
+					'activeplayer=human',
+					'activephase=MAIN1',
+					'humanlife=20',
+					'ailife=20',
+					'humanhand=Searing Blaze;Plains',
+					'humanbattlefield=Mountain;Mountain',
+					'humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain',
+					'humangraveyard=',
+					'aihand=',
+					`aibattlefield=${row.field1}`,
+					'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+					'aigraveyard=',
+				].join('\n');
+				const s = await startScenario(available.config, { seed: 69, decks: DECKS, scenario: state });
+				try {
+					await landed(s, 'Searing Blaze');
+					const blaze = cardNamed(s, 0, 'Hand', 'Searing Blaze')!;
+					console.log(`[w69-offers.jvm] searing blaze ${row.what}: offered ${JSON.stringify(offeredTo(s, 0))}, blaze ${blaze.id}`);
+					expect(offeredTo(s, 0).includes(blaze.id), `Searing Blaze ${row.what}`).toBe(row.offered);
+				} finally {
+					await s.stop();
+				}
+			},
+			120_000,
+		);
+	}
 });
