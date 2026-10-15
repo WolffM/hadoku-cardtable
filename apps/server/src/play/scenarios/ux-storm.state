@@ -1,0 +1,18 @@
+# The operator, 2026-10-14: "show storm counter as an emblem if storm card in hand", and "mana
+# color outline box is ugly". Seat 0 (human), turn-1 Main Phase 1: Grapeshot (Storm) and two
+# Dark Rituals in hand, two Swamps. `ux-storm.spec.ts` casts the Rituals: the storm count by
+# alice's own avatar climbs 0 → 1 → 2, bob never sees one, and the BBB they float is drawn
+# without a coloured outline on both screens.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Grapeshot;Dark Ritual;Dark Ritual
+humanbattlefield=Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

@@ -1220,8 +1220,8 @@ describe('the deck picker', () => {
   });
 
   // The operator, 2026-10-10: "i need a way to peek into the deck maybe can we show a
-  // decklist when hovering for at least 1s?"
-  it('shows a deck’s list beside its tile after a second’s hover, and not before', async () => {
+  // decklist when hovering for at least 1s?", and 2026-10-14: "when hovering deck show decklist".
+  it('shows a deck’s list beside its tile once the pointer rests on it, and not on a pass across it', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
     await deckPicker();
     const tile = screen.getByTestId('deck-mine').querySelector<HTMLElement>(`[data-deck-id="${SECOND_DECK}"]`)!;
@@ -1231,11 +1231,11 @@ describe('the deck picker', () => {
     });
     fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(200);
     });
-    expect(screen.queryByTestId('deck-peek'), 'not at half a second').toBeNull();
+    expect(screen.queryByTestId('deck-peek'), 'not on a pass across the tile').toBeNull();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(600);
+      await vi.advanceTimersByTimeAsync(250);
     });
     const peek = screen.getByTestId('deck-peek');
     expect(peek.textContent).toContain('Jund (Emanuele Giusti)');
