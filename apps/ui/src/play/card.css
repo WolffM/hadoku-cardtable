@@ -390,7 +390,7 @@
   white-space: nowrap;
 }
 
-.board-card__mark[data-mark='blocking'] {
+.board-card__mark:is([data-mark='attacking'], [data-mark='blocking']) {
   color: var(--ink);
 }
 

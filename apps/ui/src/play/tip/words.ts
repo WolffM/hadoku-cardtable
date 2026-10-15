@@ -6,9 +6,10 @@ import { artCredit } from '../../draft/artists.ts';
 import type { BoardCardChoice, BoardCardWaiting, BoardEmblem, ChoiceKind } from '../adapter.ts';
 
 /** A corner mark (`Board.tsx`'s `StateMarks`). */
-export const MARK_TIP: Readonly<Record<'sick' | 'cantBlock' | 'blocking', string>> = {
+export const MARK_TIP: Readonly<Record<'sick' | 'cantBlock' | 'attacking' | 'blocking', string>> = {
   sick: "Summoning sick: it can't attack or use its tap abilities until its controller's next turn",
   cantBlock: "Can't block",
+  attacking: 'Attacking',
   blocking: 'Blocking',
 };
 

@@ -3399,6 +3399,36 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(renderBoard(withState({})).container.querySelector('[data-mark="cantBlock"]'), 'a creature that can block wears none').toBeNull();
   });
 
+  it('an attacker wears crossed swords, said in words, upright on top of its quarter turn — vigilant or not — and none once it is not attacking', () => {
+    const css = styled();
+    const { container } = renderBoard(withState({ attacking: true, tapped: false, summoningSick: true }));
+    const marks = [...card(container).querySelectorAll<HTMLElement>(':scope > .board-card__marks > .board-card__mark')];
+    expect(marks.map((m) => m.dataset.mark), 'in the fixed order').toEqual(['sick', 'attacking']);
+    const mark = marks[1]!;
+    const shapes = (
+      [
+        ['sick', { summoningSick: true }],
+        ['cantBlock', { cantBlock: true }],
+        ['blocking', { blocking: true }],
+      ] as const
+    ).map(([other, state]) => renderBoard(withState(state)).container.querySelector(`[data-card-id="21"] [data-mark="${other}"] path`)?.getAttribute('d'));
+    expect(shapes.every((d) => typeof d === 'string'), 'the other marks were drawn to compare against').toBe(true);
+    expect(shapes, 'drawn, and not any other mark').not.toContain(mark.querySelector('svg.board-card__mark-art path')?.getAttribute('d'));
+    expect(mark.textContent, 'the word, for anything that cannot see it').toBe('attacking');
+    expect(mark.dataset.tip).toBe('Attacking');
+    // The quarter turn is on the art inside the face; the marks are the <li>'s own, so they stay upright.
+    expect(turnOf(css, card(container)), 'the attacker is turned').toContain('90deg');
+    expect(mark.closest('.board-card__face'), 'and the mark is not inside what turns').toBeNull();
+    expect(css(card(container).querySelector(':scope > .board-card__marks')!, 'transform'), 'nor turned itself').toMatch(/^(none)?$/);
+    const shield = renderBoard(withState({ blocking: true })).container.querySelector('[data-card-id="21"] [data-mark="blocking"]')!;
+    expect(css(mark, 'color'), 'in the same ink as the blocking shield').toBe(css(shield, 'color'));
+    cleanup();
+    const vigilant = renderBoard(withState({ attacking: true, tapped: false, keywords: ['Vigilance'] })).container;
+    expect(card(vigilant).querySelector(':scope > .board-card__marks > [data-mark="attacking"]'), 'a vigilant attacker, which never turns, wears it too').not.toBeNull();
+    cleanup();
+    expect(renderBoard(withState({ tapped: true })).container.querySelector('[data-mark="attacking"]'), 'tapped is not attacking').toBeNull();
+  });
+
   /**
    * R15 (wave 53 T), the operator, Playtest 9: *"cards like 'Magus of the
    * moon' and 'Urborg tomb of yawgmoth' change the types of cards … put one

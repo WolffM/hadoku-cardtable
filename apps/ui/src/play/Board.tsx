@@ -1973,6 +1973,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * | damage | the P/T badge's own ink (`PowerToughness`) | the number that matters is what is LEFT, and the badge already holds it |
  * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
  * | summoning sick | a corner mark, a drawn crescent, and nothing over the art (the operator, 2026-10-15: "let's drop the dashed summoning sickness on the art, not needed") | a mark is a shape, so it cannot be confused with any outline |
+ * | attacking | a corner mark, drawn crossed swords, beside the quarter turn and the danger outline (the operator, 2026-10-15: "let's show a 'crossed swords' pill icon on top of cards that have been selected as attackers") | Forge's own `Attacking`, so it is on both screens from the click that declares it until combat ends or it is called back |
  * | blocking | a corner mark, a drawn shield, and an outline in the theme's success (`card.css`), as the attacker's is in its danger | the operator asked for its own colour (2026-10-10) |
  *
  * **The three outlines already on a card are not ours to add a fourth to.** The
@@ -1991,7 +1992,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
-type StateMark = 'sick' | 'cantBlock' | 'blocking';
+type StateMark = 'sick' | 'cantBlock' | 'attacking' | 'blocking';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
@@ -2004,6 +2005,9 @@ const MARK_ART: Readonly<Record<StateMark, string>> = {
   /* The shield, hollow and struck through: this one can't be in the way. */
   cantBlock:
     'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z M8 3.3L4.2 4.7V7.9c0 2.3 1.6 4.1 3.8 4.8 2.2-.7 3.8-2.5 3.8-4.8V4.7Z M1.4 13.5L13.5 1.4l1.1 1.1L2.5 14.6Z',
+  /* Two swords crossed, points up: this one is on the attack. */
+  attacking:
+    'M13.2 2.8 13.1 4.5 7.2 10.4 5.6 8.8 11.5 2.9Z M4.3 7.5 8.5 11.7 7.6 12.7 3.3 8.4Z M5 10.1 5.9 11 4.4 12.5 3.5 11.6Z M3.1 11.2 4.8 12.9 3.8 13.9 2.1 12.2Z M2.8 2.8 4.5 2.9 10.4 8.8 8.8 10.4 2.9 4.5Z M7.5 11.7 11.7 7.5 12.7 8.4 8.4 12.7Z M10.1 11 11 10.1 12.5 11.6 11.6 12.5Z M11.2 12.9 12.9 11.2 13.9 12.2 12.2 13.9Z',
   /* A shield: this one is in the way. */
   blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
 };
@@ -2011,6 +2015,7 @@ const MARK_ART: Readonly<Record<StateMark, string>> = {
 const MARK_WORD: Readonly<Record<StateMark, string>> = {
   sick: 'summoning sick',
   cantBlock: "can't block",
+  attacking: 'attacking',
   blocking: 'blocking',
 };
 
@@ -2031,6 +2036,7 @@ function StateMarks({ entry }: { entry: BoardCard }) {
   const marks: StateMark[] = [];
   if (entry.summoningSick) marks.push('sick');
   if (entry.cantBlock === true) marks.push('cantBlock');
+  if (entry.attacking) marks.push('attacking');
   if (entry.blocking) marks.push('blocking');
   if (marks.length === 0) return null;
   return (
