@@ -311,6 +311,11 @@ export interface NumbersHost {
 export interface NumbersHandle {
   /** Call with every new `BoardView` the board renders — diffs it against the last one seen and spawns whatever changed. */
   notify(view: BoardView): void;
+  /**
+   * Note where each stack item of `view` is drawn — `notify` does, and a host whose stack layer draws
+   * after `notify` (`Board.tsx`: `numbers` decides the beats `placed` reads) calls this again once it has.
+   */
+  noteStack(view: BoardView): void;
   dispose(): void;
 }
 
@@ -744,6 +749,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       prevView = view;
       apply(diff);
       noteStack(view);
+    },
+    noteStack(view: BoardView) {
+      if (live) noteStack(view);
     },
     dispose() {
       live = false;

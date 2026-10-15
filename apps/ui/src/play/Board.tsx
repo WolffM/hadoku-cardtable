@@ -3859,8 +3859,9 @@ export function Board({
       interaction === undefined ? undefined : { isSelectable: (cardId) => interaction.selectable.has(cardId), onSelect: interaction.onSelectCard },
     );
   }, [view, interaction]);
-  // Last, every commit: how each battlefield card is drawn now, for the next commit's departures.
+  // Last, every commit: where the stack is drawn now and how each battlefield card is, for the next commit's beats and departures.
   useLayoutEffect(() => {
+    numbers.current?.noteStack(view);
     departures.current?.snapshot();
   });
 
