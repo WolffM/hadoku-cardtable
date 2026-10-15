@@ -149,6 +149,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			ui('ui.pass', 'Pass / OK', 'Pass priority, OK, end turn.'),
 			// Was "Your move", which read as the start of a turn (the operator, 2026-10-10); `g.turn-mine` is that.
 			ui('ui.prompt', 'Decision needed', 'A question opens for you: the coin toss, a mulligan, a target, a yes or no.'),
+			ui('ui.priority', 'Priority back to you', 'You hold priority again: a later window of your own turn, or any window on theirs.'),
 			ui('ui.inspect', 'Inspect', 'The expanded card view opens.'),
 			ui('ui.draft-pick', 'Draft pick', 'A pick is taken in the draft.'),
 		],

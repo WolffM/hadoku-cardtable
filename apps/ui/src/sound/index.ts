@@ -95,10 +95,10 @@ function player(): RolePlayer {
 /*
  * Interface sounds raised since the last take, by role. A hover fires far too often to log one line each, so
  * the match screen folds these counts into its log now and then (the operator, 2026-10-11, wanting "a graph of
- * how often certain sounds are played"). `ui.pass` and `ui.prompt` are left out: each is already logged as it
- * sounds.
+ * how often certain sounds are played"). `ui.pass`, `ui.prompt` and `ui.priority` are left out: each is
+ * already logged as it sounds.
  */
-const LOGGED_ONE_BY_ONE = new Set(['ui.pass', 'ui.prompt']);
+const LOGGED_ONE_BY_ONE = new Set(['ui.pass', 'ui.prompt', 'ui.priority']);
 const uiTally = new Map<string, number>();
 
 /** The interface sounds raised since the last call, and a fresh count from here. */

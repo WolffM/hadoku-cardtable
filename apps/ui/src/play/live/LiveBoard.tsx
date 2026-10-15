@@ -280,6 +280,7 @@ import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
 import { deriveSoundEvents } from './sound-events.ts';
+import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import {
@@ -464,12 +465,13 @@ function listField(items: readonly string[]): string {
 /**
  * What the table raised to play, and why, into the match's log: `view` for a
  * board change (the roles, their colour cells, the view's turn and seq),
- * `decision` for a decision window's chime, `press` for a bar button, `toss`
+ * `decision` for a decision window's chime, `priority` for priority handed back
+ * (`./priority-cue.ts`), `press` for a bar button, `toss`
  * for the coin toss, `start` for the room's hand-off into a new match. Raised,
  * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
  * `muted` says the last.
  */
-function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
+function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'priority' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
   if (events.length === 0) return;
   reportClient(match.transport, match.matchId, 'sound', {
     why,
@@ -482,6 +484,9 @@ function reportSound(match: LiveMatch, why: 'view' | 'decision' | 'press' | 'tos
     ...extra,
   });
 }
+
+/** Forge's priority status block, which opens every ordinary priority window's prompt. */
+const PRIORITY_PROMPT = /^Priority: /;
 
 /** Forge's priority status block with something on the stack: "Priority: … / Turn: … / Phase: … / Stack: N to Resolve." */
 const PRIORITY_OVER_STACK = /^Priority: [^\n]*\nTurn: [^\n]*\nPhase: [^\n]*\nStack: \d+ to Resolve\.?$/;
@@ -2157,6 +2162,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     playRole('ui.prompt');
     reportSound(match, 'decision', [{ role: 'ui.prompt' }], { key: decisionKey.slice(0, 80) });
   }, [decisionKey, match]);
+  /* "Priority is back with you": a live priority bar of this seat's own, past the first of its own turn (`./priority-cue.ts`). */
+  const priorityCue = useRef<PriorityCue>(NO_PRIORITY_CUE);
+  const priorityTurn = match.view?.turn ?? -1;
+  const priorityMine = match.view !== null && whoseTurn(match.view) === 'yours';
+  const priorityLive = !spectator && !askOpen && PRIORITY_PROMPT.test(match.prompt ?? '') && bar !== null && bar.enable1;
+  useEffect(() => {
+    const next = nextPriorityCue(priorityCue.current, { turn: priorityTurn, mine: priorityMine, live: priorityLive });
+    priorityCue.current = next.cue;
+    if (!next.sound) return;
+    playRole('ui.priority');
+    reportSound(match, 'priority', [{ role: 'ui.priority' }], { held: next.cue.held });
+  }, [priorityLive, priorityTurn, priorityMine, match]);
   /* An optional trigger's "Always" box: ticked, the Yes or No pressed is the answer Forge keeps giving. Unticked for each new confirm. */
   const [always, setAlways] = useState(false);
   useEffect(() => {
