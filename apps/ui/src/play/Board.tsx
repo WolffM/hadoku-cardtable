@@ -2908,7 +2908,8 @@ function PlayerFace({
   const artistOf = useArtistLookup(emblems.some((e) => e.scryfallId !== undefined));
   /** Who drew an emblem's medallion art, once it can be credited — the medallion shows no art before. */
   const credited = (e: BoardEmblem): string | null => (e.scryfallId === undefined || artistOf === undefined ? null : artistOf(e.scryfallId));
-  const drawn = new Set(medallionsOf(emblems));
+  const storm = player.storm;
+  const drawn = new Set(medallionsOf(emblems, slotsFor(storm)));
   const emblemTip = emblems.length === 0 ? undefined : emblemsTip(emblems, (e) => (drawn.has(e) && cardImageUrl(e.scryfallId) !== null ? credited(e) : null));
   const mark = (
     <>
@@ -2965,7 +2966,7 @@ function PlayerFace({
       ) : (
         <div className="face__hit">{mark}</div>
       )}
-      {emblemTip === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} credited={credited} />}
+      {emblemTip === undefined && storm === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} storm={storm} credited={credited} />}
       <span className="face__name">{player.name}</span>
     </div>
   );
@@ -2990,9 +2991,14 @@ function EmblemMedallion({ emblem, slot, tip, art }: { emblem: BoardEmblem; slot
 /** The medallions one avatar has room for around it (`card.css`'s `.face__emblem` slots). */
 const EMBLEM_SLOTS = 4;
 
+/** The slots left to emblems: all of them, or all but the last while the storm count holds that one. */
+function slotsFor(storm: number | undefined): number {
+  return storm === undefined ? EMBLEM_SLOTS : EMBLEM_SLOTS - 1;
+}
+
 /** The emblems that get a medallion of their own: all of them while they fit, else all but the slot that counts the rest. */
-function medallionsOf(emblems: readonly BoardEmblem[]): readonly BoardEmblem[] {
-  return emblems.length > EMBLEM_SLOTS ? emblems.slice(0, EMBLEM_SLOTS - 1) : emblems;
+function medallionsOf(emblems: readonly BoardEmblem[], slots: number): readonly BoardEmblem[] {
+  return emblems.length > slots ? emblems.slice(0, slots - 1) : emblems;
 }
 
 /**
@@ -3004,18 +3010,40 @@ function medallionsOf(emblems: readonly BoardEmblem[]): readonly BoardEmblem[] {
  *
  * A medallion shows its source's art cropped to the illustration, once that art can be credited
  * (the credit is in the tip; `../draft/artists.ts`), else a drawn emblem mark.
+ *
+ * The storm count rides the same ring (the operator, 2026-10-14: *"show storm counter as an emblem
+ * if storm card in hand"*): while `storm` is set (`adapter.ts` sets it only on your own seat, only
+ * while your hand holds a Storm card) the LAST slot is its medallion — the count, in Forge's number
+ * — and the emblems keep the slots before it, so the count arriving moves no emblem but the overflow.
  */
-function SeatEmblems({ emblems, tip, credited }: { emblems: readonly BoardEmblem[]; tip: string; credited: (e: BoardEmblem) => string | null }) {
-  const shown = medallionsOf(emblems);
+function SeatEmblems({
+  emblems,
+  tip,
+  storm,
+  credited,
+}: {
+  emblems: readonly BoardEmblem[];
+  tip: string | undefined;
+  storm: number | undefined;
+  credited: (e: BoardEmblem) => string | null;
+}) {
+  const slots = slotsFor(storm);
+  const shown = medallionsOf(emblems, slots);
   const rest = emblems.length - shown.length;
+  const stormTip = storm === undefined ? undefined : `Storm ${storm}`;
   return (
-    <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={tip}>
-      {shown.map((e, slot) => (
-        <EmblemMedallion key={e.id} emblem={e} slot={slot} tip={tip} art={credited(e) === null ? null : cardImageUrl(e.scryfallId)} />
-      ))}
-      {rest === 0 ? null : (
-        <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={EMBLEM_SLOTS - 1} data-tip={tip}>
+    <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={[tip, stormTip].filter((t) => t !== undefined).join('. ')}>
+      {tip === undefined
+        ? null
+        : shown.map((e, slot) => <EmblemMedallion key={e.id} emblem={e} slot={slot} tip={tip} art={credited(e) === null ? null : cardImageUrl(e.scryfallId)} />)}
+      {tip === undefined || rest === 0 ? null : (
+        <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={slots - 1} data-tip={tip}>
           +{rest}
+        </span>
+      )}
+      {storm === undefined ? null : (
+        <span className="face__emblem face__emblem--storm" data-testid="storm-count" data-storm={storm} data-slot={EMBLEM_SLOTS - 1} data-tip={stormTip}>
+          {storm}
         </span>
       )}
     </span>
@@ -3036,11 +3064,10 @@ function SeatEmblems({ emblems, tip, credited }: { emblems: readonly BoardEmblem
  * because a mana pool is public information in Magic — unlike a hand, there is
  * nothing to hide here.
  *
- * Drawn with our OWN marks: a letter and a count. Not `ManaPip` — the symbol
- * component is another lane's file this wave (§C) — and the letter is also the
- * honest fallback shape, since a pool entry is a count rather than a cost.
- * Colour is never the only signal: `data-mana` carries the letter, the letter is
- * drawn, and the whole pool is in the list's accessible name in words.
+ * Each entry is the Mana font's symbol and a count, on a chip that carries no
+ * colour of its own (`board.css`). Colour is never the only signal: `data-mana`
+ * carries the letter, the symbol is the colour's own glyph, and the whole pool
+ * is in the list's accessible name in words.
  *
  * Its track is a FIXED one (`--mana-h`, `board.css`), so mana arriving mid-turn
  * cannot move the portrait above it — the same rule every other track here
@@ -3074,7 +3101,7 @@ function ManaPool({ player }: { player: BoardPlayer }) {
           <span className="seat__mana-symbol" aria-hidden="true">
             <ManaPip token={m.color} />
           </span>
-          <span className="seat__mana-n" aria-hidden="true">
+          <span aria-hidden="true">
             {m.count}
           </span>
         </li>

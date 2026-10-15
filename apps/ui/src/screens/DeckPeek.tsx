@@ -1,7 +1,11 @@
 /*
- * A deck's list, beside its tile in the room's picker, after a second's hover —
- * the operator, 2026-10-10: *"i need a way to peek into the deck maybe can we
- * show a decklist when hovering for at least 1s?"*
+ * A deck's list, beside its tile in the room's picker, once the pointer rests
+ * on the tile — the operator, 2026-10-10: *"i need a way to peek into the deck
+ * maybe can we show a decklist when hovering for at least 1s?"*, and again on
+ * 2026-10-14, *"when hovering deck show decklist"*, with the peek a full second
+ * away and so never seen while browsing. It opens at {@link PEEK_DELAY_MS} now:
+ * long enough that sweeping across the grid opens nothing, short enough that a
+ * hover is answered.
  *
  * Spells by mana value with their costs, then the cards with no cost (lands,
  * mostly — a browser holds costs for this library, not types, so the line is
@@ -30,7 +34,7 @@ export interface PeekList {
 }
 
 /** How long a pointer rests on a tile before its list opens. */
-export const PEEK_DELAY_MS = 1000;
+export const PEEK_DELAY_MS = 400;
 
 const GAP = 8;
 const LINE_PX = 18;

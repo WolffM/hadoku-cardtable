@@ -1189,6 +1189,39 @@ describe('emblems — a player’s IsEmblem cards in their Command zone', () => 
 });
 
 /*
+ * The storm count — the operator, 2026-10-14: *"show storm counter as an emblem if storm card in
+ * hand"*. `GameView.StormCount` is one number for the game; the board puts it on the viewer's own
+ * seat while their hand holds a Storm card, and never on another seat.
+ */
+describe('storm — the game’s storm count on the viewer’s seat while a Storm card is in hand', () => {
+  const game = (state: Map<string, WireObject>) => deltaKey(WireType.Game, [...state.values()].find((o) => o._type === WireType.Game)!._id);
+  function withStorm(stormCount: number, stormInHand: boolean): Map<string, WireObject> {
+    const state = baseState();
+    const g = state.get(game(state))!;
+    state.set(game(state), { ...g, StormCount: { t: 'int', v: stormCount } } as WireObject);
+    const viewer = state.get(deltaKey(WireType.Player, fixture.viewerPlayerId))!;
+    const first = (viewer['Hand'] as { v: { v: number }[] }).v[0]!.v;
+    const face = state.get(cardStateKey(first, 0))!;
+    state.set(cardStateKey(first, 0), { ...face, Keywords: { t: 'keywords', v: stormInHand ? ['Storm'] : [] } } as WireObject);
+    return state;
+  }
+
+  it('reads the count onto the viewer’s seat, and onto no other', () => {
+    const view = adapt(withStorm(3, true));
+    expect(view.players.find((p) => p.isViewer)!.storm).toBe(3);
+    for (const p of view.players.filter((q) => !q.isViewer)) expect(p, 'another seat never carries it').not.toHaveProperty('storm');
+  });
+
+  it('a count of nought is still drawn while the Storm card is in hand', () => {
+    expect(adapt(withStorm(0, true)).players.find((p) => p.isViewer)!.storm).toBe(0);
+  });
+
+  it('no Storm card in hand, no key', () => {
+    for (const p of adapt(withStorm(4, false)).players) expect(p).not.toHaveProperty('storm');
+  });
+});
+
+/*
  * X1/W14 — `view.combat`, Forge's own `CombatView` read off the single `Game`
  * object (`adapter.ts`'s `readCombat`, `abf705c`'s WIP). `atk`/`def`/`blk` are
  * three parallel lists; `def[i]` is `[marker, id]` with 0 = card (a

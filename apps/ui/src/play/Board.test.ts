@@ -331,6 +331,46 @@ describe('emblems around the avatar', () => {
   });
 });
 
+/*
+ * The operator, 2026-10-14: *"show storm counter as an emblem if storm card in hand"*. The count
+ * takes the ring's last slot; the emblems keep the slots before it.
+ */
+describe('the storm count in the emblem ring', () => {
+  const emblem = (id: number) => ({ id, source: `Source ${id}`, text: `Text ${id}.` });
+  const withStorm = (storm: number | undefined, emblems: number) => {
+    const base = boardFromFixture(fixture);
+    const all = Array.from({ length: emblems }, (_, i) => emblem(i + 1));
+    return {
+      ...base,
+      players: base.players.map((p) => (p.isViewer ? { ...p, ...(storm === undefined ? {} : { storm }), ...(emblems === 0 ? {} : { emblems: all }) } : p)),
+    };
+  };
+
+  it('draws the count as a medallion in the last slot, with its own tip', () => {
+    const { seat } = renderBoard(withStorm(4, 0));
+    const storm = seat(0).querySelector<HTMLElement>('[data-testid="storm-count"]')!;
+    expect(storm.textContent).toBe('4');
+    expect(storm.dataset.slot).toBe('3');
+    expect(storm.dataset.tip).toBe('Storm 4');
+    expect(seat(1).querySelector('[data-testid="storm-count"]'), 'not on the other seat').toBeNull();
+  });
+
+  it('beside emblems: three emblem slots, then the count; past them, the overflow counts the rest before it', () => {
+    const two = renderBoard(withStorm(1, 2)).seat(0);
+    expect(Array.from(two.querySelectorAll<HTMLElement>('[data-emblem]')).map((m) => m.dataset.slot)).toEqual(['0', '1']);
+    expect(two.querySelector<HTMLElement>('[data-testid="storm-count"]')!.dataset.slot).toBe('3');
+    const four = renderBoard(withStorm(1, 4)).seat(0);
+    expect(Array.from(four.querySelectorAll<HTMLElement>('[data-emblem]')).map((m) => m.dataset.slot)).toEqual(['0', '1']);
+    const more = four.querySelector<HTMLElement>('[data-emblem-more]')!;
+    expect([more.textContent, more.dataset.slot]).toEqual(['+2', '2']);
+  });
+
+  it('no count, no medallion', () => {
+    const { seat } = renderBoard(withStorm(undefined, 0));
+    expect(seat(0).querySelector('[data-testid="storm-count"]')).toBeNull();
+  });
+});
+
 describe('zones', () => {
   it('lays out each battlefield with the fixture’s permanents, grouped by what they are', () => {
     const { zone, cardNames } = renderBoard();
@@ -3786,10 +3826,7 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
       expect(css(zone(id, 'battlefield'), 'border-style'), 'no border').toMatch(/^(none)?$/);
       expect(css(zone(id, 'battlefield'), 'box-shadow'), 'no inset shadow').toMatch(/^(none)?$/);
     }
-    expect(BOARD_RULES.match(/#[0-9a-fA-F]{3,8}\b/g), 'the colour pie comes off the --c-* tokens').toBeNull();
-    for (const c of ['white', 'blue', 'black', 'red', 'green']) {
-      expect(BOARD_RULES).toContain(`var(--c-${c})`);
-    }
+    expect(BOARD_RULES.match(/#[0-9a-fA-F]{3,8}\b/g), 'every colour comes off a theme token').toBeNull();
   });
 });
 

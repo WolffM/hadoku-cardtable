@@ -450,6 +450,15 @@ export interface BoardPlayer {
    */
   manaPool?: readonly ManaInPool[];
   /**
+   * The game's storm count — spells cast this turn (`GameView.StormCount`, which
+   * `MagicStack` refreshes on every cast and clears at the turn's start) — set only
+   * on the VIEWER's own seat and only while their hand holds a card with Storm:
+   * the operator, 2026-10-14, *"show storm counter as an emblem if storm card in
+   * hand"*. Never on another seat: whether an opponent holds a Storm card is
+   * hidden, and a count that appeared beside them would say so.
+   */
+  storm?: number;
+  /**
    * Player-level counters — poison, energy, experience, and anything else
    * Forge tracks on the PLAYER rather than a card (wave 33 item 4, the first
    * list's item 4: *"poison/infect counters are shown nowhere."*).
@@ -1586,6 +1595,8 @@ export function toBoardView(
     const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, printedType, playerName)) : null);
     const avatarId = avatarByPlayerId?.get(pid);
     const emblems = readEmblems(state, p, artIds, printedPT);
+    const hand = isViewer ? cardsIn(handIds) : null;
+    const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
     return {
       id: pid,
       name: playerName(pid),
@@ -1594,7 +1605,7 @@ export function toBoardView(
       isActive: pid === activePlayerId,
       hasPriority: readBool(p, 'HasPriority'),
       hasLost: readBool(p, 'HasLost'),
-      hand: isViewer ? cardsIn(handIds) : null,
+      hand,
       ...(shown.some((c) => c !== null) ? { handShown: shown } : {}),
       handCount: handIds.length,
       libraryCount: libraryIds.length,
@@ -1606,6 +1617,7 @@ export function toBoardView(
       manaPool: readManaPool(p, 'Mana'),
       counters: countersOf(p),
       ...(emblems.length === 0 ? {} : { emblems }),
+      ...(holdsStorm ? { storm: prop(game, 'StormCount') === undefined ? 0 : readInt(game, 'StormCount') } : {}),
       // The key must be ABSENT for a seat with none — never `avatarId:
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).

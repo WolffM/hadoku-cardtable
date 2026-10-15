@@ -260,7 +260,7 @@ interface DeckOption {
    * or undefined when nothing in the list could be resolved.
    */
   artId?: string | undefined;
-  /** The list a second's hover shows beside the tile (`DeckPeek.tsx`). */
+  /** The list a hover shows beside the tile (`DeckPeek.tsx`). */
   list?: PeekList;
 }
 

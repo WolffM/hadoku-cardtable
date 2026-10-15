@@ -737,12 +737,14 @@
  *
  * A grid of three columns, so the six mana types Forge's pool can hold
  * (`ManaAtom.MANATYPES`) fit two rows deep inside `--mana-h` and the track never
- * has to grow. Our own marks — a letter and a count — because the symbol fonts'
- * component is another lane's file, and because a pool entry is a COUNT rather
- * than a cost, which a letter says and a pip does not.
+ * has to grow. Each entry reads like the hand and library counts beside it — the
+ * Mana font's own symbol, then the count in `--ink` — on the same quiet chip the
+ * prompts' rows sit on. The operator, 2026-10-14: *"mana color outline box is
+ * ugly"*: an outline per colour drew the colour twice, once in the symbol's own
+ * disc and again round the box, so the box carries no colour now.
  *
- * Colour is never the only signal: every pip draws its letter, and the whole pool
- * is in the list's accessible name in words (`Board.tsx`).
+ * Colour is never the only signal: the symbol is the colour's own glyph, and the
+ * whole pool is in the list's accessible name in words (`Board.tsx`).
  */
 .board .seat__mana {
   display: grid;
@@ -761,14 +763,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  gap: 3px;
   min-width: 0;
-  padding: 0 1px;
+  padding: 0 2px;
   background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  font-size: 9.5px;
+  border-radius: calc(var(--radius) / 2);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
   line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -776,39 +780,7 @@
 .seat__mana-symbol {
   display: inline-flex;
   align-items: center;
-  font-size: 1.15em;
-}
-
-.seat__mana-n {
-  color: var(--ink-dim);
-}
-
-/* The colour pie, off the theme's own `--c-*` tokens (wave 31 §A.5): the hues are
-   data and stay; the tint toward `--ink` is what follows the theme. Never a WotC
-   mark and never a card frame. */
-.seat__mana-pip[data-mana='W'] {
-  border-color: var(--c-white);
-  color: color-mix(in srgb, var(--c-white) 55%, var(--ink));
-}
-.seat__mana-pip[data-mana='U'] {
-  border-color: var(--c-blue);
-  color: color-mix(in srgb, var(--c-blue) 55%, var(--ink));
-}
-.seat__mana-pip[data-mana='B'] {
-  border-color: var(--c-black);
-  color: color-mix(in srgb, var(--c-black) 55%, var(--ink));
-}
-.seat__mana-pip[data-mana='R'] {
-  border-color: var(--c-red);
-  color: color-mix(in srgb, var(--c-red) 55%, var(--ink));
-}
-.seat__mana-pip[data-mana='G'] {
-  border-color: var(--c-green);
-  color: color-mix(in srgb, var(--c-green) 55%, var(--ink));
-}
-.seat__mana-pip[data-mana='C'] {
-  border-color: var(--line);
-  color: var(--ink-dim);
+  font-size: 1.1em;
 }
 
 .seat > .zone--battlefield {

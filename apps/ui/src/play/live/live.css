@@ -1508,3 +1508,65 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/*
+ * "Your turn" as the viewer's turn begins (`TurnCue.tsx`). On the centre line between the two
+ * seats, in the board's own width (the rail's column excluded), so it covers neither hand nor
+ * the controls; it takes no pointer. The edge light's colour, `--turn-edge`, so the two read as
+ * one signal: the line along your edge lights, and for a moment the words rise off the middle.
+ */
+.live__turn-cue {
+  position: absolute;
+  z-index: var(--z-overlay, 20);
+  top: 50%;
+  left: calc((100% - var(--live-rail-w) - var(--live-gutter)) / 2);
+  margin: 0;
+  padding: 6px 22px;
+  translate: -50% -50%;
+  background: color-mix(in srgb, var(--bg-raised) 88%, transparent);
+  border: 1px solid var(--turn-edge);
+  border-radius: 999px;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 2px 8px var(--shadow);
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: turn-cue var(--turn-cue-ms, 1200ms) ease-out forwards;
+}
+
+@keyframes turn-cue {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  18%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes turn-cue-still {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  75% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live__turn-cue {
+    animation-name: turn-cue-still;
+  }
+}

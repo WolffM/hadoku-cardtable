@@ -334,6 +334,7 @@ import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
 import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
+import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
 
@@ -2284,6 +2285,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const theirName = match.view?.players.find((p) => !p.isViewer)?.name ?? null;
   /** R11: the turn counter moved off the rail and into the logbook. */
   const whoseTurnNow = match.view === null ? 'nobody' : whoseTurn(match.view);
+  const turnCue = useYourTurnCue(match.view, !spectator);
   const offered = spectator ? INERT_CLICKABLES : boardInteraction(match);
   const interaction: BoardInteraction = {
     /*
@@ -2861,6 +2863,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}
         />
       )}
+      {turnCue !== null && <TurnCue turn={turnCue} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && (
         <PhaseRail view={match.view} stop={match.phaseStop} onStop={spectator ? null : (phase) => setPhaseStop(match, phase)} />
