@@ -29,8 +29,8 @@ async function recordWidths(page: Page): Promise<void> {
         ['back', '.presence__back'],
       ] as const) {
         for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
-          // The held back and the stack card are drawn tilted, which widens their bounding boxes
-          // (68×95 → 73): their own size is what this measures. The lift by its drawn box.
+          // The held back is drawn tilted, which widens its bounding box (68×95 → 73), and the stack
+          // card's face turns as it hovers: their own size is what this measures. The lift by its drawn box.
           const width = what === 'lifted' ? el.getBoundingClientRect().width : w.__sizeOf(el).width;
           if (width > 0) w.__widths.push({ t: Math.round(performance.now() - t0), what, width: Math.round(width * 10) / 10 });
         }
