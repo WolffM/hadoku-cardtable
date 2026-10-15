@@ -1,0 +1,25 @@
+# e2e/af63-decked.spec.ts — a dredge player draws from an empty library.
+# The operator, 2026-10-14, after a game his Dredge deck lost: "'Hadoku — an empty
+# library' but my draw step was replaced by dredge. i dont undersatnd why i lost
+# this game." The log (m-98e9ea85d1bf): the opponent's Brain Freeze and its storm
+# copies milled his whole library on their turn; at his next draw Forge offered no
+# dredge (Dredge N needs at least N cards in the library — Golgari Thug's
+# replacement checks `DredgeCheckLib GE4`) and he lost to the draw.
+# alice (human, seat 0) has no library and Golgari Thug (Dredge 4) in her
+# graveyard; it is bob's main phase, and bob's Lightning Bolt with an untapped
+# Mountain holds him there (a play keeps his priority), so both screens are past
+# the mulligan before anything moves. Bob passes his turn; alice's draw step is
+# the loss, and her result screen must say it was the draw.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Swamp
+humanlibrary=
+humangraveyard=Golgari Thug
+aihand=Lightning Bolt
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
