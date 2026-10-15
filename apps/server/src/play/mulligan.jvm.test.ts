@@ -333,4 +333,118 @@ describe.skipIf(!available.ok)(title, () => {
 		},
 		240_000,
 	);
+	it(
+		'asks the order of the cards a London mulligan puts on the bottom, and puts them there in that order',
+		async () => {
+			if (!available.ok) return;
+			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
+			const logs: Record<string, unknown>[] = [];
+			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const registry = createMatchRegistry({
+				host: (id, spec, events) => jvm(id, spec, events),
+				log: (e) => logs.push(e),
+				overGraceMs: 60_000,
+				emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
+			});
+			const match = registry.create({
+				seed: 7,
+				seats: [
+					{ name: 'A', ai: false, deck: deck('M A', ['30 Mountain', '30 Memnite']) },
+					{ name: 'B', ai: false, deck: deck('M B', ['30 Mountain', '30 Memnite']) },
+				],
+			});
+			expect(await match.whenRunning(120_000)).toEqual({ ok: true });
+
+			const zone = (seat: number, name: 'Hand' | 'Library'): number[] => {
+				const state = foldFrames(
+					sent
+						.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+						.map((x) => x.envelope.frame as unknown as StateFrame)
+						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+				);
+				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
+				return (player?.[name]?.v ?? []).map((id) => id.v);
+			};
+			type Ask = { kind: string; callId: string; method: string; title?: string; top?: string; sourceChoices?: { key: string; ref: { id: number } | null }[] };
+			const orderAsk = (): Ask | undefined =>
+				sent.map((x) => (x.seat === 0 ? (x.envelope.frame as unknown as Ask) : undefined)).find((f) => f?.kind === 'ask' && f.method === 'order');
+
+			// Seat 0 mulligans twice and keeps, so it puts two cards back; seat 1 keeps.
+			const buttons = [{ enable1: false }, { enable1: false }];
+			const changed = [true, true];
+			let mulligans = 0;
+			let bottomed: number[] = [];
+			let cursor = 0;
+			const deadline = Date.now() + 60_000;
+			while (bottomed.length === 0 && Date.now() < deadline) {
+				for (; cursor < sent.length && bottomed.length === 0; cursor++) {
+					const { seat, envelope } = sent[cursor]!;
+					const f = envelope.frame as unknown as Record<string, unknown>;
+					if (f.method === 'applyDelta') changed[seat] = true;
+					if (f.method === 'updateButtons') {
+						buttons[seat] = { enable1: f.enable1 === true };
+						continue;
+					}
+					if (f.method !== 'showPromptMessage') continue;
+					const msg = String(f.message);
+					if (/keep your hand/i.test(msg)) {
+						if (!changed[seat]) continue;
+						changed[seat] = false;
+						const mulligan = seat === 0 && mulligans < 2;
+						if (mulligan) mulligans++;
+						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: mulligan ? 'selectButtonCancel' : 'selectButtonOk' }));
+					} else if (seat === 0 && /return 2 card/i.test(msg)) {
+						bottomed = zone(0, 'Hand').slice(0, 2);
+						for (const id of bottomed) {
+							match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null }));
+							await new Promise((r) => setTimeout(r, 300));
+						}
+						match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+					} else if (!/^Waiting for|bottom of your library/i.test(msg) && buttons[seat]!.enable1) {
+						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+					}
+				}
+				await new Promise((r) => setTimeout(r, 100));
+			}
+			expect(bottomed, 'seat 0 reached the bottom pick for two cards').toHaveLength(2);
+
+			// Rule 103.5: the cards go to the bottom "in any order", so their owner is asked it.
+			try {
+				await waitUntil(() => orderAsk() !== undefined, 'an order ask for the two bottomed cards', 20_000);
+			} catch (err) {
+				const prompts = sent.filter((x) => x.seat === 0 && x.envelope.frame.method === 'showPromptMessage').map((x) => (x.envelope.frame as unknown as { message: string }).message);
+				console.log(`[af64] no order ask; seat 0's prompts since: ${JSON.stringify(prompts.slice(-5))}`);
+				throw err;
+			}
+			const ask = orderAsk()!;
+			console.log(`[af64] order ask ${JSON.stringify({ title: ask.title, top: ask.top, cards: ask.sourceChoices?.map((c) => c.ref?.id) })}`);
+			expect(ask.sourceChoices?.map((c) => c.ref?.id).sort(), 'it orders exactly the two bottomed cards').toEqual([...bottomed].sort());
+			expect(ask.top, "the list's first place is the card closest to the top").toMatch(/closest to top/i);
+			// The Mulligan flag is already clear when the ask lands: the bottom pick is over.
+			const before = sent.findIndex((x) => x.seat === 0 && (x.envelope.frame as unknown as Ask).callId === ask.callId);
+			const flag = foldFrames(
+				sent
+					.slice(0, before)
+					.filter((x) => x.seat === 0 && x.envelope.frame.kind === 'notify')
+					.map((x) => x.envelope.frame as unknown as StateFrame)
+					.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+			);
+			const game = [...flag.values()].find((o) => o._type === TYPE.game) as unknown as Record<string, { v?: unknown }> | undefined;
+			expect(game?.['Mulligan']?.v, 'the bottom pick is over before its order is asked').not.toBe(true);
+
+			// Answer against Forge's offer: the second-offered card closest to the top.
+			const keys = ask.sourceChoices!.map((c) => c.key).reverse();
+			const wanted = ask.sourceChoices!.map((c) => c.ref!.id).reverse();
+			match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'order', result: { ordered: keys, rememberDecision: false } }));
+			await waitUntil(() => zone(0, 'Library').slice(-2).join() === wanted.join(), `the library to end ${wanted.join()} (top to bottom)`, 20_000).catch((err: unknown) => {
+				console.log(`[af64] library tail ${JSON.stringify(zone(0, 'Library').slice(-4))}, wanted ${JSON.stringify(wanted)}`);
+				throw err;
+			});
+
+			match.stop();
+			jvm.reapOnExit();
+			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 15_000);
+		},
+		240_000,
+	);
 });
