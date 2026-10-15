@@ -2321,6 +2321,10 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 		// The cast never happened, so there is nothing to account for: no line.
 		expect(says(h, 0)).toEqual([]);
+		// The window was answered, so it never reached the seat: Forge asks it nothing more
+		// after the Cancel, and a forwarded one stayed on screen until the seat pressed Cancel too.
+		expect(frames(h, 0).filter((f) => f.method === 'showPromptMessage' && /Pay Mana Cost/.test(f.message))).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'prompt-withheld' && l.seat === 0).map((l) => l.why)).toContain('auto-cancel');
 		// The seat did not cancel it; it sees its play turned away, once, and the other seat sees nothing.
 		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction' }]);
 		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);

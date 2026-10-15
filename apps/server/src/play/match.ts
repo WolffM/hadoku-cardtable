@@ -2350,7 +2350,9 @@ export class Match {
 								? 'target-chosen'
 								: this.maybeAutoPay(s)
 									? 'auto-pay'
-									: 'kept';
+									: this.maybeCancelUnpayable(s)
+										? 'auto-cancel'
+										: 'kept';
 		const answered = why !== 'kept';
 		s.answeredWindow = answered ? identity : null;
 		const kind = readPromptFacts(this.notesOf(s)).window;
@@ -2933,10 +2935,8 @@ export class Match {
 	private maybeAutoPay(s: SeatState): boolean {
 		const gate = this.autoGateFacts(s);
 		if (gate === null) return false;
-		const { facts } = gate;
-		const cost = s.payment?.own === true ? decidePay(facts, s.policy) : null;
+		const cost = s.payment?.own === true ? decidePay(gate.facts, s.policy) : null;
 		if (cost === null) {
-			this.maybeCancelUnpayable(s, facts);
 			// The payment ended (or never started); the next one earns its press.
 			if (s.payment === null) s.autoPaid = null;
 			return false;
@@ -3014,20 +3014,27 @@ export class Match {
 	 * `packages/forge-wire` has carried since wave 17 (`tier-a.ts:51`, `:196`) and
 	 * the browser already sends (`apps/ui/src/play/live/match.ts`). Nothing is
 	 * said: the cast never happened, so there is no cost to account for, and the
-	 * board returning to priority IS the answer.
+	 * board returning to priority IS the answer. The window itself is answered,
+	 * so it is never shown — the operator, 2026-10-14: *"chain lightning should
+	 * not ask me to play red red if i cannot pay."* Forge asks the seat nothing
+	 * after the Cancel until its next window, so a forwarded one stayed on screen.
+	 * Returns whether it pressed, so the caller withholds the window.
 	 */
-	private maybeCancelUnpayable(s: SeatState, facts: PromptFacts): void {
-		const cost = decideCancel(facts, s.policy);
+	private maybeCancelUnpayable(s: SeatState): boolean {
+		const gate = this.autoGateFacts(s);
+		if (gate === null) return false;
+		const cost = decideCancel(gate.facts, s.policy);
 		if (cost === null) {
 			if (s.payment === null) s.autoCancelled = null;
-			return;
+			return false;
 		}
-		if (s.autoCancelled === cost) return;
+		if (s.autoCancelled === cost) return false;
 		s.autoCancelled = cost;
 		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonCancel' } });
 		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is.
 		this.send(s, { kind: 'notify', method: 'flashIncorrectAction' });
+		return true;
 	}
 
 	/**
