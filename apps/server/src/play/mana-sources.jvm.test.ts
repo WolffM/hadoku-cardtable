@@ -104,6 +104,8 @@ const UNTAP: readonly UntapRow[] = [
 	{ kind: 'mana creature', source: 'Llanowar Elves' },
 	{ kind: 'painland (its painless {C})', source: 'Adarkar Wastes' },
 	{ kind: 'Tron land', source: "Urza's Tower" },
+	// The ledger's AE53: "tapped urza's mine and can't untap it" (a variable amount).
+	{ kind: 'Tron land, alone', source: "Urza's Mine" },
 	{ kind: 'man-land', source: "Mishra's Factory" },
 	{ kind: 'land with a non-mana ability', source: 'Ghost Quarter' },
 	{ kind: 'Signet', source: 'Azorius Signet', with: 'Island' },
