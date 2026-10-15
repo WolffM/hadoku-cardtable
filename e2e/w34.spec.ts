@@ -595,9 +595,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1366, height: 768
     test.setTimeout(3 * 60_000);
     const stack = await startPlayStack(forge);
     try {
-      // poison.state (lane S, §S item 4): a seat with poison and energy
-      // counters (and, per wave 34 §B's own fix note, experience too) all
-      // non-zero.
+      // poison.state (lane S, §S item 4): a seat with poison, energy and
+      // experience counters all non-zero.
       const { alice, bob } = await startScenarioMatch(browser, stack, 'poison');
       void bob;
       await alice.page.setViewportSize(viewport);
@@ -605,7 +604,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1366, height: 768
       const counters = alice.page.locator('.seat__counter');
       await expect.poll(() => counters.count(), { timeout: 90_000, message: 'at least one player counter is drawn — the precondition "poison" sets up' }).toBeGreaterThan(0);
       const names = await counters.evaluateAll((els) => els.map((e) => e.getAttribute('data-counter')));
-      expect(names, 'poison and energy are both drawn (the scenario\'s own two counters)').toEqual(expect.arrayContaining(['poison', 'energy']));
+      // Poison is drawn beside the life total, not on this line (`poison-life.spec.ts`).
+      expect(names, 'energy and experience are both drawn (the scenario\'s own counters on this line)').toEqual(expect.arrayContaining(['energy', 'experience']));
       for (let i = 0; i < names.length; i++) {
         await expect(counters.nth(i), `${names[i]} counter is visible, not clipped out of the layout`).toBeVisible();
       }

@@ -1290,6 +1290,8 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  /* The bar's width, so the line under the mark can split into two columns (`.face__vitals`). */
+  width: 100%;
   height: auto;
 }
 
@@ -1313,11 +1315,51 @@
 
 .seat__ident .face__life {
   position: static;
-  /* Clears the ring's box-shadow glow, which extends a few px past the mark's edge. */
-  margin-top: 6px;
   min-width: 1.5rem;
   padding: 0 4px;
   font-size: 11px;
+}
+
+/*
+ * The line under the mark: the life total alone, centred — or, while the seat
+ * has poison, two equal columns, life then poison, each centred in its own
+ * (the operator, 2026-10-15). One line either way, so poison arriving moves
+ * nothing above or below it.
+ */
+.seat__ident .face__vitals {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  align-self: stretch;
+  /* Clears the ring's box-shadow glow, which extends a few px past the mark's edge. */
+  margin-top: 6px;
+}
+
+/* The same badge as the life total's, in the warning ink: ten of it ends the game the way losing does. */
+.face__poison {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 1.5rem;
+  padding: 0 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.face__poison-art {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
 }
 
 .face__name {

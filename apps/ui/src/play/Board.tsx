@@ -2906,6 +2906,13 @@ function HiddenHand({ player, ownerSide, interaction }: { player: BoardPlayer; o
  * shows. `e2e/play.spec.ts` reads it inside `[data-testid="player"]` and
  * compares it to the view, so its text is the number and nothing else.
  *
+ * Poison is drawn beside it, and nowhere else (the operator, 2026-10-15: *"show
+ * poison counters next to the life total when they happen … center justified
+ * within two split columns … instead of P can we show a skull and bones
+ * icon?"*): while the seat has any, `.face__vitals` splits into two equal
+ * columns, life then `PoisonMark`, each centred in its own; with none, life is
+ * alone and centred under the mark as before.
+ *
  * ## The ring: who Forge is waiting on
  *
  * `.seat__ring` is the ring itself — an element that exists on every face,
@@ -2951,6 +2958,7 @@ function PlayerFace({
   const storm = player.storm;
   const drawn = new Set(medallionsOf(emblems, slotsFor(storm)));
   const emblemTip = emblems.length === 0 ? undefined : emblemsTip(emblems, (e) => (drawn.has(e) && cardImageUrl(e.scryfallId) !== null ? credited(e) : null));
+  const poison = poisonOf(player);
   const mark = (
     <>
       {avatar === null ? (
@@ -2966,8 +2974,11 @@ function PlayerFace({
        * here — so it is `aria-hidden` and `pointer-events: none`.
        */}
       <span className="seat__ring" aria-hidden="true" />
-      <span className="face__life" data-testid="life">
-        {player.life}
+      <span className="face__vitals" data-poisoned={poison > 0 || undefined}>
+        <span className="face__life" data-testid="life">
+          {player.life}
+        </span>
+        {poison > 0 && <PoisonMark count={poison} />}
       </span>
     </>
   );
@@ -3009,6 +3020,39 @@ function PlayerFace({
       {emblemTip === undefined && storm === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} storm={storm} credited={credited} />}
       <span className="face__name">{player.name}</span>
     </div>
+  );
+}
+
+/** The counter Forge names poison (`CounterEnumType.POISON`), the one player counter drawn on the face rather than the counts line. */
+const POISON = 'Poison';
+
+/** How many poison counters the seat has; 0 for none. */
+function poisonOf(player: BoardPlayer): number {
+  return player.counters?.find((c) => c.name === POISON)?.count ?? 0;
+}
+
+/**
+ * A seat's poison, beside its life: a skull and crossbones we draw, as geometry like the hand and
+ * library marks, and the count. The words are in the tip and the accessible name.
+ */
+function PoisonMark({ count }: { count: number }) {
+  const said = `${count} poison`;
+  return (
+    <span className="face__poison" data-testid="poison" data-poison={count} data-tip={said} role="img" aria-label={said}>
+      <svg className="face__poison-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path
+          fillRule="evenodd"
+          d="M8 1C5.5 1 3.6 2.8 3.6 5.2c0 1.4.6 2.5 1.6 3.2v1.5h5.6V8.4c1-.7 1.6-1.8 1.6-3.2C12.4 2.8 10.5 1 8 1ZM6.2 4.4a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Zm3.6 0a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4ZM8 6.9l.7 1.2H7.3Z"
+        />
+        <path d="m2.4 10.9.5-1.2 10.7 4.2-.5 1.2Z" />
+        <path d="m13.6 10.9-.5-1.2-10.7 4.2.5 1.2Z" />
+        <circle cx="2.2" cy="10.4" r="1" />
+        <circle cx="13.8" cy="10.4" r="1" />
+        <circle cx="2.2" cy="15" r="1" />
+        <circle cx="13.8" cy="15" r="1" />
+      </svg>
+      <span aria-hidden="true">{count}</span>
+    </span>
   );
 }
 
@@ -3151,14 +3195,13 @@ function ManaPool({ player }: { player: BoardPlayer }) {
 }
 
 /**
- * The three known player-counter names abbreviate to a short, DISTINCT glyph
- * — never the same first letter twice — so a seat can show all three on the
- * one line `--counts-h` has room for without widening the track (wave 34 §B,
- * below). "XP" for experience is the common-usage shorthand; poison and
- * energy keep their own initial since neither collides with it.
+ * The known player-counter names abbreviate to a short, DISTINCT glyph — never
+ * the same first letter twice — so a seat shows them on the one line
+ * `--counts-h` has room for without widening the track (wave 34 §B, below).
+ * "XP" for experience is the common-usage shorthand. Poison is not here: it is
+ * drawn beside the life total (`PoisonMark`).
  */
 const PLAYER_COUNTER_ABBREV: Readonly<Record<string, string>> = {
-  Poison: 'P',
   Energy: 'E',
   Experience: 'XP',
 };
@@ -3169,9 +3212,9 @@ function playerCounterAbbrev(name: string): string {
 }
 
 /**
- * Player-level counters — poison, energy, experience, and anything else Forge
- * tracks on the PLAYER rather than a card (wave 33 item 4): *"poison/infect
- * counters are shown nowhere."*
+ * Player-level counters — energy, experience, and anything else Forge tracks on
+ * the PLAYER rather than a card (wave 33 item 4) — except poison, which is
+ * drawn beside the life total (`PoisonMark`).
  *
  * Read off `BoardPlayer.counters`, which `adapter.ts` fills from the SAME wire
  * property a card's own counters use (`GameEntityView.Counters`, shared by
@@ -3180,8 +3223,8 @@ function playerCounterAbbrev(name: string): string {
  * these shows nothing here, the same contract every other optional mark on
  * this board keeps.
  *
- * Wave 34 §B: the glyph is a short abbreviation (`P3`, `E7`, `XP2`), not the
- * word (`3 poison`). `e2e/table-fit.spec.ts`'s Q9/Q2 column check measures
+ * Wave 34 §B: the glyph is a short abbreviation (`E7`, `XP2`), not the
+ * word (`7 energy`). `e2e/table-fit.spec.ts`'s Q9/Q2 column check measures
  * the gap between the HAND/LIBRARY marks' own rendered box and the graveyard
  * — a gap that tracks `--counts-h` itself, not how much of it the counters
  * fill — so growing the track to fit a longer word moved the graveyard
@@ -3191,7 +3234,7 @@ function playerCounterAbbrev(name: string): string {
  * its glyph.
  */
 function PlayerCounters({ player }: { player: BoardPlayer }) {
-  const counters = (player.counters ?? []).filter((c) => c.count !== 0);
+  const counters = (player.counters ?? []).filter((c) => c.count !== 0 && c.name !== POISON);
   if (counters.length === 0) return null;
   return (
     <>

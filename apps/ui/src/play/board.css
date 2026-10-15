@@ -452,10 +452,11 @@
    * hand/library — four lines total — which is what clipped the third line in
    * w33's own screenshot at the OLD 2.2rem and fixed the clip, but broke the
    * column check above. Reverted to 2.2rem; the counters themselves are now
-   * short enough (`PLAYER_COUNTER_ABBREV` in `Board.tsx`: `P3`, `E7`, `XP2`,
-   * not `3 poison`) that hand+library and all three fit in the same two lines
+   * short enough (`PLAYER_COUNTER_ABBREV` in `Board.tsx`: `E7`, `XP2`, not
+   * `7 energy`) that hand+library and the counters fit in the same two lines
    * this track always had room for — the full word never left, it just moved
-   * to `title`/`aria-label`.
+   * to `title`/`aria-label`. Poison is no longer one of them: it is drawn
+   * beside the life total.
    */
   --counts-h: 2.2rem;
   /* Whose turn it is (below): neither lit nor shaded until the section says so. */
@@ -716,17 +717,12 @@
 }
 
 /*
- * Player-level counters (wave 33 item 4) — poison, energy, experience. Same
- * track, same size as the hand/library counts beside them; a negative one
- * (poison) reads the same way `.seat__flag--lost` does, because ten of it
- * ends the game the same way losing already does.
+ * Player-level counters (wave 33 item 4) — energy, experience. Same track, same
+ * size as the hand/library counts beside them. Poison is the face's own
+ * (`card.css`'s `.face__poison`).
  */
 .seat__counter {
   font-variant-numeric: tabular-nums;
-}
-
-.seat__counter[data-counter='poison'] {
-  color: var(--warn);
 }
 
 /*

@@ -3822,17 +3822,19 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     }
     // Still there for a screen reader.
     expect(seat(me.id).getAttribute('aria-label')).toBe(`${me.name} (you)`);
-    // The life is the face's last child after the mark, in flow: the card.css rule
+    // The life is on the face's last line after the mark, in flow: the card.css rule
     // that used to lay it over the avatar is overridden to `static` in the seat.
     const hit = seat(me.id).querySelector('.face__hit')!;
     // Wave 33 shape 3 inserted `.seat__ring` between the mark and the life
     // badge — decorative, `aria-hidden`, and absolutely positioned, so it
-    // changes none of this test's own claims about the other two.
+    // changes none of this test's own claims about the other two. The life's
+    // line is `.face__vitals`, which poison shares while the seat has any.
     expect([...hit.children].map((c) => (c.getAttribute('class') ?? '').split(' ')[0])).toEqual([
       'face__art',
       'seat__ring',
-      'face__life',
+      'face__vitals',
     ]);
+    expect([...hit.querySelector('.face__vitals')!.children].map((c) => c.className)).toEqual(['face__life']);
     expect(styled()(hit.querySelector('.face__life')!, 'position'), 'in flow under the mark, not laid over it').toBe('static');
   });
 
@@ -4790,7 +4792,7 @@ describe('wave 33 §B', () => {
     expect(untouched.targetPlayerIds).toEqual([]);
   });
 
-  it('item 4: a seat’s poison/energy/experience counters draw beside its hand/library counts, abbreviated, and only when non-zero', () => {
+  it('item 4: a seat’s energy/experience counters draw beside its hand/library counts, abbreviated, and only when non-zero; poison draws beside its life total', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = deltaKey(WireType.Player, 1);
     const them = state.get(key)!;
@@ -4809,23 +4811,34 @@ describe('wave 33 §B', () => {
     const { seat } = renderBoard(adapted);
     const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
     const counters = [...theirBar.querySelectorAll('.seat__counter')].map((c) => c.textContent).sort();
-    // Zero experience draws nothing — never a drawn zero.
-    expect(counters).toEqual(['E3', 'P7']);
-    const poison = theirBar.querySelector<HTMLElement>('[data-counter="poison"]')!;
-    // Wave 34 §B: the GLYPH is abbreviated (`--counts-h` cannot grow without
-    // moving the graveyard, `e2e/table-fit.spec.ts`'s Q9/Q2 column check) —
-    // the full word is not gone, it moved to the tooltip and `aria-label`.
-    expect(poison.textContent).toBe('P7');
+    // Zero experience draws nothing — never a drawn zero. Poison is not a counts-line mark.
+    expect(counters).toEqual(['E3']);
+    expect(theirBar.querySelectorAll('[data-counter="poison"]')).toHaveLength(0);
+    // Poison is the face's: one mark, on the life total's line, a drawn skull and the count — no letter.
+    const marks = seat(1).querySelectorAll<HTMLElement>('[data-testid="poison"]');
+    expect(marks).toHaveLength(1);
+    const poison = marks[0]!;
+    const life = seat(1).querySelector<HTMLElement>('[data-testid="life"]')!;
+    expect(poison.parentElement).toBe(life.parentElement);
+    expect(poison.parentElement!.classList.contains('face__vitals')).toBe(true);
+    expect(poison.parentElement!.dataset.poisoned).toBe('true');
+    expect(seat(1).querySelector('[data-player-face]')!.contains(poison)).toBe(true);
+    expect(poison.previousElementSibling).toBe(life);
+    expect(poison.querySelector('svg.face__poison-art')).not.toBeNull();
+    expect(poison.textContent).toBe('7');
     expect(poison.dataset.tip).toBe('7 poison');
     expect(poison.getAttribute('aria-label')).toBe('7 poison');
-    // The viewer's own seat was never given any and shows none.
-    expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
+    // The life badge is still the number and nothing else.
+    expect(life.textContent).toBe(String(adapted.players.find((p) => p.id === 1)!.life));
+    // The viewer's own seat was never given any and shows none: its life is alone on its line.
+    expect(seat(0).querySelectorAll('.seat__counter, [data-testid="poison"]')).toHaveLength(0);
+    expect(seat(0).querySelector<HTMLElement>('.face__vitals')!.dataset.poisoned).toBeUndefined();
   });
 
   it('with no player counters at all — the fixture path’s own default — nothing is drawn, the safe default every fixture renders in', () => {
     const { seat } = renderBoard(boardFromFixture(fixture));
-    expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
-    expect(seat(1).querySelectorAll('.seat__counter')).toHaveLength(0);
+    expect(seat(0).querySelectorAll('.seat__counter, [data-testid="poison"]')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('.seat__counter, [data-testid="poison"]')).toHaveLength(0);
   });
 });
 
@@ -4846,24 +4859,24 @@ describe('wave 33 §B', () => {
  * exactly the growth (measured: 46.3px of "nothing but a pile's own margin",
  * `GAP_MAX` 32). `--counts-h` is back at the original 2.2rem (asserted
  * above, in "P2 / Q9"); what changed instead is the counter's OWN glyph:
- * `PLAYER_COUNTER_ABBREV` (`Board.tsx`) draws `P7`, `E3`, `XP5` — short
- * enough that all three share hand+library's second line rather than each
- * claiming one of their own. The word itself is not gone: `data-tip` and
+ * `PLAYER_COUNTER_ABBREV` (`Board.tsx`) draws `E3`, `XP5` — short enough
+ * to share hand+library's second line rather than each claiming one of their
+ * own. Poison has since moved beside the life total (`PoisonMark`). The word itself is not gone: `data-tip` and
  * `aria-label` still carry it in full (asserted on the wave 33 §B case above,
  * which this design also has to keep passing).
  *
- * jsdom cannot lay the box out — whether three abbreviations truly share one
+ * jsdom cannot lay the box out — whether the abbreviations truly share one
  * line at `--who-w`'s width is a real-browser claim, measured against the
  * real stylesheet in w34's screenshots (since removed) and the scratch
  * repro that produced them, not asserted here. What IS asserted here,
- * structurally: the three known counters abbreviate to three DIFFERENT
+ * structurally: the known counters abbreviate to DIFFERENT
  * glyphs (so nothing in `PLAYER_COUNTER_ABBREV` can silently collide and
  * merge two counters' text into one), and the rendered glyph for each is
  * short — never as long as the word it stands for.
  */
 describe('wave 34 §B', () => {
-  it('item 1: the three known player counters abbreviate to three different, short glyphs — never the word itself', () => {
-    for (const name of ['Poison', 'Energy', 'Experience']) {
+  it('item 1: the known counts-line counters abbreviate to different, short glyphs — never the word itself', () => {
+    for (const name of ['Energy', 'Experience']) {
       const state = new Map(foldPackets(loadPackets(fixture)).state);
       const key = deltaKey(WireType.Player, 1);
       const them = state.get(key)!;
@@ -4875,7 +4888,7 @@ describe('wave 34 §B', () => {
       expect(el.textContent, `${name}'s glyph carries the count`).toContain('9');
       expect(el.textContent!.toLowerCase(), `${name}'s glyph is not the bare word`).not.toBe(name.toLowerCase());
     }
-    // And the three glyphs (the digit stripped) are pairwise distinct — no collision to merge two counters into one.
+    // And the glyphs (the digit stripped) are pairwise distinct — no collision to merge two counters into one.
     const glyphOf = (name: string): string => {
       const state = new Map(foldPackets(loadPackets(fixture)).state);
       const key = deltaKey(WireType.Player, 1);
@@ -4885,11 +4898,11 @@ describe('wave 34 §B', () => {
       const { seat } = renderBoard(adapted);
       return seat(1).querySelector<HTMLElement>('.seat__counter')!.textContent!.replace(/9/g, '');
     };
-    const glyphs = ['Poison', 'Energy', 'Experience'].map(glyphOf);
-    expect(new Set(glyphs).size, `the three glyphs ${JSON.stringify(glyphs)} must be pairwise distinct`).toBe(3);
+    const glyphs = ['Energy', 'Experience'].map(glyphOf);
+    expect(new Set(glyphs).size, `the glyphs ${JSON.stringify(glyphs)} must be pairwise distinct`).toBe(2);
   });
 
-  it('item 1: a seat with poison, energy and experience all non-zero draws all five marks (hand, library, and the three player counters), each with the full word in the tooltip and aria-label', () => {
+  it('item 1: a seat with poison, energy and experience all non-zero draws hand, library, energy and experience on the counts line and poison on the face, each with the full word in the tooltip and aria-label', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = deltaKey(WireType.Player, 1);
     const them = state.get(key)!;
@@ -4910,9 +4923,12 @@ describe('wave 34 §B', () => {
     expect(theirBar.querySelector('[data-testid="hand-count"]')).not.toBeNull();
     expect(theirBar.querySelector('[data-testid="library-count"]')).not.toBeNull();
     const counters = [...theirBar.querySelectorAll<HTMLElement>('.seat__counter')];
-    expect(counters.map((c) => c.textContent).sort()).toEqual(['E3', 'P7', 'XP5']);
-    expect(counters.map((c) => c.getAttribute('data-tip')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
-    expect(counters.map((c) => c.getAttribute('aria-label')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
+    expect(counters.map((c) => c.textContent).sort()).toEqual(['E3', 'XP5']);
+    expect(counters.map((c) => c.getAttribute('data-tip')).sort()).toEqual(['3 energy', '5 experience']);
+    expect(counters.map((c) => c.getAttribute('aria-label')).sort()).toEqual(['3 energy', '5 experience']);
+    const poison = theirBar.querySelector<HTMLElement>('.seat__ident [data-testid="poison"]')!;
+    expect(poison.getAttribute('data-tip')).toBe('7 poison');
+    expect(poison.getAttribute('aria-label')).toBe('7 poison');
     // Still inside the SAME box as the hand/library counts (item 1's brief:
     // "stay inside their column") — not promoted to a track of its own.
     expect(theirBar.querySelectorAll('.seat__counts').length).toBe(1);
