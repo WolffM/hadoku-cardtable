@@ -517,7 +517,7 @@ Items reported during the 2026-10-11 session and its playtest list. Statuses are
 | AF52 | (2026-10-14 playtest) "fellwar stone couldn't untap" | 7 (= AE53, V6, R15, W10, AB8, AC7, AE21) | open |  | a mana rock tapped at priority with the mana unused untaps on a click | |
 | AF53 | (2026-10-14 playtest) "show storm counter as an emblem if storm card in hand" | 1 | open |  | the storm count shows by the avatar while a storm card is in hand | |
 | AF54 | (2026-10-14 playtest) "'your turn' pop up on the screen'" | 1 | open |  | a brief your-turn moment when your turn starts | |
-| AF55 | (2026-10-14 playtest) "show decision" (needs the operator's meaning) | 1 | open |  | — | |
+| AF55 | (2026-10-14 playtest) "show decision" | 0 | withdrawn by the operator ("oops ignore '5. show decision'") |  | — | |
 | AF56 | (2026-10-14 playtest) "lion's eye diamond is not tappable. except when flusterstorm was cast against me, i was allowed to tap it in response to that. seems like something about how cards are tappable in mainphase seems wrong." | 1 (related Y1, AF3, AF15) | open |  | LED (and every mana source) tappable at your own main-phase priority | |
 | AF57 | (2026-10-14 playtest) "brainstorm says 'up to 2 cards' but it's just 2 cards." | 1 | open |  | Brainstorm's put-back asks for exactly 2 | |
 | AF58 | (2026-10-14 playtest) "mana color outline box is ugly" | 1 | open |  | the mana colour choice looks like the rest of the prompts | |
