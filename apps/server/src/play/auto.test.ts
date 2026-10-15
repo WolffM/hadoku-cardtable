@@ -2474,14 +2474,14 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		const reply = ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: chosen } });
 		expect(h.match.fromClient(0, reply)).toEqual({ ok: true });
 	}
-	function confirm(h: Harness, hostCard: number, abilityId: number): void {
+	function confirm(h: Harness, hostCard: number, abilityId: number, message = 'Do you want to sacrifice Augur of Skulls?'): void {
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
 		push(h, 0, {
 			kind: 'notify',
 			method: 'showPromptMessage',
 			player: { kind: 'player', id: me },
-			message: 'Do you want to sacrifice Augur of Skulls?',
+			message,
 			card: null,
 			confirmAbility: { hostCard: card(hostCard), abilityId },
 		});
@@ -2509,6 +2509,16 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		confirm(h, 70, 9002);
 		expect(confirmed(h)).toBe(1);
 		expect(frames(h, 0).slice(moved).map((f) => f.method)).toEqual(['updateButtons', 'showPromptMessage']);
+	});
+
+	it('(B) a cost with two parts asks twice, and each of its confirms answers Yes once (Lion’s Eye Diamond)', () => {
+		const h = harness();
+		choose(h, 9002);
+		confirm(h, 70, 9002, 'Do you want to discard your hand?');
+		push(h, 0, { kind: 'notify', method: 'clearWeaklySelectable' });
+		confirm(h, 70, 9002, "Sacrifice Lion's Eye Diamond?");
+		expect(confirmed(h)).toBe(2);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(2);
 	});
 
 	it('(B) an optional trigger’s confirm still asks — it names the trigger, not the chosen ability', () => {

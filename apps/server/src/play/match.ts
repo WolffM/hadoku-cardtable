@@ -471,11 +471,17 @@ export interface SeatState {
 	 * The ability this seat chose from `getAbilityToPlay` since its last
 	 * `Priority:` prompt, or null — the seat's own answer (its browser's), never
 	 * one the server gave for it. A cost confirm for exactly this ability is
-	 * answered Yes (`auto.ts`'s `chosenCostConfirm`), once, and a payment for its
+	 * answered Yes (`auto.ts`'s `chosenCostConfirm`), once per confirm, and a payment for its
 	 * card is the seat's own (`Payment.own`) and may be auto-paid; a priority
 	 * prompt means the activation is over, so it is cleared there.
 	 */
 	chosenAbility: { hostCard: number; abilityId: number } | null;
+	/**
+	 * The cost confirms already answered Yes for {@link chosenAbility}, by their question: a cost
+	 * with two parts asks twice (Lion's Eye Diamond: discard your hand, then sacrifice it), and
+	 * the same question shown again before Forge took the Yes is that one window, never pressed twice.
+	 */
+	confirmedCosts: Set<string>;
 	/**
 	 * The seat's "same target for all" (`./trigger-targets.ts`): the following target
 	 * selections of the same trigger are answered with it, until the next `Priority:` prompt.
@@ -1106,6 +1112,7 @@ export class Match {
 			heldLogTimer: null,
 			lastAbilityToPlay: null,
 			chosenAbility: null,
+			confirmedCosts: new Set(),
 			sameTarget: null,
 			chosenTargets: new Set(),
 			clicked: null,
@@ -1735,7 +1742,7 @@ export class Match {
 					const hostCard = (ask.frame as unknown as { hostCard: { id: number } }).hostCard.id;
 					const abilityId = (frame.result as { id: number }).id;
 					s.lastAbilityToPlay = { hostCard, abilityId };
-					s.chosenAbility = s.lastAbilityToPlay;
+					this.choose(s, s.lastAbilityToPlay);
 				}
 				// A scry's one prompt: Forge is sent its first question's answer, and
 				// the top's order waits for its second (`./arrange.ts`).
@@ -2191,7 +2198,7 @@ export class Match {
 		} else if (frame.method === 'showPromptMessage') {
 			s.prompt = frame;
 			if (frame.message.startsWith('Priority:')) {
-				s.chosenAbility = null;
+				this.choose(s, null);
 				s.sameTarget = null;
 			}
 			// The payment this prompt opens or closes is on record before anything
@@ -2977,6 +2984,12 @@ export class Match {
 	}
 
 	/** Yes to "Do you want to …?" for an ability whose target this seat chose. Returns whether it answered. */
+	/** The ability the seat chose (or none), with no cost confirm of it answered yet. */
+	private choose(s: SeatState, ability: { hostCard: number; abilityId: number } | null): void {
+		s.chosenAbility = ability;
+		s.confirmedCosts = new Set();
+	}
+
 	private maybeConfirmChosenTarget(s: SeatState): boolean {
 		const gate = this.autoGateFacts(s);
 		if (gate === null) return false;
@@ -2991,15 +3004,16 @@ export class Match {
 	/**
 	 * Wave 52 §S B — answer Yes to a cost confirm for the ability this seat just
 	 * chose (*"it AGAIN asks me if i want to sacrifice the augur of skulls. thats a
-	 * redundant ask."*). Once per choice: the choice is spent by the answer.
+	 * redundant ask."*). Once per question of that choice ({@link SeatState.confirmedCosts}).
 	 * Returns whether it answered, so the caller withholds the prompt.
 	 */
 	private maybeConfirmChosenCost(s: SeatState): boolean {
 		const gate = this.autoGateFacts(s);
 		if (gate === null) return false;
 		const why = chosenCostConfirm(gate.notes, s.chosenAbility, s.policy);
-		if (why === null) return false;
-		s.chosenAbility = null;
+		const question = gate.notes.prompt?.method === 'showPromptMessage' ? gate.notes.prompt.message : null;
+		if (why === null || question === null || s.confirmedCosts.has(question)) return false;
+		s.confirmedCosts.add(question);
 		this.deps.log({ evt: 'auto-confirmed', matchId: this.id, seat: s.seat, why });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
@@ -3195,7 +3209,7 @@ export class Match {
 			// cast) is not one the seat chose, and Forge's re-ask inside one activation is that choice already.
 			if (frame.method === 'getAbilityToPlay') {
 				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
-				if (clicked) s.chosenAbility = s.lastAbilityToPlay;
+				if (clicked) this.choose(s, s.lastAbilityToPlay);
 			}
 			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
