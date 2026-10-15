@@ -108,8 +108,8 @@ test(titled("the defender holding Swords to Plowshares gets priority once attack
       const ready = (await giant.getAttribute('data-selectable')) !== null;
       if (ready) await giant.locator('button').first().click();
       return ready;
-      // Bob has nothing to answer it with, so it can resolve between two polls: the Giant gone is the proof.
-    }, { landed: async () => (await giant.count()) === 0 });
+      // Bob has nothing to answer it with, so it can resolve between two polls: bob gaining the Giant's 3 is the proof.
+    }, { landed: async () => (await m.alice.page.locator('.seat:not([data-viewer]) [data-testid="life"]').textContent()) === '23' });
     const until = Date.now() + 60_000;
     while (Date.now() < until) {
       const now = await at(m.alice.page);
