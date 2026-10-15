@@ -293,6 +293,8 @@ export interface ScenarioOptions {
 	seed: number;
 	decks: [string, string];
 	names?: [string, string];
+	/** Seat 1 is Forge's AI instead of a second human; seat 0 is always human. */
+	aiOpponent?: boolean;
 	policy?: StopPolicy;
 	/** Answers by method for asks `answerAsks` would otherwise answer plainly. */
 	reply?: (frame: ServerFrame & Record<string, unknown>) => unknown;
@@ -345,7 +347,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		seed: options.seed,
 		seats: [
 			{ name: names[0], ai: false, deck: options.decks[0] },
-			{ name: names[1], ai: false, deck: options.decks[1] },
+			{ name: names[1], ai: options.aiOpponent === true, deck: options.decks[1] },
 		],
 		...(options.scenario === undefined ? {} : { scenario: options.scenario }),
 	});
