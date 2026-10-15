@@ -1482,10 +1482,6 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   } else if (attackInputLive(match)) {
     // `InputAttack.onPlayerSelected` makes an opponent the current defender.
     for (const p of view.players) if (!p.isViewer && !p.hasLost && !match.spent.players.has(p.id)) players.add(p.id);
-  } else if (lifePayable(match)) {
-    // `InputPayManaOfCostPayment.onPlayerSelected` takes the payer: 2 life for one Phyrexian shard.
-    const me = view.players.find((p) => p.isViewer);
-    if (me !== undefined && !match.spent.players.has(me.id)) players.add(me.id);
   }
   return { selectable: offered, selectablePlayers: players, selectionOpen: selection !== null };
 }
@@ -1832,13 +1828,41 @@ export function payingMana(match: LiveMatch): boolean {
  * Forge's payment input naming the payer's own life total as a way to pay
  * (`InputPayManaOfCostPayment.getMessage`, the `lblClickOnYourLifeTotalToPayLife…`
  * line): a Phyrexian shard, or black mana under "pay life instead". The server
- * reads the same line (`apps/server/src/play/auto.ts`'s `LIFE_INSTEAD`).
+ * reads the same line (`apps/server/src/play/auto.ts`'s `LIFE_INSTEAD`); the
+ * window's display drops it (`../prompts/lookup.ts`'s `LIFE_PAYMENT_LINE`).
  */
 const LIFE_PAYMENT = /^\(?Click on your life total to pay life for /m;
 
-/** A payment is open that the viewer may pay with life, by clicking their own life total. */
-function lifePayable(match: LiveMatch): boolean {
+/**
+ * Life one press of {@link payWithLife} pays: Forge's fixed 2 per shard
+ * (`InputPayManaOfCostPayment.onPlayerSelected`, `phyLifeToLose += 2`).
+ */
+export const LIFE_PER_SHARD = 2;
+
+/** A payment is open that the viewer may pay with life. */
+export function lifePayable(match: LiveMatch): boolean {
   return payingMana(match) && LIFE_PAYMENT.test(match.prompt ?? '');
+}
+
+/**
+ * The viewer pays one shard of the open payment with life: Forge's payment
+ * input takes it as the payer selecting themselves
+ * (`InputPayManaOfCostPayment.onPlayerSelected`). Spent until Forge's next
+ * frame, which re-sends the prompt — so a cost with two shards is two presses,
+ * each answered first.
+ */
+export function payWithLife(match: LiveMatch): boolean {
+  const me = lifePayer(match);
+  if (me === null) return false;
+  match.spent.players.add(me);
+  return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: me }, triggerEvent: null });
+}
+
+/** The viewer's player while a press of {@link payWithLife} would be taken, else null. */
+export function lifePayer(match: LiveMatch): number | null {
+  if (!lifePayable(match)) return null;
+  const me = match.view?.players.find((p) => p.isViewer);
+  return me === undefined || match.spent.players.has(me.id) ? null : me.id;
 }
 
 /**

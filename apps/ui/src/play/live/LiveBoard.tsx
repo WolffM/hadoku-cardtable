@@ -268,6 +268,7 @@ import { PHASE_LABEL, type BoardCard, type BoardPlayer, type BoardView, type Sta
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
 import { lookupFromState, plainRulesText, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
+import { ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
 import { promptTileFor } from '../prompts/PromptShell.tsx';
@@ -302,10 +303,14 @@ import {
   genuinelyAsked,
   isAutoYieldOn,
   liveBar,
+  LIFE_PER_SHARD,
+  lifePayable,
+  lifePayer,
   nothingToDecide,
   choosingMulligan,
   clickCard,
   payingMana,
+  payWithLife,
   pickedOf,
   pressButton,
   relayout,
@@ -1560,6 +1565,11 @@ function combatDoneLabel(match: LiveMatch): string | null {
  * (`InputPayMana.java:405`), and a cost that cannot be auto-paid has no default
  * answer at all — the player taps sources on the board instead.
  *
+ * A cost Forge lets the payer pay with life (a Phyrexian shard, or black mana
+ * under "pay life instead") gets a third button, labelled with what one press
+ * pays: `payWithLife`, one shard per press, refused while the last press is
+ * unanswered.
+ *
  * No title. Forge's message is the question, and a heading here would be this
  * lane inventing a word for a window whose whole point is that it says what
  * Forge said.
@@ -1574,6 +1584,17 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
           <RulesText text={match.prompt ?? ''} />
         </p>
         <div className="confirm__actions">
+          {lifePayable(match) && (
+            <button
+              type="button"
+              className="button confirm__button"
+              data-testid="live-payment-life"
+              disabled={bar === null || lifePayer(match) === null}
+              onClick={() => payWithLife(match)}
+            >
+              <ManaPip token="P" /> {LIFE_PER_SHARD} life
+            </button>
+          )}
           <button
             type="button"
             className="button confirm__button"

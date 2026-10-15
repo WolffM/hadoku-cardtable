@@ -1804,6 +1804,28 @@ describe('a mana payment pops out of the corner', () => {
     expect(host.hasAttribute('data-method')).toBe(false);
   });
 
+  it('a cost Forge lets the payer pay with life gets a life button, and only that cost', async () => {
+    const live = await payment(false);
+    const { getByTestId, queryByTestId } = live;
+    expect(queryByTestId('live-payment-life')).toBeNull();
+    const mine = live.m.view!.players.find((p) => p.isViewer)!;
+    live.s.send(payBar(false));
+    live.s.send(payPrompt('Gitaxian Probe\n\nPay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)', mine.battlefield[0]!.id));
+    const life = await waitFor(() => getByTestId('live-payment-life'));
+    // What one press costs, in the Phyrexian symbol; Forge's "click on your life total" is not repeated.
+    expect(life.textContent).toBe(' 2 life');
+    expect(life.querySelector('i.ms.ms-p')).not.toBeNull();
+    expect(getByTestId('live-payment').textContent).not.toMatch(/life total/i);
+    expect(getByTestId('live-payment').textContent).toContain('Pay Mana Cost:');
+    expect(life.hasAttribute('disabled')).toBe(false);
+    const before = live.s.clientFrames().length;
+    fireEvent.click(life);
+    await waitFor(() => expect(live.s.clientFrames()).toHaveLength(before + 1));
+    expect(live.s.clientFrames().at(-1)).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: mine.id } } });
+    // Refused until Forge answers the press.
+    await waitFor(() => expect(getByTestId('live-payment-life').hasAttribute('disabled')).toBe(true));
+  });
+
   /*
    * THE REGRESSION, as the operator met it: the payment's text in the corner,
    * with the cluster's buttons as its only answers. The corner has no text row

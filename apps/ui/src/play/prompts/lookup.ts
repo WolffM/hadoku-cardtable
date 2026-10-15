@@ -165,12 +165,12 @@ export function selectionText(text: string, selection: { min: number; max: numbe
 const CARD_ID_SUFFIX = /\s\(\d{1,5}\)/g;
 
 /**
- * {@link translateTargetWords}, with the card-id suffix stripped — nothing
- * else. For text that will still draw through `RulesText` itself (braces and
- * all), rather than through plain prose.
+ * {@link translateTargetWords}, with the card-id suffix and {@link LIFE_PAYMENT_LINE}
+ * stripped — nothing else. For text that will still draw through `RulesText`
+ * itself (braces and all), rather than through plain prose.
  */
 export function promptText(text: string): string {
-  return translateTargetWords(text).replace(CARD_ID_SUFFIX, '');
+  return translateTargetWords(text).replace(CARD_ID_SUFFIX, '').replace(LIFE_PAYMENT_LINE, '');
 }
 
 /**
@@ -192,6 +192,7 @@ export function plainRulesText(text: string): string {
   return translateTargetWords(text)
     .replace(CARD_ID_SUFFIX, '')
     .replace(ATTACK_PROMPT, 'Select creatures to attack.')
+    .replace(LIFE_PAYMENT_LINE, '')
     .replace(/\{T\}/g, 'Tap')
     .replace(/\{Q\}/g, 'Untap')
     .replace(/\{([^}]{1,5})\}/g, '$1');
@@ -205,6 +206,15 @@ export function plainRulesText(text: string): string {
  * drag already show; the sentence is shortened to its first four words.
  */
 const ATTACK_PROMPT = /^Select creatures to attack [^\n]*? or select player\/card you wish to attack\.$/m;
+
+/**
+ * `InputPayManaOfCostPayment.getMessage`'s last line, `(Click on your life total
+ * to pay life for phyrexian mana.)` and its black-mana variants
+ * (`lblClickOnYourLifeTotalToPayLife…`), with the newline before it. The
+ * payment window pays life with a button (the operator, 2026-10-15: *"why not
+ * just show a button on the card decision modal"*), so the sentence goes.
+ */
+const LIFE_PAYMENT_LINE = /\n?^\(?Click on your life total to pay life for [^\n]*$/m;
 
 /*
  * ── Y18: Forge's raw target-type expressions, in words ─────────────────

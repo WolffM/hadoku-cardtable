@@ -195,6 +195,17 @@ describe('plainRulesText: the attack prompt', () => {
   });
 });
 
+describe('the life-payment line', () => {
+  // The operator, 2026-10-15: "clicking on life total is super strange" — the payment window has a life button.
+  it('drops Forge’s "click on your life total" sentence and keeps the rest of the payment prompt', () => {
+    const phyrexian = 'Gitaxian Probe\n\nPay Mana Cost: {U/P} (2 life paid for phyrexian mana)\n(Click on your life total to pay life for phyrexian mana.)';
+    expect(promptText(phyrexian)).toBe('Gitaxian Probe\n\nPay Mana Cost: {U/P} (2 life paid for phyrexian mana)');
+    expect(plainRulesText(phyrexian)).toBe('Gitaxian Probe\n\nPay Mana Cost: U/P (2 life paid for phyrexian mana)');
+    expect(promptText('Pay Mana Cost: {B}\n(Click on your life total to pay life for black mana.)')).toBe('Pay Mana Cost: {B}');
+    expect(promptText('Pay Mana Cost: {1}{U}'), 'nothing else is touched').toBe('Pay Mana Cost: {1}{U}');
+  });
+});
+
 describe('selectionText — an exact pick says its count', () => {
   const brainstorm = 'Brainstorm - put two cards back.\n\nSelect up to 2 cards from your hand';
   it('says N for "up to N" when the selection takes exactly N', () => {
