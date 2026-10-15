@@ -1720,7 +1720,7 @@ describe('the DOM contract', () => {
     // — `live/placed.ts`, booted imperatively the same way the inspector and
     // the floating numbers are, draws the fixture's own two stack items here.
     for (const el of overlays[0]!.children) {
-      expect(el.classList.contains('placed') || el.classList.contains('placed__arrow'), 'live/placed.ts’s own class, never another lane’s').toBe(true);
+      expect(['placed', 'placed__arrow', 'placed__defs'].some((c) => el.classList.contains(c)), 'live/placed.ts’s own class, never another lane’s').toBe(true);
     }
     expect(overlays[0]!.querySelectorAll('[data-placed-spell]'), 'the fixture’s own two stack items').toHaveLength(2);
   });
