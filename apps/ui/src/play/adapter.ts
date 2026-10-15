@@ -203,6 +203,13 @@ export interface BoardCard {
    */
   /** Forge's raw `Sickness` — true for anything that arrived this turn, haste or not. */
   arrivedThisTurn?: boolean;
+  /**
+   * A card the viewer holds — in its hand, or its library's revealed top — that another player was
+   * shown and still knows: the server's projection names that player in the card's `PlayerMayLook`
+   * for the card's holder only (`apps/server/src/play/visibility.ts`, "What the other seats were
+   * shown"), and stops the moment that player forgets it. Absent otherwise.
+   */
+  seenByOpponent?: boolean;
   /** Each keyword's `original()` text, off the current face (`Keywords`). */
   keywords?: readonly string[];
   /** Forge's `LethalDamage`. Carried, not drawn — see the header. */
@@ -1502,6 +1509,12 @@ function shownTo(state: WireState, id: number, viewer: number): boolean {
   return readIds(state.get(deltaKey(WireType.Card, id)), 'PlayerMayLook').includes(viewer);
 }
 
+/** `card`, marked {@link BoardCard.seenByOpponent} when its `PlayerMayLook` names anyone but `viewer`. */
+function seenByOthers(state: WireState, card: BoardCard, viewer: number): BoardCard {
+  const seen = readIds(state.get(deltaKey(WireType.Card, card.id)), 'PlayerMayLook').some((p) => p !== viewer);
+  return seen ? { ...card, seenByOpponent: true } : card;
+}
+
 /** A card the seat may see, or null — the projection sends a card it may not as existence only. */
 function known(card: BoardCard | null): BoardCard | null {
   return card === null || card.hidden === true ? null : card;
@@ -1595,7 +1608,7 @@ export function toBoardView(
     const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, printedType, playerName)) : null);
     const avatarId = avatarByPlayerId?.get(pid);
     const emblems = readEmblems(state, p, artIds, printedPT);
-    const hand = isViewer ? cardsIn(handIds) : null;
+    const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
     return {
       id: pid,
@@ -1610,7 +1623,7 @@ export function toBoardView(
       handCount: handIds.length,
       libraryCount: libraryIds.length,
       libraryIds,
-      ...(top === null ? {} : { libraryTop: top }),
+      ...(top === null ? {} : { libraryTop: isViewer ? seenByOthers(state, top, viewerPlayerId) : top }),
       battlefield: cardsIn(readIds(p, 'Battlefield'), true),
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),

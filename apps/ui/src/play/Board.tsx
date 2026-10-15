@@ -406,7 +406,7 @@ import {
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
-import { choiceTip, emblemsTip, keywordTip, MARK_TIP, waitingTip } from './tip/words.ts';
+import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers } from './live/numbers.ts';
@@ -1971,7 +1971,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * | tapped, attacking | a quarter turn (`card.css`) | the convention, and Forge's own. An attacker reads as tapped because that is what the operator asked for in item 6 and because Forge taps it a moment later anyway |
  * | damage | the P/T badge's own ink (`PowerToughness`) | the number that matters is what is LEFT, and the badge already holds it |
  * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
- * | summoning sick | the card DESATURATES | a saturation channel, so it cannot be confused with any outline and says the same thing to a colour-blind viewer |
+ * | summoning sick | a corner mark, a drawn crescent, and nothing over the art (the operator, 2026-10-15: "let's drop the dashed summoning sickness on the art, not needed") | a mark is a shape, so it cannot be confused with any outline |
  * | blocking | a corner mark, a drawn shield, and an outline in the theme's success (`card.css`), as the attacker's is in its danger | the operator asked for its own colour (2026-10-10) |
  *
  * **The three outlines already on a card are not ours to add a fourth to.** The
@@ -1986,8 +1986,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * renders in the deployed app; the artless screenshots are an artefact of
  * `e2e/play/browser.ts` aborting off-loopback requests. So the marks sit in
  * opaque capsules on the card's own chrome rather than relying on the tile's
- * background, and the sick treatment is a filter on the whole face, which is the
- * one treatment that cannot be lost under a picture.
+ * background.
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
@@ -2100,8 +2099,9 @@ function Counters({
 
 /**
  * The card's top-right tag column, in this order: a held card's changed cost,
- * what was chosen for a permanent, a flash an effect grants a held card, then
- * each evergreen keyword the card has NOW and was not printed with.
+ * what was chosen for a permanent, a flash an effect grants a held card, an eye
+ * on a held card the opponent was shown, then each evergreen keyword the card
+ * has NOW and was not printed with.
  *
  *   - Held changes (`BoardInteraction.held`), the operator: *"can we display
  *     modified costs on cards in hand using our applied overlay tags? should
@@ -2116,6 +2116,10 @@ function Counters({
  *     else its words.
  *   - Keywords, the operator: *"a tag on the creature when they gain
  *     flying."* (`keywordTags`).
+ *   - Seen, the operator, 2026-10-15: *"much like how we created a pill for
+ *     cost reduction in hand, let's also create an 'eye' pill for cards that
+ *     have been revealed to your opponent"* (`BoardCard.seenByOpponent`), on a
+ *     card in your hand or your library's revealed top.
  *
  * Every tag says on hover (`data-tip`, the board's one tooltip) what it is.
  */
@@ -2124,21 +2128,25 @@ function CardTags({
   choices,
   waiting,
   held,
+  seen = false,
 }: {
   entry: BoardCard;
   choices: readonly BoardCardChoice[];
   waiting: readonly BoardCardWaiting[];
   held?: HeldTags;
+  /** Draw the eye: a card of the viewer's the opponent was shown (`BoardCard.seenByOpponent`). */
+  seen?: boolean;
 }) {
   const keywords = keywordTags(entry.keywords, entry.card.oracleText);
   const cost = held?.cost;
   const flash = held?.flash;
-  if (choices.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined) return null;
+  if (choices.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined && !seen) return null;
   const said = [
     ...waiting.map(waitingTip),
     ...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]),
     ...choices.map(choiceTip),
     ...(flash === undefined ? [] : ['Flash']),
+    ...(seen ? [SEEN_TIP] : []),
     ...keywords,
   ];
   return (
@@ -2165,6 +2173,16 @@ function CardTags({
       {flash !== undefined && (
         <li className="board-card__tag" data-keyword="flash" data-tip={flash}>
           Flash
+        </li>
+      )}
+      {seen && (
+        <li className="board-card__tag" data-seen data-tip={SEEN_TIP}>
+          <svg className="board-card__seen-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+            <path
+              fillRule="evenodd"
+              d="M8 3C4.4 3 1.6 5.4.5 8c1.1 2.6 3.9 5 7.5 5s6.4-2.4 7.5-5C14.4 5.4 11.6 3 8 3Zm0 1.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Zm0 1.7a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z"
+            />
+          </svg>
         </li>
       )}
       {keywords.map((tag) => (
@@ -2384,7 +2402,6 @@ function CardOnBoard({
       data-vigilant={hasKeyword(entry.keywords, 'vigilance') || undefined}
       /* Loops on the wing (`card.css`): a flyer, by Forge's current keywords. */
       data-flying={flying || undefined}
-      data-sick={entry.summoningSick || undefined}
       data-blocking={entry.blocking || undefined}
       data-board-card={entry.id}
       data-card-id={entry.id}
@@ -2478,12 +2495,13 @@ function CardOnBoard({
       )}
       {onBattlefield && <StateMarks entry={entry} />}
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
-      {(onBattlefield || slot === 'hand') && (
+      {(onBattlefield || slot === 'hand' || (libraryTop && entry.seenByOpponent === true)) && (
         <CardTags
           entry={entry}
           choices={onBattlefield ? (entry.choices ?? []) : []}
           waiting={onBattlefield ? (entry.waiting ?? []) : []}
           held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined}
+          seen={(slot === 'hand' || libraryTop) && entry.seenByOpponent === true}
         />
       )}
       {onBattlefield && <TypePill entry={entry} />}

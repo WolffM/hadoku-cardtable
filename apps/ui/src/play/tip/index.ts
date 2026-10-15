@@ -15,9 +15,7 @@
  * Giving the marks the pointer back to hover them would take those presses
  * away. So a mark is found by its BOX: the pointer is over a card, and the tip
  * is that card's own mark whose box holds the pointer. Over the rest of the card
- * there is no tip — the art is the inspector's, and a mark that covers the whole
- * face (the sickness hatch) says its meaning through its corner mark, not by
- * taking the whole card's hover. A card that is itself the thing to explain (a
+ * there is no tip — the art is the inspector's. A card that is itself the thing to explain (a
  * hand card an effect forbids) carries `data-tip` on its own `<li>`.
  *
  * Off the cards, the nearest `data-tip` ancestor of the pointer's target (the

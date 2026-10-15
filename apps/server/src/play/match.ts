@@ -1948,13 +1948,21 @@ export class Match {
 		if (s === this.watcherSource()) this.sendWatcher(this.watcher.projector.project(raw) as unknown as ServerFrame);
 	}
 
-	/** Tell `s`'s projector it was shown `cardIds`, and send the seat whatever that newly lets it hold. */
+	/**
+	 * Tell every seat's projector that `s` was shown `cardIds` — `s`'s own, so it keeps holding them,
+	 * and each other seat's, so the owner of a card `s` now knows is told so (`visibility.ts`, "What
+	 * the other seats were shown") — and send each seat whatever that changes for it.
+	 */
 	private learnShown(s: SeatState, cardIds: readonly number[]): void {
-		const frame = s.projector.learn(cardIds) as unknown as ServerFrame | null;
-		if (frame === null) return;
-		s.history.push(frame);
-		this.send(s, frame);
-		this.releaseLog(s, false);
+		const learner = s.playerId;
+		for (const x of this.seats) {
+			if (x !== s && (x.playerId === null || learner === null)) continue;
+			const frame = (x === s || learner === null ? x.projector.learn(cardIds) : x.projector.learn(cardIds, learner)) as unknown as ServerFrame | null;
+			if (frame === null) continue;
+			x.history.push(frame);
+			this.send(x, frame);
+			this.releaseLog(x, false);
+		}
 	}
 
 	/** The seat whose raw stream feeds the watcher channel: the first human one. */

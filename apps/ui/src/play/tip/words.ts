@@ -11,6 +11,9 @@ export const MARK_TIP: Readonly<Record<'sick' | 'blocking', string>> = {
   blocking: 'Blocking',
 };
 
+/** The eye tag (`Board.tsx`'s `CardTags`) on a card of yours another player was shown. */
+export const SEEN_TIP = 'Your opponent has seen this card';
+
 /** A keyword tag (`Board.tsx`'s `CardTags`), by the lower-case keyword. */
 const KEYWORD_TIP: Readonly<Record<string, string>> = {
   flying: "can't be blocked except by creatures with flying or reach",

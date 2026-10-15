@@ -315,7 +315,7 @@
   background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
 }
 
-/* ── the state layer: marks, counters, sickness ─────────── */
+/* ── the state layer: marks and counters ──────────────── */
 
 /*
  * Wave 28 §A.15, the operator: *"all the text you have written on the
@@ -388,45 +388,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/*
- * Summoning sickness: a hatched veil over the card.
- *
- * A texture channel, chosen because it cannot be mistaken for an outline and
- * says exactly the same thing to a colour-blind viewer as to anyone else. It
- * reads over art — which is the case that matters, since a sick creature has
- * just arrived and is the card a player is looking at. The mark in the corner
- * is the second signal, per the rule the P/T badge set.
- *
- * A layer OVER the image, never a filter ON it: Scryfall's image guidelines rule
- * out desaturating or colour-shifting a card image. It stops short of the
- * bottom strip, where the illustrator and copyright are printed. `::before`, so
- * the badges after it in the face stay on top at the same z-index.
- */
-.board-card[data-sick] > .board-card__face::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 var(--credit-strip);
-  z-index: var(--z-card-badge, 1);
-  border-radius: var(--radius) var(--radius) 0 0;
-  background: repeating-linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--bg) 42%, transparent) 0 5px,
-    color-mix(in srgb, var(--bg) 18%, transparent) 5px 10px
-  );
-  pointer-events: none;
-}
-
-/*
- * The art is `.card__art` at z-index 1 (`styles.css`), the hatch's own level,
- * and it comes later in the tree, so in the card's stacking context it paints
- * OVER the hatch. The hatch only showed when something made the tile its own
- * stacking context — the hover lift on a selectable card, a flyer's float.
- * Isolating the tile keeps its art inside it, under the hatch, at rest too.
- */
-.board-card[data-sick] > .board-card__face > .card {
-  isolation: isolate;
 }
 
 .board-card__mark[data-mark='blocking'] {
@@ -568,6 +529,19 @@
 .board-card__effect-glyph {
   width: 9px;
   height: 9px;
+  fill: currentColor;
+}
+
+/* The eye on a card of yours the opponent was shown (`Board.tsx`'s `CardTags`): a drawn glyph in the word tags' own capsule. */
+.board-card__tag[data-seen] {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.board-card__seen-glyph {
+  width: 10px;
+  height: 10px;
   fill: currentColor;
 }
 
@@ -1605,9 +1579,10 @@ button.face__hit:focus-visible .seat__ring {
 
 /*
  * A held card an effect forbids its owner to cast (Reflector Mage's, Silence's):
- * greyed by a veil over the face — a layer OVER the image, never a filter ON it,
- * for the reason the sickness hatch gives. Its tooltip (`tip/index.ts`) names
- * the effect's card and how long.
+ * greyed by a veil over the face — a layer OVER the image, never a filter ON it:
+ * Scryfall's image guidelines rule out desaturating or colour-shifting a card
+ * image. `::before`, so the badges after it in the face stay on top at the same
+ * z-index. Its tooltip (`tip/index.ts`) names the effect's card and how long.
  */
 .board-card[data-cast-forbidden] > .board-card__face::before {
   content: '';
@@ -1619,6 +1594,11 @@ button.face__hit:focus-visible .seat__ring {
   pointer-events: none;
 }
 
+/*
+ * The art is `.card__art` at z-index 1 (`styles.css`), the veil's own level, and it comes later in
+ * the tree, so it would paint OVER the veil wherever the tile is not its own stacking context.
+ * Isolating the tile keeps its art inside it, under the veil.
+ */
 .board-card[data-cast-forbidden] > .board-card__face > .card {
   isolation: isolate;
 }

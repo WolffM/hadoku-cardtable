@@ -3066,7 +3066,6 @@ describe('a hasty creature does not claim to be summoning sick (#17)', () => {
     };
     const { container } = renderBoard(view);
     expect(marksOf(container, 21), 'it arrived this turn and it can still act').not.toContain('sick');
-    expect(container.querySelector('[data-card-id="21"]')!.hasAttribute('data-sick')).toBe(false);
     cleanup();
     const sick = renderBoard({
       ...base,
@@ -3075,7 +3074,6 @@ describe('a hasty creature does not claim to be summoning sick (#17)', () => {
       ),
     });
     expect(marksOf(sick.container, 21), 'and a creature that cannot act still says so').toContain('sick');
-    expect(sick.container.querySelector('[data-card-id="21"]')!.getAttribute('data-sick')).toBe('true');
   });
 });
 
@@ -3356,25 +3354,15 @@ describe('§A.15 — a card’s state is drawn', () => {
     }
   });
 
-  it('summoning sickness veils the card and carries a drawn mark, never an outline', () => {
+  it('summoning sickness is a drawn corner mark, and nothing is laid over the art', () => {
     const { container } = renderBoard(withState({ summoningSick: true }));
-    expect(card(container).getAttribute('data-sick')).toBe('true');
     const mark = card(container).querySelector<HTMLElement>('.board-card__mark[data-mark="sick"]')!;
     expect(mark, 'a mark of its own').not.toBeNull();
     expect(mark.querySelector('svg.board-card__mark-art'), 'drawn, not a glyph a font might not have').not.toBeNull();
     expect(mark.textContent, 'and the word is still said, for anything that cannot see it').toBe('summoning sick');
-    // The treatment is a hatched layer over the image — a channel no outline uses — and it is not the accent.
-    const sick = /\.board-card\[data-sick\] > \.board-card__face::before \{([^}]*)\}/.exec(withoutComments(CARD_CSS));
-    expect(sick, 'the sick rule').not.toBeNull();
-    expect(sick![1]).toMatch(/repeating-linear-gradient/);
-    expect(sick![1], 'and it is not a fourth outline').not.toMatch(/outline|--accent/);
-  });
-
-  it('the hatch is over the art at rest, not only while something lifts the tile', () => {
-    // The art (`.card__art`) shares the hatch's z-index and comes later in the tree; only an isolated tile keeps it under.
-    const css = styled();
-    const { container } = renderBoard(withState({ summoningSick: true }));
-    expect(css(card(container).querySelector(':scope > .board-card__face > .card')!, 'isolation')).toBe('isolate');
+    // The operator, 2026-10-15: "let's drop the dashed summoning sickness on the art, not needed".
+    expect(card(container).hasAttribute('data-sick'), 'no attribute for a layer to hang off').toBe(false);
+    expect(withoutComments(CARD_CSS), 'no rule draws over a sick card').not.toMatch(/sick/);
   });
 
   it('blocking is a corner mark and is not drawn in the accent; a token wears no mark at all', () => {
@@ -5243,5 +5231,36 @@ describe('held changes — a changed cost and a granted flash are tags on the ha
     const { container } = withHeld(new Map([[onField.id, { cost: { tokens: ['1'], change: 'less', tip: 'x' }, flash: 'y' }]]));
     expect(container.querySelector(`[data-board-card="${onField.id}"] [data-cost]`)).toBeNull();
     expect(container.querySelector(`[data-board-card="${onField.id}"] [data-keyword="flash"]`)).toBeNull();
+  });
+});
+
+/**
+ * The operator, 2026-10-15: *"much like how we created a pill for cost reduction in hand, let's also
+ * create an 'eye' pill for cards that have been revealed to your opponent"* — `BoardCard.seenByOpponent`.
+ */
+describe('seen — an eye on a card of yours the opponent was shown', () => {
+  const base = boardFromFixture(fixture);
+  const me = base.players.find((p) => p.isViewer)!;
+  const [seen, unseen] = me.hand!;
+  const view: BoardView = {
+    ...base,
+    players: base.players.map((p) => (!p.isViewer ? p : { ...p, hand: p.hand!.map((c) => (c.id === seen!.id ? { ...c, seenByOpponent: true } : c)) })),
+  };
+  const eye = (container: HTMLElement, id: number) => container.querySelector<HTMLElement>(`[data-board-card="${id}"] > .board-card__tags > [data-seen]`);
+
+  it('draws an eye tag, a drawn glyph, that says what it means on hover — on exactly the seen card', () => {
+    const { container } = renderBoard(view);
+    const tag = eye(container, seen!.id)!;
+    expect(tag, 'the seen card wears the eye').not.toBeNull();
+    expect(tag.querySelector('svg.board-card__seen-glyph'), 'drawn, not a glyph a font might not have').not.toBeNull();
+    expect(tag.dataset.tip).toBe('Your opponent has seen this card');
+    expect(eye(container, unseen!.id), 'a card nobody else saw wears none').toBeNull();
+    expect(container.querySelectorAll('[data-seen]')).toHaveLength(1);
+  });
+
+  it("draws it on the viewer's revealed library top too", () => {
+    const top = { ...unseen!, id: 4242, seenByOpponent: true };
+    const { container } = renderBoard({ ...view, players: view.players.map((p) => (p.isViewer ? { ...p, libraryTop: top } : p)) });
+    expect(eye(container, 4242)).not.toBeNull();
   });
 });

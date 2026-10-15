@@ -851,6 +851,28 @@ describe('hidden information is untouched by any of this', () => {
     return viewer;
   }
 
+  /** Set `cardId`'s `PlayerMayLook` to these players. */
+  function mayLook(state: Map<string, WireObject>, cardId: number, players: readonly number[]): void {
+    const key = deltaKey(WireType.Card, cardId);
+    state.set(key, { ...state.get(key)!, PlayerMayLook: { t: 'list', v: players.map((v) => ({ t: 'int', v })) } } as WireObject);
+  }
+
+  it("marks a card of the viewer's seen by the opponent exactly when its PlayerMayLook names someone else — in hand and on a revealed top", () => {
+    const state = baseState();
+    const view = adapt(state);
+    const me = view.players.find((p) => p.isViewer)!;
+    const them = view.players.find((p) => !p.isViewer)!;
+    const [seen, own] = me.hand!;
+    mayLook(state, seen!.id, [them.id]);
+    mayLook(state, own!.id, [me.id]);
+    const hand = adapt(state).players.find((p) => p.isViewer)!.hand!;
+    expect(hand.filter((c) => c.seenByOpponent === true).map((c) => c.id), 'the one the opponent knows, not the one only the viewer is named on').toEqual([seen!.id]);
+    const top = cardIdNamed(state, 'Mountain');
+    onLibraryTop(state, top);
+    mayLook(state, top, [me.id, them.id]);
+    expect(adapt(state).players.find((p) => p.isViewer)!.libraryTop?.seenByOpponent).toBe(true);
+  });
+
   it("draws a library's top card only when the seat was sent its name — Courser of Kruphix", () => {
     const state = baseState();
     const id = cardIdNamed(state, 'Mountain');

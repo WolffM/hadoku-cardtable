@@ -832,4 +832,103 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(p.learn([10, 20])).toBeNull();
 		expect(p.visibilityOf(10)).toBe('hidden');
 	});
+
+	/** The `PlayerMayLook` seat `viewer`'s client holds for `id`, from these projected frames. */
+	const lookHeld = (emitted: readonly (StateFrame | null)[], id: number): unknown =>
+		foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(keyOf(TYPE.card, id))?.PlayerMayLook;
+
+	it('tells the owner which of its hand cards the other seat was shown, and keeps telling it after Forge takes the look back', () => {
+		const bob = createProjector(1);
+		const out = [bob.project(opening({ 10: [0] }))];
+		expect(lookHeld(out, 10), "Forge's own grant, passed through").toEqual(list([0]));
+		out.push(bob.project(delta([{ _type: TYPE.card, _id: 10, PlayerMayLook: null }])));
+		expect(lookHeld(out, 10), 'the other seat still knows it').toEqual(list([0]));
+	});
+
+	it("tells the owner of a reveal the server answered for the other seat, as a delta of that one property", () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening())];
+		expect(lookHeld(out, 10)).toBeUndefined();
+		const told = bob.learn([10], 0);
+		out.push(told);
+		expect(lookHeld(out, 10)).toEqual(list([0]));
+		const packet = told?.method === 'applyDelta' ? told.payload.packet : null;
+		expect(packet?.newObjects, 'nothing re-sent whole').toEqual({});
+		expect(packet?.objectDeltas, 'one property of one card').toEqual({ [keyOf(TYPE.card, 10)]: { _type: TYPE.card, _id: 10, PlayerMayLook: list([0]) } });
+		expect(bob.learn([10], 0), 'told once').toBeNull();
+	});
+
+	it('stops telling the owner once the other seat forgets: the card went back into the library and was drawn again', () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
+		out.push(bob.project(delta([{ ...player(1, { Hand: [], Library: [10, 20, 21, 22] }) }])));
+		expect(lookHeld(out, 10), 'hidden in the library').toBeUndefined();
+		out.push(bob.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
+		expect(bob.visibilityOf(10)).toBe('full');
+		expect(lookHeld(out, 10), 'back in the hand, and nobody else knows it').toBeUndefined();
+	});
+
+	it('stops telling the owner of a known top card once the library is shuffled', () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([20]), bob.learn([20], 0)];
+		expect(lookHeld(out, 20), 'both seats saw it').toEqual(list([1, 0]));
+		out.push(bob.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22, 20] }) }])));
+		expect(lookHeld(out, 20)).toBeUndefined();
+	});
+
+	it("stops telling the owner the moment a card leaves the hand while still visible (cast, on the stack, in a graveyard)", () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
+		out.push(bob.project(delta([{ ...player(1, { Hand: [], Library: [20, 21, 22], Graveyard: [10] }) }])));
+		expect(bob.visibilityOf(10)).toBe('full');
+		expect(lookHeld(out, 10), 'a public card carries no one-seat knowledge').toBeUndefined();
+	});
+
+	/** A packet that sends these cards as new objects: Forge made them anew (they changed zones). */
+	const renewed = (cards: WireObj[], players: WireObj[] = []): StateFrame => ({
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: {
+				seq: ++seq,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: Object.fromEntries(cards.map((o) => [keyOf(o._type, o._id), o])),
+				objectDeltas: Object.fromEntries(players.map((o) => [keyOf(o._type, o._id), o])),
+				events: [],
+			},
+		},
+	});
+
+	it('forgets a hand card that left and came back inside one packet (Timetwister): Forge sends it as a new object', () => {
+		const alice = createProjector(0);
+		const bob = createProjector(1);
+		const aliceOut: (StateFrame | null)[] = [alice.project(opening()), alice.learn([10])];
+		const bobOut: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
+		expect(lookHeld(bobOut, 10)).toEqual(list([0]));
+		const twisted = renewed([card(10)], [player(1, { Hand: [10, 22], Library: [20, 21] })]);
+		aliceOut.push(alice.project(twisted));
+		bobOut.push(bob.project(twisted));
+		expect(alice.visibilityOf(10), 'alice was shown the old object, not this one').toBe('hidden');
+		expect(held(aliceOut, 10)).toBeUndefined();
+		expect(lookHeld(bobOut, 10), 'and bob is no longer told she knows it').toBeUndefined();
+	});
+
+	it('still follows a known top card drawn into the hand, which Forge also sends as a new object', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([20])];
+		out.push(p.project(renewed([card(20)], [player(1, { Hand: [10, 20], Library: [21, 22] })])));
+		expect(p.visibilityOf(20)).toBe('full');
+		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+	});
+
+	it("never tells a seat about anyone's knowledge of a card it does not hold", () => {
+		const alice = createProjector(0);
+		const out: (StateFrame | null)[] = [alice.project(opening({ 10: [0] }))];
+		expect(alice.learn([10, 20], 1), "bob's own reveal of his cards changes nothing alice is sent").toBeNull();
+		out.push(alice.project(delta([{ _type: TYPE.card, _id: 10, PlayerMayLook: null }])));
+		expect(lookHeld(out, 10), 'alice is named, as she knows it, and nobody else').toEqual(list([0]));
+		const everyLook = JSON.stringify(out).match(/"PlayerMayLook":\{[^}]*\}/g) ?? [];
+		expect(everyLook.filter((l) => l.includes('"v":1')), 'player 1 is in no look alice receives').toEqual([]);
+	});
 });

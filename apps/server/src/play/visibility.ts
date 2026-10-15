@@ -94,7 +94,12 @@
  *   - any other move forgets it — discarded, put back from the hand, bounced
  *     to a hand from the table: the seat sees it while it is public and never
  *     after it is hidden again. A card in no zone list at all (between two,
- *     or on the stack) is judged where it lands.
+ *     or on the stack) is judged where it lands. A card that left and came
+ *     back inside one packet (Timetwister shuffles a hand away and deals a new
+ *     one) is in the same list on both sides of it, but Forge made it a new
+ *     object on the way (`GameAction.changeZone` copies a card that changes
+ *     zones, CR 400.7) and sends it as one — the card replaced in the
+ *     packet's `newObjects` ({@link replacedCards}) — so it is judged as moved.
  *
  * Two ways in, one set: a card whose Forge grant (`PlayerMayLook`) reaches
  * this seat while it sits in SOMEONE ELSE's hand or library, and the cards of
@@ -105,6 +110,18 @@
  * too). A seat's look at its OWN library is not a reveal — a scry, a search —
  * and is not kept: what the seat chose to do with those cards is its
  * decision window's, never the table's (`e2e/w70-nissa.spec.ts`).
+ *
+ * ## What the other seats were shown, the owner is told
+ *
+ * The same set is kept for every OTHER player too, from the same two ways in — Forge's grant, read
+ * off the same raw state, and a reveal the server answered for that seat
+ * ({@link SeatProjector.learn} with its `learner`) — and forgotten by the same rule. It is never
+ * used to show this seat anything; it is how this seat is told which of the cards IT holds in a
+ * hand or a library another player still knows. The operator, 2026-10-15: *"let's also create an
+ * 'eye' pill for cards that have been revealed to your opponent"*. Said in Forge's own words, as a
+ * known card is: each such player is in the card's `PlayerMayLook` as this seat receives it. Only
+ * on a card this seat holds, so a seat learns nothing about anyone's knowledge but of its own
+ * cards — and nothing it could not have watched happen.
  *
  * ## What it cannot fix
  *
@@ -463,6 +480,18 @@ function reordered(before: readonly number[], now: readonly number[]): boolean {
 	return was.some((id, i) => is[i] !== id);
 }
 
+/**
+ * The cards `packet` replaces whole: a card key in its `newObjects` that `state` already holds.
+ * Forge sends an existing id as a new object only when it is a new `CardView` instance
+ * (`DeltaSyncManager.collectObjectDelta`, "New or replacement"), which is what moving zones makes
+ * (`GameAction.changeZone` → `CardCopyService.copyCard`).
+ */
+function replacedCards(state: ReadonlyMap<string, WireObj>, packet: DeltaPacketJson): Set<number> {
+	const out = new Set<number>();
+	for (const [key, obj] of Object.entries(packet.newObjects)) if (obj._type === TYPE.card && state.has(key)) out.add(obj._id);
+	return out;
+}
+
 /* ── The projector ───────────────────────────────────────────────────── */
 
 export interface SeatProjector {
@@ -474,11 +503,12 @@ export interface SeatProjector {
 	/** Current visibility of a card for this seat, a card it was shown and still knows included. */
 	visibilityOf(cardId: number): Visibility;
 	/**
-	 * The seat was shown these cards (a reveal the server answered): each one in a hand or a
-	 * library is known to it from now on, as the header says. Returns the packet that sends the
-	 * cards it did not already hold, or null when there are none.
+	 * `learner` (this seat when absent) was shown these cards (a reveal the server answered): each
+	 * one in a hand or a library is known to it from now on, as the header says. Returns the packet
+	 * that sends this seat what that changes — the cards it did not already hold, or which of its
+	 * own another player now knows — or null when nothing changes.
 	 */
-	learn(cardIds: Iterable<number>): StateFrame | null;
+	learn(cardIds: Iterable<number>, learner?: number): StateFrame | null;
 	/**
 	 * How many creatures this seat's own battlefield holds, or null when the seat
 	 * has no player yet or the state does not know it. Wave 32, Q10 — the fact
@@ -512,18 +542,31 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	const raw = new Map<string, WireObj>();
 	/** What the client was last given for each card. */
 	const sent = new Map<number, Visibility>();
-	/** Cards this seat was shown in a sticky zone, and where they were then. */
-	const known = new Map<number, { zone: string; holder: number }>();
+	/** Per player, the cards it was shown in a sticky zone, and where they were then — see the header. */
+	const known = new Map<number, Map<number, { zone: string; holder: number }>>();
+	/** What the client was last given as each `full` card's `PlayerMayLook`, as {@link lookKey} writes it. */
+	const sentLook = new Map<number, string>();
 	/** Each player's library as last folded, top first — what a shuffle is read against. */
 	const libraries = new Map<number, number[]>();
 	let lastSeq = 0;
 	let who = viewer;
+	/** The zone index of the raw state as last folded — {@link visibilities} rebuilds it once per packet. */
+	let zonesNow: ZoneIndex | null = null;
+
+	function knownTo(player: number): Map<number, { zone: string; holder: number }> {
+		let cards = known.get(player);
+		if (cards === undefined) {
+			cards = new Map();
+			known.set(player, cards);
+		}
+		return cards;
+	}
 
 	/**
 	 * Bring {@link known} up to the raw state: forget what moved or was shuffled, follow a
 	 * library card into its holder's hand. Run once per packet, before visibility is read.
 	 */
-	function settleKnown(zones: ZoneIndex): void {
+	function settleKnown(zones: ZoneIndex, replaced: ReadonlySet<number>): void {
 		const shuffled = new Set<number>();
 		for (const obj of raw.values()) {
 			if (obj._type !== TYPE.player) continue;
@@ -532,18 +575,37 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			if (before !== undefined && reordered(before, now)) shuffled.add(obj._id);
 			libraries.set(obj._id, now);
 		}
-		for (const [cardId, was] of known) {
-			const at = zones.byCard.get(cardId);
-			// In no zone list: between two (Goblin Guide's Dig takes the card out and puts it back on
-			// top) or on the stack. Nothing to judge it by until it lands somewhere.
-			if (at === undefined && raw.has(keyOf(TYPE.card, cardId))) continue;
-			if (at !== undefined && at.holder === was.holder && at.zone === was.zone) {
-				if (was.zone === 'Library' && shuffled.has(was.holder)) known.delete(cardId);
-			} else if (at !== undefined && at.holder === was.holder && was.zone === 'Library' && at.zone === 'Hand') {
-				known.set(cardId, at);
-			} else {
-				known.delete(cardId);
+		for (const cards of known.values()) {
+			for (const [cardId, was] of cards) {
+				const at = zones.byCard.get(cardId);
+				// In no zone list: between two (Goblin Guide's Dig takes the card out and puts it back on
+				// top) or on the stack. Nothing to judge it by until it lands somewhere.
+				if (at === undefined && raw.has(keyOf(TYPE.card, cardId))) continue;
+				if (at !== undefined && at.holder === was.holder && at.zone === was.zone && !replaced.has(cardId)) {
+					if (was.zone === 'Library' && shuffled.has(was.holder)) cards.delete(cardId);
+				} else if (at !== undefined && at.holder === was.holder && was.zone === 'Library' && at.zone === 'Hand') {
+					cards.set(cardId, at);
+				} else {
+					cards.delete(cardId);
+				}
 			}
+		}
+	}
+
+	/** Every player but this seat's, by the raw state's PlayerViews. */
+	function others(): number[] {
+		const out: number[] = [];
+		for (const obj of raw.values()) if (obj._type === TYPE.player && obj._id !== who) out.push(obj._id);
+		return out;
+	}
+
+	/** A Forge grant to another player on a card this seat holds in a sticky zone is remembered, as this seat's own is in {@link seen}. */
+	function noteOthersShown(zones: ZoneIndex): void {
+		if (who === null) return;
+		const players = others();
+		for (const [cardId, at] of zones.byCard) {
+			if (at.holder !== who || !STICKY_ZONES.has(at.zone)) continue;
+			for (const p of players) if (cardVisibility(raw, zones, cardId, p) === 'full') knownTo(p).set(cardId, at);
 		}
 	}
 
@@ -553,10 +615,10 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		if (who === null) return vis;
 		const at = zones.byCard.get(cardId);
 		if (vis === 'full') {
-			if (at !== undefined && at.holder !== who && STICKY_ZONES.has(at.zone)) known.set(cardId, at);
+			if (at !== undefined && at.holder !== who && STICKY_ZONES.has(at.zone)) knownTo(who).set(cardId, at);
 			return vis;
 		}
-		return known.has(cardId) ? 'full' : vis;
+		return knownTo(who).has(cardId) ? 'full' : vis;
 	}
 
 	/** Every card id the raw state knows, with its faces. */
@@ -575,25 +637,71 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return out;
 	}
 
-	function visibilities(): Map<number, Visibility> {
+	function visibilities(replaced: ReadonlySet<number> = new Set()): Map<number, Visibility> {
 		const zones = indexZones(raw);
-		settleKnown(zones);
+		zonesNow = zones;
+		settleKnown(zones, replaced);
+		noteOthersShown(zones);
 		const out = new Map<number, Visibility>();
 		for (const cardId of cardsAndFaces().keys()) out.set(cardId, seen(zones, cardId));
 		return out;
 	}
 
 	/**
-	 * A card sent in full because the seat KNOWS it, not because Forge grants it, says so in Forge's
-	 * own words: the seat is in its `PlayerMayLook`, so a client reads one field for "I may look at
+	 * A `full` card's `PlayerMayLook` as this seat is sent it: Forge's grant, this seat when it KNOWS
+	 * the card, and — on a card this seat holds — every other player that knows it (the header's
+	 * "What the other seats were shown"). A card sent in full because the seat knows it, not because
+	 * Forge grants it, so says so in Forge's own words: a client reads one field for "I may look at
 	 * this card" whichever of the two put it there — and a client fed Forge's raw stream, where a
 	 * hand card carries its name for everybody, still draws it as a back (`Board.test.ts`).
 	 */
+	function lookOf(cardId: number): number[] {
+		const look = idsOf(raw.get(keyOf(TYPE.card, cardId)), 'PlayerMayLook');
+		if (who === null) return look;
+		const add = (p: number): void => {
+			if (!look.includes(p)) look.push(p);
+		};
+		if (knownTo(who).has(cardId)) add(who);
+		const holder = (zonesNow ?? indexZones(raw)).byCard.get(cardId)?.holder;
+		if (holder === who) for (const [p, cards] of known) if (p !== who && cards.has(cardId)) add(p);
+		return look;
+	}
+
+	function lookKey(look: readonly number[]): string {
+		return [...look].sort((a, b) => a - b).join(',');
+	}
+
+	function lookValue(look: readonly number[]): { t: 'list'; v: { t: 'int'; v: number }[] } | null {
+		return look.length === 0 ? null : { t: 'list', v: look.map((v) => ({ t: 'int', v })) };
+	}
+
 	function stamped(obj: WireObj): WireObj {
-		if (who === null || !known.has(obj._id)) return obj;
 		const granted = idsOf(raw.get(keyOf(TYPE.card, obj._id)), 'PlayerMayLook');
-		if (granted.includes(who)) return obj;
-		return { ...obj, PlayerMayLook: { t: 'list', v: [...granted, who].map((v) => ({ t: 'int', v })) } };
+		const look = lookOf(obj._id);
+		if (lookKey(look) === lookKey(granted)) return obj;
+		return { ...obj, PlayerMayLook: lookValue(look) };
+	}
+
+	/**
+	 * Every `full` card whose `PlayerMayLook` this seat would now be sent differently from what it
+	 * holds — a player came to know one of its cards, or forgot it, with nothing else about the card
+	 * changing — gets it in this packet: inside the card's replace when the packet already has one,
+	 * otherwise as a delta of that one property.
+	 */
+	function syncLooks(vis: Map<number, Visibility>, newObjects: ObjTable, objectDeltas: ObjTable): void {
+		for (const [cardId, v] of vis) {
+			if (v !== 'full') {
+				sentLook.delete(cardId);
+				continue;
+			}
+			const look = lookOf(cardId);
+			const key = lookKey(look);
+			if (sentLook.get(cardId) === key) continue;
+			sentLook.set(cardId, key);
+			const cardKey = keyOf(TYPE.card, cardId);
+			if (newObjects[cardKey] !== undefined) continue;
+			objectDeltas[cardKey] = { ...(objectDeltas[cardKey] ?? { _type: TYPE.card, _id: cardId }), PlayerMayLook: lookValue(look) };
+		}
 	}
 
 	/** Project one object by its key; null when the viewer gets nothing for it. */
@@ -621,9 +729,10 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	}
 
 	function projectPacket(packet: DeltaPacketJson): DeltaPacketJson {
+		const replaced = replacedCards(raw, packet);
 		foldInto(raw, packet);
 		lastSeq = packet.seq;
-		const vis = visibilities();
+		const vis = visibilities(replaced);
 		const newObjects = projectTable(packet.newObjects, vis);
 		const objectDeltas = projectTable(packet.objectDeltas, vis);
 		const faces = cardsAndFaces();
@@ -648,6 +757,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			}
 		}
 		for (const [cardId, now] of vis) sent.set(cardId, now);
+		syncLooks(vis, newObjects, objectDeltas);
 
 		return { seq: packet.seq, checksum: 0, checksumProperties: [], newObjects, objectDeltas, events: [] };
 	}
@@ -689,7 +799,9 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 					return frame;
 				case 'setGameView': {
 					raw.clear();
+					zonesNow = null;
 					sent.clear();
+					sentLook.clear();
 					libraries.clear();
 					foldInto(raw, {
 						seq: 0,
@@ -701,6 +813,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 					});
 					const vis = visibilities();
 					for (const [cardId, v] of vis) sent.set(cardId, v);
+					for (const [cardId, v] of vis) if (v === 'full') sentLook.set(cardId, lookKey(lookOf(cardId)));
 					return {
 						kind: 'notify',
 						method: 'setGameView',
@@ -741,15 +854,18 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		visibilityOf(cardId: number): Visibility {
 			return seen(indexZones(raw), cardId);
 		},
-		learn(cardIds: Iterable<number>): StateFrame | null {
-			if (who === null) return null;
+		learn(cardIds: Iterable<number>, learner?: number): StateFrame | null {
+			const shownTo = learner ?? who;
+			if (who === null || shownTo === null) return null;
 			const zones = indexZones(raw);
 			for (const cardId of cardIds) {
 				const at = zones.byCard.get(cardId);
-				if (at !== undefined && STICKY_ZONES.has(at.zone)) known.set(cardId, at);
+				if (at !== undefined && STICKY_ZONES.has(at.zone)) knownTo(shownTo).set(cardId, at);
 			}
 			const packet = projectPacket({ seq: lastSeq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] });
-			return Object.keys(packet.newObjects).length === 0 ? null : { kind: 'notify', method: 'applyDelta', payload: { packet } };
+			return Object.keys(packet.newObjects).length === 0 && Object.keys(packet.objectDeltas).length === 0
+				? null
+				: { kind: 'notify', method: 'applyDelta', payload: { packet } };
 		},
 		stackTopActivator(): number | null {
 			// `GameView.Stack` is the stack item ids, TOP FIRST (`apps/ui/src/play/adapter.ts`).
