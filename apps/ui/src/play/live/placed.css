@@ -31,22 +31,100 @@
    */
   pointer-events: auto;
   transition: opacity 250ms ease;
-  /*
-   * On the stack, a card is OFF the table: tilted and casting a shadow, where every permanent lies
-   * flat (the operator, 2026-10-13: "needs to be more clear when a card is still on the stack or
-   * whether it has resolved"). Resolving, a permanent lies down flat and its shadow settles
-   * (`[data-stack-settle]`, below); anything else travels into the pile it went to
-   * (`[data-placed-leaving]`). A tilt about its own centre leaves its
-   * centre — the arrows' origin — where it was, and this layer is not a scrolling zone.
-   */
-  rotate: var(--stack-tilt);
-  filter: var(--stack-lift);
 }
 
-/* The stack's look, one definition: the placed card wears it, and a resolved permanent settles from it. */
+/*
+ * On the stack, a card is OFF the table: it hovers, where every permanent lies flat (the operator,
+ * 2026-10-13: "needs to be more clear when a card is still on the stack or whether it has
+ * resolved"; 2026-10-14: "float+drift simultaneously"). Two motions on their own properties, so
+ * they never fight: a slow bob (`translate`, with its shadow breathing in `filter`) and a drift
+ * (`transform`'s sideways sway, and a small `rotate`) on periods that share no beat, so its path
+ * never visibly repeats. `--stack-phase` (`placed.ts`, from the item's id) sets where each card
+ * starts, so two never move in step.
+ *
+ * It is `.placed__hover` that moves — the one child `placed.ts` keeps for the card's whole life,
+ * with its face, back or chip inside — never `.placed`: that box, the arrows' origin, the drag's
+ * pickup and the leave's glide, stays exactly where it was. A transform is no scroll concern here
+ * (the overlay is not a scrolling zone).
+ *
+ * Resolving, a permanent lies down flat and its shadow settles (`[data-stack-settle]`, below);
+ * anything else travels into the pile it went to (`[data-placed-leaving]`).
+ */
+.placed__hover {
+  --stack-hover:
+    stack-float calc(3.4s + var(--stack-phase, 0) * 0.6s) ease-in-out calc(var(--stack-phase, 0) * -4s) infinite,
+    stack-drift-x 7.3s ease-in-out calc(var(--stack-phase, 0) * -7.3s) infinite alternate,
+    stack-drift-turn 6.1s ease-in-out calc(var(--stack-phase, 0) * -11.7s) infinite alternate;
+
+  /* A ring drawn on it (below) follows the card's corners, or the chip's. */
+  border-radius: var(--radius);
+  animation: var(--stack-hover);
+}
+
+.placed__hover:has(> .placed__chip) {
+  border-radius: 12px;
+}
+
+/*
+ * The stack's look, one definition: the placed card hovers in it, a reduced-motion screen holds it
+ * still, and a resolved permanent settles from it. A shadow is the lift on a light table; on a dark
+ * one the theme's shadow barely differs from the table, so a faint glow of the theme's own ink rises
+ * with the card instead (`--stack-glow`, transparent on a light theme).
+ */
 :root {
-  --stack-tilt: -3deg;
-  --stack-lift: drop-shadow(0 8px 10px var(--shadow));
+  --stack-glow: transparent;
+}
+
+[data-dark-theme='true'] {
+  --stack-glow: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+/* Re-declared wherever the theme can change, as `styles.css` does its tokens: a custom property resolves where it is declared. */
+:root,
+[data-theme],
+[data-dark-theme] {
+  --stack-lift: drop-shadow(0 8px 10px var(--shadow)) drop-shadow(0 4px 10px var(--stack-glow));
+}
+
+@keyframes stack-float {
+  0%,
+  100% {
+    translate: 0 0;
+    filter: drop-shadow(0 5px 5px var(--shadow)) drop-shadow(0 2px 6px var(--stack-glow));
+  }
+
+  50% {
+    translate: 0 -5px;
+    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shadow) 65%, transparent)) drop-shadow(0 7px 14px color-mix(in srgb, var(--stack-glow) 70%, transparent));
+  }
+}
+
+@keyframes stack-drift-x {
+  from {
+    transform: translateX(-3px);
+  }
+
+  to {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes stack-drift-turn {
+  from {
+    rotate: -1.3deg;
+  }
+
+  to {
+    rotate: 1.1deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placed__hover {
+    --stack-hover: none;
+
+    filter: var(--stack-lift);
+  }
 }
 
 /*
@@ -78,9 +156,19 @@
   cursor: grab;
 }
 
+/*
+ * Every mark below that rings the card — the selectable outline, the top of the stack's pulse, the
+ * asked-about trigger's ring, the resolve blink — is drawn on `.placed__hover`, so it moves with
+ * the card it rings. An added animation lists the hover first: the browser matches animations by
+ * name, so the hover runs on through it without a jump.
+ */
+
 /* Q18: Forge offers this spell's own card for selection while it sits on the stack — `placed.ts`'s own click handler, same outline `.stack__item[data-selectable]` used to draw. */
 .placed[data-selectable] {
   cursor: pointer;
+}
+
+.placed[data-selectable] > .placed__hover {
   outline: 1px solid var(--ink);
   outline-offset: 1px;
 }
@@ -90,48 +178,49 @@
  * End Turn control uses (`live.css`'s `live-ok-pulse`), reused by name rather
  * than redefined here: never more than one at a time (item 3).
  */
-.placed[data-placed-next] {
-  animation: live-ok-pulse 1.4s ease-in-out infinite;
+.placed[data-placed-next] > .placed__hover {
+  animation: var(--stack-hover), live-ok-pulse 1.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .placed[data-placed-next] {
+  .placed[data-placed-next] > .placed__hover {
     animation: none;
     box-shadow: 0 0 0 2px var(--accent);
   }
 }
 
-/* A trigger Forge has not put on the stack yet: its chip already, quieter — and flat — until it is there. */
+/* A trigger Forge has not put on the stack yet: its chip already, quieter — flat and still — until it is there. */
 .placed[data-placed-waiting] {
   opacity: 0.7;
-  rotate: none;
+}
+
+.placed[data-placed-waiting] > .placed__hover {
+  animation: none;
   filter: none;
 }
 
 /* The waiting trigger whose target is being asked for. */
 .placed[data-placed-current] {
   opacity: 1;
-  border-radius: 12px;
+}
+
+.placed[data-placed-current] > .placed__hover {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
 /*
  * A spell resolving to anywhere but a battlefield travels into where it went — its graveyard, an
- * exile, a hand (`placed.ts`'s `leave` moves its point there) — turning flat, shrinking and fading
+ * exile, a hand (`placed.ts`'s `leave` moves its point there) — shrinking and fading
  * as it arrives, in the house glide (`LEAVE_FADE_MS`). An arrival on a battlefield is never this
  * (`[data-stack-settle]`, below).
  */
 .placed[data-placed-leaving] {
   opacity: 0;
   scale: 0.5;
-  rotate: none;
-  filter: none;
   transition:
     left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
     top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
     scale 300ms ease-in,
-    rotate 300ms ease-out,
-    filter 300ms ease-out,
     opacity 300ms ease-in;
 }
 
@@ -167,8 +256,8 @@
  * it crumples away — then the counter fades like any other resolution. Reduced motion never gets
  * here: `placed.ts` removes both at once.
  */
-.placed[data-placed-resolving] {
-  animation: placed-resolve 400ms ease-in-out;
+.placed[data-placed-resolving] > .placed__hover {
+  animation: var(--stack-hover), placed-resolve 400ms ease-in-out;
 }
 
 @keyframes placed-resolve {

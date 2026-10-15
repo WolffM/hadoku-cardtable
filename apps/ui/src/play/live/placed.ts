@@ -84,6 +84,8 @@
  *     (item 8's other mutation point — see `registerRepaint`/`afterChange`
  *     below, the one place that call happens, so it is the one place a
  *     mutant can drop it).
+ *   - `.placed__hover` — the element's one child, the part that hovers while it
+ *     is on the stack (`placed.css`); its face, back or chip is drawn inside it.
  */
 import { createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -441,6 +443,12 @@ function prefersReducedMotion(): boolean {
 
 interface Drawn {
   readonly el: HTMLElement;
+  /**
+   * The card's one child, `.placed__hover`, made with `el` and kept for its whole life: the face, a
+   * back or a chip is mounted INSIDE it, so turning a back over never restarts its hover
+   * (`placed.css`). It is what moves; `el` — the arrows' origin, the drag's pickup — stays put.
+   */
+  readonly hover: HTMLElement;
   /** Null for a back (no `CardTile` to mount) and for the no-card-data text fallback. */
   root: Root | null;
   committed: boolean;
@@ -462,6 +470,15 @@ interface Drawn {
   readonly seed: number;
   /** A waiting trigger's chip whose target question was open when last drawn — the one that goes on the stack next. */
   current: boolean;
+}
+
+/**
+ * Where in its hover a stack card starts (`placed.css`'s `--stack-phase`, 0–1): from its stack id,
+ * so two cards never bob in step and the same item is in the same phase on both screens.
+ */
+function setHoverPhase(el: HTMLElement, id: number): void {
+  const phase = (((id * 0.618034) % 1) + 1) % 1;
+  el.style.setProperty('--stack-phase', phase.toFixed(4));
 }
 
 /** Overlay-relative centre of a box. */
@@ -591,6 +608,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       drawn.set(item.id, d);
       d.el.setAttribute('data-placed-spell', String(item.id));
       d.el.setAttribute('data-stack-id', String(item.id));
+      setHoverPhase(d.el, item.id);
     }
   }
 
@@ -663,6 +681,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       el.className = 'placed';
       el.setAttribute('data-placed-spell', String(item.id));
       el.setAttribute('data-stack-id', String(item.id));
+      setHoverPhase(el, item.id);
+      const hover = document.createElement('div');
+      hover.className = 'placed__hover';
+      el.append(hover);
       // The card it is, for a reader counting the card's copies on screen (`handover-report.ts`).
       if (!item.isAbility && item.sourceCardId !== null) el.setAttribute('data-placed-card', String(item.sourceCardId));
       // Q18: a SPELL (never an ability) may itself be one of Forge's `setSelectables` while it sits
@@ -678,6 +700,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (pending) el.setAttribute('data-placed-pending', '');
       d = {
         el,
+        hover,
         root: null,
         committed: !wantBack,
         isAbility: item.isAbility,
@@ -694,7 +717,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
       if (item.isAbility) resized?.observe(el);
       if (pending) schedule(render, PLACED_PENDING_MS + 1);
-      d.root = mount(el, item, wantBack);
+      d.root = mount(hover, item, wantBack);
       drawn.set(item.id, d);
       // Synchronous, now that the element (and, for a face, its CardTile — a
       // fresh root's first render commits without a scheduling hop) is
@@ -704,7 +727,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // `d.committed` says "showing a face" and `wantBack` says "should show a back" — equal only on
       // a flip (lane W's `commitSpell` turned it over, or — defensively — the other direction).
       deferUnmount(d.root);
-      d.root = mount(d.el, item, wantBack);
+      d.root = mount(d.hover, item, wantBack);
       d.committed = !wantBack;
     }
     return d;
