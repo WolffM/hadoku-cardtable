@@ -9,8 +9,9 @@
  * Alice drags Grizzly Bears and then Divination onto her battlefield; bob keeps a priority stop over
  * each (Brainstorm, an Island up), and his OK resolves it. What this pins, on alice's screen:
  *
- *  - ON the stack, the spell is drawn lifted off the table — tilted, with a drop shadow — on both
- *    screens, and a permanent on the battlefield is drawn flat;
+ *  - ON the stack, the spell hovers off the table — its face bobs, drifts and turns a little over
+ *    time, casting a drop shadow — on both screens (the operator, 2026-10-14: "float+drift
+ *    simultaneously"), and a permanent on the battlefield is drawn flat and still;
  *  - the Bears RESOLVE by lying down: the permanent, once shown on the battlefield, visibly settles
  *    — the stack's shadow under it collapses — and ends flat (a filter: a transform on a battlefield
  *    card would count toward its zone's overflow, and the landing draws one object at a time);
@@ -32,22 +33,59 @@ const titled = makeTitled(forge);
 const log = (step: string, data: unknown): void => console.log(`[st] ${JSON.stringify({ step, data })}`);
 
 interface Look {
-  rotate: string;
-  filter: string;
+  /** Frames sampled. */
+  frames: number;
+  /** How far the face's centre travelled, across and up/down, over the window (px). */
+  spanX: number;
+  spanY: number;
+  /** How far it turned (deg). */
+  spanTurn: number;
+  /** Frames it cast a drop shadow in. */
+  shadowed: number;
 }
 
-/** How the one placed stack card is drawn on `page`: its tilt and its shadow. */
-async function stackLook(page: Page): Promise<Look | null> {
-  return page.evaluate(() => {
-    const el = document.querySelector<HTMLElement>('[data-placed-spell]:not([data-placed-leaving])');
-    if (el === null) return null;
-    const cs = getComputedStyle(el);
-    return { rotate: cs.rotate, filter: cs.filter };
-  });
+/**
+ * How the one placed stack card's face moves on `page` over `ms`: its drawn centre and turn, every
+ * frame. The face is the placed card's child — the card's own box (its point, the arrows' origin)
+ * never moves — so this reads the child, the part that is drawn.
+ */
+async function stackLook(page: Page, ms = 2_000): Promise<Look | null> {
+  return page.evaluate(
+    (window_) =>
+      new Promise<Look | null>((resolve) => {
+        const xs: number[] = [];
+        const ys: number[] = [];
+        const turns: number[] = [];
+        let shadowed = 0;
+        const t0 = performance.now();
+        const tick = (): void => {
+          const face = document.querySelector<HTMLElement>('[data-placed-spell]:not([data-placed-leaving]) > *');
+          if (face === null) {
+            resolve(null);
+            return;
+          }
+          const r = face.getBoundingClientRect();
+          const cs = getComputedStyle(face);
+          xs.push(r.x + r.width / 2);
+          ys.push(r.y + r.height / 2);
+          turns.push(cs.rotate === 'none' ? 0 : parseFloat(cs.rotate));
+          if (cs.filter.includes('drop-shadow')) shadowed += 1;
+          if (performance.now() - t0 < window_) {
+            requestAnimationFrame(tick);
+            return;
+          }
+          const span = (v: number[]): number => Math.round((Math.max(...v) - Math.min(...v)) * 100) / 100;
+          resolve({ frames: xs.length, spanX: span(xs), spanY: span(ys), spanTurn: span(turns), shadowed });
+        };
+        requestAnimationFrame(tick);
+      }),
+    ms,
+  );
 }
 
-const tilted = (rotate: string): boolean => rotate !== 'none' && Math.abs(parseFloat(rotate)) >= 1;
-const lifted = (look: Look | null): boolean => look !== null && tilted(look.rotate) && look.filter.includes('drop-shadow');
+/** Hovering: over two seconds the face visibly moves — bobs, drifts or turns — and casts a shadow throughout. */
+const hovers = (look: Look | null): boolean =>
+  look !== null && look.frames > 1 && Math.max(look.spanX, look.spanY) >= 1.5 && look.shadowed === look.frames;
 
 interface Sample {
   t: number;
@@ -162,14 +200,14 @@ async function castAndHold(alice: Page, bob: Page, stack: { serverLogFile: strin
   ] as const) {
     let look: Look | null = null;
     try {
-      await expect.poll(async () => lifted((look = await stackLook(page))), { timeout: 5_000, message: `${who}: ${name} is drawn lifted off the table while it is on the stack` }).toBe(true);
+      await expect.poll(async () => hovers((look = await stackLook(page))), { timeout: 8_000, message: `${who}: ${name} hovers off the table while it is on the stack` }).toBe(true);
     } finally {
       log(`${name} on the stack (${who})`, look);
     }
   }
 }
 
-test(titled('a spell on the stack is drawn lifted; resolving, a permanent settles into its slot and a sorcery travels to the graveyard'), async ({ browser }) => {
+test(titled('a spell on the stack hovers; resolving, a permanent settles into its slot and a sorcery travels to the graveyard'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -185,7 +223,7 @@ test(titled('a spell on the stack is drawn lifted; resolving, a permanent settle
     // A permanent already on the table is drawn flat.
     const forest = await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').first().evaluate((li) => getComputedStyle(li.querySelector('.board-card__face')!).rotate);
     log('a land on the battlefield', { rotate: forest });
-    expect(tilted(forest), 'a permanent on the battlefield is not tilted').toBe(false);
+    expect(forest === 'none' || Math.abs(parseFloat(forest)) < 1, 'a permanent on the battlefield is not tilted').toBe(true);
 
     await watchLanding(alice.page, 'Grizzly Bears');
     await enabledOk(bob.page).first().click();
