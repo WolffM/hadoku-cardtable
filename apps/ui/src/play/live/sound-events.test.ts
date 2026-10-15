@@ -5,6 +5,8 @@ import type { DraftCard } from '@hadoku/shared';
 import { toBoardView, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
+import { cardStateKey, deltaKey, WireType, type WireObject } from '../wire.ts';
+import poolData from '../../draft/pool.json' with { type: 'json' };
 import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
 
 function card(typeLine: string, colors: DraftCard['colors'] = [], oracleText = ''): DraftCard {
@@ -74,6 +76,118 @@ const GOLEM = card('Artifact Creature — Golem');
 const FOREST = card('Basic Land — Forest');
 const BOLT = card('Instant', ['R']);
 
+/*
+ * Every land in the pool and the colour cell it sounds. A land added to the pool shows up here as a
+ * diff, so it gets a decision. Multiversal Passage is colourless until it chooses (the chosen-type
+ * case below); a land that adds, fetches and grants nothing coloured (Ancient Tomb, Wasteland…)
+ * stays colourless.
+ */
+const POOL_LAND_ROWS: Readonly<Record<string, string>> = {
+  'Abandoned Air Temple': 'W|land',
+  'Witch Enchanter // Witch-Blessed Meadow': 'C|creature',
+  'Otawara, Soaring City': 'U|land',
+  'Shelldock Isle': 'U|land',
+  'Sink into Stupor // Soporific Springs': 'C|spell',
+  'Urborg, Tomb of Yawgmoth': 'B|land',
+  'Arena of Glory': 'R|land',
+  'Sundering Eruption // Volcanic Fissure': 'C|spell',
+  'Boseiju, Who Endures': 'G|land',
+  'Shifting Woodland': 'G|land',
+  'Yavimaya, Cradle of Growth': 'G|land',
+  'Celestial Colonnade': 'WU|land',
+  'Flooded Strand': 'WU|land',
+  'Hallowed Fountain': 'WU|land',
+  'Meticulous Archive': 'WU|land',
+  'Seachrome Coast': 'WU|land',
+  'Tundra': 'WU|land',
+  'Creeping Tar Pit': 'UB|land',
+  'Darkslick Shores': 'UB|land',
+  'Polluted Delta': 'UB|land',
+  'Undercity Sewers': 'UB|land',
+  'Underground Sea': 'UB|land',
+  'Watery Grave': 'UB|land',
+  'Badlands': 'BR|land',
+  'Blackcleave Cliffs': 'BR|land',
+  'Blazemire Verge': 'BR|land',
+  'Blood Crypt': 'BR|land',
+  'Bloodstained Mire': 'BR|land',
+  'Raucous Theater': 'BR|land',
+  'Commercial District': 'RG|land',
+  'Copperline Gorge': 'RG|land',
+  'Stomping Ground': 'RG|land',
+  'Taiga': 'RG|land',
+  'Thornspire Verge': 'RG|land',
+  'Wooded Foothills': 'RG|land',
+  'Horizon Canopy': 'GW|land',
+  'Lush Portico': 'GW|land',
+  'Razorverge Thicket': 'GW|land',
+  'Savannah': 'GW|land',
+  'Temple Garden': 'GW|land',
+  'Windswept Heath': 'GW|land',
+  'Bleachbone Verge': 'WB|land',
+  'Concealed Courtyard': 'WB|land',
+  'Godless Shrine': 'WB|land',
+  'Marsh Flats': 'WB|land',
+  'Scrubland': 'WB|land',
+  'Shadowy Backstreet': 'WB|land',
+  'Riverpyre Verge': 'UR|land',
+  'Scalding Tarn': 'UR|land',
+  'Spirebluff Canal': 'UR|land',
+  'Steam Vents': 'UR|land',
+  'Thundering Falls': 'UR|land',
+  'Volcanic Island': 'UR|land',
+  'Bayou': 'BG|land',
+  'Blooming Marsh': 'BG|land',
+  'Overgrown Tomb': 'BG|land',
+  'Underground Mortuary': 'BG|land',
+  'Verdant Catacombs': 'BG|land',
+  'Wastewood Verge': 'BG|land',
+  'Arid Mesa': 'RW|land',
+  'Elegant Parlor': 'RW|land',
+  'Inspiring Vantage': 'RW|land',
+  'Plateau': 'RW|land',
+  'Sacred Foundry': 'RW|land',
+  'Sunbaked Canyon': 'RW|land',
+  'Botanical Sanctum': 'GU|land',
+  'Breeding Pool': 'GU|land',
+  'Hedge Maze': 'GU|land',
+  'Misty Rainforest': 'GU|land',
+  'Tropical Island': 'GU|land',
+  'Waterlogged Grove': 'GU|land',
+  "Spara's Headquarters": 'GWU|land',
+  "Raffine's Tower": 'WUB|land',
+  "Xander's Lounge": 'UBR|land',
+  'Twisted Landscape': 'BRG|land',
+  "Ziatora's Proving Ground": 'BRG|land',
+  "Jetmir's Garden": 'RGW|land',
+  'Sheltering Landscape': 'RGW|land',
+  'Savai Triome': 'RWB|land',
+  'Bountiful Landscape': 'GUR|land',
+  'Ketria Triome': 'GUR|land',
+  'Indatha Triome': 'WBG|land',
+  'Raugrin Triome': 'URW|land',
+  'Zagoth Triome': 'BGU|land',
+  'Ancient Tomb': 'C|land',
+  'Bazaar of Baghdad': 'C|land',
+  'City of Traitors': 'C|land',
+  'Dark Depths': 'C|land',
+  'Fabled Passage': 'WUBRG|land',
+  "Gaea's Cradle": 'G|land',
+  'Karakas': 'W|land',
+  'Library of Alexandria': 'C|land',
+  'Mana Confluence': 'WUBRG|land',
+  "Mishra's Workshop": 'C|land',
+  'Multiversal Passage': 'C|land',
+  'Prismatic Vista': 'WUBRG|land',
+  'Starting Town': 'WUBRG|land',
+  'Strip Mine': 'C|land',
+  'Talon Gates of Madara': 'WUBRG|land',
+  "Thespian's Stage": 'C|land',
+  'Tolarian Academy': 'U|land',
+  "Urza's Saga": 'C|land',
+  'Wasteland': 'C|land',
+};
+
 describe('colours and types', () => {
   it('spells a colour set the way COLOUR_IDS does', () => {
     expect(colourRow([])).toBe('C');
@@ -103,6 +217,64 @@ describe('colours and types', () => {
     expect(colourCell(entry(1, card('Basic Land')))).toBe('C|land');
     expect(colourCell(entry(1, card('Land', [], '{T}: Add {C}.')))).toBe('C|land');
     expect(colourCell(entry(1, card('Land', [], '{T}: Add one mana of any color.')))).toBe('WUBRG|land');
+  });
+
+  it('sounds a fetch land as the basic land types it can fetch', () => {
+    const tarn = card('Land', [], '{T}, Pay 1 life, Sacrifice this land: Search your library for an Island or Mountain card, put it onto the battlefield, then shuffle.');
+    expect(colourCell(entry(1, tarn))).toBe('UR|land');
+    // A Landscape adds {C} but fetches three basic types.
+    expect(colourCell(entry(1, card('Land', [], '{T}: Add {C}.\n{T}, Sacrifice this land: Search your library for a basic Swamp, Mountain, or Forest card, put it onto the battlefield tapped, then shuffle.')))).toBe('BRG|land');
+    // "A basic land card" is any basic: all five.
+    expect(colourCell(entry(1, card('Land', [], '{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.')))).toBe('WUBRG|land');
+    // Another player's search is not this land's colours.
+    expect(colourCell(entry(1, card('Land', [], 'Its controller may search their library for a basic Island card.')))).toBe('C|land');
+    // Naming a type it only checks for ("if you control a Mountain") is not a colour either.
+    expect(colourCell(entry(1, card('Land', [], 'This land enters tapped unless you control a Mountain.\n{T}: Add {C}.')))).toBe('C|land');
+  });
+
+  it('sounds a land that makes every land a basic type as that type', () => {
+    expect(colourCell(entry(1, card('Legendary Land', [], 'Each land is a Swamp in addition to its other land types.')))).toBe('B|land');
+    expect(colourCell(entry(1, card('Legendary Land', [], 'Each land is a Forest in addition to its other land types.')))).toBe('G|land');
+  });
+
+  it('sounds a land by the basic land type it chose', () => {
+    const passage = card('Land', [], "As this land enters, choose a basic land type. Then you may pay 2 life. If you don't, it enters tapped.\nThis land is the chosen type.");
+    expect(colourCell(entry(1, passage, { choices: [{ kind: 'type', values: ['Island'] }] }))).toBe('U|land');
+    expect(colourCell(entry(1, passage)), 'before it has chosen, nothing').toBe('C|land');
+    // A chosen creature type (Cavern of Souls') is no colour.
+    expect(colourCell(entry(1, card('Land', [], '{T}: Add {C}.'), { choices: [{ kind: 'type', values: ['Elf'] }] }))).toBe('C|land');
+  });
+
+  it('sounds a modal double-faced card played as its land by the land face Forge has in play', () => {
+    // Forge plays the land face by setting the card's state to `Backside` (`Card.setSplitStateToPlayAbility`,
+    // `CardSplitType.Modal`), so its view's `CurrentState` is ordinal 3 — the face the adapter reads.
+    const fixture = PLAY_FIXTURES[0]!;
+    const folded = foldPackets(loadPackets(fixture));
+    const state = new Map(folded.state);
+    const seq = folded.seq;
+    const id = toBoardView(state, seq, { viewerPlayerId: fixture.viewerPlayerId }).players.flatMap((p) => p.battlefield)[0]!.id;
+    const BACKSIDE = 3;
+    const original = state.get(cardStateKey(id, 0))!;
+    const face = (name: string, core: string[], text: string): WireObject =>
+      ({ ...original, _id: id * 16 + BACKSIDE, Name: { t: 'str', v: name }, Type: { t: 'cardtype', sup: [], core, sub: [], all: false, exc: [] }, OracleText: { t: 'str', v: text } }) as WireObject;
+    state.set(cardStateKey(id, 0), { ...face('Sink into Stupor', ['Instant'], 'Return target spell or nonland permanent an opponent controls to its owner’s hand.'), _id: id * 16 });
+    state.set(cardStateKey(id, BACKSIDE), face('Soporific Springs', ['Land'], "As Soporific Springs enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {U}."));
+    const key = deltaKey(WireType.Card, id);
+    state.set(key, { ...state.get(key)!, CurrentState: { t: 'int', v: BACKSIDE } } as WireObject);
+    const springs = toBoardView(state, seq, { viewerPlayerId: fixture.viewerPlayerId }).players.flatMap((p) => p.battlefield).find((c) => c.id === id)!;
+    expect(springs.card.name).toBe('Soporific Springs');
+    expect(colourCell(springs)).toBe('U|land');
+  });
+
+  it('pins the row of every land in the pool', () => {
+    // The pool carries a two-faced card's front face only (its text, and no colours), so those rows
+    // are the front face's; the land face in play is the case above.
+    const rows = Object.fromEntries(
+      poolData.cards
+        .filter((c) => /\bLand\b/.test(c.typeLine))
+        .map((c) => [c.name, colourCell(entry(1, { ...c, typeLine: c.typeLine.split(' // ')[0]! } as DraftCard))]),
+    );
+    expect(rows).toEqual(POOL_LAND_ROWS);
   });
 
   it('names the cast by the most specific type', () => {
