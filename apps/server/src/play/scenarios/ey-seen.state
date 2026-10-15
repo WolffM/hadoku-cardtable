@@ -1,0 +1,19 @@
+# The eye on a card its opponent was shown. Seat 0 (alice) holds Thoughtseize and one untapped
+# Swamp, an uncontested turn-1 Main Phase 1. Seat 1 (bob) holds Timetwister, Lightning Bolt and a
+# Mountain: alice takes the Lightning Bolt and bob's Timetwister and Mountain stay known to her. On
+# his turn bob draws a Shock nobody was shown, then casts Timetwister off his three Islands: his hand
+# goes back into his library and is shuffled, and alice knows none of it any more. Shock is in no
+# other zone, so a Shock name reaching alice is a leak.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Thoughtseize;Swamp
+humanbattlefield=Swamp
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Timetwister;Lightning Bolt;Mountain
+aibattlefield=Island;Island;Island
+ailibrary=Shock;Shock;Shock;Shock;Shock;Shock;Shock;Shock;Shock;Shock
+aigraveyard=

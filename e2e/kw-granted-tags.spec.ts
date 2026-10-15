@@ -5,15 +5,11 @@
  *     those types of written tabs should only go there if they received the effect from something
  *     else."* Serra Angel (printed "Flying, vigilance", also wearing Arcane Flight) wears no tag and
  *     still floats; Grizzly Bears wearing Arcane Flight wears a Flying tag. Both screens.
- *  2. *"when i hover one of my creatures it's showing a diagonal striped effect over it? … only that
- *     creature"*. The summoning-sickness hatch on the blocker's own sick Hill Giant: visible at rest,
- *     and still visible under the pointer.
+ *  2. *"let's drop the dashed summoning sickness on the art, not needed"* (2026-10-15). The blocker's
+ *     own sick Hill Giant wears its corner mark and nothing laid over its art, at rest and under the
+ *     pointer: its face draws no `::before` layer.
  *
- * "Visible" is measured, not inferred: the middle of the face is screenshotted with the hatch and
- * again with the hatch's layer switched off by an injected style; the hatch shows if and only if the
- * two differ.
- * Card art is answered locally with a solid picture so that it is always decoded — the hatch hid
- * behind decoded art only.
+ * Card art is answered locally with a solid picture so that it is always decoded.
  *
  * Scenario: `kw-granted-tags`. Every step prints one `[kw-granted-tags]` line, green or red.
  *
@@ -34,7 +30,6 @@ const SCENARIO = 'kw-granted-tags';
 const log = (step: string, data: unknown): void => console.log(`[kw-granted-tags] ${JSON.stringify({ step, data })}`);
 
 const SOLID_ART = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#3a7bd5"/></svg>';
-const NO_HATCH = '.board-card[data-sick] > .board-card__face::before { display: none !important; }';
 
 /** Every image this page asks for is answered with one solid picture, so card art is always decoded. */
 async function solidArt(page: Page): Promise<void> {
@@ -73,47 +68,32 @@ function tagsOf(page: Page, id: number): Promise<{ tags: string[]; flying: boole
   }, id);
 }
 
-interface Hatch {
-  visible: boolean;
+interface Overlay {
+  /** It wears the summoning-sick corner mark. */
   sick: boolean;
   artDecoded: boolean;
-  selectable: boolean;
-  tileStackingContext: string;
-  onTop: string;
+  /** The face's `::before` layer, its `content` and `background-image`: both `none` when nothing is laid over the art. */
+  layer: string;
 }
 
-/** Whether the hatch shows on this card's face right now: a screenshot with it against one without it. */
-async function hatch(page: Page, id: number): Promise<Hatch> {
-  const face = page.locator(`[data-board-card="${id}"] > .board-card__face`);
-  const facts = await page.evaluate((cardId) => {
+/** What is laid over this card's art right now. */
+function overlay(page: Page, id: number): Promise<Overlay> {
+  return page.evaluate((cardId) => {
     const li = document.querySelector<HTMLElement>(`[data-board-card="${cardId}"]`);
-    const img = li?.querySelector<HTMLImageElement>(':scope > .board-card__face > .card img.card__art');
-    const tile = li?.querySelector<HTMLElement>(':scope > .board-card__face > .card');
-    const style = tile === null || tile === undefined ? null : getComputedStyle(tile);
+    const face = li?.querySelector<HTMLElement>(':scope > .board-card__face') ?? null;
+    const img = face?.querySelector<HTMLImageElement>('.card img.card__art') ?? null;
+    const before = face === null ? null : getComputedStyle(face, '::before');
     return {
-      sick: li?.hasAttribute('data-sick') ?? false,
-      artDecoded: img !== null && img !== undefined && img.complete && img.naturalWidth > 0,
-      selectable: li?.hasAttribute('data-selectable') ?? false,
-      onTop: ((): string => {
-        const r = li?.querySelector(':scope > .board-card__face')?.getBoundingClientRect();
-        const el = r === undefined ? null : document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-        return el === null ? 'nothing' : `${el.tagName.toLowerCase()}.${el.className}`;
-      })(),
-      tileStackingContext: style === null ? 'no tile' : `isolation:${style.isolation} translate:${style.translate} transform:${style.transform}`,
+      sick: (li?.querySelector('.board-card__mark[data-mark="sick"]') ?? null) !== null,
+      artDecoded: img !== null && img.complete && img.naturalWidth > 0,
+      layer: before === null ? 'no face' : `content:${before.content} background:${before.backgroundImage}`,
     };
   }, id);
-  // The middle of the art only: the hatch also lies over the tile's 1px border, which no art covers.
-  const box = await face.boundingBox();
-  if (box === null) throw new Error(`card ${id} has no face`);
-  const clip = { x: box.x + box.width * 0.25, y: box.y + box.height * 0.25, width: box.width * 0.5, height: box.height * 0.4 };
-  const withHatch = await page.screenshot({ clip, animations: 'disabled' });
-  const off = await page.addStyleTag({ content: NO_HATCH });
-  const withoutHatch = await page.screenshot({ clip, animations: 'disabled' });
-  await off.evaluate((el) => (el as Element).remove());
-  return { visible: !withHatch.equals(withoutHatch), ...facts };
 }
 
-test(titled('declaring blockers: a printed keyword wears no tag, a granted one does, and the sick hatch shows at rest and on hover'), async ({ browser }) => {
+const NOTHING_OVER_ART = 'content:none background:none';
+
+test(titled('declaring blockers: a printed keyword wears no tag, a granted one does, and a sick creature wears its mark with nothing over its art'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -149,19 +129,19 @@ test(titled('declaring blockers: a printed keyword wears no tag, a granted one d
       expect.soft(angelSeen?.flying, `${who}: and Serra Angel still floats`).toBe(true);
     }
 
-    const atRest = await hatch(bob.page, giant);
+    const atRest = await overlay(bob.page, giant);
     log('hill giant at rest (bob)', { giant, ...atRest });
-    expect(atRest.sick, 'the Hill Giant is drawn summoning sick').toBe(true);
-    expect(atRest.artDecoded, 'its art is decoded, the case the hatch must read over').toBe(true);
-    expect.soft(atRest.visible, 'the sick hatch is visible at rest').toBe(true);
+    expect(atRest.sick, 'the Hill Giant wears the summoning-sick mark').toBe(true);
+    expect(atRest.artDecoded, 'its art is decoded').toBe(true);
+    expect.soft(atRest.layer, 'nothing is laid over its art at rest').toBe(NOTHING_OVER_ART);
 
     const box = await bob.page.locator(`[data-board-card="${giant}"] > .board-card__face`).boundingBox();
     expect(box, 'the Hill Giant has a face').not.toBeNull();
     await bob.page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
     await bob.page.waitForTimeout(400);
-    const hovered = await hatch(bob.page, giant);
+    const hovered = await overlay(bob.page, giant);
     log('hill giant under the pointer (bob)', { giant, ...hovered });
-    expect.soft(hovered.visible, 'and still visible under the pointer').toBe(true);
+    expect.soft(hovered.layer, 'and nothing under the pointer').toBe(NOTHING_OVER_ART);
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();
