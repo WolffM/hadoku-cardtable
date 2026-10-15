@@ -7,6 +7,12 @@
 #   Both tap for mana on a click and untap on a second one while the mana is unspent.
 #   - Hill Giant, summoning sick, tapped, with a +1/+1 counter: the sick mark on a turned card.
 #   - A Goblin token.
+#   - Mycosynth Lattice (static, nothing to choose): every permanent is an artifact too, so each one our card
+#     data knows (the Elves, the Birds, the Forests) reads a type line it did not print: the type pill.
+#   - Two tapped Forests, which the spec piles: copies (x2) on a turned card.
+#   - Flyers, every overlay riding the sway: a Birds of Paradise tapped, wearing a Basilisk Collar
+#     (tags, a counter, P/T, the type pill); a second Birds untapped with a counter; Grizzly
+#     Bears wearing Arcane Flight (a granted Flying tag, a counter).
 # `e2e/tg-tapped-overlays.spec.ts` measures every overlay against the drawn card on both screens.
 turn=1
 activeplayer=human
@@ -14,7 +20,7 @@ activephase=MAIN1
 humanlife=20
 ailife=20
 humanhand=
-humanbattlefield=Llanowar Elves|Id:101|Counters:P1P1=1;Basilisk Collar|AttachedTo:101;Llanowar Elves|Id:102|Counters:P1P1=2;Hill Giant|SummonSick|Tapped|Counters:P1P1=1;T:r_1_1_goblin;Forest
+humanbattlefield=Llanowar Elves|Id:101|Counters:P1P1=1;Basilisk Collar|AttachedTo:101;Llanowar Elves|Id:102|Counters:P1P1=2;Hill Giant|SummonSick|Tapped|Counters:P1P1=1;T:r_1_1_goblin;Forest;Forest|Tapped;Forest|Tapped;Mycosynth Lattice;Birds of Paradise|Id:103|Tapped|Counters:P1P1=1;Basilisk Collar|AttachedTo:103;Birds of Paradise|Id:104|Counters:P1P1=1;Grizzly Bears|Id:105|Counters:P1P1=1;Arcane Flight|AttachedTo:105
 humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
 humangraveyard=
 aihand=
