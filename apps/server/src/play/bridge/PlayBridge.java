@@ -1176,6 +1176,10 @@ public final class PlayBridge {
          */
         JsonElement await(final PendingAsk ask, final JsonObject frame) {
             ask.frame = frame;
+            // An ask can be the very next thing after an input that cleared the flag (the
+            // mulligan's bottom pick, then the order of the cards it bottoms): the client reads
+            // the flag to decide what it is choosing, so it must be current before the ask lands.
+            syncMulliganFlag();
             frame(frame);
             try {
                 return ask.answer.get();
