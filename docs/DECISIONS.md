@@ -807,3 +807,22 @@ holds it until then): `mount(el, { roomKey, identity, theme, isLeader, close })`
 embed growing its own header, roster or chat; and a second concurrent mount on
 one page (refused — the route, the scope and a few play modules are page
 singletons, as on the standalone page).
+
+## D22 — A spell on the stack may be hazed and saturated · settled · 2026-10-15 · operator
+
+**A scoped exception to Scryfall's "do not blur, sharpen, desaturate, or
+color-shift card images"**, which `apps/ui/src/cardImageRules.test.ts` holds
+for every stylesheet. A spell held on the stack is drawn through a slow heat
+haze (an SVG `feDisplacementMap`, `placed.ts`'s `HAZE_FILTER_ID`) and
+`saturate(1.16)`. Both drop off as the spell resolves or is countered, so a card
+at rest on the board, in hand or in the inspector is never filtered.
+
+The operator asked for it (*"a visual distortion shimmer and maybe a slight
+saturation change"*), approved the recording (*"nice. looks solid"*), and, when
+offered a guideline-compliant overlay instead, chose the override: *"Override
+for stack cards: keep the saturation and haze as approved."*
+
+The exception is the one selector `.placed__hover > :is(.placed__tile,
+.placed__back)`, listed by name in the test. Any other filter on a card image
+still fails it. `docs/LICENSING.md` §3.1 records the departure.
+
