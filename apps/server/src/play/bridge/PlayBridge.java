@@ -631,7 +631,7 @@ public final class PlayBridge {
         return null;
     }
 
-    /** The bridge's own facts beside a state frame's packet: what each stack item targets on the stack, and the triggers still to go on it. */
+    /** The bridge's own facts beside a state frame's packet: what each stack item targets on the stack, the triggers still to go on it, what resolved abilities left waiting, who made each token, and which creatures can't block. */
     static void addStackFacts(final JsonObject payload) {
         final Game game = liveGame();
         payload.add("stackTargetSpells", stackTargetSpellsJson(game));
@@ -641,6 +641,35 @@ public final class PlayBridge {
         if (effects != null) { payload.add("waitingEffects", effects); }
         final JsonArray tokens = tokenSourcesJson(game);
         if (tokens != null) { payload.add("tokenSources", tokens); }
+        final JsonArray cantBlock = cantBlockJson(game);
+        if (cantBlock != null) { payload.add("cantBlock", cantBlock); }
+    }
+
+    /**
+     * The creatures on a battlefield that can't block: their ids, by Forge's own rule
+     * ({@code CombatUtil.canBlock(Card, true)} — a "can't block" keyword, a {@code CantBlock}
+     * static such as Pacifism's, or "can't block alone" with no other creature). {@code nextTurn}
+     * leaves tapped and phased-out out of it: the fact is the creature's own restriction, not its
+     * state this turn. Never on the view: {@code CardView} has no property for it. A full snapshot
+     * each time.
+     *
+     * <p>Null when the battlefields cannot be read (the game thread moved them under the read): the
+     * frame then omits the field and the client keeps what it had.
+     */
+    static JsonArray cantBlockJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                for (final forge.game.card.Card c : p.getCreaturesInPlay()) {
+                    if (!forge.game.combat.CombatUtil.canBlock(c, true)) { out.add(c.getId()); }
+                }
+            }
+            return out;
+        } catch (final RuntimeException e) {
+            System.err.println("[bridge] cantBlock: could not read the battlefields (" + e + ")");
+            return null;
+        }
     }
 
     /**

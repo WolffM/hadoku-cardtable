@@ -2515,6 +2515,30 @@ describe('stackTargetSpells (wave 49 §A) — the bridge’s own wire fact', () 
   });
 });
 
+describe('cantBlock — the bridge’s own wire fact', () => {
+  function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload },
+    });
+  }
+
+  it('folds onto LiveMatch.cantBlock and onto the creature’s own BoardCard, and a delta without it keeps it', async () => {
+    const { s, m } = await fullGame();
+    expect(m.cantBlock.size, 'empty before any frame carries it').toBe(0);
+    const id = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+    await sendAndApply(s, m, [applyDeltaWith({ cantBlock: [id] })]);
+    expect([...m.cantBlock]).toEqual([id]);
+    expect(m.view!.players.flatMap((p) => p.battlefield).filter((c) => c.cantBlock === true).map((c) => c.id)).toEqual([id]);
+    await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
+    expect([...m.cantBlock]).toEqual([id]);
+    await sendAndApply(s, m, [applyDeltaWith({ cantBlock: [] })]);
+    expect(m.view!.players.flatMap((p) => p.battlefield).some((c) => c.cantBlock === true)).toBe(false);
+  });
+});
+
 describe('full control, restored after a refresh', () => {
   /*
    * `cursor` is seq 1 with no frames in it, which the contract allows and the

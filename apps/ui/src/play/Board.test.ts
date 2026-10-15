@@ -3379,6 +3379,25 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent(?!-)/);
   });
 
+  it('a creature that can’t block wears its own corner mark — a struck shield, said in words — and keeps it when it turns', () => {
+    const { container } = renderBoard(withState({ cantBlock: true, summoningSick: true }));
+    const marks = [...card(container).querySelectorAll<HTMLElement>(':scope > .board-card__marks > .board-card__mark')];
+    expect(marks.map((m) => m.dataset.mark), 'in the fixed order').toEqual(['sick', 'cantBlock']);
+    const mark = marks[1]!;
+    expect(mark.querySelector('svg.board-card__mark-art path')?.getAttribute('d'), 'drawn, and not the blocking shield').not.toBe(
+      renderBoard(withState({ blocking: true })).container.querySelector('[data-card-id="21"] [data-mark="blocking"] path')?.getAttribute('d'),
+    );
+    expect(mark.textContent, 'the word, for anything that cannot see it').toBe("can't block");
+    expect(mark.dataset.tip).toBe("Can't block");
+    cleanup();
+    // Tapped, the mark is still a child of the card the quarter turn is applied to, so it turns with it.
+    const turned = renderBoard(withState({ cantBlock: true, tapped: true })).container;
+    expect(card(turned).hasAttribute('data-tapped')).toBe(true);
+    expect(card(turned).querySelector(':scope > .board-card__marks > [data-mark="cantBlock"]'), 'on the turned card').not.toBeNull();
+    cleanup();
+    expect(renderBoard(withState({})).container.querySelector('[data-mark="cantBlock"]'), 'a creature that can block wears none').toBeNull();
+  });
+
   /**
    * R15 (wave 53 T), the operator, Playtest 9: *"cards like 'Magus of the
    * moon' and 'Urborg tomb of yawgmoth' change the types of cards … put one

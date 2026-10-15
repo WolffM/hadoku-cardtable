@@ -732,6 +732,16 @@ export const TokenSourcesSchema = z.array(z.tuple([JavaInt, JavaInt]));
 
 export type TokenSources = z.infer<typeof TokenSourcesSchema>;
 
+/**
+ * The bridge's fifth addition beside the packet: the ids of the creatures on a battlefield that
+ * can't block (`PlayBridge.java`'s `cantBlockJson`, Forge's own `CombatUtil.canBlock(card, true)`:
+ * the creature's restriction, not whether it is tapped) — the view itself never says. A full
+ * snapshot each time.
+ */
+export const CantBlockSchema = z.array(JavaInt);
+
+export type CantBlock = z.infer<typeof CantBlockSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -751,6 +761,7 @@ export const SetGameViewSchema = z.strictObject({
     pendingTriggers: PendingTriggersSchema.optional(),
     waitingEffects: WaitingEffectsSchema.optional(),
     tokenSources: TokenSourcesSchema.optional(),
+    cantBlock: CantBlockSchema.optional(),
   }),
 });
 
@@ -785,6 +796,7 @@ export const ApplyDeltaSchema = z.strictObject({
     pendingTriggers: PendingTriggersSchema.optional(),
     waitingEffects: WaitingEffectsSchema.optional(),
     tokenSources: TokenSourcesSchema.optional(),
+    cantBlock: CantBlockSchema.optional(),
   }),
 });
 

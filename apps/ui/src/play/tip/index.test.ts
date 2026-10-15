@@ -75,6 +75,7 @@ describe('words', () => {
   it('names each corner mark', () => {
     expect(MARK_TIP.sick).toMatch(/^Summoning sick/);
     expect(MARK_TIP.blocking).toBe('Blocking');
+    expect(MARK_TIP.cantBlock).toBe("Can't block");
   });
 
   it('says what a granted keyword does', () => {

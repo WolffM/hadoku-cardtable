@@ -1157,6 +1157,25 @@ describe('waiting effects — what a resolved ability left on its source (the br
   });
 });
 
+describe('can’t block — the creatures Forge says can’t block (the bridge’s cantBlock)', () => {
+  it('marks the battlefield cards it names, on either side of the table, and nothing in a hand', () => {
+    const plain = adapt(baseState());
+    const me = plain.players.find((p) => p.isViewer)!;
+    const them = plain.players.find((p) => !p.isViewer)!;
+    const mine = me.battlefield[0]!.id;
+    const theirs = them.battlefield[0]!.id;
+    const handCard = me.hand![0]!.id;
+    const view = toBoardView(baseState(), 27, { viewerPlayerId: fixture.viewerPlayerId, cantBlock: new Set([mine, theirs, handCard]) });
+    const all = view.players.flatMap((p) => p.battlefield);
+    expect(all.filter((c) => c.cantBlock === true).map((c) => c.id).sort()).toEqual([mine, theirs].sort());
+    expect(view.players.find((p) => p.isViewer)!.hand!.every((c) => c.cantBlock === undefined), 'a hand card wears none').toBe(true);
+  });
+
+  it('with none (the fixture path’s own default) no card carries the key', () => {
+    for (const p of adapt(baseState()).players) for (const c of p.battlefield) expect(c).not.toHaveProperty('cantBlock');
+  });
+});
+
 /*
  * Emblems — the operator, 2026-10-14. The shape is the bridge's own, read off a real Forge game
  * (`e2e/em-emblems.spec.ts`'s red run, Sorin, Lord of Innistrad's -2): an `EFFECT` card with

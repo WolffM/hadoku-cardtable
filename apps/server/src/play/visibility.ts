@@ -169,11 +169,14 @@ export type WaitingEffects = readonly { source: number; text: string; kind: 'tri
 /** `PlayBridge.java`'s `tokenSources` — `packages/forge-wire/src/tier-c.ts`'s `TokenSourcesSchema`: `[tokenId, sourceId]`. */
 export type TokenSources = readonly (readonly [number, number])[];
 
+/** `PlayBridge.java`'s `cantBlock` — `packages/forge-wire/src/tier-c.ts`'s `CantBlockSchema`: battlefield creature ids. */
+export type CantBlock = readonly number[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -780,10 +783,20 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	}
 
 	/** Which card made each token, for the sources this seat may see: the pair names that card. */
-	function tokensSeen(tokens: TokenSources | undefined): { tokenSources?: TokenSources } {
+	function tokensSeen(tokens: TokenSources | undefined): { tokenSources?: TokenSources; cantBlock?: CantBlock } {
 		if (tokens === undefined) return {};
 		const zones = indexZones(raw);
 		return { tokenSources: tokens.filter(([, source]) => cardVisibility(raw, zones, source, who) === 'full') };
+	}
+
+	/**
+	 * The creatures that can't block, for the cards this seat is sent at all: a battlefield creature
+	 * is public, and a face-down one's restriction is its face-down card's, so it reads as itself.
+	 */
+	function cantBlockSeen(ids: CantBlock | undefined): { cantBlock?: CantBlock } {
+		if (ids === undefined) return {};
+		const zones = indexZones(raw);
+		return { cantBlock: ids.filter((id) => cardVisibility(raw, zones, id, who) !== 'hidden') };
 	}
 
 	return {
@@ -832,6 +845,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
+							...cantBlockSeen(frame.payload.cantBlock),
 						},
 					};
 				}
@@ -847,6 +861,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
+							...cantBlockSeen(frame.payload.cantBlock),
 						},
 					};
 			}

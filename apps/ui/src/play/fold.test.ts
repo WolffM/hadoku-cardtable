@@ -141,6 +141,16 @@ describe('stackTargetSpells (wave 49 §A)', () => {
   });
 });
 
+describe('cantBlock', () => {
+  it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
+    expect(foldPackets([opening!]).cantBlock.size).toBe(0);
+    const first = { ...opening!, cantBlock: [87, 88] };
+    expect([...foldPackets([first, { ...delta!, cantBlock: [91] }]).cantBlock]).toEqual([91]);
+    expect([...foldPackets([first, delta!]).cantBlock]).toEqual([87, 88]);
+    expect(foldPackets([first, { ...delta!, cantBlock: [] }]).cantBlock.size).toBe(0);
+  });
+});
+
 describe('mana costs', () => {
   it('reads ManaCost.serialize output into our pip tokens', () => {
     expect(manaCostTokens('3\u0006BLUE\u0006BLUE\u0006BLACK\u0006BLACK')).toEqual({

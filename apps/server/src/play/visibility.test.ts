@@ -387,6 +387,36 @@ describe('waitingEffects', () => {
 	});
 });
 
+describe('cantBlock', () => {
+	it('keeps the battlefield creatures every seat is sent, drops a card one seat may not see, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const cantBlock = [onField, inTheirHand];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, cantBlock } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.cantBlock).toEqual([onField]);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, cantBlock },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.cantBlock).toEqual([onField, inTheirHand]);
+	});
+
+	it('leaves the field off a frame that carried none', () => {
+		const gameView = Object.fromEntries(fold(fixtureFrames()));
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		expect('cantBlock' in out.payload).toBe(false);
+	});
+});
+
 describe('a face-down permanent (real battlefield card, turned face down)', () => {
 	it('shows the table its face-down face and nothing of the card underneath; its controller sees it all', () => {
 		const frames = fixtureFrames();

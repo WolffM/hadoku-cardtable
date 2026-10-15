@@ -1990,7 +1990,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
-type StateMark = 'sick' | 'blocking';
+type StateMark = 'sick' | 'cantBlock' | 'blocking';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
@@ -2000,12 +2000,16 @@ type StateMark = 'sick' | 'blocking';
 const MARK_ART: Readonly<Record<StateMark, string>> = {
   /* A crescent: this one is asleep. */
   sick: 'M10.6 2.2a6 6 0 1 0 3.2 9.9A7 7 0 0 1 10.6 2.2Z',
+  /* The shield, hollow and struck through: this one can't be in the way. */
+  cantBlock:
+    'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z M8 3.3L4.2 4.7V7.9c0 2.3 1.6 4.1 3.8 4.8 2.2-.7 3.8-2.5 3.8-4.8V4.7Z M1.4 13.5L13.5 1.4l1.1 1.1L2.5 14.6Z',
   /* A shield: this one is in the way. */
   blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
 };
 
 const MARK_WORD: Readonly<Record<StateMark, string>> = {
   sick: 'summoning sick',
+  cantBlock: "can't block",
   blocking: 'blocking',
 };
 
@@ -2025,6 +2029,7 @@ const MARK_WORD: Readonly<Record<StateMark, string>> = {
 function StateMarks({ entry }: { entry: BoardCard }) {
   const marks: StateMark[] = [];
   if (entry.summoningSick) marks.push('sick');
+  if (entry.cantBlock === true) marks.push('cantBlock');
   if (entry.blocking) marks.push('blocking');
   if (marks.length === 0) return null;
   return (

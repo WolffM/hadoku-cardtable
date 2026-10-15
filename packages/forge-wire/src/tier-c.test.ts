@@ -21,6 +21,7 @@ import type { z } from 'zod';
 
 import {
   ApplyDeltaSchema,
+  CantBlockSchema,
   DECLARED_TYPE_SCHEMAS,
   DELTA_OBJECT_TYPES,
   DeltaPacketSchema,
@@ -499,5 +500,26 @@ describe('Tier C — stackTargetSpells (wave 49 §A)', () => {
       payload: { packet: DELTA.packet, stackTargetSpells: [[50, 49]] },
     };
     expect(ApplyDeltaSchema.safeParse(deltaWithField).success).toBe(true);
+  });
+});
+
+describe('Tier C — cantBlock', () => {
+  it('accepts a list of card ids and rejects anything else', () => {
+    expect(CantBlockSchema.safeParse([]).success).toBe(true);
+    expect(CantBlockSchema.safeParse([101, 102]).success).toBe(true);
+    expect(CantBlockSchema.safeParse(['101']).success).toBe(false);
+    expect(CantBlockSchema.safeParse([[101, 102]]).success).toBe(false);
+  });
+
+  it('is optional on setGameView and applyDelta, and carried when present', () => {
+    const view = SetGameViewSchema.safeParse({
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, cantBlock: [101] },
+    });
+    expect(view.success && view.data.payload.cantBlock).toEqual([101]);
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, cantBlock: [101] } });
+    expect(delta.success && delta.data.payload.cantBlock).toEqual([101]);
+    expect(ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet } }).success).toBe(true);
   });
 });

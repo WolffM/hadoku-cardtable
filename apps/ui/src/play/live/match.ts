@@ -705,6 +705,8 @@ export interface LiveMatch {
   waitingEffects: WaitingEffects;
   /** Which card made each token on a battlefield (`../fold.ts`'s `tokenSources`): a created token arrives from it. */
   tokenSources: ReadonlyMap<number, number>;
+  /** The battlefield creatures that can't block (`../fold.ts`'s `cantBlock`), drawn as a mark on each. */
+  cantBlock: ReadonlySet<number>;
   /**
    * How many identical triggers or copies of one spell still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
@@ -966,6 +968,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     pendingTriggers: [],
     waitingEffects: [],
     tokenSources: new Map(),
+    cantBlock: new Set(),
     promptTargetMore: 0,
     sameTarget: false,
     avatarByPlayerId: null,
@@ -2538,6 +2541,7 @@ function statePacket(match: LiveMatch): WirePacket & {
   pendingTriggers: PendingTriggers;
   waitingEffects: WaitingEffects;
   tokenSources: readonly (readonly [number, number])[];
+  cantBlock: readonly number[];
 } {
   return {
     seq: match.forgeSeq,
@@ -2555,6 +2559,7 @@ function statePacket(match: LiveMatch): WirePacket & {
     pendingTriggers: match.pendingTriggers,
     waitingEffects: match.waitingEffects,
     tokenSources: [...match.tokenSources],
+    cantBlock: [...match.cantBlock],
   };
 }
 
@@ -2571,7 +2576,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock } = frame.payload;
       packets = [
         {
           seq: sequenceNumber,
@@ -2584,12 +2589,13 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
           pendingTriggers,
           waitingEffects,
           tokenSources,
+          cantBlock,
         },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources } = frame.payload;
-      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources });
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock } = frame.payload;
+      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock });
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2612,6 +2618,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.pendingTriggers = folded.pendingTriggers;
   match.waitingEffects = folded.waitingEffects;
   match.tokenSources = folded.tokenSources;
+  match.cantBlock = folded.cantBlock;
   redraw(match);
 }
 
@@ -2631,6 +2638,7 @@ function redraw(match: LiveMatch): void {
           pendingTriggers: match.pendingTriggers,
           waitingEffects: match.waitingEffects,
           tokenSources: match.tokenSources,
+          cantBlock: match.cantBlock,
           promptCard: match.promptCard,
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
@@ -2954,6 +2962,7 @@ function discardLocal(match: LiveMatch): void {
   match.pendingTriggers = [];
   match.waitingEffects = [];
   match.tokenSources = new Map();
+  match.cantBlock = new Set();
   match.promptTargetMore = 0;
   match.sameTarget = false;
   match.avatarByPlayerId = null;
