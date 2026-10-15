@@ -353,3 +353,91 @@ test(
     }
   },
 );
+
+/*
+ * The operator, 2026-10-15: *"let's show a 'crossed swords' pill icon on top of cards that have been
+ * selected as attackers."* Forge's own `Attacking` is set by the click that declares a creature in
+ * `InputAttack`, so the mark is on BOTH screens from that click, comes off when the creature is called
+ * back (a second click), and is gone once combat has ended. On the turned attacker it is the `<li>`'s
+ * own, so it sits upright on the card's top-left corner while the art inside turns.
+ */
+test(titled('a selected attacker wears the crossed-swords mark on both screens, upright on its turned card, off when called back and after combat'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+
+  const stack = await startPlayStack(forge);
+  let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;
+  try {
+    seated = await startScenarioMatch(browser, stack, 'w46-b-planeswalker');
+    const { alice, bob } = seated;
+    const pages = [alice.page, bob.page] as const;
+
+    const memnite = Number(
+      await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').first().getAttribute('data-board-card'),
+    );
+    expect(Number.isInteger(memnite), 'Memnite is on alice’s own battlefield').toBe(true);
+    const swords = (page: Page): Locator => page.locator(`li.board-card[data-board-card="${memnite}"] > .board-card__marks > [data-mark="attacking"]`);
+
+    /** The mark and its card, read in one pass on `page`: whether it is drawn, upright, and on the card's own top-left. */
+    const read = (page: Page) =>
+      page.locator(`li.board-card[data-board-card="${memnite}"]`).evaluate((li) => {
+        const mark = li.querySelector<HTMLElement>(':scope > .board-card__marks > [data-mark="attacking"]');
+        const art = li.querySelector(':scope > .board-card__face > .card');
+        const card = li.getBoundingClientRect();
+        const m = mark?.getBoundingClientRect() ?? null;
+        return {
+          attacking: li.getAttribute('data-attacking'),
+          mark: mark !== null,
+          tip: mark?.dataset.tip ?? null,
+          artTransform: art === null ? null : getComputedStyle(art).transform,
+          marksTransform: mark === null ? null : getComputedStyle(mark.parentElement!).transform,
+          markTransform: mark === null ? null : getComputedStyle(mark).transform,
+          card: { left: Math.round(card.left), top: Math.round(card.top), width: Math.round(card.width), height: Math.round(card.height) },
+          markBox: m === null ? null : { left: Math.round(m.left), top: Math.round(m.top), width: Math.round(m.width), height: Math.round(m.height) },
+        };
+      });
+    const log = async (step: string): Promise<void> => {
+      for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) console.log(`[at] ${step} ${who} ${JSON.stringify(await read(page))}`);
+    };
+
+    await passToDeclareAttackers(alice.page);
+    const attacker = alice.page.locator(`[data-board-card="${memnite}"]`);
+    await expect(attacker, 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
+    for (const page of pages) await expect(swords(page), 'no mark before it is selected').toHaveCount(0);
+
+    // Selected: Forge's own `Attacking`, and the mark, on both screens.
+    await attacker.locator('button').first().click();
+    for (const page of pages) await expect(swords(page), 'the click that selects it marks it, on both screens').toHaveCount(1, { timeout: 10_000 });
+    await log('selected');
+    for (const page of pages) {
+      const r = await read(page);
+      expect(r.attacking, 'it is Forge’s declared attacker').toBe('true');
+      expect(r.tip).toBe('Attacking');
+      expect(r.artTransform, 'the card is turned a quarter').not.toBe('none');
+      expect(r.marksTransform, 'the mark is not turned with it').toBe('none');
+      expect(r.markTransform, 'nor turned on its own').toBe('none');
+      expect(r.markBox, 'the mark is drawn').not.toBeNull();
+      expect(r.markBox!.left - r.card.left, 'on the turned card’s own left edge').toBeLessThanOrEqual(4);
+      expect(r.markBox!.top - r.card.top, 'on the turned card’s own top edge').toBeLessThanOrEqual(4);
+      expect(r.markBox!.top - r.card.top, 'not hanging above it').toBeGreaterThanOrEqual(0);
+    }
+
+    // Called back: a second click undeclares it, and the mark goes with it on both screens.
+    await attacker.locator('button').first().click();
+    for (const page of pages) await expect(swords(page), 'calling it back takes the mark off, on both screens').toHaveCount(0, { timeout: 10_000 });
+    await log('called-back');
+
+    // Selected again, then combat runs out: the mark stays through combat and is gone by Main 2.
+    await expect(attacker, 'it is offered again').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
+    await attacker.locator('button').first().click();
+    for (const page of pages) await expect(swords(page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
+    await passUntilPhase(pages, /^MAIN2$/, 30_000);
+    for (const page of pages) await expect(swords(page), 'combat has ended: the mark is gone').toHaveCount(0, { timeout: 10_000 });
+    await log('main2');
+  } finally {
+    await seated?.alice.context.close();
+    await seated?.bob.context.close();
+    await stack.stop();
+  }
+});
