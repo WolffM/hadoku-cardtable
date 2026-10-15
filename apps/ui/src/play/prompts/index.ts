@@ -27,6 +27,7 @@ import {
 import { ConfirmAskPrompt, ShowInputDialogPrompt, ShowOptionDialogPrompt } from './DialogPrompts.tsx';
 import { ManipulateCardListPrompt } from './ManipulateCardListPrompt.tsx';
 import { OrderPrompt } from './OrderPrompt.tsx';
+import { AskSourceContext } from './PromptShell.tsx';
 import { SideboardPrompt } from './SideboardPrompt.tsx';
 import { OpenZonesPrompt, TempShowZonesPrompt } from './ZonePrompts.tsx';
 import type { PromptLookup } from './lookup.ts';
@@ -78,7 +79,9 @@ export interface AnyPromptProps {
  */
 export function PromptFor(props: AnyPromptProps) {
   const component = PROMPT_COMPONENTS[props.ask.method] as unknown as ComponentType<AnyPromptProps>;
-  return createElement(component, props);
+  const { source } = props.ask;
+  const sheet = createElement(component, props);
+  return source === undefined ? sheet : createElement(AskSourceContext.Provider, { value: { source, lookup: props.lookup } }, sheet);
 }
 
 // T8: `checkedReply`, `PromptAnswerError`, `ReplyOf`, `EMPTY_LOOKUP`,

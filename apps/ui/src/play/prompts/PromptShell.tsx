@@ -14,12 +14,13 @@
  * cards"* — a tutor choice is the board's card look, never a text list).
  */
 
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { createContext, useContext, useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { PlayerMark } from '../marks.tsx';
 import type { DraftCard } from '@hadoku/shared';
+import type { AskSource } from '@hadoku/forge-wire';
 
 import './prompts.css';
 import { plainRulesText, type PromptLookup } from './lookup.ts';
@@ -49,6 +50,16 @@ export interface PromptShellProps {
   face?: ReactNode;
   children?: ReactNode;
 }
+
+/**
+ * The card the open ask was raised on behalf of, and Forge's own text for that effect (the
+ * bridge's `askSource`: a replacement running, or the stack item resolving), with the lookup that
+ * names it. `PromptFor` provides it for every ask, so every sheet draws it the same way without
+ * each prompt passing it on: the card as the head's `face` (`promptThumb`) when the prompt has no
+ * face of its own, and the effect's text under the title. The operator, 2026-10-15, on Cavern of
+ * Souls' creature-type list: *"it should show the effect text of cavern of souls"*.
+ */
+export const AskSourceContext = createContext<{ source: AskSource; lookup: PromptLookup } | null>(null);
 
 /**
  * The title, broken where Forge already broke it.
@@ -101,18 +112,26 @@ export function PromptShell({
   face,
   children,
 }: PromptShellProps) {
+  const asked = useContext(AskSourceContext);
+  const head = face ?? (asked === null ? undefined : promptThumb(asked.lookup, asked.source.card, 'prompt-source'));
+  const effect = asked === null || asked.source.text === '' ? null : (
+    <p className="prompt__source" data-testid="prompt-source-text">
+      <RulesText text={asked.source.text} />
+    </p>
+  );
   return (
     <section className="prompt" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
-      {face === undefined ? (
+      {head === undefined ? (
         <>
           <PromptTitle title={title} />
           {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
         </>
       ) : (
         <div className="prompt__head">
-          {face}
+          {head}
           <div className="prompt__head-text">
             <PromptTitle title={title} />
+            {effect}
             {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
           </div>
         </div>

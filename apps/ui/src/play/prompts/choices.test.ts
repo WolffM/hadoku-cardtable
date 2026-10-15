@@ -16,10 +16,13 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { createElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { parseServerFrame } from '@hadoku/forge-wire';
 
 import { askFor } from './fixtures.ts';
+import { PromptFor, type AskOf } from './index.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import { nameFromForgeLabel } from './PromptShell.tsx';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
@@ -749,5 +752,44 @@ describe('a double click picks a row and answers', () => {
         { kind: 'card', id: 2 },
       ],
     ]);
+  });
+});
+
+/*
+ * The operator, 2026-10-15, on Cavern of Souls' creature-type list: "why does it just say
+ * 'Choose 1' it should show the effect text of cavern of souls". The ask carries the card it was
+ * raised for and Forge's text for the effect (`source`, the bridge's `askSource`); every sheet
+ * draws them in its head, through `PromptFor`.
+ */
+describe('an ask raised on behalf of a card', () => {
+  const ask = {
+    kind: 'ask',
+    callId: 's0-36',
+    method: 'getChoices',
+    source: { card: { kind: 'card', id: POOL_ID_BASE }, text: 'As Cavern of Souls enters, choose a creature type.' },
+    message: 'Choose a creature type',
+    min: 1,
+    max: 1,
+    choices: [
+      { key: 'c0', label: 'Goblin', ref: null },
+      { key: 'c1', label: 'Human', ref: null },
+    ],
+    selected: [],
+  } as const;
+
+  it('draws the card and the effect text beside the question', () => {
+    const { getByTestId, getByRole } = render(createElement(PromptFor, { ask: parseServerFrame(ask) as AskOf<'getChoices'>, lookup: poolLookup, onAnswer: () => {} }));
+    const face = getByTestId('prompt-source');
+    expect(face.getAttribute('data-card-id')).toBe(String(POOL_ID_BASE));
+    expect(face.textContent, 'the card it comes from, by name').toContain(POOL[0]!.name);
+    expect(getByTestId('prompt-source-text').textContent).toBe('As Cavern of Souls enters, choose a creature type.');
+    expect(getByRole('heading').textContent, 'Forge’s question is still the title').toBe('Choose a creature type');
+  });
+
+  it('draws neither for an ask with no source', () => {
+    const { source: _, ...bare } = ask;
+    const { queryByTestId } = render(createElement(PromptFor, { ask: parseServerFrame(bare) as AskOf<'getChoices'>, lookup: poolLookup, onAnswer: () => {} }));
+    expect(queryByTestId('prompt-source')).toBeNull();
+    expect(queryByTestId('prompt-source-text')).toBeNull();
   });
 });

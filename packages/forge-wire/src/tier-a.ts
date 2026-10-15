@@ -34,7 +34,7 @@
 import { z } from 'zod';
 
 import { GameLogEntryTypeSchema } from './events/common.ts';
-import { JavaByteSchema, NextGameDecisionSchema, SkinPropSchema } from './refs.ts';
+import { AskSourceSchema, JavaByteSchema, NextGameDecisionSchema, SkinPropSchema } from './refs.ts';
 
 /** The 16 Tier A method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_A_METHODS = [
@@ -164,6 +164,7 @@ export const ShowErrorDialogSchema = z.strictObject({
 export const ShowConfirmDialogSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('showConfirmDialog'),
   message: z.string(),
   title: z.string(),
@@ -186,6 +187,7 @@ export const ShowConfirmDialogReplySchema = z.boolean();
 export const ShowOptionDialogSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('showOptionDialog'),
   message: z.string(),
   title: z.string(),
@@ -205,6 +207,7 @@ export const ShowOptionDialogReplySchema = z.number().int();
 export const ShowInputDialogSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('showInputDialog'),
   message: z.string(),
   title: z.string(),

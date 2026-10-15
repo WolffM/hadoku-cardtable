@@ -330,6 +330,14 @@ interface Parked {
   drawnMidGlide: number | null;
 }
 
+/**
+ * How a park ended, for its `park` client event: it `landed` in its row; the lift came off because
+ * Forge `settled` it (resolved, or back home after leaving), put it somewhere `elsewhere` than a
+ * battlefield, or `offered` it as an answer to a new decision; it `floated-unanswered` home after
+ * the clock ran out on silence; a `cancel`; a `next-play` taking over; the layer `disposed`.
+ */
+type ParkEnd = 'landed' | 'settled' | 'elsewhere' | 'offered' | 'floated-unanswered' | 'cancel' | 'next-play' | 'disposed';
+
 /** Where Forge's state holds the card now: still in the zone it was lifted out of, another zone the board draws, or nowhere it draws (mid-cast). */
 function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn' | 'limbo' {
   if (castZoneOf(match, id) === home) return 'home';
@@ -341,12 +349,21 @@ function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn'
   return 'limbo';
 }
 
-/** The card an open ask names as its subject, or null. */
-function cardAsked(ask: LiveAsk): number | null {
-  if ('hostCard' in ask) return ask.hostCard.id;
-  if (ask.method === 'getChoices') return ask.modes?.card.id ?? null;
-  if (ask.method === 'order') return ask.referenceCard?.id ?? null;
-  return null;
+/** Forge has a decision open for this seat: a question, a selection, or a payment. */
+function decisionOpen(match: LiveMatch): boolean {
+  return match.asks.length > 0 || match.selectables !== null || payingMana(match);
+}
+
+/** The open ask offers the card `id` itself as one of its answers. */
+function askOffers(ask: LiveAsk, id: number): boolean {
+  if (ask.method === 'getChoices') return ask.choices.some((c) => c.ref?.kind === 'card' && c.ref.id === id);
+  if (ask.method === 'chooseSingleEntityForEffect' || ask.method === 'chooseEntitiesForEffect') return ask.optionList.some((r) => r.kind === 'card' && r.id === id);
+  return false;
+}
+
+/** The open decision — a selection or a question — offers the card `id` as something to choose. */
+function offersCard(match: LiveMatch, id: number): boolean {
+  return match.selectables?.cards.has(id) === true || match.asks.some((ask) => askOffers(ask, id));
 }
 
 /** Forge's state has the card on a battlefield — the one zone that draws an element per card for it to land on. */
@@ -749,7 +766,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     // An earlier card still on its way is on its own from here: one park at a time.
-    if (parked !== null) releaseParked(endPark()!, false);
+    if (parked !== null) releaseParked(endPark('next-play')!, false);
     // The play, or the cast: it goes out now, and the card parks where it was
     // let go — a permanent over the viewer's own battlefield, a card that
     // needs a target wherever it was released outside the hand.
@@ -843,10 +860,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (p.drawnMidGlide !== null && parked === p) handOverToStack(p, p.drawnMidGlide);
   }
 
-  /** `parked` is over, however it ended: its clock stops and the stack draws everything again. */
-  function endPark(): Parked | null {
+  /**
+   * `parked` is over, however it ended (`how`, reported as a `park` client event with how long it
+   * waited and the question open at its end, if any): its clock stops and the stack draws
+   * everything again.
+   */
+  function endPark(how: ParkEnd): Parked | null {
     const p = parked;
     parked = null;
+    if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match) });
     if (glideTimer !== null) clearTimeout(glideTimer);
     glideTimer = null;
     if (p !== null && p.gliding) {
@@ -863,44 +885,31 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * `PARK_UNANSWERED_MS` after a park: if Forge has shown no sign of it, the
    * card goes back.
    *
-   * "A sign of it" is a question ABOUT THE CARD — Forge's prompt naming it, or
-   * an ask hosted by it — or a payment, which is its own cost. Any other open
-   * question is not one: CI run 37539089085 (2026-10-06) parked a land Forge
-   * never played, the cleanup discard opened before this ran, and the early
-   * return on "a selection is open" left the land hidden in the hand for the
-   * rest of the game, with the discard unable to click it. So an unrelated
-   * question releases the card the same as silence does.
+   * Any decision open for this seat — a question, a selection, a payment — is
+   * a sign: the operator, 2026-10-15, on Cavern of Souls floating home under
+   * its own creature-type question (an "As … enters" replacement, asked while
+   * the land is still in the hand): *"cards should never time out and return
+   * to hand while decisions like this are on the screen"*. So the clock only
+   * runs out on silence. A decision that offers the card ITSELF as an answer
+   * (a cleanup discard, CI run 37539089085) ends the park the moment it opens,
+   * in `settleParkedIfResolved` — the card goes back to be chosen, not when
+   * the clock gives up.
    */
   function onParkUnanswered(): void {
     unansweredTimer = null;
     if (!live || parked === null) return;
-    // Still a question about the card, or the card is not in its own zone
-    // right now (in flight, or on the table with its element not yet drawn):
-    // look again once that has had its time. A card that left and came BACK
-    // (Forge took the play and gave it up) is home, and is let go like any
-    // other it never took — the clock keeps running until the park ends one
-    // way or another (table-fit 2026-10-07: such a land stayed hidden in the
-    // hand through the whole cleanup discard).
-    if (whereIs(match, parked.source, parked.zone) !== 'home' || askedAbout(parked.source)) {
+    // A decision open, or the card not in its own zone right now (in flight,
+    // or on the table with its element not yet drawn): look again once that
+    // has had its time. A card that left and came BACK (Forge took the play
+    // and gave it up) is home, and is let go like any other it never took —
+    // the clock keeps running until the park ends one way or another.
+    if (whereIs(match, parked.source, parked.zone) !== 'home' || decisionOpen(match)) {
       unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
       return;
     }
-    const p = endPark()!;
+    const p = endPark('floated-unanswered')!;
     releaseParked(p, true);
     paint();
-  }
-
-  /**
-   * Forge is asking this seat something about `cardId`, or taking its payment.
-   * A cast asks some of its questions while the card is still in the hand —
-   * which ability, its modes (`modes.card`), its optional costs (an `order`
-   * whose `referenceCard` it is) — and each names the card, so a person
-   * taking their time over one keeps it in the air.
-   */
-  function askedAbout(cardId: number): boolean {
-    if (payingMana(match)) return true;
-    if (match.promptCard === cardId && (match.selectables !== null || match.asks.length > 0 || stackAsk(match) !== null)) return true;
-    return match.asks.some((ask) => cardAsked(ask) === cardId);
   }
 
   /**
@@ -995,7 +1004,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // battlefield: there is nothing to cancel, and floating it back to a
       // hand it is about to leave would show something that is not true.
       if (parked.played && !asking) return;
-      const p = endPark()!;
+      const p = endPark('cancel')!;
       if (asking) pressButton(match, 'cancel');
       releaseParked(p, true);
       paint();
@@ -1036,14 +1045,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // play is over whatever Forge asks next — an enters trigger's target is
       // a new question about a card already on the table.
       if (!onBattlefield(match, parked.source)) {
-        releaseParked(endPark()!, false);
+        releaseParked(endPark('elsewhere')!, false);
         return;
       }
       // The row's own element is what it lands on, so this waits for React to
       // have drawn it; the hand's element, still lifted, is not it.
       const arrived = cardBox(canvas, parked.source);
       if (!(arrived instanceof HTMLElement) || arrived.closest('[data-zone="battlefield"]') === null) return;
-      const p = endPark()!;
+      const p = endPark('landed')!;
       if (p.ghost === null || options.motion?.() !== true) {
         reportHandover(options.report, 'landing', canvas, casterFacts(p, p.ghost === null ? 'no-ghost' : 'motion-off', drawnCentreOf(p.ghost), drawnCentreOf(arrived)));
         releaseParked(p, false);
@@ -1088,19 +1097,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
       });
       return;
     }
-    // Forge offers the parked card ITSELF in a selection — a cleanup discard,
-    // a discard cost — while it is still in its own zone: the play is over and
-    // the card has a new question about it, so it goes home now, not when the
-    // clock gives up (table-fit 2026-10-07: the discard's first offered card
-    // was the land the seat had just put down, hidden at its park point).
-    if (where === 'home' && match.selectables?.cards.has(parked.source) === true) {
-      releaseParked(endPark()!, true);
+    // Forge offers the parked card ITSELF as an answer — a cleanup discard, a
+    // discard cost, a choice among cards — while it is still in its own zone:
+    // the play is over and the card has a new question about it, so it goes
+    // home now (table-fit 2026-10-07: the discard's first offered card was the
+    // land the seat had just put down, hidden at its park point).
+    if (where === 'home' && offersCard(match, parked.source)) {
+      releaseParked(endPark('offered')!, true);
       return;
     }
-    if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
+    if (decisionOpen(match)) return;
     if (match.view?.stack.some((item) => item.sourceCardId === parked!.source)) return;
     if (where === 'limbo' || (where === 'home' && !parked.leftZone)) return;
-    const p = endPark()!;
+    const p = endPark('settled')!;
     releaseParked(p, false);
   }
 
@@ -1638,7 +1647,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if ((drag !== null && drag.lifted) || parked !== null) previewAt(null);
       if (landingFrame !== 0) cancelAnimationFrame(landingFrame);
       landingFrame = 0;
-      endPark();
+      endPark('disposed');
       endTapSweep();
       canvas.removeAttribute(CANVAS_ATTR);
       canvas.removeAttribute('data-dragging');

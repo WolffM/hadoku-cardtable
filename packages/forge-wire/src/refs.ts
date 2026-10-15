@@ -244,6 +244,20 @@ export const ChoiceOptionSchema = z.strictObject({
 export type ChoiceOption = z.infer<typeof ChoiceOptionSchema>;
 
 /**
+ * The card an ask is raised on behalf of, and Forge's own text for that effect: the replacement
+ * running (Cavern of Souls' "As Cavern of Souls enters, choose a creature type."), or the stack
+ * item resolving. Not part of any `IGuiGame` signature — Forge's GUI calls drop the ability — so
+ * the bridge reads it off the live game when it opens the ask (`PlayBridge.java`'s `askSource`),
+ * for every ask alike. Absent when the game names no such card, or when this seat may not see it.
+ */
+export const AskSourceSchema = z.strictObject({
+  card: CardRefSchema,
+  text: z.string(),
+});
+
+export type AskSource = z.infer<typeof AskSourceSchema>;
+
+/**
  * A byte, as Java means it: `useMana(byte color)` (IGameController.java:28)
  * carries `MagicColor`'s bit flags, and Java bytes are signed.
  */

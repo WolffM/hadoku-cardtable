@@ -36,8 +36,12 @@ export const ClientEventSchema = z
      * `effect`: what a view's change was drawn as — a resolution's reveal beat,
      * its hits and the permanents it made arriving (`live/numbers.ts`), with
      * how long each waited, so "it was too instant" is read from the log.
+     * `park`: a played or aimed card's wait over the board ended — how
+     * (landed, floated home unanswered, offered back, …), after how long, and
+     * the decision open at that moment, so "it went back to my hand while the
+     * question was up" is read from the log.
      */
-    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park']),
     data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
   })
   .strict();

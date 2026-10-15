@@ -247,6 +247,21 @@ export function frameGist(frame: unknown): Record<string, unknown> {
 	return gist;
 }
 
+/**
+ * What an ask is about, for its `ask-forwarded` and `ask-answered` lines: the card Forge raised it
+ * for (`source`, the bridge's `askSource`) and the words it was asked in (`title`, whichever of
+ * `title` / `message` / `question` the method has). So "which ask was Cavern's" reads off the log.
+ */
+function askGist(frame: ServerFrame): { source?: number; title?: string } {
+	if (frame.kind !== 'ask') return {};
+	const f = frame as unknown as Record<string, unknown>;
+	const words = [f.title, f.message, f.question].find((w): w is string => typeof w === 'string' && w !== '');
+	return {
+		...(frame.source === undefined ? {} : { source: frame.source.card.id }),
+		...(words === undefined ? {} : { title: words.slice(0, 120) }),
+	};
+}
+
 export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
 
 export interface OpenAsk {
@@ -1704,11 +1719,12 @@ export class Match {
 					return { ok: false, error: 'reply names a card that was not offered' };
 				}
 				this.closeAsk(s, ask.callId);
+				const about = askGist(ask.frame);
 				const fallback = s.unparsed.get(frame.callId);
 				if (fallback !== undefined) {
 					s.unparsed.delete(frame.callId);
 					const result = fallback.answer(frame.result as string[]);
-					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: 'getChoices (fallback for an unparsed ask)', ms: this.now() - ask.sentAt });
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: 'getChoices (fallback for an unparsed ask)', ms: this.now() - ask.sentAt, ...about });
 					this.command({ t: 'reply', seat, callId: frame.callId, result });
 					return { ok: true };
 				}
@@ -1729,6 +1745,7 @@ export class Match {
 						callId: frame.callId,
 						method: 'chooseSingleEntityForEffect (R4 fold of a getChoices discard choice)',
 						ms: this.now() - ask.sentAt,
+						...about,
 					});
 					const chosenKeys = key === undefined ? [] : [key];
 					this.command({ t: 'reply', seat, callId: merge.chooseCallId, result: chosenKeys });
@@ -1750,7 +1767,7 @@ export class Match {
 					const reply = frame.result as { ordered: string[]; rememberDecision: boolean; rest?: string[] };
 					const rest = restOrder(ask.frame, reply);
 					s.restOnTop = rest.length > 1 ? rest : null;
-					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, rest });
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, ...about, rest });
 					this.command({ t: 'reply', seat, callId: frame.callId, result: { ordered: reply.ordered, rememberDecision: reply.rememberDecision } });
 					return { ok: true };
 				}
@@ -1759,7 +1776,7 @@ export class Match {
 				if (frame.method === 'getChoices' && ask.frame.kind === 'ask' && ask.frame.method === 'getChoices' && ask.frame.modes !== undefined) {
 					const first = firstMode(ask.frame, frame.result as string[]);
 					s.modesLeft = first.left;
-					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, modes: frame.result });
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, ...about, modes: frame.result });
 					this.command({ t: 'reply', seat, callId: frame.callId, result: first.result });
 					return { ok: true };
 				}
@@ -1775,6 +1792,7 @@ export class Match {
 					callId: frame.callId,
 					method: frame.method,
 					ms: this.now() - ask.sentAt,
+					...about,
 				});
 				this.command({ t: 'reply', seat, callId: frame.callId, result: frame.result });
 				if (s.staleBar !== null) this.armActWatch(s, 'answer');
@@ -3150,6 +3168,7 @@ export class Match {
 	 */
 	private openAskFrame(s: SeatState, callId: string, method: string, frame: ServerFrame): void {
 		s.asks.set(callId, { callId, method, frame, sentAt: this.now() });
+		this.deps.log({ evt: 'ask-forwarded', matchId: this.id, seat: s.seat, callId, method, ...askGist(frame) });
 		this.send(s, frame);
 		this.checkWaitingOn();
 	}
@@ -3271,6 +3290,7 @@ export class Match {
 			kind: 'ask',
 			callId: choose.callId,
 			method: 'chooseSingleEntityForEffect',
+			...(choose.source === undefined ? {} : { source: choose.source }),
 			title: choose.message,
 			optionList: optionRefs.map((c) => c.ref),
 			delayedReveal: {

@@ -3153,11 +3153,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
 
   /*
    * CI run 37539089085 (2026-10-06): a land Forge never played was still parked
-   * when the cleanup discard opened; the unanswered check saw "a selection is
-   * open" and gave up, so the land stayed hidden in the hand with the discard
-   * unable to click it.
+   * when the cleanup discard opened, and stayed hidden in the hand with the
+   * discard unable to click it. The discard offers the card itself: it goes home
+   * to be chosen.
    */
-  it('a play Forge never answers floats back even when an unrelated question has opened on the hand', async () => {
+  it('a play Forge never answers goes home when a decision offers the card itself', async () => {
     const { s, m, canvas, card, rest } = await play();
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
@@ -3234,6 +3234,66 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await waitFor(() => expect(m.asks).toHaveLength(1));
     await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
+  }, 20_000);
+
+  /*
+   * The operator, 2026-10-15: Cavern of Souls floated home under its own creature-type question, a
+   * `getChoices` over plain words that names no card ("As Cavern of Souls enters, choose a creature
+   * type" — a replacement, asked while the land is still in the hand). "Cards should never time out
+   * and return to hand while decisions like this are on the screen."
+   */
+  it('a play keeps waiting past PARK_UNANSWERED_MS while any question is open, even one that names no card', async () => {
+    const { s, m, canvas, card } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 's0-36',
+        method: 'getChoices',
+        message: 'Choose a creature type',
+        min: 1,
+        max: 1,
+        choices: [
+          { key: 'c0', label: 'Goblin', ref: null },
+          { key: 'c1', label: 'Human', ref: null },
+        ],
+        selected: [],
+      }),
+    );
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS * 2 + 500));
+    expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'and not drawn in the hand').toBe('carried');
+  }, 20_000);
+
+  it('a play keeps waiting past PARK_UNANSWERED_MS while a selection that does not offer it is open', async () => {
+    const { s, m, canvas, card, rest } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    s.send(prompt('Select a card to put on top of your library'));
+    s.send(selectables(rest, 1, 1));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
+    expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
+  }, 20_000);
+
+  it('a play goes home at once when an open question offers the card itself as an answer', async () => {
+    const { s, m, canvas, card } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 's0-40',
+        method: 'getChoices',
+        message: 'Choose a card to discard',
+        min: 1,
+        max: 1,
+        choices: [{ key: 'c0', label: 'Forest', ref: { kind: 'card', id: card } }],
+        selected: [],
+      }),
+    );
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
   }, 20_000);
 
   it('a card Forge stopped offering between the lift and the release is not sent, and floats back', async () => {

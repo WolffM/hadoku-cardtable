@@ -14,7 +14,7 @@
 import { GLIDE_MS } from '../motion.ts';
 import type { Point } from './gestures/types.ts';
 
-export type ReportKind = 'landing' | 'handover' | 'stand-in';
+export type ReportKind = 'landing' | 'handover' | 'stand-in' | 'park';
 export type Report = (kind: ReportKind, data: Record<string, string | number | boolean>) => void;
 
 export interface HandoverFacts {

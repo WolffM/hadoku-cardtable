@@ -173,6 +173,7 @@
 }
 
 .prompt__message,
+.prompt__source,
 .prompt__hint,
 .prompt__reveal {
   margin: 0;

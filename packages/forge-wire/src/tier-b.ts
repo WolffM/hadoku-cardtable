@@ -110,6 +110,7 @@
 import { z } from 'zod';
 
 import {
+  AskSourceSchema,
   CardRefSchema,
   ChoiceOptionSchema,
   DelayedRevealSchema,
@@ -480,6 +481,7 @@ export type SendYieldUpdate = z.infer<typeof SendYieldUpdateSchema>;
 export const TempShowZonesSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('tempShowZones'),
   controller: PlayerRefSchema,
   zonesToUpdate: PlayerZoneUpdatesSchema,
@@ -524,6 +526,7 @@ export type OfferedAbility = z.infer<typeof OfferedAbilitySchema>;
 export const GetAbilityToPlaySchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('getAbilityToPlay'),
   hostCard: CardRefSchema,
   abilities: z.array(OfferedAbilitySchema),
@@ -545,6 +548,7 @@ export const GetAbilityToPlayReplySchema = OfferedAbilitySchema.nullable();
 export const AssignCombatDamageSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('assignCombatDamage'),
   attacker: CardRefSchema,
   blockers: z.array(CardRefSchema),
@@ -586,6 +590,7 @@ const GenericAmountEntrySchema = z.strictObject({
 export const AssignGenericAmountSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('assignGenericAmount'),
   effectSource: CardRefSchema,
   target: z.array(GenericAmountEntrySchema),
@@ -605,6 +610,7 @@ export const AssignGenericAmountReplySchema = z.array(GenericAmountEntrySchema);
 export const ConfirmSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('confirm'),
   card: CardRefSchema.nullable(),
   question: z.string(),
@@ -636,6 +642,7 @@ export const ConfirmReplySchema = z.boolean();
 export const GetChoicesSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('getChoices'),
   message: z.string(),
   min: z.number().int(),
@@ -667,6 +674,7 @@ export const GetChoicesReplySchema = z.array(z.string());
 export const OrderSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('order'),
   title: z.string(),
   top: z.string(),
@@ -695,6 +703,7 @@ export const OrderReplySchema = z.strictObject({
 export const SideboardSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('sideboard'),
   sideboard: CardPoolSchema,
   main: CardPoolSchema,
@@ -712,6 +721,7 @@ export const SideboardReplySchema = z.array(DeckEntrySchema).nullable();
 export const ChooseSingleEntityForEffectSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('chooseSingleEntityForEffect'),
   title: z.string(),
   optionList: z.array(GameEntityRefSchema),
@@ -729,6 +739,7 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
 export const ChooseEntitiesForEffectSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('chooseEntitiesForEffect'),
   title: z.string(),
   optionList: z.array(GameEntityRefSchema),
@@ -747,6 +758,7 @@ export const ChooseEntitiesForEffectReplySchema = z.array(GameEntityRefSchema);
 export const ManipulateCardListSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('manipulateCardList'),
   title: z.string(),
   cards: z.array(CardRefSchema),
@@ -767,6 +779,7 @@ export const ManipulateCardListReplySchema = z.array(CardRefSchema);
 export const OpenZonesSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
+  source: AskSourceSchema.optional(),
   method: z.literal('openZones'),
   controller: PlayerRefSchema,
   zones: z.array(ZoneTypeSchema),

@@ -1214,9 +1214,62 @@ public final class PlayBridge {
             frame.addProperty("kind", "ask");
             frame.addProperty("callId", callId);
             frame.addProperty("method", method);
+            final JsonObject source = askSource();
+            if (source != null) { frame.add("source", source); }
             pending.put(callId, ask);
             broadcastIfWaiting();
             return ask;
+        }
+
+        /**
+         * The card this ask is raised on behalf of, with Forge's own text for the effect —
+         * {@code {card, text}} on every ask ({@code refs.ts}'s {@code AskSourceSchema}), or null.
+         *
+         * <p>Forge's GUI calls drop the ability: {@code PlayerControllerHuman.chooseSomeType(kind, sa, …)}
+         * asks {@code getGui().one(message, types)} with no {@code sa}, so a Cavern of Souls'
+         * creature type arrives as a bare list. What the game is doing while the ask is open says
+         * whose it is, read the way the rest of this bridge reads the live game: its thread is parked
+         * on this ask, so nothing here moves under the read.
+         * <ol>
+         * <li>a replacement effect running ({@code ReplacementHandler.hasRun}, set around
+         *     {@code executeReplacement}): an "As … enters" choice, asked while the card is still in
+         *     the zone it is leaving. Its text is the effect's own description.</li>
+         * <li>the stack item resolving ({@code MagicStack.isResolving}; the item stays on top until it
+         *     has resolved): its stack description.</li>
+         * </ol>
+         * A replacement wins: it is the innermost thing happening (a spell resolving puts a Cavern
+         * onto the battlefield; the question is Cavern's). Null when neither applies, or when this
+         * seat may not see the card.
+         */
+        private JsonObject askSource() {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            if (mine == null) { return null; }
+            forge.game.card.Card card = null;
+            String text = null;
+            try {
+                @SuppressWarnings("unchecked")
+                final Set<forge.game.replacement.ReplacementEffect> running = new java.util.HashSet<>(
+                        (Set<forge.game.replacement.ReplacementEffect>) field(game.getReplacementHandler(), forge.game.replacement.ReplacementHandler.class, "hasRun"));
+                for (final forge.game.replacement.ReplacementEffect re : running) {
+                    if (re.getHostCard() == null) { continue; }
+                    card = re.getHostCard();
+                    text = re.getDescription();
+                    if (card.getController() == mine) { break; }
+                }
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] askSource: could not read the running replacements (" + e + ")");
+            }
+            if (card == null && game.getStack().isResolving() && !game.getStack().isEmpty()) {
+                final SpellAbilityStackInstance top = game.getStack().peek();
+                card = top.getSourceCard();
+                text = top.getStackDescription();
+            }
+            if (card == null || card.isFaceDown() || !card.getView().canBeShownTo(mine.getView())) { return null; }
+            final JsonObject o = new JsonObject();
+            o.add("card", ref("card", card.getId()));
+            o.addProperty("text", str(text));
+            return o;
         }
 
         /**
