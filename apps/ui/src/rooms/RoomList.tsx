@@ -439,7 +439,9 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           value={name}
           maxLength={60}
           placeholder="Friday night"
-          autoComplete="off"
+          // Firefox counts a text field before a password field as the username even with
+          // autocomplete="off"; any other token opts it out of the Manage Passwords dropdown.
+          autoComplete="nickname"
           autoFocus
           onChange={(e) => {
             setName(e.target.value);
