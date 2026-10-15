@@ -150,6 +150,17 @@ export function refName(lookup: PromptLookup, ref: { kind: string; id: number })
   }
 }
 
+/**
+ * Forge's message for its open selection, with an exact count said as one. Forge words some picks
+ * by the most they may take whatever the least is — `ChangeZoneEffect`'s multi-card pick is
+ * "Select up to 2 cards from your hand" for Brainstorm's put-back, which takes exactly 2 — while the
+ * selection itself (`setSelectables`) carries both: when its least is its most, "up to N" is N.
+ */
+export function selectionText(text: string, selection: { min: number; max: number } | null): string {
+  if (selection === null || selection.min === 0 || selection.min !== selection.max) return text;
+  return text.replace(/\bup to (\d+)\b/gi, (said: string, n: string) => (Number(n) === selection.max ? n : said));
+}
+
 /** Forge writes a card as "Dragonskull Summit (31)" — its own id. The seat reads the name (the operator, 2026-10-08). */
 const CARD_ID_SUFFIX = /\s\(\d{1,5}\)/g;
 

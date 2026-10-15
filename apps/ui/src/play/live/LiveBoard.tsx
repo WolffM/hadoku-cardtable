@@ -266,7 +266,7 @@ import { tablesClient, type RoomTable, type StartOutcome } from '../../screens/t
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
-import { lookupFromState, plainRulesText, promptText, withAbilityLabels } from '../prompts/lookup.ts';
+import { lookupFromState, plainRulesText, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
@@ -2241,6 +2241,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     : barRoute(bar, (match.view?.stack.length ?? 0) === 0, askOpen || paying || selectionPopup || pregameWait);
   // The bottom pick (Z2): Forge's own instruction ("Return N card(s) to the bottom of your library") in the
   // decision pop-up, its OK as Forge enables it — off until a card is set aside, on after.
+  /** Forge's message, an exact pick's count said as one (`selectionText`). Every place below that words the open decision reads this. */
+  const prompt = selectionText(match.prompt ?? '', match.selectables);
   const mulliganPick = !spectator && bar !== null && choosingMulligan(match) && !isConfirmPrompt(bar);
   /** The one sentence held for the whole bottom pick — see the note below. */
   const mulliganPickText = useRef<string | null>(null);
@@ -2258,7 +2260,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * one would lock the pop-up onto the wrong sentence for the whole pick.
    */
   if (mulliganPick) {
-    const text = decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null);
+    const text = decisionMessage(prompt, match.view?.stack[0] ?? null);
     if (mulliganPickText.current === null && MULLIGAN_BOTTOM_PICK.test(text)) mulliganPickText.current = text;
   } else {
     mulliganPickText.current = null;
@@ -2942,7 +2944,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
          * spec finds it by that name.
          */}
         <p className="live__says" data-testid="live-says">
-          {plainRulesText(match.prompt ?? '')}
+          {plainRulesText(prompt)}
         </p>
         {/*
          * The says, newest at the bottom, all of the ones the match holds. Brace
@@ -3108,7 +3110,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           {!coinFlipping && (
             <ConfirmPrompt
               testId="live-play-or-draw"
-              message={promptText(match.prompt ?? '')}
+              message={promptText(prompt)}
               button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressWithSound(match, 'ok') }}
               button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressWithSound(match, 'cancel') }}
             />
@@ -3127,7 +3129,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-confirm-host">
           <ConfirmPrompt
             testId="live-confirm"
-            message={promptText(match.prompt ?? '')}
+            message={promptText(prompt)}
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') }}
             check={match.promptTrigger === null ? undefined : { label: 'Always', testId: 'live-confirm-always', checked: always, onChange: setAlways }}
@@ -3151,7 +3153,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '', match.view?.stack[0] ?? null)}
+            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(prompt, match.view?.stack[0] ?? null)}
             button1={decisionOk ? { label: combatDoneLabel(match) ?? bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
             check={sameTargetCheck}
@@ -3161,7 +3163,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/* A trigger's target with identical ones waiting and no button of Forge's to draw: the box alone, under Forge's own line. */}
       {sameTargetCheck !== undefined && !(decision && bar !== null) && (
         <div className="live__prompt" data-testid="live-target-host">
-          <ConfirmPrompt testId="live-target" message={promptText(match.prompt ?? '')} check={sameTargetCheck} />
+          <ConfirmPrompt testId="live-target" message={promptText(prompt)} check={sameTargetCheck} />
         </div>
       )}
       {/*
@@ -3178,7 +3180,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {selectionPopup && match.selectables !== null && (
         <div className="live__prompt" data-testid="live-selection-host">
           <SelectionPrompt
-            message={promptText(match.prompt ?? '')}
+            message={promptText(prompt)}
             cards={[...match.selectables.cards]}
             lookup={lookupFromState(match.state)}
             picked={match.highlighted ?? EMPTY_CARD_IDS}

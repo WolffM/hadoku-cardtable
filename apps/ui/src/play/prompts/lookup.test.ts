@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { WireObject } from '../wire.ts';
 import { cardStateKey, deltaKey, WireType } from '../wire.ts';
-import { isZoneDividerLabel, lookupFromState, plainRulesText, promptText, translateTargetWords } from './lookup.ts';
+import { isZoneDividerLabel, lookupFromState, plainRulesText, promptText, selectionText, translateTargetWords } from './lookup.ts';
 
 const card = (id: number): [string, WireObject] => [deltaKey(WireType.Card, id), { _type: WireType.Card, _id: id }];
 const face = (id: number, name: string, setCode: string): [string, WireObject] => [
@@ -192,5 +192,20 @@ describe('plainRulesText: the attack prompt', () => {
     expect(plainRulesText('Select creatures to attack e2e-alice or select player/card you wish to attack.')).toBe('Select creatures to attack.');
     expect(plainRulesText('Select creatures to attack e2e-alice or select player/card you wish to attack.\nStack: Empty')).toBe('Select creatures to attack.\nStack: Empty');
     expect(plainRulesText('Select creatures to block'), 'nothing else is touched').toBe('Select creatures to block');
+  });
+});
+
+describe('selectionText — an exact pick says its count', () => {
+  const brainstorm = 'Brainstorm - put two cards back.\n\nSelect up to 2 cards from your hand';
+  it('says N for "up to N" when the selection takes exactly N', () => {
+    expect(selectionText(brainstorm, { min: 2, max: 2 })).toBe('Brainstorm - put two cards back.\n\nSelect 2 cards from your hand');
+  });
+  it('keeps "up to" where the selection may stop short, and with no selection open', () => {
+    expect(selectionText(brainstorm, { min: 0, max: 2 })).toBe(brainstorm);
+    expect(selectionText(brainstorm, { min: 1, max: 2 })).toBe(brainstorm);
+    expect(selectionText(brainstorm, null)).toBe(brainstorm);
+  });
+  it('touches only the count the selection is for', () => {
+    expect(selectionText('Untap up to 3 lands. Select up to 2 cards', { min: 2, max: 2 })).toBe('Untap up to 3 lands. Select 2 cards');
   });
 });
