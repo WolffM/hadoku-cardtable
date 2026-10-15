@@ -394,14 +394,18 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       expect(doubled, `${who}: the stack card is gone the frame the card is shown on the battlefield`).toEqual([]);
     }
 
-    // No flight to nowhere: a stand-in already standing where the card is drawn is a swap in place,
-    // never a 300 ms "trip" from the gap to the gap with the real card hidden under it.
+    // No flight to nowhere: a stand-in already standing where the card is drawn, at the size it is
+    // drawn, is a swap in place, never a 300 ms "trip" from the gap to the gap with the real card
+    // hidden under it. A cast card waits over its gap at a hand card's size (the operator,
+    // 2026-10-15), so its landing there is the shrink into the slot — a change of size, in place.
     for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
       const end = rec.filter((s) => s.what === 'field' && s.attrs !== 'gone').at(-1);
       const flights = rec.filter((s) => s.at >= t0 && (s.what === 'handoff' || /data-cast-lift=returning/.test(s.attrs)));
       const first = flights[0];
       if (end === undefined || first === undefined) continue;
-      expect(Math.hypot(first.x - end.x, first.y - end.y), `${who}: a landing flight starts where it ends (${rel(first.at, t0)}ms @${first.x},${first.y})`).toBeGreaterThan(4);
+      const moves = Math.hypot(first.x - end.x, first.y - end.y) > 4;
+      const shrinks = Math.abs(first.w - end.w) > 4 || Math.abs(first.h - end.h) > 4;
+      expect(moves || shrinks, `${who}: a landing flight starts where it ends, at the size it ends (${rel(first.at, t0)}ms @${first.x},${first.y} ${first.w}x${first.h}; ends @${end.x},${end.y} ${end.w}x${end.h})`).toBe(true);
     }
   } finally {
     await stack.stop();
