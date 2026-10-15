@@ -35,7 +35,9 @@ import forge.deck.Deck;
 import forge.deck.io.DeckSerializer;
 import forge.game.Game;
 import forge.game.GameEntityView;
+import forge.game.GameRules;
 import forge.game.GameState;
+import forge.game.GameType;
 import forge.game.GameView;
 import forge.game.event.GameEventCombatUpdate;
 import forge.game.card.CardFaceView;
@@ -47,6 +49,7 @@ import forge.game.phase.PhaseType;
 import forge.game.player.DelayedReveal;
 import forge.game.player.IHasIcon;
 import forge.game.player.PlayerView;
+import forge.game.player.RegisteredPlayer;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityStackInstance;
 import forge.game.spellability.SpellAbilityView;
@@ -87,6 +90,7 @@ import forge.player.AutoYieldStore;
 import forge.player.PlayerControllerHuman;
 import forge.player.PlayerZoneUpdate;
 import forge.player.PlayerZoneUpdates;
+import forge.sound.MusicPlaylist;
 import forge.toolbox.MouseTriggerEvent;
 import forge.trackable.TrackableCollection;
 import forge.trackable.TrackableObject;
@@ -2684,7 +2688,21 @@ public final class PlayBridge {
          * {@link #resyncSeats} runs first for that; its doc is the cause.
          */
         @Override public HostedMatch hostMatch() {
-            final HostedMatch hm = new HostedMatch();
+            final HostedMatch hm = new HostedMatch() {
+                /**
+                 * Every other {@code startMatch} overload lands here with the rules
+                 * {@code HostedMatch.getDefaultRules} built. Forge's own Adventure mode
+                 * turns the AI-cards warning off the same way ({@code DuelScene.java:519}):
+                 * it reveals the cards an AI deck plays badly to every seat at the start
+                 * ({@code Match.java:347}) and removes none of them.
+                 */
+                @Override public void startMatch(final GameRules rules, final Set<GameType> variants,
+                        final List<RegisteredPlayer> players, final Map<RegisteredPlayer, IGuiGame> guis,
+                        final MusicPlaylist playlist) {
+                    rules.setWarnAboutAICards(false);
+                    super.startMatch(rules, variants, players, guis, playlist);
+                }
+            };
             final String text = scenario;
             final GameState state;
             if (text != null) {
