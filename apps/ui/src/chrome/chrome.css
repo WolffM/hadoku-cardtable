@@ -153,6 +153,23 @@
   padding-left: 0;
 }
 
+/* A phone's edge is 16px, the bar's and the page's alike, and the chat is
+   below the screen rather than beside it, so the right needs no gutter of its
+   own: at 2rem plus that gutter a 390px room was 300px wide. */
+@media (max-width: 600px) {
+  .cardtable-chrome > .app-header {
+    margin-inline: 16px;
+  }
+
+  .cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
+    padding-inline: 16px;
+  }
+
+  .wp-room-chrome-frame__content > .shell.shell--fit {
+    padding-right: 0;
+  }
+}
+
 /*
  * The header does NOT move between routes.
  *

@@ -788,7 +788,8 @@ function DeckChooser({
   const peeked = peek === null ? undefined : options[peek.index];
   /** Where the pointer last was over the grid, so a scroll can find the tile now under it. */
   const pointerAt = useRef<{ x: number; y: number } | null>(null);
-  const onGridScroll = (): void => {
+  const grid = useRef<HTMLDivElement | null>(null);
+  const onScrolled = (): void => {
     closePeek();
     const at = pointerAt.current;
     if (at === null) return;
@@ -796,6 +797,18 @@ function DeckChooser({
     const index = tile === null || tile === undefined ? -1 : refs.current.indexOf(tile as HTMLButtonElement);
     if (index >= 0 && options[index]?.list !== undefined) openPeekSoon(index);
   };
+  // The grid is never its own scroller: the room's screen, or the page, scrolls it.
+  // A scroll does not bubble, so the listener is on the document in the capture
+  // phase, and answers only a scroll of a box the grid is inside.
+  const latestOnScrolled = useRef(onScrolled);
+  latestOnScrolled.current = onScrolled;
+  useEffect(() => {
+    const onScroll = (event: Event): void => {
+      if (event.target instanceof Node && grid.current !== null && event.target.contains(grid.current)) latestOnScrolled.current();
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+  }, []);
 
   // A filter changes which tiles there are, so an index into the old list means
   // nothing: Tab goes back to following the choice, and an open list closes.
@@ -849,8 +862,8 @@ function DeckChooser({
       aria-labelledby="deck-mine-label"
       aria-disabled={disabled ? 'true' : undefined}
       data-chosen={value}
+      ref={grid}
       onKeyDown={disabled ? undefined : onKeyDown}
-      onScroll={onGridScroll}
       onPointerMove={(event) => {
         if (event.pointerType !== 'touch') pointerAt.current = { x: event.clientX, y: event.clientY };
       }}
@@ -1977,25 +1990,13 @@ function RoomTableScreen({
         {!draftRoom && table !== null && (
           <>
             <section className="lobby__card">
-              {/* The table's own rules sit on its heading's line, which has the width
-                  to spare: the format row below is full at 1024 wide, and a line
-                  added anywhere comes off the deck grid. */}
+              {/* Where the table stands sits on its heading's line, which has the
+                  width to spare: a line added under the seats comes off the room's height. */}
               <div className="lobby__deckhead">
                 <h2>At the table</h2>
-                {/* The room's first match setting: the opening hand nearer the
-                    deck's land ratio, each mulligan weighted toward it. */}
-                {iAmLeader && (
-                  <button
-                    type="button"
-                    className="lobby__free-pick lobby__setting"
-                    aria-pressed={handSmoothing}
-                    data-testid="hand-smoothing"
-                    disabled={busy || underway}
-                    onClick={toggleHandSmoothing}
-                  >
-                    Hand smoothing
-                  </button>
-                )}
+                <p className="lobby__note" data-testid="start-state">
+                  {startStateText(players, bothReady, starting, matchId)}
+                </p>
               </div>
               <ul className="tables__players" data-testid="room-players">
                 {[0, 1].map((seat) => {
@@ -2023,14 +2024,12 @@ function RoomTableScreen({
                       key={seat}
                       seat={seat}
                       player={player}
+                      leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                       {...(player.you ? { onStand: standUp, standDisabled: busy || tableLocked || underway } : {})}
                     />
                   );
                 })}
               </ul>
-              <p className="lobby__note" data-testid="start-state">
-                {startStateText(players, bothReady, starting, matchId)}
-              </p>
               {startRefusal !== null && (
                 <div className="lobby__error" role="alert" data-testid="start-refused">
                   <p>{startRefusal}</p>
@@ -2259,7 +2258,6 @@ function RoomTableScreen({
                         </select>
                       </>
                     )}
-                    <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
                     {/* Free pick is a switch of its own, not a fourth tab: on, the
                         whole library is the pool and everyone browses it by format
                         on this row; off, the leader's tabs pick the room's era again. Off
@@ -2282,6 +2280,20 @@ function RoomTableScreen({
                         }}
                       >
                         Free pick
+                      </button>
+                    )}
+                    {/* The room's first match setting: the opening hand nearer the
+                        deck's land ratio, each mulligan weighted toward it. */}
+                    {iAmLeader && (
+                      <button
+                        type="button"
+                        className="lobby__free-pick"
+                        aria-pressed={handSmoothing}
+                        data-testid="hand-smoothing"
+                        disabled={busy || underway}
+                        onClick={toggleHandSmoothing}
+                      >
+                        Hand smoothing
                       </button>
                     )}
 
@@ -2588,6 +2600,9 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
   return `Waiting for ${waiting.join(' and ')}.`;
 }
 
+/** The leader's mark, our own five-point outline, on a 12-unit square. */
+const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
+
 /**
  * A status, drawn: a shape, a colour and a word.
  *
@@ -2623,31 +2638,11 @@ function StatusPill({
         {mark === 'tick' && <path d="M2.6 6.3 4.9 8.8 9.4 3.3" />}
         {mark === 'cross' && <path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5" />}
         {mark === 'ring' && <circle cx="6" cy="6" r="3.4" />}
-        {mark === 'crown' && <path d="M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z" />}
+        {mark === 'crown' && <path d={CROWN} />}
       </svg>
       {label}
       {count !== undefined && <span className="pill__count">{count}</span>}
     </span>
-  );
-}
-
-/**
- * Who sets this table, beside the control that sets it.
- *
- * A mark and a name. The operator's standing rule is *"i dont need prose in my
- * ui"*, so this is not "user-alice is the room leader and can change the pool" —
- * it is the same pill the draft lobby puts on the leader's row, carrying the
- * leader's name because on a constructed table there is no member list to put it
- * on. `(you)` is the same suffix the seat rows use, in one text node with its
- * space, for the same reason.
- *
- * Nothing is drawn when the room has not said who is in it: a mark with no name
- * would be a claim this browser cannot make.
- */
-function LeaderMark({ name, you }: { name: string | null; you: boolean }) {
-  if (name === null) return null;
-  return (
-    <StatusPill kind="leader" testId="room-leader" state="leader" mark="crown" label={you ? `${name} (you)` : name} />
   );
 }
 
@@ -2674,9 +2669,12 @@ function PlayerRow({
   player,
   onStand,
   standDisabled = false,
+  leader = false,
 }: {
   seat: number;
   player: RoomPlayer;
+  /** This seat's player sets the table: a crown beside the name, where the format row once named them. */
+  leader?: boolean;
   /** My own row only: give the seat back (2026-10-12). */
   onStand?: () => void;
   standDisabled?: boolean;
@@ -2686,6 +2684,12 @@ function PlayerRow({
     <li className="tables__row" data-testid={`room-seat-${seat}`} data-no-deck={noDeck ? '' : undefined}>
       <span className="tables__who tables__who--seat">
         <strong className="tables__name">{player.you ? `${player.name} (you)` : player.name}</strong>
+        {leader && (
+          <svg className="tables__crown" data-testid="room-leader" viewBox="0 0 12 12" role="img" aria-label="Room owner">
+            <title>Room owner</title>
+            <path d={CROWN} />
+          </svg>
+        )}
         {onStand !== undefined && (
           <button type="button" className="tables__stand" data-testid="seat-stand" disabled={standDisabled} onClick={onStand}>
             Stand up
