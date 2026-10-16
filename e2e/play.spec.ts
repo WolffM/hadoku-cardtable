@@ -755,9 +755,6 @@ test(LIVE_TITLE, async ({ browser }) => {
     // dropdown"*. Alice made the room, so the pool is hers; bob has no control
     // for it at all, and his screen follows hers without him pressing anything.
     await setRoomPool(alice, choice.format);
-    await expect(alice.page.getByTestId('room-leader'), 'the leader is marked, not explained').toContainText(
-      'e2e-alice',
-    );
     const bobPool = bob.page.getByTestId('format-fixed');
     await expect(bobPool, "bob's screen follows the pool alice set").toHaveAttribute('data-format', choice.format);
     expect(await bob.page.getByTestId('format').count(), 'bob has no pool control, only a deck list').toBe(0);
@@ -777,6 +774,11 @@ test(LIVE_TITLE, async ({ browser }) => {
     await expect(alice.page.getByTestId('room-seat-1')).toContainText('e2e-bob');
     await expect(alice.page.getByTestId('room-seat-1')).not.toContainText('(you)');
     await expect(bob.page.getByTestId('room-seat-0')).toContainText('e2e-alice');
+    // The leader is marked, not explained: a crown on her seat, on both screens.
+    for (const f of [alice, bob]) {
+      await expect(f.page.getByTestId('room-seat-0').getByTestId('room-leader'), `${f.name}: alice's seat wears the crown`).toBeVisible();
+      await expect(f.page.getByTestId('room-seat-1').getByTestId('room-leader'), `${f.name}: bob's does not`).toHaveCount(0);
+    }
 
     // Nobody can pick anybody else's deck. The controls that used to let them
     // are asserted ABSENT, so this fails if the old screen comes back rather

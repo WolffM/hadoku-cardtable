@@ -241,15 +241,9 @@
   border-color: var(--color-primary);
 }
 
-/* Free pick is a switch of its own, not a fourth format: the row's far end. */
-.lobby__deckformat > .lobby__free-pick {
+/* Free pick and the room's settings are switches, not formats: the row's far end. */
+.lobby__deckformat > :not(.lobby__free-pick) + .lobby__free-pick {
   margin-left: auto;
-}
-
-/* A switch on a card's heading line: no taller than the heading it sits beside. */
-.lobby__setting {
-  padding-block: 0.1rem;
-  line-height: 1.2;
 }
 
 .lobby__free-pick[aria-pressed='true'] {
@@ -462,6 +456,18 @@
   border-radius: var(--hdk-radius);
 }
 
+/* A phone's row is too narrow for a name, its button and two pills on one line:
+   the name gets the whole first line, the pills go under the deck. */
+@media (max-width: 600px) {
+  .tables__row {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'who who who'
+      'deck deck deck'
+      'deck-legal deck-ready rules';
+  }
+}
+
 .tables__row--empty {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'who';
@@ -485,6 +491,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The leader's crown, the leader pill's own mark, beside the name it belongs to;
+   the seat's button stays at the row's far end. */
+.tables__crown {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-right: auto;
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
 }
 
 .tables__sit,
@@ -1126,7 +1145,8 @@
  * A grid of card-like rows, one per legal deck. `auto-fill` with a `190px`
  * minimum is the same width the table's own card tiles use (`--card-w`), so a
  * deck row and a card read as the same kind of object, and a narrow room screen
- * collapses to one column instead of scrolling sideways.
+ * collapses to fewer columns instead of scrolling sideways — on a phone, two
+ * (below).
  *
  * `grid-auto-rows` fixes every row — including a second row once decks wrap —
  * to the same track height, and `align-items: stretch` (the grid default, named
@@ -1149,23 +1169,28 @@
   align-items: stretch;
 }
 
+/* A phone's one 190px column showed three decks a screen; two narrower
+   columns of the same height show twice that, and a tile is still a card's
+   shape. */
+@media (max-width: 600px) {
+  .deckpick {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /*
- * A room is rows, not columns, and its deck grid is the only thing that scrolls.
+ * A room is rows, not columns, and it scrolls as one.
  *
  * The operator, 2026-10-10: *"inside a room, theres a lot of wasted space on
  * the leftside column. the 'at this table' section will never take up more
- * vertical space so i think we should instead stack these as rows"*, and *"can
- * we put the scrollbar inside the deck selector instead of for the whole page
- * section?"*. `.lobby`'s auto-fit grid put "At the table" in a half-width
- * column with nothing under it, and squeezed the deck grid into the other half.
+ * vertical space so i think we should instead stack these as rows"*. So the
+ * room's `.lobby` is a column, each card a row at its content height.
  *
- * So the room's `.lobby` is a column: each card is a row at its content height,
- * and the deck card takes the remaining height, its grid scrolling inside it.
- * Everything is `flex: 1 0 0` with the automatic minimum left on, and the grid
- * keeps half a tile row as its floor — 1024x700, the smallest size
- * `e2e/lobby-fit.spec.ts` measures, leaves it ~100px since the deck filter
- * row (2026-10-16) took a line — so only a window shorter than that falls
- * back to `.shell--fit`'s own scroll instead of crushing the grid.
+ * The deck grid is drawn at its full height and the room's screen
+ * (`.shell--fit`) is the one box that scrolls: the operator, 2026-10-16, of the
+ * grid as a scroller of its own, *"the grid has a scrollbar now, yea we gotta
+ * fix that"* — at 1024x700 it was one tile row high, and on a phone not one
+ * whole tile. The page itself still never grows (`e2e/lobby-fit.spec.ts`).
  */
 .lobby--room {
   display: flex;
@@ -1173,22 +1198,6 @@
   /* `.lobby`'s `start` is the grid's; in a column it would stop every card
      stretching to the screen's width. */
   align-items: stretch;
-  flex: 1 0 0;
-}
-
-.lobby--room > .lobby__decks {
-  flex: 1 0 0;
-}
-
-.lobby--room .deckpick {
-  flex: 1 0 0;
-  min-height: 95px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  /* Room for a tile's focus ring (2px outline at a 2px offset), which a
-     scroller would otherwise clip at its edges. */
-  padding: 4px;
-  margin: -4px;
 }
 
 /* The deck card's controls are two rows above the grid, not six: the heading
@@ -1221,10 +1230,11 @@
   white-space: nowrap;
 }
 
-/* A full-width table card puts its two seats side by side, one row high,
-   so the deck grid gets that height too; a narrow screen stacks them again. */
+/* A full-width table card puts its two seats side by side, one row high; a
+   seat narrower than 360px has no room for its name beside its button, crown
+   and pills, so a narrower screen stacks them again. */
 .lobby--room .tables__players {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
 }
 
 /*

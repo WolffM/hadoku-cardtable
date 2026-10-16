@@ -865,13 +865,6 @@ describe('a room’s table', () => {
 
   });
 
-  it('draws every pill state in a border style of its own, so colour is never the only signal', async () => {
-    await mountRoom({ players: [opponent({ ready: false })], matchId: null });
-    const borders = pillBorders(styled());
-    expect([...borders.keys()].sort()).toEqual(['leader', 'no', 'yes']);
-    expect(new Set(borders.values()).size, JSON.stringify([...borders])).toBe(borders.size);
-  });
-
   it('an unready, illegal seat reads as two failed states, with the count on the pill', async () => {
     await mountRoom({ players: [opponent({ legal: false, issueCount: 3, ready: false })], matchId: null });
     const legal = screen.getByTestId('room-seat-0-legal');
@@ -1286,6 +1279,18 @@ describe('the deck picker', () => {
       });
     };
 
+    it('closes when the room’s screen scrolls the grid, which has no scroll of its own', async () => {
+      await openPeek();
+      fireEvent.scroll(screen.getByTestId('constructed'));
+      expect(screen.queryByTestId('deck-peek')).toBeNull();
+    });
+
+    it('stays open while a box outside the grid scrolls', async () => {
+      await openPeek();
+      fireEvent.scroll(screen.getByTestId('deck-peek'));
+      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+    });
+
     it('stays open while the pointer moves from the tile into the list and rests there', async () => {
       const { tile } = await openPeek();
       fireEvent.pointerLeave(tile, { pointerType: 'mouse' });
@@ -1684,24 +1689,29 @@ describe('the table’s pool', () => {
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: UG_POLYMORPH } });
   });
 
-  it('says who the leader is with a mark and a name, and no sentence about it', async () => {
-    await mountRoom({ players: [opponent()], matchId: null });
-    const mark = screen.getByTestId('room-leader');
-    expect(mark.dataset.mark).toBe('crown');
-    expect(mark.dataset.state).toBe('leader');
-    // Our own drawing, and a shape as well as a colour — the same rule the
-    // legal/ready pills follow.
-    expect(mark.querySelector('svg path')).not.toBeNull();
-    expect(mark.textContent).toBe('user-alice (you)');
-    // No prose: nothing on the card explains what a leader is or may do.
+  // The operator, 2026-10-16: "'[Crown] Hadoku (you)' this can be shown as just a crown next to
+  // the player's name in their seat. doesn't need to be on the format row".
+  it('crowns the leader’s own seat, beside the name, and draws no leader chip on the format row', async () => {
+    await mountRoom({ players: [opponent(), opponent({ name: 'user-alice', you: true })], matchId: null });
+    await deckPicker();
+    const crown = screen.getByTestId('room-leader');
+    expect(crown.closest('[data-testid="room-seat-1"]'), 'on my seat, the leader’s').not.toBeNull();
+    expect(crown.getAttribute('aria-label')).toBe('Room owner');
+    expect(crown.querySelector('path')).not.toBeNull();
+    expect(screen.getByTestId('room-seat-1').textContent).toContain('user-alice (you)');
+    // No prose: nothing on the deck card explains what a leader is or may do.
     const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
+    expect(card.querySelector('[data-testid="room-leader"]')).toBeNull();
     expect(card.textContent).not.toMatch(/room leader|can change|only the/i);
-
   });
 
-  it('names the leader without “(you)” to everybody else', async () => {
+  it('crowns the seat of a leader who is somebody else, and no seat while the leader is not seated', async () => {
     await mountRoom({ players: [opponent()], matchId: null, leader: false });
-    expect(screen.getByTestId('room-leader').textContent).toBe('user-alice');
+    await deckPicker();
+    expect(screen.queryByTestId('room-leader'), 'the leader holds no seat').toBeNull();
+    cleanup();
+    await mountRoom({ players: [opponent({ name: 'user-alice' })], matchId: null, leader: false });
+    expect((await screen.findByTestId('room-leader')).closest('[data-testid="room-seat-0"]')).not.toBeNull();
   });
 
   it('falls back to the NEWEST pool, not the oldest, when the room does not say', async () => {
@@ -1850,6 +1860,14 @@ describe('a draft room', () => {
     await waitFor(() => expect(toggle.textContent).toBe('Stand down'));
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/ready`))).toHaveLength(0);
+  });
+
+  it('draws every pill state in a border style of its own, so colour is never the only signal', async () => {
+    await mountDraft({ members: members(true, false) });
+    await screen.findByTestId('draft-lobby');
+    const borders = pillBorders(styled());
+    expect([...borders.keys()].sort()).toEqual(['leader', 'no', 'yes']);
+    expect(new Set(borders.values()).size, JSON.stringify([...borders])).toBe(borders.size);
   });
 
   it('marks which member is the leader, with a mark and not a sentence', async () => {
