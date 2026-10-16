@@ -72,9 +72,9 @@ def label_for(filename: str, name: str) -> str:
 		return f'{name} · hand-rolled'
 	m = re.match(r'take-v(\d+)-(\d+)$', stem)
 	if m:
-		# Seeds are generated in groups of 4 (e.g. 4000-4003); the low two bits
-		# pick a/b/c/d within the group.
-		return f"{name} · {m.group(1)}{'abcd'[int(m.group(2)) % 4]}"
+		# Seeds are generated in groups of up to 8 from a round number (4000-4003,
+		# 11000-11007); the low three bits pick a..h within the group.
+		return f"{name} · {m.group(1)}{'abcdefgh'[int(m.group(2)) % 8]}"
 	if stem.startswith('take-'):
 		return f'{name} · r1 {stem[5:]}'
 	return f'{name} · {stem}'
