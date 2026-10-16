@@ -1,0 +1,2678 @@
+{
+ "era": {
+  "year": 2017,
+  "season_start": "2016-09-30",
+  "start": "2017-07-14",
+  "end": "2017-09-29",
+  "format": "Standard (HOU)",
+  "sets": "BFZ, OGW, SOI, W16, EMN, KLD, AER, AKH, W17, HOU",
+  "banned": [
+   "Aetherworks Marvel",
+   "Emrakul, the Promised End",
+   "Felidar Guardian",
+   "Reflector Mage",
+   "Smuggler's Copter"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 305231,
+   "event": 17007,
+   "archetype": "Mardu Vehicles",
+   "player": "Evgeniy Schetka",
+   "event_name": "Nationals - Russia 2017",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-09-17",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 2.36,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 8.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Unlicensed Disintegration": 4,
+     "Cut // Ribbons": 1,
+     "Fatal Push": 2,
+     "Heart of Kiran": 4,
+     "Aethersphere Harvester": 1,
+     "Walking Ballista": 2,
+     "Archangel Avacyn // Avacyn, the Purifier": 3,
+     "Thought-Knot Seer": 4,
+     "Pia Nalaar": 3,
+     "Scrapheap Scrounger": 4,
+     "Toolcraft Exemplar": 4,
+     "Thraben Inspector": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 82
+  },
+  {
+   "deck": 304533,
+   "event": 16895,
+   "archetype": "Mono Black Zombies",
+   "player": "Peter Snoha",
+   "event_name": "Nationals - Slovakia 2017",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-09-16",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.23,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 48.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Cryptbreaker": 4,
+     "Dread Wanderer": 4,
+     "Relentless Dead": 4,
+     "Diregraf Colossus": 4,
+     "Lord of the Accursed": 4,
+     "Liliana's Mastery": 4,
+     "Dark Salvation": 4,
+     "Grasp of Darkness": 4,
+     "Kalitas, Traitor of Ghet": 1,
+     "Fatal Push": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 58
+  },
+  {
+   "deck": 304078,
+   "event": 16823,
+   "archetype": "Temur Energy",
+   "player": "Stephen Murray",
+   "event_name": "Nationals - Scotland 2017",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-09-10",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 2.66,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 25.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chandra, Torch of Defiance": 1,
+     "Abrade": 2,
+     "Harnessed Lightning": 4,
+     "Magma Spray": 2,
+     "Attune with Aether": 4,
+     "Skysovereign, Consul Flagship": 1,
+     "Glorybringer": 3,
+     "Bristling Hydra": 4,
+     "Rhonas the Indomitable": 1,
+     "Whirler Virtuoso": 4,
+     "Rogue Refiner": 4,
+     "Longtusk Cub": 4,
+     "Servant of the Conduit": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 55
+  },
+  {
+   "deck": 300631,
+   "event": 16297,
+   "archetype": "Azorius Aggro",
+   "player": "Olivetti",
+   "event_name": "MTGO Standard PTQ",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-07-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 22,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 22.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "God-Pharaoh's Gift": 3,
+     "Gate to the Afterlife": 4,
+     "Strategic Planning": 4,
+     "Refurbish": 4,
+     "Thraben Inspector": 4,
+     "Minister of Inquiries": 4,
+     "Mausoleum Wanderer": 3,
+     "Champion of Wits": 4,
+     "Cataclysmic Gearhulk": 3,
+     "Angel of Invention": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 49
+  },
+  {
+   "deck": 303969,
+   "event": 16806,
+   "archetype": "Boros Aggro",
+   "player": "Alain Bardini",
+   "event_name": "Nationals - France 2017",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-09-10",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.27,
+    "pips": {
+     "W": 25.0,
+     "U": 0,
+     "B": 0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Aethergeode Miner": 3,
+     "Veteran Motorist": 4,
+     "Thraben Inspector": 4,
+     "Toolcraft Exemplar": 4,
+     "Pia Nalaar": 2,
+     "Depala, Pilot Exemplar": 2,
+     "Heart of Kiran": 4,
+     "Aethersphere Harvester": 4,
+     "Gideon, Ally of Zendikar": 2,
+     "Chandra, Torch of Defiance": 2,
+     "Abrade": 2,
+     "Harnessed Lightning": 2,
+     "Stasis Snare": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 13
+  },
+  {
+   "deck": 304139,
+   "event": 16833,
+   "archetype": "Gw Ramp",
+   "player": "Tomas Langer",
+   "event_name": "Nationals - Czech Republic 2017",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-09-10",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 5.0,
+    "pips": {
+     "W": 19.0,
+     "U": 6.0,
+     "B": 0,
+     "R": 0,
+     "G": 17.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Ulamog, the Ceaseless Hunger": 3,
+     "World Breaker": 3,
+     "Walking Ballista": 1,
+     "Thraben Inspector": 4,
+     "Cast Out": 2,
+     "Gift of Paradise": 4,
+     "Weirding Wood": 3,
+     "Approach of the Second Sun": 1,
+     "Fumigate": 4,
+     "Hour of Promise": 4,
+     "Spring // Mind": 3,
+     "Descend upon the Sinful": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 304987,
+   "event": 16974,
+   "archetype": "Uw Eldrazi",
+   "player": "Ryan Espano",
+   "event_name": "Nationals - Philippines 2017",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-09-16",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 23.0,
+     "U": 6.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Declaration in Stone": 1,
+     "Stasis Snare": 2,
+     "Spatial Contortion": 2,
+     "Cast Out": 3,
+     "Drowner of Hope": 2,
+     "Matter Reshaper": 2,
+     "Eldrazi Displacer": 3,
+     "Walking Ballista": 3,
+     "Archangel Avacyn // Avacyn, the Purifier": 4,
+     "Thraben Inspector": 4,
+     "Eldrazi Skyspawner": 4,
+     "Thought-Knot Seer": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 300110,
+   "event": 16215,
+   "archetype": "4-color Control",
+   "player": "Michael Hamilton",
+   "event_name": "SCG Open Cincinnati",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-07-16",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 2,
+    "counters": 9,
+    "sweepers": 3,
+    "draw": 13,
+    "burn": 5,
+    "avg_cmc": 3.27,
+    "pips": {
+     "W": 12.0,
+     "U": 22.0,
+     "B": 1.0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Radiant Flames": 1,
+     "Pull from Tomorrow": 1,
+     "Nahiri, the Harbinger": 1,
+     "Nicol Bolas, God-Pharaoh": 1,
+     "Jace, Unraveler of Secrets": 1,
+     "Blessed Alliance": 1,
+     "Essence Scatter": 2,
+     "Magma Spray": 2,
+     "Negate": 2,
+     "Dovin Baan": 2,
+     "Abrade": 2,
+     "Harnessed Lightning": 2,
+     "Censor": 2,
+     "Fumigate": 2,
+     "Cast Out": 2,
+     "Supreme Will": 3,
+     "Glimmer of Genius": 4,
+     "Linvala, the Preserver": 1,
+     "Torrential Gearhulk": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 287021,
+   "event": 14512,
+   "archetype": "Golgari Delirium",
+   "player": "Brennan DeCandio",
+   "event_name": "SCG Standard Open Columbus",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-01-21",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.41,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 31.0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "To the Slaughter": 1,
+     "Ruinous Path": 2,
+     "Fatal Push": 2,
+     "Traverse the Ulvenwald": 3,
+     "Grasp of Darkness": 4,
+     "Tireless Tracker": 2,
+     "Rishkar, Peema Renegade": 3,
+     "Winding Constrictor": 4,
+     "Walking Ballista": 4,
+     "Verdurous Gearhulk": 4,
+     "Mindwrack Demon": 4,
+     "Grim Flayer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 25
+  },
+  {
+   "deck": 298748,
+   "event": 16039,
+   "archetype": "Emerge",
+   "player": "Harane Kenta",
+   "event_name": "Environmental Master - Amonkhet",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-06-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 2.0,
+     "R": 17.0,
+     "G": 21.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Elder Deep-Fiend": 3,
+     "Glorybringer": 2,
+     "Ishkanah, Grafwidow": 1,
+     "Rogue Refiner": 4,
+     "Servant of the Conduit": 3,
+     "Tireless Tracker": 2,
+     "World Breaker": 1,
+     "Grapple with the Past": 3,
+     "Harnessed Lightning": 4,
+     "Kozilek's Return": 4,
+     "Cut // Ribbons": 1,
+     "Traverse the Ulvenwald": 4,
+     "Vessel of Nascency": 3,
+     "Chandra, Torch of Defiance": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 290129,
+   "event": 14928,
+   "archetype": "Bg Constrictor",
+   "player": "Aziz Riphat",
+   "event_name": "RPTQ Nashville",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-03-05",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 10.0,
+     "R": 0,
+     "G": 35.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Attune with Aether": 4,
+     "Servant of the Conduit": 4,
+     "Blossoming Defense": 4,
+     "Walking Ballista": 4,
+     "Longtusk Cub": 4,
+     "Fatal Push": 3,
+     "Glint-Sleeve Siphoner": 3,
+     "Winding Constrictor": 4,
+     "Rishkar, Peema Renegade": 3,
+     "Verdurous Gearhulk": 3,
+     "Nissa, Voice of Zendikar": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 281404,
+   "event": 13797,
+   "archetype": "Orzhov Control",
+   "player": "Dmitri Shrum",
+   "event_name": "Regionals - Columbus, OH",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-10-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 3,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 5,
+    "burn": 5,
+    "avg_cmc": 3.32,
+    "pips": {
+     "W": 17.0,
+     "U": 0,
+     "B": 40.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Anguished Unmaking": 1,
+     "Ob Nixilis Reignited": 1,
+     "Ruinous Path": 2,
+     "Fumigate": 2,
+     "Deadlock Trap": 2,
+     "Sorin, Grim Nemesis": 2,
+     "Liliana, the Last Hope": 3,
+     "Harsh Scrutiny": 3,
+     "Essence Extraction": 3,
+     "Grasp of Darkness": 4,
+     "Live Fast": 4,
+     "Gideon, Ally of Zendikar": 4,
+     "Linvala, the Preserver": 1,
+     "Kalitas, Traitor of Ghet": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 299477,
+   "event": 16132,
+   "archetype": "Colossus Aggro Affinity",
+   "player": "Brian Coval",
+   "event_name": "SCG Invitational - Roanoke",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-06-30",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 11,
+    "burn": 2,
+    "avg_cmc": 3.67,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 8.0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Elder Deep-Fiend": 1,
+     "Glint-Nest Crane": 4,
+     "Herald of Anguish": 2,
+     "Cultivator's Caravan": 4,
+     "Hedron Archive": 4,
+     "Metalspinner's Puzzleknot": 3,
+     "Prophetic Prism": 4,
+     "Renegade Map": 4,
+     "Fatal Push": 3,
+     "Kozilek's Return": 3,
+     "Skysovereign, Consul Flagship": 2,
+     "Battle at the Bridge": 1,
+     "Metalwork Colossus": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 302601,
+   "event": 16592,
+   "archetype": "Gruul Ramp",
+   "player": "Gavin Bennett",
+   "event_name": "GP Denver 2017 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-08-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 9,
+    "draw": 11,
+    "burn": 4,
+    "avg_cmc": 4.5,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 23.0,
+     "G": 17.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chandra, Flamecaller": 2,
+     "Ulamog, the Ceaseless Hunger": 3,
+     "World Breaker": 3,
+     "Neheb, the Eternal": 1,
+     "Beneath the Sands": 4,
+     "Sweltering Suns": 3,
+     "Hour of Devastation": 3,
+     "Hour of Promise": 4,
+     "Abrade": 4,
+     "Kozilek's Return": 1,
+     "Weirding Wood": 4,
+     "Gift of Paradise": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 302608,
+   "event": 16592,
+   "archetype": "Rakdos Control",
+   "player": "Yong Il Park",
+   "event_name": "GP Denver 2017 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-08-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 3,
+    "burn": 5,
+    "avg_cmc": 3.24,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 40.0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Ruinous Path": 1,
+     "Fatal Push": 1,
+     "Chandra, Flamecaller": 1,
+     "Ob Nixilis Reignited": 1,
+     "Sweltering Suns": 2,
+     "Chandra, Torch of Defiance": 2,
+     "Liliana, the Last Hope": 3,
+     "Abrade": 3,
+     "Doomfall": 4,
+     "Grasp of Darkness": 4,
+     "The Scorpion God": 1,
+     "Noxious Gearhulk": 1,
+     "Gonti, Lord of Luxury": 1,
+     "Glorybringer": 1,
+     "Kalitas, Traitor of Ghet": 2,
+     "Goblin Dark-Dwellers": 2,
+     "Gifted Aetherborn": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 302602,
+   "event": 16592,
+   "archetype": "Sultai Aggro",
+   "player": "Viet Tran",
+   "event_name": "GP Denver 2017 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-08-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.66,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 18.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Aethersphere Harvester": 2,
+     "Attune with Aether": 4,
+     "Grasp of Darkness": 4,
+     "Fatal Push": 4,
+     "Noxious Gearhulk": 2,
+     "Bristling Hydra": 3,
+     "The Scarab God": 3,
+     "Champion of Wits": 4,
+     "Rogue Refiner": 4,
+     "Glint-Sleeve Siphoner": 4,
+     "Servant of the Conduit": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 302410,
+   "event": 16563,
+   "archetype": "UW Control",
+   "player": "Tirentu",
+   "event_name": "MTGO Standard PTQ #10813602",
+   "stars": 3,
+   "rank": "2",
+   "date": "2017-08-12",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 4,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 3.4,
+    "pips": {
+     "W": 20.0,
+     "U": 19.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Cast Out": 3,
+     "Authority of the Consuls": 2,
+     "Aether Meltdown": 4,
+     "Fumigate": 4,
+     "Approach of the Second Sun": 3,
+     "Supreme Will": 4,
+     "Hieroglyphic Illumination": 3,
+     "Glimmer of Genius": 4,
+     "Censor": 4,
+     "Blessed Alliance": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 300101,
+   "event": 16215,
+   "archetype": "W/u Monument",
+   "player": "Jonathan Rosum",
+   "event_name": "SCG Open Cincinnati",
+   "stars": 3,
+   "rank": "2",
+   "date": "2017-07-16",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 24,
+    "counters": 2,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.29,
+    "pips": {
+     "W": 40.0,
+     "U": 10.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Dusk // Dawn": 3,
+     "Oketra's Monument": 4,
+     "Metallic Rebuke": 2,
+     "Cloudblazer": 4,
+     "Selfless Spirit": 4,
+     "Spell Queller": 4,
+     "Hanweir Militia Captain // Westvale Cult Leader": 4,
+     "Bygone Bishop": 4,
+     "Thraben Inspector": 4,
+     "Stasis Snare": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 295697,
+   "event": 15659,
+   "archetype": "Izzet Control",
+   "player": "Juan Pablo Barzola",
+   "event_name": "Trial - GP Santiago 2017",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-05-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 4,
+    "counters": 12,
+    "sweepers": 3,
+    "draw": 15,
+    "burn": 4,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Negate": 3,
+     "Magma Spray": 4,
+     "Hieroglyphic Illumination": 4,
+     "Harnessed Lightning": 4,
+     "Glimmer of Genius": 4,
+     "Essence Scatter": 2,
+     "Disallow": 3,
+     "Censor": 3,
+     "Torrential Gearhulk": 4,
+     "Sweltering Suns": 3,
+     "Void Shatter": 1,
+     "Pull from Tomorrow": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 18
+  },
+  {
+   "deck": 290345,
+   "event": 14952,
+   "archetype": "Temur Tower",
+   "player": "Bradley Barclay",
+   "event_name": "Grand Prix Barcelona 2017 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-03-10",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 4,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 8,
+    "avg_cmc": 2.82,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 5.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Jace, Unraveler of Secrets": 1,
+     "Horribly Awry": 1,
+     "Natural Obsolescence": 1,
+     "Void Shatter": 1,
+     "Confirm Suspicions": 1,
+     "Shock": 2,
+     "Incendiary Flow": 2,
+     "Disallow": 2,
+     "Negate": 3,
+     "Dynavolt Tower": 4,
+     "Glimmer of Genius": 4,
+     "Harnessed Lightning": 4,
+     "Anticipate": 4,
+     "Attune with Aether": 4,
+     "Torrential Gearhulk": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 9
+  },
+  {
+   "deck": 298129,
+   "event": 15943,
+   "archetype": "Mardu Control",
+   "player": "Moriya Ryo",
+   "event_name": "Team Trio @ Hareruya",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-06-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 1,
+    "avg_cmc": 3.46,
+    "pips": {
+     "W": 5.0,
+     "U": 0,
+     "B": 45.0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Anguished Unmaking": 1,
+     "Forsake the Worldly": 1,
+     "Cut // Ribbons": 1,
+     "Liliana, the Last Hope": 2,
+     "Sweltering Suns": 2,
+     "Dispossess": 2,
+     "Fatal Push": 2,
+     "Transgress the Mind": 3,
+     "Grasp of Darkness": 3,
+     "Never // Return": 3,
+     "Nahiri, the Harbinger": 3,
+     "Kalitas, Traitor of Ghet": 2,
+     "Gifted Aetherborn": 3,
+     "Gonti, Lord of Luxury": 3,
+     "Goblin Dark-Dwellers": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 305232,
+   "event": 17007,
+   "archetype": "Jeskai Gift",
+   "player": "Ruslan Kotunov",
+   "event_name": "Nationals - Russia 2017",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2017-09-17",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 28,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.77,
+    "pips": {
+     "W": 8.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Aethersphere Harvester": 1,
+     "God-Pharaoh's Gift": 2,
+     "Gate to the Afterlife": 4,
+     "Cathartic Reunion": 4,
+     "Elder Deep-Fiend": 2,
+     "Mausoleum Wanderer": 3,
+     "Walking Ballista": 3,
+     "Minister of Inquiries": 4,
+     "Champion of Wits": 4,
+     "Trophy Mage": 4,
+     "Insolent Neonate": 4,
+     "Angel of Invention": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 305211,
+   "event": 17005,
+   "archetype": "Sultai Midrange",
+   "player": "Aziz Rhipat",
+   "event_name": "Nationals - Indonesia 2017",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2017-09-16",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 17,
+    "counters": 4,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.77,
+    "pips": {
+     "W": 0,
+     "U": 15.0,
+     "B": 39.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Sinister Concoction": 1,
+     "Ever After": 2,
+     "Consign // Oblivion": 2,
+     "Grasp of Darkness": 3,
+     "Yahenni's Expertise": 3,
+     "Liliana, Death's Majesty": 3,
+     "Traverse the Ulvenwald": 4,
+     "Supreme Will": 4,
+     "The Scarab God": 1,
+     "Kalitas, Traitor of Ghet": 1,
+     "Razaketh, the Foulblooded": 1,
+     "Noxious Gearhulk": 2,
+     "Ishkanah, Grafwidow": 2,
+     "Torrential Gearhulk": 2,
+     "Champion of Wits": 4,
+     "Grim Flayer": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 304074,
+   "event": 16823,
+   "archetype": "Naya Ramp",
+   "player": "Kevin Pass",
+   "event_name": "Nationals - Scotland 2017",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2017-09-10",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 6,
+    "avg_cmc": 3.91,
+    "pips": {
+     "W": 10.0,
+     "U": 0,
+     "B": 4.0,
+     "R": 8.0,
+     "G": 17.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Hour of Promise": 4,
+     "Gift of Paradise": 4,
+     "Weirding Wood": 4,
+     "Sylvan Scrying": 2,
+     "Fumigate": 4,
+     "Kozilek's Return": 2,
+     "Cut // Ribbons": 2,
+     "Abrade": 4,
+     "Ulamog, the Ceaseless Hunger": 2,
+     "Walking Ballista": 3,
+     "Linvala, the Preserver": 1,
+     "World Breaker": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 304776,
+   "event": 16938,
+   "archetype": "Ramunap Red",
+   "player": "Daniel Fior",
+   "event_name": "National 2017 - Venezuela",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-09-17",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 1.92,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Shock": 4,
+     "Abrade": 4,
+     "Incendiary Flow": 3,
+     "Hazoret the Fervent": 4,
+     "Ahn-Crop Crasher": 4,
+     "Kari Zev, Skyship Raider": 3,
+     "Earthshaker Khenra": 4,
+     "Soul-Scar Mage": 3,
+     "Falkenrath Gorger": 4,
+     "Bomat Courier": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 26
+  },
+  {
+   "deck": 301379,
+   "event": 16414,
+   "archetype": "UR Zombies",
+   "player": "Lukas Paugsch",
+   "event_name": "MKM Series Prague 2017 - Standard main event",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-07-30",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 5,
+    "burn": 4,
+    "avg_cmc": 3.37,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 4.0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Tormenting Voice": 1,
+     "Shock": 1,
+     "Fevered Visions": 3,
+     "Lightning Axe": 3,
+     "Strategic Planning": 4,
+     "Kozilek's Return": 4,
+     "Cathartic Reunion": 4,
+     "Stitchwing Skaab": 3,
+     "Champion of Wits": 3,
+     "Advanced Stitchwing": 4,
+     "Prized Amalgam": 4,
+     "Elder Deep-Fiend": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 290347,
+   "event": 14952,
+   "archetype": "Rakdos Aggro",
+   "player": "Rui Pereira",
+   "event_name": "Grand Prix Barcelona 2017 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-03-10",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 9,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 11.0,
+     "R": 28.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Incendiary Flow": 4,
+     "Pia Nalaar": 2,
+     "Weldfast Engineer": 4,
+     "Forerunner of Slaughter": 3,
+     "Scrapheap Scrounger": 4,
+     "Inventor's Apprentice": 4,
+     "Bomat Courier": 4,
+     "Chandra, Torch of Defiance": 2,
+     "Heart of Kiran": 3,
+     "Unlicensed Disintegration": 4,
+     "Shock": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 33
+  },
+  {
+   "deck": 290853,
+   "event": 15015,
+   "archetype": "Gruul Energy",
+   "player": "Leonardo Luzardo Soares",
+   "event_name": "GP Trial - Grand Prix Porto Alegre 2017",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-03-18",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.02,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 10.0,
+     "G": 35.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Bristling Hydra": 4,
+     "Electrostatic Pummeler": 4,
+     "Voltaic Brawler": 4,
+     "Servant of the Conduit": 4,
+     "Longtusk Cub": 3,
+     "Greenbelt Rampager": 3,
+     "Attune with Aether": 4,
+     "Larger Than Life": 3,
+     "Blossoming Defense": 4,
+     "Invigorated Rampage": 4,
+     "Highspire Infusion": 2,
+     "Harnessed Lightning": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 15
+  },
+  {
+   "deck": 295703,
+   "event": 15659,
+   "archetype": "Jund",
+   "player": "David Reyes",
+   "event_name": "Trial - GP Santiago 2017",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-05-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 6.0,
+     "R": 15.0,
+     "G": 22.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Attune with Aether": 4,
+     "Unlicensed Disintegration": 4,
+     "Fatal Push": 2,
+     "Blossoming Defense": 2,
+     "Heart of Kiran": 4,
+     "Voltaic Brawler": 4,
+     "Scrapheap Scrounger": 4,
+     "Rhonas the Indomitable": 2,
+     "Longtusk Cub": 2,
+     "Hazoret the Fervent": 3,
+     "Greenbelt Rampager": 4,
+     "Glorybringer": 2,
+     "Bristling Hydra": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 8
+  },
+  {
+   "deck": 288430,
+   "event": 14709,
+   "archetype": "UB Control",
+   "player": "Terrence Rivera",
+   "event_name": "Grand Prix Pittsburgh 2017 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-02-10",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 25,
+    "creatures": 4,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.28,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Metallurgic Summonings": 2,
+     "Fatal Push": 2,
+     "Anticipate": 2,
+     "Confirm Suspicions": 1,
+     "Scatter to the Winds": 1,
+     "Void Shatter": 2,
+     "Negate": 2,
+     "Disallow": 2,
+     "Horribly Awry": 2,
+     "Grasp of Darkness": 4,
+     "To the Slaughter": 3,
+     "Glimmer of Genius": 4,
+     "Ruinous Path": 1,
+     "Transgress the Mind": 2,
+     "Torrential Gearhulk": 4,
+     "Ob Nixilis Reignited": 1,
+     "Jace, Unraveler of Secrets": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 290859,
+   "event": 15016,
+   "archetype": "Eldrazi Mardu",
+   "player": "Tatsya Uemura",
+   "event_name": "GP Trial - Grand Prix Shizuoka 2017",
+   "stars": 2,
+   "rank": "1",
+   "date": "2017-03-18",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.54,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 8.0,
+     "R": 7.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Aethersphere Harvester": 1,
+     "Fatal Push": 4,
+     "Unlicensed Disintegration": 4,
+     "Heart of Kiran": 4,
+     "Matter Reshaper": 3,
+     "Pia Nalaar": 3,
+     "Thought-Knot Seer": 4,
+     "Reality Smasher": 4,
+     "Walking Ballista": 4,
+     "Scrapheap Scrounger": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 282075,
+   "event": 13882,
+   "archetype": "URw",
+   "player": "Anst",
+   "event_name": "GP Trial Warsaw 2016",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-10-29",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 7,
+    "counters": 6,
+    "sweepers": 3,
+    "draw": 6,
+    "burn": 4,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 4.0,
+     "U": 30.0,
+     "B": 0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Jace, Unraveler of Secrets": 1,
+     "Blessed Alliance": 1,
+     "Nahiri, the Harbinger": 1,
+     "Fumigate": 1,
+     "Negate": 2,
+     "Radiant Flames": 2,
+     "Anticipate": 3,
+     "Void Shatter": 4,
+     "Glimmer of Genius": 4,
+     "Harnessed Lightning": 4,
+     "Galvanic Bombardment": 4,
+     "Thing in the Ice // Awoken Horror": 3,
+     "Torrential Gearhulk": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 305228,
+   "event": 17007,
+   "archetype": "Ub Control",
+   "player": "Alexander Ditsulenko",
+   "event_name": "Nationals - Russia 2017",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2017-09-17",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 6,
+    "counters": 12,
+    "sweepers": 1,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Censor": 4,
+     "Essence Scatter": 2,
+     "Negate": 1,
+     "Supreme Will": 2,
+     "Yahenni's Expertise": 1,
+     "Hieroglyphic Illumination": 1,
+     "To the Slaughter": 2,
+     "Disallow": 3,
+     "Glimmer of Genius": 4,
+     "Torrential Gearhulk": 3,
+     "The Scarab God": 3,
+     "Grasp of Darkness": 4,
+     "Fatal Push": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 304145,
+   "event": 16833,
+   "archetype": "Jeskai Approach",
+   "player": "Matej Vantuch",
+   "event_name": "Nationals - Czech Republic 2017",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2017-09-10",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 2,
+    "counters": 10,
+    "sweepers": 4,
+    "draw": 14,
+    "burn": 4,
+    "avg_cmc": 3.32,
+    "pips": {
+     "W": 4.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Abrade": 1,
+     "Essence Scatter": 2,
+     "Hour of Devastation": 2,
+     "Sweltering Suns": 2,
+     "Approach of the Second Sun": 2,
+     "Nahiri, the Harbinger": 2,
+     "Jace, Unraveler of Secrets": 2,
+     "Magma Spray": 3,
+     "Censor": 4,
+     "Supreme Will": 4,
+     "Harnessed Lightning": 4,
+     "Glimmer of Genius": 4,
+     "Torrential Gearhulk": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 305212,
+   "event": 17005,
+   "archetype": "Uw Second Sun",
+   "player": "Albert Budisanjaya",
+   "event_name": "Nationals - Indonesia 2017",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2017-09-16",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 1,
+    "counters": 12,
+    "sweepers": 6,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 3.94,
+    "pips": {
+     "W": 24.0,
+     "U": 26.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Blessed Alliance": 4,
+     "Disallow": 3,
+     "Fumigate": 4,
+     "Glimmer of Genius": 4,
+     "Farm // Market": 3,
+     "Approach of the Second Sun": 3,
+     "Supreme Will": 4,
+     "Hour of Revelation": 2,
+     "Kefnet the Mindful": 1,
+     "Pull from Tomorrow": 1,
+     "Confirm Suspicions": 1,
+     "Censor": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 304527,
+   "event": 16895,
+   "archetype": "Wr Aggro",
+   "player": "Martin Varga",
+   "event_name": "Nationals - Slovakia 2017",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2017-09-16",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 31.0,
+     "U": 0,
+     "B": 0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Always Watching": 4,
+     "Declaration in Stone": 2,
+     "Shock": 3,
+     "Glorybringer": 2,
+     "Ahn-Crop Crasher": 4,
+     "Resolute Survivors": 3,
+     "Blessed Alliance": 3,
+     "Thraben Inspector": 3,
+     "Glory-Bound Initiate": 4,
+     "Selfless Spirit": 4,
+     "Devoted Crop-Mate": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 50,
+ "rejected_illegal": [
+  {
+   "archetype": "Marvelous Energy",
+   "deck": 295320,
+   "player": "bobcards2",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Energy",
+   "deck": 281395,
+   "player": "Gabriel Joglar",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Energy",
+   "deck": 298130,
+   "player": "Iwata Sou",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Energy",
+   "deck": 295711,
+   "player": "Zan Syed",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "CopyCat",
+   "deck": 290065,
+   "player": "moothecow",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "CopyCat",
+   "deck": 287597,
+   "player": "Dylan Donegan",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "CopyCat",
+   "deck": 291621,
+   "player": "kaname",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "CopyCat",
+   "deck": 291505,
+   "player": "Oliver_Hart",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Dwarves",
+   "deck": 281378,
+   "player": "Logan Mcdougall",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Dwarves",
+   "deck": 280382,
+   "player": "Chris Vanmeter",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Dwarves",
+   "deck": 282067,
+   "player": "Diego Navarro",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Dwarves",
+   "deck": 282071,
+   "player": "Carlos Perret",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Golgari Control",
+   "deck": 283304,
+   "player": "Brad Nelson",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "Golgari Control",
+   "deck": 284670,
+   "player": "sebastianpozzo",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "Golgari Control",
+   "deck": 283327,
+   "player": "Eric Flickinger",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "Golgari Control",
+   "deck": 281390,
+   "player": "Gary Summers",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "Izzet Machinegun",
+   "deck": 281385,
+   "player": "Michael Marlow",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "B/G Delirium",
+   "deck": 284361,
+   "player": "Brennan DeCandio",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "B/G Delirium",
+   "deck": 284358,
+   "player": "Patrick Reynolds",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "B/G Delirium",
+   "deck": 284356,
+   "player": "Shaheen Soorani",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "B/G Delirium",
+   "deck": 284360,
+   "player": "Orlando Lucas",
+   "why": [
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Temur",
+   "deck": 295698,
+   "player": "Juan Monsalve",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Temur",
+   "deck": 290348,
+   "player": "Tomek Pedrakowski",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Temur",
+   "deck": 295460,
+   "player": "Mauro Sasso",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Marvelous Temur",
+   "deck": 295059,
+   "player": "Yuuka_Kazami",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Copycat",
+   "deck": 290842,
+   "player": "Daniel Caldeiras",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Copycat",
+   "deck": 289038,
+   "player": "Jonathan Rosum",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Copycat",
+   "deck": 289027,
+   "player": "Ian Flinn",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Copycat",
+   "deck": 290471,
+   "player": "Corey Baumeister",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Human",
+   "deck": 280269,
+   "player": "gildartzpt",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Human",
+   "deck": 281379,
+   "player": "Brandon Nelson",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Human",
+   "deck": 280386,
+   "player": "Donovan Lachney",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Human",
+   "deck": 281375,
+   "player": "Nathan Farman",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Saheeli",
+   "deck": 290887,
+   "player": "Philip Van Donselaar",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Saheeli",
+   "deck": 290886,
+   "player": "Jesper Box",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Vehicule",
+   "deck": 284426,
+   "player": "sandydogmtg",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Vehicule",
+   "deck": 283806,
+   "player": "Clavin Liu",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Vehicule",
+   "deck": 284655,
+   "player": "Vilaboy",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Vehicule",
+   "deck": 284434,
+   "player": "cometa183",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Four-color Saheeli",
+   "deck": 289528,
+   "player": "Eli Kassis",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Four-color Saheeli",
+   "deck": 288805,
+   "player": "Jonathan Rosum",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Four-color Saheeli",
+   "deck": 290040,
+   "player": "Davi Mangolin Filho",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Four-color Saheeli",
+   "deck": 290037,
+   "player": "Jo\u00e3o Lucas Caparroz",
+   "why": [
+    "Felidar Guardian (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aetherworks",
+   "deck": 293671,
+   "player": "Sam Lowe",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Aggro",
+   "deck": 282076,
+   "player": "Andreas Kaas",
+   "why": [
+    "Reflector Mage (banned)",
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 284357,
+   "player": "Eli Kassis",
+   "why": [
+    "Reflector Mage (banned)",
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 281383,
+   "player": "Brian Finlayson-schueler",
+   "why": [
+    "Reflector Mage (banned)",
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 281389,
+   "player": "Peter Mckinney",
+   "why": [
+    "Reflector Mage (banned)",
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 280370,
+   "player": "Todd Stevens",
+   "why": [
+    "Reflector Mage (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Emerge",
+   "deck": 280383,
+   "player": "Zach Voss",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Emerge",
+   "deck": 281400,
+   "player": "Erik Rose",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "W/U Panharmonicon",
+   "deck": 284359,
+   "player": "Michael Kenney",
+   "why": [
+    "Reflector Mage (banned)",
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Marvel",
+   "deck": 296756,
+   "player": "Brad Nelson",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Marvel",
+   "deck": 296299,
+   "player": "Wes Blanchard",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Marvel",
+   "deck": 290884,
+   "player": "Ramon Brunt",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Marvel",
+   "deck": 296295,
+   "player": "Jesus Cabrera",
+   "why": [
+    "Aetherworks Marvel (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Vehicules",
+   "deck": 284179,
+   "player": "Matt Severa",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Vehicules",
+   "deck": 280851,
+   "player": "Shi Tian Lee",
+   "why": [
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Flash",
+   "deck": 282083,
+   "player": "Gabrielius Kaklauskus",
+   "why": [
+    "Reflector Mage (banned)",
+    "Smuggler's Copter (banned)"
+   ]
+  },
+  {
+   "archetype": "UG Energy",
+   "deck": 280270,
+   "player": "dschidi",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Emrakul, the Promised End (banned)"
+   ]
+  },
+  {
+   "archetype": "UG Energy",
+   "deck": 280274,
+   "player": "Wyr",
+   "why": [
+    "Aetherworks Marvel (banned)",
+    "Emrakul, the Promised End (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Mardu Balista",
+   "player": "Watchwolf92",
+   "kept": "Mardu Vehicles",
+   "kept_player": "Evgeniy Schetka"
+  },
+  {
+   "dropped": "Mardu Ballista",
+   "player": "Philipp Krieger",
+   "kept": "Mardu Vehicles",
+   "kept_player": "Evgeniy Schetka"
+  },
+  {
+   "dropped": "4c Energy",
+   "player": "Autumn Burchett",
+   "kept": "Temur Energy",
+   "kept_player": "Stephen Murray"
+  },
+  {
+   "dropped": "4 Color Energy",
+   "player": "Kenta Harane",
+   "kept": "Temur Energy",
+   "kept_player": "Stephen Murray"
+  },
+  {
+   "dropped": "Mardu",
+   "player": "Tje Fei",
+   "kept": "Mardu Vehicles",
+   "kept_player": "Evgeniy Schetka"
+  },
+  {
+   "dropped": "Mardu Aggro",
+   "player": "Rooney56",
+   "kept": "Mardu Vehicles",
+   "kept_player": "Evgeniy Schetka"
+  },
+  {
+   "dropped": "B/g Delirium",
+   "player": "Ben Stark",
+   "kept": "Golgari Delirium",
+   "kept_player": "Brennan DeCandio"
+  },
+  {
+   "dropped": "Golgari Constrictor",
+   "player": "Frank Skarren",
+   "kept": "Bg Constrictor",
+   "kept_player": "Aziz Riphat"
+  },
+  {
+   "dropped": "Red Deck Wins",
+   "player": "Mark Lammey",
+   "kept": "Ramunap Red",
+   "kept_player": "Daniel Fior"
+  },
+  {
+   "dropped": "Selesnya Ramp",
+   "player": "Arne Huschenbeth",
+   "kept": "Gw Ramp",
+   "kept_player": "Tomas Langer"
+  },
+  {
+   "dropped": "Dark Temur",
+   "player": "Ondrej Kedrovi\u010d",
+   "kept": "Temur Energy",
+   "kept_player": "Stephen Murray"
+  },
+  {
+   "dropped": "Red Decks Wins",
+   "player": "Yann Lee Teoh",
+   "kept": "Ramunap Red",
+   "kept_player": "Daniel Fior"
+  },
+  {
+   "dropped": "Scarab God - Zombies",
+   "player": "CharlieTheBananaKing",
+   "kept": "Mono Black Zombies",
+   "kept_player": "Peter Snoha"
+  },
+  {
+   "dropped": "Mardu Vehicle",
+   "player": "MiguelCaster",
+   "kept": "Mardu Vehicles",
+   "kept_player": "Evgeniy Schetka"
+  },
+  {
+   "dropped": "Golgari Aggro",
+   "player": "Unknown Player",
+   "kept": "Bg Constrictor",
+   "kept_player": "Aziz Riphat"
+  },
+  {
+   "dropped": "Ur Control",
+   "player": "Jeffrey Chan",
+   "kept": "Izzet Control",
+   "kept_player": "Juan Pablo Barzola"
+  },
+  {
+   "dropped": "Temur Dynavolt",
+   "player": "Unknown Player",
+   "kept": "Temur Tower",
+   "kept_player": "Bradley Barclay"
+  },
+  {
+   "dropped": "Gb Aggro",
+   "player": "Jay Pangasinan",
+   "kept": "Golgari Delirium",
+   "kept_player": "Brennan DeCandio"
+  },
+  {
+   "dropped": "Bg Energy",
+   "player": "Eng Chu Heng",
+   "kept": "Bg Constrictor",
+   "kept_player": "Aziz Riphat"
+  },
+  {
+   "dropped": "Naya Monsters",
+   "player": "Pablo Velez",
+   "kept": "Gruul Energy",
+   "kept_player": "Leonardo Luzardo Soares"
+  },
+  {
+   "dropped": "Sultai Delirium",
+   "player": "Yuya Hayashi",
+   "kept": "Golgari Delirium",
+   "kept_player": "Brennan DeCandio"
+  },
+  {
+   "dropped": "R/g Energy",
+   "player": "Josh Newell",
+   "kept": "Gruul Energy",
+   "kept_player": "Leonardo Luzardo Soares"
+  },
+  {
+   "dropped": "Temur Dynavolt Tower",
+   "player": "Julio De Biasi",
+   "kept": "Temur Tower",
+   "kept_player": "Bradley Barclay"
+  },
+  {
+   "dropped": "Uw Approach",
+   "player": "Sascha Black",
+   "kept": "UW Control",
+   "kept_player": "Tirentu"
+  },
+  {
+   "dropped": "Rw Dwarves",
+   "player": "Quentin Martin",
+   "kept": "Boros Aggro",
+   "kept_player": "Alain Bardini"
+  },
+  {
+   "dropped": "Zombie",
+   "player": "Ebnu Suryadhi",
+   "kept": "Mono Black Zombies",
+   "kept_player": "Peter Snoha"
+  },
+  {
+   "dropped": "RDW",
+   "player": "__OVC__",
+   "kept": "Ramunap Red",
+   "kept_player": "Daniel Fior"
+  },
+  {
+   "dropped": "4-color Emerge",
+   "player": "Zan Syed",
+   "kept": "Emerge",
+   "kept_player": "Harane Kenta"
+  },
+  {
+   "dropped": "Jeskai Control",
+   "player": "Bradley Hill",
+   "kept": "URw",
+   "kept_player": "Anst"
+  },
+  {
+   "dropped": "4c Tower",
+   "player": "Joe Lam",
+   "kept": "Temur Tower",
+   "kept_player": "Bradley Barclay"
+  },
+  {
+   "dropped": "Comeback Red",
+   "player": "Paulo Vitor Damo da Rosa",
+   "kept": "Ramunap Red",
+   "kept_player": "Daniel Fior"
+  },
+  {
+   "dropped": "Mono-white Eldrazi",
+   "player": "Diego Velazquez",
+   "kept": "Uw Eldrazi",
+   "kept_player": "Ryan Espano"
+  },
+  {
+   "dropped": "Grixis Control",
+   "player": "Daniel Gardner",
+   "kept": "Izzet Control",
+   "kept_player": "Juan Pablo Barzola"
+  },
+  {
+   "dropped": "Eldrazi Aggro",
+   "player": "AKMiD",
+   "kept": "Eldrazi Mardu",
+   "kept_player": "Tatsya Uemura"
+  },
+  {
+   "dropped": "Mono Black Aggro",
+   "player": "7720",
+   "kept": "Mono Black Zombies",
+   "kept_player": "Peter Snoha"
+  },
+  {
+   "dropped": "Mono White Eldrazi",
+   "player": "Bogdan Volostrigov",
+   "kept": "Uw Eldrazi",
+   "kept_player": "Ryan Espano"
+  },
+  {
+   "dropped": "Izzet Tower",
+   "player": "Znapcaster",
+   "kept": "Izzet Control",
+   "kept_player": "Juan Pablo Barzola"
+  },
+  {
+   "dropped": "U/r/b Control",
+   "player": "Ivan Kokorin",
+   "kept": "Izzet Control",
+   "kept_player": "Juan Pablo Barzola"
+  },
+  {
+   "dropped": "Monowhite Eldrazi",
+   "player": "Johan Sutanto",
+   "kept": "Uw Eldrazi",
+   "kept_player": "Ryan Espano"
+  },
+  {
+   "dropped": "Zbysek Panchartek",
+   "player": "Mardu Ballista",
+   "kept": "Mardu Vehicles",
+   "kept_player": "Evgeniy Schetka"
+  },
+  {
+   "dropped": "Jeskai God-Pharaoh's Gift",
+   "player": "Raphael Dolscheid",
+   "kept": "Jeskai Gift",
+   "kept_player": "Ruslan Kotunov"
+  },
+  {
+   "dropped": "Mono B Zombies",
+   "player": "Adam Bowman",
+   "kept": "Mono Black Zombies",
+   "kept_player": "Peter Snoha"
+  },
+  {
+   "dropped": "Temur Aggro",
+   "player": "Michael Strianese",
+   "kept": "Gruul Energy",
+   "kept_player": "Leonardo Luzardo Soares"
+  },
+  {
+   "dropped": "Izzet Dynavolt",
+   "player": "Hal Brady",
+   "kept": "URw",
+   "kept_player": "Anst"
+  },
+  {
+   "dropped": "UR Dynavolt",
+   "player": "Andrew Gordon",
+   "kept": "URw",
+   "kept_player": "Anst"
+  },
+  {
+   "dropped": "Gruul Aggro",
+   "player": "Johnnys Torres",
+   "kept": "Gruul Energy",
+   "kept_player": "Leonardo Luzardo Soares"
+  },
+  {
+   "dropped": "4-colour Energy",
+   "player": "Yiannis Economides",
+   "kept": "Temur Energy",
+   "kept_player": "Stephen Murray"
+  },
+  {
+   "dropped": "Bg Delirium Constrictor",
+   "player": "Lukas Blohon",
+   "kept": "Golgari Delirium",
+   "kept_player": "Brennan DeCandio"
+  },
+  {
+   "dropped": "Orzhov Zombies",
+   "player": "jaek",
+   "kept": "Mono Black Zombies",
+   "kept_player": "Peter Snoha"
+  },
+  {
+   "dropped": "B/g Energy Constrictor",
+   "player": "Brad Nelson",
+   "kept": "Bg Constrictor",
+   "kept_player": "Aziz Riphat"
+  },
+  {
+   "dropped": "Rw Humans",
+   "player": "Reeves Chia",
+   "kept": "R/w Humans",
+   "kept_player": "Zach Stern"
+  }
+ ],
+ "objective": 12.79181437699777,
+ "pool_colors": {
+  "W": 20,
+  "B": 21,
+  "R": 29,
+  "U": 25,
+  "G": 17
+ },
+ "pool_styles": {
+  "aggro": 22,
+  "midrange": 12,
+  "control": 16
+ },
+ "kept_lost": []
+}

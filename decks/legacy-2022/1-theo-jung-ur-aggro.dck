@@ -1,0 +1,39 @@
+[metadata]
+Name=UR Aggro (Theo Jung)
+Deck Type=Constructed
+Format=Legacy (SNC)
+Effective=2022-04-29
+Source URL=https://www.mtgtop8.com/event?e=38098&d=484936&f=LE
+Comment=$20,000 Team Showdown @ NRG Series (St. Louis): Theo Jung, 1st, UR Aggro. Transcribed from mtgtop8 deck 484936.
+[Main]
+1 Brazen Borrower|ELD
+4 Murktide Regent|MH2
+4 Delver of Secrets|ISD
+4 Dragon's Rage Channeler|MH2
+2 Mishra's Bauble|CSP
+2 Pyroblast|IA
+4 Force of Will|AL
+4 Daze|NE
+4 Brainstorm|IA
+4 Lightning Bolt|A
+4 Ponder|LRW
+4 Expressive Iteration|STX
+1 Island|A
+1 Mystic Sanctuary|TSR
+1 Steam Vents|GP
+2 Misty Rainforest|ZEN
+2 Scalding Tarn|ZEN
+2 Polluted Delta|ON
+2 Flooded Strand|ON
+4 Wasteland|TE
+4 Volcanic Island|B
+[Sideboard]
+2 Pyroblast|IA
+1 Force of Negation|H1R
+1 Hydroblast|IA
+1 Maddening Hex|AFC
+2 Submerge|NE
+2 Rough // Tumble|PLC
+2 Surgical Extraction|NPH
+2 Meltdown|US
+2 Counterbalance|CSP

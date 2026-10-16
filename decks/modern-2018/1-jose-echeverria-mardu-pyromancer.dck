@@ -1,0 +1,39 @@
+[metadata]
+Name=Mardu Pyromancer (Jose Echeverria)
+Deck Type=Constructed
+Format=Modern (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=19634&d=325878&f=MO
+Comment=Grand Prix São Paulo 2018: Jose Echeverria, 1st, Mardu Pyromancer. Transcribed from mtgtop8 deck 325878.
+[Main]
+4 Bedlam Reveler|EMN
+4 Young Pyromancer|M14
+2 Fatal Push|AER
+3 Kolaghan's Command|DTK
+4 Lightning Bolt|M11
+1 Manamorphose|SHM
+1 Terminate|ARB
+2 Collective Brutality|EMN
+1 Dreadbore|RTR
+4 Faithless Looting|DKA
+4 Inquisition of Kozilek|ROE
+4 Lingering Souls|DKA
+3 Thoughtseize|THS
+2 Blood Moon|9E
+1 Liliana of the Veil|ISD
+4 Blackcleave Cliffs|SOM
+2 Blood Crypt|RTR
+4 Bloodstained Mire|KTK
+4 Marsh Flats|ZEN
+2 Mountain|M19
+2 Sacred Foundry|GTC
+2 Swamp|M19
+[Sideboard]
+1 Collective Brutality|EMN
+2 Engineered Explosives|FD
+2 Goblin Rabblemaster|M15
+2 Kambal, Consul of Allocation|KLD
+3 Molten Rain|MR
+1 Nihil Spellbomb|SOM
+2 Surgical Extraction|NPH
+2 Wear // Tear|DGM

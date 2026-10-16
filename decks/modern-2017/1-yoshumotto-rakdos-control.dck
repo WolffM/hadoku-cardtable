@@ -1,0 +1,42 @@
+[metadata]
+Name=Rakdos Control (Yoshumotto)
+Deck Type=Constructed
+Format=Modern (HOU)
+Effective=2017-07-14
+Source URL=https://www.mtgtop8.com/event?e=16771&d=303729&f=MO
+Comment=MTGO Modern Challenge: Yoshumotto, 1st, Rakdos Control. Transcribed from mtgtop8 deck 303729.
+[Main]
+1 Collective Brutality|EMN
+1 Dreadbore|RTR
+1 Kolaghan's Command|DTK
+1 Chandra, Torch of Defiance|KLD
+2 Thoughtseize|THS
+2 Lightning Bolt|M11
+3 Terminate|ARB
+3 Liliana of the Veil|ISD
+4 Inquisition of Kozilek|ROE
+4 Blood Moon|9E
+4 Fatal Push|AER
+4 Pack Rat|RTR
+4 Goblin Rabblemaster|M15
+4 Dark Confidant|RAV
+1 Mountain|HOU
+2 Marsh Flats|ZEN
+2 Blood Crypt|RTR
+2 Mutavault|M14
+3 Swamp|HOU
+4 Bloodstained Mire|KTK
+4 Blackcleave Cliffs|SOM
+4 Verdant Catacombs|ZEN
+[Sideboard]
+1 Shatterstorm|10E
+1 Anger of the Gods|THS
+1 Damnation|PLC
+1 Duress|DTK
+1 Flaying Tendrils|OGW
+1 Grafdigger's Cage|DKA
+1 Grim Lavamancer|M12
+4 Leyline of the Void|M11
+1 Olivia Voldaren|ISD
+2 Collective Brutality|EMN
+1 Kolaghan's Command|DTK

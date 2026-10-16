@@ -1,0 +1,34 @@
+[metadata]
+Name=Izzet Control (Juan Pablo Barzola)
+Deck Type=Constructed
+Format=Standard (HOU)
+Effective=2017-07-14
+Source URL=https://www.mtgtop8.com/event?e=15659&d=295697&f=ST
+Comment=Trial - GP Santiago 2017: Juan Pablo Barzola, 1st, Izzet Control. Transcribed from mtgtop8 deck 295697.
+[Main]
+3 Negate|AER
+4 Magma Spray|AKH
+4 Hieroglyphic Illumination|AKH
+4 Harnessed Lightning|KLD
+4 Glimmer of Genius|KLD
+2 Essence Scatter|AKH
+3 Disallow|AER
+3 Censor|AKH
+4 Torrential Gearhulk|KLD
+4 Wandering Fumarole|OGW
+4 Spirebluff Canal|KLD
+4 Mountain|AKH
+8 Island|AKH
+4 Aether Hub|KLD
+3 Sweltering Suns|AKH
+1 Void Shatter|OGW
+1 Pull from Tomorrow|AKH
+[Sideboard]
+1 Negate|AER
+1 Commit // Memory|AKH
+3 Dispel|BFZ
+3 Dynavolt Tower|KLD
+1 Glorybringer|AKH
+1 Jace, Unraveler of Secrets|SOI
+1 Sphinx of the Final Word|OGW
+4 Thing in the Ice|SOI

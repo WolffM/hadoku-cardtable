@@ -1,0 +1,32 @@
+[metadata]
+Name=Eldrazi Aggro (FranMtg)
+Deck Type=Constructed
+Format=Legacy (FIN)
+Effective=2025-06-30
+Source URL=https://www.mtgtop8.com/event?e=71417&d=741272&f=LE
+Comment=MTGO Challenge 32: FranMtg, 1st, Eldrazi Aggro. Transcribed from mtgtop8 deck 741272.
+[Main]
+4 Cavern of Souls|AVR
+4 Chalice of the Void|MR
+4 Eldrazi Temple|ROE
+3 Devourer of Destiny|MH3
+4 Eldrazi Linebreaker|MH3
+3 Eye of Ugin|WWK
+3 Grim Monolith|UL
+4 Glaring Fleshraker|MH3
+4 Secluded Courtyard|FDN
+4 Kozilek's Command|MH3
+4 Lotus Petal|TE
+2 Wastes|OGW
+4 Thought-Knot Seer|OGW
+1 Ugin, Eye of the Storms|TDM
+4 Wasteland|TE
+4 Wastescape Battlemage|MH3
+4 Ancient Tomb|TE
+[Sideboard]
+1 Ugin, Eye of the Storms|TDM
+2 Grafdigger's Cage|DKA
+4 Disruptor Flute|MH3
+3 Null Rod|WL
+2 Unlicensed Hearse|OTP
+3 Dismember|NPH

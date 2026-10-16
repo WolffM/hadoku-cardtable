@@ -198,8 +198,13 @@ describe('the frozen Standard pools carry what a colour fold needs', () => {
       for (const name of Object.keys(fixture.manaCost)) expect(known.has(name), `${label}: ${name}`).toBe(true);
       for (const name of Object.keys(fixture.colors)) expect(known.has(name), `${label}: ${name}`).toBe(true);
       // A land has no cost and no colour, so it is absent rather than empty —
-      // which is what keeps the two maps to the size of the spells.
-      expect(Object.keys(fixture.manaCost).length).toBeLessThan(fixture.cards.length + 40);
+      // which is what keeps the two maps to the size of the spells. Measured
+      // against the name keys, not the card count: a double-faced card is keyed
+      // under both its names, and the Innistrad: Midnight Hunt and Crimson Vow
+      // eras hold more of those than a slack of 40 over the card count covers.
+      // At least 30 names go uncosted in every pool; the fewest, 42, is Type 2's
+      // 1995 summer, with four sets of lands.
+      expect(Object.keys(fixture.manaCost).length, label).toBeLessThan(known.size - 30);
     }
   });
 
@@ -263,6 +268,10 @@ describe("a deck's colours are a fold over its own card list", () => {
   // which ones read zero colours, not assumed from the archetype name; these
   // two were the only two — and doubling the library to 24 per era (2026-10-10)
   // brought three more artifact prison decks, read off the same fold.
+  // Running the library forward to 2025 brought eleven more, every one a
+  // colourless archetype by name and by fold: Modern's Eldrazi Tron (five
+  // summers of it) and Urzatron, Legacy's Steel Stompy, 12-Post, Eldrazi
+  // Post, Karn and Mystic Forge.
   // Genuinely colourless decks are real, competitive
   // Legacy archetypes, so this is a named exception, not a loosened floor —
   // a fold that broke (like the Modern GR Tron bug this same wave found,
@@ -274,6 +283,17 @@ describe("a deck's colours are a fold over its own card list", () => {
     'power-legacy-2013-1-martin-pohlmeyer-mud',
     'power-legacy-2014-1-simo-partinen-mud-post',
     'power-legacy-2016-1-demetrio-morselli-mud',
+    'power-legacy-2018-1-david-salus-steel-stompy',
+    'power-legacy-2020-1-nakamura-ryousuke-12-post',
+    'power-legacy-2022-1-ding-hui-eldrazi-post',
+    'power-legacy-2023-1-susurrus-mtg-karn',
+    'power-legacy-2025-1-hiromi-kameshima-mystic-forge',
+    'power-modern-2017-1-dan-musser-eldra-tron',
+    'power-modern-2019-1-zachattack23-eldra-tron',
+    'power-modern-2020-1-thetunnelingcat-eldra-tron',
+    'power-modern-2021-1-dreamsofashiok-eldra-tron',
+    'power-modern-2022-1-brady-munroe-urzatron',
+    'power-modern-2022-1-damian-del-nero-eldra-tron',
   ]);
 
   it('gives every deck in the library at least one colour, except the real colourless ones', () => {

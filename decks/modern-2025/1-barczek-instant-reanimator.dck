@@ -1,0 +1,43 @@
+[metadata]
+Name=Instant Reanimator (barczek)
+Deck Type=Constructed
+Format=Modern (FIN)
+Effective=2025-06-30
+Source URL=https://www.mtgtop8.com/event?e=71914&d=745131&f=MO
+Comment=MTGO Challenge 64: barczek, 1st, Instant Reanimator. Transcribed from mtgtop8 deck 745131.
+[Main]
+3 Force of Negation|MH1
+1 Godless Shrine|RNA
+3 Flooded Strand|KTK
+2 Thoughtseize|THS
+1 Shadowy Backstreet|MKM
+1 Undercity Sewers|MKM
+1 Meticulous Archive|MKM
+1 Hedge Maze|MKM
+4 Atraxa, Grand Unifier|ONE
+4 Fallaji Archaeologist|BRO
+4 Tainted Indulgence|SNC
+4 Solitude|MH2
+1 Watery Grave|GRN
+2 Prismatic Ending|MH2
+2 Griselbrand|AVR
+1 Hallowed Fountain|RNA
+4 Goryo's Vengeance|BOK
+1 Island|FIN
+1 Swamp|FIN
+4 Marsh Flats|ZEN
+4 Psychic Frog|MH3
+3 Polluted Delta|KTK
+1 Cephalid Coliseum|OD
+4 Ephemerate|MH1
+1 Plains|FIN
+2 Priest of Fell Rites|MH2
+[Sideboard]
+1 Thoughtseize|THS
+1 Pest Control|BIG
+1 Fatal Push|AER
+2 Mystical Dispute|ELD
+2 Subtlety|MH2
+2 Celestial Purge|M12
+4 Consign to Memory|MH3
+2 Wrath of the Skies|MH3

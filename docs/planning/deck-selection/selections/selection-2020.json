@@ -1,0 +1,2849 @@
+{
+ "era": {
+  "year": 2020,
+  "season_start": "2019-10-04",
+  "start": "2020-08-03",
+  "end": "2020-09-25",
+  "format": "Standard (2020-08-03)",
+  "sets": "GRN, RNA, WAR, M20, ELD, THB, IKO, M21",
+  "banned": [
+   "Agent of Treachery",
+   "Cauldron Familiar",
+   "Field of the Dead",
+   "Fires of Invention",
+   "Growth Spiral",
+   "Oko, Thief of Crowns",
+   "Once Upon a Time",
+   "Teferi, Time Raveler",
+   "Veil of Summer",
+   "Wilderness Reclamation"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 412063,
+   "event": 27042,
+   "archetype": "Sultai Control",
+   "player": "Ari Lax",
+   "event_name": "SCG Tour Online Championship Qualifier #4 @ Star City Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-08-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.28,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 13.0,
+     "R": 0,
+     "G": 15.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Narset, Parter of Veils": 4,
+     "Nissa, Who Shakes the World": 3,
+     "Tamiyo, Collector of Tales": 1,
+     "Shark Typhoon": 3,
+     "Hydroid Krasis": 2,
+     "Uro, Titan of Nature's Wrath": 4,
+     "Eat to Extinction": 1,
+     "Aether Gust": 3,
+     "Eliminate": 3,
+     "Casualties of War": 1,
+     "Agonizing Remorse": 1,
+     "Extinction Event": 2,
+     "Thought Erasure": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 326
+  },
+  {
+   "deck": 410850,
+   "event": 26950,
+   "archetype": "Adventure",
+   "player": "Sergey Tonkikh",
+   "event_name": "International Qualifier V @ Red Bull Untapped",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-08-15",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.12,
+    "pips": {
+     "W": 0,
+     "U": 22.0,
+     "B": 0,
+     "R": 11.0,
+     "G": 23.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Edgewall Innkeeper": 4,
+     "Fae of Wishes // Granted": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Beanstalk Giant // Fertile Footsteps": 4,
+     "Lucky Clover": 4,
+     "Aether Gust": 2,
+     "Escape to the Wilds": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 78
+  },
+  {
+   "deck": 412548,
+   "event": 27045,
+   "archetype": "Temur Yorion Elementals",
+   "player": "Takumi Yamasaki",
+   "event_name": "International Qualifier VI @ Red Bull Untapped",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-08-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 44,
+    "lands": 36,
+    "creatures": 23,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 3.7,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 12.0,
+     "G": 47.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Genesis Ultimatum": 4,
+     "Cultivate": 4,
+     "Mystical Dispute": 3,
+     "Aether Gust": 2,
+     "Ugin, the Spirit Dragon": 4,
+     "Leafkin Druid": 4,
+     "Uro, Titan of Nature's Wrath": 4,
+     "Arboreal Grazer": 4,
+     "Risen Reef": 4,
+     "Omnath, Locus of the Roil": 4,
+     "Cavalier of Thorns": 4,
+     "Hydroid Krasis": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 399416,
+   "event": 26246,
+   "archetype": "Mono Green Aggro",
+   "player": "Rint",
+   "event_name": "CFB Pro Showdown",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-06-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 31,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 57.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Gemrazer": 2,
+     "Yorvo, Lord of Garenbrig": 3,
+     "Scavenging Ooze": 3,
+     "Questing Beast": 3,
+     "Stonecoil Serpent": 4,
+     "Kraul Harpooner": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Pelt Collector": 4,
+     "Barkhide Troll": 4,
+     "The Great Henge": 2,
+     "Vivien, Arkbow Ranger": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 141
+  },
+  {
+   "deck": 407142,
+   "event": 26728,
+   "archetype": "Red Deck Wins",
+   "player": "Paul Woo",
+   "event_name": "SCG Tour Online Championship Qualifier #1 @ Star City Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-08-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 57.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Torbran, Thane of Red Fell": 3,
+     "Bonecrusher Giant // Stomp": 4,
+     "Anax, Hardened in the Forge": 4,
+     "Runaway Steam-Kin": 4,
+     "Robber of the Rich": 4,
+     "Fervent Champion": 4,
+     "Scorch Spitter": 4,
+     "Embercleave": 4,
+     "Shock": 4,
+     "Light Up the Stage": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 102
+  },
+  {
+   "deck": 404463,
+   "event": 26523,
+   "archetype": "Weenie White",
+   "player": "Hoshi Yuki",
+   "event_name": "Red Bull Untapped International Qualifier III @ Red Bull Untapped",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-07-18",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 47.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Raise the Alarm": 4,
+     "Unbreakable Formation": 3,
+     "Giant Killer // Chop Down": 4,
+     "Hunted Witness": 4,
+     "Selfless Savior": 4,
+     "Garrison Cat": 4,
+     "Venerated Loxodon": 4,
+     "Seasoned Hallowblade": 4,
+     "Glorious Anthem": 4,
+     "Basri's Solidarity": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 26
+  },
+  {
+   "deck": 411440,
+   "event": 26992,
+   "archetype": "Rakdos Aggro",
+   "player": "Ryan Fraking",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-19",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.03,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 34.0,
+     "R": 7.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Bastion of Remembrance": 3,
+     "Claim the Firstborn": 4,
+     "Call of the Death-Dweller": 2,
+     "Village Rites": 4,
+     "Bolas's Citadel": 1,
+     "Gutterbones": 4,
+     "Lazotep Reaver": 4,
+     "Priest of Forgotten Gods": 4,
+     "Woe Strider": 4,
+     "Serrated Scorpion": 3,
+     "Judith, the Scourge Diva": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 120
+  },
+  {
+   "deck": 409716,
+   "event": 26898,
+   "archetype": "Winota",
+   "player": "Case Johnson",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-13",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.58,
+    "pips": {
+     "W": 23.0,
+     "U": 0,
+     "B": 0,
+     "R": 17.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Raise the Alarm": 4,
+     "Embercleave": 3,
+     "Winota, Joiner of Forces": 4,
+     "Tithe Taker": 4,
+     "Selfless Savior": 4,
+     "Stonecoil Serpent": 4,
+     "Legion Warboss": 4,
+     "Basri's Lieutenant": 4,
+     "Tajic, Legion's Edge": 3,
+     "Gingerbrute": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 52
+  },
+  {
+   "deck": 411776,
+   "event": 27027,
+   "archetype": "Mono Black Aggro",
+   "player": "Yojiro Futamata",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-22",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 54.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Demonic Embrace": 1,
+     "Eliminate": 3,
+     "Heartless Act": 1,
+     "Hunted Nightmare": 4,
+     "Spawn of Mayhem": 4,
+     "Knight of the Ebon Legion": 4,
+     "Rankle, Master of Pranks": 4,
+     "Gutterbones": 4,
+     "Tymaret, Chosen from Death": 3,
+     "Blacklance Paragon": 3,
+     "Kitesail Freebooter": 3,
+     "Murderous Rider // Swift End": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 28
+  },
+  {
+   "deck": 413792,
+   "event": 27172,
+   "archetype": "Temur Control",
+   "player": "Sancho",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-03",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 10,
+    "counters": 3,
+    "sweepers": 2,
+    "draw": 13,
+    "burn": 7,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 0,
+     "U": 33.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 6.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Ral, Izzet Viceroy": 1,
+     "Fire Prophecy": 2,
+     "Storm's Wrath": 2,
+     "Ionize": 3,
+     "Teferi, Master of Time": 3,
+     "Shark Typhoon": 3,
+     "Opt": 4,
+     "Shock": 4,
+     "Brazen Borrower // Petty Theft": 2,
+     "Jolrael, Mwonvuli Recluse": 2,
+     "Niv-Mizzet, Parun": 2,
+     "Uro, Titan of Nature's Wrath": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 408350,
+   "event": 26819,
+   "archetype": "Temur Flash Aggro",
+   "player": "Toni Ramis Pascual",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-09",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 15,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.29,
+    "pips": {
+     "W": 0,
+     "U": 35.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Sublime Epiphany": 1,
+     "Wilt": 1,
+     "Essence Scatter": 1,
+     "Negate": 1,
+     "Nissa, Who Shakes the World": 2,
+     "Shark Typhoon": 2,
+     "Mystical Dispute": 2,
+     "Quench": 3,
+     "Sinister Sabotage": 3,
+     "Aether Gust": 3,
+     "Paradise Druid": 1,
+     "Frilled Mystic": 3,
+     "Brazen Borrower // Petty Theft": 3,
+     "Nightpack Ambusher": 4,
+     "Bonecrusher Giant // Stomp": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 407436,
+   "event": 26751,
+   "archetype": "Sultai Aggro",
+   "player": "Hgrose",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-03",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 3.34,
+    "pips": {
+     "W": 0,
+     "U": 5.0,
+     "B": 5.0,
+     "R": 0,
+     "G": 48.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Tamiyo, Collector of Tales": 1,
+     "Ram Through": 1,
+     "Nissa, Who Shakes the World": 2,
+     "The Great Henge": 2,
+     "Arboreal Grazer": 1,
+     "Elder Gargaroth": 2,
+     "Cavalier of Thorns": 2,
+     "Voracious Hydra": 2,
+     "Polukranos, Unchained": 2,
+     "Uro, Titan of Nature's Wrath": 2,
+     "Paradise Druid": 2,
+     "Stonecoil Serpent": 2,
+     "Hydroid Krasis": 2,
+     "Shifting Ceratops": 3,
+     "Rotting Regisaur": 3,
+     "Ilysian Caryatid": 3,
+     "Garruk's Harbinger": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 410322,
+   "event": 26945,
+   "archetype": "UGb",
+   "player": "Chris Marshall",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 11,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.16,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 6.0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Aether Gust": 3,
+     "Brazen Borrower // Petty Theft": 3,
+     "Nissa, Who Shakes the World": 4,
+     "Shark Typhoon": 3,
+     "Thought Erasure": 4,
+     "Disdainful Stroke": 1,
+     "Uro, Titan of Nature's Wrath": 4,
+     "Hydroid Krasis": 4,
+     "Mystical Dispute": 2,
+     "Eat to Extinction": 2,
+     "Negate": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 409589,
+   "event": 26883,
+   "archetype": "Jeskai Control",
+   "player": "Lukas Dusek",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-12",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 3,
+    "counters": 3,
+    "sweepers": 6,
+    "draw": 8,
+    "burn": 6,
+    "avg_cmc": 4.03,
+    "pips": {
+     "W": 32.0,
+     "U": 24.0,
+     "B": 0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Chandra, Awakened Inferno": 1,
+     "Shatter the Sky": 1,
+     "Ugin, the Spirit Dragon": 1,
+     "Narset, Parter of Veils": 2,
+     "Shark Typhoon": 2,
+     "Narset of the Ancient Way": 2,
+     "Teferi, Master of Time": 2,
+     "Outlaws' Merriment": 2,
+     "Chemister's Insight": 2,
+     "Thassa's Intervention": 3,
+     "Elspeth Conquers Death": 4,
+     "Deafening Clarion": 4,
+     "Justice Strike": 4,
+     "Realm-Cloaked Giant // Cast Off": 1,
+     "Dream Trawler": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 403382,
+   "event": 26481,
+   "archetype": "Gruul Aggro",
+   "player": "Gavin Bennett",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-16",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 24.0,
+     "G": 24.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Primal Might": 2,
+     "Embercleave": 3,
+     "Pelt Collector": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Scavenging Ooze": 4,
+     "Gruul Spellbreaker": 4,
+     "Stonecoil Serpent": 4,
+     "Robber of the Rich": 4,
+     "Questing Beast": 4,
+     "Zhur-Taa Goblin": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 20
+  },
+  {
+   "deck": 403038,
+   "event": 26456,
+   "archetype": "Selesnya Aggro",
+   "player": "Carson Bell",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 31,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 3.0,
+     "R": 0,
+     "G": 31.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Gideon Blackblade": 2,
+     "Primal Might": 3,
+     "Selfless Savior": 4,
+     "Questing Beast": 4,
+     "Bronzehide Lion": 4,
+     "Seasoned Hallowblade": 4,
+     "Pelt Collector": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Scavenging Ooze": 3,
+     "Lurrus of the Dream-Den": 3,
+     "Gemrazer": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 408997,
+   "event": 26839,
+   "archetype": "Orzhov DOOM",
+   "player": "David Besso",
+   "event_name": "Red Bull Untapped International Qualifier IV",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2020-08-08",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 45,
+    "lands": 35,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 7,
+    "avg_cmc": 2.98,
+    "pips": {
+     "W": 34.0,
+     "U": 3.0,
+     "B": 34.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Elspeth, Sun's Nemesis": 2,
+     "Glass Casket": 3,
+     "Mortify": 3,
+     "Kaya, Orzhov Usurper": 3,
+     "Elspeth Conquers Death": 3,
+     "Agonizing Remorse": 4,
+     "Treacherous Blessing": 4,
+     "Doom Foretold": 4,
+     "Oath of Kaya": 4,
+     "Yorion, Sky Nomad": 3,
+     "Yarok's Fenlurker": 4,
+     "Burglar Rat": 4,
+     "Charming Prince": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 11
+  },
+  {
+   "deck": 407537,
+   "event": 26760,
+   "archetype": "4c Control",
+   "player": "Harodt Loveday",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2020-08-04",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.28,
+    "pips": {
+     "W": 13.0,
+     "U": 19.0,
+     "B": 0,
+     "R": 0,
+     "G": 19.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Elspeth Conquers Death": 2,
+     "Shark Typhoon": 2,
+     "Glass Casket": 2,
+     "Nissa, Who Shakes the World": 3,
+     "Shatter the Sky": 3,
+     "Omen of the Sea": 4,
+     "Kenrith, the Returned King": 1,
+     "Brazen Borrower // Petty Theft": 2,
+     "Llanowar Visionary": 3,
+     "Hydroid Krasis": 3,
+     "Jolrael, Mwonvuli Recluse": 3,
+     "Uro, Titan of Nature's Wrath": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 416798,
+   "event": 27343,
+   "archetype": "Esper DOOM Uro",
+   "player": "Yokokawa Yuuta",
+   "event_name": "Season Masters Core Set 2021 @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2020-09-12",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 42,
+    "lands": 38,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 16,
+    "burn": 4,
+    "avg_cmc": 3.52,
+    "pips": {
+     "W": 28.0,
+     "U": 15.0,
+     "B": 15.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Eliminate": 3,
+     "Doom Foretold": 4,
+     "Agonizing Remorse": 4,
+     "Mazemind Tome": 4,
+     "Shark Typhoon": 4,
+     "Elspeth Conquers Death": 4,
+     "Oath of Kaya": 4,
+     "Omen of the Sea": 4,
+     "Solemn Simulacrum": 1,
+     "Yorion, Sky Nomad": 3,
+     "Cavalier of Dawn": 3,
+     "Uro, Titan of Nature's Wrath": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 411809,
+   "event": 27030,
+   "archetype": "Sultai Flash",
+   "player": "Brandon Pascal",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2020-08-22",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 7,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 5.0,
+     "R": 0,
+     "G": 11.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Disdainful Stroke": 1,
+     "Negate": 2,
+     "Heartless Act": 2,
+     "Essence Scatter": 2,
+     "Rewind": 2,
+     "Aether Gust": 3,
+     "Eliminate": 3,
+     "Narset, Parter of Veils": 3,
+     "Frantic Inventory": 4,
+     "Shark Typhoon": 4,
+     "Uro, Titan of Nature's Wrath": 3,
+     "Nightpack Ambusher": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 396745,
+   "event": 26090,
+   "archetype": "UB Control",
+   "player": "Joshua Claytor",
+   "event_name": "SCG Tour Online - Standard Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-06-14",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 4,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 0,
+     "U": 39.0,
+     "B": 14.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Brazen Borrower // Petty Theft": 4,
+     "Negate": 2,
+     "Heartless Act": 2,
+     "Cling to Dust": 2,
+     "Chemister's Insight": 3,
+     "Easy Prey": 4,
+     "Sinister Sabotage": 4,
+     "Extinction Event": 2,
+     "Thought Erasure": 4,
+     "Shark Typhoon": 4,
+     "Narset, Parter of Veils": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 394659,
+   "event": 25953,
+   "archetype": "WW All That Glitters",
+   "player": "Theresa Connah-haymond",
+   "event_name": "Wednesday Night Standard @ Wizard\u0092s Tower",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-06-03",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.18,
+    "pips": {
+     "W": 35.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Shadowspear": 1,
+     "Sentinel's Mark": 3,
+     "All That Glitters": 4,
+     "Sentinel's Eyes": 4,
+     "Solid Footing": 4,
+     "Gods Willing": 4,
+     "Karametra's Blessing": 4,
+     "Glaring Aegis": 4,
+     "Gingerbrute": 4,
+     "Alseid of Life's Bounty": 4,
+     "Healer's Hawk": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 416796,
+   "event": 27343,
+   "archetype": "Esper Control",
+   "player": "Itou Motoaki",
+   "event_name": "Season Masters Core Set 2021 @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2020-09-12",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 5,
+    "counters": 4,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 20.0,
+     "U": 32.0,
+     "B": 9.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Thirst for Meaning": 1,
+     "Heartless Act": 1,
+     "Mystical Dispute": 2,
+     "Dovin's Veto": 2,
+     "Shatter the Sky": 2,
+     "Oath of Kaya": 2,
+     "Aether Gust": 3,
+     "Eliminate": 3,
+     "Thought Erasure": 3,
+     "Narset, Parter of Veils": 3,
+     "Elspeth Conquers Death": 3,
+     "Omen of the Sea": 3,
+     "Brazen Borrower // Petty Theft": 2,
+     "Dream Trawler": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 414585,
+   "event": 27258,
+   "archetype": "Gyruda",
+   "player": "Synergizer",
+   "event_name": "MTGO Standard Challenge",
+   "stars": 2,
+   "rank": "8",
+   "date": "2020-09-07",
+   "summer": true,
+   "s": 0.3058823529411765,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.37,
+    "pips": {
+     "W": 4.0,
+     "U": 12.0,
+     "B": 8.0,
+     "R": 8.0,
+     "G": 18.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Migration Path": 4,
+     "Cultivate": 4,
+     "Paradise Druid": 2,
+     "Charming Prince": 4,
+     "Thassa, Deep-Dwelling": 4,
+     "Terror of the Peaks": 4,
+     "Spark Double": 4,
+     "Gyruda, Doom of Depths": 4,
+     "Gilded Goose": 4,
+     "Fiend Artisan": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 409877,
+   "event": 26911,
+   "archetype": "UR Aggro",
+   "player": "Michael Bonde",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-14",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 19,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 4,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 19.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Embercleave": 1,
+     "Ionize": 2,
+     "Unsummon": 2,
+     "Lofty Denial": 4,
+     "Opt": 4,
+     "Shock": 4,
+     "Crash Through": 4,
+     "Dreadhorde Arcanist": 3,
+     "Sea-Dasher Octopus": 4,
+     "Sprite Dragon": 4,
+     "Stormwing Entity": 4,
+     "Spectral Sailor": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 10
+  },
+  {
+   "deck": 407890,
+   "event": 26789,
+   "archetype": "Simic Aggro",
+   "player": "Eric Froehlich",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 3.29,
+    "pips": {
+     "W": 0,
+     "U": 10.0,
+     "B": 0,
+     "R": 0,
+     "G": 41.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Ugin, the Spirit Dragon": 2,
+     "Wolfwillow Haven": 3,
+     "Nissa, Who Shakes the World": 4,
+     "Cultivate": 4,
+     "Brazen Borrower // Petty Theft": 2,
+     "Questing Beast": 3,
+     "Hydroid Krasis": 4,
+     "Paradise Druid": 4,
+     "Arboreal Grazer": 4,
+     "Elder Gargaroth": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 403767,
+   "event": 26512,
+   "archetype": "Boros Cycling Aggro",
+   "player": "Jay So",
+   "event_name": "Take Our Money Series @ The Disorganized Wizards Club",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-18",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 22,
+    "burn": 4,
+    "avg_cmc": 2.71,
+    "pips": {
+     "W": 16.0,
+     "U": 20.0,
+     "B": 2.0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Frostveil Ambush": 4,
+     "Drannith Stinger": 4,
+     "Valiant Rescuer": 4,
+     "Drannith Healer": 4,
+     "Flourishing Fox": 4,
+     "Memory Leak": 2,
+     "Footfall Crater": 4,
+     "Go for Blood": 4,
+     "Boon of the Wish-Giver": 4,
+     "Zenith Flare": 4,
+     "Startling Development": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 17
+  },
+  {
+   "deck": 411536,
+   "event": 27002,
+   "archetype": "Orzhov Aggro",
+   "player": "Adam Hernandez",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-08-20",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 23.0,
+     "U": 0,
+     "B": 33.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Elspeth, Sun's Nemesis": 2,
+     "Demonic Embrace": 4,
+     "Dire Tactics": 3,
+     "General's Enforcer": 4,
+     "Knight of the Ebon Legion": 4,
+     "Lavabrink Venturer": 4,
+     "General Kudro of Drannith": 4,
+     "Seasoned Hallowblade": 4,
+     "Kitesail Freebooter": 4,
+     "Rankle, Master of Pranks": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 407404,
+   "event": 26748,
+   "archetype": "Gruul Adventure Aggro",
+   "player": "Andrew Macarico",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-08-03",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.72,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 29.0,
+     "G": 31.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Domri's Ambush": 2,
+     "Embercleave": 4,
+     "Edgewall Innkeeper": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Rimrock Knight // Boulder Rush": 4,
+     "Paradise Druid": 3,
+     "Questing Beast": 3,
+     "Pelt Collector": 3,
+     "Radha, Heart of Keld": 3,
+     "Scavenging Ooze": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 413179,
+   "event": 27105,
+   "archetype": "Mardu Knights",
+   "player": "Raffaele Lo Moro",
+   "event_name": "Manafix.net Open @ Lotus eSports",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-08-29",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 34,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 16.0,
+     "U": 0,
+     "B": 24.0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Worthy Knight": 4,
+     "Fervent Champion": 4,
+     "Knight of the Ebon Legion": 4,
+     "Rimrock Knight // Boulder Rush": 2,
+     "Dire Tactics": 4,
+     "Venerable Knight": 4,
+     "Inspiring Veteran": 4,
+     "Stormfist Crusader": 4,
+     "Smitten Swordmaster // Curry Favor": 4,
+     "Blacklance Paragon": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 409731,
+   "event": 26899,
+   "archetype": "Mono Blue Aggro",
+   "player": "Rashid Davis",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-08-13",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 13,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 0,
+     "U": 53.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Unsubstantiate": 4,
+     "Lofty Denial": 4,
+     "Mystical Dispute": 4,
+     "Essence Capture": 3,
+     "Negate": 2,
+     "Unsummon": 1,
+     "Brazen Borrower // Petty Theft": 4,
+     "Spectral Sailor": 4,
+     "Sea-Dasher Octopus": 4,
+     "Brineborn Cutthroat": 4,
+     "Faerie Vandal": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 411919,
+   "event": 27039,
+   "archetype": "Abzan Aggro",
+   "player": "Aaron Moller",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-08-23",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.86,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 24.0,
+     "R": 0,
+     "G": 19.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Vraska, Golgari Queen": 1,
+     "Duress": 2,
+     "Consecrate // Consume": 2,
+     "Elspeth Conquers Death": 3,
+     "Revival // Revenge": 3,
+     "Nissa, Who Shakes the World": 4,
+     "Murderous Rider // Swift End": 2,
+     "Scavenging Ooze": 2,
+     "Paradise Druid": 4,
+     "Llanowar Visionary": 4,
+     "Vito, Thorn of the Dusk Rose": 4,
+     "Basri's Lieutenant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 408044,
+   "event": 26803,
+   "archetype": "Izzet Phoenix",
+   "player": "Marcos Acosta",
+   "event_name": "SCG Tour Online - Challenge @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-08-07",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 4,
+    "avg_cmc": 2.16,
+    "pips": {
+     "W": 0,
+     "U": 16.0,
+     "B": 0,
+     "R": 40.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Blitz of the Thunder-Raptor": 4,
+     "Finale of Promise": 4,
+     "Crash Through": 4,
+     "Cathartic Reunion": 4,
+     "Opt": 4,
+     "Ox of Agonas": 2,
+     "Sprite Dragon": 4,
+     "Merfolk Secretkeeper // Venture Deeper": 4,
+     "Arclight Phoenix": 4,
+     "Merchant of the Vale // Haggle": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 399419,
+   "event": 26246,
+   "archetype": "Boros Aggro",
+   "player": "Xfile",
+   "event_name": "CFB Pro Showdown",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2020-06-27",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 32,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.72,
+    "pips": {
+     "W": 22.0,
+     "U": 0,
+     "B": 0,
+     "R": 31.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Seasoned Hallowblade": 4,
+     "Selfless Savior": 4,
+     "Alpine Houndmaster": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Embercleave": 4,
+     "Hanged Executioner": 1,
+     "Igneous Cur": 2,
+     "Alpine Watchdog": 2,
+     "Alseid of Life's Bounty": 2,
+     "Winota, Joiner of Forces": 2,
+     "Tajic, Legion's Edge": 3,
+     "Legion Warboss": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 395566,
+   "event": 26006,
+   "archetype": "Simic Umori Aggro",
+   "player": "Xisco Solivellas Galmes",
+   "event_name": "Online Qualifier Spain @ Red Bull Untapped",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2020-06-06",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 34,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.47,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 31.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Stonecoil Serpent": 1,
+     "Gilded Goose": 2,
+     "End-Raze Forerunners": 3,
+     "Pouncing Shoreshark": 4,
+     "Auspicious Starrix": 4,
+     "Gemrazer": 4,
+     "Migratory Greathorn": 4,
+     "Paradise Druid": 4,
+     "Pollywog Symbiote": 4,
+     "Arboreal Grazer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 413181,
+   "event": 27105,
+   "archetype": "Dimir Midrange",
+   "player": "Thiago da Silva",
+   "event_name": "Manafix.net Open @ Lotus eSports",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2020-08-29",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 21,
+    "counters": 5,
+    "sweepers": 2,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 3.21,
+    "pips": {
+     "W": 0,
+     "U": 39.0,
+     "B": 22.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Shark Typhoon": 2,
+     "Ashiok's Erasure": 2,
+     "Extinction Event": 2,
+     "Negate": 2,
+     "Heartless Act": 2,
+     "Sublime Epiphany": 1,
+     "Shadowspear": 1,
+     "Brineborn Cutthroat": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Cunning Nightbonder": 4,
+     "Murderous Rider // Swift End": 2,
+     "Lochmere Serpent": 2,
+     "Slitherwisp": 2,
+     "Voracious Greatshark": 2,
+     "Spectral Sailor": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 46,
+ "rejected_illegal": [
+  {
+   "archetype": "Temur Reclamation",
+   "deck": 403733,
+   "player": "Autumn Burchett",
+   "why": [
+    "Growth Spiral (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Reclamation",
+   "deck": 402918,
+   "player": "Jaberwocki",
+   "why": [
+    "Growth Spiral (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Reclamation",
+   "deck": 402539,
+   "player": "Yoshihiko Ikawa",
+   "why": [
+    "Growth Spiral (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Reclamation",
+   "deck": 401930,
+   "player": "Tangrams",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 398136,
+   "player": "Louis-samuel Deltour",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 407348,
+   "player": "Renzo Arana",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 406110,
+   "player": "Deshaun Baylock",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 405379,
+   "player": "Frederick Tan",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Aggro",
+   "deck": 404642,
+   "player": "Michael Bonde",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Yorion Control",
+   "deck": 395564,
+   "player": "Alejandro Olea Garc\u00eda",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Yorion Control",
+   "deck": 404472,
+   "player": "Davis Munsat",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Yorion Control",
+   "deck": 396049,
+   "player": "Nathan Murray",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Yorion Control",
+   "deck": 395136,
+   "player": "Bruno Be\u00e7a",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Orzhov DOOM",
+   "deck": 398351,
+   "player": "Andrea Gambacorta",
+   "why": [
+    "5x Yorion, Sky Nomad (over the four-copy limit)"
+   ]
+  },
+  {
+   "archetype": "4c Yorion",
+   "deck": 398112,
+   "player": "Otsdarva",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Yorion",
+   "deck": 418015,
+   "player": "Phill_Hellmuth",
+   "why": [
+    "Bloodchief's Thirst (not in legal sets)",
+    "Branchloft Pathway (not in legal sets)",
+    "Brightclimb Pathway (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Omnath Ramp",
+   "deck": 418201,
+   "player": "Richard Neal",
+   "why": [
+    "Branchloft Pathway (not in legal sets)",
+    "Cragcrown Pathway (not in legal sets)",
+    "Cragplate Baloth (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Omnath Ramp",
+   "deck": 418082,
+   "player": "Kazuki Kawata",
+   "why": [
+    "Cinderclasm (not in legal sets)",
+    "Confounding Conundrum (not in legal sets)",
+    "Cragcrown Pathway (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Omnath Ramp",
+   "deck": 418130,
+   "player": "Zachary Okorn",
+   "why": [
+    "Ancient Greenwarden (not in legal sets)",
+    "Branchloft Pathway (not in legal sets)",
+    "Confounding Conundrum (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Omnath Ramp",
+   "deck": 418146,
+   "player": "Zachary Okorn",
+   "why": [
+    "Ancient Greenwarden (not in legal sets)",
+    "Branchloft Pathway (not in legal sets)",
+    "Confounding Conundrum (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 417320,
+   "player": "Tom Maxwell",
+   "why": [
+    "Cragcrown Pathway (not in legal sets)",
+    "Kazandu Mammoth (not in legal sets)",
+    "Shatterskull Smashing (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UB Control",
+   "deck": 418167,
+   "player": "Ryosuke Nishiura",
+   "why": [
+    "Bloodchief's Thirst (not in legal sets)",
+    "Clearwater Pathway (not in legal sets)",
+    "Crawling Barrens (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UB Control",
+   "deck": 418083,
+   "player": "Nicolas King",
+   "why": [
+    "Bloodchief's Thirst (not in legal sets)",
+    "Clearwater Pathway (not in legal sets)",
+    "Hagra Mauling (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UB Control",
+   "deck": 418348,
+   "player": "Eric Froehlich",
+   "why": [
+    "Bloodchief's Thirst (not in legal sets)",
+    "Clearwater Pathway (not in legal sets)",
+    "Crawling Barrens (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jund Sacrifice",
+   "deck": 409819,
+   "player": "Ryan Lello",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund Sacrifice",
+   "deck": 405296,
+   "player": "Sancho",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund Sacrifice",
+   "deck": 401644,
+   "player": "Yuuki Ichikawa",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund Sacrifice",
+   "deck": 400921,
+   "player": "Brandon Bryant",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 406451,
+   "player": "Gavin Bennett",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 404972,
+   "player": "Daniel_Garcia",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 401572,
+   "player": "Louis-philippe Dugal",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 401290,
+   "player": "Jon Agley",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 395271,
+   "player": "Qtaro",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 398350,
+   "player": "Stefano Carminati",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 396663,
+   "player": "nethergo",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 394461,
+   "player": "Gnorilgrande",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "Fires of Invention",
+   "deck": 394791,
+   "player": "William Jackson",
+   "why": [
+    "Agent of Treachery (banned)",
+    "Fires of Invention (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Fires of Invention",
+   "deck": 394664,
+   "player": "El_gran_boa",
+   "why": [
+    "Agent of Treachery (banned)",
+    "Fires of Invention (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Fires of Invention",
+   "deck": 394658,
+   "player": "James Connah-haymond",
+   "why": [
+    "Agent of Treachery (banned)",
+    "Fires of Invention (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Fires of Invention",
+   "deck": 394816,
+   "player": "Tommy Tam",
+   "why": [
+    "Agent of Treachery (banned)",
+    "Fires of Invention (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Control",
+   "deck": 404560,
+   "player": "Brendon Hansard",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Control",
+   "deck": 403278,
+   "player": "Nicole Callahan",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Control",
+   "deck": 401844,
+   "player": "Andrew Debevoise",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Control",
+   "deck": 401272,
+   "player": "Jim Davis",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Orzhov Aggro",
+   "deck": 403324,
+   "player": "Florian Klein",
+   "why": [
+    "Cauldron Familiar (banned)"
+   ]
+  },
+  {
+   "archetype": "4cc",
+   "deck": 405032,
+   "player": "Corey Lerch",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4cc",
+   "deck": 397317,
+   "player": "Bullzeye",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4cc",
+   "deck": 417480,
+   "player": "Brad Nelson",
+   "why": [
+    "Bloodchief's Thirst (not in legal sets)",
+    "Branchloft Pathway (not in legal sets)",
+    "Brightclimb Pathway (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4cc",
+   "deck": 394662,
+   "player": "Charliethebananaking",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "SimicControl",
+   "deck": 403361,
+   "player": "Jim Davis",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Yorion Sultai Control",
+   "deck": 397848,
+   "player": "Ichspiele",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Yorion Elemental",
+   "deck": 396186,
+   "player": "Steven Williams",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Flash Reclamation",
+   "deck": 394460,
+   "player": "Pyroblast",
+   "why": [
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Gruul Adventure Aggro",
+   "deck": 417853,
+   "player": "Carlos Lopez",
+   "why": [
+    "Cragcrown Pathway (not in legal sets)",
+    "Kazandu Mammoth (not in legal sets)",
+    "Shatterskull Smashing (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Adventure",
+   "deck": 417789,
+   "player": "Camilo Mora",
+   "why": [
+    "Cragcrown Pathway (not in legal sets)",
+    "Kazandu Mammoth (not in legal sets)",
+    "Shatterskull Smashing (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Adventure",
+   "deck": 417576,
+   "player": "Hajime Sugawara",
+   "why": [
+    "Cragcrown Pathway (not in legal sets)",
+    "Shatterskull Smashing (not in legal sets)",
+    "Thundering Rebuke (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Adventure",
+   "deck": 417872,
+   "player": "Caleb Durward",
+   "why": [
+    "Akoum Hellhound (not in legal sets)",
+    "Brushfire Elemental (not in legal sets)",
+    "Cleansing Wildfire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Adventure",
+   "deck": 417578,
+   "player": "Shohei Yamamoto",
+   "why": [
+    "Cragcrown Pathway (not in legal sets)",
+    "Shatterskull Smashing (not in legal sets)",
+    "Thundering Rebuke (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Esper Control",
+   "deck": 395505,
+   "player": "Enrique Culligan",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Yorion Control",
+   "deck": 399031,
+   "player": "Gavin Bennett",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Yorion Control",
+   "deck": 398470,
+   "player": "David Raczka",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Yorion Control",
+   "deck": 405517,
+   "player": "David Raczka",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Yorion Control",
+   "deck": 399132,
+   "player": "Omar Sanjur",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "TemurReclamation",
+   "deck": 398203,
+   "player": "Travis Lauro",
+   "why": [
+    "Growth Spiral (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Ramp",
+   "deck": 398145,
+   "player": "Tyler Anderson",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Ramp",
+   "deck": 409816,
+   "player": "Jae Ho Kwak",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Ramp",
+   "deck": 409814,
+   "player": "Mikel Barcelos",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Omnath",
+   "deck": 417580,
+   "player": "Jamal Greenidge",
+   "why": [
+    "Lotus Cobra (not in legal sets)",
+    "Moraug, Fury of Akoum (not in legal sets)",
+    "Omnath, Locus of Creation (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Aggro",
+   "deck": 417494,
+   "player": "Victor Beauchamp",
+   "why": [
+    "Bloodchief's Thirst (not in legal sets)",
+    "Clearwater Pathway (not in legal sets)",
+    "Confounding Conundrum (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "TBD",
+   "deck": 405381,
+   "player": "Grace Fallon",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "TBD",
+   "deck": 405383,
+   "player": "Camilo Mora",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "TBD",
+   "deck": 405384,
+   "player": "Patrick Belding",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "Bant Flash",
+   "deck": 404745,
+   "player": "Wataru Ueda",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Flash",
+   "deck": 397477,
+   "player": "Paccio",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Flash",
+   "deck": 398655,
+   "player": "Brent Vos",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Azorius Aggro",
+   "deck": 398193,
+   "player": "Rupolanco",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Azorius Aggro",
+   "deck": 402312,
+   "player": "Nuncho72",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Azorius Aggro",
+   "deck": 396659,
+   "player": "Davide Fierro",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Four Colour Reclamation",
+   "deck": 409821,
+   "player": "Theuns Prinsloo",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Four Colour Reclamation",
+   "deck": 409817,
+   "player": "Jason Moss",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)",
+    "Wilderness Reclamation (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper DOOM",
+   "deck": 405183,
+   "player": "Tyler D",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper DOOM",
+   "deck": 398828,
+   "player": "Walter Coquemala Filho",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4cPW",
+   "deck": 405896,
+   "player": "Joshua Mulligan",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "WU",
+   "deck": 402064,
+   "player": "Nick Crockett",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Yorion",
+   "deck": 400198,
+   "player": "Kosuke Nakamoto",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "SimicFlash Aggro",
+   "deck": 399430,
+   "player": "Mikeb",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Aggro Yorion",
+   "deck": 394811,
+   "player": "Skyler Moore",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Aggro",
+   "deck": 394804,
+   "player": "Gilberto Carvalho",
+   "why": [
+    "Agent of Treachery (banned)"
+   ]
+  },
+  {
+   "archetype": "UWB",
+   "deck": 403109,
+   "player": "Montserrat Garcia",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "UGW",
+   "deck": 403121,
+   "player": "Chun Kiu Ho",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "UW Midrange Yorion",
+   "deck": 398205,
+   "player": "Davide Fierro",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Yorion Hero",
+   "deck": 396648,
+   "player": "Darryl Baker",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4c PW",
+   "deck": 397847,
+   "player": "Mingyangchen",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "4c PW",
+   "deck": 405568,
+   "player": "Bolun Zhang",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "GUb",
+   "deck": 403114,
+   "player": "Zachary Warren",
+   "why": [
+    "Growth Spiral (banned)"
+   ]
+  },
+  {
+   "archetype": "UWG",
+   "deck": 403128,
+   "player": "Julian Felix Flury",
+   "why": [
+    "incomplete list: 0 main, 0 sideboard"
+   ]
+  },
+  {
+   "archetype": "Bant Flash Control",
+   "deck": 398816,
+   "player": "Thomas Hendriks",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Midrange",
+   "deck": 405569,
+   "player": "Ken Yukuhiro",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Midrange",
+   "deck": 405644,
+   "player": "Shintaro Ishimura",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Midrange",
+   "deck": 405575,
+   "player": "Kenta Harane",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "BantControl",
+   "deck": 397054,
+   "player": "Mani Davoudi",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Flash Aggro",
+   "deck": 405504,
+   "player": "Joe Lossett",
+   "why": [
+    "Growth Spiral (banned)",
+    "Teferi, Time Raveler (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Yorion DOOM",
+   "deck": 405611,
+   "player": "Benjamin Stark",
+   "why": [
+    "Teferi, Time Raveler (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Temur Elemental",
+   "player": "Alex Friedrichsen",
+   "kept": "Temur Yorion Elementals",
+   "kept_player": "Takumi Yamasaki"
+  },
+  {
+   "dropped": "Simic Flash",
+   "player": "Martin St\u00fcbe",
+   "kept": "Temur Flash Aggro",
+   "kept_player": "Toni Ramis Pascual"
+  },
+  {
+   "dropped": "Temur Flash",
+   "player": "Nathanael Frautschy",
+   "kept": "Temur Flash Aggro",
+   "kept_player": "Toni Ramis Pascual"
+  },
+  {
+   "dropped": "Simic Flash Aggro",
+   "player": "Noam Zimet",
+   "kept": "Temur Flash Aggro",
+   "kept_player": "Toni Ramis Pascual"
+  },
+  {
+   "dropped": "Sultai Control Flash",
+   "player": "Brandon Bryant",
+   "kept": "Temur Flash Aggro",
+   "kept_player": "Toni Ramis Pascual"
+  },
+  {
+   "dropped": "Sultai Midrange",
+   "player": "Shinsuke Hayashi",
+   "kept": "Sultai Control",
+   "kept_player": "Ari Lax"
+  },
+  {
+   "dropped": "Orzhov Yorion DOOM",
+   "player": "Mark Johnson",
+   "kept": "Orzhov DOOM",
+   "kept_player": "David Besso"
+  },
+  {
+   "dropped": "Mardu Knights Aggro",
+   "player": "Jacob Sklar",
+   "kept": "Mardu Knights",
+   "kept_player": "Raffaele Lo Moro"
+  },
+  {
+   "dropped": "Sultai Ambusher Control",
+   "player": "Eli Kassis",
+   "kept": "Sultai Flash",
+   "kept_player": "Brandon Pascal"
+  },
+  {
+   "dropped": "Abzan DOOM Yorion",
+   "player": "Hgrose",
+   "kept": "Orzhov DOOM",
+   "kept_player": "David Besso"
+  },
+  {
+   "dropped": "Mardu Aggro",
+   "player": "Michael Shank",
+   "kept": "Mardu Knights",
+   "kept_player": "Raffaele Lo Moro"
+  },
+  {
+   "dropped": "Temur Adventures",
+   "player": "Elmir Murtazin",
+   "kept": "Adventure",
+   "kept_player": "Sergey Tonkikh"
+  },
+  {
+   "dropped": "Esper DOOM Yorion",
+   "player": "Davide Conterno",
+   "kept": "Orzhov DOOM",
+   "kept_player": "David Besso"
+  },
+  {
+   "dropped": "RDW",
+   "player": "Robert McKee",
+   "kept": "Red Deck Wins",
+   "kept_player": "Paul Woo"
+  },
+  {
+   "dropped": "Other - Aggro",
+   "player": "Lamario Harris",
+   "kept": "UR Aggro",
+   "kept_player": "Michael Bonde"
+  },
+  {
+   "dropped": "UBG",
+   "player": "Yuma Koizumi",
+   "kept": "Sultai Control",
+   "kept_player": "Ari Lax"
+  },
+  {
+   "dropped": "Selesnya All That Glitters",
+   "player": "Joshua Claytor",
+   "kept": "WW All That Glitters",
+   "kept_player": "Theresa Connah-haymond"
+  },
+  {
+   "dropped": "Orzhov Yorion",
+   "player": "Poggy",
+   "kept": "Orzhov DOOM",
+   "kept_player": "David Besso"
+  },
+  {
+   "dropped": "BW",
+   "player": "Dan Diiorio",
+   "kept": "Orzhov DOOM",
+   "kept_player": "David Besso"
+  }
+ ],
+ "objective": 8.683237515380222,
+ "pool_colors": {
+  "U": 23,
+  "B": 19,
+  "G": 22,
+  "R": 21,
+  "W": 17
+ },
+ "pool_styles": {
+  "control": 9,
+  "midrange": 9,
+  "aggro": 28
+ },
+ "kept_lost": []
+}

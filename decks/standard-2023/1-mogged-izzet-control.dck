@@ -1,0 +1,35 @@
+[metadata]
+Name=Izzet Control (Mogged)
+Deck Type=Constructed
+Format=Standard (2023-05-29)
+Effective=2023-05-29
+Source URL=https://www.mtgtop8.com/event?e=47275&d=549320&f=ST
+Comment=MTGO Challenge 32: Mogged, 1st, Izzet Control. Transcribed from mtgtop8 deck 549320.
+[Main]
+2 Volcanic Spite|MOM
+2 Negate|MOM
+2 Essence Scatter|DMU
+3 Voltage Surge|NEO
+4 Stern Lesson|BRO
+4 Brotherhood's End|BRO
+4 The Mightstone and Weakstone|BRO
+4 Skitterbeam Battalion|BRO
+4 Cityscape Leveler|BRO
+4 Thran Spider|BRO
+1 Swiftwater Cliffs|MOM
+1 Otawara, Soaring City|NEO
+1 Sokenzan, Crucible of Defiance|NEO
+2 Island|MOM
+4 Stormcarved Coast|VOW
+4 Xander's Lounge|SNC
+4 Mishra's Foundry|BRO
+4 Shivan Reef|DMU
+6 Mountain|MOM
+[Sideboard]
+3 Lithomantic Barrage|MOM
+4 Faerie Mastermind|MOM
+1 Dragonwing Glider|ONE
+2 Saheeli, Filigree Master|BRO
+2 Unlicensed Hearse|SNC
+2 Disdainful Stroke|SNC
+1 Negate|MOM

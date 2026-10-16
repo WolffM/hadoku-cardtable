@@ -1,0 +1,2413 @@
+{
+ "era": {
+  "year": 2022,
+  "season_start": "2021-09-24",
+  "start": "2022-04-29",
+  "end": "2022-09-09",
+  "format": "Standard (SNC)",
+  "sets": "ZNR, KHM, STX, AFR, MID, VOW, NEO, SNC",
+  "banned": [
+   "Alrund's Epiphany",
+   "Divide by Zero",
+   "Faceless Haven",
+   "Omnath, Locus of Creation"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 472035,
+   "event": 36130,
+   "archetype": "Jeskai Hinata",
+   "player": "Sayama Tatsunosuke",
+   "event_name": "The Best Team Championship @ Hareruya (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-05-05",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 3,
+    "avg_cmc": 3.47,
+    "pips": {
+     "W": 5.0,
+     "U": 20.0,
+     "B": 0,
+     "R": 27.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Inscription of Insight": 1,
+     "Disdainful Stroke": 1,
+     "Valorous Stance": 1,
+     "March of Swirling Mist": 3,
+     "Abrade": 3,
+     "Negate": 3,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Magma Opus": 4,
+     "Expressive Iteration": 4,
+     "Goldspan Dragon": 4,
+     "Hinata, Dawn-Crowned": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 92
+  },
+  {
+   "deck": 472233,
+   "event": 36165,
+   "archetype": "Esper Aggro",
+   "player": "Miko\u0142aj Drzewiecki",
+   "event_name": "Crokeyz Streets of New Capenna Tournament @ Team Liquid",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-05-07",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.85,
+    "pips": {
+     "W": 16.0,
+     "U": 14.0,
+     "B": 33.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Bloodchief's Thirst": 1,
+     "Lolth, Spider Queen": 2,
+     "Duress": 2,
+     "Vanishing Verse": 2,
+     "The Wandering Emperor": 3,
+     "The Meathook Massacre": 4,
+     "Kaito Shizuki": 4,
+     "All-Seeing Arbiter": 1,
+     "Sanctuary Warden": 1,
+     "Nullpriest of Oblivion": 2,
+     "Faerie Vandal": 2,
+     "Obscura Interceptor": 2,
+     "Raffine, Scheming Seer": 4,
+     "Tenacious Underdog": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 48
+  },
+  {
+   "deck": 475062,
+   "event": 36547,
+   "archetype": "Orzhov Aggro",
+   "player": "Kamezaki Sho",
+   "event_name": "Japan Nationals 2022 -Tabletop Returns @ Hareruya (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-05-29",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.91,
+    "pips": {
+     "W": 30.0,
+     "U": 0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "The Restoration of Eiganjo // Architect of Restoration": 2,
+     "Infernal Grasp": 2,
+     "Lolth, Spider Queen": 2,
+     "Elspeth Resplendent": 2,
+     "Vanishing Verse": 3,
+     "The Wandering Emperor": 3,
+     "The Meathook Massacre": 3,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Henrika Domnathi // Henrika, Infernal Seer": 2,
+     "Reidane, God of the Worthy // Valkmira, Protector's Shield": 3,
+     "Luminarch Aspirant": 4,
+     "Silverquill Silencer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 31
+  },
+  {
+   "deck": 464648,
+   "event": 35011,
+   "archetype": "Weenie White",
+   "player": "Helio Sampaio",
+   "event_name": "$500 Cash GGtoor Duel #8 (FREE!) @ GGtoor",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-03-05",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 44.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Legion Angel": 1,
+     "Reidane, God of the Worthy // Valkmira, Protector's Shield": 2,
+     "Adeline, Resplendent Cathar": 2,
+     "Thalia, Guardian of Thraben": 3,
+     "Intrepid Adversary": 3,
+     "Skyclave Apparition": 3,
+     "Luminarch Aspirant": 4,
+     "Elite Spellbinder": 4,
+     "Hopeful Initiate": 4,
+     "Usher of the Fallen": 4,
+     "Portable Hole": 2,
+     "Valorous Stance": 2,
+     "The Wandering Emperor": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 203
+  },
+  {
+   "deck": 463335,
+   "event": 34778,
+   "archetype": "Jeskai Control",
+   "player": "Cftsoc",
+   "event_name": "Crokeyz Tournament @ Team Liquid",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-02-19",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 8,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 3,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 4.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 30.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Disdainful Stroke": 1,
+     "Valorous Stance": 2,
+     "Alchemist's Gambit": 2,
+     "Show of Confidence": 2,
+     "Galvanic Iteration": 3,
+     "Fading Hope": 3,
+     "Prismari Command": 3,
+     "Unexpected Windfall": 4,
+     "Expressive Iteration": 4,
+     "Goldspan Dragon": 4,
+     "Lier, Disciple of the Drowned": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 44
+  },
+  {
+   "deck": 450135,
+   "event": 32582,
+   "archetype": "Temur Aggro",
+   "player": "Hiroaki Taniguchi",
+   "event_name": "Special Weekly Challenge @ BIG MAGIC (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-10-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 18.0,
+     "G": 33.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wrenn and Seven": 3,
+     "Thundering Rebuke": 3,
+     "Ranger Class": 4,
+     "Esika's Chariot": 4,
+     "Goldspan Dragon": 2,
+     "Tovolar, Dire Overlord // Tovolar, the Midnight Scourge": 3,
+     "Jaspera Sentinel": 4,
+     "Werewolf Pack Leader": 4,
+     "Reckless Stormseeker // Storm-Charged Slasher": 4,
+     "Kessig Naturalist // Lord of the Ulvenwald": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 39
+  },
+  {
+   "deck": 468141,
+   "event": 35525,
+   "archetype": "Esper Control",
+   "player": "Jacopo Di Napoli",
+   "event_name": "$600 Cash Duel #10 (FREE!) @ GGtoor",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-04-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 0,
+    "counters": 2,
+    "sweepers": 5,
+    "draw": 10,
+    "burn": 1,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 23.0,
+     "U": 6.0,
+     "B": 22.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Portable Hole": 2,
+     "Reckoner Bankbuster // Reckoner Bankbuster": 3,
+     "Soul Shatter": 1,
+     "Infernal Grasp": 1,
+     "Disdainful Stroke": 2,
+     "March of Otherworldly Light": 3,
+     "Vanishing Verse": 4,
+     "Doomskar": 3,
+     "The Meathook Massacre": 2,
+     "Sorin the Mirthless": 1,
+     "Lolth, Spider Queen": 3,
+     "Kaito Shizuki": 4,
+     "The Wandering Emperor": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 39
+  },
+  {
+   "deck": 451233,
+   "event": 32771,
+   "archetype": "Gruul Aggro",
+   "player": "Paskardi",
+   "event_name": "MTGO Standard Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-10-11",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 21,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.65,
+    "pips": {
+     "W": 0,
+     "U": 2.0,
+     "B": 0,
+     "R": 19.0,
+     "G": 17.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Briarbridge Tracker": 2,
+     "Goldspan Dragon": 4,
+     "Jaspera Sentinel": 4,
+     "Magda, Brazen Outlaw": 4,
+     "Prosperous Innkeeper": 3,
+     "Reckless Stormseeker // Storm-Charged Slasher": 4,
+     "Dragon's Fire": 3,
+     "Negate": 2,
+     "Esika's Chariot": 4,
+     "Ranger Class": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 466552,
+   "event": 35260,
+   "archetype": "UW Control",
+   "player": "Lukas Dusek",
+   "event_name": "$600 Cash GGtoor Duel #9 (FREE!) @ GGtoor",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-03-19",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 6,
+    "counters": 4,
+    "sweepers": 6,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.3,
+    "pips": {
+     "W": 33.0,
+     "U": 16.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Starnheim Unleashed": 1,
+     "Teferi, Who Slows the Sunset": 2,
+     "The Restoration of Eiganjo // Architect of Restoration": 2,
+     "Farewell": 2,
+     "Reckoner Bankbuster // Reckoner Bankbuster": 2,
+     "Disdainful Stroke": 2,
+     "Negate": 2,
+     "Memory Deluge": 2,
+     "The Wandering Emperor": 3,
+     "Fateful Absence": 3,
+     "Doomskar": 4,
+     "March of Otherworldly Light": 4,
+     "Legion Angel": 1,
+     "Hullbreaker Horror": 1,
+     "Iymrith, Desert Doom": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 21
+  },
+  {
+   "deck": 473388,
+   "event": 36350,
+   "archetype": "Jund",
+   "player": "sandoiche",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-05-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 2,
+    "burn": 3,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 28.0,
+     "R": 15.0,
+     "G": 16.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wrenn and Seven": 1,
+     "Bloodchief's Thirst": 1,
+     "Ray of Enfeeblement": 1,
+     "Unleash the Inferno": 1,
+     "The Meathook Massacre": 2,
+     "Infernal Grasp": 2,
+     "Ob Nixilis, the Adversary": 2,
+     "Lolth, Spider Queen": 2,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Esika's Chariot": 4,
+     "Riveteers Charm": 4,
+     "Titan of Industry": 1,
+     "Sarulf, Realm Eater": 2,
+     "Tenacious Underdog": 3,
+     "Bloodtithe Harvester": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 76
+  },
+  {
+   "deck": 481944,
+   "event": 37642,
+   "archetype": "Naya Runes Aggro",
+   "player": "Shunki Saito",
+   "event_name": "Team Battle @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 17.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tamiyo's Safekeeping": 1,
+     "Valorous Stance": 1,
+     "Rune of Sustenance": 2,
+     "Michiko's Reign of Truth // Portrait of Michiko": 2,
+     "Rune of Might": 4,
+     "Showdown of the Skalds": 4,
+     "Rune of Speed": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Legion Angel": 1,
+     "Runeforge Champion": 4,
+     "Kami of Transience": 4,
+     "Jukai Naturalist": 4,
+     "Generous Visitor": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 73
+  },
+  {
+   "deck": 483452,
+   "event": 37879,
+   "archetype": "Boros Aggro",
+   "player": "Julian Dominguez",
+   "event_name": "Tournament @ Mint State Arena",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-13",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 0,
+     "R": 31.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Brutal Cathar // Moonrage Brute": 2,
+     "Thundering Raiju": 4,
+     "Reckless Stormseeker // Storm-Charged Slasher": 4,
+     "Sunrise Cavalier": 4,
+     "Kumano Faces Kakkazan // Etching of Kumano": 4,
+     "Bloodthirsty Adversary": 4,
+     "Luminarch Aspirant": 4,
+     "Hopeful Initiate": 4,
+     "Kami's Flare": 2,
+     "Play with Fire": 3,
+     "Roil Eruption": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 42
+  },
+  {
+   "deck": 478467,
+   "event": 37094,
+   "archetype": "Esper Raffine",
+   "player": "Sergey Sypachev",
+   "event_name": "Tournament @ Mint State Arena",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-02",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 17,
+    "counters": 3,
+    "sweepers": 1,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 28.0,
+     "U": 9.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Obscura Interceptor": 1,
+     "Legion Angel": 1,
+     "Brutal Cathar // Moonrage Brute": 3,
+     "Luminarch Aspirant": 4,
+     "Tenacious Underdog": 4,
+     "Raffine, Scheming Seer": 4,
+     "Vanishing Verse": 2,
+     "Make Disappear": 3,
+     "Infernal Grasp": 3,
+     "The Meathook Massacre": 1,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Lolth, Spider Queen": 1,
+     "Kaito Shizuki": 1,
+     "Elspeth Resplendent": 1,
+     "The Wandering Emperor": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 41
+  },
+  {
+   "deck": 482262,
+   "event": 37688,
+   "archetype": "Rakdos Aggro",
+   "player": "levunga21",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-01",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 9,
+    "draw": 5,
+    "burn": 4,
+    "avg_cmc": 1.86,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 26.0,
+     "R": 22.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Lolth, Spider Queen": 1,
+     "Duress": 2,
+     "Check for Traps": 2,
+     "The Meathook Massacre": 2,
+     "Experimental Synthesizer": 3,
+     "Deadly Dispute": 4,
+     "Infernal Grasp": 4,
+     "Voltage Surge": 4,
+     "Oni-Cult Anvil": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Voldaren Epicure": 3,
+     "Bloodtithe Harvester": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 31
+  },
+  {
+   "deck": 476270,
+   "event": 36746,
+   "archetype": "Azorius Aggro",
+   "player": "Miyazaki Yuichi",
+   "event_name": "The 20th God of Standard Tournament @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-11",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.67,
+    "pips": {
+     "W": 16.0,
+     "U": 20.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "The Restoration of Eiganjo // Architect of Restoration": 2,
+     "Security Bypass": 3,
+     "Homestead Courage": 4,
+     "March of Swirling Mist": 4,
+     "Slip Out the Back": 4,
+     "You See a Guard Approach": 4,
+     "Spectral Adversary": 1,
+     "Mavinda, Students' Advocate": 2,
+     "Illuminator Virtuoso": 4,
+     "Luminarch Aspirant": 4,
+     "Stormchaser Drake": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 25
+  },
+  {
+   "deck": 477637,
+   "event": 36962,
+   "archetype": "Temur Control",
+   "player": "Lilium",
+   "event_name": "$500 Cash GGtoor #15 (FREE!) @ GGtoor",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 31,
+    "lands": 29,
+    "creatures": 12,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 3.13,
+    "pips": {
+     "W": 0,
+     "U": 17.0,
+     "B": 0,
+     "R": 22.0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Memory Deluge": 1,
+     "Negate": 2,
+     "Fading Hope": 3,
+     "Make Disappear": 3,
+     "Voltage Surge": 3,
+     "Prismari Command": 3,
+     "Expressive Iteration": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Goldspan Dragon": 4,
+     "Titan of Industry": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 21
+  },
+  {
+   "deck": 476959,
+   "event": 36855,
+   "archetype": "Grixis Midrange",
+   "player": "Kawabata Yuji",
+   "event_name": "\"Emperor of Standard\" Tournament 13th Season @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 6,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 5,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 0,
+     "U": 15.0,
+     "B": 12.0,
+     "R": 25.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Spell Pierce": 1,
+     "Disdainful Stroke": 1,
+     "Prismari Command": 1,
+     "The Meathook Massacre": 1,
+     "Reckoner Bankbuster // Reckoner Bankbuster": 2,
+     "Infernal Grasp": 2,
+     "Make Disappear": 2,
+     "Negate": 2,
+     "Expressive Iteration": 4,
+     "Voltage Surge": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Goldspan Dragon": 2,
+     "Bloodtithe Harvester": 4,
+     "Corpse Appraiser": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 467137,
+   "event": 35348,
+   "archetype": "Orzhov Control",
+   "player": "Yasuno Naoto",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-03-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.2,
+    "pips": {
+     "W": 42.0,
+     "U": 0,
+     "B": 20.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Portable Hole": 1,
+     "Can't Stay Away": 1,
+     "Farewell": 2,
+     "Rite of Oblivion": 2,
+     "The Wandering Emperor": 2,
+     "Kaya the Inexorable": 3,
+     "Vanishing Verse": 3,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Legion Angel": 1,
+     "Henrika Domnathi // Henrika, Infernal Seer": 2,
+     "Eyetwitch": 3,
+     "Skyclave Apparition": 3,
+     "Spirited Companion": 4,
+     "Liesa, Forgotten Archangel": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 49
+  },
+  {
+   "deck": 469759,
+   "event": 35771,
+   "archetype": "Mono Black Control",
+   "player": "Nishimura Hiroshi",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-04-11",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 2,
+    "avg_cmc": 2.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 53.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Concealing Curtains // Revealing Eye": 2,
+     "Jadar, Ghoulcaller of Nephalia": 4,
+     "Tainted Adversary": 4,
+     "Morbid Opportunist": 4,
+     "Infernal Grasp": 1,
+     "Power Word Kill": 2,
+     "Deadly Dispute": 4,
+     "Invoke Despair": 4,
+     "Warlock Class": 4,
+     "The Meathook Massacre": 4,
+     "Sorin the Mirthless": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 451270,
+   "event": 32779,
+   "archetype": "Golgari Control",
+   "player": "Yoshida Yutaro",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-10-11",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 31,
+    "lands": 29,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.87,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 13.0,
+     "R": 0,
+     "G": 27.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Grakmaw, Skyclave Ravager": 4,
+     "Swarm Shambler": 4,
+     "Briarbridge Tracker": 4,
+     "Esika's Chariot": 4,
+     "Inscription of Abundance": 1,
+     "Power Word Kill": 2,
+     "Infernal Grasp": 3,
+     "Ranger Class": 4,
+     "Lolth, Spider Queen": 2,
+     "Wrenn and Seven": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 470123,
+   "event": 35823,
+   "archetype": "Selesnya Midrange",
+   "player": "Danny Mullinax",
+   "event_name": "3v3 Event @ CM Games Cedar Bluff (Knoxville, TN)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-04-17",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.62,
+    "pips": {
+     "W": 23.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 29.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "The Wandering Emperor": 2,
+     "Storm the Festival": 3,
+     "Wrenn and Seven": 3,
+     "Esika's Chariot": 3,
+     "The Restoration of Eiganjo // Architect of Restoration": 4,
+     "Azusa's Many Journeys // Likeness of the Seeker": 4,
+     "Legion Angel": 1,
+     "Ao, the Dawn Sky": 2,
+     "Skyclave Apparition": 3,
+     "Yasharn, Implacable Earth": 3,
+     "Prosperous Innkeeper": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 454981,
+   "event": 33444,
+   "archetype": "Sultai Legends Midrange",
+   "player": "Minami Ryota",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-11-22",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.91,
+    "pips": {
+     "W": 0,
+     "U": 9.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Binding the Old Gods": 2,
+     "Infernal Grasp": 3,
+     "Sorin the Mirthless": 3,
+     "Esika's Chariot": 4,
+     "Wrenn and Seven": 4,
+     "Toxrill, the Corrosive": 2,
+     "Iymrith, Desert Doom": 2,
+     "Kolvori, God of Kinship // The Ringhart Crest": 2,
+     "Blex, Vexing Pest // Search for Blex": 2,
+     "Ludevic, Necrogenius // Olag, Ludevic's Hubris": 2,
+     "Old Rutstein": 3,
+     "Grolnok, the Omnivore": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 484827,
+   "event": 38082,
+   "archetype": "Azorius Midrange",
+   "player": "Guardianthesecond",
+   "event_name": "Tournament @ Mint State Arena",
+   "stars": 2,
+   "rank": "2",
+   "date": "2022-08-27",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 22,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 41.0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "The Restoration of Eiganjo // Architect of Restoration": 2,
+     "Make Disappear": 2,
+     "Elspeth Resplendent": 2,
+     "Fateful Absence": 3,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "The Wandering Emperor": 4,
+     "Legion Angel": 1,
+     "Dennick, Pious Apprentice // Dennick, Pious Apparition": 2,
+     "Spirited Companion": 3,
+     "Skyclave Apparition": 3,
+     "Ambitious Farmhand // Seasoned Cathar": 3,
+     "Extraction Specialist": 4,
+     "Malevolent Hermit // Benevolent Geist": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 473540,
+   "event": 36375,
+   "archetype": "Reanimator",
+   "player": "Kevin Mittertreiner",
+   "event_name": "New Capenna Championship",
+   "stars": 1,
+   "rank": "",
+   "date": "2022-05-20",
+   "summer": true,
+   "s": 0.12270017059533656,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 7,
+    "burn": 7,
+    "avg_cmc": 4.42,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 0,
+     "R": 25.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Unexpected Windfall": 1,
+     "The Wandering Emperor": 1,
+     "Flame-Blessed Bolt": 2,
+     "Seize the Spoils": 2,
+     "Burn Down the House": 2,
+     "Doomskar": 2,
+     "Dragon's Fire": 3,
+     "Invoke Justice": 4,
+     "Big Score": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Titan of Industry": 4,
+     "Velomachus Lorehold": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 2
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 482751,
+   "event": 37771,
+   "archetype": "Grixis Aggro",
+   "player": "Gary Quach",
+   "event_name": "Slice @ The Pizza Box",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-07",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 5,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 3,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 25.0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "The Meathook Massacre": 1,
+     "Siphon Insight": 2,
+     "Infernal Grasp": 2,
+     "Kaito Shizuki": 2,
+     "Spell Pierce": 2,
+     "Voltage Surge": 3,
+     "Make Disappear": 3,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Evelyn, the Covetous": 2,
+     "Zareth San, the Trickster": 2,
+     "Bloodtithe Harvester": 3,
+     "Soaring Thought-Thief": 4,
+     "Corpse Appraiser": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 36
+  },
+  {
+   "deck": 458506,
+   "event": 33966,
+   "archetype": "Dimir Control",
+   "player": "Lukas Dusek",
+   "event_name": "5CH Inter Tiendas - Especial Navidad @ Five Color Hub",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-12-26",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 10,
+    "counters": 3,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 2.0,
+     "U": 16.0,
+     "B": 36.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Test of Talents": 1,
+     "Soul Shatter": 1,
+     "Wash Away": 2,
+     "Siphon Insight": 3,
+     "Memory Deluge": 3,
+     "Path of Peril": 3,
+     "The Meathook Massacre": 3,
+     "Sorin the Mirthless": 3,
+     "Infernal Grasp": 4,
+     "Edgar, Charmed Groom // Edgar Markov's Coffin": 2,
+     "Henrika Domnathi // Henrika, Infernal Seer": 2,
+     "Iymrith, Desert Doom": 2,
+     "Graveyard Trespasser // Graveyard Glutton": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 37
+  },
+  {
+   "deck": 467386,
+   "event": 35394,
+   "archetype": "Selesnya Aggro",
+   "player": "Andr\u00e9 Santos",
+   "event_name": "$1,000 Cash @ GGtoor",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-03-26",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.18,
+    "pips": {
+     "W": 38.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Starnheim Unleashed": 3,
+     "The Wandering Emperor": 4,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Esika's Chariot": 4,
+     "Legion Angel": 1,
+     "Yasharn, Implacable Earth": 2,
+     "Prosperous Innkeeper": 4,
+     "Luminarch Aspirant": 4,
+     "Welcoming Vampire": 4,
+     "Skyclave Apparition": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 35
+  },
+  {
+   "deck": 469762,
+   "event": 35771,
+   "archetype": "Naya Aggro",
+   "player": "Matsuda Hideyuki",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-04-11",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 35,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 33.0,
+     "U": 0,
+     "B": 0,
+     "R": 7.0,
+     "G": 3.0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "The Wandering Emperor": 1,
+     "Legion Angel": 1,
+     "Skyclave Apparition": 2,
+     "Sungold Sentinel": 2,
+     "Reidane, God of the Worthy // Valkmira, Protector's Shield": 3,
+     "Halana and Alena, Partners": 3,
+     "Intrepid Adversary": 4,
+     "Reckless Stormseeker // Storm-Charged Slasher": 4,
+     "Hopeful Initiate": 4,
+     "Thalia, Guardian of Thraben": 4,
+     "Elite Spellbinder": 4,
+     "Luminarch Aspirant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 28
+  },
+  {
+   "deck": 465848,
+   "event": 35138,
+   "archetype": "Esper Midrange",
+   "player": "Hirami Tomonori",
+   "event_name": "Japan Nationals Qualifier @ Hareruya (Osaka, Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-03-13",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 7,
+    "counters": 3,
+    "sweepers": 3,
+    "draw": 9,
+    "burn": 2,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 20.0,
+     "U": 6.0,
+     "B": 25.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Disdainful Stroke": 1,
+     "Portable Hole": 2,
+     "Negate": 2,
+     "Bloodchief's Thirst": 2,
+     "Sorin the Mirthless": 2,
+     "Lolth, Spider Queen": 2,
+     "The Wandering Emperor": 2,
+     "Kaito Shizuki": 3,
+     "The Meathook Massacre": 3,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Vanishing Verse": 4,
+     "Legion Angel": 1,
+     "Tainted Adversary": 2,
+     "Luminarch Aspirant": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 10
+  },
+  {
+   "deck": 469761,
+   "event": 35771,
+   "archetype": "Red Deck Wins",
+   "player": "Enomoto Takuya",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-04-11",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 48.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Volatile Arsonist // Dire-Strain Anarchist": 4,
+     "Atsushi, the Blazing Sky": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Reckless Stormseeker // Storm-Charged Slasher": 4,
+     "Bloodthirsty Adversary": 4,
+     "Kumano Faces Kakkazan // Etching of Kumano": 4,
+     "Abrade": 4,
+     "Play with Fire": 4,
+     "Chandra, Dressed to Kill": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 466631,
+   "event": 35271,
+   "archetype": "Mardu Aggro",
+   "player": "Zaergaegyr",
+   "event_name": "Community Turnier @ Sol4r1s Tournament Scene",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-03-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 27.0,
+     "U": 0,
+     "B": 18.0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Valorous Stance": 1,
+     "Showdown of the Skalds": 4,
+     "Angelfire Ignition": 4,
+     "Vanishing Verse": 4,
+     "Kaya's Onslaught": 4,
+     "Hidetsugu Consumes All // Vessel of the All-Consuming": 4,
+     "Florian, Voldaren Scion": 2,
+     "Silverquill Silencer": 2,
+     "Graveyard Trespasser // Graveyard Glutton": 2,
+     "Luminarch Aspirant": 4,
+     "Killian, Ink Duelist": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 462320,
+   "event": 34604,
+   "archetype": "Mono Black Aggro",
+   "player": "Hamuda",
+   "event_name": "MTGO Standard Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-02-07",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 42.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Sorin the Mirthless": 2,
+     "Acquisitions Expert": 4,
+     "Eyetwitch": 4,
+     "Fell Stinger": 3,
+     "Graveyard Trespasser // Graveyard Glutton": 4,
+     "Henrika Domnathi // Henrika, Infernal Seer": 2,
+     "Shambling Ghast": 4,
+     "Bloodchief's Thirst": 2,
+     "Go Blank": 2,
+     "Deadly Dispute": 4,
+     "Infernal Grasp": 3,
+     "The Meathook Massacre": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 467138,
+   "event": 35348,
+   "archetype": "Dimir Aggro",
+   "player": "Doudanuki Tomonori",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-03-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 3,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Power Word Kill": 1,
+     "Infernal Grasp": 2,
+     "Fading Hope": 2,
+     "Spell Pierce": 3,
+     "Kaito Shizuki": 3,
+     "Nashi, Moon Sage's Scion": 2,
+     "Satoru Umezawa": 2,
+     "Merfolk Windrobber": 2,
+     "Thousand-Faced Shadow": 4,
+     "Silver-Fur Master": 4,
+     "Prosperous Thief": 4,
+     "Network Disruptor": 4,
+     "Biting-Palm Ninja": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 452961,
+   "event": 33076,
+   "archetype": "Selesnya Control",
+   "player": "Matsukasa10",
+   "event_name": "Nationals 2021 Weekly Challenge @ Japan",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-10-31",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.27,
+    "pips": {
+     "W": 28.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Wrenn and Seven": 3,
+     "Esika's Chariot": 4,
+     "Doomskar": 4,
+     "Storm the Festival": 4,
+     "Starnheim Unleashed": 4,
+     "Borrowed Time": 4,
+     "Felidar Retreat": 4,
+     "Scute Swarm": 2,
+     "Yasharn, Implacable Earth": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 469764,
+   "event": 35771,
+   "archetype": "Jeskai Aggro",
+   "player": "Ishikawa Kenji",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-04-11",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 25.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Portable Hole": 2,
+     "Syncopate": 2,
+     "Wedding Announcement // Wedding Festivity": 2,
+     "The Wandering Emperor": 3,
+     "Negate": 3,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Legion Angel": 1,
+     "Cathar Commando": 2,
+     "Brutal Cathar // Moonrage Brute": 2,
+     "Elite Spellbinder": 2,
+     "Suspicious Stowaway // Seafaring Werewolf": 2,
+     "Hopeful Initiate": 3,
+     "Luminarch Aspirant": 4,
+     "Overcharged Amalgam": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 474426,
+   "event": 36441,
+   "archetype": "Boros Justice",
+   "player": "signblindman",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "2",
+   "date": "2022-05-22",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 3.69,
+    "pips": {
+     "W": 48.0,
+     "U": 0,
+     "B": 0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Angelfire Ignition": 1,
+     "Banishing Slash": 1,
+     "Doomskar": 1,
+     "Portable Hole": 2,
+     "The Wandering Emperor": 3,
+     "Invoke Justice": 4,
+     "Thrilling Discovery": 4,
+     "Dragon's Fire": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "The Restoration of Eiganjo // Architect of Restoration": 4,
+     "Velomachus Lorehold": 3,
+     "Sanctuary Warden": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 56,
+ "rejected_illegal": [
+  {
+   "archetype": "Jund",
+   "deck": 485756,
+   "player": "Rikimaruboys",
+   "why": [
+    "Cut Down (not in legal sets)",
+    "Nemata, Primeval Warden (not in legal sets)",
+    "Sheoldred, the Apocalypse (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Izzet Control",
+   "deck": 461234,
+   "player": "Matheus Akio Yanagiura",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Izzet Control",
+   "deck": 461050,
+   "player": "Matheus Akio Yanagiura",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Izzet Control",
+   "deck": 455567,
+   "player": "Cheng Yu Chang",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Izzet Control",
+   "deck": 452371,
+   "player": "Pedro Silva",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Green Aggro",
+   "deck": 459614,
+   "player": "Antimo Morlando",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Green Aggro",
+   "deck": 451766,
+   "player": "Yann Rabay",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Green Aggro",
+   "deck": 450957,
+   "player": "Will Pulliam",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Green Aggro",
+   "deck": 450431,
+   "player": "Simon Nielsen",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Orzhov Control",
+   "deck": 454294,
+   "player": "Felipe Landim",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 456436,
+   "player": "Junya Iyanaga",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 458637,
+   "player": "Yamagata Hiroki",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 455352,
+   "player": "Vin\u00edcius Marques De Castro",
+   "why": [
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 451085,
+   "player": "Tsuda Tomohiro",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Edge.dec",
+   "deck": 775132,
+   "player": "Cole Swannack",
+   "why": [
+    "Absorb (not in legal sets)",
+    "Adarkar Wastes (not in legal sets)",
+    "Battlefield Forge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Esper Raffine",
+   "deck": 485708,
+   "player": "unagieel",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Archangel of Wrath (not in legal sets)",
+    "Caves of Koilos (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 485748,
+   "player": "Kondo Koki",
+   "why": [
+    "Cut Down (not in legal sets)",
+    "Ertai Resurrected (not in legal sets)",
+    "Liliana of the Veil (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Orzhov Midrange",
+   "deck": 485836,
+   "player": "Eltopo Cards",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Cut Down (not in legal sets)",
+    "Liliana of the Veil (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Midrange",
+   "deck": 485668,
+   "player": "Victor Cardarelli",
+   "why": [
+    "Archangel of Wrath (not in legal sets)",
+    "Caves of Koilos (not in legal sets)",
+    "Cut Down (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Midrange",
+   "deck": 485675,
+   "player": "Tlacaelel Campos",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Cut Down (not in legal sets)",
+    "Evolved Sleeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Midrange",
+   "deck": 485538,
+   "player": "Koki Kondo",
+   "why": [
+    "Cut Down (not in legal sets)",
+    "Ertai Resurrected (not in legal sets)",
+    "Liliana of the Veil (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR",
+   "deck": 450973,
+   "player": "Tomohiro Tsuda",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "UR",
+   "deck": 450968,
+   "player": "Clemens Gerteiser",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "UR",
+   "deck": 450980,
+   "player": "Iori Kusunoki",
+   "why": [
+    "Alrund's Epiphany (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Control",
+   "deck": 456040,
+   "player": "Ishikawa Kenji",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Kentuky Fried Atog",
+   "deck": 775133,
+   "player": "Julian Brown-santirso",
+   "why": [
+    "Arrogant Wurm (not in legal sets)",
+    "Basking Rootwalla (not in legal sets)",
+    "Blurred Mongoose (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Invoke Justice",
+   "deck": 485709,
+   "player": "_Falcon_",
+   "why": [
+    "Anointed Peacekeeper (not in legal sets)",
+    "Jaya, Fiery Negotiator (not in legal sets)",
+    "Squee, Dubious Monarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Invoke Justice",
+   "deck": 485749,
+   "player": "Hosokawa Yuuya",
+   "why": [
+    "Anointed Peacekeeper (not in legal sets)",
+    "Jaya, Fiery Negotiator (not in legal sets)",
+    "Squee, Dubious Monarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reanimator",
+   "deck": 485539,
+   "player": "Yuya Hosokawa",
+   "why": [
+    "Anointed Peacekeeper (not in legal sets)",
+    "Jaya, Fiery Negotiator (not in legal sets)",
+    "Squee, Dubious Monarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Wallace & A Zombie",
+   "deck": 775134,
+   "player": "James White",
+   "why": [
+    "Arrogant Wurm (not in legal sets)",
+    "Basking Rootwalla (not in legal sets)",
+    "Birds of Paradise (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono White Control",
+   "deck": 485671,
+   "player": "Stephen Magee",
+   "why": [
+    "Anointed Peacekeeper (not in legal sets)",
+    "Destroy Evil (not in legal sets)",
+    "Serra Paragon (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Anvil",
+   "deck": 485838,
+   "player": "Jose Ignacio Quesada",
+   "why": [
+    "Braids, Arisen Nightmare (not in legal sets)",
+    "Liliana of the Veil (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Blue Aggro",
+   "deck": 454154,
+   "player": "Kanata",
+   "why": [
+    "Divide by Zero (banned)",
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 450021,
+   "player": "Gavin Bennett",
+   "why": [
+    "Alrund's Epiphany (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 485842,
+   "player": "Itrexx",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Anointed Peacekeeper (not in legal sets)",
+    "Destroy Evil (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Control",
+   "deck": 449911,
+   "player": "_Batutinha_",
+   "why": [
+    "Alrund's Epiphany (banned)"
+   ]
+  },
+  {
+   "archetype": "RU",
+   "deck": 450974,
+   "player": "Hiroki Yamada",
+   "why": [
+    "Alrund's Epiphany (banned)"
+   ]
+  },
+  {
+   "archetype": "Tuna Taco With Tomato Sauce",
+   "deck": 775135,
+   "player": "Anthony Gysberts",
+   "why": [
+    "Blazing Specter (not in legal sets)",
+    "Braids, Cabal Minion (not in legal sets)",
+    "Chainer's Edict (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Frankenstein",
+   "deck": 775136,
+   "player": "Raymond Anderson",
+   "why": [
+    "Bearscape (not in legal sets)",
+    "Blazing Specter (not in legal sets)",
+    "Call of the Herd (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 485673,
+   "player": "Anthony Marcillac",
+   "why": [
+    "Lightning Strike (not in legal sets)",
+    "Liliana of the Veil (not in legal sets)",
+    "Sheoldred, the Apocalypse (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 485714,
+   "player": "Nammersquats",
+   "why": [
+    "Evolved Sleeper (not in legal sets)",
+    "Jaya, Fiery Negotiator (not in legal sets)",
+    "Liliana of the Veil (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 456359,
+   "player": "Igor Prikhodko",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Tea Party",
+   "deck": 775137,
+   "player": "Nick Forster",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Call of the Herd (not in legal sets)",
+    "Chainer's Edict (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sultai Midrange",
+   "deck": 450783,
+   "player": "Ivan Mery",
+   "why": [
+    "Alrund's Epiphany (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Midrange",
+   "deck": 458028,
+   "player": "Thiagocc / Manafoxmtg",
+   "why": [
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "Kazaa - By \"wesley Willis\"",
+   "deck": 775138,
+   "player": "Giles Reid",
+   "why": [
+    "Addle (not in legal sets)",
+    "Aladdin's Ring (not in legal sets)",
+    "Cabal Coffers (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "R/g Beats",
+   "deck": 775139,
+   "player": "John Manuuli",
+   "why": [
+    "Assault / Battery (not in legal sets)",
+    "Barbarian Ring (not in legal sets)",
+    "Call of the Herd (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Midrange",
+   "deck": 458644,
+   "player": "Ebitani Keisuke",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Midrange",
+   "deck": 456258,
+   "player": "Simon G\u00f6rtzen",
+   "why": [
+    "Faceless Haven (banned)"
+   ]
+  },
+  {
+   "archetype": "UR Delver",
+   "deck": 450775,
+   "player": "Clemens Gerteiser",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  },
+  {
+   "archetype": "UR Aggro",
+   "deck": 450253,
+   "player": "Joe Ambrosio",
+   "why": [
+    "Alrund's Epiphany (banned)",
+    "Divide by Zero (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Orzhov Midrange",
+   "player": "Misplacedginger",
+   "kept": "Orzhov Aggro",
+   "kept_player": "Kamezaki Sho"
+  },
+  {
+   "dropped": "Bant Aggro",
+   "player": "Kumada Hiroki",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Andr\u00e9 Santos"
+  },
+  {
+   "dropped": "Gruul Werewolves",
+   "player": "Taras Kohut",
+   "kept": "Temur Aggro",
+   "kept_player": "Hiroaki Taniguchi"
+  },
+  {
+   "dropped": "Naya Runes",
+   "player": "LarryBeal",
+   "kept": "Naya Runes Aggro",
+   "kept_player": "Shunki Saito"
+  },
+  {
+   "dropped": "WW",
+   "player": "In\u014de takuto",
+   "kept": "Weenie White",
+   "kept_player": "Helio Sampaio"
+  },
+  {
+   "dropped": "Orzhov Angels",
+   "player": "Mw_94ga",
+   "kept": "Esper Angels",
+   "kept_player": "Vincent Choupaut"
+  },
+  {
+   "dropped": "Invoke Velomachus",
+   "player": "Jake Browne",
+   "kept": "Boros Justice",
+   "kept_player": "signblindman"
+  },
+  {
+   "dropped": "Mono White Aggro",
+   "player": "Marshall Mcclarnon",
+   "kept": "Weenie White",
+   "kept_player": "Helio Sampaio"
+  },
+  {
+   "dropped": "Selenya Aggro",
+   "player": "Marco Kollmer",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Andr\u00e9 Santos"
+  },
+  {
+   "dropped": "Temur Midrange",
+   "player": "Brian Caffaggi",
+   "kept": "Gruul Aggro",
+   "kept_player": "Paskardi"
+  },
+  {
+   "dropped": "Boros Velomachus",
+   "player": "XlperTxT",
+   "kept": "Boros Justice",
+   "kept_player": "signblindman"
+  },
+  {
+   "dropped": "Selesnya Runes Aggro",
+   "player": "Jussi Kajala",
+   "kept": "Naya Runes Aggro",
+   "kept_player": "Shunki Saito"
+  },
+  {
+   "dropped": "5c The Kami War",
+   "player": "LucasG1ggs",
+   "kept": "The Kami War",
+   "kept_player": "Carlo Favretto"
+  },
+  {
+   "dropped": "Mardu Control",
+   "player": "Harun Balo",
+   "kept": "Mardu Midrange",
+   "kept_player": "Charalampos Kikidis"
+  },
+  {
+   "dropped": "Rakdos Sacrifice",
+   "player": "Kenichiro Omori",
+   "kept": "Rakdos Aggro",
+   "kept_player": "levunga21"
+  },
+  {
+   "dropped": "Sultai Aggro",
+   "player": "Yojiro Futamata",
+   "kept": "Golgari Aggro",
+   "kept_player": "Futamata Youjirou"
+  }
+ ],
+ "objective": 14.226321619174769,
+ "pool_colors": {
+  "U": 24,
+  "R": 21,
+  "W": 31,
+  "B": 28,
+  "G": 21
+ },
+ "pool_styles": {
+  "midrange": 17,
+  "aggro": 24,
+  "control": 14,
+  "combo": 1
+ },
+ "kept_lost": []
+}

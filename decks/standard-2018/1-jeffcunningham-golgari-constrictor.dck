@@ -1,0 +1,32 @@
+[metadata]
+Name=Golgari Constrictor (Jeffcunningham)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=19427&d=323901&f=ST
+Comment=MTGO Standard MOCS #11421567: Jeffcunningham, 1st, Golgari Constrictor. Transcribed from mtgtop8 deck 323901.
+[Main]
+4 Woodland Cemetery|DOM
+3 Swamp|M19
+7 Forest|M19
+4 Blooming Marsh|KLD
+4 Aether Hub|KLD
+4 Adventurous Impulse|DOM
+2 Aethersphere Harvester|AER
+4 Winding Constrictor|AER
+4 Walking Ballista|AER
+4 Verdurous Gearhulk|KLD
+2 Rishkar, Peema Renegade|AER
+4 Ravenous Chupacabra|RIX
+2 Merfolk Branchwalker|XLN
+4 Llanowar Elves|M19
+4 Jadelight Ranger|RIX
+4 Glint-Sleeve Siphoner|AER
+[Sideboard]
+2 Vraska, Relic Seeker|XLN
+2 Shapers' Sanctuary|XLN
+3 Lifecrafter's Bestiary|AER
+1 Hour of Glory|HOU
+2 Fatal Push|AER
+4 Duress|XLN
+1 Aethersphere Harvester|AER

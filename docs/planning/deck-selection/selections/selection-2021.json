@@ -1,0 +1,2100 @@
+{
+ "era": {
+  "year": 2021,
+  "season_start": "2020-09-25",
+  "start": "2021-07-23",
+  "end": "2021-09-24",
+  "format": "Standard (AFR)",
+  "sets": "ELD, THB, IKO, M21, ZNR, KHM, STX, AFR",
+  "banned": [
+   "Cauldron Familiar",
+   "Escape to the Wilds",
+   "Fires of Invention",
+   "Lucky Clover",
+   "Oko, Thief of Crowns",
+   "Omnath, Locus of Creation",
+   "Once Upon a Time",
+   "Uro, Titan of Nature's Wrath"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 446567,
+   "event": 31920,
+   "archetype": "Sultai Yorion Ultimatum",
+   "player": "Alexander Rosdahl",
+   "event_name": "$5K SCG Tour Online Championship Qualifier @ Star City Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-08-08",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 38,
+    "creatures": 7,
+    "counters": 2,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.79,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 32.0,
+     "R": 0,
+     "G": 30.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Valki, God of Lies // Tibalt, Cosmic Impostor": 1,
+     "Vorinclex, Monstrous Raider": 1,
+     "Polukranos, Unchained": 2,
+     "Elder Gargaroth": 3,
+     "Disdainful Stroke": 2,
+     "Power Word Kill": 4,
+     "Heartless Act": 4,
+     "Shadows' Verdict": 1,
+     "Pestilent Haze": 2,
+     "Alrund's Epiphany": 2,
+     "Extinction Event": 3,
+     "Cultivate": 4,
+     "Emergent Ultimatum": 4,
+     "Kiora Bests the Sea God": 1,
+     "Binding the Old Gods": 4,
+     "Omen of the Sea": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 327
+  },
+  {
+   "deck": 446425,
+   "event": 31897,
+   "archetype": "Gruul Aggro",
+   "player": "Arne Huschenbeth",
+   "event_name": "Challenger Gauntlet",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-08-06",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 30.0,
+     "G": 23.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Garruk, Unleashed": 1,
+     "Ranger Class": 1,
+     "Esika's Chariot": 4,
+     "Embercleave": 3,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Magda, Brazen Outlaw": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Jaspera Sentinel": 4,
+     "Edgewall Innkeeper": 4,
+     "Rimrock Knight // Boulder Rush": 3,
+     "Goldspan Dragon": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 151
+  },
+  {
+   "deck": 446435,
+   "event": 31897,
+   "archetype": "Naya Aggro",
+   "player": "Sam Pardee",
+   "event_name": "Challenger Gauntlet",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-08-06",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 2.38,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 0,
+     "R": 16.0,
+     "G": 19.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Elite Spellbinder": 3,
+     "Bonecrusher Giant // Stomp": 4,
+     "Edgewall Innkeeper": 4,
+     "Jaspera Sentinel": 4,
+     "Giant Killer // Chop Down": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Esika's Chariot": 3,
+     "Fire Prophecy": 4,
+     "The Akroan War": 1,
+     "Showdown of the Skalds": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 142
+  },
+  {
+   "deck": 446432,
+   "event": 31897,
+   "archetype": "Izzet Control",
+   "player": "Noriyuki Mori",
+   "event_name": "Challenger Gauntlet",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-08-06",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 31,
+    "lands": 29,
+    "creatures": 4,
+    "counters": 8,
+    "sweepers": 3,
+    "draw": 5,
+    "burn": 4,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 0,
+     "U": 22.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Saw It Coming": 1,
+     "Shark Typhoon": 1,
+     "Essence Scatter": 2,
+     "Fire Prophecy": 2,
+     "Mystical Dispute": 2,
+     "Burning Hands": 2,
+     "Mazemind Tome": 2,
+     "Expressive Iteration": 3,
+     "Kiora Bests the Sea God": 3,
+     "Cinderclasm": 3,
+     "Disdainful Stroke": 3,
+     "Midnight Clock": 3,
+     "Bonecrusher Giant // Stomp": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 104
+  },
+  {
+   "deck": 446439,
+   "event": 31897,
+   "archetype": "Winota",
+   "player": "Keisuke Sato",
+   "event_name": "Challenger Gauntlet",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-08-06",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 19.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Bonecrusher Giant // Stomp": 1,
+     "Kenrith, the Returned King": 2,
+     "Minsc, Beloved Ranger": 2,
+     "Blade Historian": 2,
+     "Selfless Savior": 3,
+     "Lotus Cobra": 3,
+     "Prosperous Innkeeper": 4,
+     "Jaspera Sentinel": 4,
+     "Elite Spellbinder": 4,
+     "Winota, Joiner of Forces": 4,
+     "Esika's Chariot": 4,
+     "Ranger Class": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 99
+  },
+  {
+   "deck": 444959,
+   "event": 31656,
+   "archetype": "Rakdos Aggro",
+   "player": "John Alexander",
+   "event_name": "SCG Tour Online - Satellite #3 @ Star City Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-23",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 24.0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Valki, God of Lies // Tibalt, Cosmic Impostor": 2,
+     "Kroxa, Titan of Death's Hunger": 2,
+     "Bonecrusher Giant // Stomp": 4,
+     "Immersturm Predator": 4,
+     "Mire Triton": 4,
+     "Woe Strider": 4,
+     "Heartless Act": 4,
+     "Village Rites": 4,
+     "Claim the Firstborn": 4,
+     "The Akroan War": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 65
+  },
+  {
+   "deck": 445788,
+   "event": 31792,
+   "archetype": "Mono Green Aggro",
+   "player": "Rumti",
+   "event_name": "$5K SCG Tour Online Championship Qualifier @ Star City Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-08-01",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.48,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 40.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Werewolf Pack Leader": 2,
+     "Scavenging Ooze": 2,
+     "Questing Beast": 3,
+     "Stonecoil Serpent": 4,
+     "Swarm Shambler": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Gemrazer": 4,
+     "The Great Henge": 2,
+     "Ram Through": 2,
+     "Blizzard Brawl": 2,
+     "Primal Might": 2,
+     "Ranger Class": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 51
+  },
+  {
+   "deck": 443237,
+   "event": 31356,
+   "archetype": "Red Deck Wins",
+   "player": "Alexander Hayne",
+   "event_name": "July Strixhaven Weekend @ Rivals League",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.47,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 57.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Phoenix of Ash": 1,
+     "Rimrock Knight // Boulder Rush": 2,
+     "Fireblade Charger": 3,
+     "Hall Monitor": 3,
+     "Torbran, Thane of Red Fell": 3,
+     "Robber of the Rich": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Anax, Hardened in the Forge": 4,
+     "Fervent Champion": 4,
+     "Embercleave": 4,
+     "Frost Bite": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 152
+  },
+  {
+   "deck": 443231,
+   "event": 31356,
+   "archetype": "Dimir Mill",
+   "player": "Louis-samuel Deltour",
+   "event_name": "July Strixhaven Weekend @ Rivals League",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 16,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.36,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 16.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Ruin Crab": 4,
+     "Merfolk Windrobber": 4,
+     "Thieves' Guild Enforcer": 4,
+     "Soaring Thought-Thief": 4,
+     "Didn't Say Please": 1,
+     "Mystical Dispute": 1,
+     "Disdainful Stroke": 1,
+     "Heartless Act": 4,
+     "Into the Story": 4,
+     "Drown in the Loch": 4,
+     "Of One Mind": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 150
+  },
+  {
+   "deck": 443244,
+   "event": 31356,
+   "archetype": "Temur Lukka",
+   "player": "Luca Magni",
+   "event_name": "July Strixhaven Weekend @ Rivals League",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 21,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 2,
+    "burn": 2,
+    "avg_cmc": 3.12,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 19.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Koma, Cosmos Serpent": 2,
+     "Llanowar Visionary": 3,
+     "Bonecrusher Giant // Stomp": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Edgewall Innkeeper": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Miscast": 1,
+     "Mystical Dispute": 1,
+     "Disdainful Stroke": 2,
+     "Fire Prophecy": 2,
+     "The Akroan War": 2,
+     "Lukka, Coppercoat Outcast": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 116
+  },
+  {
+   "deck": 439112,
+   "event": 30667,
+   "archetype": "Weenie White",
+   "player": "Eli Loveman",
+   "event_name": "Rivals @ May Strixhaven League Weekend",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-05-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 35,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 46.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Drannith Magistrate": 2,
+     "Legion Angel": 2,
+     "Reidane, God of the Worthy // Valkmira, Protector's Shield": 3,
+     "Elite Spellbinder": 4,
+     "Seasoned Hallowblade": 4,
+     "Alseid of Life's Bounty": 4,
+     "Giant Killer // Chop Down": 4,
+     "Skyclave Apparition": 4,
+     "Selfless Savior": 4,
+     "Luminarch Aspirant": 4,
+     "Maul of the Skyclaves": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 102
+  },
+  {
+   "deck": 443229,
+   "event": 31356,
+   "archetype": "Jeskai Cycling Aggro",
+   "player": "Corey Burkhart",
+   "event_name": "July Strixhaven Weekend @ Rivals League",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 21,
+    "burn": 4,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 12.0,
+     "U": 18.0,
+     "B": 0,
+     "R": 24.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Irencrag Pyromancer": 4,
+     "Flourishing Fox": 4,
+     "Drannith Stinger": 4,
+     "Valiant Rescuer": 4,
+     "Frostveil Ambush": 1,
+     "Startling Development": 4,
+     "Zenith Flare": 4,
+     "Boon of the Wish-Giver": 4,
+     "Go for Blood": 4,
+     "Improbable Alliance": 4,
+     "Footfall Crater": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 101
+  },
+  {
+   "deck": 443225,
+   "event": 31356,
+   "archetype": "Jeskai Mutate",
+   "player": "Matthieu Avignon",
+   "event_name": "July Strixhaven Weekend @ Rivals League",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 11,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 5,
+    "avg_cmc": 2.91,
+    "pips": {
+     "W": 6.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 28.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Negate": 1,
+     "Mystical Dispute": 1,
+     "Test of Talents": 1,
+     "Fire Prophecy": 2,
+     "Showdown of the Skalds": 2,
+     "Into the Roil": 2,
+     "Expressive Iteration": 3,
+     "Prismari Command": 3,
+     "Seize the Spoils": 3,
+     "Unsubstantiate": 4,
+     "Lore Drakkis": 3,
+     "Vadrok, Apex of Thunder": 4,
+     "Goldspan Dragon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 46
+  },
+  {
+   "deck": 443239,
+   "event": 31356,
+   "archetype": "Dimir Control",
+   "player": "Shintaro Ishimura",
+   "event_name": "July Strixhaven Weekend @ Rivals League",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 10,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.71,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Essence Scatter": 1,
+     "Eliminate": 1,
+     "Cling to Dust": 1,
+     "Mystical Dispute": 1,
+     "Shark Typhoon": 1,
+     "Epic Downfall": 1,
+     "Mazemind Tome": 2,
+     "Disdainful Stroke": 2,
+     "Didn't Say Please": 2,
+     "Drown in the Loch": 4,
+     "Into the Story": 4,
+     "Heartless Act": 4,
+     "Brazen Borrower // Petty Theft": 2,
+     "Soaring Thought-Thief": 4,
+     "Thieves' Guild Enforcer": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 439103,
+   "event": 30667,
+   "archetype": "Sultai Control",
+   "player": "Kenta Harane",
+   "event_name": "Rivals @ May Strixhaven League Weekend",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-05-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 2,
+    "sweepers": 3,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 3.89,
+    "pips": {
+     "W": 0,
+     "U": 27.0,
+     "B": 17.0,
+     "R": 0,
+     "G": 5.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Cultivate": 1,
+     "Shadows' Verdict": 1,
+     "Elspeth's Nightmare": 1,
+     "Professor Onyx": 1,
+     "Mystical Dispute": 2,
+     "Extinction Event": 2,
+     "Rain of Revelation": 2,
+     "Thirst for Meaning": 3,
+     "Eliminate": 3,
+     "Heartless Act": 3,
+     "Shark Typhoon": 4,
+     "Titans' Nest": 4,
+     "Strategic Planning": 4,
+     "Alrund's Epiphany": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 439107,
+   "event": 30667,
+   "archetype": "4c Yorion",
+   "player": "Shintaro Ishimura",
+   "event_name": "Rivals @ May Strixhaven League Weekend",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-05-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 44,
+    "lands": 36,
+    "creatures": 7,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 2.95,
+    "pips": {
+     "W": 13.0,
+     "U": 11.0,
+     "B": 25.0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Negate": 1,
+     "Treacherous Blessing": 1,
+     "Mythos of Nethroi": 2,
+     "Omen of the Sun": 2,
+     "Test of Talents": 3,
+     "Mazemind Tome": 4,
+     "Vanishing Verse": 4,
+     "Heartless Act": 4,
+     "Extinction Event": 4,
+     "Elspeth's Nightmare": 4,
+     "Binding the Old Gods": 4,
+     "Omen of the Sea": 4,
+     "Archon of Sun's Grace": 2,
+     "Polukranos, Unchained": 2,
+     "Yorion, Sky Nomad": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 16
+  },
+  {
+   "deck": 438978,
+   "event": 30663,
+   "archetype": "Simic Aggro",
+   "player": "Kotaro Senba",
+   "event_name": "Free Special Weekly Challenge @ BIG Magic (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-05-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 22,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 0,
+     "U": 6.0,
+     "B": 0,
+     "R": 0,
+     "G": 43.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Primal Might": 1,
+     "Quandrix Command": 2,
+     "Snakeskin Veil": 2,
+     "The Great Henge": 2,
+     "Decisive Denial": 4,
+     "Stonecoil Serpent": 1,
+     "Elder Gargaroth": 2,
+     "Questing Beast": 3,
+     "Jaspera Sentinel": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Scavenging Ooze": 4,
+     "Gemrazer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 435616,
+   "event": 30102,
+   "archetype": "Gyruda",
+   "player": "Shintaro Ishimura",
+   "event_name": "Rivals League @ Strixhaven League Weekend",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-04-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.25,
+    "pips": {
+     "W": 15.0,
+     "U": 4.0,
+     "B": 16.0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Glass Casket": 2,
+     "Heartless Act": 4,
+     "Binding the Old Gods": 4,
+     "Wolfwillow Haven": 4,
+     "Drannith Magistrate": 1,
+     "Masked Vandal": 1,
+     "Kaervek, the Spiteful": 2,
+     "Gyruda, Doom of Depths": 2,
+     "Kitesail Freebooter": 2,
+     "Thassa, Deep-Dwelling": 2,
+     "Shepherd of the Cosmos": 4,
+     "Charming Prince": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 445094,
+   "event": 31677,
+   "archetype": "Abzan Yorion",
+   "player": "Christoph Kremer",
+   "event_name": "SCG Tour Online - Satellite #7 @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-07-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 48,
+    "lands": 32,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.62,
+    "pips": {
+     "W": 27.0,
+     "U": 2.0,
+     "B": 21.0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "The Great Henge": 2,
+     "Vivien, Monsters' Advocate": 2,
+     "Lolth, Spider Queen": 2,
+     "Kaya the Inexorable": 3,
+     "Elspeth Conquers Death": 3,
+     "Heartless Act": 4,
+     "Binding the Old Gods": 4,
+     "Charming Prince": 2,
+     "Yasharn, Implacable Earth": 2,
+     "Yorion, Sky Nomad": 2,
+     "Polukranos, Unchained": 2,
+     "Elite Spellbinder": 4,
+     "Skyclave Apparition": 4,
+     "Acquisitions Expert": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Prosperous Innkeeper": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 443072,
+   "event": 31332,
+   "archetype": "Grixis Control",
+   "player": "Yamakawa Tomohiro",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-06-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 9,
+    "counters": 6,
+    "sweepers": 3,
+    "draw": 7,
+    "burn": 1,
+    "avg_cmc": 3.81,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 9.0,
+     "R": 22.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Prismari Command": 1,
+     "Magma Opus": 1,
+     "Professor Onyx": 1,
+     "Mazemind Tome": 2,
+     "Negate": 2,
+     "Alrund's Epiphany": 2,
+     "Expressive Iteration": 3,
+     "Extinction Event": 3,
+     "Shark Typhoon": 4,
+     "Saw It Coming": 4,
+     "Heartless Act": 4,
+     "Galazeth Prismari": 1,
+     "Goldspan Dragon": 4,
+     "Bonecrusher Giant // Stomp": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 443817,
+   "event": 31455,
+   "archetype": "Abzan Yorion Midrange",
+   "player": "Masui Shuryuu",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-07-05",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 47,
+    "lands": 33,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.06,
+    "pips": {
+     "W": 28.0,
+     "U": 2.0,
+     "B": 15.0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Poet's Quill": 3,
+     "Elspeth Conquers Death": 3,
+     "Glass Casket": 4,
+     "Baleful Mastery": 4,
+     "Path to the World Tree": 4,
+     "Binding the Old Gods": 4,
+     "Yorion, Sky Nomad": 2,
+     "Blex, Vexing Pest // Search for Blex": 3,
+     "Charming Prince": 4,
+     "Llanowar Visionary": 4,
+     "Skyclave Apparition": 4,
+     "Nethroi, Apex of Death": 4,
+     "Gilded Goose": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 437209,
+   "event": 30345,
+   "archetype": "Mono Blue Control",
+   "player": "Matsui Hiromichi",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-04-26",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 1,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 23,
+    "burn": 0,
+    "avg_cmc": 2.7,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Sleep of the Dead": 1,
+     "Glimpse of Freedom": 1,
+     "Negate": 2,
+     "Test of Talents": 2,
+     "Boon of the Wish-Giver": 3,
+     "Curate": 3,
+     "Stern Dismissal": 3,
+     "Serpentine Curve": 4,
+     "Frostveil Ambush": 4,
+     "Startling Development": 4,
+     "Opt": 4,
+     "Neutralize": 4,
+     "Reject": 4,
+     "Thassa's Oracle": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 445097,
+   "event": 31677,
+   "archetype": "Temur Ramp Ultimatum",
+   "player": "Gabriel Silva",
+   "event_name": "SCG Tour Online - Satellite #7 @ Star City Games",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2021-07-24",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 4.33,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 24.0,
+     "G": 35.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Terror of the Peaks": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Edgewall Innkeeper": 4,
+     "Beanstalk Giant // Fertile Footsteps": 4,
+     "The Great Henge": 2,
+     "Cultivate": 3,
+     "Genesis Ultimatum": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 446347,
+   "event": 31887,
+   "archetype": "Orzhov Control",
+   "player": "Mystmin",
+   "event_name": "SCG Tour Online - Satellite #7 @ Star City Games",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2021-08-07",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.12,
+    "pips": {
+     "W": 23.0,
+     "U": 0,
+     "B": 21.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Woe Strider": 1,
+     "Baneslayer Angel": 2,
+     "Skyclave Apparition": 2,
+     "Elite Spellbinder": 2,
+     "Portable Hole": 2,
+     "Mazemind Tome": 4,
+     "Soul Shatter": 1,
+     "Vanishing Verse": 2,
+     "Heartless Act": 4,
+     "Check for Traps": 2,
+     "Duress": 2,
+     "Doomskar": 4,
+     "Kaya the Inexorable": 1,
+     "Professor Onyx": 2,
+     "Lolth, Spider Queen": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 436756,
+   "event": 30280,
+   "archetype": "Temur Aggro Adventure",
+   "player": "Shota Takano",
+   "event_name": "SCG Tour Online - Satellite #2 @ Star City Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2021-04-23",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 30,
+    "lands": 30,
+    "creatures": 20,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 4.0,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 16.0,
+     "G": 18.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Goldspan Dragon": 4,
+     "Edgewall Innkeeper": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "The Great Henge": 3,
+     "Saw It Coming": 2,
+     "Mystical Dispute": 2,
+     "Alrund's Epiphany": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 94
+  },
+  {
+   "deck": 435370,
+   "event": 30062,
+   "archetype": "Boros Aggro",
+   "player": "Oota Hiroyuki",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-04-05",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.55,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 2.0,
+     "R": 26.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Lurrus of the Dream-Den": 2,
+     "Shepherd of the Flock // Usher to Safety": 2,
+     "Skyclave Apparition": 2,
+     "Akiri, Fearless Voyager": 2,
+     "Halvar, God of Battle // Sword of the Realms": 3,
+     "Bonecrusher Giant // Stomp": 4,
+     "Fervent Champion": 4,
+     "Fireblade Charger": 4,
+     "Seasoned Hallowblade": 4,
+     "Goldvein Pick": 2,
+     "Embercleave": 2,
+     "Shadowspear": 3,
+     "Showdown of the Skalds": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 433604,
+   "event": 29825,
+   "archetype": "Mardu Aggro",
+   "player": "Riley Hicks",
+   "event_name": "SCG Tour Online - Satellite #7 @ Star City Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-03-27",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 5.0,
+     "U": 0,
+     "B": 12.0,
+     "R": 28.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "The Akroan War": 3,
+     "Showdown of the Skalds": 3,
+     "Unleash Fury": 3,
+     "Claim the Firstborn": 4,
+     "Village Rites": 4,
+     "Immersturm Predator": 1,
+     "Drannith Magistrate": 2,
+     "Skyclave Shade": 3,
+     "Goldspan Dragon": 3,
+     "Bonecrusher Giant // Stomp": 4,
+     "Woe Strider": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 438591,
+   "event": 30595,
+   "archetype": "UR Aggro",
+   "player": "Yoshida Hiroumi",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-05-10",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 18,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 5,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 0,
+     "R": 31.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Essence Scatter": 1,
+     "Miscast": 1,
+     "Embercleave": 2,
+     "Prismari Command": 2,
+     "Negate": 2,
+     "Disdainful Stroke": 2,
+     "Frost Bite": 3,
+     "Behold the Multiverse": 3,
+     "Mischievous Chimera": 2,
+     "Goldspan Dragon": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Sprite Dragon": 4,
+     "Bonecrusher Giant // Stomp": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 435367,
+   "event": 30062,
+   "archetype": "Golgari Aggro",
+   "player": "Yamazaki Tooru",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2021-04-05",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 42.0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Eliminate": 1,
+     "Bloodchief's Thirst": 1,
+     "Vivien, Monsters' Advocate": 1,
+     "Wilt": 2,
+     "The Great Henge": 2,
+     "Heartless Act": 3,
+     "Polukranos, Unchained": 1,
+     "Toski, Bearer of Secrets": 1,
+     "Sarulf, Realm Eater": 1,
+     "Massacre Wurm": 1,
+     "Order of Midnight // Alter Fate": 2,
+     "Rankle, Master of Pranks": 2,
+     "Scavenging Ooze": 3,
+     "Foulmire Knight // Profane Insight": 4,
+     "Edgewall Innkeeper": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Murderous Rider // Swift End": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 445706,
+   "event": 31779,
+   "archetype": "Sultai",
+   "player": "Cftsoc",
+   "event_name": "SCG Tour Online - Satellite #8 @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2021-08-01",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 6,
+    "sweepers": 3,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.74,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 15.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Power Word Kill": 1,
+     "Professor Onyx": 2,
+     "Extinction Event": 3,
+     "Mystical Dispute": 3,
+     "Heartless Act": 3,
+     "Disdainful Stroke": 3,
+     "Titans' Nest": 4,
+     "Shark Typhoon": 4,
+     "Strategic Planning": 4,
+     "Alrund's Epiphany": 4,
+     "Curate": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 443204,
+   "event": 31353,
+   "archetype": "Abzan Aggro",
+   "player": "Ken Yukuhiro",
+   "event_name": "July Strixhaven Weekend @ MPL League",
+   "stars": 1,
+   "rank": "1",
+   "date": "2021-07-03",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 43,
+    "lands": 37,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.79,
+    "pips": {
+     "W": 35.0,
+     "U": 3.0,
+     "B": 2.0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Glass Casket": 2,
+     "Elspeth Conquers Death": 2,
+     "Binding the Old Gods": 2,
+     "Esika's Chariot": 3,
+     "Trail of Crumbs": 4,
+     "Giant Killer // Chop Down": 3,
+     "Yorion, Sky Nomad": 3,
+     "Gilded Goose": 4,
+     "Wicked Wolf": 4,
+     "Charming Prince": 4,
+     "Drannith Magistrate": 4,
+     "Skyclave Apparition": 4,
+     "Elite Spellbinder": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 435663,
+   "event": 30103,
+   "archetype": "Izzet Draw Again",
+   "player": "Ken Yukuhiro",
+   "event_name": "MPL @ Strixhaven League Weekend",
+   "stars": 1,
+   "rank": "1",
+   "date": "2021-04-10",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 26,
+    "burn": 3,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Shredded Sails": 1,
+     "Fire Prophecy": 2,
+     "Teferi, Master of Time": 3,
+     "Improbable Alliance": 4,
+     "Go for Blood": 4,
+     "Boon of the Wish-Giver": 4,
+     "Startling Development": 4,
+     "Neutralize": 4,
+     "Bonecrusher Giant // Stomp": 2,
+     "Rielle, the Everwise": 2,
+     "Faerie Vandal": 4,
+     "Irencrag Pyromancer": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 436885,
+   "event": 30299,
+   "archetype": "Izzet Midrange",
+   "player": "Jakob Ringhofer",
+   "event_name": "SCG Tour Online - Satellite #6 @ Star City Games",
+   "stars": 2,
+   "rank": "2",
+   "date": "2021-04-24",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 14,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 5,
+    "avg_cmc": 3.97,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 0,
+     "R": 32.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Fire Prophecy": 1,
+     "Saw It Coming": 2,
+     "Mystical Dispute": 2,
+     "Expressive Iteration": 4,
+     "Alrund's Epiphany": 4,
+     "Magma Opus": 4,
+     "Frost Bite": 4,
+     "Galazeth Prismari": 3,
+     "Brazen Borrower // Petty Theft": 3,
+     "Goldspan Dragon": 4,
+     "Bonecrusher Giant // Stomp": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 445101,
+   "event": 31677,
+   "archetype": "Selesnya Aggro",
+   "player": "Sana Hanayama",
+   "event_name": "SCG Tour Online - Satellite #7 @ Star City Games",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2021-07-24",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.61,
+    "pips": {
+     "W": 30.0,
+     "U": 0,
+     "B": 1.0,
+     "R": 0,
+     "G": 22.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Drannith Magistrate": 1,
+     "Guardian of Faith": 1,
+     "Legion Angel": 1,
+     "Lurrus of the Dream-Den": 1,
+     "Gemrazer": 2,
+     "Edgewall Innkeeper": 4,
+     "Giant Killer // Chop Down": 4,
+     "Lovestruck Beast // Heart's Desire": 4,
+     "Skyclave Apparition": 4,
+     "Elite Spellbinder": 4,
+     "Selfless Savior": 4,
+     "The Great Henge": 2,
+     "Ranger Class": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 445686,
+   "event": 31776,
+   "archetype": "UW Control",
+   "player": "Rashid Davis",
+   "event_name": "SCG Tour Online - Satellite #7 @ Star City Games",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2021-07-31",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 44,
+    "lands": 36,
+    "creatures": 11,
+    "counters": 1,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.2,
+    "pips": {
+     "W": 47.0,
+     "U": 12.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Disdainful Stroke": 1,
+     "Shark Typhoon": 4,
+     "Doomskar": 4,
+     "Portable Hole": 4,
+     "Glass Casket": 4,
+     "Omen of the Sun": 4,
+     "Omen of the Sea": 4,
+     "Elspeth Conquers Death": 4,
+     "The Birth of Meletis": 4,
+     "Yorion, Sky Nomad": 3,
+     "Skyclave Apparition": 4,
+     "Dawnbringer Cleric": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 445020,
+   "event": 31665,
+   "archetype": "UW Yorion Control",
+   "player": "Julio Bejarano Espejo",
+   "event_name": "SCG Tour Online - Satellite #5 @ Star City Games",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2021-07-24",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 44,
+    "lands": 36,
+    "creatures": 11,
+    "counters": 5,
+    "sweepers": 3,
+    "draw": 10,
+    "burn": 2,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 40.0,
+     "U": 24.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Mystical Dispute": 1,
+     "Midnight Clock": 2,
+     "Elspeth Conquers Death": 2,
+     "Niko Aris": 2,
+     "Doomskar": 3,
+     "Omen of the Sun": 3,
+     "The Birth of Meletis": 4,
+     "Omen of the Sea": 4,
+     "Saw It Coming": 4,
+     "Glass Casket": 4,
+     "Mazemind Tome": 4,
+     "Iymrith, Desert Doom": 1,
+     "Yorion, Sky Nomad": 3,
+     "Archon of Sun's Grace": 3,
+     "Skyclave Apparition": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 49,
+ "rejected_illegal": [
+  {
+   "archetype": "Orzhov Aggro",
+   "deck": 449334,
+   "player": "Magic_Rainbows",
+   "why": [
+    "Champion of the Perished (not in legal sets)",
+    "Infernal Grasp (not in legal sets)",
+    "Tainted Adversary (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Orzhov Aggro",
+   "deck": 449464,
+   "player": "inosisisi",
+   "why": [
+    "Bloodline Culling (not in legal sets)",
+    "Brutal Cathar (not in legal sets)",
+    "Intrepid Adversary (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono White Control",
+   "deck": 449335,
+   "player": "Aardos",
+   "why": [
+    "Cathar Commando (not in legal sets)",
+    "Fateful Absence (not in legal sets)",
+    "Pithing Needle (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Aggro",
+   "deck": 449337,
+   "player": "wordy333",
+   "why": [
+    "Bladestitched Skaab (not in legal sets)",
+    "Bloodline Culling (not in legal sets)",
+    "Champion of the Perished (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dragon Control",
+   "deck": 449339,
+   "player": "telsacow",
+   "why": [
+    "Burn Down the House (not in legal sets)",
+    "Moonveil Regent (not in legal sets)",
+    "Smoldering Egg (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 449341,
+   "player": "khemii",
+   "why": [
+    "Arlinn, the Pack's Hope (not in legal sets)",
+    "Briarbridge Tracker (not in legal sets)",
+    "Burn Down the House (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 449471,
+   "player": "qbeczkowo",
+   "why": [
+    "Infernal Grasp (not in legal sets)",
+    "The Meathook Massacre (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Izzet Yorion Control",
+   "player": "Jan-moritz Merkel",
+   "kept": "Izzet Control",
+   "kept_player": "Noriyuki Mori"
+  },
+  {
+   "dropped": "Boros Cycling Aggro",
+   "player": "Kenta Harane",
+   "kept": "Jeskai Cycling Aggro",
+   "kept_player": "Corey Burkhart"
+  },
+  {
+   "dropped": "Gruul Adventure Aggro",
+   "player": "Kai Budde",
+   "kept": "Gruul Aggro",
+   "kept_player": "Arne Huschenbeth"
+  },
+  {
+   "dropped": "Temur Aggro",
+   "player": "Chris Botelho",
+   "kept": "Temur Aggro Adventure",
+   "kept_player": "Shota Takano"
+  },
+  {
+   "dropped": "Jeskai Midrange",
+   "player": "Matthieu Avignon",
+   "kept": "Jeskai Mutate",
+   "kept_player": "Matthieu Avignon"
+  },
+  {
+   "dropped": "Sultai Yorion",
+   "player": "Tian Fa Mun",
+   "kept": "Sultai Yorion Ultimatum",
+   "kept_player": "Alexander Rosdahl"
+  },
+  {
+   "dropped": "Dimir Rogue",
+   "player": "Horiuchi Taketo",
+   "kept": "Dimir Control",
+   "kept_player": "Shintaro Ishimura"
+  },
+  {
+   "dropped": "Gruul Treasures",
+   "player": "Theuns Prinsloo",
+   "kept": "Gruul Aggro",
+   "kept_player": "Arne Huschenbeth"
+  },
+  {
+   "dropped": "Jeskai Vadrok",
+   "player": "Riley Hicks",
+   "kept": "Jeskai Mutate",
+   "kept_player": "Matthieu Avignon"
+  },
+  {
+   "dropped": "Temur midrange",
+   "player": "xfile",
+   "kept": "Temur Aggro Adventure",
+   "kept_player": "Shota Takano"
+  },
+  {
+   "dropped": "Abzan DOOM Yorion",
+   "player": "Alexander Gordon-brown",
+   "kept": "Abzan Yorion",
+   "kept_player": "Christoph Kremer"
+  },
+  {
+   "dropped": "Dimir Mill Rogue",
+   "player": "Brian Braun-duin",
+   "kept": "Dimir Mill",
+   "kept_player": "Louis-samuel Deltour"
+  },
+  {
+   "dropped": "Jeskai mutate",
+   "player": "Toru Saito",
+   "kept": "Jeskai Mutate",
+   "kept_player": "Matthieu Avignon"
+  },
+  {
+   "dropped": "Mono White",
+   "player": "Ryan Lello",
+   "kept": "Weenie White",
+   "kept_player": "Eli Loveman"
+  },
+  {
+   "dropped": "Temur Midrange",
+   "player": "Yuta Okuyama",
+   "kept": "Temur Aggro Adventure",
+   "kept_player": "Shota Takano"
+  },
+  {
+   "dropped": "Esper DOOM Yorion",
+   "player": "Taniguchi Nobutaka",
+   "kept": "4c Yorion",
+   "kept_player": "Shintaro Ishimura"
+  },
+  {
+   "dropped": "Jaeho Kwak",
+   "player": "Sultai Ultimatum",
+   "kept": "Sultai Yorion Ultimatum",
+   "kept_player": "Alexander Rosdahl"
+  },
+  {
+   "dropped": "Nadine Cook",
+   "player": "Dimir Rogues",
+   "kept": "Dimir Mill",
+   "kept_player": "Louis-samuel Deltour"
+  },
+  {
+   "dropped": "Jeskai Aggro Mutate",
+   "player": "jessy_samek",
+   "kept": "Jeskai Mutate",
+   "kept_player": "Matthieu Avignon"
+  },
+  {
+   "dropped": "Sultai Ultimatum",
+   "player": "Jason Ward",
+   "kept": "Sultai Yorion Ultimatum",
+   "kept_player": "Alexander Rosdahl"
+  },
+  {
+   "dropped": "Jeslai Mutate",
+   "player": "Toru H",
+   "kept": "Jeskai Mutate",
+   "kept_player": "Matthieu Avignon"
+  },
+  {
+   "dropped": "Dimir Rogues",
+   "player": "Nell Janse Van Rensburg",
+   "kept": "Dimir Mill",
+   "kept_player": "Louis-samuel Deltour"
+  },
+  {
+   "dropped": "Esper Control",
+   "player": "Kenji Fukuya",
+   "kept": "Esper Yorion",
+   "kept_player": "Terribad"
+  },
+  {
+   "dropped": "4c Aggro",
+   "player": "Akashi Higuchi",
+   "kept": "Naya Aggro",
+   "kept_player": "Sam Pardee"
+  },
+  {
+   "dropped": "4c DOOM Yorion",
+   "player": "Konstantin Rieke",
+   "kept": "4c Yorion",
+   "kept_player": "Shintaro Ishimura"
+  },
+  {
+   "dropped": "Dimir Rogue Mill",
+   "player": "Tung Nguyen",
+   "kept": "Dimir Mill",
+   "kept_player": "Louis-samuel Deltour"
+  }
+ ],
+ "objective": 13.090112175317355,
+ "pool_colors": {
+  "U": 29,
+  "B": 18,
+  "G": 22,
+  "R": 22,
+  "W": 24
+ },
+ "pool_styles": {
+  "control": 19,
+  "aggro": 17,
+  "midrange": 13
+ },
+ "kept_lost": []
+}

@@ -300,15 +300,15 @@ function optionalStringMap(
     faults.push(`\`${key}\` must be an object of strings`);
     return {};
   }
-  const out: Record<string, string> = {};
+  // Checked in place and handed back as parsed: any fault fails the whole fixture, so a
+  // copy would only cost time — a Legacy pool's map is some 30,000 names, and copying
+  // them key by key was most of what reading the library at boot cost.
   for (const [name, item] of Object.entries(value as Record<string, unknown>)) {
     if (typeof item !== 'string' || item.length === 0) {
       faults.push(`\`${key}[${JSON.stringify(name)}]\` must be a non-empty string`);
-      continue;
     }
-    out[name] = item;
   }
-  return out;
+  return value as Record<string, string>;
 }
 
 /**

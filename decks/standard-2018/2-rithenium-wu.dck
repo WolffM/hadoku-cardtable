@@ -1,0 +1,37 @@
+[metadata]
+Name=Wu (Rithenium)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=20103&d=330782&f=ST
+Comment=MTGO Standard PTQ: Rithenium, 2nd, Wu. Transcribed from mtgtop8 deck 330782.
+[Main]
+1 Baffling End|RIX
+1 Negate|RIX
+2 Settle the Wreckage|XLN
+3 Gideon of the Trials|AKH
+3 Heart of Kiran|AER
+4 Seal Away|DOM
+4 History of Benalia|DOM
+4 Cast Out|AKH
+4 Teferi, Hero of Dominaria|DOM
+4 Karn, Scion of Urza|DOM
+1 Lyra Dawnbringer|DOM
+4 Walking Ballista|AER
+1 Island|M19
+2 Arch of Orazca|RIX
+4 Irrigated Farmland|AKH
+4 Glacial Fortress|XLN
+4 Zhalfirin Void|DOM
+10 Plains|M19
+[Sideboard]
+1 Sorcerous Spyglass|XLN
+1 Authority of the Consuls|KLD
+1 Forsake the Worldly|AKH
+1 Fragmentize|KLD
+2 Fumigate|KLD
+3 Jace's Defeat|HOU
+3 Knight of Grace|DOM
+1 Baffling End|RIX
+1 Negate|RIX
+1 Lyra Dawnbringer|DOM

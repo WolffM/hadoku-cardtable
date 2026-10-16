@@ -1,0 +1,2955 @@
+{
+ "era": {
+  "year": 2020,
+  "season_start": "2019-10-04",
+  "start": "2020-08-03",
+  "end": "2020-09-25",
+  "snapshot_file": "2020-07-13",
+  "format": "Modern (2020-07-13)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12, ISD, DKA, AVR, M13, RTR, GTC, DGM, MMA, M14, THS, BNG, JOU, MD1, M15, KTK, FRF, DTK, MM2, ORI, BFZ, OGW, SOI, W16, EMN, KLD, AER, MM3, W17, AKH, HOU, XLN, RIX, DOM, M19, GRN, GK1, G18, RNA, GK2, WAR, MH1, M20, ELD, THB, IKO, M21",
+  "banned": [
+   "Ancient Den",
+   "Arcum's Astrolabe",
+   "Birthing Pod",
+   "Blazing Shoal",
+   "Bridge from Below",
+   "Chrome Mox",
+   "Cloudpost",
+   "Dark Depths",
+   "Deathrite Shaman",
+   "Dig Through Time",
+   "Dread Return",
+   "Eye of Ugin",
+   "Faithless Looting",
+   "Gitaxian Probe",
+   "Glimpse of Nature",
+   "Golgari Grave-Troll",
+   "Great Furnace",
+   "Green Sun's Zenith",
+   "Hogaak, Arisen Necropolis",
+   "Hypergenesis",
+   "Krark-Clan Ironworks",
+   "Mental Misstep",
+   "Mox Opal",
+   "Mycosynth Lattice",
+   "Oko, Thief of Crowns",
+   "Once Upon a Time",
+   "Ponder",
+   "Preordain",
+   "Punishing Fire",
+   "Rite of Flame",
+   "Seat of the Synod",
+   "Second Sunrise",
+   "Seething Song",
+   "Sensei's Divining Top",
+   "Skullclamp",
+   "Splinter Twin",
+   "Summer Bloom",
+   "Treasure Cruise",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Vault of Whispers"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 408085,
+   "event": 26805,
+   "archetype": "Temur Reclamation",
+   "player": "Lavaridge",
+   "event_name": "MTGO Modern Showcase Challenge",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-08-09",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 4,
+    "counters": 11,
+    "sweepers": 3,
+    "draw": 12,
+    "burn": 6,
+    "avg_cmc": 2.91,
+    "pips": {
+     "W": 0,
+     "U": 37.0,
+     "B": 0,
+     "R": 6.0,
+     "G": 11.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Archmage's Charm": 1,
+     "Shark Typhoon": 1,
+     "Nexus of Fate": 1,
+     "Wilderness Reclamation": 2,
+     "Wrenn and Six": 2,
+     "Cryptic Command": 3,
+     "Force of Negation": 3,
+     "Remand": 4,
+     "Lightning Bolt": 4,
+     "Growth Spiral": 4,
+     "Fact or Fiction": 4,
+     "Snapcaster Mage": 1,
+     "Uro, Titan of Nature's Wrath": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 13
+  },
+  {
+   "deck": 417514,
+   "event": 27410,
+   "archetype": "Red Deck Wins",
+   "player": "pootisgodsamongus",
+   "event_name": "MTGO Modern Champs",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-09-21",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 16,
+    "avg_cmc": 1.6,
+    "pips": {
+     "W": 0,
+     "U": 2.0,
+     "B": 0,
+     "R": 46.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Blistercoil Weird": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Monastery Swiftspear": 4,
+     "Seasoned Pyromancer": 4,
+     "Soul-Scar Mage": 4,
+     "Firebolt": 4,
+     "Flame Slash": 2,
+     "Light Up the Stage": 4,
+     "Burst Lightning": 2,
+     "Lava Dart": 4,
+     "Lightning Bolt": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 406215,
+   "event": 26658,
+   "archetype": "Amulet Titan",
+   "player": "Bedell",
+   "event_name": "Manatraders Series Modern 15K",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-07-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 30,
+    "lands": 30,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 0,
+     "U": 1.0,
+     "B": 0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Uro, Titan of Nature's Wrath": 1,
+     "Azusa, Lost but Seeking": 2,
+     "Dryad of the Ilysian Grove": 4,
+     "Primeval Titan": 4,
+     "Sakura-Tribe Scout": 4,
+     "Amulet of Vigor": 4,
+     "Summoner's Pact": 4,
+     "Explore": 4,
+     "Karn, the Great Creator": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 122
+  },
+  {
+   "deck": 404712,
+   "event": 26535,
+   "archetype": "Eldra Tron",
+   "player": "Thetunnelingcat",
+   "event_name": "MTGO Modern Champs #12182511",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-07-19",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.81,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Matter Reshaper": 4,
+     "Thought-Knot Seer": 4,
+     "Reality Smasher": 4,
+     "Mazemind Tome": 3,
+     "Chalice of the Void": 4,
+     "Expedition Map": 4,
+     "Spatial Contortion": 1,
+     "Dismember": 2,
+     "All Is Dust": 1,
+     "Ugin, the Ineffable": 2,
+     "Karn, the Great Creator": 4,
+     "Walking Ballista": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 105
+  },
+  {
+   "deck": 378921,
+   "event": 25230,
+   "archetype": "Burn",
+   "player": "coert",
+   "event_name": "MTGO Modern Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-04-12",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 28,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 0,
+     "R": 48.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Skullcrack": 2,
+     "Searing Blaze": 4,
+     "Lightning Helix": 2,
+     "Lightning Bolt": 4,
+     "Boros Charm": 4,
+     "Skewer the Critics": 4,
+     "Rift Bolt": 4,
+     "Lava Spike": 4,
+     "Monastery Swiftspear": 4,
+     "Goblin Guide": 4,
+     "Eidolon of the Great Revel": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 88
+  },
+  {
+   "deck": 376041,
+   "event": 25102,
+   "archetype": "Dredge",
+   "player": "Mercenario",
+   "event_name": "MTGO Modern Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-03-31",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.48,
+    "pips": {
+     "W": 0,
+     "U": 7.0,
+     "B": 22.0,
+     "R": 16.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Conflagrate": 2,
+     "Life from the Loam": 4,
+     "Creeping Chill": 4,
+     "Shriekhorn": 4,
+     "Cathartic Reunion": 4,
+     "Golgari Thug": 2,
+     "Ox of Agonas": 2,
+     "Narcomoeba": 3,
+     "Merchant of the Vale // Haggle": 3,
+     "Stinkweed Imp": 4,
+     "Prized Amalgam": 4,
+     "Bloodghast": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 86
+  },
+  {
+   "deck": 375075,
+   "event": 25019,
+   "archetype": "Humans",
+   "player": "JoshicallsmeFabo",
+   "event_name": "MTGO Modern Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-03-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 33,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 24.0,
+     "U": 17.0,
+     "B": 3.0,
+     "R": 6.0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Champion of the Parish": 4,
+     "Deputy of Detention": 1,
+     "Kessig Malcontents": 2,
+     "Kitesail Freebooter": 3,
+     "Mantis Rider": 4,
+     "Meddling Mage": 4,
+     "Noble Hierarch": 4,
+     "Phantasmal Image": 4,
+     "Reflector Mage": 4,
+     "Thalia, Guardian of Thraben": 3,
+     "Thalia's Lieutenant": 4,
+     "Aether Vial": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 73
+  },
+  {
+   "deck": 375442,
+   "event": 25071,
+   "archetype": "Valakut",
+   "player": "Sharkcaster_Mage",
+   "event_name": "MTGO Modern Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-03-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 30,
+    "lands": 30,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.73,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Karn, the Great Creator": 4,
+     "Arboreal Grazer": 2,
+     "Dryad of the Ilysian Grove": 4,
+     "Primeval Titan": 4,
+     "Sakura-Tribe Elder": 4,
+     "Explore": 4,
+     "Search for Tomorrow": 4,
+     "Summoner's Pact": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 46
+  },
+  {
+   "deck": 391830,
+   "event": 25753,
+   "archetype": "Ad Nauseam",
+   "player": "Ryan Donkin",
+   "event_name": "Lotus Box League Season 1: 1K @ Team Lotus Box",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-05-17",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 1,
+    "avg_cmc": 1.88,
+    "pips": {
+     "W": 8.0,
+     "U": 12.0,
+     "B": 12.0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Phyrexian Unlife": 4,
+     "Serum Visions": 4,
+     "Ad Nauseam": 4,
+     "Angel's Grace": 4,
+     "Spoils of the Vault": 4,
+     "Thassa's Oracle": 4,
+     "Pact of Negation": 3,
+     "Lightning Storm": 1,
+     "Lotus Bloom": 4,
+     "Pentad Prism": 4,
+     "Simian Spirit Guide": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 25
+  },
+  {
+   "deck": 394638,
+   "event": 25952,
+   "archetype": "Grixis Delver",
+   "player": "Zonast",
+   "event_name": "MTGO Modern Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-06-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 11,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 6,
+    "avg_cmc": 1.45,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 8.0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Drown in the Loch": 1,
+     "Inquisition of Kozilek": 2,
+     "Serum Visions": 2,
+     "Archmage's Charm": 2,
+     "Fatal Push": 2,
+     "Force of Negation": 2,
+     "Mishra's Bauble": 4,
+     "Opt": 4,
+     "Lightning Bolt": 4,
+     "Snapcaster Mage": 3,
+     "Sprite Dragon": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Mana Leak": 2,
+     "Kolaghan's Command": 2,
+     "Unearth": 1,
+     "Spell Snare": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 372123,
+   "event": 24608,
+   "archetype": "W/u Stoneblade",
+   "player": "Arnaud Hocquemiller",
+   "event_name": "Cardmarket Series @ Paris",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-02-08",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 9,
+    "sweepers": 2,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 2.36,
+    "pips": {
+     "W": 14.0,
+     "U": 36.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Spell Queller": 4,
+     "Snapcaster Mage": 4,
+     "Stoneforge Mystic": 4,
+     "Jace, the Mind Sculptor": 3,
+     "Teferi, Time Raveler": 2,
+     "Cryptic Command": 2,
+     "Force of Negation": 3,
+     "Mana Leak": 2,
+     "Spell Snare": 2,
+     "Path to Exile": 4,
+     "Opt": 4,
+     "Batterskull": 1,
+     "Sword of Feast and Famine": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 416786,
+   "event": 27341,
+   "archetype": "UrzaTron",
+   "player": "Morita Masayuki",
+   "event_name": "MMM with Hareruya @ Tournament Center (Osaka, Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 2,
+    "avg_cmc": 3.15,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Walking Ballista": 3,
+     "Relic of Progenitus": 2,
+     "Chromatic Star": 4,
+     "Chromatic Sphere": 4,
+     "Expedition Map": 4,
+     "Oblivion Stone": 4,
+     "Ancient Stirrings": 4,
+     "Sylvan Scrying": 4,
+     "Ugin, the Spirit Dragon": 2,
+     "Karn Liberated": 4,
+     "Kozilek, Butcher of Truth": 1,
+     "Thragtusk": 1,
+     "Ulamog, the Ceaseless Hunger": 2,
+     "Wurmcoil Engine": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 59
+  },
+  {
+   "deck": 414097,
+   "event": 27209,
+   "archetype": "Jund",
+   "player": "albert62",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 8,
+    "avg_cmc": 1.78,
+    "pips": {
+     "W": 3.0,
+     "U": 0,
+     "B": 25.0,
+     "R": 8.0,
+     "G": 13.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Lightning Bolt": 1,
+     "Maelstrom Pulse": 1,
+     "Assassin's Trophy": 2,
+     "Kolaghan's Command": 2,
+     "Seal of Fire": 2,
+     "Wrenn and Six": 3,
+     "Inquisition of Kozilek": 3,
+     "Mishra's Bauble": 3,
+     "Fatal Push": 3,
+     "Thoughtseize": 3,
+     "Liliana of the Veil": 4,
+     "Lurrus of the Dream-Den": 3,
+     "Scavenging Ooze": 3,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 97
+  },
+  {
+   "deck": 411730,
+   "event": 27021,
+   "archetype": "Gruul Utopia",
+   "player": "Gigy",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-20",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 2.7,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 45.0,
+     "G": 17.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chandra, Torch of Defiance": 2,
+     "Pillage": 3,
+     "Blood Moon": 4,
+     "Utopia Sprawl": 4,
+     "Lightning Bolt": 4,
+     "Scavenging Ooze": 2,
+     "Bonecrusher Giant // Stomp": 2,
+     "Klothys, God of Destiny": 3,
+     "Seasoned Pyromancer": 4,
+     "Glorybringer": 4,
+     "Bloodbraid Elf": 4,
+     "Arbor Elf": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 44
+  },
+  {
+   "deck": 412660,
+   "event": 27056,
+   "archetype": "Bant Control",
+   "player": "ImmanuelKantrolGod",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-22",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 4,
+    "counters": 11,
+    "sweepers": 4,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 11.0,
+     "U": 38.0,
+     "B": 0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Hour of Promise": 1,
+     "Supreme Verdict": 1,
+     "Spell Snare": 1,
+     "Remand": 2,
+     "Mana Leak": 2,
+     "Teferi, Hero of Dominaria": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Force of Negation": 3,
+     "Cryptic Command": 3,
+     "Teferi, Time Raveler": 3,
+     "Path to Exile": 4,
+     "Growth Spiral": 4,
+     "Snapcaster Mage": 1,
+     "Uro, Titan of Nature's Wrath": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 33
+  },
+  {
+   "deck": 413195,
+   "event": 27106,
+   "archetype": "Rakdos Aggro",
+   "player": "Gerschi",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-28",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 9,
+    "avg_cmc": 1.15,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 6.0,
+     "R": 27.0,
+     "G": 1.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Seal of Fire": 1,
+     "Crash Through": 1,
+     "Cling to Dust": 2,
+     "Manamorphose": 2,
+     "Mutagenic Growth": 3,
+     "Mishra's Bauble": 4,
+     "Lightning Bolt": 4,
+     "Lava Dart": 4,
+     "Thoughtseize": 4,
+     "Soul-Scar Mage": 4,
+     "Monastery Swiftspear": 4,
+     "Kiln Fiend": 4,
+     "Abbot of Keral Keep": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 414343,
+   "event": 27235,
+   "archetype": "Sultai Ninjas",
+   "player": "Pat",
+   "event_name": "Leaders #06 @ Magic Mage Masters (Switzerland)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-15",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 25,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 0,
+     "U": 41.0,
+     "B": 11.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Abrupt Decay": 1,
+     "Drown in the Loch": 1,
+     "Smuggler's Copter": 1,
+     "Mana Leak": 2,
+     "Force of Negation": 2,
+     "Disrupting Shoal": 3,
+     "Fatal Push": 4,
+     "Fallen Shinobi": 1,
+     "Mist-Syndicate Naga": 1,
+     "Ninja of the Deep Hours": 1,
+     "Brazen Borrower // Petty Theft": 3,
+     "Gilded Goose": 3,
+     "Ingenious Infiltrator": 4,
+     "Ice-Fang Coatl": 4,
+     "Spellstutter Sprite": 4,
+     "Faerie Seer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 397738,
+   "event": 26143,
+   "archetype": "UR Storm",
+   "player": "hugo87",
+   "event_name": "MTGO Modern Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-06-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 8,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 2,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 0,
+     "U": 26.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Repeal": 1,
+     "Remand": 3,
+     "Pyretic Ritual": 4,
+     "Peer Through Depths": 2,
+     "Manamorphose": 4,
+     "Gifts Ungiven": 4,
+     "Desperate Ritual": 4,
+     "Sleight of Hand": 4,
+     "Serum Visions": 4,
+     "Past in Flames": 2,
+     "Grapeshot": 2,
+     "Goblin Electromancer": 4,
+     "Baral, Chief of Compliance": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 391072,
+   "event": 25700,
+   "archetype": "Aura Hexproof",
+   "player": "headshot93",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-05-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.48,
+    "pips": {
+     "W": 32.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 0,
+     "G": 13.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Gladecover Scout": 4,
+     "Kor Spiritdancer": 4,
+     "Slippery Bogle": 4,
+     "Sram, Senior Edificer": 1,
+     "Path to Exile": 2,
+     "Daybreak Coronet": 4,
+     "Ethereal Armor": 4,
+     "Gryff's Boon": 2,
+     "Hyena Umbra": 4,
+     "Leyline of Sanctity": 3,
+     "Rancor": 4,
+     "Spider Umbra": 3,
+     "Spirit Mantle": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 371770,
+   "event": 24562,
+   "archetype": "The Rock",
+   "player": "xfile",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-02-05",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.89,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 28.0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Fatal Push": 4,
+     "Dismember": 1,
+     "Assassin's Trophy": 1,
+     "Abrupt Decay": 2,
+     "Thoughtseize": 4,
+     "Maelstrom Pulse": 2,
+     "Inquisition of Kozilek": 3,
+     "Tireless Tracker": 2,
+     "Tarmogoyf": 4,
+     "Scavenging Ooze": 3,
+     "Hexdrinker": 2,
+     "Dark Confidant": 4,
+     "Liliana of the Veil": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 6
+  },
+  {
+   "deck": 370467,
+   "event": 24397,
+   "archetype": "Uw Control",
+   "player": "Shadow_pt",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-01-22",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 5,
+    "counters": 10,
+    "sweepers": 5,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 14.0,
+     "U": 46.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 2,
+     "Narset, Parter of Veils": 3,
+     "Teferi, Hero of Dominaria": 1,
+     "Teferi, Time Raveler": 2,
+     "Snapcaster Mage": 4,
+     "Vendilion Clique": 1,
+     "Oust": 1,
+     "Supreme Verdict": 2,
+     "Timely Reinforcements": 1,
+     "Cryptic Command": 3,
+     "Force of Negation": 3,
+     "Logic Knot": 1,
+     "Mana Leak": 2,
+     "Opt": 4,
+     "Path to Exile": 4,
+     "Spell Snare": 1,
+     "Detention Sphere": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 365001,
+   "event": 23635,
+   "archetype": "Twiddle Storm",
+   "player": "Andy Michaud",
+   "event_name": "OCM MTG $1000 CTQ @ First Turn Games (Cedar Rapids, IA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-11-09",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 1,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 4.0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Dream's Grip": 4,
+     "Echoing Truth": 1,
+     "Grapeshot": 1,
+     "Ideas Unbound": 4,
+     "Past in Flames": 3,
+     "Peer Through Depths": 4,
+     "Psychic Puppetry": 4,
+     "Reach Through Mists": 4,
+     "Serum Visions": 4,
+     "Sleight of Hand": 4,
+     "Twiddle": 3,
+     "Wishclaw Talisman": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 370328,
+   "event": 24382,
+   "archetype": "Ub Control",
+   "player": "Sultai4lyfe",
+   "event_name": "MTGO Modern Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-01-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 4,
+    "counters": 8,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 0,
+     "U": 35.0,
+     "B": 21.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Thoughtseize": 1,
+     "Spell Snare": 1,
+     "Drown in the Loch": 2,
+     "Cryptic Command": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Damnation": 2,
+     "Force of Negation": 3,
+     "Liliana of the Veil": 3,
+     "Serum Visions": 4,
+     "Narset, Parter of Veils": 4,
+     "Inquisition of Kozilek": 4,
+     "Fatal Push": 4,
+     "Snapcaster Mage": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 375793,
+   "event": 25090,
+   "archetype": "Allosaurus Combo",
+   "player": "Jack Cummins",
+   "event_name": "NRG Series MTGO Invitational",
+   "stars": 2,
+   "rank": "2",
+   "date": "2020-03-31",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 17,
+    "counters": 1,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.62,
+    "pips": {
+     "W": 8.5,
+     "U": 4.0,
+     "B": 8.0,
+     "R": 6.0,
+     "G": 54.5
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Griselbrand": 2,
+     "Laboratory Maniac": 1,
+     "Simian Spirit Guide": 4,
+     "Autochthon Wurm": 2,
+     "Chancellor of the Tangle": 4,
+     "Allosaurus Rider": 4,
+     "Life Goes On": 1,
+     "Pact of Negation": 1,
+     "Nourishing Shoal": 4,
+     "Veil of Summer": 2,
+     "Safewright Quest": 1,
+     "Manamorphose": 4,
+     "Summoner's Pact": 4,
+     "Neoform": 3,
+     "Eldritch Evolution": 4,
+     "Glittering Wish": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 10
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 414320,
+   "event": 27233,
+   "archetype": "Death's Shadow",
+   "player": "Darkiundsa",
+   "event_name": "MTGO Modern Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-07",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 29.0,
+     "R": 2.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Death's Shadow": 4,
+     "Gurmag Angler": 4,
+     "Snapcaster Mage": 3,
+     "Street Wraith": 4,
+     "Inquisition of Kozilek": 2,
+     "Thoughtseize": 4,
+     "Cling to Dust": 2,
+     "Dismember": 2,
+     "Drown in the Loch": 1,
+     "Fatal Push": 4,
+     "Stubborn Denial": 3,
+     "Temur Battle Rage": 2,
+     "Thought Scour": 4,
+     "Mishra's Bauble": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 128
+  },
+  {
+   "deck": 416802,
+   "event": 27344,
+   "archetype": "UR Aggro",
+   "player": "Nakamura Kouki",
+   "event_name": "God of Modern Trial @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-13",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 10,
+    "avg_cmc": 1.81,
+    "pips": {
+     "W": 0,
+     "U": 16.0,
+     "B": 0,
+     "R": 28.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Gut Shot": 2,
+     "Mutagenic Growth": 3,
+     "Light Up the Stage": 4,
+     "Manamorphose": 4,
+     "Lightning Bolt": 4,
+     "Lava Dart": 4,
+     "Opt": 4,
+     "Seasoned Pyromancer": 1,
+     "Soul-Scar Mage": 4,
+     "Sprite Dragon": 4,
+     "Stormwing Entity": 4,
+     "Monastery Swiftspear": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 409088,
+   "event": 26840,
+   "archetype": "Merfolk",
+   "player": "MissTrigger",
+   "event_name": "MTGO Modern Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-10",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 27,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 4.0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Benthic Biomancer": 3,
+     "Harbinger of the Tides": 4,
+     "Lord of Atlantis": 4,
+     "Master of the Pearl Trident": 4,
+     "Merfolk Trickster": 4,
+     "Silvergill Adept": 4,
+     "Unsettled Mariner": 4,
+     "Dismember": 3,
+     "Force of Negation": 3,
+     "Aether Vial": 4,
+     "Spreading Seas": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 13
+  },
+  {
+   "deck": 392636,
+   "event": 25819,
+   "archetype": "Creatures Toolbox",
+   "player": "KOVU211",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-05-23",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.43,
+    "pips": {
+     "W": 12.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Chord of Calling": 1,
+     "Mishra's Bauble": 4,
+     "Eladamri's Call": 4,
+     "Postmortem Lunge": 4,
+     "Finale of Devastation": 4,
+     "Spellskite": 1,
+     "Walking Ballista": 1,
+     "Noble Hierarch": 2,
+     "Duskwatch Recruiter // Krallenhorde Howler": 3,
+     "Vizier of Remedies": 4,
+     "Giver of Runes": 4,
+     "Devoted Druid": 4,
+     "Birds of Paradise": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 48
+  },
+  {
+   "deck": 368514,
+   "event": 24145,
+   "archetype": "Elves",
+   "player": "Kyle Finken",
+   "event_name": "Star City Games IQ @ San Antonio",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-12-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.16,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 4.0,
+     "R": 0,
+     "G": 56.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Dwynen's Elite": 4,
+     "Elvish Archdruid": 4,
+     "Elvish Champion": 1,
+     "Elvish Mystic": 4,
+     "Elvish Visionary": 4,
+     "Heritage Druid": 4,
+     "Llanowar Elves": 4,
+     "Nettle Sentinel": 4,
+     "Reclamation Sage": 1,
+     "Shaman of the Pack": 4,
+     "Ezuri, Renegade Leader": 2,
+     "Chord of Calling": 3,
+     "Collected Company": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 10
+  },
+  {
+   "deck": 372605,
+   "event": 24674,
+   "archetype": "Prowess Deck Wins",
+   "player": "Nicholas Nemeth",
+   "event_name": "Star City Games IQ @ Frankenmuth",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-02-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 16,
+    "avg_cmc": 1.86,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 43.0,
+     "G": 2.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Light Up the Stage": 4,
+     "Lava Spike": 4,
+     "Crash Through": 4,
+     "Manamorphose": 4,
+     "Lightning Bolt": 4,
+     "Lava Dart": 4,
+     "Burst Lightning": 4,
+     "Soul-Scar Mage": 4,
+     "Runaway Steam-Kin": 3,
+     "Monastery Swiftspear": 4,
+     "Bedlam Reveler": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 70
+  },
+  {
+   "deck": 375318,
+   "event": 25053,
+   "archetype": "Infect",
+   "player": "Wesley Pappas",
+   "event_name": "Star City Games IQ @ Kennesaw",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-03-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.23,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Blighted Agent": 4,
+     "Glistener Elf": 4,
+     "Noble Hierarch": 4,
+     "Become Immense": 1,
+     "Blossoming Defense": 4,
+     "Groundswell": 3,
+     "Might of Old Krosa": 4,
+     "Mutagenic Growth": 4,
+     "Spell Pierce": 2,
+     "Vines of Vastwood": 4,
+     "Distortion Strike": 2,
+     "Scale Up": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 50
+  },
+  {
+   "deck": 374835,
+   "event": 24982,
+   "archetype": "Eldrazi Aggro",
+   "player": "Jesse Pick",
+   "event_name": "Star City Games IQ @ Columbia",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-03-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 4,
+    "avg_cmc": 2.84,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 23.0,
+     "G": 17.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Domri, Anarch of Bolas": 2,
+     "Lightning Bolt": 4,
+     "Smuggler's Copter": 3,
+     "Questing Beast": 1,
+     "Thought-Knot Seer": 4,
+     "Reality Smasher": 4,
+     "Noble Hierarch": 4,
+     "Gruul Spellbreaker": 3,
+     "Elvish Mystic": 2,
+     "Eldrazi Obligator": 4,
+     "Bonecrusher Giant // Stomp": 3,
+     "Bloodbraid Elf": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 405669,
+   "event": 26619,
+   "archetype": "Niv-Mizzet Reborn",
+   "player": "Mordeka1ser",
+   "event_name": "MTGO Modern Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-24",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 50,
+    "lands": 30,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 8,
+    "burn": 10,
+    "avg_cmc": 2.6,
+    "pips": {
+     "W": 20.0,
+     "U": 17.0,
+     "B": 13.0,
+     "R": 17.0,
+     "G": 32.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Kaya's Guile": 3,
+     "Eladamri's Call": 2,
+     "Assassin's Trophy": 3,
+     "Abrupt Decay": 1,
+     "Supreme Verdict": 1,
+     "Bring to Light": 4,
+     "Uro, Titan of Nature's Wrath": 3,
+     "Spell Queller": 1,
+     "Seasoned Pyromancer": 1,
+     "Niv-Mizzet Reborn": 3,
+     "Bonecrusher Giant // Stomp": 1,
+     "Bloodbraid Elf": 1,
+     "Birds of Paradise": 2,
+     "Wrenn and Six": 4,
+     "Teferi, Time Raveler": 4,
+     "Ashiok, Dream Render": 1,
+     "Lightning Helix": 4,
+     "Abundant Growth": 4,
+     "Oath of Kaya": 1,
+     "Oath of Nissa": 1,
+     "Utopia Sprawl": 4,
+     "Kolaghan's Command": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 18
+  },
+  {
+   "deck": 364304,
+   "event": 23676,
+   "archetype": "UWx Midrange",
+   "player": "Connor Hennessey",
+   "event_name": "Star City Games IQ @ Pickerington",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-11-09",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 16,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 9,
+    "avg_cmc": 1.97,
+    "pips": {
+     "W": 18.0,
+     "U": 23.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Giver of Runes": 2,
+     "Snapcaster Mage": 4,
+     "Spell Queller": 3,
+     "Stoneforge Mystic": 4,
+     "Geist of Saint Traft": 1,
+     "Vendilion Clique": 2,
+     "Batterskull": 1,
+     "Sword of Fire and Ice": 1,
+     "Sword of Light and Shadow": 1,
+     "Force of Negation": 3,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 4,
+     "Opt": 4,
+     "Path to Exile": 4,
+     "Spell Snare": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 15
+  },
+  {
+   "deck": 372731,
+   "event": 24691,
+   "archetype": "Gruul Ramp",
+   "player": "Elliott Tzaneteas",
+   "event_name": "Star City Games IQ @ Toronto",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-02-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.85,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 24.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Glorybringer": 1,
+     "Bloodbraid Elf": 4,
+     "Birds of Paradise": 2,
+     "Arbor Elf": 4,
+     "Chandra, Torch of Defiance": 2,
+     "Utopia Sprawl": 4,
+     "Blood Moon": 4,
+     "Stone Rain": 3,
+     "Pillage": 4,
+     "Mwonvuli Acid-Moss": 2,
+     "Lightning Bolt": 2,
+     "Courser of Kruphix": 1,
+     "Tireless Tracker": 4,
+     "Stormbreath Dragon": 1,
+     "Inferno Titan": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 6
+  },
+  {
+   "deck": 399022,
+   "event": 26199,
+   "archetype": "UR Control",
+   "player": "Tiemuuu",
+   "event_name": "MTGO Modern Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-06-21",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 9,
+    "counters": 12,
+    "sweepers": 2,
+    "draw": 13,
+    "burn": 7,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 0,
+     "U": 44.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Flame Slash": 1,
+     "Abrade": 1,
+     "Electrolyze": 1,
+     "Magmatic Sinkhole": 1,
+     "Mana Leak": 1,
+     "Force of Negation": 2,
+     "Cryptic Command": 2,
+     "Archmage's Charm": 2,
+     "Narset, Parter of Veils": 2,
+     "Spell Snare": 2,
+     "Remand": 3,
+     "Serum Visions": 3,
+     "Opt": 4,
+     "Lightning Bolt": 4,
+     "Vendilion Clique": 1,
+     "Thing in the Ice // Awoken Horror": 4,
+     "Snapcaster Mage": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 5
+  }
+ ],
+ "pool_size": 54,
+ "rejected_illegal": [
+  {
+   "archetype": "Urza Oko",
+   "deck": 369105,
+   "player": "Dan Jessup",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza Oko",
+   "deck": 367995,
+   "player": "Matsumoto Yuuki",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza Oko",
+   "deck": 367641,
+   "player": "Oliver Tomajko",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza Oko",
+   "deck": 365591,
+   "player": "Brian Coval",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "Snow Bant Control",
+   "deck": 369081,
+   "player": "Kevin Jones",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Snow Bant Control",
+   "deck": 369107,
+   "player": "Harlan Firer",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Snow Bant Control",
+   "deck": 399919,
+   "player": "katoriarch123",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Snow Bant Control",
+   "deck": 374675,
+   "player": "ZYURYO",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza",
+   "deck": 378343,
+   "player": "Graciasportanto",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza",
+   "deck": 368746,
+   "player": "VTCLA",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza",
+   "deck": 368899,
+   "player": "Vtcla",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Urza",
+   "deck": 391926,
+   "player": "MrRaeb",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "UrzaTron",
+   "deck": 365151,
+   "player": "3HDgamers",
+   "why": [
+    "Mycosynth Lattice (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox",
+   "deck": 369507,
+   "player": "Aaron Barich",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Elves",
+   "deck": 368257,
+   "player": "Josh Greenstein",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Ramp Field of the Dead",
+   "deck": 369600,
+   "player": "Chris Candreva",
+   "why": [
+    "Oko, Thief of Crowns (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Ramp Field of the Dead",
+   "deck": 369104,
+   "player": "Zach Allen",
+   "why": [
+    "Oko, Thief of Crowns (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Ramp Field of the Dead",
+   "deck": 368747,
+   "player": "bolov0",
+   "why": [
+    "Oko, Thief of Crowns (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Ramp Field of the Dead",
+   "deck": 368900,
+   "player": "Bolov0",
+   "why": [
+    "Oko, Thief of Crowns (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Yorion 4c Control",
+   "deck": 392907,
+   "player": "Darkiundsa",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Scapeshift",
+   "deck": 402831,
+   "player": "Kouno Naohiro",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Scapeshift",
+   "deck": 401518,
+   "player": "Janh",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Scapeshift",
+   "deck": 393850,
+   "player": "_EvaNs",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Heliod Life",
+   "deck": 374435,
+   "player": "Satou Rei",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Heliod Life",
+   "deck": 373900,
+   "player": "Steven Yean",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Control",
+   "deck": 397107,
+   "player": "bobthedog",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Control",
+   "deck": 374460,
+   "player": "Raja Sulaiman",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Control",
+   "deck": 369890,
+   "player": "Harlie Smale",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 374392,
+   "player": "Tyler Ashlock",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 368298,
+   "player": "Bender Lionel",
+   "why": [
+    "Mox Opal (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 383189,
+   "player": "kbr3",
+   "why": [
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales",
+   "deck": 364925,
+   "player": "Daniel Cordeiro",
+   "why": [
+    "Mox Opal (banned)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Tron",
+   "deck": 365561,
+   "player": "Zakory Aalvik",
+   "why": [
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Tron",
+   "deck": 364371,
+   "player": "Kaya Gregg",
+   "why": [
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "Allosaurus Combo",
+   "deck": 369887,
+   "player": "David Mauro",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Affinity",
+   "deck": 369050,
+   "player": "Christopher Fernandez",
+   "why": [
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Affinity",
+   "deck": 364527,
+   "player": "Anthony Sherman",
+   "why": [
+    "Mox Opal (banned)"
+   ]
+  },
+  {
+   "archetype": "Affinity",
+   "deck": 369341,
+   "player": "Bryan Gray",
+   "why": [
+    "Mox Opal (banned)"
+   ]
+  },
+  {
+   "archetype": "Affinity",
+   "deck": 369259,
+   "player": "Sakamoto Sakito",
+   "why": [
+    "Mox Opal (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Stoneblade",
+   "deck": 368221,
+   "player": "Egeyama Tomoki",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Stoneblade",
+   "deck": 375317,
+   "player": "Jd Umberson",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Stoneblade",
+   "deck": 372117,
+   "player": "Tristan P\u00f6lzl",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Stoneblade",
+   "deck": 375316,
+   "player": "Caleb Flores",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "5c Niv-mizzet",
+   "deck": 395237,
+   "player": "Bob49",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "5c Niv-mizzet",
+   "deck": 400380,
+   "player": "Nicholas St. Martin",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Ascendancy",
+   "deck": 364926,
+   "player": "Walter Coquemala Filho",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Ascendancy",
+   "deck": 369051,
+   "player": "Turner Maddick",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Control",
+   "deck": 400304,
+   "player": "pbarrrgh",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Control",
+   "deck": 401454,
+   "player": "pbarrrgh",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Control",
+   "deck": 401147,
+   "player": "tuhoajatane",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Control",
+   "deck": 375067,
+   "player": "Masumaro",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Urza",
+   "deck": 368927,
+   "player": "Wyatt Darby",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Urza",
+   "deck": 370269,
+   "player": "Emil Menzies",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Urza",
+   "deck": 366539,
+   "player": "Philippe Asselin",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Urza",
+   "deck": 371717,
+   "player": "Miran Lipova\u010da",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 395896,
+   "player": "TSPJendrek",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 393849,
+   "player": "joker10289",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 376419,
+   "player": "Manacymbal",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Gruul Midrange",
+   "deck": 372780,
+   "player": "Dafne17",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Snow Lurrus",
+   "deck": 380735,
+   "player": "McWinSauce",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Snow Lurrus",
+   "deck": 395235,
+   "player": "Nosoup",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Urza",
+   "deck": 371715,
+   "player": "Peter Kolar",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Urza",
+   "deck": 370021,
+   "player": "Diego Badinotti",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Urza",
+   "deck": 369953,
+   "player": "Jean-emmanuel Depraz",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Urza",
+   "deck": 369956,
+   "player": "Arnaud Hocquemiller",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Creature's Toolbox",
+   "deck": 373851,
+   "player": "Aron Shimada",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "100% Foil Mono Green Tron",
+   "deck": 373593,
+   "player": "Nicholas Browning",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Hardened Scales Heliod",
+   "deck": 373843,
+   "player": "Matt Sievert",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Abzan Value",
+   "deck": 371507,
+   "player": "Antoine57437",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Company",
+   "deck": 370475,
+   "player": "Davide Orazi",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Stone Bant",
+   "deck": 369472,
+   "player": "Justin Parente",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "4 Color Shadow",
+   "deck": 369948,
+   "player": "Kevin Fang",
+   "why": [
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "4-color Whirza",
+   "deck": 369836,
+   "player": "Jack Cummins",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Death Shadow",
+   "deck": 369226,
+   "player": "Peter Transon",
+   "why": [
+    "Oko, Thief of Crowns (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Niv To Light",
+   "deck": 370373,
+   "player": "Damon Alexander",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Amulet",
+   "deck": 366552,
+   "player": "Dustyn Nogueira",
+   "why": [
+    "Mycosynth Lattice (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Simic Merfolk",
+   "deck": 366540,
+   "player": "Kevin Burroughs",
+   "why": [
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Green Stompy",
+   "deck": 364647,
+   "player": "Byran Dubois",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Snow",
+   "deck": 364472,
+   "player": "Patrick Fuhr",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Copycat",
+   "deck": 364128,
+   "player": "Justin Burton",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Devotion to Green",
+   "deck": 369508,
+   "player": "Christopher Gooch",
+   "why": [
+    "Mycosynth Lattice (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Devotion to Green",
+   "deck": 365609,
+   "player": "Dan Walton",
+   "why": [
+    "Mycosynth Lattice (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Abzan Company",
+   "deck": 372120,
+   "player": "Antoine Morisse",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 373850,
+   "player": "Justin Porchas",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 374778,
+   "player": "Kojima Youichirou",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 374371,
+   "player": "Samuel Bogue",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 373894,
+   "player": "Jeff Pyka",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Snowblade",
+   "deck": 369835,
+   "player": "John Hack",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Snowblade",
+   "deck": 369939,
+   "player": "Matt Finch",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Snowblade",
+   "deck": 369941,
+   "player": "Derek Lansche",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Snowblade",
+   "deck": 369225,
+   "player": "Doria Keung",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 369889,
+   "player": "Vincent Giacalone",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 367655,
+   "player": "Zach Allen",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 372734,
+   "player": "Vincent Giacalone",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 367647,
+   "player": "Harlan Firer",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Tron",
+   "deck": 369944,
+   "player": "Patrick Wright",
+   "why": [
+    "Mycosynth Lattice (banned)"
+   ]
+  },
+  {
+   "archetype": "UWg",
+   "deck": 374086,
+   "player": "Wurst_",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "5c Niv To Light",
+   "deck": 373592,
+   "player": "Erik Krueger",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Urza",
+   "deck": 370947,
+   "player": "Mattia Oneto",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  },
+  {
+   "archetype": "Instant Reanimator",
+   "deck": 369059,
+   "player": "Nadher Tabash",
+   "why": [
+    "Once Upon a Time (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Ascendancy",
+   "deck": 364370,
+   "player": "Julian David",
+   "why": [
+    "Arcum's Astrolabe (banned)",
+    "Mox Opal (banned)",
+    "Oko, Thief of Crowns (banned)"
+   ]
+  },
+  {
+   "archetype": "Snow Red",
+   "deck": 364526,
+   "player": "Trevor May",
+   "why": [
+    "Arcum's Astrolabe (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Mardu Shadow",
+   "player": "Joeyjojoejr.shabadoo",
+   "kept": "Death's Shadow",
+   "kept_player": "Darkiundsa"
+  },
+  {
+   "dropped": "UW Control",
+   "player": "Ganksyou",
+   "kept": "W/u Stoneblade",
+   "kept_player": "Arnaud Hocquemiller"
+  },
+  {
+   "dropped": "Grixis Shadow",
+   "player": "Thomas Crepaldi",
+   "kept": "Death's Shadow",
+   "kept_player": "Darkiundsa"
+  },
+  {
+   "dropped": "Blue Moon",
+   "player": "Patrick Jones",
+   "kept": "UR Control",
+   "kept_player": "Tiemuuu"
+  },
+  {
+   "dropped": "Mono Red Prowess",
+   "player": "Tucker Tardif",
+   "kept": "Prowess Deck Wins",
+   "kept_player": "Nicholas Nemeth"
+  },
+  {
+   "dropped": "Monogreen Tron",
+   "player": "Benjamin Odell",
+   "kept": "UrzaTron",
+   "kept_player": "Morita Masayuki"
+  },
+  {
+   "dropped": "Ub Lurrus Mill",
+   "player": "Coomback",
+   "kept": "Ub Mill",
+   "kept_player": "Maxime Dumas"
+  },
+  {
+   "dropped": "Uw Stoneblade",
+   "player": "Reuben Musselman",
+   "kept": "W/u Stoneblade",
+   "kept_player": "Arnaud Hocquemiller"
+  },
+  {
+   "dropped": "Utopia Gruul",
+   "player": "Phill_Hellmuth",
+   "kept": "Gruul Utopia",
+   "kept_player": "Gigy"
+  },
+  {
+   "dropped": "Simic Control",
+   "player": "pbarrrgh",
+   "kept": "Temur Reclamation",
+   "kept_player": "Lavaridge"
+  },
+  {
+   "dropped": "UB Mill",
+   "player": "tibalt_of_red_sub",
+   "kept": "Ub Mill",
+   "kept_player": "Maxime Dumas"
+  },
+  {
+   "dropped": "RDW",
+   "player": "Hukutoku Kazuto",
+   "kept": "Rakdos Aggro",
+   "kept_player": "Gerschi"
+  },
+  {
+   "dropped": "Jund Shadow",
+   "player": "Fabio Kaiser",
+   "kept": "Death's Shadow",
+   "kept_player": "Darkiundsa"
+  },
+  {
+   "dropped": "Bant Reclamation",
+   "player": "Yamada?takurou",
+   "kept": "Temur Reclamation",
+   "kept_player": "Lavaridge"
+  },
+  {
+   "dropped": "Eldrazi Tron",
+   "player": "Bones",
+   "kept": "Eldra Tron",
+   "kept_player": "Thetunnelingcat"
+  },
+  {
+   "dropped": "Gruul Pillage",
+   "player": "Leglise Mickael",
+   "kept": "Gruul Ramp",
+   "kept_player": "Elliott Tzaneteas"
+  },
+  {
+   "dropped": "4c Twiddle Storm",
+   "player": "Kevin Chaussard",
+   "kept": "UR Storm",
+   "kept_player": "hugo87"
+  },
+  {
+   "dropped": "Gruul Utopia - Stoneforge",
+   "player": "xakx47x",
+   "kept": "Gruul Utopia",
+   "kept_player": "Gigy"
+  },
+  {
+   "dropped": "Blue Moon Surprise",
+   "player": "Spencer Dio",
+   "kept": "UR Control",
+   "kept_player": "Tiemuuu"
+  },
+  {
+   "dropped": "Death Shadow",
+   "player": "Delan Hamasoor",
+   "kept": "Death's Shadow",
+   "kept_player": "Darkiundsa"
+  },
+  {
+   "dropped": "Bant Hexproof",
+   "player": "Niccolo Lopez",
+   "kept": "Aura Hexproof",
+   "kept_player": "headshot93"
+  },
+  {
+   "dropped": "5 Color Hohmans",
+   "player": "Christopher Hohman",
+   "kept": "Humans",
+   "kept_player": "JoshicallsmeFabo"
+  },
+  {
+   "dropped": "Izzet Storm",
+   "player": "Timo Sch\u00fcnemann",
+   "kept": "UR Storm",
+   "kept_player": "hugo87"
+  },
+  {
+   "dropped": "Gruul Midrange",
+   "player": "Domhnall Zena",
+   "kept": "Gruul Utopia",
+   "kept_player": "Gigy"
+  },
+  {
+   "dropped": "5c Niv-mizzet",
+   "player": "Nicholas St. Martin",
+   "kept": "Niv-Mizzet Reborn",
+   "kept_player": "Mordeka1ser"
+  },
+  {
+   "dropped": "Tron",
+   "player": "Andra Marinescu",
+   "kept": "UrzaTron",
+   "kept_player": "Morita Masayuki"
+  }
+ ],
+ "objective": 17.65679012345679,
+ "pool_colors": {
+  "U": 31,
+  "R": 25,
+  "G": 23,
+  "W": 22,
+  "B": 15
+ },
+ "pool_styles": {
+  "control": 11,
+  "aggro": 22,
+  "midrange": 14,
+  "combo": 7
+ },
+ "kept_lost": []
+}

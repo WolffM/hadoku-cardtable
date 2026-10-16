@@ -111,8 +111,8 @@ async function loadIndex(cardsPath: string): Promise<PrintingIndex> {
  * building Legacy's fixtures, which reach every one of these by 2016 (Legacy
  * 2008 already needs `ME1`, Forge calls it `MED`, and refused with "corpus
  * has no printings for ME1" until this existed). Computed by running
- * `formatPoolAt('legacy', date, index)` for every Legacy 2005-2016 era and
- * collecting every `missingSets` entry across all twelve, not guessed one
+ * `formatPoolAt('legacy', date, index)` for every Legacy 2005-2025 era and
+ * collecting every `missingSets` entry across all twenty-one, not guessed one
  * error at a time:
  *
  *   ME1 "Masters Edition", ME2 "Masters Edition II", ME3 "Masters Edition
@@ -123,14 +123,16 @@ async function loadIndex(cardsPath: string): Promise<PrintingIndex> {
  *   Phyrexia" (an MTGO-only duel-deck release despite the paper-sounding
  *   name — checked against the corpus like everything else here, not
  *   assumed from the name), PZ1 "Legendary Cube Prize Pack" — MTGO prize/
- *   theme products, same shape.
+ *   theme products, same shape. PZ2 "Treasure Chest", the MTGO reward pool,
+ *   which Legacy reaches from 2017 on: 270 printings, every one digital and
+ *   every name printed on paper elsewhere.
  *
- * All nine: zero paper printings, every card in them a reprint already legal
+ * All ten: zero paper printings, every card in them a reprint already legal
  * via an earlier paper set. A set NOT on this list that the corpus is
  * missing is still refused: this is a narrow, verified exception, not a
  * general "ignore missing sets" escape hatch.
  */
-const ALL_DIGITAL_SETS = new Set(['ME1', 'ME2', 'ME3', 'ME4', 'VMA', 'TPR', 'TD0', 'TD2', 'PZ1']);
+const ALL_DIGITAL_SETS = new Set(['ME1', 'ME2', 'ME3', 'ME4', 'VMA', 'TPR', 'TD0', 'TD2', 'PZ1', 'PZ2']);
 
 /**
  * `--family=modern` (or `legacy`) freezes only that family's keys, and

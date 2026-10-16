@@ -1,0 +1,35 @@
+[metadata]
+Name=Selesnya Aggro (Team5c)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=19079&d=320263&f=ST
+Comment=MTGO Standard PTQ: Team5c, 1st, Selesnya Aggro. Transcribed from mtgtop8 deck 320263.
+[Main]
+7 Forest|M19
+2 Hashep Oasis|HOU
+5 Plains|M19
+4 Scattered Groves|AKH
+4 Sunpetal Grove|XLN
+3 Karn, Scion of Urza|DOM
+2 Aether Hub|KLD
+2 Seal Away|DOM
+2 Ixalan's Binding|XLN
+2 Treasure Map|XLN
+3 Aethersphere Harvester|AER
+4 Walking Ballista|AER
+3 Thrashing Brontodon|RIX
+3 Shanna, Sisay's Legacy|DOM
+1 Shalai, Voice of Plenty|DOM
+2 Rishkar, Peema Renegade|AER
+4 Merfolk Branchwalker|XLN
+3 Lyra Dawnbringer|DOM
+4 Llanowar Elves|M19
+[Sideboard]
+3 Baffling End|RIX
+2 Blossoming Defense|KLD
+3 Lifecrafter's Bestiary|AER
+3 Nissa, Vital Force|KLD
+2 Thopter Arrest|AER
+1 Ixalan's Binding|XLN
+1 Aethersphere Harvester|AER

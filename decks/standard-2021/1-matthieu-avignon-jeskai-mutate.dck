@@ -1,0 +1,40 @@
+[metadata]
+Name=Jeskai Mutate (Matthieu Avignon)
+Deck Type=Constructed
+Format=Standard (AFR)
+Effective=2021-07-23
+Source URL=https://www.mtgtop8.com/event?e=31356&d=443225&f=ST
+Comment=July Strixhaven Weekend @ Rivals League: Matthieu Avignon, 1st, Jeskai Mutate. Transcribed from mtgtop8 deck 443225.
+[Main]
+1 Negate|ZNR
+1 Mystical Dispute|ELD
+1 Test of Talents|STX
+1 Sejiri Shelter|ZNR
+2 Fire Prophecy|IKO
+2 Showdown of the Skalds|KHM
+2 Into the Roil|ZNR
+3 Expressive Iteration|STX
+3 Prismari Command|STX
+3 Seize the Spoils|KHM
+4 Unsubstantiate|M21
+4 Spikefield Hazard|ZNR
+3 Lore Drakkis|IKO
+4 Vadrok, Apex of Thunder|IKO
+4 Goldspan Dragon|KHM
+1 Plains|AFR
+2 Mountain|AFR
+2 Island|AFR
+2 Fabled Passage|M21
+3 Raugrin Triome|IKO
+4 Hengegate Pathway|KHM
+4 Needleverge Pathway|ZNR
+4 Riverglide Pathway|ZNR
+[Sideboard]
+3 Redcap Melee|ELD
+1 Essence Scatter|IKO
+1 Disdainful Stroke|KHM
+2 Phoenix of Ash|THB
+3 Mazemind Tome|M21
+3 Cinderclasm|ZNR
+1 Mystical Dispute|ELD
+1 Test of Talents|STX

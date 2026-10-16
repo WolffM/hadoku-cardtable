@@ -1,0 +1,39 @@
+[metadata]
+Name=Allosaurus Combo (rerere)
+Deck Type=Constructed
+Format=Modern (FIN)
+Effective=2025-06-30
+Source URL=https://www.mtgtop8.com/event?e=71796&d=744230&f=MO
+Comment=MTGO Challenge 64: rerere, 1st, Allosaurus Combo. Transcribed from mtgtop8 deck 744230.
+[Main]
+4 Allosaurus Rider|CSP
+3 Pact of Negation|FUT
+3 Ghalta, Stampede Tyrant|LCI
+1 Island|FIN
+4 Consign to Memory|MH3
+4 Disciple of Freyalise|MH3
+4 Eldritch Evolution|EMN
+1 Griselbrand|AVR
+3 Generous Ent|LTR
+1 Forest|FIN
+3 Hedge Maze|MKM
+3 Hooting Mandrills|KTK
+4 Misty Rainforest|ZEN
+4 Neoform|WAR
+1 Breeding Pool|RNA
+1 Boseiju, Who Endures|NEO
+4 Planar Genesis|MH3
+3 Scalding Tarn|ZEN
+2 Atraxa, Grand Unifier|ONE
+1 Verdant Catacombs|ZEN
+1 Xenagos, God of Revels|BNG
+4 Summoner's Pact|FUT
+1 Ureni, the Song Unending|TDM
+[Sideboard]
+1 Hooting Mandrills|KTK
+1 Boseiju, Who Endures|NEO
+1 Elesh Norn, Grand Cenobite|NPH
+2 Stock Up|DFT
+4 Mystical Dispute|ELD
+2 Nature's Claim|WWK
+4 Veil of Summer|M20

@@ -1,0 +1,35 @@
+[metadata]
+Name=Mono Black Aggro (Jethro Chanco)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=17713&d=309728&f=ST
+Comment=Neutral Grounds Gold Rush 2017: Jethro Chanco, 1st, Mono Black Aggro. Transcribed from mtgtop8 deck 309728.
+[Main]
+4 Bone Picker|AKH
+4 Night Market Lookout|KLD
+4 Dread Wanderer|AKH
+2 Vicious Conquistador|XLN
+4 Fatal Push|AER
+4 Glint-Sleeve Siphoner|AER
+2 Walk the Plank|XLN
+4 Scrapheap Scrounger|KLD
+1 Heart of Kiran|AER
+2 Ruin Raider|XLN
+2 Aethersphere Harvester|AER
+3 Yahenni, Undying Partisan|AER
+2 Bontu's Last Reckoning|HOU
+1 Vraska's Contempt|XLN
+3 Ifnir Deadlands|HOU
+1 Scavenger Grounds|HOU
+2 Aether Hub|KLD
+15 Swamp|XLN
+[Sideboard]
+1 Vraska's Contempt|XLN
+1 Sentinel Totem|XLN
+1 Deadeye Tracker|XLN
+4 Gifted Aetherborn|AER
+4 Duress|XLN
+1 Essence Extraction|KLD
+1 Doomfall|HOU
+2 Gonti, Lord of Luxury|KLD

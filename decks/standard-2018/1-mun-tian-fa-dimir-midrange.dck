@@ -1,0 +1,40 @@
+[metadata]
+Name=Dimir Midrange (Mun Tian-fa)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=20108&d=330833&f=ST
+Comment=Nationals - Italy 2018 @ Rome: Mun Tian-fa, 1st, Dimir Midrange. Transcribed from mtgtop8 deck 330833.
+[Main]
+7 Swamp|M19
+5 Island|M19
+3 Field of Ruin|XLN
+4 Fetid Pools|AKH
+4 Drowned Catacomb|XLN
+3 Aether Hub|KLD
+2 Arguel's Blood Fast|XLN
+1 Commit // Memory|AKH
+1 Never // Return|AKH
+4 Vraska's Contempt|XLN
+1 Disallow|AER
+2 Essence Scatter|M19
+3 Doomfall|HOU
+1 Cast Down|DOM
+4 Fatal Push|AER
+1 Liliana, Death's Majesty|AKH
+2 Torrential Gearhulk|KLD
+3 The Scarab God|HOU
+1 Hostage Taker|XLN
+4 Glint-Sleeve Siphoner|AER
+4 Champion of Wits|HOU
+[Sideboard]
+2 Negate|RIX
+3 Duress|M19
+1 Jace's Defeat|HOU
+1 Sorcerous Spyglass|XLN
+2 Essence Extraction|KLD
+1 Infernal Reckoning|M19
+2 Fungal Infection|DOM
+1 Arguel's Blood Fast|XLN
+1 Cast Down|DOM
+1 Hostage Taker|XLN

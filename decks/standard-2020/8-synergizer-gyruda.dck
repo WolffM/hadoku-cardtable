@@ -1,0 +1,31 @@
+[metadata]
+Name=Gyruda (Synergizer)
+Deck Type=Constructed
+Format=Standard (2020-08-03)
+Effective=2020-08-03
+Source URL=https://www.mtgtop8.com/event?e=27258&d=414585&f=ST
+Comment=MTGO Standard Challenge: Synergizer, 8th, Gyruda. Transcribed from mtgtop8 deck 414585.
+[Main]
+4 Migration Path|IKO
+4 Cultivate|M21
+2 Paradise Druid|WAR
+4 Charming Prince|ELD
+4 Thassa, Deep-Dwelling|THB
+4 Terror of the Peaks|M21
+4 Spark Double|WAR
+4 Gyruda, Doom of Depths|IKO
+4 Gilded Goose|ELD
+4 Fiend Artisan|IKO
+1 Plains|M21
+2 Island|M21
+2 Mountain|M21
+2 Forest|M21
+4 Stomping Ground|RNA
+4 Hallowed Fountain|RNA
+4 Breeding Pool|RNA
+4 Temple Garden|GRN
+[Sideboard]
+4 Shatter the Sky|THB
+3 Kiora Bests the Sea God|THB
+4 Heartless Act|IKO
+4 Giant Killer|ELD

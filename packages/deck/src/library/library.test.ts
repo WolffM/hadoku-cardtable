@@ -370,8 +370,10 @@ describe('the library as a whole', () => {
   // years mtgtop8 has decks for: 40 eras, 811 decks. Every one of 1995-2002 is
   // thin — mtgtop8 holds only a few events a year then — 1995 (9), 1996 (12),
   // 1997 (12), 1998 (6), 1999 (15), 2000 (16), 2001 (20), 2002 (21); Modern
-  // 2011 is 24. Every other era is 24.
-  it('is forty eras across three families and 811 decks, oldest first within each family', () => {
+  // 2011 is 24. 2026-10-16 (the operator: "let's go up to protour 2025") ran
+  // all three forward to 2025's summer: 67 eras, 1459 decks, and every one of
+  // the 27 new eras has 24. Every other era is 24.
+  it('is sixty-seven eras across three families and 1459 decks, oldest first within each family', () => {
     expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
       ['power-summer-1995', 'standard', 'Type 2 (CHR)', '1995-07-01', 9],
       ['power-summer-1996', 'standard', 'Type 2 (ALL)', '1996-07-10', 12],
@@ -395,12 +397,30 @@ describe('the library as a whole', () => {
       ['power-summer-2014', 'standard', 'Standard (M15)', '2014-07-18', 24],
       ['power-summer-2015', 'standard', 'Standard (ORI)', '2015-07-17', 24],
       ['power-summer-2016', 'standard', 'Standard (EMN)', '2016-07-22', 24],
+      ['power-summer-2017', 'standard', 'Standard (HOU)', '2017-07-14', 24],
+      ['power-summer-2018', 'standard', 'Standard (M19)', '2018-07-13', 24],
+      ['power-summer-2019', 'standard', 'Standard (2019-08-30)', '2019-08-30', 24],
+      ['power-summer-2020', 'standard', 'Standard (2020-08-03)', '2020-08-03', 24],
+      ['power-summer-2021', 'standard', 'Standard (AFR)', '2021-07-23', 24],
+      ['power-summer-2022', 'standard', 'Standard (SNC)', '2022-04-29', 24],
+      ['power-summer-2023', 'standard', 'Standard (2023-05-29)', '2023-05-29', 24],
+      ['power-summer-2024', 'standard', 'Standard (OTJ)', '2024-04-19', 24],
+      ['power-summer-2025', 'standard', 'Standard (2025-06-30)', '2025-06-30', 24],
       ['power-summer-modern-2011', 'modern', 'Modern (M12)', '2011-07-15', 24],
       ['power-summer-modern-2012', 'modern', 'Modern (M13)', '2012-07-13', 24],
       ['power-summer-modern-2013', 'modern', 'Modern (M14)', '2013-07-19', 24],
       ['power-summer-modern-2014', 'modern', 'Modern (M15)', '2014-07-18', 24],
       ['power-summer-modern-2015', 'modern', 'Modern (ORI)', '2015-07-17', 24],
       ['power-summer-modern-2016', 'modern', 'Modern (EMN)', '2016-07-22', 24],
+      ['power-summer-modern-2017', 'modern', 'Modern (HOU)', '2017-07-14', 24],
+      ['power-summer-modern-2018', 'modern', 'Modern (M19)', '2018-07-13', 24],
+      ['power-summer-modern-2019', 'modern', 'Modern (2019-08-30)', '2019-08-30', 24],
+      ['power-summer-modern-2020', 'modern', 'Modern (2020-07-13)', '2020-08-03', 24],
+      ['power-summer-modern-2021', 'modern', 'Modern (AFR)', '2021-07-23', 24],
+      ['power-summer-modern-2022', 'modern', 'Modern (SNC)', '2022-04-29', 24],
+      ['power-summer-modern-2023', 'modern', 'Modern (MAT)', '2023-05-29', 24],
+      ['power-summer-modern-2024', 'modern', 'Modern (OTJ)', '2024-04-19', 24],
+      ['power-summer-modern-2025', 'modern', 'Modern (FIN)', '2025-06-30', 24],
       ['power-summer-legacy-2005', 'legacy', 'Legacy (9ED)', '2005-08-20', 9],
       ['power-summer-legacy-2006', 'legacy', 'Legacy (CSP)', '2006-08-20', 17],
       ['power-summer-legacy-2007', 'legacy', 'Legacy (10E)', '2007-07-20', 24],
@@ -413,9 +433,18 @@ describe('the library as a whole', () => {
       ['power-summer-legacy-2014', 'legacy', 'Legacy (M15)', '2014-07-18', 24],
       ['power-summer-legacy-2015', 'legacy', 'Legacy (ORI)', '2015-07-17', 24],
       ['power-summer-legacy-2016', 'legacy', 'Legacy (EMN)', '2016-07-22', 24],
+      ['power-summer-legacy-2017', 'legacy', 'Legacy (HOU)', '2017-07-14', 24],
+      ['power-summer-legacy-2018', 'legacy', 'Legacy (M19)', '2018-07-13', 24],
+      ['power-summer-legacy-2019', 'legacy', 'Legacy (C19)', '2019-08-30', 24],
+      ['power-summer-legacy-2020', 'legacy', 'Legacy (JMP)', '2020-08-03', 24],
+      ['power-summer-legacy-2021', 'legacy', 'Legacy (AFR)', '2021-07-23', 24],
+      ['power-summer-legacy-2022', 'legacy', 'Legacy (SNC)', '2022-04-29', 24],
+      ['power-summer-legacy-2023', 'legacy', 'Legacy (MAT)', '2023-05-29', 24],
+      ['power-summer-legacy-2024', 'legacy', 'Legacy (OTJ)', '2024-04-19', 24],
+      ['power-summer-legacy-2025', 'legacy', 'Legacy (FIN)', '2025-06-30', 24],
     ]);
-    expect(ALL_DECKS).toHaveLength(811);
-    expect(libraryDeckPaths()).toHaveLength(811);
+    expect(ALL_DECKS).toHaveLength(1459);
+    expect(libraryDeckPaths()).toHaveLength(1459);
   });
 
   it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {
@@ -464,6 +493,11 @@ describe('the library as a whole', () => {
     'power-summer-legacy-2006', 'power-summer-legacy-2007', 'power-summer-legacy-2008', 'power-summer-legacy-2009',
     'power-summer-legacy-2010', 'power-summer-legacy-2011', 'power-summer-legacy-2012', 'power-summer-legacy-2013',
     'power-summer-legacy-2014', 'power-summer-legacy-2015', 'power-summer-legacy-2016',
+    ...[2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025].flatMap((y) => [
+      `power-summer-${y}`,
+      `power-summer-modern-${y}`,
+      `power-summer-legacy-${y}`,
+    ]),
   ]);
 
   /** `Snow-Covered Plains` counts as white the same as `Plains` does — 2008 is the only
@@ -596,10 +630,11 @@ describe('the library cost map a browser is handed', () => {
     // added. The MAP stays small because it is a slice of the library's own
     // played cards, not the pools themselves — the ratio check is the one
     // that actually matters here. 80KB became 100KB when Standard went back
-    // to 1995 and Modern to 2011 (AF41): 2,790 cards, an 87.5KB map.
+    // to 1995 and Modern to 2011 (AF41): 2,790 cards, an 87.5KB map; 160KB
+    // when all three ran forward to 2025: 4,576 cards, a 148KB map.
     const map = read('packages/deck/src/library/deck-costs.generated.ts').length;
     const pools = POOL_FIXTURE_KEYS.reduce((n, { family, date }) => n + read(poolFixturePath(date, family)).length, 0);
-    expect(map).toBeLessThan(100_000);
+    expect(map).toBeLessThan(160_000);
     expect(pools).toBeGreaterThan(20 * map);
   });
 });

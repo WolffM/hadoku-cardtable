@@ -1,0 +1,47 @@
+[metadata]
+Name=Jeskai Control (Andrew Lopez)
+Deck Type=Constructed
+Format=Modern (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=20062&d=330301&f=MO
+Comment=Grand Prix Detroit 2018 (Team): Andrew Lopez, 1st, Jeskai Control. Transcribed from mtgtop8 deck 330301.
+[Main]
+1 Electrolyze|GP
+1 Negate|RIX
+1 Secure the Wastes|DTK
+1 Settle the Wreckage|XLN
+1 Jace, the Mind Sculptor|WWK
+2 Peek|10E
+2 Supreme Verdict|RTR
+2 Search for Azcanta|XLN
+2 Teferi, Hero of Dominaria|DOM
+3 Lightning Helix|RAV
+3 Logic Knot|FUT
+4 Cryptic Command|LRW
+4 Path to Exile|CFX
+4 Lightning Bolt|M11
+4 Snapcaster Mage|ISD
+1 Sulfur Falls|DOM
+1 Sacred Foundry|GTC
+1 Plains|M19
+1 Mountain|M19
+1 Glacial Fortress|XLN
+2 Steam Vents|RTR
+2 Hallowed Fountain|RTR
+3 Celestial Colonnade|WWK
+3 Island|M19
+3 Scalding Tarn|ZEN
+3 Field of Ruin|XLN
+4 Flooded Strand|KTK
+[Sideboard]
+1 Vendilion Clique|MOR
+1 Torrential Gearhulk|KLD
+2 Surgical Extraction|NPH
+2 Stony Silence|ISD
+1 Lyra Dawnbringer|DOM
+1 Engineered Explosives|FD
+1 Negate|RIX
+1 Baneslayer Angel|M11
+2 Celestial Purge|M12
+1 Disdainful Stroke|KTK
+2 Dispel|BFZ

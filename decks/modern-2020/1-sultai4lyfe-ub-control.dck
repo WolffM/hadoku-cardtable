@@ -1,0 +1,43 @@
+[metadata]
+Name=Ub Control (Sultai4lyfe)
+Deck Type=Constructed
+Format=Modern (2020-07-13)
+Effective=2020-08-03
+Source URL=https://www.mtgtop8.com/event?e=24382&d=370328&f=MO
+Comment=MTGO Modern Challenge: Sultai4lyfe, 1st, Ub Control. Transcribed from mtgtop8 deck 370328.
+[Main]
+1 Thoughtseize|THS
+1 Spell Snare|DIS
+2 Drown in the Loch|ELD
+2 Cryptic Command|LRW
+2 Jace, the Mind Sculptor|WWK
+2 Damnation|PLC
+3 Force of Negation|MH1
+3 Liliana of the Veil|ISD
+4 Serum Visions|FD
+4 Narset, Parter of Veils|WAR
+4 Inquisition of Kozilek|ROE
+4 Fatal Push|AER
+4 Snapcaster Mage|ISD
+1 Scalding Tarn|ZEN
+1 Bloodstained Mire|KTK
+1 Sunken Ruins|SHM
+1 River of Tears|FUT
+2 Watery Grave|GRN
+2 Field of Ruin|THB
+2 Darkslick Shores|SOM
+2 Geier Reach Sanitarium|EMN
+2 Snow-Covered Island|CSP
+2 Snow-Covered Swamp|CSP
+4 Polluted Delta|KTK
+4 Creeping Tar Pit|WWK
+[Sideboard]
+3 Ashiok, Dream Render|WAR
+1 Vendilion Clique|MOR
+2 Plague Engineer|MH1
+1 Mystical Dispute|ELD
+1 Spell Pierce|XLN
+2 Disdainful Stroke|GRN
+1 Bitterblossom|MOR
+1 Kalitas, Traitor of Ghet|OGW
+3 Collective Brutality|EMN

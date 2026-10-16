@@ -1,0 +1,40 @@
+[metadata]
+Name=Dredge (Mercenario)
+Deck Type=Constructed
+Format=Modern (2020-07-13)
+Effective=2020-08-03
+Source URL=https://www.mtgtop8.com/event?e=25102&d=376041&f=MO
+Comment=MTGO Modern Super Qualifier: Mercenario, 1st, Dredge. Transcribed from mtgtop8 deck 376041.
+[Main]
+2 Conflagrate|TSP
+4 Life from the Loam|RAV
+4 Creeping Chill|GRN
+4 Shriekhorn|MBS
+4 Cathartic Reunion|KLD
+2 Golgari Thug|RAV
+2 Ox of Agonas|THB
+3 Narcomoeba|GRN
+3 Merchant of the Vale|ELD
+4 Stinkweed Imp|RAV
+4 Prized Amalgam|SOI
+4 Bloodghast|ZEN
+1 City of Brass|8E
+1 Dakmor Salvage|FUT
+1 Mountain|M21
+1 Scalding Tarn|ZEN
+1 Steam Vents|GRN
+1 Copperline Gorge|SOM
+2 Forgotten Cave|ON
+2 Blood Crypt|RNA
+3 Bloodstained Mire|KTK
+3 Stomping Ground|RNA
+4 Wooded Foothills|KTK
+[Sideboard]
+1 Leyline of the Void|M20
+3 Lightning Axe|SOI
+3 Nature's Claim|WWK
+2 Shenanigans|MH1
+3 Thoughtseize|THS
+1 Leyline of Sanctity|M20
+1 Blood Moon|9E
+1 Blast Zone|WAR

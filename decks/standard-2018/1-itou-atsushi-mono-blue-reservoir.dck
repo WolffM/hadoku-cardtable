@@ -1,0 +1,33 @@
+[metadata]
+Name=Mono-Blue Reservoir (Itou Atsushi)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=20006&d=329765&f=ST
+Comment=Core '19 - Masters: Itou Atsushi, 1st, Mono-Blue Reservoir. Transcribed from mtgtop8 deck 329765.
+[Main]
+1 Metallic Rebuke|AER
+1 Opt|DOM
+2 Aetherflux Reservoir|KLD
+2 Mox Amber|DOM
+2 Baral's Expertise|AER
+3 Reverse Engineer|AER
+3 Commit // Memory|AKH
+4 Navigator's Compass|DOM
+4 Paradoxical Outcome|KLD
+4 Renegade Map|AER
+4 Prophetic Prism|KLD
+4 Inspiring Statuary|AER
+4 Ornithopter|AER
+4 Sai, Master Thopterist|M19
+1 Inventors' Fair|KLD
+4 Zhalfirin Void|DOM
+13 Island|M19
+[Sideboard]
+3 Syncopate|DOM
+4 Aether Meltdown|KLD
+1 Sorcerous Spyglass|XLN
+2 Glint-Nest Crane|KLD
+2 Fireforger's Puzzleknot|KLD
+2 Baral, Chief of Compliance|AER
+1 Reverse Engineer|AER

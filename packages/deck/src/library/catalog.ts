@@ -975,6 +975,409 @@ export const POWER_SUMMER_2016_STANDARD: LibraryCollection = {
   ],
 };
 
+/**
+ * The 2017 power summer — `Standard (HOU)`, 2017-07-14 to 2017-09-29, the last
+ * Standard snapshot before that fall’s rotation. 50 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2017.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 11, U 13, B 11, R 12, G 10; aggro 9,
+ * midrange 7, control 8, combo 0.
+ */
+export const POWER_SUMMER_2017_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2017',
+  directory: `${DECKS_ROOT}/standard-2017`,
+  event: "2017 power summer \u2014 Standard (HOU), 2017-07-14 \u2192 2017-09-29",
+  format: "Standard (HOU)",
+  date: "2017-07-14",
+  source: 'docs/planning/deck-selection/review/2017.md',
+  decks: [
+    { id: "power-2017-1-evgeniy-schetka-mardu-vehicles", file: "1-evgeniy-schetka-mardu-vehicles.dck" },
+    { id: "power-2017-1-peter-snoha-mono-black-zombies", file: "1-peter-snoha-mono-black-zombies.dck" },
+    { id: "power-2017-1-stephen-murray-temur-energy", file: "1-stephen-murray-temur-energy.dck" },
+    { id: "power-2017-1-olivetti-azorius-aggro", file: "1-olivetti-azorius-aggro.dck" },
+    { id: "power-2017-1-alain-bardini-boros-aggro", file: "1-alain-bardini-boros-aggro.dck" },
+    { id: "power-2017-1-tomas-langer-gw-ramp", file: "1-tomas-langer-gw-ramp.dck" },
+    { id: "power-2017-1-ryan-espano-uw-eldrazi", file: "1-ryan-espano-uw-eldrazi.dck" },
+    { id: "power-2017-1-michael-hamilton-4-color-control", file: "1-michael-hamilton-4-color-control.dck" },
+    { id: "power-2017-1-brennan-decandio-golgari-delirium", file: "1-brennan-decandio-golgari-delirium.dck" },
+    { id: "power-2017-1-harane-kenta-emerge", file: "1-harane-kenta-emerge.dck" },
+    { id: "power-2017-1-aziz-riphat-bg-constrictor", file: "1-aziz-riphat-bg-constrictor.dck" },
+    { id: "power-2017-1-dmitri-shrum-orzhov-control", file: "1-dmitri-shrum-orzhov-control.dck" },
+    { id: "power-2017-1-brian-coval-colossus-aggro-affinity", file: "1-brian-coval-colossus-aggro-affinity.dck" },
+    { id: "power-2017-1-gavin-bennett-gruul-ramp", file: "1-gavin-bennett-gruul-ramp.dck" },
+    { id: "power-2017-1-yong-il-park-rakdos-control", file: "1-yong-il-park-rakdos-control.dck" },
+    { id: "power-2017-1-viet-tran-sultai-aggro", file: "1-viet-tran-sultai-aggro.dck" },
+    { id: "power-2017-2-tirentu-uw-control", file: "2-tirentu-uw-control.dck" },
+    { id: "power-2017-2-jonathan-rosum-w-u-monument", file: "2-jonathan-rosum-w-u-monument.dck" },
+    { id: "power-2017-1-juan-pablo-barzola-izzet-control", file: "1-juan-pablo-barzola-izzet-control.dck" },
+    { id: "power-2017-1-bradley-barclay-temur-tower", file: "1-bradley-barclay-temur-tower.dck" },
+    { id: "power-2017-1-moriya-ryo-mardu-control", file: "1-moriya-ryo-mardu-control.dck" },
+    { id: "power-2017-5-ruslan-kotunov-jeskai-gift", file: "5-ruslan-kotunov-jeskai-gift.dck" },
+    { id: "power-2017-5-aziz-rhipat-sultai-midrange", file: "5-aziz-rhipat-sultai-midrange.dck" },
+    { id: "power-2017-5-kevin-pass-naya-ramp", file: "5-kevin-pass-naya-ramp.dck" },
+  ],
+};
+
+/**
+ * The 2018 power summer — `Standard (M19)`, 2018-07-13 to 2018-10-05, the last
+ * Standard snapshot before that fall’s rotation. 53 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2018.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 11, U 11, B 12, R 8, G 8; aggro 9,
+ * midrange 8, control 7, combo 0.
+ */
+export const POWER_SUMMER_2018_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2018',
+  directory: `${DECKS_ROOT}/standard-2018`,
+  event: "2018 power summer \u2014 Standard (M19), 2018-07-13 \u2192 2018-10-05",
+  format: "Standard (M19)",
+  date: "2018-07-13",
+  source: 'docs/planning/deck-selection/review/2018.md',
+  decks: [
+    { id: "power-2018-1-terribad-rakdos-aggro", file: "1-terribad-rakdos-aggro.dck" },
+    { id: "power-2018-1-daniel-duffee-red-deck-wins", file: "1-daniel-duffee-red-deck-wins.dck" },
+    { id: "power-2018-1-gabriel-joglar-uw-control", file: "1-gabriel-joglar-uw-control.dck" },
+    { id: "power-2018-1-pappas-franck-esper-control", file: "1-pappas-franck-esper-control.dck" },
+    { id: "power-2018-1-mun-tian-fa-dimir-midrange", file: "1-mun-tian-fa-dimir-midrange.dck" },
+    { id: "power-2018-1-steve-noga-mono-green-aggro", file: "1-steve-noga-mono-green-aggro.dck" },
+    { id: "power-2018-1-teerawish-kotesiri-orzhov-aggro", file: "1-teerawish-kotesiri-orzhov-aggro.dck" },
+    { id: "power-2018-1-itou-atsushi-mono-blue-reservoir", file: "1-itou-atsushi-mono-blue-reservoir.dck" },
+    { id: "power-2018-1-jeffcunningham-golgari-constrictor", file: "1-jeffcunningham-golgari-constrictor.dck" },
+    { id: "power-2018-1-andrew-tenjum-grixis-control", file: "1-andrew-tenjum-grixis-control.dck" },
+    { id: "power-2018-1-luciencool-mardu-vehicle", file: "1-luciencool-mardu-vehicle.dck" },
+    { id: "power-2018-1-yuuki-ichikawa-god-pharaoh-s-gift-control", file: "1-yuuki-ichikawa-god-pharaoh-s-gift-control.dck" },
+    { id: "power-2018-1-team5c-selesnya-aggro", file: "1-team5c-selesnya-aggro.dck" },
+    { id: "power-2018-1-morgan-mclaughlin-orzhov-vehicles", file: "1-morgan-mclaughlin-orzhov-vehicles.dck" },
+    { id: "power-2018-1-jethro-chanco-mono-black-aggro", file: "1-jethro-chanco-mono-black-aggro.dck" },
+    { id: "power-2018-1-voltzwagon-dinosaurs", file: "1-voltzwagon-dinosaurs.dck" },
+    { id: "power-2018-1-lighdar-wg-tokens", file: "1-lighdar-wg-tokens.dck" },
+    { id: "power-2018-2-aekarash-sorakup-gruul-aggro", file: "2-aekarash-sorakup-gruul-aggro.dck" },
+    { id: "power-2018-2-rithenium-wu", file: "2-rithenium-wu.dck" },
+    { id: "power-2018-2-fabricio-rodrigues-bant-nexus", file: "2-fabricio-rodrigues-bant-nexus.dck" },
+    { id: "power-2018-1-karlo-ledda-grixis", file: "1-karlo-ledda-grixis.dck" },
+    { id: "power-2018-1-tonouchi-keita-orzhov-control", file: "1-tonouchi-keita-orzhov-control.dck" },
+    { id: "power-2018-1-aaron-larson-selesnya-ramp", file: "1-aaron-larson-selesnya-ramp.dck" },
+    { id: "power-2018-1-zac-elski-grixis-improvise", file: "1-zac-elski-grixis-improvise.dck" },
+  ],
+};
+
+/**
+ * The 2019 power summer — `Standard (2019-08-30)`, 2019-08-30 to 2019-10-04,
+ * the last Standard snapshot before that fall’s rotation. 60 legal, distinct
+ * candidate decks (`docs/planning/deck-selection/review/2019.md` has the full
+ * table and the ones dropped as illegal or near-duplicate); 24 chosen. One per
+ * archetype, searched for colour and style spread: W 13, U 13, B 10, R 10,
+ * G 13; aggro 8, midrange 8, control 6, combo 2.
+ */
+export const POWER_SUMMER_2019_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2019',
+  directory: `${DECKS_ROOT}/standard-2019`,
+  event: "2019 power summer \u2014 Standard (2019-08-30), 2019-08-30 \u2192 2019-10-04",
+  format: "Standard (2019-08-30)",
+  date: "2019-08-30",
+  source: 'docs/planning/deck-selection/review/2019.md',
+  decks: [
+    { id: "power-2019-1-carlos-romao-esper-control", file: "1-carlos-romao-esper-control.dck" },
+    { id: "power-2019-1-djbmppwns-bant-aggro", file: "1-djbmppwns-bant-aggro.dck" },
+    { id: "power-2019-1-kobayashi-ryohei-kethis-combo", file: "1-kobayashi-ryohei-kethis-combo.dck" },
+    { id: "power-2019-1-martin-juza-rakdos-aggro", file: "1-martin-juza-rakdos-aggro.dck" },
+    { id: "power-2019-1-kamo-riki-mono-green-aggro", file: "1-kamo-riki-mono-green-aggro.dck" },
+    { id: "power-2019-1-aaron-barich-red-deck-wins", file: "1-aaron-barich-red-deck-wins.dck" },
+    { id: "power-2019-1-rei-sato-golgari-aggro", file: "1-rei-sato-golgari-aggro.dck" },
+    { id: "power-2019-1-shahar-shenhar-gruul-aggro", file: "1-shahar-shenhar-gruul-aggro.dck" },
+    { id: "power-2019-1-adrian-sullivan-jeskai-control", file: "1-adrian-sullivan-jeskai-control.dck" },
+    { id: "power-2019-1-sam-lawrence-nexus-reclamation", file: "1-sam-lawrence-nexus-reclamation.dck" },
+    { id: "power-2019-1-james-lu-bant-scapeshift", file: "1-james-lu-bant-scapeshift.dck" },
+    { id: "power-2019-1-kanyebest-orzhov-aggro", file: "1-kanyebest-orzhov-aggro.dck" },
+    { id: "power-2019-1-brian-braun-duin-esper-precinct-one", file: "1-brian-braun-duin-esper-precinct-one.dck" },
+    { id: "power-2019-1-diogo-martins-grixis-control", file: "1-diogo-martins-grixis-control.dck" },
+    { id: "power-2019-1-janne-mikkonen-simic-nexus", file: "1-janne-mikkonen-simic-nexus.dck" },
+    { id: "power-2019-1-schiaveto-boros-feather", file: "1-schiaveto-boros-feather.dck" },
+    { id: "power-2019-1-alessandro-portaro-esper-midrange", file: "1-alessandro-portaro-esper-midrange.dck" },
+    { id: "power-2019-1-zan-syed-jeskai-pw", file: "1-zan-syed-jeskai-pw.dck" },
+    { id: "power-2019-1-kim-seok-hyun-bant-control", file: "1-kim-seok-hyun-bant-control.dck" },
+    { id: "power-2019-1-jim-davis-command-the-dreadhorde", file: "1-jim-davis-command-the-dreadhorde.dck" },
+    { id: "power-2019-1-jethro-amadeus-chanco-rg-dinos", file: "1-jethro-amadeus-chanco-rg-dinos.dck" },
+    { id: "power-2019-1-edgar-tan-golgari-midrange", file: "1-edgar-tan-golgari-midrange.dck" },
+    { id: "power-2019-1-benjo617-dinojund", file: "1-benjo617-dinojund.dck" },
+    { id: "power-2019-1-tony-boozan-boros-angels", file: "1-tony-boozan-boros-angels.dck" },
+  ],
+};
+
+/**
+ * The 2020 power summer — `Standard (2020-08-03)`, 2020-08-03 to 2020-09-25,
+ * the last Standard snapshot before that fall’s rotation. 46 legal, distinct
+ * candidate decks (`docs/planning/deck-selection/review/2020.md` has the full
+ * table and the ones dropped as illegal or near-duplicate); 24 chosen. One per
+ * archetype, searched for colour and style spread: W 9, U 13, B 10, R 10, G 13;
+ * aggro 10, midrange 7, control 7, combo 0. Aggro dominated this era’s
+ * candidate pool (61% of its decks) and was given extra slots (10 of 24
+ * chosen).
+ */
+export const POWER_SUMMER_2020_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2020',
+  directory: `${DECKS_ROOT}/standard-2020`,
+  event: "2020 power summer \u2014 Standard (2020-08-03), 2020-08-03 \u2192 2020-09-25",
+  format: "Standard (2020-08-03)",
+  date: "2020-08-03",
+  source: 'docs/planning/deck-selection/review/2020.md',
+  decks: [
+    { id: "power-2020-1-ari-lax-sultai-control", file: "1-ari-lax-sultai-control.dck" },
+    { id: "power-2020-1-sergey-tonkikh-adventure", file: "1-sergey-tonkikh-adventure.dck" },
+    { id: "power-2020-1-takumi-yamasaki-temur-yorion-elementals", file: "1-takumi-yamasaki-temur-yorion-elementals.dck" },
+    { id: "power-2020-1-rint-mono-green-aggro", file: "1-rint-mono-green-aggro.dck" },
+    { id: "power-2020-1-paul-woo-red-deck-wins", file: "1-paul-woo-red-deck-wins.dck" },
+    { id: "power-2020-1-hoshi-yuki-weenie-white", file: "1-hoshi-yuki-weenie-white.dck" },
+    { id: "power-2020-1-ryan-fraking-rakdos-aggro", file: "1-ryan-fraking-rakdos-aggro.dck" },
+    { id: "power-2020-1-case-johnson-winota", file: "1-case-johnson-winota.dck" },
+    { id: "power-2020-1-yojiro-futamata-mono-black-aggro", file: "1-yojiro-futamata-mono-black-aggro.dck" },
+    { id: "power-2020-1-sancho-temur-control", file: "1-sancho-temur-control.dck" },
+    { id: "power-2020-1-toni-ramis-pascual-temur-flash-aggro", file: "1-toni-ramis-pascual-temur-flash-aggro.dck" },
+    { id: "power-2020-1-hgrose-sultai-aggro", file: "1-hgrose-sultai-aggro.dck" },
+    { id: "power-2020-1-chris-marshall-ugb", file: "1-chris-marshall-ugb.dck" },
+    { id: "power-2020-1-lukas-dusek-jeskai-control", file: "1-lukas-dusek-jeskai-control.dck" },
+    { id: "power-2020-1-gavin-bennett-gruul-aggro", file: "1-gavin-bennett-gruul-aggro.dck" },
+    { id: "power-2020-1-carson-bell-selesnya-aggro", file: "1-carson-bell-selesnya-aggro.dck" },
+    { id: "power-2020-5-david-besso-orzhov-doom", file: "5-david-besso-orzhov-doom.dck" },
+    { id: "power-2020-3-harodt-loveday-4c-control", file: "3-harodt-loveday-4c-control.dck" },
+    { id: "power-2020-3-yokokawa-yuuta-esper-doom-uro", file: "3-yokokawa-yuuta-esper-doom-uro.dck" },
+    { id: "power-2020-3-brandon-pascal-sultai-flash", file: "3-brandon-pascal-sultai-flash.dck" },
+    { id: "power-2020-2-joshua-claytor-ub-control", file: "2-joshua-claytor-ub-control.dck" },
+    { id: "power-2020-2-theresa-connah-haymond-ww-all-that-glitters", file: "2-theresa-connah-haymond-ww-all-that-glitters.dck" },
+    { id: "power-2020-5-itou-motoaki-esper-control", file: "5-itou-motoaki-esper-control.dck" },
+    { id: "power-2020-8-synergizer-gyruda", file: "8-synergizer-gyruda.dck" },
+  ],
+};
+
+/**
+ * The 2021 power summer — `Standard (AFR)`, 2021-07-23 to 2021-09-24, the last
+ * Standard snapshot before that fall’s rotation. 49 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2021.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 13, B 11, R 11, G 13; aggro 8,
+ * midrange 7, control 9, combo 0.
+ */
+export const POWER_SUMMER_2021_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2021',
+  directory: `${DECKS_ROOT}/standard-2021`,
+  event: "2021 power summer \u2014 Standard (AFR), 2021-07-23 \u2192 2021-09-24",
+  format: "Standard (AFR)",
+  date: "2021-07-23",
+  source: 'docs/planning/deck-selection/review/2021.md',
+  decks: [
+    { id: "power-2021-1-alexander-rosdahl-sultai-yorion-ultimatum", file: "1-alexander-rosdahl-sultai-yorion-ultimatum.dck" },
+    { id: "power-2021-1-arne-huschenbeth-gruul-aggro", file: "1-arne-huschenbeth-gruul-aggro.dck" },
+    { id: "power-2021-1-sam-pardee-naya-aggro", file: "1-sam-pardee-naya-aggro.dck" },
+    { id: "power-2021-1-noriyuki-mori-izzet-control", file: "1-noriyuki-mori-izzet-control.dck" },
+    { id: "power-2021-1-keisuke-sato-winota", file: "1-keisuke-sato-winota.dck" },
+    { id: "power-2021-1-john-alexander-rakdos-aggro", file: "1-john-alexander-rakdos-aggro.dck" },
+    { id: "power-2021-1-rumti-mono-green-aggro", file: "1-rumti-mono-green-aggro.dck" },
+    { id: "power-2021-1-alexander-hayne-red-deck-wins", file: "1-alexander-hayne-red-deck-wins.dck" },
+    { id: "power-2021-1-louis-samuel-deltour-dimir-mill", file: "1-louis-samuel-deltour-dimir-mill.dck" },
+    { id: "power-2021-1-luca-magni-temur-lukka", file: "1-luca-magni-temur-lukka.dck" },
+    { id: "power-2021-1-eli-loveman-weenie-white", file: "1-eli-loveman-weenie-white.dck" },
+    { id: "power-2021-1-corey-burkhart-jeskai-cycling-aggro", file: "1-corey-burkhart-jeskai-cycling-aggro.dck" },
+    { id: "power-2021-1-matthieu-avignon-jeskai-mutate", file: "1-matthieu-avignon-jeskai-mutate.dck" },
+    { id: "power-2021-1-shintaro-ishimura-dimir-control", file: "1-shintaro-ishimura-dimir-control.dck" },
+    { id: "power-2021-1-kenta-harane-sultai-control", file: "1-kenta-harane-sultai-control.dck" },
+    { id: "power-2021-1-shintaro-ishimura-4c-yorion", file: "1-shintaro-ishimura-4c-yorion.dck" },
+    { id: "power-2021-1-kotaro-senba-simic-aggro", file: "1-kotaro-senba-simic-aggro.dck" },
+    { id: "power-2021-1-shintaro-ishimura-gyruda", file: "1-shintaro-ishimura-gyruda.dck" },
+    { id: "power-2021-1-christoph-kremer-abzan-yorion", file: "1-christoph-kremer-abzan-yorion.dck" },
+    { id: "power-2021-1-yamakawa-tomohiro-grixis-control", file: "1-yamakawa-tomohiro-grixis-control.dck" },
+    { id: "power-2021-1-masui-shuryuu-abzan-yorion-midrange", file: "1-masui-shuryuu-abzan-yorion-midrange.dck" },
+    { id: "power-2021-1-matsui-hiromichi-mono-blue-control", file: "1-matsui-hiromichi-mono-blue-control.dck" },
+    { id: "power-2021-3-gabriel-silva-temur-ramp-ultimatum", file: "3-gabriel-silva-temur-ramp-ultimatum.dck" },
+    { id: "power-2021-5-mystmin-orzhov-control", file: "5-mystmin-orzhov-control.dck" },
+  ],
+};
+
+/**
+ * The 2022 power summer — `Standard (SNC)`, 2022-04-29 to 2022-09-09, the last
+ * Standard snapshot before that fall’s rotation. 56 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2022.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 13, U 11, B 11, R 11, G 9; aggro 9,
+ * midrange 7, control 7, combo 1.
+ */
+export const POWER_SUMMER_2022_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2022',
+  directory: `${DECKS_ROOT}/standard-2022`,
+  event: "2022 power summer \u2014 Standard (SNC), 2022-04-29 \u2192 2022-09-09",
+  format: "Standard (SNC)",
+  date: "2022-04-29",
+  source: 'docs/planning/deck-selection/review/2022.md',
+  decks: [
+    { id: "power-2022-1-sayama-tatsunosuke-jeskai-hinata", file: "1-sayama-tatsunosuke-jeskai-hinata.dck" },
+    { id: "power-2022-1-miko-aj-drzewiecki-esper-aggro", file: "1-miko-aj-drzewiecki-esper-aggro.dck" },
+    { id: "power-2022-1-kamezaki-sho-orzhov-aggro", file: "1-kamezaki-sho-orzhov-aggro.dck" },
+    { id: "power-2022-1-helio-sampaio-weenie-white", file: "1-helio-sampaio-weenie-white.dck" },
+    { id: "power-2022-1-cftsoc-jeskai-control", file: "1-cftsoc-jeskai-control.dck" },
+    { id: "power-2022-1-hiroaki-taniguchi-temur-aggro", file: "1-hiroaki-taniguchi-temur-aggro.dck" },
+    { id: "power-2022-1-jacopo-di-napoli-esper-control", file: "1-jacopo-di-napoli-esper-control.dck" },
+    { id: "power-2022-1-paskardi-gruul-aggro", file: "1-paskardi-gruul-aggro.dck" },
+    { id: "power-2022-1-lukas-dusek-uw-control", file: "1-lukas-dusek-uw-control.dck" },
+    { id: "power-2022-1-sandoiche-jund", file: "1-sandoiche-jund.dck" },
+    { id: "power-2022-1-shunki-saito-naya-runes-aggro", file: "1-shunki-saito-naya-runes-aggro.dck" },
+    { id: "power-2022-1-julian-dominguez-boros-aggro", file: "1-julian-dominguez-boros-aggro.dck" },
+    { id: "power-2022-1-sergey-sypachev-esper-raffine", file: "1-sergey-sypachev-esper-raffine.dck" },
+    { id: "power-2022-1-levunga21-rakdos-aggro", file: "1-levunga21-rakdos-aggro.dck" },
+    { id: "power-2022-1-miyazaki-yuichi-azorius-aggro", file: "1-miyazaki-yuichi-azorius-aggro.dck" },
+    { id: "power-2022-1-lilium-temur-control", file: "1-lilium-temur-control.dck" },
+    { id: "power-2022-1-kawabata-yuji-grixis-midrange", file: "1-kawabata-yuji-grixis-midrange.dck" },
+    { id: "power-2022-1-yasuno-naoto-orzhov-control", file: "1-yasuno-naoto-orzhov-control.dck" },
+    { id: "power-2022-1-nishimura-hiroshi-mono-black-control", file: "1-nishimura-hiroshi-mono-black-control.dck" },
+    { id: "power-2022-1-yoshida-yutaro-golgari-control", file: "1-yoshida-yutaro-golgari-control.dck" },
+    { id: "power-2022-1-danny-mullinax-selesnya-midrange", file: "1-danny-mullinax-selesnya-midrange.dck" },
+    { id: "power-2022-1-minami-ryota-sultai-legends-midrange", file: "1-minami-ryota-sultai-legends-midrange.dck" },
+    { id: "power-2022-2-guardianthesecond-azorius-midrange", file: "2-guardianthesecond-azorius-midrange.dck" },
+    { id: "power-2022-unranked-kevin-mittertreiner-reanimator", file: "unranked-kevin-mittertreiner-reanimator.dck" },
+  ],
+};
+
+/**
+ * The 2023 power summer — `Standard (2023-05-29)`, 2023-05-29 to 2023-09-08,
+ * the format in force on August 1st — WotC’s three-year rotation dropped no set
+ * that autumn. 39 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/2023.md` has the full table and the
+ * ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 12, U 11, B 11, R 8, G 8; aggro 10,
+ * midrange 7, control 7, combo 0. Aggro dominated this era’s candidate pool
+ * (51% of its decks) and was given extra slots (10 of 24 chosen).
+ */
+export const POWER_SUMMER_2023_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2023',
+  directory: `${DECKS_ROOT}/standard-2023`,
+  event: "2023 power summer \u2014 Standard (2023-05-29), 2023-05-29 \u2192 2023-09-08",
+  format: "Standard (2023-05-29)",
+  date: "2023-05-29",
+  source: 'docs/planning/deck-selection/review/2023.md',
+  decks: [
+    { id: "power-2023-1-prophetoffire-esper-raffine", file: "1-prophetoffire-esper-raffine.dck" },
+    { id: "power-2023-1-satou-rei-selesnya-aggro", file: "1-satou-rei-selesnya-aggro.dck" },
+    { id: "power-2023-1-fujimoto-tomoya-red-deck-wins", file: "1-fujimoto-tomoya-red-deck-wins.dck" },
+    { id: "power-2023-1-thaism-azorius-soldier", file: "1-thaism-azorius-soldier.dck" },
+    { id: "power-2023-1-harada-shougo-4-5c-control", file: "1-harada-shougo-4-5c-control.dck" },
+    { id: "power-2023-1-kobayashi-hiroyuki-dimir-aggro", file: "1-kobayashi-hiroyuki-dimir-aggro.dck" },
+    { id: "power-2023-1-asakawa-tama-esper-control", file: "1-asakawa-tama-esper-control.dck" },
+    { id: "power-2023-1-joaohnp-78481-orzhov-control", file: "1-joaohnp-78481-orzhov-control.dck" },
+    { id: "power-2023-1-simon-arboleda-escobar-jeskai-control", file: "1-simon-arboleda-escobar-jeskai-control.dck" },
+    { id: "power-2023-1-suzuki-yasuo-weenie-white", file: "1-suzuki-yasuo-weenie-white.dck" },
+    { id: "power-2023-1-mogged-izzet-control", file: "1-mogged-izzet-control.dck" },
+    { id: "power-2023-1-mtgholic-rakdos-midrange", file: "1-mtgholic-rakdos-midrange.dck" },
+    { id: "power-2023-1-guiyote-bant-aggro", file: "1-guiyote-bant-aggro.dck" },
+    { id: "power-2023-1-johnsnow-mono-blue-tempo", file: "1-johnsnow-mono-blue-tempo.dck" },
+    { id: "power-2023-1-kayla-davison-simic-aggro", file: "1-kayla-davison-simic-aggro.dck" },
+    { id: "power-2023-1-milikin-angels", file: "1-milikin-angels.dck" },
+    { id: "power-2023-2-darth-xero-mardu-control", file: "2-darth-xero-mardu-control.dck" },
+    { id: "power-2023-3-karatedom-golgari-aggro", file: "3-karatedom-golgari-aggro.dck" },
+    { id: "power-2023-3-max-itso-martins-explosive-singularity", file: "3-max-itso-martins-explosive-singularity.dck" },
+    { id: "power-2023-4-rex-iudex-5cc", file: "4-rex-iudex-5cc.dck" },
+    { id: "power-2023-4-rex-iudex-mono-white-atraxa", file: "4-rex-iudex-mono-white-atraxa.dck" },
+    { id: "power-2023-4-arianne-grixis-aggro", file: "4-arianne-grixis-aggro.dck" },
+    { id: "power-2023-5-scott-spurlock-jund-aggro", file: "5-scott-spurlock-jund-aggro.dck" },
+    { id: "power-2023-14-rex-iudex-golgari-control", file: "14-rex-iudex-golgari-control.dck" },
+  ],
+};
+
+/**
+ * The 2024 power summer — `Standard (OTJ)`, 2024-04-19 to 2024-08-02, the last
+ * Standard snapshot before that fall’s rotation. 58 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/2024.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 11, U 12, B 13, R 9, G 10; aggro 10,
+ * midrange 6, control 7, combo 1. Aggro dominated this era’s candidate pool
+ * (47% of its decks) and was given extra slots (10 of 24 chosen).
+ */
+export const POWER_SUMMER_2024_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2024',
+  directory: `${DECKS_ROOT}/standard-2024`,
+  event: "2024 power summer \u2014 Standard (OTJ), 2024-04-19 \u2192 2024-08-02",
+  format: "Standard (OTJ)",
+  date: "2024-04-19",
+  source: 'docs/planning/deck-selection/review/2024.md',
+  decks: [
+    { id: "power-2024-1-kenta-harane-esper-raffine", file: "1-kenta-harane-esper-raffine.dck" },
+    { id: "power-2024-1-takanori-watanabe-boros-convoke", file: "1-takanori-watanabe-boros-convoke.dck" },
+    { id: "power-2024-1-ken-min-yeoh-s-team-uw-control", file: "1-ken-min-yeoh-s-team-uw-control.dck" },
+    { id: "power-2024-1-isogaya-leo-dimir-aggro", file: "1-isogaya-leo-dimir-aggro.dck" },
+    { id: "power-2024-1-richie-ong-golgari-aggro", file: "1-richie-ong-golgari-aggro.dck" },
+    { id: "power-2024-1-pedro-perrini-red-deck-wins", file: "1-pedro-perrini-red-deck-wins.dck" },
+    { id: "power-2024-1-mason-buonadonna-4c-legends-aggro", file: "1-mason-buonadonna-4c-legends-aggro.dck" },
+    { id: "power-2024-1-adam-weiss-gruul-aggro", file: "1-adam-weiss-gruul-aggro.dck" },
+    { id: "power-2024-1-jonathan-shortall-temur-control", file: "1-jonathan-shortall-temur-control.dck" },
+    { id: "power-2024-1-roter-erzengel-4-5c-control", file: "1-roter-erzengel-4-5c-control.dck" },
+    { id: "power-2024-1-fermtg-orzhov-aggro", file: "1-fermtg-orzhov-aggro.dck" },
+    { id: "power-2024-1-hannuki-yuya-rakdos-aggro", file: "1-hannuki-yuya-rakdos-aggro.dck" },
+    { id: "power-2024-1-billsive-esper-control", file: "1-billsive-esper-control.dck" },
+    { id: "power-2024-1-uri-roberto-domain", file: "1-uri-roberto-domain.dck" },
+    { id: "power-2024-1-ashley-munoz-preyeses-zoetic-simic", file: "1-ashley-munoz-preyeses-zoetic-simic.dck" },
+    { id: "power-2024-1-sasaki-shimon-jund-control", file: "1-sasaki-shimon-jund-control.dck" },
+    { id: "power-2024-1-phoenix-flame-orzhov-aggro", file: "1-phoenix-flame-orzhov-aggro.dck" },
+    { id: "power-2024-2-marco-cammilluzzi-dimir-control", file: "2-marco-cammilluzzi-dimir-control.dck" },
+    { id: "power-2024-1-utsunomiya-takumi-splendid-reclamation", file: "1-utsunomiya-takumi-splendid-reclamation.dck" },
+    { id: "power-2024-1-sakai-riki-jeskai-control", file: "1-sakai-riki-jeskai-control.dck" },
+    { id: "power-2024-5-yun-suhan-azorius-tempo", file: "5-yun-suhan-azorius-tempo.dck" },
+    { id: "power-2024-3-mohamed-binshams-rakdos", file: "3-mohamed-binshams-rakdos.dck" },
+    { id: "power-2024-2-xfile-5cc", file: "2-xfile-5cc.dck" },
+    { id: "power-2024-5-ryan-normandin-reanimator-rakdos-joins-up", file: "5-ryan-normandin-reanimator-rakdos-joins-up.dck" },
+  ],
+};
+
+/**
+ * The 2025 power summer — `Standard (2025-06-30)`, 2025-06-30 to 2025-08-01,
+ * the last Standard snapshot before that fall’s rotation. 49 legal, distinct
+ * candidate decks (`docs/planning/deck-selection/review/2025.md` has the full
+ * table and the ones dropped as illegal or near-duplicate); 24 chosen. One per
+ * archetype, searched for colour and style spread: W 13, U 9, B 13, R 10, G 10;
+ * aggro 10, midrange 6, control 7, combo 1. Aggro dominated this era’s
+ * candidate pool (59% of its decks) and was given extra slots (10 of 24
+ * chosen).
+ */
+export const POWER_SUMMER_2025_STANDARD: LibraryCollection = {
+  family: 'standard',
+  id: 'power-summer-2025',
+  directory: `${DECKS_ROOT}/standard-2025`,
+  event: "2025 power summer \u2014 Standard (2025-06-30), 2025-06-30 \u2192 2025-08-01",
+  format: "Standard (2025-06-30)",
+  date: "2025-06-30",
+  source: 'docs/planning/deck-selection/review/2025.md',
+  decks: [
+    { id: "power-2025-1-patxi-dimir-aggro", file: "1-patxi-dimir-aggro.dck" },
+    { id: "power-2025-1-peter780108-uw-control", file: "1-peter780108-uw-control.dck" },
+    { id: "power-2025-1-univerce-ur-soul-cauldron", file: "1-univerce-ur-soul-cauldron.dck" },
+    { id: "power-2025-1-lucasg1ggs-golgari-aggro", file: "1-lucasg1ggs-golgari-aggro.dck" },
+    { id: "power-2025-1-gazmon48-mono-white-control", file: "1-gazmon48-mono-white-control.dck" },
+    { id: "power-2025-1-atmagic-mono-green-aggro", file: "1-atmagic-mono-green-aggro.dck" },
+    { id: "power-2025-1-nakano-akinori-mono-black-aggro", file: "1-nakano-akinori-mono-black-aggro.dck" },
+    { id: "power-2025-1-lucasg1ggs-boros-convoke", file: "1-lucasg1ggs-boros-convoke.dck" },
+    { id: "power-2025-1-soulstrong-golgari-roots", file: "1-soulstrong-golgari-roots.dck" },
+    { id: "power-2025-1-hifumin777-naya-aggro", file: "1-hifumin777-naya-aggro.dck" },
+    { id: "power-2025-1-broeking-jeskai-eidetic-memory", file: "1-broeking-jeskai-eidetic-memory.dck" },
+    { id: "power-2025-1-kai-nankoe-jeskai-control", file: "1-kai-nankoe-jeskai-control.dck" },
+    { id: "power-2025-1-dr4ken-orzhov-midrange", file: "1-dr4ken-orzhov-midrange.dck" },
+    { id: "power-2025-1-watadori-donnosuke-rakdos-aggro", file: "1-watadori-donnosuke-rakdos-aggro.dck" },
+    { id: "power-2025-1-nikhilesh-mahendra-dimir-control", file: "1-nikhilesh-mahendra-dimir-control.dck" },
+    { id: "power-2025-1-cown-selesnya-cage", file: "1-cown-selesnya-cage.dck" },
+    { id: "power-2025-2-igor-karavayev-uw-artifacts", file: "2-igor-karavayev-uw-artifacts.dck" },
+    { id: "power-2025-2-jesus-ramos-mardu-control", file: "2-jesus-ramos-mardu-control.dck" },
+    { id: "power-2025-5-fukusuke-squirming-emergence", file: "5-fukusuke-squirming-emergence.dck" },
+    { id: "power-2025-5-bcs8995-talented-otters", file: "5-bcs8995-talented-otters.dck" },
+    { id: "power-2025-5-yusuke-kanazawa-abzan-control", file: "5-yusuke-kanazawa-abzan-control.dck" },
+    { id: "power-2025-5-dmytro-konchakov-naya-yuna", file: "5-dmytro-konchakov-naya-yuna.dck" },
+    { id: "power-2025-5-davimorais-4-5c-zur-control", file: "5-davimorais-4-5c-zur-control.dck" },
+    { id: "power-2025-9-mavin-liu-reanimator", file: "9-mavin-liu-reanimator.dck" },
+  ],
+};
+
 /*
  * Modern 2012-2016 (wave 48 §M) — Modern does not rotate, so each year's era
  * is pinned to that year's Standard era's own dates (Settled): the snapshot
@@ -1245,6 +1648,402 @@ export const POWER_SUMMER_2016_MODERN: LibraryCollection = {
     { id: "power-modern-2016-1-saito-takaya-esper-midrange", file: "1-saito-takaya-esper-midrange.dck" },
     { id: "power-modern-2016-1-taylor-grant-b-g-elves", file: "1-taylor-grant-b-g-elves.dck" },
     { id: "power-modern-2016-1-avignon-uw-control", file: "1-avignon-uw-control.dck" },
+  ],
+};
+
+/**
+ * The 2017 Modern power summer — `Modern (HOU)`, 2017-07-14 to 2017-09-29,
+ * pinned to Standard 2017’s own dates. 73 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2017.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 10, B 10, R 12, G 13; aggro 8,
+ * midrange 7, control 5, combo 4.
+ */
+export const POWER_SUMMER_2017_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2017',
+  directory: `${DECKS_ROOT}/modern-2017`,
+  event: "2017 Modern power summer \u2014 Modern (HOU), 2017-07-14 \u2192 2017-09-29",
+  format: "Modern (HOU)",
+  date: "2017-07-14",
+  source: 'docs/planning/deck-selection/review/modern-2017.md',
+  decks: [
+    { id: "power-modern-2017-1-jonas-nieke-affinity", file: "1-jonas-nieke-affinity.dck" },
+    { id: "power-modern-2017-1-wordy333-dredge", file: "1-wordy333-dredge.dck" },
+    { id: "power-modern-2017-1-dan-benipoyo-valakut", file: "1-dan-benipoyo-valakut.dck" },
+    { id: "power-modern-2017-1-zturchan-junk", file: "1-zturchan-junk.dck" },
+    { id: "power-modern-2017-1-dan-musser-eldra-tron", file: "1-dan-musser-eldra-tron.dck" },
+    { id: "power-modern-2017-1-kazu-negri-ur-storm", file: "1-kazu-negri-ur-storm.dck" },
+    { id: "power-modern-2017-1-anders-thiesen-titanshift", file: "1-anders-thiesen-titanshift.dck" },
+    { id: "power-modern-2017-1-harlan-firer-uwr-midrange", file: "1-harlan-firer-uwr-midrange.dck" },
+    { id: "power-modern-2017-1-brad-nelson-death-s-shadow", file: "1-brad-nelson-death-s-shadow.dck" },
+    { id: "power-modern-2017-1-jonathan-sekenik-uw-control", file: "1-jonathan-sekenik-uw-control.dck" },
+    { id: "power-modern-2017-1-brian-coval-hatebear", file: "1-brian-coval-hatebear.dck" },
+    { id: "power-modern-2017-1-nicholas-byrd-ad-nauseam", file: "1-nicholas-byrd-ad-nauseam.dck" },
+    { id: "power-modern-2017-1-kei-rong-death-s-shadow-aggro", file: "1-kei-rong-death-s-shadow-aggro.dck" },
+    { id: "power-modern-2017-1-caleb-durward-collected-spirits", file: "1-caleb-durward-collected-spirits.dck" },
+    { id: "power-modern-2017-1-michele-zino-jund", file: "1-michele-zino-jund.dck" },
+    { id: "power-modern-2017-1-wilson-nunes-living-end", file: "1-wilson-nunes-living-end.dck" },
+    { id: "power-modern-2017-1-kanister-lantern-control", file: "1-kanister-lantern-control.dck" },
+    { id: "power-modern-2017-1-jeffhoogland-urzatron", file: "1-jeffhoogland-urzatron.dck" },
+    { id: "power-modern-2017-1-rsanchez-collected-bant", file: "1-rsanchez-collected-bant.dck" },
+    { id: "power-modern-2017-1-timothy-thomason-bant-knightfall", file: "1-timothy-thomason-bant-knightfall.dck" },
+    { id: "power-modern-2017-1-yoshumotto-rakdos-control", file: "1-yoshumotto-rakdos-control.dck" },
+    { id: "power-modern-2017-1-foo-pee-chun-azusa-amulet", file: "1-foo-pee-chun-azusa-amulet.dck" },
+    { id: "power-modern-2017-1-ben-feingersh-bant-humans", file: "1-ben-feingersh-bant-humans.dck" },
+    { id: "power-modern-2017-1-ryan-powell-esper-control", file: "1-ryan-powell-esper-control.dck" },
+  ],
+};
+
+/**
+ * The 2018 Modern power summer — `Modern (M19)`, 2018-07-13 to 2018-10-05,
+ * pinned to Standard 2018’s own dates. 59 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2018.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 10, B 9, R 12, G 11; aggro 8,
+ * midrange 7, control 5, combo 4.
+ */
+export const POWER_SUMMER_2018_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2018',
+  directory: `${DECKS_ROOT}/modern-2018`,
+  event: "2018 Modern power summer \u2014 Modern (M19), 2018-07-13 \u2192 2018-10-05",
+  format: "Modern (M19)",
+  date: "2018-07-13",
+  source: 'docs/planning/deck-selection/review/modern-2018.md',
+  decks: [
+    { id: "power-modern-2018-1-william-courson-humans", file: "1-william-courson-humans.dck" },
+    { id: "power-modern-2018-1-michael-olson-jund", file: "1-michael-olson-jund.dck" },
+    { id: "power-modern-2018-1-joseph-terino-burn", file: "1-joseph-terino-burn.dck" },
+    { id: "power-modern-2018-1-joey9fingas-hollow-one", file: "1-joey9fingas-hollow-one.dck" },
+    { id: "power-modern-2018-1-andrew-lopez-jeskai-control", file: "1-andrew-lopez-jeskai-control.dck" },
+    { id: "power-modern-2018-1-antonio-perez-urzatron", file: "1-antonio-perez-urzatron.dck" },
+    { id: "power-modern-2018-1-thomas-mechin-uw-control", file: "1-thomas-mechin-uw-control.dck" },
+    { id: "power-modern-2018-1-benjamin-lao-living-end", file: "1-benjamin-lao-living-end.dck" },
+    { id: "power-modern-2018-1-john-tatian-infect", file: "1-john-tatian-infect.dck" },
+    { id: "power-modern-2018-1-ondrej-strasky-bant-spirits", file: "1-ondrej-strasky-bant-spirits.dck" },
+    { id: "power-modern-2018-1-lauri-pispa-hardened-modular", file: "1-lauri-pispa-hardened-modular.dck" },
+    { id: "power-modern-2018-1-takaya-shouichi-selesnya-value", file: "1-takaya-shouichi-selesnya-value.dck" },
+    { id: "power-modern-2018-1-david-peretti-ur-breach", file: "1-david-peretti-ur-breach.dck" },
+    { id: "power-modern-2018-1-gobo2009-martyr-life", file: "1-gobo2009-martyr-life.dck" },
+    { id: "power-modern-2018-1-bryan-haak-g-w-hexproof", file: "1-bryan-haak-g-w-hexproof.dck" },
+    { id: "power-modern-2018-1-jose-echeverria-mardu-pyromancer", file: "1-jose-echeverria-mardu-pyromancer.dck" },
+    { id: "power-modern-2018-1-matti-kuisma-dredge", file: "1-matti-kuisma-dredge.dck" },
+    { id: "power-modern-2018-1-matt-hoey-ur-storm", file: "1-matt-hoey-ur-storm.dck" },
+    { id: "power-modern-2018-1-adrian-malushaj-ad-nauseam", file: "1-adrian-malushaj-ad-nauseam.dck" },
+    { id: "power-modern-2018-1-david-peretti-gruul-land-loss", file: "1-david-peretti-gruul-land-loss.dck" },
+    { id: "power-modern-2018-1-vincenzo-balistreri-gr-eldrazi", file: "1-vincenzo-balistreri-gr-eldrazi.dck" },
+    { id: "power-modern-2018-1-nicklas-krull-gift-control", file: "1-nicklas-krull-gift-control.dck" },
+    { id: "power-modern-2018-1-ladislav-lezna-junk", file: "1-ladislav-lezna-junk.dck" },
+    { id: "power-modern-2018-1-tony-decaro-8-rack", file: "1-tony-decaro-8-rack.dck" },
+  ],
+};
+
+/**
+ * The 2019 Modern power summer — `Modern (2019-08-30)`, 2019-08-30 to
+ * 2019-10-04, pinned to Standard 2019’s own dates. 53 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/modern-2019.md` has the full
+ * table and the ones dropped as illegal or near-duplicate); 24 chosen. One per
+ * archetype, searched for colour and style spread: W 11, U 12, B 8, R 11, G 9;
+ * aggro 8, midrange 7, control 5, combo 4.
+ */
+export const POWER_SUMMER_2019_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2019',
+  directory: `${DECKS_ROOT}/modern-2019`,
+  event: "2019 Modern power summer \u2014 Modern (2019-08-30), 2019-08-30 \u2192 2019-10-04",
+  format: "Modern (2019-08-30)",
+  date: "2019-08-30",
+  source: 'docs/planning/deck-selection/review/modern-2019.md',
+  decks: [
+    { id: "power-modern-2019-1-jan-stadler-dredge", file: "1-jan-stadler-dredge.dck" },
+    { id: "power-modern-2019-1-lev-ducenko-humans", file: "1-lev-ducenko-humans.dck" },
+    { id: "power-modern-2019-1-kevin-brown-burn", file: "1-kevin-brown-burn.dck" },
+    { id: "power-modern-2019-1-asnook-jund", file: "1-asnook-jund.dck" },
+    { id: "power-modern-2019-1-anderson-leclair-urzatron", file: "1-anderson-leclair-urzatron.dck" },
+    { id: "power-modern-2019-1-sean-belisle-urza", file: "1-sean-belisle-urza.dck" },
+    { id: "power-modern-2019-1-volollo-death-s-shadow", file: "1-volollo-death-s-shadow.dck" },
+    { id: "power-modern-2019-1-jakedurshimer-valakut", file: "1-jakedurshimer-valakut.dck" },
+    { id: "power-modern-2019-1-joseph-karani-jeskai-stoneblade", file: "1-joseph-karani-jeskai-stoneblade.dck" },
+    { id: "power-modern-2019-1-lennny-uw-control", file: "1-lennny-uw-control.dck" },
+    { id: "power-modern-2019-1-andyscwilson-amulet-titan", file: "1-andyscwilson-amulet-titan.dck" },
+    { id: "power-modern-2019-1-zachattack23-eldra-tron", file: "1-zachattack23-eldra-tron.dck" },
+    { id: "power-modern-2019-1-theau-mery-hardened-scales", file: "1-theau-mery-hardened-scales.dck" },
+    { id: "power-modern-2019-1-gregoris-soriente-ur-storm", file: "1-gregoris-soriente-ur-storm.dck" },
+    { id: "power-modern-2019-1-yamaguchi-koutarou-martyr-life", file: "1-yamaguchi-koutarou-martyr-life.dck" },
+    { id: "power-modern-2019-1-diego-moscoso-boggle", file: "1-diego-moscoso-boggle.dck" },
+    { id: "power-modern-2019-1-ishizuki-takuya-ur-delver", file: "1-ishizuki-takuya-ur-delver.dck" },
+    { id: "power-modern-2019-1-alexandre-pereira-devoted-druid-combo", file: "1-alexandre-pereira-devoted-druid-combo.dck" },
+    { id: "power-modern-2019-1-satou-yusuke-eldritch-toolbox", file: "1-satou-yusuke-eldritch-toolbox.dck" },
+    { id: "power-modern-2019-1-brian-garia-niv", file: "1-brian-garia-niv.dck" },
+    { id: "power-modern-2019-1-djohar-gamboa-ad-nauseam", file: "1-djohar-gamboa-ad-nauseam.dck" },
+    { id: "power-modern-2019-1-hasegawa-shunya-faeries", file: "1-hasegawa-shunya-faeries.dck" },
+    { id: "power-modern-2019-1-bert-tong-ub-mill", file: "1-bert-tong-ub-mill.dck" },
+    { id: "power-modern-2019-1-nick-pelowski-zur-s-weirding", file: "1-nick-pelowski-zur-s-weirding.dck" },
+  ],
+};
+
+/**
+ * The 2020 Modern power summer — `Modern (2020-07-13)`, 2020-08-03 to
+ * 2020-09-25, pinned to Standard 2020’s own dates. 54 legal, distinct candidate
+ * decks (`docs/planning/deck-selection/review/modern-2020.md` has the full
+ * table and the ones dropped as illegal or near-duplicate); 24 chosen. One per
+ * archetype, searched for colour and style spread: W 8, U 12, B 8, R 11, G 11;
+ * aggro 8, midrange 6, control 5, combo 5.
+ */
+export const POWER_SUMMER_2020_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2020',
+  directory: `${DECKS_ROOT}/modern-2020`,
+  event: "2020 Modern power summer \u2014 Modern (2020-07-13), 2020-08-03 \u2192 2020-09-25",
+  format: "Modern (2020-07-13)",
+  date: "2020-08-03",
+  source: 'docs/planning/deck-selection/review/modern-2020.md',
+  decks: [
+    { id: "power-modern-2020-1-lavaridge-temur-reclamation", file: "1-lavaridge-temur-reclamation.dck" },
+    { id: "power-modern-2020-1-pootisgodsamongus-red-deck-wins", file: "1-pootisgodsamongus-red-deck-wins.dck" },
+    { id: "power-modern-2020-1-bedell-amulet-titan", file: "1-bedell-amulet-titan.dck" },
+    { id: "power-modern-2020-1-thetunnelingcat-eldra-tron", file: "1-thetunnelingcat-eldra-tron.dck" },
+    { id: "power-modern-2020-1-coert-burn", file: "1-coert-burn.dck" },
+    { id: "power-modern-2020-1-mercenario-dredge", file: "1-mercenario-dredge.dck" },
+    { id: "power-modern-2020-1-joshicallsmefabo-humans", file: "1-joshicallsmefabo-humans.dck" },
+    { id: "power-modern-2020-1-sharkcaster-mage-valakut", file: "1-sharkcaster-mage-valakut.dck" },
+    { id: "power-modern-2020-1-ryan-donkin-ad-nauseam", file: "1-ryan-donkin-ad-nauseam.dck" },
+    { id: "power-modern-2020-1-zonast-grixis-delver", file: "1-zonast-grixis-delver.dck" },
+    { id: "power-modern-2020-1-arnaud-hocquemiller-w-u-stoneblade", file: "1-arnaud-hocquemiller-w-u-stoneblade.dck" },
+    { id: "power-modern-2020-1-morita-masayuki-urzatron", file: "1-morita-masayuki-urzatron.dck" },
+    { id: "power-modern-2020-1-albert62-jund", file: "1-albert62-jund.dck" },
+    { id: "power-modern-2020-1-gigy-gruul-utopia", file: "1-gigy-gruul-utopia.dck" },
+    { id: "power-modern-2020-1-immanuelkantrolgod-bant-control", file: "1-immanuelkantrolgod-bant-control.dck" },
+    { id: "power-modern-2020-1-gerschi-rakdos-aggro", file: "1-gerschi-rakdos-aggro.dck" },
+    { id: "power-modern-2020-1-pat-sultai-ninjas", file: "1-pat-sultai-ninjas.dck" },
+    { id: "power-modern-2020-1-hugo87-ur-storm", file: "1-hugo87-ur-storm.dck" },
+    { id: "power-modern-2020-1-headshot93-aura-hexproof", file: "1-headshot93-aura-hexproof.dck" },
+    { id: "power-modern-2020-1-xfile-the-rock", file: "1-xfile-the-rock.dck" },
+    { id: "power-modern-2020-1-shadow-pt-uw-control", file: "1-shadow-pt-uw-control.dck" },
+    { id: "power-modern-2020-1-andy-michaud-twiddle-storm", file: "1-andy-michaud-twiddle-storm.dck" },
+    { id: "power-modern-2020-1-sultai4lyfe-ub-control", file: "1-sultai4lyfe-ub-control.dck" },
+    { id: "power-modern-2020-2-jack-cummins-allosaurus-combo", file: "2-jack-cummins-allosaurus-combo.dck" },
+  ],
+};
+
+/**
+ * The 2021 Modern power summer — `Modern (AFR)`, 2021-07-23 to 2021-09-24,
+ * pinned to Standard 2021’s own dates. 70 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2021.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 13, B 9, R 12, G 11; aggro 9,
+ * midrange 6, control 5, combo 4.
+ */
+export const POWER_SUMMER_2021_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2021',
+  directory: `${DECKS_ROOT}/modern-2021`,
+  event: "2021 Modern power summer \u2014 Modern (AFR), 2021-07-23 \u2192 2021-09-24",
+  format: "Modern (AFR)",
+  date: "2021-07-23",
+  source: 'docs/planning/deck-selection/review/modern-2021.md',
+  decks: [
+    { id: "power-modern-2021-1-oscar-franco-living-end", file: "1-oscar-franco-living-end.dck" },
+    { id: "power-modern-2021-1-micha-a-smo-ko-ur-murktide", file: "1-micha-a-smo-ko-ur-murktide.dck" },
+    { id: "power-modern-2021-1-martin-eric-gauthier-heliod-life", file: "1-martin-eric-gauthier-heliod-life.dck" },
+    { id: "power-modern-2021-1-sicsmoo-urzatron", file: "1-sicsmoo-urzatron.dck" },
+    { id: "power-modern-2021-1-kazuya-takuwa-red-deck-wins", file: "1-kazuya-takuwa-red-deck-wins.dck" },
+    { id: "power-modern-2021-1-yuuki-ichikawa-crashing-footfalls", file: "1-yuuki-ichikawa-crashing-footfalls.dck" },
+    { id: "power-modern-2021-1-andrea-marra-grixis-food", file: "1-andrea-marra-grixis-food.dck" },
+    { id: "power-modern-2021-1-friskifraska-orzhov-ephemerate", file: "1-friskifraska-orzhov-ephemerate.dck" },
+    { id: "power-modern-2021-1-dreamsofashiok-eldra-tron", file: "1-dreamsofashiok-eldra-tron.dck" },
+    { id: "power-modern-2021-1-kita-masahiro-dredge", file: "1-kita-masahiro-dredge.dck" },
+    { id: "power-modern-2021-1-jared-robinson-jund", file: "1-jared-robinson-jund.dck" },
+    { id: "power-modern-2021-1-triosk-uw-control", file: "1-triosk-uw-control.dck" },
+    { id: "power-modern-2021-1-jonathan-goss-the-underworld-cookbook", file: "1-jonathan-goss-the-underworld-cookbook.dck" },
+    { id: "power-modern-2021-1-magicofplayer1-4c-omnath", file: "1-magicofplayer1-4c-omnath.dck" },
+    { id: "power-modern-2021-1-alexander-lapping-bant-control", file: "1-alexander-lapping-bant-control.dck" },
+    { id: "power-modern-2021-1-alakai-breach", file: "1-alakai-breach.dck" },
+    { id: "power-modern-2021-1-kitamura-shuuhei-zoo", file: "1-kitamura-shuuhei-zoo.dck" },
+    { id: "power-modern-2021-1-tokunaga-hiroki-uwx-midrange", file: "1-tokunaga-hiroki-uwx-midrange.dck" },
+    { id: "power-modern-2021-1-troy-taylor-grixis-creativity", file: "1-troy-taylor-grixis-creativity.dck" },
+    { id: "power-modern-2021-1-axel-signargout-eldrazi-and-taxes", file: "1-axel-signargout-eldrazi-and-taxes.dck" },
+    { id: "power-modern-2021-1-markus-julich-gb-yawgmoth", file: "1-markus-julich-gb-yawgmoth.dck" },
+    { id: "power-modern-2021-1-nathaniel-snyder-gruul-food", file: "1-nathaniel-snyder-gruul-food.dck" },
+    { id: "power-modern-2021-1-ihashi-toshiya-scapeshift", file: "1-ihashi-toshiya-scapeshift.dck" },
+    { id: "power-modern-2021-1-paeng-paeng-ur-storm", file: "1-paeng-paeng-ur-storm.dck" },
+  ],
+};
+
+/**
+ * The 2022 Modern power summer — `Modern (SNC)`, 2022-04-29 to 2022-09-09,
+ * pinned to Standard 2022’s own dates. 56 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2022.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 8, U 12, B 8, R 12, G 10; aggro 8,
+ * midrange 8, control 4, combo 4.
+ */
+export const POWER_SUMMER_2022_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2022',
+  directory: `${DECKS_ROOT}/modern-2022`,
+  event: "2022 Modern power summer \u2014 Modern (SNC), 2022-04-29 \u2192 2022-09-09",
+  format: "Modern (SNC)",
+  date: "2022-04-29",
+  source: 'docs/planning/deck-selection/review/modern-2022.md',
+  decks: [
+    { id: "power-modern-2022-1-maxx-kominowski-ur-aggro", file: "1-maxx-kominowski-ur-aggro.dck" },
+    { id: "power-modern-2022-1-jordan-lidsky-hammer-time", file: "1-jordan-lidsky-hammer-time.dck" },
+    { id: "power-modern-2022-1-will-kowalczyk-amulet-titan", file: "1-will-kowalczyk-amulet-titan.dck" },
+    { id: "power-modern-2022-1-stormguyisme-living-end", file: "1-stormguyisme-living-end.dck" },
+    { id: "power-modern-2022-1-zach-dubin-4c-yorion", file: "1-zach-dubin-4c-yorion.dck" },
+    { id: "power-modern-2022-1-james-joash-primicias-crashing-footfalls-cascade", file: "1-james-joash-primicias-crashing-footfalls-cascade.dck" },
+    { id: "power-modern-2022-1-shayne-brown-burn", file: "1-shayne-brown-burn.dck" },
+    { id: "power-modern-2022-1-diego-mayo-creativity", file: "1-diego-mayo-creativity.dck" },
+    { id: "power-modern-2022-1-david-johnson-creatures-toolbox", file: "1-david-johnson-creatures-toolbox.dck" },
+    { id: "power-modern-2022-1-brady-munroe-urzatron", file: "1-brady-munroe-urzatron.dck" },
+    { id: "power-modern-2022-1-ross-merriam-breach", file: "1-ross-merriam-breach.dck" },
+    { id: "power-modern-2022-1-will-kreuger-valakut", file: "1-will-kreuger-valakut.dck" },
+    { id: "power-modern-2022-1-dillon-evans-reanimator", file: "1-dillon-evans-reanimator.dck" },
+    { id: "power-modern-2022-1-trick-bannon-goblins", file: "1-trick-bannon-goblins.dck" },
+    { id: "power-modern-2022-1-alexandre-damiens-calibrated-blast", file: "1-alexandre-damiens-calibrated-blast.dck" },
+    { id: "power-modern-2022-1-david-bishop-mono-blue-tempo", file: "1-david-bishop-mono-blue-tempo.dck" },
+    { id: "power-modern-2022-1-raja-sulaiman-uw-control", file: "1-raja-sulaiman-uw-control.dck" },
+    { id: "power-modern-2022-1-damian-del-nero-eldra-tron", file: "1-damian-del-nero-eldra-tron.dck" },
+    { id: "power-modern-2022-1-tanahashi-takuya-ub-mill", file: "1-tanahashi-takuya-ub-mill.dck" },
+    { id: "power-modern-2022-1-cole-cunningham-tron", file: "1-cole-cunningham-tron.dck" },
+    { id: "power-modern-2022-1-ryan-barger-death-and-taxes", file: "1-ryan-barger-death-and-taxes.dck" },
+    { id: "power-modern-2022-1-jack-komer-bring-to-scapeshift", file: "1-jack-komer-bring-to-scapeshift.dck" },
+    { id: "power-modern-2022-1-rob-lyons-scapeshift", file: "1-rob-lyons-scapeshift.dck" },
+    { id: "power-modern-2022-1-alan-07-4c-archon", file: "1-alan-07-4c-archon.dck" },
+  ],
+};
+
+/**
+ * The 2023 Modern power summer — `Modern (MAT)`, 2023-05-29 to 2023-09-08,
+ * pinned to Standard 2023’s own dates. 41 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2023.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 9, U 13, B 10, R 13, G 10; aggro 9,
+ * midrange 6, control 5, combo 4.
+ */
+export const POWER_SUMMER_2023_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2023',
+  directory: `${DECKS_ROOT}/modern-2023`,
+  event: "2023 Modern power summer \u2014 Modern (MAT), 2023-05-29 \u2192 2023-09-08",
+  format: "Modern (MAT)",
+  date: "2023-05-29",
+  source: 'docs/planning/deck-selection/review/modern-2023.md',
+  decks: [
+    { id: "power-modern-2023-1-alessandro-stanizi-creativity", file: "1-alessandro-stanizi-creativity.dck" },
+    { id: "power-modern-2023-1-bunny-gamble-omnath-rhinos", file: "1-bunny-gamble-omnath-rhinos.dck" },
+    { id: "power-modern-2023-1-badzio-hardened-scales", file: "1-badzio-hardened-scales.dck" },
+    { id: "power-modern-2023-1-nitta-shinya-hammer-time", file: "1-nitta-shinya-hammer-time.dck" },
+    { id: "power-modern-2023-1-fingers1991-burn", file: "1-fingers1991-burn.dck" },
+    { id: "power-modern-2023-1-tobias-weissenborn-breach", file: "1-tobias-weissenborn-breach.dck" },
+    { id: "power-modern-2023-1-shimazaki-taichi-death-s-shadow", file: "1-shimazaki-taichi-death-s-shadow.dck" },
+    { id: "power-modern-2023-1-shinbo-sotaro-jund", file: "1-shinbo-sotaro-jund.dck" },
+    { id: "power-modern-2023-1-vinicius-maciel-mono-black-control", file: "1-vinicius-maciel-mono-black-control.dck" },
+    { id: "power-modern-2023-1-maxime-odegaard-merfolk", file: "1-maxime-odegaard-merfolk.dck" },
+    { id: "power-modern-2023-1-watoo-uw-control", file: "1-watoo-uw-control.dck" },
+    { id: "power-modern-2023-1-betrix2688-creatures-toolbox", file: "1-betrix2688-creatures-toolbox.dck" },
+    { id: "power-modern-2023-1-tibalt-of-red-sub-ub-mill", file: "1-tibalt-of-red-sub-ub-mill.dck" },
+    { id: "power-modern-2023-1-pandatomik-instant-reanimator", file: "1-pandatomik-instant-reanimator.dck" },
+    { id: "power-modern-2023-1-eldin-ibrahimovic-big-red", file: "1-eldin-ibrahimovic-big-red.dck" },
+    { id: "power-modern-2023-1-magi-giovanni-bring-to-scapeshift", file: "1-magi-giovanni-bring-to-scapeshift.dck" },
+    { id: "power-modern-2023-1-sakaino-yuuta-ww", file: "1-sakaino-yuuta-ww.dck" },
+    { id: "power-modern-2023-1-michaelw1-mono-white-ephemerate", file: "1-michaelw1-mono-white-ephemerate.dck" },
+    { id: "power-modern-2023-2-elijah-devesa-temur-rhino", file: "2-elijah-devesa-temur-rhino.dck" },
+    { id: "power-modern-2023-3-jonathan-dolor-green-tron", file: "3-jonathan-dolor-green-tron.dck" },
+    { id: "power-modern-2023-2-mrzippers-dredge", file: "2-mrzippers-dredge.dck" },
+    { id: "power-modern-2023-2-ivan-espinosa-4-color-control", file: "2-ivan-espinosa-4-color-control.dck" },
+    { id: "power-modern-2023-3-jay-jasper-flores-goryo-s-food", file: "3-jay-jasper-flores-goryo-s-food.dck" },
+    { id: "power-modern-2023-33-takahisa-satou-reanimator", file: "33-takahisa-satou-reanimator.dck" },
+  ],
+};
+
+/**
+ * The 2024 Modern power summer — `Modern (OTJ)`, 2024-04-19 to 2024-08-02,
+ * pinned to Standard 2024’s own dates. 40 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2024.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 12, B 10, R 12, G 9; aggro 8,
+ * midrange 6, control 6, combo 4.
+ */
+export const POWER_SUMMER_2024_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2024',
+  directory: `${DECKS_ROOT}/modern-2024`,
+  event: "2024 Modern power summer \u2014 Modern (OTJ), 2024-04-19 \u2192 2024-08-02",
+  format: "Modern (OTJ)",
+  date: "2024-04-19",
+  source: 'docs/planning/deck-selection/review/modern-2024.md',
+  decks: [
+    { id: "power-modern-2024-1-stefan-schutz-chord-toolbox", file: "1-stefan-schutz-chord-toolbox.dck" },
+    { id: "power-modern-2024-1-lucasg1ggs-living-end", file: "1-lucasg1ggs-living-end.dck" },
+    { id: "power-modern-2024-1-dfrank-amulet-titan", file: "1-dfrank-amulet-titan.dck" },
+    { id: "power-modern-2024-1-alessandro-parisi-creativity", file: "1-alessandro-parisi-creativity.dck" },
+    { id: "power-modern-2024-1-ken-min-yeoh-s-team-the-one-azorius", file: "1-ken-min-yeoh-s-team-the-one-azorius.dck" },
+    { id: "power-modern-2024-1-vini-torres-uw-mill", file: "1-vini-torres-uw-mill.dck" },
+    { id: "power-modern-2024-1-luis-kassel-temur-prowess", file: "1-luis-kassel-temur-prowess.dck" },
+    { id: "power-modern-2024-1-naisirc-rakdos-aggro", file: "1-naisirc-rakdos-aggro.dck" },
+    { id: "power-modern-2024-1-azja-5c-domain-aggro", file: "1-azja-5c-domain-aggro.dck" },
+    { id: "power-modern-2024-1-claymoretobi-mono-black-control", file: "1-claymoretobi-mono-black-control.dck" },
+    { id: "power-modern-2024-1-calmdownbronco-red-deck-wins", file: "1-calmdownbronco-red-deck-wins.dck" },
+    { id: "power-modern-2024-1-mcwinsauce-jund", file: "1-mcwinsauce-jund.dck" },
+    { id: "power-modern-2024-1-kurusu-4c-control", file: "1-kurusu-4c-control.dck" },
+    { id: "power-modern-2024-1-ale-mtg-gruul-aggro", file: "1-ale-mtg-gruul-aggro.dck" },
+    { id: "power-modern-2024-1-selfeisek-mono-black-scam", file: "1-selfeisek-mono-black-scam.dck" },
+    { id: "power-modern-2024-1-stefanocanclini-scapeshift", file: "1-stefanocanclini-scapeshift.dck" },
+    { id: "power-modern-2024-1-iaashadow-martyr-life", file: "1-iaashadow-martyr-life.dck" },
+    { id: "power-modern-2024-1-supercow12653-ur-control", file: "1-supercow12653-ur-control.dck" },
+    { id: "power-modern-2024-1-franklin-fulks-esper-goryo-s", file: "1-franklin-fulks-esper-goryo-s.dck" },
+    { id: "power-modern-2024-1-qbeczkowo-reanimator", file: "1-qbeczkowo-reanimator.dck" },
+    { id: "power-modern-2024-1-vinicius-castro-pasquetto-uw-control", file: "1-vinicius-castro-pasquetto-uw-control.dck" },
+    { id: "power-modern-2024-1-benoit-jaques-elementals", file: "1-benoit-jaques-elementals.dck" },
+    { id: "power-modern-2024-2-absoluteragez-burn", file: "2-absoluteragez-burn.dck" },
+    { id: "power-modern-2024-3-screenwriterny-ad-nauseam", file: "3-screenwriterny-ad-nauseam.dck" },
+  ],
+};
+
+/**
+ * The 2025 Modern power summer — `Modern (FIN)`, 2025-06-30 to 2025-08-01,
+ * pinned to Standard 2025’s own dates. 55 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/modern-2025.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 8, U 12, B 9, R 12, G 9; aggro 7,
+ * midrange 7, control 6, combo 4.
+ */
+export const POWER_SUMMER_2025_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'power-summer-modern-2025',
+  directory: `${DECKS_ROOT}/modern-2025`,
+  event: "2025 Modern power summer \u2014 Modern (FIN), 2025-06-30 \u2192 2025-08-01",
+  format: "Modern (FIN)",
+  date: "2025-06-30",
+  source: 'docs/planning/deck-selection/review/modern-2025.md',
+  decks: [
+    { id: "power-modern-2025-1-mcwinsauce-esper-taxes", file: "1-mcwinsauce-esper-taxes.dck" },
+    { id: "power-modern-2025-1-imthekiing-boros-energy", file: "1-imthekiing-boros-energy.dck" },
+    { id: "power-modern-2025-1-hunter-ovington-broodscale-bloodchief", file: "1-hunter-ovington-broodscale-bloodchief.dck" },
+    { id: "power-modern-2025-1-juanmaat-dimir-control", file: "1-juanmaat-dimir-control.dck" },
+    { id: "power-modern-2025-1-houseofmanamtg-amulet-titan", file: "1-houseofmanamtg-amulet-titan.dck" },
+    { id: "power-modern-2025-1-kageyama-hiroki-landless-belcher", file: "1-kageyama-hiroki-landless-belcher.dck" },
+    { id: "power-modern-2025-1-o-danielakos-ur-cutter-prowess", file: "1-o-danielakos-ur-cutter-prowess.dck" },
+    { id: "power-modern-2025-1-barczek-instant-reanimator", file: "1-barczek-instant-reanimator.dck" },
+    { id: "power-modern-2025-1-meninooney-living-end", file: "1-meninooney-living-end.dck" },
+    { id: "power-modern-2025-1-rerere-allosaurus-combo", file: "1-rerere-allosaurus-combo.dck" },
+    { id: "power-modern-2025-1-victor-gomez-gonzalez-jeskai-control", file: "1-victor-gomez-gonzalez-jeskai-control.dck" },
+    { id: "power-modern-2025-1-azax-ruby-storm", file: "1-azax-ruby-storm.dck" },
+    { id: "power-modern-2025-1-holdtheelle-urzatron", file: "1-holdtheelle-urzatron.dck" },
+    { id: "power-modern-2025-1-roland77-eldrazi-aggro", file: "1-roland77-eldrazi-aggro.dck" },
+    { id: "power-modern-2025-1-adrien-venancio-simic-birthing-ritual", file: "1-adrien-venancio-simic-birthing-ritual.dck" },
+    { id: "power-modern-2025-1-yungdingo-death-s-shadow", file: "1-yungdingo-death-s-shadow.dck" },
+    { id: "power-modern-2025-1-auzzie51-mono-white-control", file: "1-auzzie51-mono-white-control.dck" },
+    { id: "power-modern-2025-1-davide-ferroni-hammertime", file: "1-davide-ferroni-hammertime.dck" },
+    { id: "power-modern-2025-1-adrien-pennard-ur-cutter", file: "1-adrien-pennard-ur-cutter.dck" },
+    { id: "power-modern-2025-1-valerio-nevischi-grixis-control", file: "1-valerio-nevischi-grixis-control.dck" },
+    { id: "power-modern-2025-1-linden-43-mardu-aggro", file: "1-linden-43-mardu-aggro.dck" },
+    { id: "power-modern-2025-1-truehero-4-5c-control", file: "1-truehero-4-5c-control.dck" },
+    { id: "power-modern-2025-1-nilo-herrero-chord-toolbox", file: "1-nilo-herrero-chord-toolbox.dck" },
+    { id: "power-modern-2025-1-francesco-galati-monoblack-necro", file: "1-francesco-galati-monoblack-necro.dck" },
   ],
 };
 
@@ -1761,6 +2560,408 @@ export const POWER_SUMMER_2016_LEGACY: LibraryCollection = {
   ],
 };
 
+/**
+ * The 2017 Legacy power summer — `Legacy (HOU)`, 2017-07-14 to 2017-09-29,
+ * pinned to Standard 2017’s own dates. 50 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2017.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 8, U 12, B 12, R 9, G 10; aggro 6,
+ * midrange 8, control 6, combo 4.
+ */
+export const POWER_SUMMER_2017_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2017',
+  directory: `${DECKS_ROOT}/legacy-2017`,
+  event: "2017 Legacy power summer \u2014 Legacy (HOU), 2017-07-14 \u2192 2017-09-29",
+  format: "Legacy (HOU)",
+  date: "2017-07-14",
+  source: 'docs/planning/deck-selection/review/legacy-2017.md',
+  decks: [
+    { id: "power-legacy-2017-1-kobayashi-tatsuumi-miracles", file: "1-kobayashi-tatsuumi-miracles.dck" },
+    { id: "power-legacy-2017-1-eli-kasis-dark-depths", file: "1-eli-kasis-dark-depths.dck" },
+    { id: "power-legacy-2017-1-dennis-zens-show-and-tell", file: "1-dennis-zens-show-and-tell.dck" },
+    { id: "power-legacy-2017-1-michel-chevalier-reanimator", file: "1-michel-chevalier-reanimator.dck" },
+    { id: "power-legacy-2017-1-alexander-barnett-aluren", file: "1-alexander-barnett-aluren.dck" },
+    { id: "power-legacy-2017-1-julian23-elves", file: "1-julian23-elves.dck" },
+    { id: "power-legacy-2017-1-tom-brown-4c-control", file: "1-tom-brown-4c-control.dck" },
+    { id: "power-legacy-2017-1-robert-swiecki-storm", file: "1-robert-swiecki-storm.dck" },
+    { id: "power-legacy-2017-1-alejandro-bustillo-stoneblade", file: "1-alejandro-bustillo-stoneblade.dck" },
+    { id: "power-legacy-2017-1-sven-anders-karlsson-lands", file: "1-sven-anders-karlsson-lands.dck" },
+    { id: "power-legacy-2017-1-nmks-eldrazi-aggro", file: "1-nmks-eldrazi-aggro.dck" },
+    { id: "power-legacy-2017-1-chris-lates-death-and-taxes", file: "1-chris-lates-death-and-taxes.dck" },
+    { id: "power-legacy-2017-1-sammy13-dragon-stompy", file: "1-sammy13-dragon-stompy.dck" },
+    { id: "power-legacy-2017-1-butakov-loam", file: "1-butakov-loam.dck" },
+    { id: "power-legacy-2017-1-yamashita-taiki-grixis-pyromancer", file: "1-yamashita-taiki-grixis-pyromancer.dck" },
+    { id: "power-legacy-2017-1-andre-felipe-jund", file: "1-andre-felipe-jund.dck" },
+    { id: "power-legacy-2017-1-zachary-koch-berserk-poison", file: "1-zachary-koch-berserk-poison.dck" },
+    { id: "power-legacy-2017-1-callum-smith-merfolk", file: "1-callum-smith-merfolk.dck" },
+    { id: "power-legacy-2017-1-tom-fischer-canadian-threshold", file: "1-tom-fischer-canadian-threshold.dck" },
+    { id: "power-legacy-2017-1-nathan-sexton-four-color-leovold", file: "1-nathan-sexton-four-color-leovold.dck" },
+    { id: "power-legacy-2017-1-jason-zudell-depths-combo", file: "1-jason-zudell-depths-combo.dck" },
+    { id: "power-legacy-2017-1-zac-turgeon-all-in-red", file: "1-zac-turgeon-all-in-red.dck" },
+    { id: "power-legacy-2017-1-peter-tragos-white-eldrazi", file: "1-peter-tragos-white-eldrazi.dck" },
+    { id: "power-legacy-2017-1-joe-brennan-uwr-control", file: "1-joe-brennan-uwr-control.dck" },
+  ],
+};
+
+/**
+ * The 2018 Legacy power summer — `Legacy (M19)`, 2018-07-13 to 2018-10-05,
+ * pinned to Standard 2018’s own dates. 43 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2018.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 7, U 11, B 11, R 8, G 7; aggro 6,
+ * midrange 8, control 6, combo 4. Blue dominated this era’s candidate pool (33%
+ * of its colour pips) and was given extra slots (11 of 24 chosen).
+ */
+export const POWER_SUMMER_2018_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2018',
+  directory: `${DECKS_ROOT}/legacy-2018`,
+  event: "2018 Legacy power summer \u2014 Legacy (M19), 2018-07-13 \u2192 2018-10-05",
+  format: "Legacy (M19)",
+  date: "2018-07-13",
+  source: 'docs/planning/deck-selection/review/legacy-2018.md',
+  decks: [
+    { id: "power-legacy-2018-1-yohan-blanchard-miracles", file: "1-yohan-blanchard-miracles.dck" },
+    { id: "power-legacy-2018-1-daniel-barkon-lands", file: "1-daniel-barkon-lands.dck" },
+    { id: "power-legacy-2018-1-linus-valdemarsson-elves", file: "1-linus-valdemarsson-elves.dck" },
+    { id: "power-legacy-2018-1-takahashi-masataka-storm", file: "1-takahashi-masataka-storm.dck" },
+    { id: "power-legacy-2018-1-bryant-cook-tes", file: "1-bryant-cook-tes.dck" },
+    { id: "power-legacy-2018-1-matthew-vook-four-color-loam", file: "1-matthew-vook-four-color-loam.dck" },
+    { id: "power-legacy-2018-1-jonathan-job-death-taxes", file: "1-jonathan-job-death-taxes.dck" },
+    { id: "power-legacy-2018-1-william-lo-dark-depths", file: "1-william-lo-dark-depths.dck" },
+    { id: "power-legacy-2018-1-gary-campbell-dragon-stompy", file: "1-gary-campbell-dragon-stompy.dck" },
+    { id: "power-legacy-2018-1-henrique-belumat-eldrazi", file: "1-henrique-belumat-eldrazi.dck" },
+    { id: "power-legacy-2018-1-pedro-j-sanchez-uwx-control", file: "1-pedro-j-sanchez-uwx-control.dck" },
+    { id: "power-legacy-2018-1-andrew-smelser-show-and-tell", file: "1-andrew-smelser-show-and-tell.dck" },
+    { id: "power-legacy-2018-1-jacob-therrian-reanimator", file: "1-jacob-therrian-reanimator.dck" },
+    { id: "power-legacy-2018-1-leastbean-canadian-threshold", file: "1-leastbean-canadian-threshold.dck" },
+    { id: "power-legacy-2018-1-guilherme-figueira-goblins", file: "1-guilherme-figueira-goblins.dck" },
+    { id: "power-legacy-2018-1-david-salus-steel-stompy", file: "1-david-salus-steel-stompy.dck" },
+    { id: "power-legacy-2018-1-travis-parsley-pox", file: "1-travis-parsley-pox.dck" },
+    { id: "power-legacy-2018-1-tony-murata-titan-post", file: "1-tony-murata-titan-post.dck" },
+    { id: "power-legacy-2018-1-kjartan-uldahl-esper-control", file: "1-kjartan-uldahl-esper-control.dck" },
+    { id: "power-legacy-2018-1-liu-zida-tezzeret-control", file: "1-liu-zida-tezzeret-control.dck" },
+    { id: "power-legacy-2018-1-jeffrey-white-azorius-helm", file: "1-jeffrey-white-azorius-helm.dck" },
+    { id: "power-legacy-2018-1-juan-amaral-dredge", file: "1-juan-amaral-dredge.dck" },
+    { id: "power-legacy-2018-1-justin-luk-burn", file: "1-justin-luk-burn.dck" },
+    { id: "power-legacy-2018-1-lukas-stahl-nic-fit", file: "1-lukas-stahl-nic-fit.dck" },
+  ],
+};
+
+/**
+ * The 2019 Legacy power summer — `Legacy (C19)`, 2019-08-30 to 2019-10-04,
+ * pinned to Standard 2019’s own dates. 60 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2019.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 9, U 12, B 11, R 9, G 9; aggro 7,
+ * midrange 8, control 5, combo 4.
+ */
+export const POWER_SUMMER_2019_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2019',
+  directory: `${DECKS_ROOT}/legacy-2019`,
+  event: "2019 Legacy power summer \u2014 Legacy (C19), 2019-08-30 \u2192 2019-10-04",
+  format: "Legacy (C19)",
+  date: "2019-08-30",
+  source: 'docs/planning/deck-selection/review/legacy-2019.md',
+  decks: [
+    { id: "power-legacy-2019-1-aiden-brier-grixis-control", file: "1-aiden-brier-grixis-control.dck" },
+    { id: "power-legacy-2019-1-cyrus-corman-gill-storm", file: "1-cyrus-corman-gill-storm.dck" },
+    { id: "power-legacy-2019-1-jesse-inman-canadian-threshold", file: "1-jesse-inman-canadian-threshold.dck" },
+    { id: "power-legacy-2019-1-joseph-horton-miracles", file: "1-joseph-horton-miracles.dck" },
+    { id: "power-legacy-2019-1-koushou-tomoya-ur-delver", file: "1-koushou-tomoya-ur-delver.dck" },
+    { id: "power-legacy-2019-1-brian-rogers-dark-depths", file: "1-brian-rogers-dark-depths.dck" },
+    { id: "power-legacy-2019-1-tamir1313-stoneblade", file: "1-tamir1313-stoneblade.dck" },
+    { id: "power-legacy-2019-1-justin-miller-show-and-tell", file: "1-justin-miller-show-and-tell.dck" },
+    { id: "power-legacy-2019-1-teruya-kakumae-eldrazi-aggro", file: "1-teruya-kakumae-eldrazi-aggro.dck" },
+    { id: "power-legacy-2019-1-ikeda-takahiro-dragon-stompy", file: "1-ikeda-takahiro-dragon-stompy.dck" },
+    { id: "power-legacy-2019-1-christopher-minor-loam", file: "1-christopher-minor-loam.dck" },
+    { id: "power-legacy-2019-1-liz-lynn-death-s-shadow", file: "1-liz-lynn-death-s-shadow.dck" },
+    { id: "power-legacy-2019-1-iacopo-pineschi-lands", file: "1-iacopo-pineschi-lands.dck" },
+    { id: "power-legacy-2019-1-mahfuzvangogh-dredge", file: "1-mahfuzvangogh-dredge.dck" },
+    { id: "power-legacy-2019-1-xjcloud-bomberman", file: "1-xjcloud-bomberman.dck" },
+    { id: "power-legacy-2019-1-shannon-peil-patriot-aggro", file: "1-shannon-peil-patriot-aggro.dck" },
+    { id: "power-legacy-2019-1-yamanaka-kousuke-reanimator", file: "1-yamanaka-kousuke-reanimator.dck" },
+    { id: "power-legacy-2019-1-mike-piscatelli-maverick", file: "1-mike-piscatelli-maverick.dck" },
+    { id: "power-legacy-2019-1-brian-thomas-goblins", file: "1-brian-thomas-goblins.dck" },
+    { id: "power-legacy-2019-1-bryant-cook-tes", file: "1-bryant-cook-tes.dck" },
+    { id: "power-legacy-2019-1-danny-batterman-gw-depths", file: "1-danny-batterman-gw-depths.dck" },
+    { id: "power-legacy-2019-1-meritt-elmasri-punishing-zoo", file: "1-meritt-elmasri-punishing-zoo.dck" },
+    { id: "power-legacy-2019-1-tulio-souza-dead-daretti", file: "1-tulio-souza-dead-daretti.dck" },
+    { id: "power-legacy-2019-1-sergey-loxmatii-lamzin-mono-green-post", file: "1-sergey-loxmatii-lamzin-mono-green-post.dck" },
+  ],
+};
+
+/**
+ * The 2020 Legacy power summer — `Legacy (JMP)`, 2020-08-03 to 2020-09-25,
+ * pinned to Standard 2020’s own dates. 57 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2020.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 8, U 12, B 9, R 9, G 12; aggro 8,
+ * midrange 6, control 5, combo 5. Blue dominated this era’s candidate pool (29%
+ * of its colour pips) and was given extra slots (12 of 24 chosen).
+ */
+export const POWER_SUMMER_2020_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2020',
+  directory: `${DECKS_ROOT}/legacy-2020`,
+  event: "2020 Legacy power summer \u2014 Legacy (JMP), 2020-08-03 \u2192 2020-09-25",
+  format: "Legacy (JMP)",
+  date: "2020-08-03",
+  source: 'docs/planning/deck-selection/review/legacy-2020.md',
+  decks: [
+    { id: "power-legacy-2020-1-nammersquats-hogaak", file: "1-nammersquats-hogaak.dck" },
+    { id: "power-legacy-2020-1-giacomo-battaglia-lands", file: "1-giacomo-battaglia-lands.dck" },
+    { id: "power-legacy-2020-1-bryant-cook-tes", file: "1-bryant-cook-tes.dck" },
+    { id: "power-legacy-2020-1-manuel-danninger-canadian-threshold", file: "1-manuel-danninger-canadian-threshold.dck" },
+    { id: "power-legacy-2020-1-hemsley-ur-delver", file: "1-hemsley-ur-delver.dck" },
+    { id: "power-legacy-2020-1-daryl-ayers-death-taxes", file: "1-daryl-ayers-death-taxes.dck" },
+    { id: "power-legacy-2020-1-jiho-4cc", file: "1-jiho-4cc.dck" },
+    { id: "power-legacy-2020-1-marc-vogt-miracles", file: "1-marc-vogt-miracles.dck" },
+    { id: "power-legacy-2020-1-marcelo-scatena-goblins", file: "1-marcelo-scatena-goblins.dck" },
+    { id: "power-legacy-2020-1-lemasters-artifacts-blue", file: "1-lemasters-artifacts-blue.dck" },
+    { id: "power-legacy-2020-1-komiyama-kenichirou-salvager-combo", file: "1-komiyama-kenichirou-salvager-combo.dck" },
+    { id: "power-legacy-2020-1-sakuragi21722749-dark-depths", file: "1-sakuragi21722749-dark-depths.dck" },
+    { id: "power-legacy-2020-1-takano-shigeki-elves", file: "1-takano-shigeki-elves.dck" },
+    { id: "power-legacy-2020-1-andrew-fiedler-show-and-tell", file: "1-andrew-fiedler-show-and-tell.dck" },
+    { id: "power-legacy-2020-1-nakamura-ryousuke-12-post", file: "1-nakamura-ryousuke-12-post.dck" },
+    { id: "power-legacy-2020-1-wonderpreaux-reanimator", file: "1-wonderpreaux-reanimator.dck" },
+    { id: "power-legacy-2020-1-mm-17-bant-control", file: "1-mm-17-bant-control.dck" },
+    { id: "power-legacy-2020-1-taniguchi-hiroaki-aluren", file: "1-taniguchi-hiroaki-aluren.dck" },
+    { id: "power-legacy-2020-1-allen-wu-uwx-control", file: "1-allen-wu-uwx-control.dck" },
+    { id: "power-legacy-2020-1-luis-paiva-castaings-burn", file: "1-luis-paiva-castaings-burn.dck" },
+    { id: "power-legacy-2020-1-chefen-painter", file: "1-chefen-painter.dck" },
+    { id: "power-legacy-2020-1-tokuyama-kouta-zoo", file: "1-tokuyama-kouta-zoo.dck" },
+    { id: "power-legacy-2020-1-alex-rouw-gw-maverick", file: "1-alex-rouw-gw-maverick.dck" },
+    { id: "power-legacy-2020-1-diego-nunes-oko-foundry", file: "1-diego-nunes-oko-foundry.dck" },
+  ],
+};
+
+/**
+ * The 2021 Legacy power summer — `Legacy (AFR)`, 2021-07-23 to 2021-09-24,
+ * pinned to Standard 2021’s own dates. 68 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2021.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 12, U 13, B 11, R 10, G 9; aggro 7,
+ * midrange 6, control 6, combo 5. Blue dominated this era’s candidate pool (31%
+ * of its colour pips) and was given extra slots (13 of 24 chosen).
+ */
+export const POWER_SUMMER_2021_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2021',
+  directory: `${DECKS_ROOT}/legacy-2021`,
+  event: "2021 Legacy power summer \u2014 Legacy (AFR), 2021-07-23 \u2192 2021-09-24",
+  format: "Legacy (AFR)",
+  date: "2021-07-23",
+  source: 'docs/planning/deck-selection/review/legacy-2021.md',
+  decks: [
+    { id: "power-legacy-2021-1-julian23-patriot-aggro", file: "1-julian23-patriot-aggro.dck" },
+    { id: "power-legacy-2021-1-paolo-busch-d-t-yorion", file: "1-paolo-busch-d-t-yorion.dck" },
+    { id: "power-legacy-2021-1-takano-shigeki-ur-delver", file: "1-takano-shigeki-ur-delver.dck" },
+    { id: "power-legacy-2021-1-shimada-hiroyuki-elves", file: "1-shimada-hiroyuki-elves.dck" },
+    { id: "power-legacy-2021-1-stefano-sergi-reanimator", file: "1-stefano-sergi-reanimator.dck" },
+    { id: "power-legacy-2021-1-jtl005-esper-vial", file: "1-jtl005-esper-vial.dck" },
+    { id: "power-legacy-2021-1-anzid-4cc", file: "1-anzid-4cc.dck" },
+    { id: "power-legacy-2021-1-albert-birckhead-hogaak", file: "1-albert-birckhead-hogaak.dck" },
+    { id: "power-legacy-2021-1-jesse-james-adams-lands", file: "1-jesse-james-adams-lands.dck" },
+    { id: "power-legacy-2021-1-inf-doomsday", file: "1-inf-doomsday.dck" },
+    { id: "power-legacy-2021-1-mukai-takashi-sneak-show", file: "1-mukai-takashi-sneak-show.dck" },
+    { id: "power-legacy-2021-1-bcs8995-stoneblade", file: "1-bcs8995-stoneblade.dck" },
+    { id: "power-legacy-2021-1-tristanjwl-jeskai-ragavan", file: "1-tristanjwl-jeskai-ragavan.dck" },
+    { id: "power-legacy-2021-1-tonyscapone-mono-red-storm", file: "1-tonyscapone-mono-red-storm.dck" },
+    { id: "power-legacy-2021-1-giulio-gabellieri-selesnya-depths", file: "1-giulio-gabellieri-selesnya-depths.dck" },
+    { id: "power-legacy-2021-1-callum-smith-imperial-painter", file: "1-callum-smith-imperial-painter.dck" },
+    { id: "power-legacy-2021-1-mark-ehrhart-raga-jund", file: "1-mark-ehrhart-raga-jund.dck" },
+    { id: "power-legacy-2021-1-tsuchiya-atsushi-jund-smog", file: "1-tsuchiya-atsushi-jund-smog.dck" },
+    { id: "power-legacy-2021-1-wakayama-hayata-grixis-control-ragavan", file: "1-wakayama-hayata-grixis-control-ragavan.dck" },
+    { id: "power-legacy-2021-1-yagi-hitoshi-dark-depths", file: "1-yagi-hitoshi-dark-depths.dck" },
+    { id: "power-legacy-2021-1-kobayashi-tatsuumi-miracles", file: "1-kobayashi-tatsuumi-miracles.dck" },
+    { id: "power-legacy-2021-1-rj-fischer-turbo-depths", file: "1-rj-fischer-turbo-depths.dck" },
+    { id: "power-legacy-2021-1-katou-toshiya-breya-welder-control", file: "1-katou-toshiya-breya-welder-control.dck" },
+    { id: "power-legacy-2021-1-zudin-rodion-pikula", file: "1-zudin-rodion-pikula.dck" },
+  ],
+};
+
+/**
+ * The 2022 Legacy power summer — `Legacy (SNC)`, 2022-04-29 to 2022-09-09,
+ * pinned to Standard 2022’s own dates. 66 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2022.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 12, B 10, R 8, G 10; aggro 8,
+ * midrange 6, control 5, combo 5.
+ */
+export const POWER_SUMMER_2022_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2022',
+  directory: `${DECKS_ROOT}/legacy-2022`,
+  event: "2022 Legacy power summer \u2014 Legacy (SNC), 2022-04-29 \u2192 2022-09-09",
+  format: "Legacy (SNC)",
+  date: "2022-04-29",
+  source: 'docs/planning/deck-selection/review/legacy-2022.md',
+  decks: [
+    { id: "power-legacy-2022-1-theo-jung-ur-aggro", file: "1-theo-jung-ur-aggro.dck" },
+    { id: "power-legacy-2022-1-cristobal-abril-death-taxes", file: "1-cristobal-abril-death-taxes.dck" },
+    { id: "power-legacy-2022-1-zoe-uwx-control", file: "1-zoe-uwx-control.dck" },
+    { id: "power-legacy-2022-1-ark4n-grixis-control", file: "1-ark4n-grixis-control.dck" },
+    { id: "power-legacy-2022-1-javier-dominguez-cephalid-breakfast", file: "1-javier-dominguez-cephalid-breakfast.dck" },
+    { id: "power-legacy-2022-1-william-asa-mono-r-prison", file: "1-william-asa-mono-r-prison.dck" },
+    { id: "power-legacy-2022-1-nakamura-shuta-4c-leovold", file: "1-nakamura-shuta-4c-leovold.dck" },
+    { id: "power-legacy-2022-1-takeuchi-daiki-elves", file: "1-takeuchi-daiki-elves.dck" },
+    { id: "power-legacy-2022-1-kanbara-hokuto-reanimator", file: "1-kanbara-hokuto-reanimator.dck" },
+    { id: "power-legacy-2022-1-danny-bambino-artifacts-blue", file: "1-danny-bambino-artifacts-blue.dck" },
+    { id: "power-legacy-2022-1-gabriel-ebady-selesnya-depths", file: "1-gabriel-ebady-selesnya-depths.dck" },
+    { id: "power-legacy-2022-1-bryant-cook-tes", file: "1-bryant-cook-tes.dck" },
+    { id: "power-legacy-2022-1-kasagawa-yousuke-painter", file: "1-kasagawa-yousuke-painter.dck" },
+    { id: "power-legacy-2022-1-william-jordan-dark-depths", file: "1-william-jordan-dark-depths.dck" },
+    { id: "power-legacy-2022-1-takahashi-fumiya-sneak-show", file: "1-takahashi-fumiya-sneak-show.dck" },
+    { id: "power-legacy-2022-1-kyle-lerch-patriot-aggro", file: "1-kyle-lerch-patriot-aggro.dck" },
+    { id: "power-legacy-2022-1-danilo-kiyan-bg-depths", file: "1-danilo-kiyan-bg-depths.dck" },
+    { id: "power-legacy-2022-1-matthew-harden-faeries", file: "1-matthew-harden-faeries.dck" },
+    { id: "power-legacy-2022-1-fabrizio-bortoletto-oops-all-spells", file: "1-fabrizio-bortoletto-oops-all-spells.dck" },
+    { id: "power-legacy-2022-1-matial-hirsila-grixis-day-s-undoing", file: "1-matial-hirsila-grixis-day-s-undoing.dck" },
+    { id: "power-legacy-2022-1-ding-hui-eldrazi-post", file: "1-ding-hui-eldrazi-post.dck" },
+    { id: "power-legacy-2022-1-naoya-koyano-titan-post", file: "1-naoya-koyano-titan-post.dck" },
+    { id: "power-legacy-2022-1-saiki-takumi-eldrazi-aggro", file: "1-saiki-takumi-eldrazi-aggro.dck" },
+    { id: "power-legacy-2022-1-daniel-martins-zoo", file: "1-daniel-martins-zoo.dck" },
+  ],
+};
+
+/**
+ * The 2023 Legacy power summer — `Legacy (MAT)`, 2023-05-29 to 2023-09-08,
+ * pinned to Standard 2023’s own dates. 49 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2023.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 10, U 11, B 8, R 7, G 8; aggro 7,
+ * midrange 8, control 5, combo 4. Blue dominated this era’s candidate pool (33%
+ * of its colour pips) and was given extra slots (11 of 24 chosen).
+ */
+export const POWER_SUMMER_2023_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2023',
+  directory: `${DECKS_ROOT}/legacy-2023`,
+  event: "2023 Legacy power summer \u2014 Legacy (MAT), 2023-05-29 \u2192 2023-09-08",
+  format: "Legacy (MAT)",
+  date: "2023-05-29",
+  source: 'docs/planning/deck-selection/review/legacy-2023.md',
+  decks: [
+    { id: "power-legacy-2023-1-john-ryan-hamilton-death-taxes", file: "1-john-ryan-hamilton-death-taxes.dck" },
+    { id: "power-legacy-2023-1-luca-fasoli-doomsday", file: "1-luca-fasoli-doomsday.dck" },
+    { id: "power-legacy-2023-1-rudabega-4cc", file: "1-rudabega-4cc.dck" },
+    { id: "power-legacy-2023-1-tonyscapone-storm", file: "1-tonyscapone-storm.dck" },
+    { id: "power-legacy-2023-1-nakamura-yuya-artifacts-blue", file: "1-nakamura-yuya-artifacts-blue.dck" },
+    { id: "power-legacy-2023-1-krzysztof-mazurek-rug-delver", file: "1-krzysztof-mazurek-rug-delver.dck" },
+    { id: "power-legacy-2023-1-hirota-takashi-canadian-midrange", file: "1-hirota-takashi-canadian-midrange.dck" },
+    { id: "power-legacy-2023-1-katou-kazuma-reanimator", file: "1-katou-kazuma-reanimator.dck" },
+    { id: "power-legacy-2023-1-utley26-painter", file: "1-utley26-painter.dck" },
+    { id: "power-legacy-2023-1-ecobaronen-death-s-shadow", file: "1-ecobaronen-death-s-shadow.dck" },
+    { id: "power-legacy-2023-1-hataue-tomoki-lands", file: "1-hataue-tomoki-lands.dck" },
+    { id: "power-legacy-2023-1-angelo-cadei-uwx-control", file: "1-angelo-cadei-uwx-control.dck" },
+    { id: "power-legacy-2023-1-danilo-kiyan-naya-depths", file: "1-danilo-kiyan-naya-depths.dck" },
+    { id: "power-legacy-2023-1-romain-corgnolo-boros-initiative", file: "1-romain-corgnolo-boros-initiative.dck" },
+    { id: "power-legacy-2023-1-rodrigo-sousa-maraja-miracles", file: "1-rodrigo-sousa-maraja-miracles.dck" },
+    { id: "power-legacy-2023-1-aooaaooa-dark-depths", file: "1-aooaaooa-dark-depths.dck" },
+    { id: "power-legacy-2023-1-giorgio-bresciani-maverick", file: "1-giorgio-bresciani-maverick.dck" },
+    { id: "power-legacy-2023-1-andrei-prata-dark-maverick", file: "1-andrei-prata-dark-maverick.dck" },
+    { id: "power-legacy-2023-1-chase-hoppe-elves", file: "1-chase-hoppe-elves.dck" },
+    { id: "power-legacy-2023-1-crusherbotbg-hammer-time", file: "1-crusherbotbg-hammer-time.dck" },
+    { id: "power-legacy-2023-1-andrea-boccia-grixis-control", file: "1-andrea-boccia-grixis-control.dck" },
+    { id: "power-legacy-2023-1-jhon-o-keefe-mono-black-helm", file: "1-jhon-o-keefe-mono-black-helm.dck" },
+    { id: "power-legacy-2023-1-susurrus-mtg-karn", file: "1-susurrus-mtg-karn.dck" },
+    { id: "power-legacy-2023-1-ryan-hayes-bampo", file: "1-ryan-hayes-bampo.dck" },
+  ],
+};
+
+/**
+ * The 2024 Legacy power summer — `Legacy (OTJ)`, 2024-04-19 to 2024-08-02,
+ * pinned to Standard 2024’s own dates. 48 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2024.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 8, U 11, B 9, R 7, G 9; aggro 7,
+ * midrange 6, control 6, combo 5. Blue dominated this era’s candidate pool (34%
+ * of its colour pips) and was given extra slots (11 of 24 chosen).
+ */
+export const POWER_SUMMER_2024_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2024',
+  directory: `${DECKS_ROOT}/legacy-2024`,
+  event: "2024 Legacy power summer \u2014 Legacy (OTJ), 2024-04-19 \u2192 2024-08-02",
+  format: "Legacy (OTJ)",
+  date: "2024-04-19",
+  source: 'docs/planning/deck-selection/review/legacy-2024.md',
+  decks: [
+    { id: "power-legacy-2024-1-karatedom-ub-reanimator", file: "1-karatedom-ub-reanimator.dck" },
+    { id: "power-legacy-2024-1-andrea-riva-canadian-druid", file: "1-andrea-riva-canadian-druid.dck" },
+    { id: "power-legacy-2024-1-marco-montani-grixis-delver", file: "1-marco-montani-grixis-delver.dck" },
+    { id: "power-legacy-2024-1-yanagi-toya-dark-depths", file: "1-yanagi-toya-dark-depths.dck" },
+    { id: "power-legacy-2024-1-jumba-dragon-stompy", file: "1-jumba-dragon-stompy.dck" },
+    { id: "power-legacy-2024-1-orlando-d-angelo-death-taxes", file: "1-orlando-d-angelo-death-taxes.dck" },
+    { id: "power-legacy-2024-1-davi-erik-pereira-4-5c-control", file: "1-davi-erik-pereira-4-5c-control.dck" },
+    { id: "power-legacy-2024-1-mike-lee-cephalid-breakfast", file: "1-mike-lee-cephalid-breakfast.dck" },
+    { id: "power-legacy-2024-1-flossed-mono-black-scam", file: "1-flossed-mono-black-scam.dck" },
+    { id: "power-legacy-2024-1-paulo-joustra-initiative-stompy", file: "1-paulo-joustra-initiative-stompy.dck" },
+    { id: "power-legacy-2024-1-achillies27-maverick", file: "1-achillies27-maverick.dck" },
+    { id: "power-legacy-2024-1-eureka22422-saga-storm", file: "1-eureka22422-saga-storm.dck" },
+    { id: "power-legacy-2024-1-shiwasu-omni-show", file: "1-shiwasu-omni-show.dck" },
+    { id: "power-legacy-2024-1-hammafist-esper-control", file: "1-hammafist-esper-control.dck" },
+    { id: "power-legacy-2024-1-marcelo-burbulhan-sultai-beans", file: "1-marcelo-burbulhan-sultai-beans.dck" },
+    { id: "power-legacy-2024-2-francesco-messina-lands", file: "2-francesco-messina-lands.dck" },
+    { id: "power-legacy-2024-2-murata-naoyoshi-doomsday", file: "2-murata-naoyoshi-doomsday.dck" },
+    { id: "power-legacy-2024-1-f2104-mississippi-river", file: "1-f2104-mississippi-river.dck" },
+    { id: "power-legacy-2024-1-bresciani-giorgio-5c-control", file: "1-bresciani-giorgio-5c-control.dck" },
+    { id: "power-legacy-2024-3-nakamura-ryotaro-painter", file: "3-nakamura-ryotaro-painter.dck" },
+    { id: "power-legacy-2024-2-oppa-cradle-control", file: "2-oppa-cradle-control.dck" },
+    { id: "power-legacy-2024-2-nakajima-takuhito-cloudpost-ramp", file: "2-nakajima-takuhito-cloudpost-ramp.dck" },
+    { id: "power-legacy-2024-2-adachi-ryousuke-pox", file: "2-adachi-ryousuke-pox.dck" },
+    { id: "power-legacy-2024-2-zoilo-marallag-rakdos-painter", file: "2-zoilo-marallag-rakdos-painter.dck" },
+  ],
+};
+
+/**
+ * The 2025 Legacy power summer — `Legacy (FIN)`, 2025-06-30 to 2025-08-01,
+ * pinned to Standard 2025’s own dates. 62 legal, distinct candidate decks
+ * (`docs/planning/deck-selection/review/legacy-2025.md` has the full table and
+ * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
+ * searched for colour and style spread: W 7, U 10, B 9, R 6, G 8; aggro 7,
+ * midrange 6, control 6, combo 5. Blue dominated this era’s candidate pool (29%
+ * of its colour pips) and was given extra slots (10 of 24 chosen).
+ */
+export const POWER_SUMMER_2025_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'power-summer-legacy-2025',
+  directory: `${DECKS_ROOT}/legacy-2025`,
+  event: "2025 Legacy power summer \u2014 Legacy (FIN), 2025-06-30 \u2192 2025-08-01",
+  format: "Legacy (FIN)",
+  date: "2025-06-30",
+  source: 'docs/planning/deck-selection/review/legacy-2025.md',
+  decks: [
+    { id: "power-legacy-2025-1-skpchino-ub-reanimator", file: "1-skpchino-ub-reanimator.dck" },
+    { id: "power-legacy-2025-1-ivan-ibanez-lands", file: "1-ivan-ibanez-lands.dck" },
+    { id: "power-legacy-2025-1-nathanlipetz-dimir-tempo", file: "1-nathanlipetz-dimir-tempo.dck" },
+    { id: "power-legacy-2025-1-xanazero-painter", file: "1-xanazero-painter.dck" },
+    { id: "power-legacy-2025-1-hiromi-kameshima-mystic-forge", file: "1-hiromi-kameshima-mystic-forge.dck" },
+    { id: "power-legacy-2025-1-xerk-cephalid-breakfast", file: "1-xerk-cephalid-breakfast.dck" },
+    { id: "power-legacy-2025-1-delightedhalfling-cradle-control", file: "1-delightedhalfling-cradle-control.dck" },
+    { id: "power-legacy-2025-1-jonata-molteni-dark-maverick", file: "1-jonata-molteni-dark-maverick.dck" },
+    { id: "power-legacy-2025-1-giorgio-bresciani-nadu-value", file: "1-giorgio-bresciani-nadu-value.dck" },
+    { id: "power-legacy-2025-1-punishingwaterfalls-dragon-stompy", file: "1-punishingwaterfalls-dragon-stompy.dck" },
+    { id: "power-legacy-2025-1-franmtg-eldrazi-aggro", file: "1-franmtg-eldrazi-aggro.dck" },
+    { id: "power-legacy-2025-1-jibeta-jeskai-control", file: "1-jibeta-jeskai-control.dck" },
+    { id: "power-legacy-2025-1-fredmcfred-4-5c-control", file: "1-fredmcfred-4-5c-control.dck" },
+    { id: "power-legacy-2025-1-gabriel-braga-omnitell", file: "1-gabriel-braga-omnitell.dck" },
+    { id: "power-legacy-2025-1-sebastien-fayand-death-and-taxes", file: "1-sebastien-fayand-death-and-taxes.dck" },
+    { id: "power-legacy-2025-1-mahfuzvangogh-dredge", file: "1-mahfuzvangogh-dredge.dck" },
+    { id: "power-legacy-2025-1-jaime-vazquez-villares-elves", file: "1-jaime-vazquez-villares-elves.dck" },
+    { id: "power-legacy-2025-1-adam-gerwatowski-cradle-nadu", file: "1-adam-gerwatowski-cradle-nadu.dck" },
+    { id: "power-legacy-2025-1-magic-dads71522-reanimator", file: "1-magic-dads71522-reanimator.dck" },
+    { id: "power-legacy-2025-1-screenwriterny-uwx-control", file: "1-screenwriterny-uwx-control.dck" },
+    { id: "power-legacy-2025-1-wonderpreaux-turbo-necro", file: "1-wonderpreaux-turbo-necro.dck" },
+    { id: "power-legacy-2025-1-tamas-kukucska-artifacts-prison", file: "1-tamas-kukucska-artifacts-prison.dck" },
+    { id: "power-legacy-2025-1-florent-jugnet-rakdos-discard", file: "1-florent-jugnet-rakdos-discard.dck" },
+    { id: "power-legacy-2025-1-cole-harnish-boros-energy", file: "1-cole-harnish-boros-energy.dck" },
+  ],
+};
+
 
 /** Every collection in the library, oldest era first. */
 export const LIBRARY: readonly LibraryCollection[] = [
@@ -1786,12 +2987,30 @@ export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_2014_STANDARD,
   POWER_SUMMER_2015_STANDARD,
   POWER_SUMMER_2016_STANDARD,
+  POWER_SUMMER_2017_STANDARD,
+  POWER_SUMMER_2018_STANDARD,
+  POWER_SUMMER_2019_STANDARD,
+  POWER_SUMMER_2020_STANDARD,
+  POWER_SUMMER_2021_STANDARD,
+  POWER_SUMMER_2022_STANDARD,
+  POWER_SUMMER_2023_STANDARD,
+  POWER_SUMMER_2024_STANDARD,
+  POWER_SUMMER_2025_STANDARD,
   POWER_SUMMER_2011_MODERN,
   POWER_SUMMER_2012_MODERN,
   POWER_SUMMER_2013_MODERN,
   POWER_SUMMER_2014_MODERN,
   POWER_SUMMER_2015_MODERN,
   POWER_SUMMER_2016_MODERN,
+  POWER_SUMMER_2017_MODERN,
+  POWER_SUMMER_2018_MODERN,
+  POWER_SUMMER_2019_MODERN,
+  POWER_SUMMER_2020_MODERN,
+  POWER_SUMMER_2021_MODERN,
+  POWER_SUMMER_2022_MODERN,
+  POWER_SUMMER_2023_MODERN,
+  POWER_SUMMER_2024_MODERN,
+  POWER_SUMMER_2025_MODERN,
   POWER_SUMMER_2005_LEGACY,
   POWER_SUMMER_2006_LEGACY,
   POWER_SUMMER_2007_LEGACY,
@@ -1804,6 +3023,15 @@ export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_2014_LEGACY,
   POWER_SUMMER_2015_LEGACY,
   POWER_SUMMER_2016_LEGACY,
+  POWER_SUMMER_2017_LEGACY,
+  POWER_SUMMER_2018_LEGACY,
+  POWER_SUMMER_2019_LEGACY,
+  POWER_SUMMER_2020_LEGACY,
+  POWER_SUMMER_2021_LEGACY,
+  POWER_SUMMER_2022_LEGACY,
+  POWER_SUMMER_2023_LEGACY,
+  POWER_SUMMER_2024_LEGACY,
+  POWER_SUMMER_2025_LEGACY,
 ];
 
 /**

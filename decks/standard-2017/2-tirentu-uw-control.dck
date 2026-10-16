@@ -1,0 +1,29 @@
+[metadata]
+Name=UW Control (Tirentu)
+Deck Type=Constructed
+Format=Standard (HOU)
+Effective=2017-07-14
+Source URL=https://www.mtgtop8.com/event?e=16563&d=302410&f=ST
+Comment=MTGO Standard PTQ #10813602: Tirentu, 2nd, UW Control. Transcribed from mtgtop8 deck 302410.
+[Main]
+4 Prairie Stream|BFZ
+6 Plains|HOU
+9 Island|HOU
+4 Irrigated Farmland|AKH
+2 Blighted Cataract|BFZ
+3 Cast Out|AKH
+2 Authority of the Consuls|KLD
+4 Aether Meltdown|KLD
+4 Fumigate|KLD
+3 Approach of the Second Sun|AKH
+4 Supreme Will|HOU
+3 Hieroglyphic Illumination|AKH
+4 Glimmer of Genius|KLD
+4 Censor|AKH
+4 Blessed Alliance|EMN
+[Sideboard]
+4 Spell Queller|EMN
+4 Regal Caracal|AKH
+1 Negate|AER
+4 Gideon, Ally of Zendikar|BFZ
+2 Authority of the Consuls|KLD

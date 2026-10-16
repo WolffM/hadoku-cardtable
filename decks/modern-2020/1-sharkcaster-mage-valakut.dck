@@ -1,0 +1,44 @@
+[metadata]
+Name=Valakut (Sharkcaster_Mage)
+Deck Type=Constructed
+Format=Modern (2020-07-13)
+Effective=2020-08-03
+Source URL=https://www.mtgtop8.com/event?e=25071&d=375442&f=MO
+Comment=MTGO Modern Super Qualifier: Sharkcaster_Mage, 1st, Valakut. Transcribed from mtgtop8 deck 375442.
+[Main]
+1 Vesuva|TSP
+4 Verdant Catacombs|ZEN
+2 Valakut, the Molten Pinnacle|ZEN
+2 Swamp|M21
+2 Snow-Covered Forest|CSP
+1 Radiant Fountain|M15
+1 Overgrown Tomb|GRN
+1 Nurturing Peatland|MH1
+2 Golgari Rot Farm|RAV
+4 Karn, the Great Creator|WAR
+2 Arboreal Grazer|WAR
+4 Dryad of the Ilysian Grove|THB
+4 Primeval Titan|M12
+4 Sakura-Tribe Elder|CHK
+4 Explore|WWK
+4 Search for Tomorrow|TSP
+4 Summoner's Pact|FUT
+1 Blast Zone|WAR
+1 Bojuka Bog|WWK
+4 Castle Garenbrig|ELD
+3 Cavern of Souls|AVR
+2 Field of the Dead|M20
+2 Forest|M21
+1 Ghost Quarter|ISD
+[Sideboard]
+1 Wurmcoil Engine|SOM
+1 Walking Ballista|AER
+1 Tormod's Crypt|M15
+2 Tireless Tracker|SOI
+1 Memoricide|SOM
+1 Liquimetal Coating|SOM
+1 Golos, Tireless Pilgrim|M20
+1 Ensnaring Bridge|8E
+1 Damping Sphere|DOM
+1 Cranial Extraction|CHK
+4 Abrupt Decay|RTR

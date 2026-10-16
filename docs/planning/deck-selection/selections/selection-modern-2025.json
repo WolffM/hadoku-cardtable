@@ -1,0 +1,2314 @@
+{
+ "era": {
+  "year": 2025,
+  "season_start": "2024-08-02",
+  "start": "2025-06-30",
+  "end": "2025-08-01",
+  "snapshot_file": "2025-06-13",
+  "format": "Modern (FIN)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12, ISD, DKA, AVR, M13, RTR, GTC, DGM, MMA, M14, THS, BNG, JOU, MD1, M15, KTK, FRF, DTK, MM2, ORI, BFZ, OGW, SOI, W16, EMN, KLD, AER, MM3, W17, AKH, HOU, XLN, RIX, DOM, M19, GRN, GK1, G18, RNA, GK2, WAR, MH1, M20, ELD, THB, IKO, M21, ZNR, KHM, STX, MH2, AFR, MID, VOW, DBL, NEO, SNC, DMU, BRO, ONE, MOM, MAT, LTR, WOE, LCI, MKM, OTJ, BIG, MH3, ACR, BLB, DSK, FDN, DFT, TDM, FIN",
+  "banned": [
+   "Amped Raptor",
+   "Ancient Den",
+   "Arcum's Astrolabe",
+   "Birthing Pod",
+   "Blazing Shoal",
+   "Bridge from Below",
+   "Chrome Mox",
+   "Cloudpost",
+   "Dark Depths",
+   "Deathrite Shaman",
+   "Dig Through Time",
+   "Dread Return",
+   "Eye of Ugin",
+   "Field of the Dead",
+   "Fury",
+   "Gitaxian Probe",
+   "Glimpse of Nature",
+   "Golgari Grave-Troll",
+   "Great Furnace",
+   "Grief",
+   "Hogaak, Arisen Necropolis",
+   "Hypergenesis",
+   "Jegantha, the Wellspring",
+   "Krark-Clan Ironworks",
+   "Lurrus of the Dream-Den",
+   "Mental Misstep",
+   "Mycosynth Lattice",
+   "Mystic Sanctuary",
+   "Nadu, Winged Wisdom",
+   "Oko, Thief of Crowns",
+   "Once Upon a Time",
+   "Ponder",
+   "Punishing Fire",
+   "Rite of Flame",
+   "Seat of the Synod",
+   "Second Sunrise",
+   "Seething Song",
+   "Sensei's Divining Top",
+   "Simian Spirit Guide",
+   "Skullclamp",
+   "Summer Bloom",
+   "The One Ring",
+   "Tibalt's Trickery",
+   "Treasure Cruise",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Underworld Breach",
+   "Up the Beanstalk",
+   "Uro, Titan of Nature's Wrath",
+   "Vault of Whispers",
+   "Violent Outburst",
+   "Yorion, Sky Nomad"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 737064,
+   "event": 70884,
+   "archetype": "Esper & Taxes",
+   "player": "McWinSauce",
+   "event_name": "MTGO RC Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2025-07-05",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.47,
+    "pips": {
+     "W": 26.0,
+     "U": 4.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Emperor of Bones": 2,
+     "Ephemerate": 3,
+     "Wrath of the Skies": 2,
+     "Overlord of the Balemurk": 4,
+     "Ketramose, the New Dawn": 2,
+     "Phelia, Exuberant Shepherd": 3,
+     "Psychic Frog": 4,
+     "Flickerwisp": 3,
+     "Fatal Push": 4,
+     "Relic of Progenitus": 2,
+     "Solitude": 4,
+     "Thoughtseize": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 75
+  },
+  {
+   "deck": 725984,
+   "event": 69435,
+   "archetype": "Boros Energy",
+   "player": "imthekiing",
+   "event_name": "MTGO RC Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2025-05-31",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 1.78,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger": 4,
+     "Goblin Bombardment": 3,
+     "Galvanic Discharge": 4,
+     "Guide of Souls": 4,
+     "Ocelot Pride": 4,
+     "Static Prison": 2,
+     "Thraben Charm": 2,
+     "Ragavan, Nimble Pilferer": 3,
+     "Seasoned Pyromancer": 3,
+     "Ranger-Captain of Eos": 1,
+     "Voice of Victory": 2,
+     "Phlage, Titan of Fire's Fury": 4,
+     "Enduring Innocence": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 312
+  },
+  {
+   "deck": 727045,
+   "event": 69577,
+   "archetype": "Broodscale Bloodchief",
+   "player": "Hunter Ovington",
+   "event_name": "Magic Spotlight: Secret Lair @ SCG CON Indianapolis",
+   "stars": 3,
+   "rank": "1",
+   "date": "2025-05-31",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 16.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Basking Broodscale": 4,
+     "Glaring Fleshraker": 4,
+     "Walking Ballista": 4,
+     "Writhing Chrysalis": 4,
+     "Emrakul, the Promised End": 2,
+     "Haywire Mite": 1,
+     "Blade of the Bloodchief": 4,
+     "Soul-Guide Lantern": 1,
+     "Springleaf Drum": 1,
+     "Vexing Bauble": 1,
+     "Kozilek's Command": 4,
+     "Ancient Stirrings": 4,
+     "Malevolent Rumble": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 109
+  },
+  {
+   "deck": 734850,
+   "event": 70585,
+   "archetype": "Dimir Control",
+   "player": "JuanmaAT",
+   "event_name": "MTGO Showcase Challenge",
+   "stars": 3,
+   "rank": "1",
+   "date": "2025-06-28",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 10,
+    "sweepers": 2,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 2.0,
+     "U": 37.0,
+     "B": 18.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Cling to Dust": 1,
+     "Pest Control": 2,
+     "Spell Snare": 3,
+     "Force of Negation": 3,
+     "Thoughtseize": 3,
+     "Unearth": 4,
+     "Fatal Push": 4,
+     "Counterspell": 4,
+     "Thought Scour": 4,
+     "Murktide Regent": 2,
+     "Harbinger of the Seas": 2,
+     "Psychic Frog": 4,
+     "Abhorrent Oculus": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 50
+  },
+  {
+   "deck": 743766,
+   "event": 71743,
+   "archetype": "Amulet Titan",
+   "player": "HouseOfManaMTG",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-26",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 27,
+    "lands": 33,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 27.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Aftermath Analyst": 1,
+     "Amulet of Vigor": 4,
+     "Arboreal Grazer": 4,
+     "Summoner's Pact": 3,
+     "Primeval Titan": 4,
+     "Spelunking": 4,
+     "Scapeshift": 3,
+     "Explore": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 102
+  },
+  {
+   "deck": 743180,
+   "event": 71669,
+   "archetype": "Landless Belcher",
+   "player": "Kageyama Hiroki",
+   "event_name": "Admiral Championship @ Kawasaki (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-20",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.17,
+    "pips": {
+     "W": 0,
+     "U": 43.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Disrupting Shoal": 4,
+     "Spell Snare": 3,
+     "Whir of Invention": 4,
+     "Lotus Bloom": 4,
+     "Goblin Charbelcher": 4,
+     "Thundertrap Trainer": 4,
+     "Fallaji Archaeologist": 4,
+     "Tameshi, Reality Architect": 4,
+     "Stern Scolding": 1,
+     "Flare of Denial": 3,
+     "Into the Flood Maw": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 98
+  },
+  {
+   "deck": 742694,
+   "event": 71597,
+   "archetype": "UR Cutter Prowess",
+   "player": "O_danielakos",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-21",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 8,
+    "avg_cmc": 1.19,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 31.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Cori-Steel Cutter": 4,
+     "Dragon's Rage Channeler": 4,
+     "Expressive Iteration": 4,
+     "Lava Dart": 4,
+     "Lightning Bolt": 4,
+     "Monastery Swiftspear": 4,
+     "Mutagenic Growth": 3,
+     "Preordain": 4,
+     "Slickshot Show-Off": 4,
+     "Violent Urge": 3,
+     "Mishra's Bauble": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 90
+  },
+  {
+   "deck": 745131,
+   "event": 71914,
+   "archetype": "Instant Reanimator",
+   "player": "barczek",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 20,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 20.0,
+     "U": 22.0,
+     "B": 28.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Force of Negation": 3,
+     "Thoughtseize": 2,
+     "Atraxa, Grand Unifier": 4,
+     "Fallaji Archaeologist": 4,
+     "Tainted Indulgence": 4,
+     "Solitude": 4,
+     "Prismatic Ending": 2,
+     "Griselbrand": 2,
+     "Goryo's Vengeance": 4,
+     "Psychic Frog": 4,
+     "Ephemerate": 4,
+     "Priest of Fell Rites": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 62
+  },
+  {
+   "deck": 736446,
+   "event": 70806,
+   "archetype": "Living End",
+   "player": "MeninooNey",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-03",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 31,
+    "counters": 4,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.05,
+    "pips": {
+     "W": 4.0,
+     "U": 47.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 18.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Ardent Plea": 4,
+     "Colossal Skyturtle": 1,
+     "Windcaller Aven": 3,
+     "Generous Ent": 4,
+     "Curator of Mysteries": 4,
+     "Living End": 3,
+     "Press the Enemy": 1,
+     "Shardless Agent": 4,
+     "Subtlety": 4,
+     "Street Wraith": 4,
+     "Waker of Waves": 3,
+     "Force of Negation": 4,
+     "Endurance": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 55
+  },
+  {
+   "deck": 744230,
+   "event": 71796,
+   "archetype": "Allosaurus Combo",
+   "player": "rerere",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-28",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 18,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.78,
+    "pips": {
+     "W": 2.0,
+     "U": 15.0,
+     "B": 6.0,
+     "R": 2.0,
+     "G": 43.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Allosaurus Rider": 4,
+     "Pact of Negation": 3,
+     "Ghalta, Stampede Tyrant": 3,
+     "Consign to Memory": 4,
+     "Eldritch Evolution": 4,
+     "Griselbrand": 1,
+     "Generous Ent": 3,
+     "Hooting Mandrills": 3,
+     "Neoform": 4,
+     "Planar Genesis": 4,
+     "Atraxa, Grand Unifier": 2,
+     "Xenagos, God of Revels": 1,
+     "Summoner's Pact": 4,
+     "Ureni, the Song Unending": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 51
+  },
+  {
+   "deck": 744591,
+   "event": 71846,
+   "archetype": "Jeskai Control",
+   "player": "V\u00edctor G\u00f3mez Gonz\u00e1lez",
+   "event_name": "Impact Returns Main Event @ Impact (La Coru\u00f1a, Spain)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-27",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 13,
+    "counters": 6,
+    "sweepers": 1,
+    "draw": 5,
+    "burn": 4,
+    "avg_cmc": 2.3,
+    "pips": {
+     "W": 12.0,
+     "U": 29.0,
+     "B": 0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Supreme Verdict": 1,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 2,
+     "Spell Snare": 2,
+     "Wrath of the Skies": 2,
+     "Prismatic Ending": 2,
+     "L\u00f3rien Revealed": 2,
+     "Tune the Narrative": 3,
+     "Galvanic Discharge": 4,
+     "Flare of Denial": 4,
+     "Flame of Anor": 4,
+     "Snapcaster Mage": 3,
+     "Thundertrap Trainer": 4,
+     "Phlage, Titan of Fire's Fury": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 49
+  },
+  {
+   "deck": 744925,
+   "event": 71890,
+   "archetype": "Ruby Storm",
+   "player": "azax",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-29",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 2.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Pyretic Ritual": 4,
+     "Manamorphose": 4,
+     "Past in Flames": 3,
+     "Ruby Medallion": 4,
+     "Ral, Monsoon Mage // Ral, Leyline Prodigy": 4,
+     "Wish": 2,
+     "Glimpse the Impossible": 4,
+     "Reckless Impulse": 4,
+     "Wrenn's Resolve": 4,
+     "Desperate Ritual": 4,
+     "Artist's Talent": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 46
+  },
+  {
+   "deck": 744043,
+   "event": 71770,
+   "archetype": "UrzaTron",
+   "player": "HoldTheElle",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-26",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.75,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Ugin, Eye of the Storms": 3,
+     "Devourer of Destiny": 4,
+     "Talisman of Resilience": 3,
+     "Sowing Mycospawn": 4,
+     "Sire of Seven Deaths": 2,
+     "Karn, the Great Creator": 4,
+     "Kozilek's Command": 4,
+     "Expedition Map": 4,
+     "Thought-Knot Seer": 4,
+     "Dismember": 2,
+     "Chalice of the Void": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 32
+  },
+  {
+   "deck": 743721,
+   "event": 71740,
+   "archetype": "Eldrazi Aggro",
+   "player": "roland77",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 31,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.53,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 4.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wastescape Battlemage": 4,
+     "Devourer of Destiny": 4,
+     "Eldrazi Linebreaker": 4,
+     "Glaring Fleshraker": 4,
+     "Sire of Seven Deaths": 4,
+     "It That Heralds the End": 3,
+     "Thought-Knot Seer": 4,
+     "Kozilek's Command": 4,
+     "Sowing Mycospawn": 4,
+     "Chalice of the Void": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 26
+  },
+  {
+   "deck": 742558,
+   "event": 71581,
+   "archetype": "Simic Birthing Ritual",
+   "player": "Adrien Venancio",
+   "event_name": "South America Magic Series | Premium RCQ @ Mont CardShop (Campinas, Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-19",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 26,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.66,
+    "pips": {
+     "W": 0,
+     "U": 42.0,
+     "B": 0,
+     "R": 0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Dismember": 2,
+     "Force of Negation": 2,
+     "Birthing Ritual": 4,
+     "Flare of Denial": 4,
+     "Brazen Borrower // Petty Theft": 1,
+     "Fblthp, the Lost": 1,
+     "Floodpits Drowner": 2,
+     "Subtlety": 2,
+     "Harbinger of the Seas": 2,
+     "Endurance": 2,
+     "Ice-Fang Coatl": 4,
+     "Abhorrent Oculus": 4,
+     "Shardless Agent": 4,
+     "Coiling Oracle": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 13
+  },
+  {
+   "deck": 738863,
+   "event": 71124,
+   "archetype": "Death's Shadow",
+   "player": "YungDingo",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-12",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 18,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 1.07,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 22.0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Expressive Iteration": 4,
+     "Thoughtseize": 4,
+     "Lightning Bolt": 4,
+     "Fatal Push": 4,
+     "Death's Shadow": 4,
+     "Mishra's Bauble": 4,
+     "Psychic Frog": 3,
+     "Dragon's Rage Channeler": 4,
+     "Nethergoyf": 4,
+     "Stubborn Denial": 4,
+     "Cecil, Dark Knight // Cecil, Redeemed Paladin": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 737314,
+   "event": 70914,
+   "archetype": "Mono White Control",
+   "player": "auzzie51",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-07",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 45.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Relic of Progenitus": 1,
+     "Crucible of Worlds": 1,
+     "Ephemerate": 1,
+     "Karn, the Great Creator": 2,
+     "Reprieve": 4,
+     "Path to Exile": 4,
+     "Wrath of the Skies": 4,
+     "March of Otherworldly Light": 4,
+     "Solitude": 4,
+     "Skyclave Apparition": 4,
+     "White Orchid Phantom": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 742927,
+   "event": 71630,
+   "archetype": "Hammertime",
+   "player": "Davide Ferroni",
+   "event_name": "Destination Qualifier @ Lost Town (Sarzana, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-20",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.2,
+    "pips": {
+     "W": 29.0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Mishra's Bauble": 4,
+     "Cloud, Midgar Mercenary": 1,
+     "Colossus Hammer": 4,
+     "Cori-Steel Cutter": 4,
+     "Esper Sentinel": 4,
+     "Flare of Fortitude": 1,
+     "Mox Opal": 4,
+     "Pithing Needle": 1,
+     "Portable Hole": 2,
+     "Puresteel Paladin": 4,
+     "Shadowspear": 1,
+     "Sigarda's Aid": 4,
+     "Steelshaper's Gift": 3,
+     "Stoneforge Mystic": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 737205,
+   "event": 70904,
+   "archetype": "Ur Cutter",
+   "player": "Adrien Pennard",
+   "event_name": "RCQ @ Magic Corporation (Paris, France)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-05",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 10,
+    "counters": 2,
+    "sweepers": 2,
+    "draw": 10,
+    "burn": 6,
+    "avg_cmc": 1.41,
+    "pips": {
+     "W": 0,
+     "U": 21.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Aether Spellbomb": 1,
+     "Soul-Guide Lantern": 1,
+     "Flame of Anor": 2,
+     "Metallic Rebuke": 2,
+     "Lightning Bolt": 2,
+     "Galvanic Blast": 2,
+     "Mox Amber": 3,
+     "Expressive Iteration": 3,
+     "Mox Opal": 3,
+     "Cori-Steel Cutter": 4,
+     "Mishra's Bauble": 4,
+     "Repeal": 4,
+     "Vivi Ornitier": 2,
+     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar": 4,
+     "Emry, Lurker of the Loch": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 735823,
+   "event": 70725,
+   "archetype": "Grixis Control",
+   "player": "Valerio Nevischi",
+   "event_name": "Finale Lega Livorno @ Centro del Fumetto di Stefano Pagliai (Livorno , Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 15,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 8,
+    "avg_cmc": 1.87,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 14.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Kaito, Bane of Nightmares": 1,
+     "Kolaghan's Command": 1,
+     "Cling to Dust": 1,
+     "Sheoldred's Edict": 1,
+     "Force of Negation": 2,
+     "Spell Snare": 3,
+     "Flame of Anor": 3,
+     "Fatal Push": 3,
+     "Counterspell": 4,
+     "Lightning Bolt": 4,
+     "Subtlety": 1,
+     "Orcish Bowmasters": 3,
+     "Snapcaster Mage": 3,
+     "Psychic Frog": 4,
+     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 24
+  },
+  {
+   "deck": 727916,
+   "event": 69691,
+   "archetype": "Mardu Aggro",
+   "player": "Linden_43",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-04",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 25.0,
+     "U": 0,
+     "B": 11.0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Fatal Push": 1,
+     "Dreams of Steel and Oil": 2,
+     "Galvanic Discharge": 2,
+     "Prismatic Ending": 2,
+     "Goblin Bombardment": 3,
+     "Solitude": 1,
+     "Phlage, Titan of Fire's Fury": 3,
+     "Ragavan, Nimble Pilferer": 3,
+     "Flickerwisp": 3,
+     "Overlord of the Balemurk": 4,
+     "Ocelot Pride": 4,
+     "Guide of Souls": 4,
+     "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 17
+  },
+  {
+   "deck": 735446,
+   "event": 70660,
+   "archetype": "4/5c Control",
+   "player": "TrueHero",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 9,
+    "burn": 8,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 28.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 11.0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Teferi, Hero of Dominaria": 2,
+     "Prismatic Ending": 2,
+     "L\u00f3rien Revealed": 2,
+     "Tune the Narrative": 2,
+     "Wrath of the Skies": 3,
+     "Teferi, Time Raveler": 3,
+     "Wrenn and Six": 4,
+     "Orim's Chant": 4,
+     "Flame of Anor": 4,
+     "Omnath, Locus of Creation": 3,
+     "Thundertrap Trainer": 4,
+     "Solitude": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 15
+  },
+  {
+   "deck": 735951,
+   "event": 70743,
+   "archetype": "Chord Toolbox",
+   "player": "Nilo Herrero",
+   "event_name": "Ojeda Open Pachanga Qualifiyer @ Hamelin Games (Matar\u00f3, Spain)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 5.0,
+     "U": 0,
+     "B": 19.0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Cauldron Familiar": 4,
+     "Gilded Goose": 4,
+     "Marionette Apprentice": 4,
+     "Samwise Gamgee": 4,
+     "Viscera Seer": 3,
+     "Orcish Bowmasters": 2,
+     "Young Wolf": 2,
+     "Carrion Feeder": 1,
+     "Haywire Mite": 1,
+     "Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel": 1,
+     "Sylvan Safekeeper": 1,
+     "Voice of Victory": 1,
+     "Yawgmoth, Thran Physician": 1,
+     "Chord of Calling": 4,
+     "Birthing Ritual": 4,
+     "Chthonian Nightmare": 1,
+     "Grist, the Hunger Tide": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 8
+  },
+  {
+   "deck": 731029,
+   "event": 70122,
+   "archetype": "Monoblack Necro",
+   "player": "Francesco Galati",
+   "event_name": "RCQ @ Galactus Tiburtina (Roma, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.28,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 52.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Inquisition of Kozilek": 2,
+     "Profane Tutor": 3,
+     "Thoughtseize": 4,
+     "Fatal Push": 4,
+     "March of Wretched Sorrow": 4,
+     "Necrodominance": 4,
+     "Soul Spike": 4,
+     "Sheoldred, the Apocalypse": 3,
+     "Orcish Bowmasters": 4,
+     "Dauthi Voidwalker": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 743843,
+   "event": 71754,
+   "archetype": "4/5c Aggro",
+   "player": "nahuel10",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-07-27",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 3.59,
+    "pips": {
+     "W": 10.0,
+     "U": 6.0,
+     "B": 2.0,
+     "R": 23.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tribal Flames": 2,
+     "Consign to Memory": 1,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 3,
+     "Leyline Binding": 4,
+     "Leyline of the Guildpact": 4,
+     "Phlage, Titan of Fire's Fury": 4,
+     "Ragavan, Nimble Pilferer": 4,
+     "Scion of Draco": 4,
+     "Lightning Bolt": 4,
+     "Stubborn Denial": 3,
+     "Territorial Kavu": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 101
+  },
+  {
+   "deck": 734067,
+   "event": 70486,
+   "archetype": "Eldrazi Ramp",
+   "player": "Gobern",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-26",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 4.61,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 6.0,
+     "G": 15.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Kozilek's Command": 4,
+     "Sowing Mycospawn": 4,
+     "Writhing Chrysalis": 3,
+     "Malevolent Rumble": 4,
+     "Talisman of Creativity": 2,
+     "Emrakul, the Promised End": 3,
+     "Kozilek's Return": 3,
+     "Ugin, Eye of the Storms": 1,
+     "Talisman of Impulse": 2,
+     "Devourer of Destiny": 2,
+     "Herigast, Erupting Nullkite": 4,
+     "Sire of Seven Deaths": 2,
+     "Utopia Sprawl": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 73
+  },
+  {
+   "deck": 734818,
+   "event": 70583,
+   "archetype": "UW Control",
+   "player": "Tomasz Pi\u0119kosz",
+   "event_name": "Paprykarz Big EUL Qualifier @ Warsaw (Poland)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-29",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 3,
+    "counters": 7,
+    "sweepers": 4,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.86,
+    "pips": {
+     "W": 28.0,
+     "U": 29.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Wrath of the Skies": 1,
+     "Stern Scolding": 1,
+     "Isochron Scepter": 1,
+     "Day's Undoing": 1,
+     "Jace, the Mind Sculptor": 1,
+     "Teferi, Hero of Dominaria": 1,
+     "L\u00f3rien Revealed": 1,
+     "March of Otherworldly Light": 1,
+     "Spell Snare": 2,
+     "Prismatic Ending": 3,
+     "Brainsurge": 3,
+     "Narset, Parter of Veils": 3,
+     "Teferi, Time Raveler": 3,
+     "Terminus": 4,
+     "Orim's Chant": 4,
+     "Counterspell": 4,
+     "Solitude": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 21
+  },
+  {
+   "deck": 729990,
+   "event": 69982,
+   "archetype": "Mono Black Aggro",
+   "player": "Selfeisek",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 1.56,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 21.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Shadowspear": 1,
+     "Nihil Spellbomb": 1,
+     "Pithing Needle": 1,
+     "Inquisition of Kozilek": 2,
+     "Kozilek's Command": 4,
+     "Fatal Push": 4,
+     "Thoughtseize": 4,
+     "Mishra's Bauble": 4,
+     "Graveyard Trespasser // Graveyard Glutton": 1,
+     "Orcish Bowmasters": 2,
+     "Thought-Knot Seer": 4,
+     "Emperor of Bones": 4,
+     "Nethergoyf": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 19
+  },
+  {
+   "deck": 730497,
+   "event": 70054,
+   "archetype": "Jeskai Ascendancy",
+   "player": "Filip Sk\u00f3rnicki",
+   "event_name": "3City Challenge #18 RCQ @ Kinguin E-Sports Lounge (Gda\u0144sk, Poland)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 10,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 1.48,
+    "pips": {
+     "W": 10.0,
+     "U": 18.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar": 4,
+     "Jeskai Ascendancy": 2,
+     "Repeal": 3,
+     "Mox Amber": 3,
+     "Mox Opal": 4,
+     "Emry, Lurker of the Loch": 4,
+     "Cori-Steel Cutter": 4,
+     "Mishra's Bauble": 4,
+     "Mishra's Research Desk": 1,
+     "Sevinne's Reclamation": 2,
+     "Narset, Jeskai Waymaster": 2,
+     "Metallic Rebuke": 3,
+     "Portable Hole": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 726952,
+   "event": 69566,
+   "archetype": "Hollow One",
+   "player": "Adam Weiss",
+   "event_name": "ReCQ #6 @ SCG CON Indianapolis",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-05-31",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 18.0,
+     "R": 24.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Detective's Phoenix": 4,
+     "Hollow One": 4,
+     "Marauding Mako": 4,
+     "Nethergoyf": 4,
+     "Orcish Bowmasters": 4,
+     "Street Wraith": 4,
+     "Cori-Steel Cutter": 4,
+     "Lightning Bolt": 4,
+     "Fatal Push": 2,
+     "Burning Inquiry": 4,
+     "Faithless Looting": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 730623,
+   "event": 70070,
+   "archetype": "Merfolk",
+   "player": "Marcelo Bueno",
+   "event_name": "South America Magic Series | Premium RCQ @ Mont CardShop (Campinas, Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 33,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Floodpits Drowner": 4,
+     "Harbinger of the Seas": 4,
+     "Master of the Pearl Trident": 4,
+     "Mindspring Merfolk": 4,
+     "Silvergill Adept": 4,
+     "Tide Shaper": 4,
+     "Tishana's Tidebinder": 4,
+     "Lord of Atlantis": 3,
+     "Merfolk Trickster": 2,
+     "Aether Vial": 4,
+     "Flare of Denial": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 731263,
+   "event": 70158,
+   "archetype": "Kethis",
+   "player": "Tj Rataiczak",
+   "event_name": "5k Qualifier @ Apex Gaming (Caldwell, OH)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2025-06-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 1.61,
+    "pips": {
+     "W": 5.0,
+     "U": 15.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Aether Spellbomb": 1,
+     "Vexing Bauble": 1,
+     "Grinding Station": 1,
+     "Teferi, Time Raveler": 1,
+     "Agatha's Soul Cauldron": 2,
+     "Jace, the Perfected Mind": 3,
+     "Mox Opal": 4,
+     "Mishra's Bauble": 4,
+     "Mox Amber": 4,
+     "Malevolent Rumble": 4,
+     "Haywire Mite": 1,
+     "Rona, Herald of Invasion // Rona, Tolarian Obliterator": 3,
+     "Kethis, the Hidden Hand": 4,
+     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar": 4,
+     "Emry, Lurker of the Loch": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 742592,
+   "event": 71585,
+   "archetype": "UB Mill",
+   "player": "January",
+   "event_name": "SQ - F2FTour.com @ Toronto (Canada)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2025-07-19",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 8,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 0,
+     "U": 45.0,
+     "B": 11.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Hedron Crab": 4,
+     "Ruin Crab": 4,
+     "Archive Trap": 4,
+     "Fatal Push": 4,
+     "Drown in the Loch": 3,
+     "Surgical Extraction": 3,
+     "Visions of Beyond": 3,
+     "Baleful Mastery": 1,
+     "Crypt Incursion": 1,
+     "Glimpse the Unthinkable": 2,
+     "Fractured Sanity": 4,
+     "Tasha's Hideous Laughter": 4,
+     "Jace, the Perfected Mind": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 17
+  },
+  {
+   "deck": 735169,
+   "event": 70624,
+   "archetype": "Reanimator",
+   "player": "DragonFodder",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "2",
+   "date": "2025-06-30",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 50.0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Village Rites": 2,
+     "Emperor of Bones": 3,
+     "Corrupted Conviction": 2,
+     "Fatal Push": 3,
+     "Persist": 4,
+     "Bloodghast": 4,
+     "Flare of Malice": 4,
+     "Stitcher's Supplier": 4,
+     "Faithless Looting": 4,
+     "Archon of Cruelty": 4,
+     "Souls of the Lost": 4,
+     "Mausoleum Secrets": 2,
+     "Malboro": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 10
+  },
+  {
+   "deck": 741795,
+   "event": 71477,
+   "archetype": "Bant Control",
+   "player": "VampireDiaries",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "2",
+   "date": "2025-07-19",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.34,
+    "pips": {
+     "W": 29.0,
+     "U": 18.0,
+     "B": 0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Into the Flood Maw": 1,
+     "Oust": 1,
+     "L\u00f3rien Revealed": 2,
+     "Tune the Narrative": 2,
+     "Teferi, Time Raveler": 3,
+     "Ephemerate": 3,
+     "Wrath of the Skies": 3,
+     "Prismatic Ending": 4,
+     "Orim's Chant": 4,
+     "Stock Up": 4,
+     "Eternal Witness": 3,
+     "Solitude": 4,
+     "Thundertrap Trainer": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 736979,
+   "event": 70873,
+   "archetype": "Cascade Crash",
+   "player": "SafetyHazard",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "2",
+   "date": "2025-07-06",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 4.35,
+    "pips": {
+     "W": 12.0,
+     "U": 34.0,
+     "B": 2.0,
+     "R": 8.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Scion of Draco": 4,
+     "Fire // Ice": 4,
+     "Ardent Plea": 4,
+     "Subtlety": 4,
+     "Leyline Binding": 4,
+     "Force of Negation": 4,
+     "Leyline of the Guildpact": 4,
+     "Crashing Footfalls": 4,
+     "Shardless Agent": 4,
+     "L\u00f3rien Revealed": 1,
+     "Phlage, Titan of Fire's Fury": 2,
+     "Murktide Regent": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 55,
+ "rejected_illegal": [
+  {
+   "archetype": "Simic Birthing Ritual",
+   "deck": 745076,
+   "player": "badgods",
+   "why": [
+    "Ouroboroid (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Orzhov Phelia",
+   "player": "James Moffitt",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Dimir Oculus Frog",
+   "player": "SPyromancer",
+   "kept": "Dimir Control",
+   "kept_player": "JuanmaAT"
+  },
+  {
+   "dropped": "5c Domain Aggro",
+   "player": "Bruno Azeredo",
+   "kept": "4/5c Aggro",
+   "kept_player": "nahuel10"
+  },
+  {
+   "dropped": "Bw Blink",
+   "player": "Julien Rouar",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Orzhov Midrange",
+   "player": "Alessandro Sala",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Bwink",
+   "player": "Fernando Flor",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Affinity",
+   "player": "billsive",
+   "kept": "Ur Cutter",
+   "kept_player": "Adrien Pennard"
+  },
+  {
+   "dropped": "Domain Zoo",
+   "player": "Wynford Dayne Chan",
+   "kept": "4/5c Aggro",
+   "kept_player": "nahuel10"
+  },
+  {
+   "dropped": "Ur Prowess",
+   "player": "Chris Cline",
+   "kept": "UR Cutter Prowess",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "Belcher",
+   "player": "Austin Brazell",
+   "kept": "Landless Belcher",
+   "kept_player": "Kageyama Hiroki"
+  },
+  {
+   "dropped": "Gruul Eldrazi",
+   "player": "Arthur Le Goanvic",
+   "kept": "Eldrazi Ramp",
+   "kept_player": "Gobern"
+  },
+  {
+   "dropped": "Creatures Toolbox",
+   "player": "Bellettini Lorenzo",
+   "kept": "Chord Toolbox",
+   "kept_player": "Nilo Herrero"
+  },
+  {
+   "dropped": "Grixis Wizards",
+   "player": "Fobias Frey",
+   "kept": "Grixis Control",
+   "kept_player": "Valerio Nevischi"
+  },
+  {
+   "dropped": "Wish You Were Yawg",
+   "player": "Severin Rech",
+   "kept": "Broodscale Bloodchief",
+   "kept_player": "Hunter Ovington"
+  },
+  {
+   "dropped": "Jeskai Wizards",
+   "player": "Mehmet Gokhan Agirgol",
+   "kept": "Jeskai Control",
+   "kept_player": "V\u00edctor G\u00f3mez Gonz\u00e1lez"
+  },
+  {
+   "dropped": "Sloth Aggro",
+   "player": "Haven Gilbert-arila",
+   "kept": "Amulet Titan",
+   "kept_player": "HouseOfManaMTG"
+  },
+  {
+   "dropped": "Eldratron",
+   "player": "Rodolfo Lopes",
+   "kept": "UrzaTron",
+   "kept_player": "HoldTheElle"
+  },
+  {
+   "dropped": "Death And Taxes",
+   "player": "416FrowningTable",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Boros Aggro",
+   "player": "Simone Lazzini",
+   "kept": "Boros Energy",
+   "kept_player": "imthekiing"
+  },
+  {
+   "dropped": "Blue Belcher",
+   "player": "Alexandre Paskov",
+   "kept": "Landless Belcher",
+   "kept_player": "Kageyama Hiroki"
+  },
+  {
+   "dropped": "Esper Midrange",
+   "player": "Moris Leoni",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Mardu Energy",
+   "player": "Alessio Bazzu",
+   "kept": "Boros Energy",
+   "kept_player": "imthekiing"
+  },
+  {
+   "dropped": "Esper Control",
+   "player": "Hiro_Hsiang",
+   "kept": "Dimir Control",
+   "kept_player": "JuanmaAT"
+  },
+  {
+   "dropped": "Cutter Affinity",
+   "player": "katoriarch123",
+   "kept": "Ur Cutter",
+   "kept_player": "Adrien Pennard"
+  },
+  {
+   "dropped": "Creativity - Reanimator",
+   "player": "NormanCar",
+   "kept": "Creativity",
+   "kept_player": "Elfu"
+  },
+  {
+   "dropped": "Jeskai Cutter",
+   "player": "Thomas Druck\u00e9",
+   "kept": "Ur Cutter",
+   "kept_player": "Adrien Pennard"
+  },
+  {
+   "dropped": "Mardu & Taxes",
+   "player": "Zompatanfo",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Scepter Chant",
+   "player": "eclipse4343",
+   "kept": "UW Control",
+   "kept_player": "Tomasz Pi\u0119kosz"
+  },
+  {
+   "dropped": "Jeskai Ascendency",
+   "player": "Tahir Nadurath",
+   "kept": "Jeskai Ascendancy",
+   "kept_player": "Filip Sk\u00f3rnicki"
+  },
+  {
+   "dropped": "Goryo",
+   "player": "Valentin Manes",
+   "kept": "Instant Reanimator",
+   "kept_player": "barczek"
+  },
+  {
+   "dropped": "Hammer Time",
+   "player": "Zidonia",
+   "kept": "Hammertime",
+   "kept_player": "Davide Ferroni"
+  },
+  {
+   "dropped": "Orzhov Blink",
+   "player": "Gabriel Reiter",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Dimir Frog",
+   "player": "Timothee Lebrun",
+   "kept": "Dimir Control",
+   "kept_player": "JuanmaAT"
+  },
+  {
+   "dropped": "Esper Blink",
+   "player": "Marcin Lewandowski",
+   "kept": "Esper & Taxes",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Jeskai Steel Cutter",
+   "player": "Christian Binder",
+   "kept": "Ur Cutter",
+   "kept_player": "Adrien Pennard"
+  },
+  {
+   "dropped": "Mono Black Necro",
+   "player": "Bokk",
+   "kept": "Monoblack Necro",
+   "kept_player": "Francesco Galati"
+  },
+  {
+   "dropped": "Yawgmoth",
+   "player": "Xerk",
+   "kept": "Golgari Combo",
+   "kept_player": "Wojciech Kowalczuk"
+  },
+  {
+   "dropped": "Izzet Vivi",
+   "player": "Davide Pizzocri",
+   "kept": "Ur Cutter",
+   "kept_player": "Adrien Pennard"
+  },
+  {
+   "dropped": "Energy",
+   "player": "Garland Muller",
+   "kept": "Boros Energy",
+   "kept_player": "imthekiing"
+  },
+  {
+   "dropped": "Mono Black Eldrazi",
+   "player": "Sean Beardsley",
+   "kept": "Mono Black Aggro",
+   "kept_player": "Selfeisek"
+  },
+  {
+   "dropped": "Rg Eldrazi Ramp",
+   "player": "Mathieu Goudard",
+   "kept": "Eldrazi Ramp",
+   "kept_player": "Gobern"
+  },
+  {
+   "dropped": "Red Storm",
+   "player": "Victor March\u00e9",
+   "kept": "Ruby Storm",
+   "kept_player": "azax"
+  },
+  {
+   "dropped": "Izzet Prowess",
+   "player": "Tomasz Figarski",
+   "kept": "UR Cutter Prowess",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "Mono Blue Belcher",
+   "player": "Alessandro Antonio Rossi",
+   "kept": "Landless Belcher",
+   "kept_player": "Kageyama Hiroki"
+  },
+  {
+   "dropped": "Jeskai Prowess",
+   "player": "Jiale Chen",
+   "kept": "UR Cutter Prowess",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "Grixis Prowess",
+   "player": "Pasquale Sirignano",
+   "kept": "UR Cutter Prowess",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "Eldrazi Bloodchief Combo",
+   "player": "Carl Callangan",
+   "kept": "Broodscale Bloodchief",
+   "kept_player": "Hunter Ovington"
+  },
+  {
+   "dropped": "Eldrazi Tron",
+   "player": "Manuel Maesano",
+   "kept": "UrzaTron",
+   "kept_player": "HoldTheElle"
+  },
+  {
+   "dropped": "Neobrand",
+   "player": "Emiliano Marcellini",
+   "kept": "Allosaurus Combo",
+   "kept_player": "rerere"
+  },
+  {
+   "dropped": "Rakdos Hollow One",
+   "player": "Julien Borkowski",
+   "kept": "Hollow One",
+   "kept_player": "Adam Weiss"
+  },
+  {
+   "dropped": "Samwise Combo",
+   "player": "Olivia Cotillard",
+   "kept": "Chord Toolbox",
+   "kept_player": "Nilo Herrero"
+  },
+  {
+   "dropped": "EldraTron",
+   "player": "roland77",
+   "kept": "UrzaTron",
+   "kept_player": "HoldTheElle"
+  },
+  {
+   "dropped": "Dimir Oculus",
+   "player": "Peter Kenneth Lagman",
+   "kept": "Dimir Control",
+   "kept_player": "JuanmaAT"
+  },
+  {
+   "dropped": "Tron",
+   "player": "Michael Cushing",
+   "kept": "UrzaTron",
+   "kept_player": "HoldTheElle"
+  },
+  {
+   "dropped": "Broodscale Combo",
+   "player": "Fabio Ardolino",
+   "kept": "Broodscale Bloodchief",
+   "kept_player": "Hunter Ovington"
+  },
+  {
+   "dropped": "Tribal Zoo",
+   "player": "Simone Sozio",
+   "kept": "4/5c Aggro",
+   "kept_player": "nahuel10"
+  },
+  {
+   "dropped": "Broodscale",
+   "player": "Alpaslan Ayar",
+   "kept": "Broodscale Bloodchief",
+   "kept_player": "Hunter Ovington"
+  },
+  {
+   "dropped": "5c Zoo",
+   "player": "David Dunitza",
+   "kept": "4/5c Aggro",
+   "kept_player": "nahuel10"
+  },
+  {
+   "dropped": "Orzhov Necrodominance Midrange",
+   "player": "Stiepan90",
+   "kept": "Monoblack Necro",
+   "kept_player": "Francesco Galati"
+  },
+  {
+   "dropped": "Eldrazi Midrange",
+   "player": "Sven745",
+   "kept": "Eldrazi Ramp",
+   "kept_player": "Gobern"
+  },
+  {
+   "dropped": "UR Aggro",
+   "player": "RandomOctopus",
+   "kept": "UR Cutter Prowess",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "Ub Mill",
+   "player": "Jorge Lopez",
+   "kept": "UB Mill",
+   "kept_player": "January"
+  },
+  {
+   "dropped": "UR Storm",
+   "player": "Benton Madsen",
+   "kept": "Ruby Storm",
+   "kept_player": "azax"
+  },
+  {
+   "dropped": "Ur",
+   "player": "Gabriel Shvachkin",
+   "kept": "UR Cutter Prowess",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "Gruul Storm",
+   "player": "No\u00e9 Fauquenoi",
+   "kept": "Ruby Storm",
+   "kept_player": "azax"
+  }
+ ],
+ "objective": 17.636849781234808,
+ "pool_colors": {
+  "W": 16,
+  "B": 23,
+  "R": 25,
+  "G": 24,
+  "U": 26
+ },
+ "pool_styles": {
+  "aggro": 19,
+  "midrange": 16,
+  "control": 13,
+  "combo": 7
+ },
+ "kept_lost": []
+}

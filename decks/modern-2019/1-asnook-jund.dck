@@ -1,0 +1,44 @@
+[metadata]
+Name=Jund (asnook)
+Deck Type=Constructed
+Format=Modern (2019-08-30)
+Effective=2019-08-30
+Source URL=https://www.mtgtop8.com/event?e=23090&d=358598&f=MO
+Comment=MTGO Modern PTQ: asnook, 1st, Jund. Transcribed from mtgtop8 deck 358598.
+[Main]
+2 Forest|M20
+1 Blooming Marsh|KLD
+3 Bloodstained Mire|KTK
+1 Blood Crypt|RNA
+4 Blackcleave Cliffs|SOM
+4 Lightning Bolt|M11
+2 Kolaghan's Command|DTK
+2 Fatal Push|AER
+1 Assassin's Trophy|GRN
+1 Abrupt Decay|RTR
+3 Thoughtseize|THS
+1 Maelstrom Pulse|ARB
+4 Inquisition of Kozilek|ROE
+2 Tireless Tracker|SOI
+4 Tarmogoyf|FUT
+2 Scavenging Ooze|M14
+4 Bloodbraid Elf|ARB
+3 Wrenn and Six|MH1
+4 Liliana of the Veil|ISD
+1 Nurturing Peatland|MH1
+1 Mountain|M20
+2 Overgrown Tomb|GRN
+1 Raging Ravine|WWK
+1 Stomping Ground|RNA
+4 Verdant Catacombs|ZEN
+1 Swamp|M20
+1 Wooded Foothills|KTK
+[Sideboard]
+1 Kolaghan's Command|DTK
+2 Alpine Moon|M19
+3 Collector Ouphe|MH1
+2 Collective Brutality|EMN
+1 Kitchen Finks|SHM
+3 Fulminator Mage|SHM
+1 Weather the Storm|MH1
+2 Plague Engineer|MH1

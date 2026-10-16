@@ -1,0 +1,40 @@
+[metadata]
+Name=Grixis Control (Ark4n)
+Deck Type=Constructed
+Format=Legacy (SNC)
+Effective=2022-04-29
+Source URL=https://www.mtgtop8.com/event?e=37041&d=478163&f=LE
+Comment=MTGO Showcase Challenge: Ark4n, 1st, Grixis Control. Transcribed from mtgtop8 deck 478163.
+[Main]
+1 Jace, the Mind Sculptor|WWK
+3 Teferi, Time Raveler|WAR
+4 Baleful Strix|PC2
+3 Snapcaster Mage|ISD
+4 Expressive Iteration|STX
+3 Hymn to Tourach|FE
+2 Inquisition of Kozilek|ROE
+4 Ponder|LRW
+3 Prismatic Ending|MH2
+4 Brainstorm|IA
+4 Force of Will|AL
+1 Kolaghan's Command|DTK
+4 Swords to Plowshares|A
+1 Badlands|A
+4 Flooded Strand|ON
+1 Mystic Sanctuary|TSR
+4 Polluted Delta|ON
+3 Scalding Tarn|ZEN
+1 Scrubland|A
+2 Tundra|A
+2 Underground Sea|A
+2 Volcanic Island|B
+[Sideboard]
+1 Prismatic Ending|MH2
+2 Force of Negation|H1R
+1 Hydroblast|IA
+2 Meltdown|US
+2 Plague Engineer|H1R
+2 Pyroblast|IA
+2 Red Elemental Blast|A
+1 Stony Silence|ISD
+2 Surgical Extraction|NPH

@@ -1,0 +1,37 @@
+[metadata]
+Name=Temur Control (Lilium)
+Deck Type=Constructed
+Format=Standard (SNC)
+Effective=2022-04-29
+Source URL=https://www.mtgtop8.com/event?e=36962&d=477637&f=ST
+Comment=$500 Cash GGtoor #15 (FREE!) @ GGtoor: Lilium, 1st, Temur Control. Transcribed from mtgtop8 deck 477637.
+[Main]
+1 Memory Deluge|MID
+2 Negate|ZNR
+3 Fading Hope|MID
+3 Make Disappear|SNC
+3 Voltage Surge|NEO
+3 Prismari Command|STX
+4 Jwari Disruption|ZNR
+4 Expressive Iteration|STX
+4 Fable of the Mirror-Breaker|NEO
+4 Goldspan Dragon|KHM
+4 Titan of Industry|SNC
+1 Mountain|SNC
+1 Island|SNC
+1 Otawara, Soaring City|NEO
+1 Hall of Storm Giants|AFR
+2 Dreamroot Cascade|VOW
+3 Stormcarved Coast|VOW
+4 Barkchannel Pathway|KHM
+4 Rockfall Vale|MID
+4 Cragcrown Pathway|ZNR
+4 Riverglide Pathway|ZNR
+[Sideboard]
+3 Koma, Cosmos Serpent|KHM
+3 Torch Breath|SNC
+3 Reckoner Bankbuster|NEO
+2 Battle of Frost and Fire|KHM
+2 Unlicensed Hearse|SNC
+1 Abrade|VOW
+1 Voltage Surge|NEO

@@ -1,0 +1,48 @@
+[metadata]
+Name=Bant Control (MM_17)
+Deck Type=Constructed
+Format=Legacy (JMP)
+Effective=2020-08-03
+Source URL=https://www.mtgtop8.com/event?e=25145&d=377316&f=LE
+Comment=MTGO Legacy Challenge: MM_17, 1st, Bant Control. Transcribed from mtgtop8 deck 377316.
+[Main]
+1 Jace, the Mind Sculptor|WWK
+3 Oko, Thief of Crowns|ELD
+1 Teferi, Time Raveler|WAR
+4 Ice-Fang Coatl|MH1
+1 Leovold, Emissary of Trest|CN2
+1 Plague Engineer|MH1
+1 Uro, Titan of Nature's Wrath|THB
+1 Dead of Winter|MH1
+2 Ponder|LRW
+2 Abrupt Decay|RTR
+4 Brainstorm|IA
+1 Cling to Dust|THB
+2 Drown in the Loch|ELD
+2 Force of Negation|MH1
+4 Force of Will|AL
+3 Swords to Plowshares|A
+4 Arcum's Astrolabe|MH1
+2 Sylvan Library|LG
+1 Flooded Strand|ON
+3 Misty Rainforest|ZEN
+2 Polluted Delta|ON
+4 Prismatic Vista|MH1
+2 Snow-Covered Forest|IA
+3 Snow-Covered Island|IA
+1 Snow-Covered Plains|IA
+1 Snow-Covered Swamp|IA
+1 Tropical Island|A
+1 Tundra|A
+1 Underground Sea|A
+1 Volcanic Island|B
+[Sideboard]
+2 Plague Engineer|MH1
+1 Back to Basics|US
+1 Containment Priest|C14
+2 Damping Sphere|DOM
+1 Hydroblast|IA
+2 Nihil Spellbomb|SOM
+3 Pyroblast|IA
+1 Snapcaster Mage|ISD
+2 Veil of Summer|M20

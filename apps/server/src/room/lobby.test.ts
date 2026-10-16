@@ -258,10 +258,11 @@ describe('a room’s format', () => {
 		expect(POOLS.length).toBeGreaterThan(1);
 		expect(newestFormat()).toBe(POOLS[POOLS.length - 1]);
 		expect(newestFormat()).not.toBe(POOLS[0]);
-		// AF41 put Type 2's 1995 summer at the front of the catalog; a new room still opens on
-		// the same era it did before, Standard 2016, never the oldest year now offered.
+		// AF41 put Type 2's 1995 summer at the front of the catalog and the library now runs
+		// forward to Pro Tour 2025's summer; a new room opens on that newest Standard era,
+		// never the oldest year offered.
 		expect(POOLS[0]).toBe('1995-07-01');
-		expect(newestFormat()).toBe('2016-07-22');
+		expect(newestFormat()).toBe('2025-06-30');
 
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });

@@ -1,0 +1,2662 @@
+{
+ "era": {
+  "year": 2023,
+  "season_start": "2022-09-09",
+  "start": "2023-05-29",
+  "end": "2023-09-08",
+  "format": "Standard (2023-05-29)",
+  "sets": "MID, VOW, NEO, SNC, DMU, BRO, ONE, MOM, MAT",
+  "banned": [
+   "Fable of the Mirror-Breaker",
+   "Invoke Despair",
+   "Reckoner Bankbuster",
+   "The Meathook Massacre"
+  ],
+  "no_fall_rotation": true
+ },
+ "chosen": [
+  {
+   "deck": 546648,
+   "event": 46895,
+   "archetype": "Esper Raffine",
+   "player": "prophetoffire",
+   "event_name": "MTGO Showcase Challenge",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-08-19",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 24.0,
+     "U": 14.0,
+     "B": 15.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Go for the Throat": 4,
+     "Liliana of the Veil": 1,
+     "Dennick, Pious Apprentice // Dennick, Pious Apparition": 1,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Edgar, Charmed Groom // Edgar Markov's Coffin": 2,
+     "The Wandering Emperor": 2,
+     "Ao, the Dawn Sky": 2,
+     "Depopulate": 2,
+     "Make Disappear": 4,
+     "Raffine, Scheming Seer": 4,
+     "Void Rend": 1,
+     "Cut Down": 2,
+     "Razorlash Transmogrant": 2,
+     "Faerie Mastermind": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 264
+  },
+  {
+   "deck": 511992,
+   "event": 42079,
+   "archetype": "Selesnya Aggro",
+   "player": "Satou Rei",
+   "event_name": "Champions Cup Final Cycle 2 @ Hareruya (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-03-08",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.84,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Charge of the Mites": 3,
+     "Skrelv's Hive": 4,
+     "Tyvar's Stand": 4,
+     "Annex Sentry": 3,
+     "Crawling Chorus": 4,
+     "Jawbone Duelist": 4,
+     "Skrelv, Defector Mite": 4,
+     "Bloated Contaminator": 4,
+     "Venerated Rotpriest": 4,
+     "Slaughter Singer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 60
+  },
+  {
+   "deck": 550254,
+   "event": 47470,
+   "archetype": "Red Deck Wins",
+   "player": "Fujimoto Tomoya",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 39.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Monastery Swiftspear": 4,
+     "Bloodthirsty Adversary": 4,
+     "Kumano Faces Kakkazan // Etching of Kumano": 4,
+     "Shivan Devastator": 4,
+     "Feldon, Ronom Excavator": 3,
+     "Furnace Punisher": 4,
+     "Lightning Strike": 2,
+     "Play with Fire": 3,
+     "Nahiri's Warcrafting": 2,
+     "Wrenn's Resolve": 3,
+     "Invasion of Tarkir // Defiant Thundermaw": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 109
+  },
+  {
+   "deck": 541202,
+   "event": 46186,
+   "archetype": "Azorius Soldier",
+   "player": "ThaisM",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-07-23",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 5,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 24.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Dennick, Pious Apprentice // Dennick, Pious Apparition": 2,
+     "Make Disappear": 4,
+     "Destroy Evil": 2,
+     "Resolute Reinforcements": 4,
+     "Valiant Veteran": 4,
+     "Protect the Negotiators": 1,
+     "Recruitment Officer": 4,
+     "Tocasia's Welcome": 2,
+     "Steel Seraph": 2,
+     "Skystrike Officer": 3,
+     "Zephyr Sentinel": 3,
+     "Harbin, Vanguard Aviator": 2,
+     "Skrelv, Defector Mite": 2,
+     "Invasion of Gobakhan // Lightshield Array": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 120
+  },
+  {
+   "deck": 550250,
+   "event": 47470,
+   "archetype": "4/5C Control",
+   "player": "Harada Shougo",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 4.91,
+    "pips": {
+     "W": 27.0,
+     "U": 4.0,
+     "B": 4.0,
+     "R": 4.0,
+     "G": 20.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Topiary Stomper": 4,
+     "Archangel of Wrath": 4,
+     "Atraxa, Grand Unifier": 4,
+     "Etali, Primal Conqueror // Etali, Primal Sickness": 2,
+     "The Celestus": 1,
+     "Herd Migration": 4,
+     "Sunfall": 4,
+     "Leyline Binding": 4,
+     "Ossification": 3,
+     "Invasion of Zendikar // Awakened Skyclave": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 84
+  },
+  {
+   "deck": 550264,
+   "event": 47470,
+   "archetype": "Dimir Aggro",
+   "player": "Kobayashi Hiroyuki",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 18,
+    "counters": 5,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 0,
+     "U": 5.0,
+     "B": 40.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Gix's Command": 1,
+     "Cut Down": 3,
+     "Go for the Throat": 4,
+     "Make Disappear": 4,
+     "Liliana of the Veil": 4,
+     "Sheoldred // The True Scriptures": 1,
+     "Ertai Resurrected": 1,
+     "Sheoldred, the Apocalypse": 4,
+     "Evolved Sleeper": 4,
+     "Graveyard Trespasser // Graveyard Glutton": 4,
+     "Tenacious Underdog": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 66
+  },
+  {
+   "deck": 550263,
+   "event": 47470,
+   "archetype": "Esper Control",
+   "player": "Asakawa Tama",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 2,
+    "counters": 8,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.65,
+    "pips": {
+     "W": 14.0,
+     "U": 25.0,
+     "B": 15.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Go for the Throat": 1,
+     "Destroy Evil": 1,
+     "Farewell": 1,
+     "Invasion of Innistrad // Deluge of the Dead": 1,
+     "Invasion of New Phyrexia // Teferi Akosa of Zhalfir": 1,
+     "The Wandering Emperor": 1,
+     "Negate": 2,
+     "Sunfall": 2,
+     "Syncopate": 2,
+     "Cut Down": 2,
+     "Dissipate": 2,
+     "Void Rend": 2,
+     "Make Disappear": 2,
+     "Memory Deluge": 4,
+     "Siphon Insight": 4,
+     "Sheoldred's Edict": 4,
+     "Cathar Commando": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 50
+  },
+  {
+   "deck": 539137,
+   "event": 45895,
+   "archetype": "Orzhov Control",
+   "player": "Joaohnp#78481",
+   "event_name": "Constru\u00eddo do TorTo (169)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-07-11",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 3.33,
+    "pips": {
+     "W": 44.0,
+     "U": 0,
+     "B": 4.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "The Celestus": 1,
+     "Sunfall": 1,
+     "Farewell": 1,
+     "The Restoration of Eiganjo // Architect of Restoration": 2,
+     "The Eternal Wanderer": 2,
+     "Breach the Multiverse": 2,
+     "Destroy Evil": 2,
+     "Ossification": 3,
+     "The Wandering Emperor": 3,
+     "Lay Down Arms": 4,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Loran of the Third Path": 1,
+     "Sanctuary Warden": 1,
+     "Elesh Norn, Mother of Machines": 1,
+     "Spirited Companion": 2,
+     "Serra Paragon": 3,
+     "Ambitious Farmhand // Seasoned Cathar": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 39
+  },
+  {
+   "deck": 531080,
+   "event": 44860,
+   "archetype": "Jeskai Control",
+   "player": "Sim\u00f3n Arboleda Escobar",
+   "event_name": "Slice @ The Pizza Box",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 4,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 20.0,
+     "U": 12.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Invasion of Gobakhan // Lightshield Array": 1,
+     "Invasion of New Phyrexia // Teferi Akosa of Zhalfir": 1,
+     "Brotherhood's End": 2,
+     "The Wandering Emperor": 4,
+     "Invasion of Tarkir // Defiant Thundermaw": 4,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Strangle": 4,
+     "Make Disappear": 4,
+     "Ao, the Dawn Sky": 1,
+     "Atsushi, the Blazing Sky": 2,
+     "Chrome Host Seedshark": 3,
+     "Zurgo and Ojutai": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 550259,
+   "event": 47470,
+   "archetype": "Weenie White",
+   "player": "Suzuki Yasuo",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 33,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 42.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Thalia, Guardian of Thraben": 4,
+     "Adeline, Resplendent Cathar": 4,
+     "Brutal Cathar // Moonrage Brute": 4,
+     "Intrepid Adversary": 2,
+     "Sungold Sentinel": 2,
+     "Hopeful Initiate": 4,
+     "Recruitment Officer": 4,
+     "Skrelv, Defector Mite": 3,
+     "Knight-Errant of Eos": 2,
+     "Coppercoat Vanguard": 4,
+     "Ossification": 3,
+     "Invasion of Gobakhan // Lightshield Array": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 19
+  },
+  {
+   "deck": 549320,
+   "event": 47275,
+   "archetype": "Izzet Control",
+   "player": "Mogged",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-02",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 10,
+    "burn": 5,
+    "avg_cmc": 4.21,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Volcanic Spite": 2,
+     "Negate": 2,
+     "Essence Scatter": 2,
+     "Voltage Surge": 3,
+     "Stern Lesson": 4,
+     "Brotherhood's End": 4,
+     "The Mightstone and Weakstone": 4,
+     "Skitterbeam Battalion": 4,
+     "Cityscape Leveler": 4,
+     "Thran Spider": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 532643,
+   "event": 45057,
+   "archetype": "Rakdos Midrange",
+   "player": "MTGHolic",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-10",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.2,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 40.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Sheoldred's Edict": 1,
+     "Liliana of the Veil": 2,
+     "Brotherhood's End": 2,
+     "Phyrexian Arena": 2,
+     "Vraska, Betrayal's Sting": 2,
+     "Go for the Throat": 4,
+     "Cut Down": 4,
+     "Sheoldred // The True Scriptures": 2,
+     "Tenacious Underdog": 2,
+     "Graveyard Trespasser // Graveyard Glutton": 3,
+     "Phyrexian Fleshgorger": 3,
+     "Bloodtithe Harvester": 4,
+     "Sheoldred, the Apocalypse": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 8
+  },
+  {
+   "deck": 540058,
+   "event": 46020,
+   "archetype": "Bant Aggro",
+   "player": "guiyote",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-07-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.62,
+    "pips": {
+     "W": 20.0,
+     "U": 6.0,
+     "B": 0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Invasion of Ikoria // Zilortha, Apex of Ikoria": 1,
+     "Make Disappear": 1,
+     "Serum Snare": 1,
+     "Destroy Evil": 2,
+     "Tyvar's Stand": 2,
+     "Skrelv's Hive": 4,
+     "March of Swirling Mist": 4,
+     "Jawbone Duelist": 2,
+     "Skrelv, Defector Mite": 4,
+     "Venerated Rotpriest": 4,
+     "Crawling Chorus": 4,
+     "Bloated Contaminator": 4,
+     "Slaughter Singer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 505689,
+   "event": 41134,
+   "archetype": "Mono Blue Tempo",
+   "player": "Johnsnow",
+   "event_name": "Perla Negra Series #5 Rapsolo's Community @ MTGADailyChallenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-02-03",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 12,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 2.38,
+    "pips": {
+     "W": 0,
+     "U": 43.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Tolarian Terror": 4,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Haughty Djinn": 4,
+     "Flow of Knowledge": 1,
+     "Negate": 2,
+     "Spell Pierce": 2,
+     "Essence Scatter": 2,
+     "Slip Out the Back": 2,
+     "Make Disappear": 2,
+     "Consider": 4,
+     "Fading Hope": 4,
+     "Thirst for Discovery": 4,
+     "Impulse": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 53
+  },
+  {
+   "deck": 520056,
+   "event": 43331,
+   "archetype": "Simic Aggro",
+   "player": "Kayla Davison",
+   "event_name": "LCQ #11 @ DreamHack San Diego",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-04-08",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.28,
+    "pips": {
+     "W": 0,
+     "U": 27.0,
+     "B": 0,
+     "R": 0,
+     "G": 15.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "March of Burgeoning Life": 2,
+     "Combat Research": 4,
+     "Timely Interference": 4,
+     "Slip Out the Back": 4,
+     "March of Swirling Mist": 4,
+     "Tyvar's Stand": 4,
+     "Bloated Contaminator": 2,
+     "Ivy, Gleeful Spellthief": 3,
+     "Stormchaser Drake": 4,
+     "Venerated Rotpriest": 4,
+     "Delver of Secrets // Insectile Aberration": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 504616,
+   "event": 40973,
+   "archetype": "Angels",
+   "player": "milikin",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-01-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.36,
+    "pips": {
+     "W": 46.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Ambitious Farmhand // Seasoned Cathar": 4,
+     "The Wandering Emperor": 4,
+     "Giada, Font of Hope": 4,
+     "Inspiring Overseer": 3,
+     "Sanctuary Warden": 2,
+     "Archangel of Wrath": 4,
+     "Serra Paragon": 3,
+     "In the Trenches": 1,
+     "Lay Down Arms": 4,
+     "Loran of the Third Path": 3,
+     "Steel Seraph": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 545327,
+   "event": 46726,
+   "archetype": "Mardu Control",
+   "player": "Darth Xero",
+   "event_name": "Open @ The Pizza Box",
+   "stars": 2,
+   "rank": "2",
+   "date": "2023-08-13",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 2,
+    "avg_cmc": 3.86,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 10.0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Portal to Phyrexia": 1,
+     "Excavation Explosion": 2,
+     "Go for the Throat": 3,
+     "Sheoldred's Edict": 3,
+     "The Mightstone and Weakstone": 3,
+     "Gix's Caress": 4,
+     "Phyrexian Fleshgorger": 3,
+     "Bloodthirsty Adversary": 4,
+     "Thran Spider": 4,
+     "Cityscape Leveler": 4,
+     "Automated Artificer": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 541372,
+   "event": 46211,
+   "archetype": "Golgari Aggro",
+   "player": "karatedom",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "3",
+   "date": "2023-07-22",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 2,
+    "avg_cmc": 3.26,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 26.0,
+     "R": 0,
+     "G": 33.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "The Celestus": 1,
+     "Dig Up": 1,
+     "Wrenn and Seven": 2,
+     "Sorin the Mirthless": 2,
+     "Cut Down": 3,
+     "Storm the Festival": 3,
+     "Go for the Throat": 4,
+     "Obstinate Baloth": 2,
+     "Workshop Warchief": 2,
+     "Glissa Sunslayer": 3,
+     "Topiary Stomper": 4,
+     "Tenacious Underdog": 4,
+     "Sheoldred, the Apocalypse": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 539139,
+   "event": 45895,
+   "archetype": "Explosive Singularity",
+   "player": "Max_itso_martins",
+   "event_name": "Constru\u00eddo do TorTo (169)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2023-07-11",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 13,
+    "counters": 4,
+    "sweepers": 5,
+    "draw": 3,
+    "burn": 3,
+    "avg_cmc": 3.38,
+    "pips": {
+     "W": 0,
+     "U": 19.0,
+     "B": 28.0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Breach the Multiverse": 2,
+     "Explosive Singularity": 3,
+     "Go for the Throat": 3,
+     "Corrupted Conviction": 3,
+     "Siphon Insight": 3,
+     "Duress": 3,
+     "Make Disappear": 4,
+     "Plargg and Nassari": 1,
+     "Bloodtithe Harvester": 4,
+     "Corpse Appraiser": 4,
+     "Hidetsugu and Kairi": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 532648,
+   "event": 45057,
+   "archetype": "5cc",
+   "player": "Rex_Iudex",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "4",
+   "date": "2023-06-10",
+   "summer": true,
+   "s": 0.3823529411764706,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 4.21,
+    "pips": {
+     "W": 7.0,
+     "U": 3.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 17.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "The Celestus": 1,
+     "Tear Asunder": 1,
+     "Gix's Command": 1,
+     "Cut Down": 2,
+     "Path of Peril": 2,
+     "Go for the Throat": 3,
+     "Herd Migration": 3,
+     "Leyline Binding": 4,
+     "Tovolar's Huntmaster // Tovolar's Packleader": 1,
+     "Vorinclex // The Grand Evolution": 2,
+     "Graveyard Trespasser // Graveyard Glutton": 3,
+     "Atraxa, Grand Unifier": 3,
+     "Sheoldred, the Apocalypse": 3,
+     "Briarbridge Tracker": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 41
+  },
+  {
+   "deck": 530637,
+   "event": 44832,
+   "archetype": "Mono White Atraxa",
+   "player": "Rex_Iudex",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "4",
+   "date": "2023-06-03",
+   "summer": true,
+   "s": 0.3823529411764706,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 3.82,
+    "pips": {
+     "W": 44.0,
+     "U": 3.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "The Celestus": 1,
+     "March of Otherworldly Light": 1,
+     "The Eternal Wanderer": 2,
+     "Sunfall": 2,
+     "Temporary Lockdown": 3,
+     "The Wandering Emperor": 3,
+     "Lay Down Arms": 4,
+     "Leyline Binding": 4,
+     "The Restoration of Eiganjo // Architect of Restoration": 4,
+     "Archangel of Wrath": 1,
+     "Elesh Norn, Mother of Machines": 2,
+     "Atraxa, Grand Unifier": 3,
+     "Spirited Companion": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 549521,
+   "event": 47299,
+   "archetype": "Grixis Aggro",
+   "player": "Arianne",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "4",
+   "date": "2023-09-03",
+   "summer": true,
+   "s": 0.3823529411764706,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 22,
+    "counters": 3,
+    "sweepers": 1,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.88,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 35.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Sheoldred's Edict": 1,
+     "Gix's Command": 1,
+     "Cut Down": 2,
+     "Vraska, Betrayal's Sting": 2,
+     "Make Disappear": 3,
+     "Go for the Throat": 3,
+     "Sheoldred // The True Scriptures": 1,
+     "Tenacious Underdog": 1,
+     "Graveyard Trespasser // Graveyard Glutton": 2,
+     "Sheoldred, the Apocalypse": 2,
+     "Corpse Appraiser": 4,
+     "Archfiend of the Dross": 4,
+     "Bloodtithe Harvester": 4,
+     "Faerie Mastermind": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 501596,
+   "event": 40538,
+   "archetype": "Jund Aggro",
+   "player": "Scott Spurlock",
+   "event_name": "Slice @ The Pizza Box",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2023-01-08",
+   "summer": false,
+   "s": 0.28309804904252894,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.19,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 6.0,
+     "R": 13.0,
+     "G": 7.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Transmogrant's Crown": 1,
+     "Powerstone Fracture": 2,
+     "Experimental Synthesizer": 3,
+     "Oni-Cult Anvil": 4,
+     "Skitterbeam Battalion": 1,
+     "Goldhound": 2,
+     "Phyrexian Fleshgorger": 2,
+     "Razorlash Transmogrant": 2,
+     "Scrapwork Mutt": 2,
+     "Phyrexian Dragon Engine": 3,
+     "Gala Greeters": 3,
+     "Patchwork Automaton": 4,
+     "Teething Wurmlet": 4,
+     "Reinforced Ronin": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 539648,
+   "event": 45966,
+   "archetype": "Golgari Control",
+   "player": "Rex_Iudex",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "14",
+   "date": "2023-07-15",
+   "summer": true,
+   "s": 0.26335772227332654,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 3.54,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 30.0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Graveyard Trespasser // Graveyard Glutton": 2,
+     "Storm the Festival": 4,
+     "Path of Peril": 2,
+     "Sorin the Mirthless": 2,
+     "Azusa's Many Journeys // Likeness of the Seeker": 4,
+     "Go for the Throat": 3,
+     "Sheoldred, the Apocalypse": 3,
+     "Floriferous Vinewall": 2,
+     "Tear Asunder": 1,
+     "Sheoldred's Edict": 1,
+     "Contagious Vorrac": 2,
+     "Glissa Sunslayer": 2,
+     "Vorinclex // The Grand Evolution": 2,
+     "Breach the Multiverse": 1,
+     "Invasion of Innistrad // Deluge of the Dead": 1,
+     "Sheoldred // The True Scriptures": 2,
+     "Overgrown Pest": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 532781,
+   "event": 45072,
+   "archetype": "Dimir Control",
+   "player": "Reese Wheeler",
+   "event_name": "Open @ The Pizza Box",
+   "stars": 2,
+   "rank": "2",
+   "date": "2023-06-11",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 6,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.59,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Hullbreaker Horror": 2,
+     "Lier, Disciple of the Drowned": 2,
+     "Chrome Host Seedshark": 2,
+     "The Celestus": 1,
+     "Go for the Throat": 4,
+     "Blot Out": 4,
+     "Siphon Insight": 4,
+     "Tainted Indulgence": 4,
+     "Make Disappear": 2,
+     "Memory Deluge": 2,
+     "Cut Down": 3,
+     "Duress": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 537359,
+   "event": 45654,
+   "archetype": "Esper Legend",
+   "player": "Suchit Kunbuntomsin",
+   "event_name": "GHR Grand Tournament @ Bangkok (Thailand)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2023-07-02",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 26,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.64,
+    "pips": {
+     "W": 15.0,
+     "U": 22.0,
+     "B": 22.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Go for the Throat": 3,
+     "Adeline, Resplendent Cathar": 3,
+     "Dennick, Pious Apprentice // Dennick, Pious Apparition": 4,
+     "Make Disappear": 4,
+     "Raffine, Scheming Seer": 4,
+     "Toluz, Clever Conductor": 2,
+     "The Raven Man": 2,
+     "Sheoldred, the Apocalypse": 3,
+     "Ertai Resurrected": 2,
+     "Gix, Yawgmoth Praetor": 2,
+     "Rona, Herald of Invasion // Rona, Tolarian Obliterator": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 546956,
+   "event": 46930,
+   "archetype": "Orzhov Midrange",
+   "player": "INickStrad",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "3",
+   "date": "2023-08-20",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 2,
+    "avg_cmc": 2.79,
+    "pips": {
+     "W": 21.0,
+     "U": 0,
+     "B": 24.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Sword of Once and Future": 1,
+     "Sunfall": 1,
+     "Sheoldred's Edict": 1,
+     "Ossification": 1,
+     "The Eternal Wanderer": 1,
+     "Cut Down": 2,
+     "Sorin the Mirthless": 2,
+     "Duress": 2,
+     "Liliana of the Veil": 3,
+     "The Wandering Emperor": 4,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Go for the Throat": 4,
+     "Edgar, Charmed Groom // Edgar Markov's Coffin": 1,
+     "Graveyard Trespasser // Graveyard Glutton": 2,
+     "Tenacious Underdog": 2,
+     "Ambitious Farmhand // Seasoned Cathar": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 512826,
+   "event": 42237,
+   "archetype": "Orzhov Aggro",
+   "player": "Mbrut",
+   "event_name": "Black Pearl #10 Rapsolo's Community @ MTGADailyChallenge",
+   "stars": 2,
+   "rank": "2",
+   "date": "2023-03-10",
+   "summer": false,
+   "s": 0.407843137254902,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 29.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Loran of the Third Path": 1,
+     "Jadar, Ghoulcaller of Nephalia": 1,
+     "Elas il-Kor, Sadistic Pilgrim": 2,
+     "Vraan, Executioner Thane": 2,
+     "Adeline, Resplendent Cathar": 3,
+     "Skrelv, Defector Mite": 3,
+     "Sheoldred, the Apocalypse": 3,
+     "Mondrak, Glory Dominus": 3,
+     "Gix, Yawgmoth Praetor": 4,
+     "Ratadrabik of Urborg": 4,
+     "Thalia, Guardian of Thraben": 4,
+     "Gix's Command": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 531086,
+   "event": 44860,
+   "archetype": "Bant Control",
+   "player": "Reese Wheeler",
+   "event_name": "Slice @ The Pizza Box",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2023-06-04",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 22,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.83,
+    "pips": {
+     "W": 9.0,
+     "U": 12.0,
+     "B": 0,
+     "R": 0,
+     "G": 34.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Negate": 2,
+     "Farewell": 2,
+     "Ossification": 2,
+     "Brokers Charm": 3,
+     "Invasion of Ikoria // Zilortha, Apex of Ikoria": 4,
+     "Invasion of Zendikar // Awakened Skyclave": 4,
+     "Make Disappear": 4,
+     "Vorinclex // The Grand Evolution": 1,
+     "Serum Sovereign": 1,
+     "Vesuvan Drifter": 2,
+     "Titan of Industry": 3,
+     "Cityscape Leveler": 3,
+     "Topiary Stomper": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 537363,
+   "event": 45654,
+   "archetype": "Mono-red Aggro",
+   "player": "Maung Sam",
+   "event_name": "GHR Grand Tournament @ Bangkok (Thailand)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2023-07-02",
+   "summer": true,
+   "s": 0.35387256130316114,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 0,
+    "burn": 16,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 45.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Chandra, Dressed to Kill": 2,
+     "Nahiri's Warcrafting": 3,
+     "Stoke the Flames": 3,
+     "Lightning Strike": 4,
+     "Invasion of Regatha // Disciples of the Inferno": 4,
+     "Kumano Faces Kakkazan // Etching of Kumano": 4,
+     "Play with Fire": 4,
+     "Bloodthirsty Adversary": 1,
+     "Feldon, Ronom Excavator": 2,
+     "Squee, Dubious Monarch": 2,
+     "Khenra Spellspear // Gitaxian Spellstalker": 4,
+     "Monastery Swiftspear": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 503548,
+   "event": 40811,
+   "archetype": "Naya Aggro",
+   "player": "Dieguills",
+   "event_name": "Perla Negra Series #3 Rapsolo's Community @ Mtgadailychallenge",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2023-01-21",
+   "summer": false,
+   "s": 0.34129489820844133,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 32,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 31.0,
+     "U": 0,
+     "B": 0,
+     "R": 13.0,
+     "G": 18.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Goro-Goro, Disciple of Ryusei": 1,
+     "Ao, the Dawn Sky": 2,
+     "Katilda, Dawnhart Prime": 2,
+     "Halana and Alena, Partners": 2,
+     "Rocco, Cabaretti Caterer": 2,
+     "Brutal Cathar // Moonrage Brute": 3,
+     "Thalia, Guardian of Thraben": 4,
+     "Adeline, Resplendent Cathar": 4,
+     "Hajar, Loyal Bodyguard": 4,
+     "King Darien XLVIII": 4,
+     "Jetmir, Nexus of Revels": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 520014,
+   "event": 43324,
+   "archetype": "Esper Toxic",
+   "player": "__ovc___",
+   "event_name": "LCQ #3 @ DreamHack San Diego",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2023-04-08",
+   "summer": false,
+   "s": 0.34129489820844133,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 8.0,
+     "U": 12.0,
+     "B": 14.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Anoint with Affliction": 2,
+     "Drown in Ichor": 4,
+     "Cut Down": 4,
+     "Serum Snare": 4,
+     "Experimental Augury": 4,
+     "Prologue to Phyresis": 4,
+     "Crawling Chorus": 4,
+     "Skrelv, Defector Mite": 4,
+     "Arcane Proxy": 4,
+     "Bilious Skulldweller": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 516843,
+   "event": 42869,
+   "archetype": "Esper Legends",
+   "player": "Marlon Jacob Avila Gutierrez",
+   "event_name": "The Gathering Showdown Series @ WTC (CDMX, M\u00e9xico)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2023-03-17",
+   "summer": false,
+   "s": 0.34129489820844133,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.45,
+    "pips": {
+     "W": 26.0,
+     "U": 10.0,
+     "B": 16.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Thalia, Guardian of Thraben": 4,
+     "Dennick, Pious Apprentice // Dennick, Pious Apparition": 4,
+     "Sheoldred, the Apocalypse": 4,
+     "Skrelv, Defector Mite": 4,
+     "Raffine, Scheming Seer": 4,
+     "Adeline, Resplendent Cathar": 3,
+     "Go for the Throat": 2,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Ludevic, Necrogenius // Olag, Ludevic's Hubris": 2,
+     "Razorlash Transmogrant": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 534274,
+   "event": 45260,
+   "archetype": "orzhov Midrange",
+   "player": "trukanshii",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "8",
+   "date": "2023-06-17",
+   "summer": true,
+   "s": 0.3058823529411765,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 3.59,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 21.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "The Cruelty of Gix": 1,
+     "Vraska, Betrayal's Sting": 1,
+     "Invasion of Tolvada // The Broken Sky": 1,
+     "Cut Down": 2,
+     "Touch the Spirit Realm": 3,
+     "The Wandering Emperor": 3,
+     "Go for the Throat": 4,
+     "Wedding Announcement // Wedding Festivity": 4,
+     "Tainted Adversary": 1,
+     "Intrepid Adversary": 1,
+     "Steel Seraph": 3,
+     "Phyrexian Fleshgorger": 3,
+     "Sheoldred, the Apocalypse": 3,
+     "Tenacious Underdog": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 531091,
+   "event": 44860,
+   "archetype": "Mono Green Aggro",
+   "player": "Piotr Rebizant",
+   "event_name": "Slice @ The Pizza Box",
+   "stars": 2,
+   "rank": "9-16",
+   "date": "2023-06-04",
+   "summer": true,
+   "s": 0.29582861729700244,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.62,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 40.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Cosmic Hunger": 2,
+     "Tyvar's Stand": 2,
+     "Unnatural Restoration": 2,
+     "Invasion of Ikoria // Zilortha, Apex of Ikoria": 3,
+     "Audacity": 4,
+     "Infectious Bite": 4,
+     "Tamiyo's Safekeeping": 4,
+     "March of Burgeoning Life": 4,
+     "Venerated Rotpriest": 4,
+     "Bloated Contaminator": 4,
+     "Branchblight Stalker": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 546955,
+   "event": 46930,
+   "archetype": "Rakdos Anvil",
+   "player": "joaoclaudioms",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "12",
+   "date": "2023-08-20",
+   "summer": true,
+   "s": 0.27384458973688686,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 1,
+    "burn": 4,
+    "avg_cmc": 1.87,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 20.0,
+     "R": 25.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Transmogrant's Crown": 1,
+     "Go for the Throat": 1,
+     "Chandra, Hope's Beacon": 1,
+     "Mishra's Research Desk": 3,
+     "Experimental Synthesizer": 4,
+     "Voltage Surge": 4,
+     "Oni-Cult Anvil": 4,
+     "Annihilating Glare": 4,
+     "Razorlash Transmogrant": 1,
+     "Ob Nixilis, Captive Kingpin": 3,
+     "Graveyard Trespasser // Graveyard Glutton": 4,
+     "Voldaren Epicure": 4,
+     "Bloodtithe Harvester": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 7
+  }
+ ],
+ "pool_size": 39,
+ "rejected_illegal": [
+  {
+   "archetype": "Grixis Control",
+   "deck": 511073,
+   "player": "Takeshi Ozawa",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 525424,
+   "player": "canepis16",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 522744,
+   "player": "tim96",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 517404,
+   "player": "cicciogire",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Control",
+   "deck": 513203,
+   "player": "William La Hay",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Control",
+   "deck": 523675,
+   "player": "Tulio_Jaudy",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Control",
+   "deck": 520012,
+   "player": "Brian Zilles",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Control",
+   "deck": 519998,
+   "player": "Seth Cole",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 513009,
+   "player": "Danilo Almeida",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Aggro",
+   "deck": 512800,
+   "player": "Matteo Soldi",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Aggro",
+   "deck": 513206,
+   "player": "Joseph Karani",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Blue Tempo",
+   "deck": 550251,
+   "player": "Nagashima Hironori",
+   "why": [
+    "Sleight of Hand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Blue Tempo",
+   "deck": 518990,
+   "player": "Mertcan Hekimoglu",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Control",
+   "deck": 550261,
+   "player": "Aoyama Katsuhiko",
+   "why": [
+    "Restless Fortress (not in legal sets)",
+    "The End (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 550260,
+   "player": "Yoshida Y\u016bto",
+   "why": [
+    "Collector's Vault (not in legal sets)",
+    "Lich-Knights' Conquest (not in legal sets)",
+    "The End (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 550033,
+   "player": "Al_carrer!",
+   "why": [
+    "Beseech the Mirror (not in legal sets)",
+    "Candy Grapple (not in legal sets)",
+    "Hopeless Nightmare (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 521475,
+   "player": "Numb Skull",
+   "why": [
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Golgari Aggro",
+   "deck": 550027,
+   "player": "Raiven",
+   "why": [
+    "Mosswood Dreadknight (not in legal sets)",
+    "Restless Cottage (not in legal sets)",
+    "Sentinel of Lost Lore (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Golgari Aggro",
+   "deck": 550256,
+   "player": "Kannari Kyouhei",
+   "why": [
+    "Mosswood Dreadknight (not in legal sets)",
+    "Restless Cottage (not in legal sets)",
+    "The End (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya Aggro",
+   "deck": 550262,
+   "player": "Endo Wataru",
+   "why": [
+    "Restless Bivouac (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sultai Aggro",
+   "deck": 550257,
+   "player": "Minami Ryota",
+   "why": [
+    "Blossoming Tortoise (not in legal sets)",
+    "Cruel Somnophage (not in legal sets)",
+    "Gruff Triplets (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 529228,
+   "player": "HouseOfManaMTG",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 527978,
+   "player": "beraldi",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 527860,
+   "player": "Sim\u00f3n Arboleda Escobar",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Control",
+   "deck": 527607,
+   "player": "MTGHolic",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "The Cruelty of Gix",
+   "deck": 522235,
+   "player": "Lemon Nagasako",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "The Cruelty of Gix",
+   "deck": 520464,
+   "player": "MJ_23",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "The Cruelty of Gix",
+   "deck": 517215,
+   "player": "Chuan Sun",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "The Cruelty of Gix",
+   "deck": 516182,
+   "player": "Jes\u00fas Ad\u00e1n Calzada Tovar",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "5cc",
+   "deck": 519292,
+   "player": "Nammersquats",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "5cc",
+   "deck": 519078,
+   "player": "Francisco Benitez",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "5cc",
+   "deck": 522347,
+   "player": "Psyca74",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 508086,
+   "player": "maximusdee",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 520656,
+   "player": "Craig Rocco",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 511092,
+   "player": "Takurou Kamiya",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 503547,
+   "player": "Faqo",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Control",
+   "deck": 509561,
+   "player": "Bytr",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Control",
+   "deck": 522346,
+   "player": "Daftendirekt",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Control",
+   "deck": 523680,
+   "player": "pepeisra",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Control",
+   "deck": 522322,
+   "player": "stainerson",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Boros Control",
+   "deck": 523679,
+   "player": "solomonwolf",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 520033,
+   "player": "Dan Milechman",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 550034,
+   "player": "Kimiunders",
+   "why": [
+    "Charming Scoundrel (not in legal sets)",
+    "Monstrous Rage (not in legal sets)",
+    "Royal Treatment (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 511099,
+   "player": "Kazuya Terasawa",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Gruul Aggro",
+   "deck": 520630,
+   "player": "Dan Milechman",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "GrixisControl",
+   "deck": 513252,
+   "player": "Bastida",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "RDW",
+   "deck": 503275,
+   "player": "Kojima Yoshifumi",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Invoke Justice",
+   "deck": 506779,
+   "player": "Tunaktunak",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Invoke Justice",
+   "deck": 506778,
+   "player": "Cabezadebolo",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Invoke Justice",
+   "deck": 529255,
+   "player": "Jeff Lin",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "The Kami War",
+   "deck": 509498,
+   "player": "Andhika Dwi Putranto",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Big Red",
+   "deck": 503259,
+   "player": "Nakai Yuichiro",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Midrange",
+   "deck": 506084,
+   "player": "Cabezadebolo",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Midrange",
+   "deck": 503840,
+   "player": "canepis16",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Midrange",
+   "deck": 506078,
+   "player": "Gobern",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Midrange",
+   "deck": 503784,
+   "player": "Sapoa",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Aggro",
+   "deck": 510212,
+   "player": "Kingdark272",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Vat of Rebirth",
+   "deck": 520035,
+   "player": "Henry Romero",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Vat of Rebirth",
+   "deck": 520068,
+   "player": "Henry Romero",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono white Control",
+   "deck": 520000,
+   "player": "Heath Vance",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Invoke Despair",
+   "deck": 511088,
+   "player": "Masahito Masuda",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Anvil",
+   "deck": 512839,
+   "player": "Cabezadebolo",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Diregraf Rebirth",
+   "deck": 517083,
+   "player": "Nysterial",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Diregraf Rebirth",
+   "deck": 520674,
+   "player": "Erin Diaz",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Midrange",
+   "deck": 505693,
+   "player": "Ekka",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Midrange",
+   "deck": 519088,
+   "player": "Miguel Jarufe",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Midrange",
+   "deck": 520462,
+   "player": "PieGonti",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono-white Control",
+   "deck": 516847,
+   "player": "Cristian Zuniga",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Golgari Midrange",
+   "deck": 507049,
+   "player": "Fang265sakanabone",
+   "why": [
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mardu Angels",
+   "deck": 501890,
+   "player": "In\u014de Takuto",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "",
+   "deck": 525422,
+   "player": "MarioBBrega",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "",
+   "deck": 524773,
+   "player": "Tom Kessler",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Invoke Despair (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "",
+   "deck": 524788,
+   "player": "Riccardo Biava",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "",
+   "deck": 524792,
+   "player": "Brent Vos",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Justice Reanimator",
+   "deck": 503844,
+   "player": "ScreenwriterNY",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono Azorius Control",
+   "deck": 513413,
+   "player": "sneakymisato",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund PW",
+   "deck": 509512,
+   "player": "Ryan Miles",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)"
+   ]
+  },
+  {
+   "archetype": "Blade of Shared Souls",
+   "deck": 520473,
+   "player": "Arianne",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Blade of Shared Souls",
+   "deck": 524795,
+   "player": "Rei Zhang",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "WW",
+   "deck": 529262,
+   "player": "Tim Schaufert",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Blade of Shared Souls Combo",
+   "deck": 520589,
+   "player": "Cftsoc",
+   "why": [
+    "Fable of the Mirror-Breaker (banned)",
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "UW Atraxa",
+   "deck": 524830,
+   "player": "Greg Orange",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  },
+  {
+   "archetype": "Other - Aggro",
+   "deck": 524892,
+   "player": "Fabrizio Campanino",
+   "why": [
+    "Reckoner Bankbuster (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Mono Black Aggro",
+   "player": "Yoshida Y\u016bto",
+   "kept": "Dimir Aggro",
+   "kept_player": "Kobayashi Hiroyuki"
+  },
+  {
+   "dropped": "UW Control",
+   "player": "Venom1",
+   "kept": "Orzhov Control",
+   "kept_player": "Joaohnp#78481"
+  },
+  {
+   "dropped": "Dimir Midrange",
+   "player": "ovmlcabrera",
+   "kept": "Dimir Aggro",
+   "kept_player": "Kobayashi Hiroyuki"
+  },
+  {
+   "dropped": "Mono Black midrange",
+   "player": "FerMTG",
+   "kept": "Dimir Aggro",
+   "kept_player": "Kobayashi Hiroyuki"
+  },
+  {
+   "dropped": "Rakdos Aggro",
+   "player": "David Gagliardo",
+   "kept": "Rakdos Midrange",
+   "kept_player": "MTGHolic"
+  },
+  {
+   "dropped": "Mono Black Midrange",
+   "player": "FerMTG",
+   "kept": "Rakdos Midrange",
+   "kept_player": "MTGHolic"
+  },
+  {
+   "dropped": "Selesnya Toxic",
+   "player": "MLGezusus",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Satou Rei"
+  },
+  {
+   "dropped": "RDW",
+   "player": "Hamuda",
+   "kept": "Red Deck Wins",
+   "kept_player": "Fujimoto Tomoya"
+  },
+  {
+   "dropped": "Mono Black Control",
+   "player": "Vinicius Franco",
+   "kept": "Dimir Aggro",
+   "kept_player": "Kobayashi Hiroyuki"
+  },
+  {
+   "dropped": "Other - Aggro",
+   "player": "Max Mcvety",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Satou Rei"
+  }
+ ],
+ "objective": 9.062194467121216,
+ "pool_colors": {
+  "W": 23,
+  "U": 17,
+  "B": 20,
+  "G": 13,
+  "R": 12
+ },
+ "pool_styles": {
+  "midrange": 10,
+  "aggro": 20,
+  "control": 9
+ },
+ "kept_lost": []
+}

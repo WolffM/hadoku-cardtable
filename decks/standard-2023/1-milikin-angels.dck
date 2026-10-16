@@ -1,0 +1,34 @@
+[metadata]
+Name=Angels (milikin)
+Deck Type=Constructed
+Format=Standard (2023-05-29)
+Effective=2023-05-29
+Source URL=https://www.mtgtop8.com/event?e=40973&d=504616&f=ST
+Comment=MTGO Challenge: milikin, 1st, Angels. Transcribed from mtgtop8 deck 504616.
+[Main]
+12 Plains|MOM
+4 Ambitious Farmhand|MID
+3 Shattered Sanctum|VOW
+2 Sundown Pass|VOW
+1 Eiganjo, Seat of the Empire|NEO
+2 Secluded Courtyard|NEO
+4 The Wandering Emperor|NEO
+4 Giada, Font of Hope|SNC
+3 Inspiring Overseer|SNC
+2 Sanctuary Warden|SNC
+2 Jetmir's Garden|SNC
+2 Raffine's Tower|SNC
+4 Archangel of Wrath|DMU
+3 Serra Paragon|DMU
+1 In the Trenches|BRO
+4 Lay Down Arms|BRO
+3 Loran of the Third Path|BRO
+4 Steel Seraph|BRO
+[Sideboard]
+1 Sanctuary Warden|SNC
+1 Serra Paragon|DMU
+2 Cathar Commando|MID
+2 Farewell|NEO
+3 Depopulate|SNC
+4 Knockout Blow|SNC
+2 Temporary Lockdown|DMU

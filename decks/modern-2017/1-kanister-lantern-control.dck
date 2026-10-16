@@ -1,0 +1,42 @@
+[metadata]
+Name=Lantern Control (kanister)
+Deck Type=Constructed
+Format=Modern (HOU)
+Effective=2017-07-14
+Source URL=https://www.mtgtop8.com/event?e=16590&d=302565&f=MO
+Comment=MTGO Modern Challenge: kanister, 1st, Lantern Control. Transcribed from mtgtop8 deck 302565.
+[Main]
+1 Infernal Tutor|DIS
+1 Collective Brutality|EMN
+2 Pyxis of Pandemonium|THS
+2 Pithing Needle|RTR
+2 Abrupt Decay|RTR
+2 Ghoulcaller's Bell|ISD
+2 Surgical Extraction|NPH
+3 Inquisition of Kozilek|ROE
+3 Thoughtseize|THS
+4 Codex Shredder|RTR
+4 Ensnaring Bridge|8E
+4 Lantern of Insight|FD
+4 Mishra's Bauble|CSP
+4 Mox Opal|SOM
+4 Ancient Stirrings|ROE
+1 Forest|HOU
+1 Spire of Industry|AER
+1 Swamp|HOU
+2 Inventors' Fair|KLD
+2 Academy Ruins|TSP
+3 Ghost Quarter|ISD
+4 Blooming Marsh|KLD
+4 Glimmervoid|MR
+[Sideboard]
+2 Welding Jar|MR
+1 Seal of Primordium|PLC
+1 Nature's Claim|WWK
+1 Maelstrom Pulse|ARB
+3 Leyline of Sanctity|M11
+2 Grafdigger's Cage|DKA
+2 Collective Brutality|EMN
+1 Pithing Needle|RTR
+1 Surgical Extraction|NPH
+1 Thoughtseize|THS

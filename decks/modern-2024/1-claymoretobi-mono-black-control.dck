@@ -1,0 +1,38 @@
+[metadata]
+Name=Mono Black Control (ClaymoreTobi)
+Deck Type=Constructed
+Format=Modern (OTJ)
+Effective=2024-04-19
+Source URL=https://www.mtgtop8.com/event?e=55655&d=614198&f=MO
+Comment=MTGO Challenge 32: ClaymoreTobi, 1st, Mono Black Control. Transcribed from mtgtop8 deck 614198.
+[Main]
+4 Fatal Push|AER
+2 Cling to Dust|THB
+1 Damnation|PLC
+3 Demolition Field|BRO
+4 Field of Ruin|DBL
+3 The One Ring|LTR
+3 March of Wretched Sorrow|NEO
+9 Swamp|OTJ
+4 Sheoldred's Edict|ONE
+1 Sunken Citadel|LCI
+4 Urborg, Tomb of Yawgmoth|M15
+4 Thoughtseize|THS
+4 Cabal Coffers|TO
+4 Karn, the Great Creator|WAR
+1 Sheoldred, the Apocalypse|DMU
+3 Orcish Bowmasters|LTR
+4 Profane Tutor|MH2
+1 Deadly Cover-Up|MKM
+1 Troll of Khazad-dûm|LTR
+[Sideboard]
+1 The One Ring|LTR
+1 Chalice of the Void|MR
+1 Cityscape Leveler|BRO
+3 Cursed Totem|6E
+2 Engineered Explosives|FD
+3 Necromentia|M21
+1 Sundering Titan|DS
+1 The Stone Brain|BRO
+1 Tormod's Crypt|M21
+1 Kozilek, Butcher of Truth|ROE

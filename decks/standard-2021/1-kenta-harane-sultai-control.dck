@@ -1,0 +1,41 @@
+[metadata]
+Name=Sultai Control (Kenta Harane)
+Deck Type=Constructed
+Format=Standard (AFR)
+Effective=2021-07-23
+Source URL=https://www.mtgtop8.com/event?e=30667&d=439103&f=ST
+Comment=Rivals @ May Strixhaven League Weekend: Kenta Harane, 1st, Sultai Control. Transcribed from mtgtop8 deck 439103.
+[Main]
+1 Cultivate|M21
+1 Shadows' Verdict|ZNR
+1 Elspeth's Nightmare|THB
+1 Professor Onyx|STX
+2 Mystical Dispute|ELD
+2 Extinction Event|IKO
+2 Rain of Revelation|M21
+3 Thirst for Meaning|THB
+3 Eliminate|M21
+3 Heartless Act|IKO
+4 Shark Typhoon|IKO
+4 Titans' Nest|IKO
+4 Strategic Planning|KHM
+4 Alrund's Epiphany|KHM
+1 Darkbore Pathway|KHM
+1 Forest|AFR
+1 Temple of Deceit|THB
+1 Temple of Mystery|M21
+2 Swamp|AFR
+3 Island|AFR
+4 Clearwater Pathway|ZNR
+4 Fabled Passage|M21
+4 Barkchannel Pathway|KHM
+4 Zagoth Triome|IKO
+[Sideboard]
+4 Duress|M21
+2 Elder Gargaroth|M21
+2 Kaervek, the Spiteful|M21
+2 Polukranos, Unchained|THB
+1 Negate|ZNR
+1 Elspeth's Nightmare|THB
+2 Mystical Dispute|ELD
+1 Eliminate|M21

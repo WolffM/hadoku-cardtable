@@ -1,0 +1,40 @@
+[metadata]
+Name=Esper Midrange (Alessandro Portaro)
+Deck Type=Constructed
+Format=Standard (2019-08-30)
+Effective=2019-08-30
+Source URL=https://www.mtgtop8.com/event?e=21927&d=347727&f=ST
+Comment=MCQ Barcelona #1 @ Rome (Italy): Alessandro Portaro, 1st, Esper Midrange. Transcribed from mtgtop8 deck 347727.
+[Main]
+4 Hero of Precinct One|RNA
+4 Thief of Sanity|GRN
+3 Basilica Bell-Haunt|RNA
+2 Elite Guardmage|WAR
+3 Teferi, Hero of Dominaria|DOM
+3 Teferi, Time Raveler|WAR
+1 Liliana, Dreadhorde General|WAR
+1 Ugin, the Ineffable|WAR
+4 Thought Erasure|GRN
+2 Dovin's Veto|WAR
+2 Tyrant's Scorn|WAR
+3 Mortify|RNA
+1 Oath of Kaya|WAR
+2 Vraska's Contempt|XLN
+4 Watery Grave|GRN
+4 Hallowed Fountain|RNA
+4 Godless Shrine|RNA
+4 Drowned Catacomb|XLN
+4 Glacial Fortress|XLN
+4 Isolated Chapel|DOM
+1 Swamp|M20
+[Sideboard]
+2 Dovin's Veto|WAR
+1 Vraska's Contempt|XLN
+2 Hostage Taker|XLN
+1 Vona, Butcher of Magan|XLN
+1 Lyra Dawnbringer|DOM
+2 Narset, Parter of Veils|WAR
+2 Duress|M20
+2 Moment of Craving|RIX
+1 Enter the God-Eternals|WAR
+1 Time Wipe|WAR

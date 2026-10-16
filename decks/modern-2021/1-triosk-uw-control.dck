@@ -1,0 +1,41 @@
+[metadata]
+Name=UW Control (triosk)
+Deck Type=Constructed
+Format=Modern (AFR)
+Effective=2021-07-23
+Source URL=https://www.mtgtop8.com/event?e=32275&d=448396&f=MO
+Comment=MTGO Modern Preliminary: triosk, 1st, UW Control. Transcribed from mtgtop8 deck 448396.
+[Main]
+2 Teferi, Hero of Dominaria|DOM
+4 Teferi, Time Raveler|WAR
+1 Solitude|MH2
+4 Prismatic Ending|MH2
+4 Supreme Verdict|RTR
+4 Archmage's Charm|MH1
+4 Counterspell|7E
+1 Cryptic Command|LRW
+1 Fact or Fiction|IN
+2 Chalice of the Void|MR
+4 Shark Typhoon|IKO
+4 Spreading Seas|ZEN
+4 Castle Vantress|ELD
+1 Celestial Colonnade|WWK
+4 Flooded Strand|KTK
+2 Hallowed Fountain|RNA
+4 Island|AFR
+4 Mystic Gate|SHM
+2 Plains|AFR
+1 Raugrin Triome|IKO
+3 Scalding Tarn|ZEN
+[Sideboard]
+2 Celestial Purge|M12
+1 Crumble to Dust|BFZ
+2 Dovin's Veto|WAR
+1 Emrakul, the Aeons Torn|ROE
+1 Engineered Explosives|FD
+2 Flusterstorm|MH1
+1 Force of Negation|MH1
+2 Rest in Peace|RTR
+1 Timely Reinforcements|M12
+1 Torpor Orb|NPH
+1 Wear // Tear|DGM

@@ -1,0 +1,39 @@
+[metadata]
+Name=UR Storm (Paeng_Paeng)
+Deck Type=Constructed
+Format=Modern (AFR)
+Effective=2021-07-23
+Source URL=https://www.mtgtop8.com/event?e=27924&d=421508&f=MO
+Comment=MTGO Modern Preliminary: Paeng_Paeng, 1st, UR Storm. Transcribed from mtgtop8 deck 421508.
+[Main]
+4 Baral, Chief of Compliance|AER
+3 Goblin Electromancer|GRN
+1 Empty the Warrens|TSP
+2 Grapeshot|TSP
+2 Past in Flames|ISD
+4 Serum Visions|FD
+4 Desperate Ritual|CHK
+4 Gifts Ungiven|CHK
+4 Manamorphose|SHM
+4 Opt|M21
+4 Pyretic Ritual|M11
+3 Remand|RAV
+1 Repeal|GP
+2 Silundi Vision|ZNR
+1 Valakut Awakening|ZNR
+1 Fiery Islet|MH1
+2 Island|AFR
+1 Mountain|AFR
+1 Riverglide Pathway|ZNR
+3 Shivan Reef|ORI
+1 Snow-Covered Island|CSP
+4 Spirebluff Canal|KLD
+4 Steam Vents|GRN
+[Sideboard]
+2 Empty the Warrens|TSP
+1 Abrade|HOU
+1 Aria of Flame|MH1
+4 Lightning Bolt|M11
+3 Mystical Dispute|ELD
+3 Pieces of the Puzzle|SOI
+1 Shatterstorm|10E

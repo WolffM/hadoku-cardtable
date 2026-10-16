@@ -1,0 +1,41 @@
+[metadata]
+Name=Doomsday (_INF_)
+Deck Type=Constructed
+Format=Legacy (AFR)
+Effective=2021-07-23
+Source URL=https://www.mtgtop8.com/event?e=32078&d=447379&f=LE
+Comment=MTGO Legacy Preliminary: _INF_, 1st, Doomsday. Transcribed from mtgtop8 deck 447379.
+[Main]
+4 Street Wraith|FUT
+1 Thassa's Oracle|THB
+4 Doomsday|WL
+2 Duress|US
+2 Edge of Autumn|FUT
+1 Ideas Unbound|SOK
+2 Personal Tutor|PT
+4 Ponder|LRW
+3 Preordain|M11
+1 Thoughtseize|LRW
+4 Brainstorm|IA
+4 Dark Ritual|A
+4 Daze|NE
+4 Force of Will|AL
+1 Pact of Negation|FUT
+1 Lion's Eye Diamond|MI
+4 Lotus Petal|TE
+2 Flooded Strand|ON
+3 Misty Rainforest|ZEN
+2 Polluted Delta|ON
+2 Scalding Tarn|ZEN
+1 Snow-Covered Island|IA
+4 Underground Sea|A
+[Sideboard]
+2 Duress|US
+2 Pact of Negation|FUT
+1 Cavern of Souls|AVR
+1 Chain of Vapor|ON
+1 Consign // Oblivion|HOU
+2 Fatal Push|AER
+4 Force of Negation|H1R
+1 Massacre|NE
+1 Spell Pierce|ZEN

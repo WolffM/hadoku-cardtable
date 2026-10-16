@@ -9,12 +9,13 @@ The code that reads these lives in `packages/deck/src/library/`.
 
 ## What is here
 
-Forty power-summer eras across three formats, 811 decks total. Standard:
-1995-2016, each the Standard in force just **before that year's fall
+Sixty-seven power-summer eras across three formats, 1459 decks total. Standard:
+1995-2025, each the Standard in force just **before that year's fall
 rotation** (old block and new block legal together) — except Type 2 in 1995
 and 1996, which had no fall rotation and changed its restricted list between
-Worlds and the autumn set, so those two take the format in force on August
-1st. Modern (2011-2016) and Legacy (2005-2016) do not rotate, so each year's
+Worlds and the autumn set, and 2023, when WotC's three-year rotation dropped
+no set, so those three take the format in force on August 1st. Modern
+(2011-2025) and Legacy (2005-2025) do not rotate, so each year's
 era is pinned to the SAME dates that year's Standard era uses (wave 48,
 Settled) — the snapshot is the latest Archived/Modern or Archived/Legacy file
 on or before that date, and Modern/Legacy and Standard eras of the same year
@@ -43,12 +44,30 @@ standard-2013/   Standard (M14), 2013-07-19   (24 decks)
 standard-2014/   Standard (M15), 2014-07-18   (24 decks)
 standard-2015/   Standard (ORI), 2015-07-17   (24 decks)
 standard-2016/   Standard (EMN), 2016-07-22   (24 decks)
+standard-2017/   Standard (HOU), 2017-07-14   (24 decks)
+standard-2018/   Standard (M19), 2018-07-13   (24 decks)
+standard-2019/   Standard (2019-08-30), 2019-08-30 (24 decks)
+standard-2020/   Standard (2020-08-03), 2020-08-03 (24 decks)
+standard-2021/   Standard (AFR), 2021-07-23   (24 decks)
+standard-2022/   Standard (SNC), 2022-04-29   (24 decks)
+standard-2023/   Standard (2023-05-29), 2023-05-29 (24 decks)
+standard-2024/   Standard (OTJ), 2024-04-19   (24 decks)
+standard-2025/   Standard (2025-06-30), 2025-06-30 (24 decks)
 modern-2011/     Modern (M12), 2011-07-15     (24 decks)
 modern-2012/     Modern (M13), 2012-07-13     (24 decks)
 modern-2013/     Modern (M14), 2013-07-19     (24 decks)
 modern-2014/     Modern (M15), 2014-07-18     (24 decks)
 modern-2015/     Modern (ORI), 2015-07-17     (24 decks)
 modern-2016/     Modern (EMN), 2016-07-22     (24 decks)
+modern-2017/     Modern (HOU), 2017-07-14     (24 decks)
+modern-2018/     Modern (M19), 2018-07-13     (24 decks)
+modern-2019/     Modern (2019-08-30), 2019-08-30 (24 decks)
+modern-2020/     Modern (2020-07-13), 2020-08-03 (24 decks)
+modern-2021/     Modern (AFR), 2021-07-23     (24 decks)
+modern-2022/     Modern (SNC), 2022-04-29     (24 decks)
+modern-2023/     Modern (MAT), 2023-05-29     (24 decks)
+modern-2024/     Modern (OTJ), 2024-04-19     (24 decks)
+modern-2025/     Modern (FIN), 2025-06-30     (24 decks)
 legacy-2005/     Legacy (9ED), 2005-08-20     (9 decks — thin season)
 legacy-2006/     Legacy (CSP), 2006-08-20     (17 decks — thin season)
 legacy-2007/     Legacy (10E), 2007-07-20     (24 decks)
@@ -61,6 +80,15 @@ legacy-2013/     Legacy (M14), 2013-07-19     (24 decks)
 legacy-2014/     Legacy (M15), 2014-07-18     (24 decks)
 legacy-2015/     Legacy (ORI), 2015-07-17     (24 decks)
 legacy-2016/     Legacy (EMN), 2016-07-22     (24 decks)
+legacy-2017/     Legacy (HOU), 2017-07-14     (24 decks)
+legacy-2018/     Legacy (M19), 2018-07-13     (24 decks)
+legacy-2019/     Legacy (C19), 2019-08-30     (24 decks)
+legacy-2020/     Legacy (JMP), 2020-08-03     (24 decks)
+legacy-2021/     Legacy (AFR), 2021-07-23     (24 decks)
+legacy-2022/     Legacy (SNC), 2022-04-29     (24 decks)
+legacy-2023/     Legacy (MAT), 2023-05-29     (24 decks)
+legacy-2024/     Legacy (OTJ), 2024-04-19     (24 decks)
+legacy-2025/     Legacy (FIN), 2025-06-30     (24 decks)
 pools/           GENERATED card pools, so the tests need no corpus
 ```
 
@@ -141,6 +169,45 @@ possible."* What decides how far:
   set) and `[PR] Arcane Denial` (a code no Forge edition has), both in one
   1996 list. `build-library.ts` places either at the newest of the era's legal
   sets Forge prints the card in (Alliances, for both).
+
+### 2026-10-16: forward to Pro Tour 2025
+
+The operator: *"let's go up to protour 2025."* Standard, Modern and Legacy
+each gain 2017-2025, nine eras apiece, every one of them 24 decks: 27 eras,
+648 decks. Same tools, same rules, the decks already here untouched. What
+reaching 2025 took:
+
+- **The fall rotation is a snapshot that drops a set.** `eras.py` took the
+  latest second-half-of-year Standard snapshot as the rotation. From 2018 on
+  Forge also records bans and set additions in October to December, and those
+  won, so every year from 2018 read as having no rotation. The real ones are
+  2017-09-29, 2018-10-05, 2019-10-04, 2020-09-25, 2021-09-24, 2022-09-09,
+  2024-08-02 and 2025-08-01. **2023 has none**: WotC moved Standard to a
+  three-year rotation and Wilds of Eldraine (2023-09-08) dropped nothing, so
+  2023 takes the format in force on August 1st (`2023-05-29`, the Fable /
+  Bankbuster / Invoke Despair bans) and runs to 2023-09-08. **2024** is the
+  first rotation in August: Outlaws of Thunder Junction's Standard,
+  2024-04-19 to 2024-08-02, when Bloomburrow rotated Midnight Hunt through
+  Streets of New Capenna out. **2025** is the format after the 2025-06-30 bans
+  (Cori-Steel Cutter, Heartfire Hero and five more), to Edge of Eternities on
+  2025-08-01 — so Pro Tour Final Fantasy's lists that play a card banned
+  that day are refused, as the rule refuses any list judged by its era.
+- **Modern and Legacy follow Standard's dates, as before** — which means
+  Modern and Legacy 2023 are the March of the Machine: Aftermath snapshot,
+  before The Lord of the Rings, and 2024 is Outlaws', before Modern Horizons
+  3. Those seasons' summer lists that play either set are refused as not yet
+  legal (Modern 2024 refused 177 lists that way and kept 40 candidates), not
+  judged by a later format.
+- **Loadable as well as legal.** The selection refuses a list with a card
+  Forge has no script for. None was refused: Forge at the pin scripts every
+  card these 648 decks play.
+- **The crawl reads mtgtop8's newest 81 pages** (2,025 decks) and goes on
+  past them only until the summer window is whole. Sixteen of the 27 seasons
+  hold more decks than that, so their candidates begin some months into the
+  season; Modern 2024 (10,368 decks, mostly MTGO) needed 117 pages to reach
+  its window's opening on 2024-04-19.
+- **PZ2**, MTGO's Treasure Chest, joins the all-digital sets Legacy's pools
+  skip: 270 printings, every name printed on paper elsewhere.
 
 ### Colour and style, per era, and every deck
 

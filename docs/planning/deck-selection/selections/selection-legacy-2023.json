@@ -1,0 +1,3250 @@
+{
+ "era": {
+  "year": 2023,
+  "season_start": "2022-09-09",
+  "start": "2023-05-29",
+  "end": "2023-09-08",
+  "snapshot_file": "2023-05-12",
+  "format": "Legacy (MAT)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU, C17, XLN, DDT, IMA, V17, E02, RIX, A25, DDU, DOM, CM2, BBD, SS1, GS1, M19, C18, GRN, MPS_GRN, GK1, G18, GNT, UMA, RNA, MPS_RNA, GK2, WAR, MPS_WAR, MH1, SS2, M20, C19, ELD, MB1, GN2, THB, IKO, C20, SS3, M21, JMP, 2XM, ZNR, ZNE, ZNC, CMR, CC1, KHM, KHC, TSR, STX, STA, C21, MH2, H1R, AFR, AFC, MID, MIC, Q06, VOW, VOC, DBL, CC2, NEO, NEC, SNC, NCC, CLB, 2X2, DMU, DMC, 40K, UNF, GN3, BRO, BRC, BRR, BOT, J22, SCD, DMR, ONE, ONC, MOM, MOC, MUL, MAT",
+  "banned": [
+   "Adriana's Valor",
+   "Advantageous Proclamation",
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Arcum's Astrolabe",
+   "Assemble the Rank and Vile",
+   "Backup Plan",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Brago's Favor",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Cleanse",
+   "Contract from Below",
+   "Crusade",
+   "Darkpact",
+   "Deathrite Shaman",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dig Through Time",
+   "Double Stroke",
+   "Dreadhorde Arcanist",
+   "Earthcraft",
+   "Echoing Boon",
+   "Emissary's Ploy",
+   "Expressive Iteration",
+   "Falling Star",
+   "Fastbond",
+   "Flash",
+   "Frantic Search",
+   "Gitaxian Probe",
+   "Goblin Recruiter",
+   "Gush",
+   "Hermit Druid",
+   "Hired Heist",
+   "Hold the Perimeter",
+   "Hymn of the Wilds",
+   "Immediate Action",
+   "Imperial Seal",
+   "Imprison",
+   "Incendiary Dissent",
+   "Invoke Prejudice",
+   "Iterative Analysis",
+   "Jeweled Bird",
+   "Jihad",
+   "Library of Alexandria",
+   "Lurrus of the Dream-Den",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Mental Misstep",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Muzzio's Preparations",
+   "Mystical Tutor",
+   "Natural Unity",
+   "Necropotence",
+   "Oath of Druids",
+   "Oko, Thief of Crowns",
+   "Power Play",
+   "Pradesh Gypsies",
+   "Ragavan, Nimble Pilferer",
+   "Rebirth",
+   "Secret Summoning",
+   "Secrets of Paradise",
+   "Sensei's Divining Top",
+   "Sentinel Dispatch",
+   "Shahrazad",
+   "Skullclamp",
+   "Sol Ring",
+   "Sovereign's Realm",
+   "Stone-Throwing Devils",
+   "Strip Mine",
+   "Summoner's Bond",
+   "Survival of the Fittest",
+   "Tempest Efreet",
+   "Time Vault",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Treasure Cruise",
+   "Underworld Breach",
+   "Unexpected Potential",
+   "Vampiric Tutor",
+   "Weight Advantage",
+   "Wheel of Fortune",
+   "White Plume Adventurer",
+   "Windfall",
+   "Worldknit",
+   "Wrenn and Six",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will",
+   "Zirda, the Dawnwaker"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 535573,
+   "event": 45404,
+   "archetype": "Death & Taxes",
+   "player": "John Ryan Hamilton",
+   "event_name": "$5,000 Trial - Chicagoland @ NRG Series",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-06-25",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 47,
+    "lands": 33,
+    "creatures": 35,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 47.0,
+     "U": 0,
+     "B": 0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Mother of Runes": 4,
+     "Thalia, Guardian of Thraben": 4,
+     "Stoneforge Mystic": 4,
+     "Spirit of the Labyrinth": 4,
+     "Lion Sash": 1,
+     "Loran of the Third Path": 1,
+     "Magus of the Moon": 2,
+     "Recruiter of the Guard": 4,
+     "Canoptek Scarab Swarm": 1,
+     "Flickerwisp": 3,
+     "Skyclave Apparition": 3,
+     "Solitude": 4,
+     "Aether Vial": 4,
+     "Umezawa's Jitte": 1,
+     "Batterskull": 1,
+     "Kaldra Compleat": 1,
+     "Swords to Plowshares": 4,
+     "Comet, Stellar Pup": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 54
+  },
+  {
+   "deck": 531410,
+   "event": 44889,
+   "archetype": "Doomsday",
+   "player": "Luca Fasoli",
+   "event_name": "Main Event @ 4Seasons Tournaments",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-06-05",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 3,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 15,
+    "burn": 0,
+    "avg_cmc": 1.72,
+    "pips": {
+     "W": 0,
+     "U": 27.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Street Wraith": 2,
+     "Thassa's Oracle": 1,
+     "Lion's Eye Diamond": 1,
+     "Lotus Petal": 4,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Daze": 1,
+     "Consider": 1,
+     "Flusterstorm": 1,
+     "Dark Ritual": 4,
+     "Veil of Summer": 1,
+     "Ponder": 4,
+     "Preordain": 3,
+     "Thoughtseize": 2,
+     "Doomsday": 4,
+     "Edge of Autumn": 2,
+     "Personal Tutor": 3,
+     "Duress": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 49
+  },
+  {
+   "deck": 530398,
+   "event": 44804,
+   "archetype": "4cc",
+   "player": "Rudabega",
+   "event_name": "MTGO Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-06-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 49,
+    "lands": 31,
+    "creatures": 8,
+    "counters": 5,
+    "sweepers": 2,
+    "draw": 23,
+    "burn": 4,
+    "avg_cmc": 2.47,
+    "pips": {
+     "W": 19.0,
+     "U": 25.0,
+     "B": 0,
+     "R": 6.0,
+     "G": 18.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Force of Negation": 1,
+     "Dress Down": 1,
+     "Leyline Binding": 1,
+     "Sylvan Library": 2,
+     "Terminus": 2,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 2,
+     "Teferi, Time Raveler": 2,
+     "Staff of the Storyteller": 4,
+     "Swords to Plowshares": 4,
+     "Ponder": 4,
+     "Force of Will": 4,
+     "Abundant Growth": 4,
+     "Minsc & Boo, Timeless Heroes": 4,
+     "Brainstorm": 4,
+     "Prismatic Ending": 4,
+     "Endurance": 2,
+     "Uro, Titan of Nature's Wrath": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 39
+  },
+  {
+   "deck": 534043,
+   "event": 45242,
+   "archetype": "Storm",
+   "player": "Tonyscapone",
+   "event_name": "$10K @ SCG CON Baltimore",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-06-17",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 0.91,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 26.0,
+     "R": 1.0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Chrome Mox": 2,
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4,
+     "Mishra's Bauble": 4,
+     "Mox Opal": 4,
+     "Wishclaw Talisman": 4,
+     "Urza's Bauble": 2,
+     "Ad Nauseam": 1,
+     "Dark Ritual": 4,
+     "Burning Wish": 1,
+     "Cabal Therapy": 2,
+     "Duress": 4,
+     "Infernal Tutor": 4,
+     "Tendrils of Agony": 1,
+     "Thoughtseize": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 21
+  },
+  {
+   "deck": 536283,
+   "event": 45501,
+   "archetype": "Artifacts Blue",
+   "player": "Nakamura Yuya",
+   "event_name": "Japan Legacy Championship - Bigmagic @ Players Convention Chiba (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-06-25",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 13,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 2.34,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Pithing Needle": 1,
+     "Aether Spellbomb": 1,
+     "Shadowspear": 1,
+     "Thoughtcast": 4,
+     "Force of Will": 4,
+     "Mishra's Bauble": 4,
+     "Lotus Petal": 4,
+     "Mox Opal": 4,
+     "Chalice of the Void": 4,
+     "Urza's Bauble": 4,
+     "Chrome Host Seedshark": 1,
+     "Sai, Master Thopterist": 2,
+     "Kappa Cannoneer": 3,
+     "Thought Monitor": 3,
+     "Emry, Lurker of the Loch": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 17
+  },
+  {
+   "deck": 535021,
+   "event": 45357,
+   "archetype": "Rug Delver",
+   "player": "Krzysztof Mazurek",
+   "event_name": "Polish National Championship @ \u0141\u00f3d\u017a (Poland)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-06-17",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 14,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 5,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 3.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Tarmogoyf": 3,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Dragon's Rage Channeler": 4,
+     "Murktide Regent": 3,
+     "Brainstorm": 4,
+     "Chain Lightning": 1,
+     "Lightning Bolt": 4,
+     "Ponder": 4,
+     "Pyroblast": 1,
+     "Spell Pierce": 1,
+     "Daze": 4,
+     "Force of Will": 4,
+     "Mishra's Bauble": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 522396,
+   "event": 43671,
+   "archetype": "Canadian Midrange",
+   "player": "Hirota Takashi",
+   "event_name": "The 22nd God of Legacy @ Hareruya (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2023-04-18",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 11,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 5,
+    "avg_cmc": 1.85,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 9.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Pyroblast": 1,
+     "Force of Negation": 1,
+     "Unholy Heat": 1,
+     "Life from the Loam": 1,
+     "Sylvan Library": 1,
+     "Minsc & Boo, Timeless Heroes": 1,
+     "Stifle": 2,
+     "Mishra's Bauble": 3,
+     "Daze": 3,
+     "Lightning Bolt": 3,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Brazen Borrower // Petty Theft": 1,
+     "Tarmogoyf": 3,
+     "Uro, Titan of Nature's Wrath": 3,
+     "Dragon's Rage Channeler": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 550192,
+   "event": 47464,
+   "archetype": "Reanimator",
+   "player": "Katou Kazuma",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 11,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.84,
+    "pips": {
+     "W": 4.0,
+     "U": 22.0,
+     "B": 36.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Daze": 2,
+     "Animate Dead": 4,
+     "Show and Tell": 4,
+     "Reanimate": 4,
+     "Entomb": 4,
+     "Dark Ritual": 4,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Lotus Petal": 4,
+     "Griselbrand": 1,
+     "Archon of Cruelty": 2,
+     "Atraxa, Grand Unifier": 4,
+     "Grief": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 94
+  },
+  {
+   "deck": 542890,
+   "event": 46382,
+   "archetype": "Painter",
+   "player": "utley26",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-07-30",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 17,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 3,
+    "avg_cmc": 1.62,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Enlightened Tutor": 2,
+     "Lion's Eye Diamond": 1,
+     "Lotus Petal": 2,
+     "Grindstone": 3,
+     "Ensnaring Bridge": 1,
+     "Goblin Welder": 3,
+     "Simian Spirit Guide": 3,
+     "Lightning Bolt": 3,
+     "Pyroblast": 4,
+     "Painter's Servant": 4,
+     "Imperial Recruiter": 2,
+     "Mox Opal": 1,
+     "Red Elemental Blast": 2,
+     "Goblin Cratermaker": 1,
+     "Karn, the Great Creator": 2,
+     "Goblin Engineer": 3,
+     "Soul-Guide Lantern": 1,
+     "Phyrexian Dragon Engine": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 87
+  },
+  {
+   "deck": 530592,
+   "event": 44830,
+   "archetype": "Death's Shadow",
+   "player": "ecobaronen",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-03",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 14,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 14,
+    "burn": 3,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 12.0,
+     "R": 7.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Snuff Out": 2,
+     "Daze": 3,
+     "Mishra's Bauble": 3,
+     "Lightning Bolt": 3,
+     "Night's Whisper": 3,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Thoughtseize": 4,
+     "Ponder": 4,
+     "Death's Shadow": 3,
+     "Murktide Regent": 3,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Dragon's Rage Channeler": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 85
+  },
+  {
+   "deck": 550185,
+   "event": 47464,
+   "archetype": "Lands",
+   "player": "Hataue Tomoki",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 27,
+    "lands": 33,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 3,
+    "avg_cmc": 1.41,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 6.0,
+     "G": 14.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Pithing Needle": 1,
+     "Expedition Map": 1,
+     "Mox Diamond": 4,
+     "Soul-Guide Lantern": 1,
+     "Punishing Fire": 3,
+     "Crop Rotation": 4,
+     "Life from the Loam": 4,
+     "Sylvan Library": 2,
+     "Exploration": 4,
+     "Valakut Exploration": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 78
+  },
+  {
+   "deck": 531893,
+   "event": 44957,
+   "archetype": "UWx Control",
+   "player": "Angelo Cadei",
+   "event_name": "Arcana Legacy Invitational 2023 @ 4Seasons Tournaments",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-07",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 2,
+    "draw": 15,
+    "burn": 0,
+    "avg_cmc": 2.48,
+    "pips": {
+     "W": 18.0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Force of Negation": 2,
+     "Minor Misstep": 2,
+     "Ponder": 4,
+     "Day's Undoing": 1,
+     "Supreme Verdict": 2,
+     "Prismatic Ending": 4,
+     "Shark Typhoon": 2,
+     "Dress Down": 3,
+     "Teferi, Time Raveler": 2,
+     "Narset, Parter of Veils": 4,
+     "The Wandering Emperor": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 42
+  },
+  {
+   "deck": 541167,
+   "event": 46183,
+   "archetype": "Naya Depths",
+   "player": "Danilo Kiyan",
+   "event_name": "2\u00ba LPL Open Trios Season IV @ Mont (S\u00e3o Paulo, Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-07-22",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 2,
+    "avg_cmc": 1.56,
+    "pips": {
+     "W": 10.0,
+     "U": 0,
+     "B": 0,
+     "R": 2.0,
+     "G": 25.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Prismatic Ending": 2,
+     "Minsc & Boo, Timeless Heroes": 2,
+     "Mox Diamond": 3,
+     "Green Sun's Zenith": 4,
+     "Swords to Plowshares": 4,
+     "Crop Rotation": 4,
+     "Outland Liberator // Frenzied Trapbreaker": 1,
+     "Ramunap Excavator": 1,
+     "Sylvan Safekeeper": 1,
+     "Endurance": 2,
+     "Elvish Reclaimer": 4,
+     "Knight of the Reliquary": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 21
+  },
+  {
+   "deck": 535799,
+   "event": 45432,
+   "archetype": "Boros Initiative",
+   "player": "Romain Corgnolo",
+   "event_name": "Gones League Final #1 @ Balek Bar (Lyon, France)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 18.0,
+     "U": 0,
+     "B": 0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Anointed Peacekeeper": 2,
+     "Archon of Emeria": 4,
+     "Caves of Chaos Adventurer": 4,
+     "Fury": 3,
+     "Seasoned Dungeoneer": 4,
+     "Simian Spirit Guide": 4,
+     "Solitude": 3,
+     "Chalice of the Void": 4,
+     "Chrome Mox": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Lotus Petal": 4,
+     "Touch the Spirit Realm": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 10
+  },
+  {
+   "deck": 545238,
+   "event": 46718,
+   "archetype": "Miracles",
+   "player": "Rodrigo Sousa Maraj\u00e1",
+   "event_name": "Alpha Legacy 106 @ Rio de Janeiro (Brasil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-08-12",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 7,
+    "sweepers": 4,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.65,
+    "pips": {
+     "W": 23.0,
+     "U": 28.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Triumph of Saint Katherine": 4,
+     "Snapcaster Mage": 4,
+     "Entreat the Angels": 1,
+     "Swords to Plowshares": 4,
+     "March of Otherworldly Light": 4,
+     "Terminus": 4,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Brainstone": 2,
+     "Predict": 2,
+     "Force of Will": 4,
+     "Force of Negation": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 517372,
+   "event": 42944,
+   "archetype": "Dark Depths",
+   "player": "aooaaooa",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-03-25",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.51,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 33.0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Dark Ritual": 4,
+     "Chrome Mox": 3,
+     "Vampire Hexmage": 4,
+     "Expedition Map": 1,
+     "Snuff Out": 2,
+     "Thoughtseize": 4,
+     "Once Upon a Time": 3,
+     "Shadowspear": 1,
+     "Pithing Needle": 1,
+     "Opposition Agent": 4,
+     "Duress": 1,
+     "Inquisition of Kozilek": 2,
+     "Dauthi Voidwalker": 4,
+     "Profane Tutor": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 17
+  },
+  {
+   "deck": 515912,
+   "event": 42738,
+   "archetype": "Maverick",
+   "player": "Giorgio Bresciani",
+   "event_name": "League Milano #4 @ Casa dei Giochi (Milan, Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-03-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Shadowspear": 1,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 2,
+     "Once Upon a Time": 2,
+     "Green Sun's Zenith": 3,
+     "Swords to Plowshares": 4,
+     "Solitude": 1,
+     "Outland Liberator // Frenzied Trapbreaker": 1,
+     "Undermountain Adventurer": 1,
+     "Scryb Ranger": 1,
+     "Ignoble Hierarch": 1,
+     "Knight of Autumn": 1,
+     "Knight of the Reliquary": 2,
+     "Endurance": 2,
+     "Seasoned Dungeoneer": 2,
+     "Archon of Emeria": 2,
+     "Mawloc": 2,
+     "Mother of Runes": 3,
+     "Noble Hierarch": 3,
+     "Thalia, Guardian of Thraben": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 16
+  },
+  {
+   "deck": 528025,
+   "event": 44471,
+   "archetype": "Dark Maverick",
+   "player": "Andrei Prata",
+   "event_name": "Alpha 102 @ Rio de Janeiro (Brasil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-05-20",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.97,
+    "pips": {
+     "W": 11.0,
+     "U": 0,
+     "B": 7.0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Batterskull": 1,
+     "Umezawa's Jitte": 1,
+     "Grist, the Hunger Tide": 1,
+     "Once Upon a Time": 2,
+     "Prismatic Ending": 2,
+     "Chain of Smog": 3,
+     "Swords to Plowshares": 4,
+     "Green Sun's Zenith": 4,
+     "Questing Beast": 1,
+     "Knight of Autumn": 1,
+     "Ramunap Excavator": 1,
+     "Collector Ouphe": 1,
+     "Dark Confidant": 1,
+     "Stoneforge Mystic": 1,
+     "Noble Hierarch": 1,
+     "Ignoble Hierarch": 1,
+     "Birds of Paradise": 1,
+     "Witherbloom Apprentice": 2,
+     "Hexdrinker": 2,
+     "Knight of the Reliquary": 3,
+     "Endurance": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 7
+  },
+  {
+   "deck": 516404,
+   "event": 42807,
+   "archetype": "Elves",
+   "player": "Chase Hoppe",
+   "event_name": "HBMO23 - Dave & Adams 2k @ Hunter Burton Memorial",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-03-18",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.78,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 1.0,
+     "R": 0,
+     "G": 49.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Craterhoof Behemoth": 2,
+     "Nettle Sentinel": 4,
+     "Quirion Ranger": 3,
+     "Wirewood Symbiote": 4,
+     "Allosaurus Shepherd": 4,
+     "Leaf-Crowned Visionary": 1,
+     "Birchlore Rangers": 2,
+     "Heritage Druid": 3,
+     "Elvish Visionary": 4,
+     "Once Upon a Time": 2,
+     "Natural Order": 3,
+     "Green Sun's Zenith": 4,
+     "Glimpse of Nature": 4,
+     "Grist, the Hunger Tide": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 26
+  },
+  {
+   "deck": 510766,
+   "event": 41876,
+   "archetype": "Hammer Time",
+   "player": "CrusherBotBG",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-03-04",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.15,
+    "pips": {
+     "W": 26.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Cranial Plating": 1,
+     "Swords to Plowshares": 4,
+     "Stoneforge Mystic": 4,
+     "Mox Opal": 4,
+     "Puresteel Paladin": 4,
+     "Paradise Mantle": 1,
+     "Sigarda's Aid": 4,
+     "Ornithopter": 4,
+     "Sword of War and Peace": 1,
+     "Retrofitter Foundry": 1,
+     "Colossus Hammer": 4,
+     "Shadowspear": 1,
+     "Esper Sentinel": 4,
+     "Nettlecyst": 1,
+     "Ingenious Smith": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 516654,
+   "event": 42842,
+   "archetype": "Grixis Control",
+   "player": "Andrea Boccia",
+   "event_name": "LLM#4 (Italy)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-03-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 5,
+    "avg_cmc": 2.7,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 17.0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Fire // Ice": 1,
+     "Pyroblast": 1,
+     "Snuff Out": 1,
+     "Narset, Parter of Veils": 2,
+     "Rise // Fall": 2,
+     "Inquisition of Kozilek": 2,
+     "Sheoldred's Edict": 2,
+     "Kolaghan's Command": 2,
+     "Lightning Bolt": 3,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Ponder": 4,
+     "Caves of Chaos Adventurer": 1,
+     "Fury": 2,
+     "Gurmag Angler": 2,
+     "Snapcaster Mage": 3,
+     "Baleful Strix": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 524362,
+   "event": 43959,
+   "archetype": "Mono-black Helm",
+   "player": "Jhon O'keefe",
+   "event_name": "$2k @ Nerdz Cafe (Woodstock, Canada)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-04-22",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 40.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Snuff Out": 2,
+     "Profane Tutor": 2,
+     "Helm of Obedience": 3,
+     "Karn, the Great Creator": 4,
+     "Hymn to Tourach": 4,
+     "Thoughtseize": 4,
+     "Dark Ritual": 4,
+     "Leyline of the Void": 4,
+     "Maralen of the Mornsong": 1,
+     "Opposition Agent": 4,
+     "Dauthi Voidwalker": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 529081,
+   "event": 44616,
+   "archetype": "Karn",
+   "player": "susurrus_mtg",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-05-27",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Pithing Needle": 1,
+     "Crucible of Worlds": 1,
+     "Manifold Key": 1,
+     "Mox Opal": 1,
+     "Nettlecyst": 2,
+     "Expedition Map": 2,
+     "Mox Diamond": 4,
+     "Trinisphere": 4,
+     "Serum Powder": 4,
+     "Grim Monolith": 4,
+     "Karn, Scion of Urza": 4,
+     "Chalice of the Void": 4,
+     "Karn, the Great Creator": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 516564,
+   "event": 42829,
+   "archetype": "Bampo",
+   "player": "Ryan Hayes",
+   "event_name": "Legacy for Real Estate 17 @ Taitan Game Shop (Coraopolis, PA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-03-19",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 10,
+    "counters": 9,
+    "sweepers": 1,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.27,
+    "pips": {
+     "W": 11.0,
+     "U": 32.0,
+     "B": 0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Trailblazer's Torch": 1,
+     "Batterskull": 1,
+     "Kaldra Compleat": 1,
+     "Prismatic Ending": 1,
+     "Teferi, Time Raveler": 2,
+     "Stifle": 2,
+     "Daze": 3,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "True-Name Nemesis": 3,
+     "Uro, Titan of Nature's Wrath": 3,
+     "Noble Hierarch": 4,
+     "Stoneforge Mystic": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 537593,
+   "event": 45683,
+   "archetype": "Cascade Crash",
+   "player": "HanktheObese",
+   "event_name": "MTGO Last Chance",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-07-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 16,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 3,
+    "avg_cmc": 3.16,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 15.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Violent Outburst": 4,
+     "Force of Will": 4,
+     "Force of Negation": 4,
+     "Crashing Footfalls": 3,
+     "Brazen Borrower // Petty Theft": 4,
+     "Simian Spirit Guide": 4,
+     "Fire // Ice": 4,
+     "Shardless Agent": 4,
+     "Minsc & Boo, Timeless Heroes": 3,
+     "Elvish Spirit Guide": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 23
+  },
+  {
+   "deck": 547183,
+   "event": 46956,
+   "archetype": "Cephalid Breakfast",
+   "player": "Tim Backasch",
+   "event_name": "Bottrop Series @ Bottrop (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-08-20",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 10.0,
+     "U": 33.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Cabal Therapy": 1,
+     "Dread Return": 1,
+     "Shuko": 1,
+     "Kaldra Compleat": 1,
+     "Orim's Chant": 2,
+     "Step Through": 2,
+     "Teferi, Time Raveler": 2,
+     "Aether Vial": 2,
+     "Ponder": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Thassa's Oracle": 2,
+     "Nomads en-Kor": 3,
+     "Narcomoeba": 3,
+     "Stoneforge Mystic": 3,
+     "Cephalid Illusionist": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 75
+  },
+  {
+   "deck": 550174,
+   "event": 47464,
+   "archetype": "Sneak Show",
+   "player": "Taniuchi Kento",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 3.95,
+    "pips": {
+     "W": 4.0,
+     "U": 32.0,
+     "B": 4.0,
+     "R": 4.0,
+     "G": 6.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Emrakul, the Aeons Torn": 4,
+     "Atraxa, Grand Unifier": 4,
+     "Vesuvan Drifter": 4,
+     "Lotus Petal": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Veil of Summer": 2,
+     "Ponder": 4,
+     "Show and Tell": 4,
+     "Sneak Attack": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 37
+  },
+  {
+   "deck": 550172,
+   "event": 47464,
+   "archetype": "Creative Technique",
+   "player": "Tsuruta Takuro",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 22,
+    "lands": 38,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 7.18,
+    "pips": {
+     "W": 0,
+     "U": 6.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Let the Galaxy Burn": 2,
+     "Creative Technique": 4,
+     "Sakashima's Protege": 1,
+     "Apex Devastator": 1,
+     "Emrakul, the Aeons Torn": 2,
+     "Aurora Phoenix": 2,
+     "Sweet-Gum Recluse": 2,
+     "Boarding Party": 4,
+     "Maelstrom Wanderer": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 11
+  },
+  {
+   "deck": 535703,
+   "event": 45415,
+   "archetype": "Merfolks",
+   "player": "Alexander Carr",
+   "event_name": "Alpha Legacy 104 @ Rio de Janeiro (Brasil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 32,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.2,
+    "pips": {
+     "W": 0,
+     "U": 56.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Lord of Atlantis": 4,
+     "Master of the Pearl Trident": 4,
+     "Mistcaller": 4,
+     "Silvergill Adept": 4,
+     "Svyelun of Sea and Sky": 4,
+     "Tide Shaper": 4,
+     "True-Name Nemesis": 4,
+     "Vodalian Hexcatcher": 4,
+     "Aether Vial": 4,
+     "Force of Will": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 532666,
+   "event": 45059,
+   "archetype": "Echo of Eons",
+   "player": "ElfKid",
+   "event_name": "MTGO Showcase Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-06-11",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 4,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.45,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Pithing Needle": 1,
+     "Mox Opal": 1,
+     "Aether Spellbomb": 1,
+     "Chalice of the Void": 2,
+     "Lion's Eye Diamond": 3,
+     "Force of Will": 4,
+     "Day's Undoing": 4,
+     "Chrome Mox": 4,
+     "Lotus Petal": 4,
+     "Karn, the Great Creator": 4,
+     "Narset, Parter of Veils": 4,
+     "Echo of Eons": 4,
+     "Hullbreacher": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 534044,
+   "event": 45242,
+   "archetype": "Infect",
+   "player": "Anthonyc1",
+   "event_name": "$10K @ SCG CON Baltimore",
+   "stars": 3,
+   "rank": "2",
+   "date": "2023-06-17",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 8,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 0,
+     "G": 22.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Blighted Agent": 4,
+     "Glistener Elf": 4,
+     "Noble Hierarch": 4,
+     "Berserk": 2,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Embiggen": 2,
+     "Force of Will": 4,
+     "Invigorate": 4,
+     "Snakeskin Veil": 2,
+     "Vines of Vastwood": 2,
+     "Ponder": 4,
+     "Scale Up": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 7
+  },
+  {
+   "deck": 536284,
+   "event": 45501,
+   "archetype": "TES",
+   "player": "Asakawa Riku",
+   "event_name": "Japan Legacy Championship - Bigmagic @ Players Convention Chiba (Japan)",
+   "stars": 3,
+   "rank": "2",
+   "date": "2023-06-25",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 1.39,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 23.0,
+     "R": 3.0,
+     "G": 5.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Lotus Petal": 4,
+     "Lion's Eye Diamond": 4,
+     "Wishclaw Talisman": 2,
+     "Brainstorm": 4,
+     "Dark Ritual": 4,
+     "Rain of Filth": 1,
+     "Veil of Summer": 3,
+     "Cabal Ritual": 3,
+     "Ad Nauseam": 1,
+     "Pair o' Dice Lost": 1,
+     "Ponder": 4,
+     "Duress": 4,
+     "Thoughtseize": 1,
+     "Infernal Tutor": 4,
+     "Burning Wish": 2,
+     "Tendrils of Agony": 1,
+     "Past in Flames": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 6
+  },
+  {
+   "deck": 527625,
+   "event": 44423,
+   "archetype": "Mystic Forge",
+   "player": "Cherryxman",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-05-20",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 1,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Voltaic Key": 1,
+     "Pithing Needle": 1,
+     "Mesmeric Orb": 3,
+     "Lion's Eye Diamond": 3,
+     "Basalt Monolith": 3,
+     "Grim Monolith": 4,
+     "Mox Opal": 4,
+     "Karn, the Great Creator": 4,
+     "Echo of Eons": 4,
+     "Manifold Key": 4,
+     "Mystic Forge": 4,
+     "Lotus Petal": 4,
+     "Defense Grid": 4,
+     "Walking Ballista": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 33
+  },
+  {
+   "deck": 522509,
+   "event": 43682,
+   "archetype": "Riddlesmith",
+   "player": "Killabee",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-04-23",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 50,
+    "lands": 10,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 1,
+    "avg_cmc": 1.32,
+    "pips": {
+     "W": 0,
+     "U": 14.0,
+     "B": 2.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Entomb": 1,
+     "Aether Spellbomb": 1,
+     "Grapeshot": 1,
+     "Breakthrough": 2,
+     "Defense Grid": 3,
+     "Chrome Mox": 3,
+     "Mishra's Bauble": 4,
+     "Echo of Eons": 4,
+     "Lion's Eye Diamond": 4,
+     "Gamble": 4,
+     "Mox Opal": 4,
+     "Urza's Bauble": 4,
+     "Lotus Petal": 4,
+     "Ox of Agonas": 1,
+     "Vindictive Flamestoker": 1,
+     "Ovalchase Daredevil": 1,
+     "Riddlesmith": 4,
+     "Containment Construct": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 9
+  },
+  {
+   "deck": 525431,
+   "event": 44086,
+   "archetype": "Grixis Midrange",
+   "player": "TrueFuturism",
+   "event_name": "MTGO Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-05-07",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 14,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 4,
+    "avg_cmc": 2.17,
+    "pips": {
+     "W": 0,
+     "U": 35.0,
+     "B": 3.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Spell Pierce": 1,
+     "Predict": 2,
+     "Minor Misstep": 2,
+     "Mishra's Bauble": 3,
+     "Snuff Out": 3,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Lightning Bolt": 4,
+     "Brazen Borrower // Petty Theft": 1,
+     "Murktide Regent": 2,
+     "Chrome Host Seedshark": 3,
+     "Dragon's Rage Channeler": 4,
+     "Faerie Mastermind": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 508187,
+   "event": 41471,
+   "archetype": "Ug Omnitell",
+   "player": "Patrick Kluck",
+   "event_name": "Series @ Bottrop (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2023-02-12",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 9,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 3.66,
+    "pips": {
+     "W": 0,
+     "U": 45.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Brainstorm": 4,
+     "Cunning Wish": 3,
+     "Emrakul, the Aeons Torn": 2,
+     "Eureka": 1,
+     "Force of Will": 4,
+     "Griselbrand": 1,
+     "Ice-Fang Coatl": 4,
+     "Impulse": 1,
+     "Lotus Petal": 4,
+     "Omniscience": 4,
+     "Ponder": 4,
+     "Show and Tell": 4,
+     "Uro, Titan of Nature's Wrath": 2,
+     "Preordain": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  }
+ ],
+ "pool_size": 49,
+ "rejected_illegal": [
+  {
+   "archetype": "Cascade Crash",
+   "deck": 546926,
+   "player": "EndMagnus",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cascade Crash",
+   "deck": 550178,
+   "player": "Nishibayashi Yusei",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono B Beseech",
+   "deck": 549705,
+   "player": "Franti\u009aek Juda",
+   "why": [
+    "Beseech the Mirror (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reanimator",
+   "deck": 550191,
+   "player": "Doi Daisuke",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron, the Dark Lord (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 544086,
+   "player": "ReformedPaolo",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 543950,
+   "player": "_INF_",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 542042,
+   "player": "Owen Sull",
+   "why": [
+    "Cast into the Fire (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 537769,
+   "player": "NeodivergentGangulit",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Painter",
+   "deck": 550182,
+   "player": "Oda Koichi",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Painter",
+   "deck": 546798,
+   "player": "Joe Ambrosio",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death's Shadow",
+   "deck": 550177,
+   "player": "Furukawa Shun",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death's Shadow",
+   "deck": 538195,
+   "player": "i_b_TRUE",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death's Shadow",
+   "deck": 537031,
+   "player": "iKhada",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Initiative Stompy",
+   "deck": 549205,
+   "player": "peposhi",
+   "why": [
+    "Forth Eorlingas! (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Initiative Stompy",
+   "deck": 540052,
+   "player": "varal",
+   "why": [
+    "Forth Eorlingas! (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dragon Stompy",
+   "deck": 550193,
+   "player": "Tamada Takeshi",
+   "why": [
+    "Cast into the Fire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dragon Stompy",
+   "deck": 548556,
+   "player": "Hugo Van Rooijen",
+   "why": [
+    "Cast into the Fire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dragon Stompy",
+   "deck": 545668,
+   "player": "Chen Hongyao",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Canadian Threshold",
+   "deck": 550179,
+   "player": "Takasaki Shunsuke",
+   "why": [
+    "Cast into the Fire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mystic Forge",
+   "deck": 538563,
+   "player": "susurrus_mtg",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mystic Forge",
+   "deck": 536931,
+   "player": "Xerk",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mystic Forge",
+   "deck": 535565,
+   "player": "Marwin Bravin",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Stoneblade",
+   "deck": 545222,
+   "player": "Neil Henly",
+   "why": [
+    "Forth Eorlingas! (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Stoneblade",
+   "deck": 545108,
+   "player": "Dries Vanheukelom",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Samwise the Stouthearted (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Stoneblade",
+   "deck": 539747,
+   "player": "CoolUser",
+   "why": [
+    "Forth Eorlingas! (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UB Reanimator",
+   "deck": 550189,
+   "player": "Fujiki Ryosuke",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dark Depths",
+   "deck": 548555,
+   "player": "Dennis Aufermann",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dark Depths",
+   "deck": 542766,
+   "player": "Nicholas French-seats",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Helm",
+   "deck": 545139,
+   "player": "mephidro",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Helm",
+   "deck": 535576,
+   "player": "Cris Smith",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Helm",
+   "deck": 537767,
+   "player": "mephidro",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Helm",
+   "deck": 538422,
+   "player": "Will Kowalczyk",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Maverick",
+   "deck": 541253,
+   "player": "Harry1232",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 550188,
+   "player": "Yabuta Koutarou",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 539755,
+   "player": "bjarnearne",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 540053,
+   "player": "xfile",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 538037,
+   "player": "Aner Intxaurza",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cradle Control",
+   "deck": 548288,
+   "player": "Testacular",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cradle Control",
+   "deck": 547099,
+   "player": "Davi Erik Pereira",
+   "why": [
+    "Delighted Halfling (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cradle Control",
+   "deck": 540957,
+   "player": "EronRelentless",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cradle Control",
+   "deck": 542768,
+   "player": "Romario Neto",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Show and Tell",
+   "deck": 550186,
+   "player": "Baba Yukihiro",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Scam",
+   "deck": 546630,
+   "player": "MadMaxErnst",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Scam",
+   "deck": 546930,
+   "player": "easymoneymarksman",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Scam",
+   "deck": 546929,
+   "player": "bernardocssa",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Scam",
+   "deck": 549480,
+   "player": "TheWitchKling",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 543134,
+   "player": "Gernot H\u00fcbler",
+   "why": [
+    "Delighted Halfling (not in legal sets)",
+    "Forth Eorlingas! (not in legal sets)",
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 549708,
+   "player": "Angelo Cadei",
+   "why": [
+    "Cast into the Fire (not in legal sets)",
+    "Forth Eorlingas! (not in legal sets)",
+    "L\u00f3rien Revealed (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Depths",
+   "deck": 550283,
+   "player": "Devin Slater",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Depths",
+   "deck": 545679,
+   "player": "Florian Friedel",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Depths",
+   "deck": 538743,
+   "player": "Carey Ng",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Abzan Depths",
+   "deck": 539908,
+   "player": "Joaquim Damasceno",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dark Maverick",
+   "deck": 539905,
+   "player": "Andrei Prata",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5cc",
+   "deck": 549491,
+   "player": "Kihara_Works",
+   "why": [
+    "Delighted Halfling (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ub Scam",
+   "deck": 545677,
+   "player": "Konstantin Basalyk",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ub Scam",
+   "deck": 543126,
+   "player": "Lorenzo Tassone",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ub Scam",
+   "deck": 549707,
+   "player": "Dario Moreno",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ub Scam",
+   "deck": 543139,
+   "player": "Jonas Schernberger",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Bowmaster",
+   "deck": 535493,
+   "player": "Maraxus_of_NL",
+   "why": [
+    "Council's Deliberation (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Bowmaster",
+   "deck": 537584,
+   "player": "MentalMisstep",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Bowmaster",
+   "deck": 537586,
+   "player": "kentaro_hokori",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Bowmaster",
+   "deck": 537592,
+   "player": "Snusnumrick",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Sauron's Ransom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nic Fit",
+   "deck": 538035,
+   "player": "Manuel Villa",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nic Fit",
+   "deck": 548117,
+   "player": "Koike",
+   "why": [
+    "Boromir, Warden of the Tower (not in legal sets)",
+    "Generous Ent (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nic Fit",
+   "deck": 538207,
+   "player": "Koike",
+   "why": [
+    "Boromir, Warden of the Tower (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)",
+    "Sm\u00e9agol, Helpful Guide (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Scam",
+   "deck": 550173,
+   "player": "\u014ctsu Naoya",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Palant\u00edr of Orthanc (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Scam",
+   "deck": 550180,
+   "player": "Mineo Tomoya",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sultai Scam",
+   "deck": 541165,
+   "player": "Diego Ganev",
+   "why": [
+    "Sauron's Ransom (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Czech Pile",
+   "deck": 540155,
+   "player": "Sebastian Pierchalla",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RUG Delver",
+   "deck": 550175,
+   "player": "Yamasaki Daiki",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "Questing Druid (not in legal sets)",
+    "Sleep-Cursed Faerie (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mind's Desire",
+   "deck": 550176,
+   "player": "Janyst Karol",
+   "why": [
+    "Mind's Desire (banned)"
+   ]
+  },
+  {
+   "archetype": "Tainted Pact Oracle",
+   "deck": 550181,
+   "player": "Shimizu Ryo",
+   "why": [
+    "L\u00f3rien Revealed (not in legal sets)",
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The Rock",
+   "deck": 550184,
+   "player": "Matsumura Asuka",
+   "why": [
+    "Delighted Halfling (not in legal sets)",
+    "Not Dead After All (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Superfriends Eorlingas",
+   "deck": 548460,
+   "player": "Alex Leal",
+   "why": [
+    "Cast into the Fire (not in legal sets)",
+    "Forth Eorlingas! (not in legal sets)",
+    "L\u00f3rien Revealed (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bw Stoneblade",
+   "deck": 545667,
+   "player": "Chen Yunyi",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Samwise the Stouthearted (not in legal sets)",
+    "The Battle of Bywater (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Deadguy Dnt",
+   "deck": 545909,
+   "player": "Zhang Pingyi",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "The Battle of Bywater (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-green Cloudpost",
+   "deck": 538129,
+   "player": "Alex Rouw",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Golgari Artisan",
+   "deck": 533749,
+   "player": "Kris Rhinehart",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan Order",
+   "deck": 535574,
+   "player": "Wynne Thom",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan Order",
+   "deck": 545910,
+   "player": "Gao Boran",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan Order",
+   "deck": 545669,
+   "player": "Andy Liang",
+   "why": [
+    "Delighted Halfling (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ub Painter",
+   "deck": 535022,
+   "player": "Adam Gerwatowski",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono White Initiative",
+   "deck": 509260,
+   "player": "Alessandro Marranci",
+   "why": [
+    "White Plume Adventurer (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Initiative",
+   "deck": 509569,
+   "player": "Sahar Mirhadi",
+   "why": [
+    "White Plume Adventurer (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Initiative",
+   "deck": 507531,
+   "player": "Romain Corgnolo",
+   "why": [
+    "White Plume Adventurer (banned)"
+   ]
+  },
+  {
+   "archetype": "Mono White Initiative",
+   "deck": 507534,
+   "player": "J\u00e9r\u00e9my Felix",
+   "why": [
+    "White Plume Adventurer (banned)"
+   ]
+  },
+  {
+   "archetype": "U/r Delver",
+   "deck": 507706,
+   "player": "Carles Mesegu\u00e9",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "U/r Delver",
+   "deck": 507709,
+   "player": "Alberto Manchado",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "U/r Delver",
+   "deck": 507710,
+   "player": "Roman Korobeinik",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "U/r Delver",
+   "deck": 507711,
+   "player": "Pau P\u00e9rez",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "UR Spelldancer",
+   "deck": 509657,
+   "player": "Diego Ganev",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "UR Spelldancer",
+   "deck": 509658,
+   "player": "Carlos Tiberio",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "UR Spelldancer",
+   "deck": 510767,
+   "player": "Oceansoul92",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "Temur Delver",
+   "deck": 510110,
+   "player": "Maximilian Penzkofer",
+   "why": [
+    "Expressive Iteration (banned)"
+   ]
+  },
+  {
+   "archetype": "Wg Initiative",
+   "deck": 515105,
+   "player": "Mike Kaoudis",
+   "why": [
+    "White Plume Adventurer (banned)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Reanimator",
+   "deck": 555060,
+   "player": "Lukas Jaklovsky",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan",
+   "deck": 542953,
+   "player": "Shimoizumi Ryoichi",
+   "why": [
+    "Delighted Halfling (not in legal sets)",
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan",
+   "deck": 538744,
+   "player": "Jack Kendall",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan",
+   "deck": 538038,
+   "player": "Jonatan Caballero",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artisan",
+   "deck": 538206,
+   "player": "romariovidal",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BUG Scam",
+   "deck": 538562,
+   "player": "pepeteam",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BUG Scam",
+   "deck": 539737,
+   "player": "Andrew Bailey",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BUG Scam",
+   "deck": 535639,
+   "player": "Graciasportanto",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BUG Scam",
+   "deck": 536934,
+   "player": "Rank1Lynx",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ninja",
+   "deck": 538036,
+   "player": "Tadeo Pons",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ninja",
+   "deck": 548783,
+   "player": "Nagai Rinto",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ninja",
+   "deck": 540970,
+   "player": "almostomniscient",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Artifact Blue",
+   "deck": 541240,
+   "player": "ItsSwiftyTime",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bug Scam",
+   "deck": 542043,
+   "player": "Zach Mcmicheaux",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bug Scam",
+   "deck": 537938,
+   "player": "Rory Tans",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bug Scam",
+   "deck": 535030,
+   "player": "Dominik Pi\u0105tkowski",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Karn Forge",
+   "deck": 540156,
+   "player": "David Piegsa",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Karn Forge",
+   "deck": 540159,
+   "player": "Ferid Mahdi",
+   "why": [
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Vesuvan And Tell",
+   "deck": 535704,
+   "player": "Raphael Dogueto",
+   "why": [
+    "Palant\u00edr of Orthanc (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Papador",
+   "deck": 548463,
+   "player": "Gasparotto",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "Troll of Khazad-d\u00fbm (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bw Scam",
+   "deck": 547184,
+   "player": "Amadeus Kurz",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Greed Loam",
+   "deck": 544221,
+   "player": "Andr\u00e9 Bacci",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)",
+    "The One Ring (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono R Sneak Attack",
+   "deck": 543135,
+   "player": "Julien Bigot De La Touanne",
+   "why": [
+    "Cast into the Fire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Dack",
+   "deck": 540370,
+   "player": "Chase Hansen",
+   "why": [
+    "Orcish Bowmasters (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "UR Delver",
+   "player": "Yamada Yuusuke",
+   "kept": "Rug Delver",
+   "kept_player": "Krzysztof Mazurek"
+  },
+  {
+   "dropped": "8-Cast",
+   "player": "Nakamura Yuya",
+   "kept": "Artifacts Blue",
+   "kept_player": "Nakamura Yuya"
+  },
+  {
+   "dropped": "Canadian Threshold",
+   "player": "Bryzem1",
+   "kept": "Rug Delver",
+   "kept_player": "Krzysztof Mazurek"
+  },
+  {
+   "dropped": "Ur Delver",
+   "player": "Carlos Eduardo Leit\u00e3o",
+   "kept": "Rug Delver",
+   "kept_player": "Krzysztof Mazurek"
+  },
+  {
+   "dropped": "UB Reanimator",
+   "player": "Komori Shota",
+   "kept": "Reanimator",
+   "kept_player": "Katou Kazuma"
+  },
+  {
+   "dropped": "Red Painter",
+   "player": "Eduardo Leite",
+   "kept": "Painter",
+   "kept_player": "utley26"
+  },
+  {
+   "dropped": "Temur Rhinos",
+   "player": "Joaquim Damasceno",
+   "kept": "Cascade Crash",
+   "kept_player": "HanktheObese"
+  },
+  {
+   "dropped": "Initiative Stompy",
+   "player": "burrarun",
+   "kept": "Boros Initiative",
+   "kept_player": "Romain Corgnolo"
+  },
+  {
+   "dropped": "Show and Tell",
+   "player": "Marumo Tsubasa",
+   "kept": "Sneak Show",
+   "kept_player": "Taniuchi Kento"
+  },
+  {
+   "dropped": "8-cast",
+   "player": "Jesse Campbell",
+   "kept": "Artifacts Blue",
+   "kept_player": "Nakamura Yuya"
+  },
+  {
+   "dropped": "8 Cast",
+   "player": "Joaquim Damasceno",
+   "kept": "Artifacts Blue",
+   "kept_player": "Nakamura Yuya"
+  },
+  {
+   "dropped": "UR Aggro",
+   "player": "Mogged",
+   "kept": "Rug Delver",
+   "kept_player": "Krzysztof Mazurek"
+  },
+  {
+   "dropped": "Taiga Initiative",
+   "player": "Brunno Santos",
+   "kept": "Boros Initiative",
+   "kept_player": "Romain Corgnolo"
+  },
+  {
+   "dropped": "Ub Shadow",
+   "player": "No\u00e9 Dumez",
+   "kept": "Death's Shadow",
+   "kept_player": "ecobaronen"
+  },
+  {
+   "dropped": "Italian Breakfast",
+   "player": "Niccol\u00f2 Olivieri",
+   "kept": "Cephalid Breakfast",
+   "kept_player": "Tim Backasch"
+  },
+  {
+   "dropped": "Bant Control",
+   "player": "Hermano Menezes",
+   "kept": "4cc",
+   "kept_player": "Rudabega"
+  },
+  {
+   "dropped": "4 Color Control",
+   "player": "Arnaud Jochum",
+   "kept": "4cc",
+   "kept_player": "Rudabega"
+  },
+  {
+   "dropped": "Jeskai Day's Undoying",
+   "player": "Matheus Gossn",
+   "kept": "UWx Control",
+   "kept_player": "Angelo Cadei"
+  },
+  {
+   "dropped": "Black Saga Storm",
+   "player": "Ian Hansen",
+   "kept": "Storm",
+   "kept_player": "Tonyscapone"
+  },
+  {
+   "dropped": "Cephalid Staff Breakfast",
+   "player": "Lin Ruizi",
+   "kept": "Cephalid Breakfast",
+   "kept_player": "Tim Backasch"
+  },
+  {
+   "dropped": "8cast Painter",
+   "player": "Marco Kesseler",
+   "kept": "Artifacts Blue",
+   "kept_player": "Nakamura Yuya"
+  },
+  {
+   "dropped": "Rb Painter",
+   "player": "Mariusz Krzywicki",
+   "kept": "Painter",
+   "kept_player": "utley26"
+  },
+  {
+   "dropped": "Yorion Lands",
+   "player": "Wiktor Werner",
+   "kept": "Lands",
+   "kept_player": "Hataue Tomoki"
+  },
+  {
+   "dropped": "Titan Post",
+   "player": "Koyano Naoya",
+   "kept": "Cloudpost",
+   "kept_player": "Pascal Richter"
+  },
+  {
+   "dropped": "Death And Taxes",
+   "player": "Sebastien Fayand",
+   "kept": "Death & Taxes",
+   "kept_player": "John Ryan Hamilton"
+  },
+  {
+   "dropped": "Sneak & Show",
+   "player": "Ruben Scholten",
+   "kept": "Sneak Show",
+   "kept_player": "Taniuchi Kento"
+  },
+  {
+   "dropped": "Br Reanimator",
+   "player": "Mateus Mayer",
+   "kept": "Reanimator",
+   "kept_player": "Katou Kazuma"
+  },
+  {
+   "dropped": "Naya Maverick",
+   "player": "Michael Sch\u00f6nhammer",
+   "kept": "Maverick",
+   "kept_player": "Giorgio Bresciani"
+  },
+  {
+   "dropped": "Elves Gruber",
+   "player": "Gabriel Gruber",
+   "kept": "Elves",
+   "kept_player": "Chase Hoppe"
+  },
+  {
+   "dropped": "Artifacts Kitten",
+   "player": "Itakura Toshiyuki",
+   "kept": "Artifacts Blue",
+   "kept_player": "Nakamura Yuya"
+  },
+  {
+   "dropped": "Dragon Stompy",
+   "player": "MercSavage",
+   "kept": "Red Stompy",
+   "kept_player": "Andreas Cermak"
+  },
+  {
+   "dropped": "4c Control",
+   "player": "Claudio Bonanni",
+   "kept": "4cc",
+   "kept_player": "Rudabega"
+  },
+  {
+   "dropped": "5cc",
+   "player": "LeoFa",
+   "kept": "5c Yorion Zenith",
+   "kept_player": "McWinSauce"
+  },
+  {
+   "dropped": "Artifact Blue",
+   "player": "ItsSwiftyTime",
+   "kept": "Artifacts Blue",
+   "kept_player": "Nakamura Yuya"
+  },
+  {
+   "dropped": "Temur Delver",
+   "player": "Adam Vincik",
+   "kept": "Rug Delver",
+   "kept_player": "Krzysztof Mazurek"
+  },
+  {
+   "dropped": "Rakdos Reanimator",
+   "player": "Davin Wu",
+   "kept": "Reanimator",
+   "kept_player": "Katou Kazuma"
+  }
+ ],
+ "objective": 18.01410000734988,
+ "pool_colors": {
+  "W": 15,
+  "U": 31,
+  "B": 16,
+  "G": 18,
+  "R": 13
+ },
+ "pool_styles": {
+  "aggro": 15,
+  "combo": 7,
+  "control": 8,
+  "midrange": 19
+ },
+ "kept_lost": []
+}

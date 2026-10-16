@@ -47,7 +47,10 @@ def crawl(era, fmt='ST', levels='PMC'):
                         'event_name': re.sub(r'\s+', ' ', html.unescape(event)).strip(), 'stars': stars.count('star'),
                         'rank': rank.strip(), 'date': f'{cc}{yy}-{mm}-{dd}', 'summer': f'{cc}{yy}-{mm}-{dd}' >= era['start']})
             got += 1
-        if got == 0 or len(out) >= total or page > 80: break
+        # Newest first, so 80 pages (2,000 decks) is most of a busy season; past that, go on
+        # only until the summer window is whole — Modern 2024 had 10,000 decks and its first
+        # 80 pages stopped a month short of the window's opening.
+        if got == 0 or len(out) >= total or (page > 80 and min(r['date'] for r in out) < era['start']): break
         page += 1; time.sleep(0.5)
     return total, out
 

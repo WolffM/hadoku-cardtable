@@ -1,0 +1,3848 @@
+{
+ "era": {
+  "year": 2024,
+  "season_start": "2023-09-08",
+  "start": "2024-04-19",
+  "end": "2024-08-02",
+  "snapshot_file": "2024-04-19",
+  "format": "Modern (OTJ)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12, ISD, DKA, AVR, M13, RTR, GTC, DGM, MMA, M14, THS, BNG, JOU, MD1, M15, KTK, FRF, DTK, MM2, ORI, BFZ, OGW, SOI, W16, EMN, KLD, AER, MM3, W17, AKH, HOU, XLN, RIX, DOM, M19, GRN, GK1, G18, RNA, GK2, WAR, MH1, M20, ELD, THB, IKO, M21, ZNR, KHM, STX, MH2, AFR, MID, VOW, DBL, NEO, SNC, DMU, BRO, ONE, MOM, MAT, LTR, WOE, LCI, MKM, OTJ, BIG",
+  "banned": [
+   "Ancient Den",
+   "Arcum's Astrolabe",
+   "Birthing Pod",
+   "Blazing Shoal",
+   "Bridge from Below",
+   "Chrome Mox",
+   "Cloudpost",
+   "Dark Depths",
+   "Deathrite Shaman",
+   "Dig Through Time",
+   "Dread Return",
+   "Eye of Ugin",
+   "Faithless Looting",
+   "Field of the Dead",
+   "Fury",
+   "Gitaxian Probe",
+   "Glimpse of Nature",
+   "Golgari Grave-Troll",
+   "Great Furnace",
+   "Green Sun's Zenith",
+   "Hogaak, Arisen Necropolis",
+   "Hypergenesis",
+   "Krark-Clan Ironworks",
+   "Lurrus of the Dream-Den",
+   "Mental Misstep",
+   "Mox Opal",
+   "Mycosynth Lattice",
+   "Mystic Sanctuary",
+   "Oko, Thief of Crowns",
+   "Once Upon a Time",
+   "Ponder",
+   "Punishing Fire",
+   "Rite of Flame",
+   "Seat of the Synod",
+   "Second Sunrise",
+   "Seething Song",
+   "Sensei's Divining Top",
+   "Simian Spirit Guide",
+   "Skullclamp",
+   "Splinter Twin",
+   "Summer Bloom",
+   "Tibalt's Trickery",
+   "Treasure Cruise",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Up the Beanstalk",
+   "Uro, Titan of Nature's Wrath",
+   "Vault of Whispers",
+   "Violent Outburst",
+   "Yorion, Sky Nomad"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 614850,
+   "event": 55732,
+   "archetype": "Chord Toolbox",
+   "player": "Stefan Sch\u00fctz",
+   "event_name": "2024 Magic Online Champions Showcase Season 1",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-05-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.16,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 19.0,
+     "R": 1.0,
+     "G": 32.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Grist, the Hunger Tide": 4,
+     "Chord of Calling": 4,
+     "Agatha's Soul Cauldron": 3,
+     "Fulminator Mage": 1,
+     "Haywire Mite": 1,
+     "Blood Artist": 1,
+     "Ignoble Hierarch": 1,
+     "Scavenging Ooze": 1,
+     "Young Wolf": 4,
+     "Yawgmoth, Thran Physician": 4,
+     "Wall of Roots": 4,
+     "Orcish Bowmasters": 4,
+     "Hapatra, Vizier of Poisons": 1,
+     "Gilded Goose": 1,
+     "Delighted Halfling": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 181
+  },
+  {
+   "deck": 614406,
+   "event": 55678,
+   "archetype": "Living End",
+   "player": "LucasG1ggs",
+   "event_name": "MTGO Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-05-19",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 32,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.05,
+    "pips": {
+     "W": 4.0,
+     "U": 42.0,
+     "B": 19.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Architects of Will": 3,
+     "Ardent Plea": 4,
+     "Subtlety": 4,
+     "Curator of Mysteries": 3,
+     "Force of Negation": 4,
+     "Shardless Agent": 4,
+     "Generous Ent": 4,
+     "Living End": 4,
+     "Grief": 4,
+     "Street Wraith": 4,
+     "Striped Riverwinder": 2,
+     "Waker of Waves": 3,
+     "Colossal Skyturtle": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 155
+  },
+  {
+   "deck": 609444,
+   "event": 55051,
+   "archetype": "Amulet Titan",
+   "player": "DFrank",
+   "event_name": "MTGO Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-05-01",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 29,
+    "lands": 31,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.55,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 22.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Amulet of Vigor": 4,
+     "Cultivator Colossus": 1,
+     "Dryad of the Ilysian Grove": 4,
+     "Expedition Map": 1,
+     "Explore": 3,
+     "Arboreal Grazer": 4,
+     "Summoner's Pact": 4,
+     "The One Ring": 4,
+     "Primeval Titan": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 144
+  },
+  {
+   "deck": 608519,
+   "event": 54938,
+   "archetype": "Creativity",
+   "player": "Alessandro Parisi",
+   "event_name": "Grand Open Qualifier Bologna 2024 - Legacy European Tour @ Bologna (italy)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-04-27",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 8,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 19.0,
+     "R": 29.0,
+     "G": 4.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Archon of Cruelty": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Bitter Triumph": 1,
+     "Fatal Push": 2,
+     "Lightning Bolt": 4,
+     "Indomitable Creativity": 4,
+     "Persist": 4,
+     "Thoughtseize": 4,
+     "Transmogrify": 1,
+     "Bitter Reunion": 4,
+     "Wrenn and Six": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 43
+  },
+  {
+   "deck": 613875,
+   "event": 55612,
+   "archetype": "The One Azorius",
+   "player": "Ken-min Yeoh's Team",
+   "event_name": "$10,000 Teams Trios Showdown @ NRG Series Indianapolis",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-05-12",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 7,
+    "counters": 5,
+    "sweepers": 3,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 3.24,
+    "pips": {
+     "W": 23.0,
+     "U": 34.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Force of Negation": 1,
+     "Day's Undoing": 1,
+     "L\u00f3rien Revealed": 1,
+     "Teferi, Time Raveler": 2,
+     "Leyline Binding": 3,
+     "Narset, Parter of Veils": 3,
+     "Supreme Verdict": 3,
+     "Prismatic Ending": 4,
+     "Preordain": 4,
+     "The One Ring": 4,
+     "Counterspell": 4,
+     "Subtlety": 3,
+     "Solitude": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 26
+  },
+  {
+   "deck": 628857,
+   "event": 57420,
+   "archetype": "Uw Mill",
+   "player": "vini_torres",
+   "event_name": "MTGO Super Qualifier",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-07-14",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 3.0,
+     "U": 49.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Prismatic Ending": 1,
+     "Path to Exile": 2,
+     "Surgical Extraction": 2,
+     "Jace, the Perfected Mind": 2,
+     "Tasha's Hideous Laughter": 4,
+     "Visions of Beyond": 4,
+     "Preordain": 4,
+     "Fractured Sanity": 4,
+     "Archive Trap": 4,
+     "Snapcaster Mage": 3,
+     "Ruin Crab": 4,
+     "Hedron Crab": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 619220,
+   "event": 56219,
+   "archetype": "Temur Prowess",
+   "player": "Luis Kassel",
+   "event_name": "20 years JK - Destination RCQ @ JK Entertainment (Maintal, Germany)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2024-06-01",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 10,
+    "avg_cmc": 1.19,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 32.0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Wild Slash": 1,
+     "Unholy Heat": 1,
+     "Underworld Breach": 2,
+     "Mutagenic Growth": 2,
+     "Preordain": 4,
+     "Mishra's Bauble": 4,
+     "Lightning Bolt": 4,
+     "Expressive Iteration": 4,
+     "Lava Dart": 4,
+     "Soul-Scar Mage": 2,
+     "Questing Druid // Seek the Beast": 2,
+     "Slickshot Show-Off": 4,
+     "Monastery Swiftspear": 4,
+     "Dragon's Rage Channeler": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 620740,
+   "event": 56421,
+   "archetype": "Rakdos Aggro",
+   "player": "Naisirc",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-06-08",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 1.97,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 39.0,
+     "R": 14.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Angrath's Rampage": 2,
+     "Thoughtseize": 4,
+     "Terminate": 1,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Fatal Push": 2,
+     "Ragavan, Nimble Pilferer": 4,
+     "Kroxa, Titan of Death's Hunger": 1,
+     "Orcish Bowmasters": 4,
+     "Not Dead After All": 4,
+     "Lightning Bolt": 2,
+     "Grief": 4,
+     "Sheoldred, the Apocalypse": 2,
+     "Dauthi Voidwalker": 4,
+     "Undying Evil": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 187
+  },
+  {
+   "deck": 619673,
+   "event": 56280,
+   "archetype": "5c Domain Aggro",
+   "player": "Azja",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-06-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 19,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 3.26,
+    "pips": {
+     "W": 6.0,
+     "U": 6.0,
+     "B": 2.0,
+     "R": 18.0,
+     "G": 19.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Scion of Draco": 4,
+     "Tribal Flames": 4,
+     "Leyline of the Guildpact": 4,
+     "Nishoba Brawler": 4,
+     "Lightning Bolt": 4,
+     "Leyline Binding": 4,
+     "Stubborn Denial": 4,
+     "Ragavan, Nimble Pilferer": 4,
+     "Wild Nacatl": 3,
+     "Territorial Kavu": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 124
+  },
+  {
+   "deck": 614198,
+   "event": 55655,
+   "archetype": "Mono Black Control",
+   "player": "ClaymoreTobi",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 5,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 5,
+    "burn": 3,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 27.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Fatal Push": 4,
+     "Cling to Dust": 2,
+     "Damnation": 1,
+     "The One Ring": 3,
+     "March of Wretched Sorrow": 3,
+     "Sheoldred's Edict": 4,
+     "Thoughtseize": 4,
+     "Karn, the Great Creator": 4,
+     "Sheoldred, the Apocalypse": 1,
+     "Orcish Bowmasters": 3,
+     "Profane Tutor": 4,
+     "Deadly Cover-Up": 1,
+     "Troll of Khazad-d\u00fbm": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 58
+  },
+  {
+   "deck": 621267,
+   "event": 56487,
+   "archetype": "Red Deck Wins",
+   "player": "calmdownbronco",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-06-11",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 28,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 0,
+     "R": 48.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Eidolon of the Great Revel": 4,
+     "Boros Charm": 4,
+     "Goblin Guide": 4,
+     "Lava Spike": 4,
+     "Lightning Bolt": 4,
+     "Lightning Helix": 2,
+     "Monastery Swiftspear": 4,
+     "Rift Bolt": 4,
+     "Searing Blaze": 4,
+     "Skewer the Critics": 4,
+     "Skullcrack": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 41
+  },
+  {
+   "deck": 617816,
+   "event": 56085,
+   "archetype": "Jund",
+   "player": "McWinSauce",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-30",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 9,
+    "avg_cmc": 1.49,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 14.0,
+     "R": 16.0,
+     "G": 8.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Pyrite Spellbomb": 1,
+     "Shadowspear": 1,
+     "Mishra's Research Desk": 1,
+     "Nihil Spellbomb": 1,
+     "Fatal Push": 2,
+     "Molten Collapse": 2,
+     "Inquisition of Kozilek": 2,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 2,
+     "Thoughtseize": 4,
+     "Unholy Heat": 4,
+     "Wrenn and Six": 4,
+     "Haywire Mite": 1,
+     "Ragavan, Nimble Pilferer": 4,
+     "Tarmogoyf": 4,
+     "Orcish Bowmasters": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 33
+  },
+  {
+   "deck": 618197,
+   "event": 56137,
+   "archetype": "4c Control",
+   "player": "Kurusu",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-06-01",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 6,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 25.0,
+     "U": 10.0,
+     "B": 0,
+     "R": 12.0,
+     "G": 13.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Prismatic Ending": 4,
+     "Omnath, Locus of Creation": 4,
+     "Solitude": 4,
+     "Wrenn and Six": 4,
+     "Leyline Binding": 4,
+     "Teferi, Time Raveler": 4,
+     "The One Ring": 4,
+     "Delighted Halfling": 4,
+     "Lightning Bolt": 2,
+     "Elesh Norn, Mother of Machines": 1,
+     "Expressive Iteration": 2,
+     "Nissa, Resurgent Animist": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 31
+  },
+  {
+   "deck": 611912,
+   "event": 55361,
+   "archetype": "Gruul Aggro",
+   "player": "Ale_Mtg",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-09",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 10,
+    "avg_cmc": 1.24,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 28.0,
+     "G": 12.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Underworld Breach": 2,
+     "Tarfire": 2,
+     "Mutagenic Growth": 2,
+     "Lava Dart": 4,
+     "Lightning Bolt": 4,
+     "Mishra's Bauble": 4,
+     "Abundant Harvest": 4,
+     "Dragon's Rage Channeler": 4,
+     "Questing Druid // Seek the Beast": 4,
+     "Slickshot Show-Off": 4,
+     "Tarmogoyf": 4,
+     "Monastery Swiftspear": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 30
+  },
+  {
+   "deck": 614900,
+   "event": 55738,
+   "archetype": "Mono Black Scam",
+   "player": "Selfeisek",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 46.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Undying Evil": 1,
+     "Pithing Needle": 1,
+     "Sheoldred's Edict": 1,
+     "Shadowspear": 1,
+     "Wrench Mind": 1,
+     "Cling to Dust": 1,
+     "Nihil Spellbomb": 1,
+     "The Rack": 2,
+     "Inquisition of Kozilek": 2,
+     "Liliana of the Veil": 3,
+     "Fatal Push": 3,
+     "Thoughtseize": 4,
+     "Not Dead After All": 4,
+     "Sheoldred, the Apocalypse": 1,
+     "Orcish Bowmasters": 4,
+     "Grief": 4,
+     "Dauthi Voidwalker": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 26
+  },
+  {
+   "deck": 605613,
+   "event": 54608,
+   "archetype": "Scapeshift",
+   "player": "stefanocanclini",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-04-19",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 31,
+    "lands": 29,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 7,
+    "avg_cmc": 2.61,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 11.0,
+     "G": 23.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Explore": 1,
+     "Wrenn and Six": 1,
+     "Farseek": 4,
+     "Sakura-Tribe Elder": 4,
+     "Wish": 4,
+     "Worldsoul's Rage": 3,
+     "Scapeshift": 3,
+     "The One Ring": 4,
+     "Dryad of the Ilysian Grove": 4,
+     "Lightning Bolt": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 23
+  },
+  {
+   "deck": 615842,
+   "event": 55865,
+   "archetype": "Martyr Life",
+   "player": "Iaashadow",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.47,
+    "pips": {
+     "W": 39.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Kami of False Hope": 1,
+     "Martyr of Sands": 3,
+     "Supreme Verdict": 2,
+     "Ranger-Captain of Eos": 4,
+     "Abiding Grace": 1,
+     "Prismatic Ending": 3,
+     "Solitude": 4,
+     "Haywire Mite": 1,
+     "Leyline Binding": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Eagles of the North": 4,
+     "Reprieve": 2,
+     "The One Ring": 4,
+     "Novice Inspector": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 21
+  },
+  {
+   "deck": 617739,
+   "event": 56076,
+   "archetype": "UR Control",
+   "player": "SuperCow12653",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 21,
+    "creatures": 11,
+    "counters": 5,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 10,
+    "avg_cmc": 2.45,
+    "pips": {
+     "W": 0,
+     "U": 43.0,
+     "B": 0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Spell Snare": 1,
+     "L\u00f3rien Revealed": 2,
+     "Flame Slash": 2,
+     "Blood Moon": 2,
+     "Dress Down": 2,
+     "Expressive Iteration": 4,
+     "Lightning Bolt": 4,
+     "Counterspell": 4,
+     "Preordain": 4,
+     "Flame of Anor": 4,
+     "Murktide Regent": 1,
+     "Snapcaster Mage": 2,
+     "Subtlety": 4,
+     "Tishana's Tidebinder": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 20
+  },
+  {
+   "deck": 616748,
+   "event": 55943,
+   "archetype": "Esper Goryo's",
+   "player": "Franklin Fulks",
+   "event_name": "5k @ Apex Gaming (Caldwell, OH)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-19",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 19,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.1,
+    "pips": {
+     "W": 23.0,
+     "U": 17.0,
+     "B": 31.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Atraxa, Grand Unifier": 4,
+     "Ephemerate": 4,
+     "Faithful Mending": 3,
+     "Fallaji Archaeologist": 4,
+     "Force of Negation": 1,
+     "Goryo's Vengeance": 4,
+     "Grief": 4,
+     "Griselbrand": 2,
+     "Priest of Fell Rites": 1,
+     "Prismatic Ending": 3,
+     "Solitude": 4,
+     "Tainted Indulgence": 4,
+     "Thoughtseize": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 605944,
+   "event": 54642,
+   "archetype": "Reanimator",
+   "player": "qbeczkowo",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-04-20",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.36,
+    "pips": {
+     "W": 18.0,
+     "U": 17.0,
+     "B": 33.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Not Dead After All": 1,
+     "Prismatic Ending": 2,
+     "Tainted Indulgence": 4,
+     "Ephemerate": 4,
+     "Persist": 4,
+     "Faithful Mending": 4,
+     "Snapcaster Mage": 1,
+     "Subtlety": 2,
+     "Troll of Khazad-d\u00fbm": 4,
+     "Archon of Cruelty": 4,
+     "Solitude": 4,
+     "Grief": 4,
+     "Satoru, the Infiltrator": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 633254,
+   "event": 57970,
+   "archetype": "UW Control",
+   "player": "Vinicius Castro Pasquetto",
+   "event_name": "12K @ Muito Colecion\u00e1veis (Campinas, Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-07-28",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 7,
+    "counters": 11,
+    "sweepers": 2,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 20.0,
+     "U": 44.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "March of Otherworldly Light": 1,
+     "The One Ring": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Supreme Verdict": 2,
+     "Memory Deluge": 2,
+     "Chalice of the Void": 3,
+     "Archmage's Charm": 3,
+     "Teferi, Time Raveler": 3,
+     "Force of Negation": 4,
+     "Prismatic Ending": 4,
+     "Counterspell": 4,
+     "Subtlety": 3,
+     "Solitude": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 610414,
+   "event": 55173,
+   "archetype": "Elementals",
+   "player": "Beno\u00eet Jaques",
+   "event_name": "Geneva Modern 17 @ Espace Quartier S\u00e9cheron (Gen\u00e8ve, Switzerland)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-05",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 22.0,
+     "U": 8.0,
+     "B": 3.0,
+     "R": 13.0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Aether Vial": 4,
+     "Endurance": 1,
+     "Ephemerate": 4,
+     "Flamekin Harbinger": 4,
+     "Foundation Breaker": 1,
+     "Fulminator Mage": 1,
+     "Lightning Skelemental": 2,
+     "Recommission": 4,
+     "Risen Reef": 4,
+     "Solitude": 4,
+     "Thunderkin Awakener": 4,
+     "Unsettled Mariner": 4,
+     "Vesperlark": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 613872,
+   "event": 55611,
+   "archetype": "Burn",
+   "player": "absoluteragez",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "2",
+   "date": "2024-05-17",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 25,
+    "avg_cmc": 1.61,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 0,
+     "R": 40.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Mishra's Bauble": 4,
+     "Dragon's Rage Channeler": 4,
+     "Slickshot Show-Off": 4,
+     "Monastery Swiftspear": 4,
+     "Lightning Bolt": 4,
+     "Searing Blaze": 3,
+     "Skewer the Critics": 4,
+     "Skullcrack": 2,
+     "Boros Charm": 4,
+     "Lava Spike": 4,
+     "Rift Bolt": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 608354,
+   "event": 54921,
+   "archetype": "Ad Nauseam",
+   "player": "ScreenwriterNY",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-04-26",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 4,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.21,
+    "pips": {
+     "W": 6.0,
+     "U": 15.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Thoughtseize": 2,
+     "Phyrexian Unlife": 2,
+     "Ad Nauseam": 2,
+     "Sleight of Hand": 3,
+     "Pentad Prism": 3,
+     "Pact of Negation": 3,
+     "Lotus Bloom": 4,
+     "Angel's Grace": 4,
+     "Profane Tutor": 4,
+     "Preordain": 4,
+     "Spoils of the Vault": 4,
+     "Thassa's Oracle": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 4
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 622069,
+   "event": 56594,
+   "archetype": "UR Murktide",
+   "player": "O_danielakos",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-06-14",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 13,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 8,
+    "avg_cmc": 1.69,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Ragavan, Nimble Pilferer": 4,
+     "Dragon's Rage Channeler": 4,
+     "Unholy Heat": 4,
+     "Counterspell": 4,
+     "Murktide Regent": 3,
+     "Lightning Bolt": 4,
+     "Expressive Iteration": 4,
+     "Consider": 3,
+     "Spell Pierce": 2,
+     "Subtlety": 2,
+     "Spell Snare": 1,
+     "Preordain": 2,
+     "Mishra's Bauble": 4,
+     "Dress Down": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 48
+  },
+  {
+   "deck": 610897,
+   "event": 55234,
+   "archetype": "Breach",
+   "player": "daibloXSC",
+   "event_name": "MTGO Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 21,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 5,
+    "avg_cmc": 1.73,
+    "pips": {
+     "W": 6.0,
+     "U": 14.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Underworld Breach": 4,
+     "Thassa's Oracle": 1,
+     "Emry, Lurker of the Loch": 4,
+     "Unholy Heat": 3,
+     "Mox Amber": 3,
+     "Mishra's Bauble": 4,
+     "Grinding Station": 3,
+     "Springleaf Drum": 1,
+     "Teferi, Time Raveler": 4,
+     "Pyrite Spellbomb": 1,
+     "The One Ring": 4,
+     "Moonsnare Prototype": 4,
+     "Prismatic Ending": 2,
+     "Haywire Mite": 1,
+     "Lightning Bolt": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 29
+  },
+  {
+   "deck": 609461,
+   "event": 55052,
+   "archetype": "Cascade Crash",
+   "player": "SafetyHazard",
+   "event_name": "MTGO Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2024-05-01",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 4.31,
+    "pips": {
+     "W": 12.0,
+     "U": 33.0,
+     "B": 2.0,
+     "R": 5.0,
+     "G": 14.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Scion of Draco": 4,
+     "Fire // Ice": 3,
+     "Ardent Plea": 4,
+     "Subtlety": 3,
+     "Leyline Binding": 4,
+     "Force of Negation": 4,
+     "L\u00f3rien Revealed": 2,
+     "Leyline of the Guildpact": 4,
+     "Crashing Footfalls": 4,
+     "Shardless Agent": 4,
+     "Failure // Comply": 2,
+     "Questing Beast": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 29
+  },
+  {
+   "deck": 610742,
+   "event": 55213,
+   "archetype": "Hammer Time",
+   "player": "Alex Wilson",
+   "event_name": "MEGA Event @ Axion Now (Birmingham, UK)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2024-05-05",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 16,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 1.47,
+    "pips": {
+     "W": 24.0,
+     "U": 3.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Stoneforge Mystic": 4,
+     "Puresteel Paladin": 4,
+     "Esper Sentinel": 4,
+     "Ornithopter": 4,
+     "Colossus Hammer": 4,
+     "Sword of Fire and Ice": 1,
+     "Cryptic Coat": 1,
+     "Kaldra Compleat": 1,
+     "Lavaspur Boots": 1,
+     "Springleaf Drum": 3,
+     "Shadowspear": 1,
+     "Surge of Salvation": 2,
+     "Spell Pierce": 2,
+     "Sigarda's Aid": 4,
+     "Forge Anew": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 10
+  },
+  {
+   "deck": 614407,
+   "event": 55678,
+   "archetype": "Hardened Scales",
+   "player": "TobieH",
+   "event_name": "MTGO Super Qualifier",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2024-05-19",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 1.22,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Patchwork Automaton": 4,
+     "The Ozolith": 1,
+     "Walking Ballista": 4,
+     "Welding Jar": 3,
+     "Ancient Stirrings": 3,
+     "Springleaf Drum": 1,
+     "Zabaz, the Glimmerwasp": 4,
+     "Arcbound Ravager": 4,
+     "Hardened Scales": 4,
+     "Lavaspur Boots": 1,
+     "Hangarback Walker": 2,
+     "Agatha's Soul Cauldron": 3,
+     "The One Ring": 2,
+     "Pithing Needle": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 34
+  },
+  {
+   "deck": 619225,
+   "event": 56219,
+   "archetype": "Eldrazi Tron",
+   "player": "Jedrzej Pastwa",
+   "event_name": "20 years JK - Destination RCQ @ JK Entertainment (Maintal, Germany)",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2024-06-01",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 16,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 3.46,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Karn, the Great Creator": 4,
+     "All Is Dust": 3,
+     "Basilisk Collar": 1,
+     "Dismember": 3,
+     "Emrakul, the Promised End": 1,
+     "Expedition Map": 4,
+     "Matter Reshaper": 4,
+     "Mind Stone": 1,
+     "Phyrexian Metamorph": 1,
+     "Reality Smasher": 3,
+     "Relic of Progenitus": 1,
+     "The One Ring": 3,
+     "Thought-Knot Seer": 4,
+     "Walking Ballista": 3,
+     "Warping Wail": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 605855,
+   "event": 54634,
+   "archetype": "The Underworld Cookbook",
+   "player": "Casket2",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-04-20",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 3.0,
+     "U": 3.0,
+     "B": 24.0,
+     "R": 0,
+     "G": 22.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Pithing Needle": 1,
+     "Grist, the Hunger Tide": 1,
+     "Relic of Progenitus": 1,
+     "Traverse the Ulvenwald": 3,
+     "Seed of Hope": 3,
+     "Insidious Roots": 4,
+     "Goryo's Vengeance": 4,
+     "Finale of Devastation": 4,
+     "The Underworld Cookbook": 4,
+     "Haywire Mite": 1,
+     "Emrakul, the Aeons Torn": 1,
+     "Atraxa, Grand Unifier": 3,
+     "Ovalchase Daredevil": 4,
+     "Street Wraith": 4,
+     "Asmoranomardicadaistinaculdacar": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 5
+  },
+  {
+   "deck": 617374,
+   "event": 56023,
+   "archetype": "Death's Shadow",
+   "player": "Ale_Mtg",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-05-28",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 6,
+    "avg_cmc": 1.27,
+    "pips": {
+     "W": 0,
+     "U": 10.0,
+     "B": 15.0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Thoughtseize": 4,
+     "Mishra's Bauble": 4,
+     "Orcish Bowmasters": 3,
+     "Ragavan, Nimble Pilferer": 4,
+     "Unholy Heat": 4,
+     "Dragon's Rage Channeler": 4,
+     "Dress Down": 2,
+     "Expressive Iteration": 4,
+     "Drown in the Loch": 4,
+     "Death's Shadow": 4,
+     "Underworld Breach": 2,
+     "Lightning Bolt": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 20
+  },
+  {
+   "deck": 609162,
+   "event": 55011,
+   "archetype": "Affinity",
+   "player": "FletcherPullUp",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-04-28",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 3.26,
+    "pips": {
+     "W": 0,
+     "U": 13.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Aether Spellbomb": 1,
+     "Lavaspur Boots": 1,
+     "Shadowspear": 1,
+     "Welding Jar": 1,
+     "Forging the Anchor": 1,
+     "Nettlecyst": 3,
+     "Thoughtcast": 4,
+     "Simulacrum Synthesizer": 4,
+     "Springleaf Drum": 4,
+     "Myr Enforcer": 2,
+     "Memnite": 4,
+     "Thought Monitor": 4,
+     "Sojourner's Companion": 4,
+     "Ornithopter": 4,
+     "Frogmite": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 617824,
+   "event": 56085,
+   "archetype": "Heliod Life",
+   "player": "Alan07",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-05-30",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 23.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Spike Feeder": 4,
+     "Auriok Champion": 4,
+     "Arbor Elf": 4,
+     "Collected Company": 4,
+     "Ranger-Captain of Eos": 3,
+     "Heliod, Sun-Crowned": 4,
+     "Scurry Oak": 3,
+     "Prosperous Innkeeper": 3,
+     "Rosie Cotton of South Lane": 2,
+     "Utopia Sprawl": 4,
+     "Walking Ballista": 2,
+     "Kayla's Reconstruction": 1,
+     "Haywire Mite": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 8
+  },
+  {
+   "deck": 612695,
+   "event": 55447,
+   "archetype": "Boros Convoke",
+   "player": "Moniz0801",
+   "event_name": "MTGO Challenge 64",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-05-12",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 44,
+    "lands": 16,
+    "creatures": 32,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.64,
+    "pips": {
+     "W": 24.0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Gleeful Demolition": 4,
+     "Kuldotha Rebirth": 4,
+     "Case of the Gateway Express": 4,
+     "Goblin Bushwhacker": 4,
+     "Knight-Errant of Eos": 4,
+     "Memnite": 4,
+     "Ornithopter": 4,
+     "Venerated Loxodon": 4,
+     "Warden of the Inner Sky": 4,
+     "Thraben Inspector": 4,
+     "Novice Inspector": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 605434,
+   "event": 54583,
+   "archetype": "Golgari Scam",
+   "player": "SoIMBAGallade",
+   "event_name": "MTGO Challenge 32",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2024-04-19",
+   "summer": true,
+   "s": 0.4266186227605516,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 52.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Maelstrom Pulse": 2,
+     "Grist, the Hunger Tide": 2,
+     "Sorin, Imperious Bloodlord": 4,
+     "Fatal Push": 4,
+     "Thoughtseize": 4,
+     "Not Dead After All": 4,
+     "Tarmogoyf": 3,
+     "Orcish Bowmasters": 4,
+     "Dauthi Voidwalker": 4,
+     "Grief": 4,
+     "Vein Ripper": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  }
+ ],
+ "pool_size": 40,
+ "rejected_illegal": [
+  {
+   "archetype": "Creatures Toolbox",
+   "deck": 632983,
+   "player": "Derek Pite",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox",
+   "deck": 627733,
+   "player": "Theodore Jung",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox",
+   "deck": 633621,
+   "player": "CrazyMorango",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox",
+   "deck": 633592,
+   "player": "HouseOfManaMTG",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Chord Toolbox",
+   "deck": 623325,
+   "player": "Yuki Matsumoto",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Instant Reanimator",
+   "deck": 623500,
+   "player": "Eric Huynh",
+   "why": [
+    "Buried Alive (not in legal sets)",
+    "Cephalid Coliseum (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Instant Reanimator",
+   "deck": 628281,
+   "player": "Killah_SUV",
+   "why": [
+    "Buried Alive (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Emperor of Bones (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Instant Reanimator",
+   "deck": 628133,
+   "player": "Cabezadebolo",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Instant Reanimator",
+   "deck": 626880,
+   "player": "Azja",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 623439,
+   "player": "Nikachu",
+   "why": [
+    "Flare of Denial (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 630323,
+   "player": "Tai Akio",
+   "why": [
+    "Flare of Denial (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 625406,
+   "player": "Takemura Yuki",
+   "why": [
+    "Disruptor Flute (not in legal sets)",
+    "Flare of Denial (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 623329,
+   "player": "Janyst Karol",
+   "why": [
+    "Flare of Denial (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox Nadu",
+   "deck": 625189,
+   "player": "Arch Dota",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox Nadu",
+   "deck": 623448,
+   "player": "Harrison Kanfer",
+   "why": [
+    "Harbinger of the Seas (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Creatures Toolbox Nadu",
+   "deck": 625212,
+   "player": "Gianluca Boaretto",
+   "why": [
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos Aggro",
+   "deck": 627383,
+   "player": "Oderus Urungus",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Chthonian Nightmare (not in legal sets)",
+    "Flare of Malice (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Jeskai",
+   "deck": 632148,
+   "player": "TheKG",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Jeskai",
+   "deck": 631296,
+   "player": "Kobayashi Ryohei",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Jeskai",
+   "deck": 630548,
+   "player": "nahuel10",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Jeskai",
+   "deck": 629425,
+   "player": "Tyler Andrews",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5c Domain Aggro",
+   "deck": 625080,
+   "player": "Vicalediacods",
+   "why": [
+    "Vexing Bauble (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UrzaTron",
+   "deck": 629291,
+   "player": "Soon",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Kozilek's Command (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UrzaTron",
+   "deck": 626100,
+   "player": "Mathewmigs",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Kozilek's Command (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UrzaTron",
+   "deck": 629059,
+   "player": "Jumba",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Emrakul, the World Anew (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UrzaTron",
+   "deck": 625000,
+   "player": "Piotr Szyi?ski",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Kozilek's Command (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Aggro",
+   "deck": 632160,
+   "player": "Ben Whitmer",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Aggro",
+   "deck": 631783,
+   "player": "TentacleFan",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Aggro",
+   "deck": 628334,
+   "player": "DookieTrouserMD",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Aggro",
+   "deck": 628828,
+   "player": "Thibaud Zemp",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Aggro",
+   "deck": 622057,
+   "player": "RowdyGainz",
+   "why": [
+    "Amped Raptor (not in legal sets)",
+    "Barbarian Ring (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 633015,
+   "player": "William Grogan",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 631862,
+   "player": "jakobpablo",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control",
+   "deck": 630814,
+   "player": "jakobpablo",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ruby Storm",
+   "deck": 633750,
+   "player": "Xenowan",
+   "why": [
+    "Glimpse the Impossible (not in legal sets)",
+    "Ral, Monsoon Mage (not in legal sets)",
+    "Ruby Medallion (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ruby Storm",
+   "deck": 632797,
+   "player": "hugofreitas1",
+   "why": [
+    "Glimpse the Impossible (not in legal sets)",
+    "Ral, Monsoon Mage (not in legal sets)",
+    "Ruby Medallion (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ruby Storm",
+   "deck": 633577,
+   "player": "hugofreitas1",
+   "why": [
+    "Glimpse the Impossible (not in legal sets)",
+    "Ral, Monsoon Mage (not in legal sets)",
+    "Ruby Medallion (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ruby Storm",
+   "deck": 623943,
+   "player": "Benjamin Hepp",
+   "why": [
+    "Glimpse the Impossible (not in legal sets)",
+    "Orim's Chant (not in legal sets)",
+    "Ral, Monsoon Mage (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Energy",
+   "deck": 632981,
+   "player": "Dominic Vernazza",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Energy",
+   "deck": 629679,
+   "player": "none_mtg",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Energy",
+   "deck": 629450,
+   "player": "Linise",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Energy",
+   "deck": 633383,
+   "player": "choccy_milk",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 632490,
+   "player": "Bean17h",
+   "why": [
+    "Amped Raptor (not in legal sets)",
+    "Barbarian Ring (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 630453,
+   "player": "Jonathan White",
+   "why": [
+    "Amped Raptor (not in legal sets)",
+    "Barbarian Ring (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 626080,
+   "player": "Eldin Ibrahimovic",
+   "why": [
+    "Amped Raptor (not in legal sets)",
+    "Barbarian Ring (not in legal sets)",
+    "Disruptor Flute (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necrodominance - Ring Control",
+   "deck": 628525,
+   "player": "Tulio_Jaudy",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necrodominance - Ring Control",
+   "deck": 630569,
+   "player": "ProtoPulse",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necrodominance - Ring Control",
+   "deck": 631297,
+   "player": "Nakanishi Masato",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necrodominance - Ring Control",
+   "deck": 632163,
+   "player": "Steve Stillman",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Wizards",
+   "deck": 627705,
+   "player": "Venom1",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Wizards",
+   "deck": 623065,
+   "player": "Azja",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Wizards",
+   "deck": 625775,
+   "player": "Yoshizawa Kaoru",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Wizards",
+   "deck": 627385,
+   "player": "Venom1",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Aggro",
+   "deck": 630568,
+   "player": "Omrithopter",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Chthonian Nightmare (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Aggro",
+   "deck": 633184,
+   "player": "B-Carp",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Aggro",
+   "deck": 632990,
+   "player": "Kellen Pastore",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Chthonian Nightmare (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Aggro",
+   "deck": 633620,
+   "player": "XantosCell",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 631727,
+   "player": "ShadowTitan1",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 622294,
+   "player": "SoIMBAGallade",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Fell the Profane (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 628273,
+   "player": "poogaloo",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 633376,
+   "player": "ShadowTitan1",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Energy",
+   "deck": 628313,
+   "player": "Bartosz Rudnicki",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Energy",
+   "deck": 628891,
+   "player": "Chlo\u00e9 Debesson",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Energy",
+   "deck": 628352,
+   "player": "Chonado30",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Energy",
+   "deck": 627260,
+   "player": "Seas6",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Amped Raptor (not in legal sets)",
+    "Arena of Glory (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Control",
+   "deck": 625334,
+   "player": "J\u0119drek Szmyd",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Deep Analysis (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Control",
+   "deck": 632982,
+   "player": "Noble124",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Control",
+   "deck": 628344,
+   "player": "XantosCell",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Deep Analysis (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Control",
+   "deck": 627413,
+   "player": "Mortaa",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Scapeshift",
+   "deck": 633180,
+   "player": "Meltiin",
+   "why": [
+    "Phlage, Titan of Fire's Fury (not in legal sets)",
+    "Sevinne's Reclamation (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Control",
+   "deck": 626679,
+   "player": "Hotta Shingo",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Martyr Life",
+   "deck": 632159,
+   "player": "Sergi Casado Hamed",
+   "why": [
+    "Disruptor Flute (not in legal sets)",
+    "Recruiter of the Guard (not in legal sets)",
+    "Sevinne's Reclamation (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Control",
+   "deck": 629484,
+   "player": "Ale_Mtg",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control",
+   "deck": 633333,
+   "player": "Filho_do_MOL",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Emrakul, the World Anew (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control",
+   "deck": 628856,
+   "player": "Zanman",
+   "why": [
+    "Kozilek's Command (not in legal sets)",
+    "Malevolent Rumble (not in legal sets)",
+    "Sowing Mycospawn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control",
+   "deck": 629426,
+   "player": "Josh Engle",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Kozilek's Command (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control",
+   "deck": 633256,
+   "player": "Raulgarcia",
+   "why": [
+    "Kozilek's Command (not in legal sets)",
+    "Malevolent Rumble (not in legal sets)",
+    "Sowing Mycospawn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Aggro",
+   "deck": 628991,
+   "player": "Sanchez5272",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Eldrazi Linebreaker (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Aggro",
+   "deck": 632808,
+   "player": "Benjamin Wakefield",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Eldrazi Linebreaker (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Aggro",
+   "deck": 629456,
+   "player": "Glados12",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Eldrazi Linebreaker (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Aggro",
+   "deck": 630194,
+   "player": "Francis De Guzman",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Eldrazi Linebreaker (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Nadu",
+   "deck": 633717,
+   "player": "Jan Spieker",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Nadu",
+   "deck": 642322,
+   "player": "Claudio Scholl",
+   "why": [
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Nadu",
+   "deck": 628888,
+   "player": "Allumechaussette",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Nadu",
+   "deck": 628890,
+   "player": "Victor Hatte",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bg Yawgmoth",
+   "deck": 630191,
+   "player": "Kevin Motus",
+   "why": [
+    "Accursed Marauder (not in legal sets)",
+    "Birthing Ritual (not in legal sets)",
+    "Boggart Trawler (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Domain Zoo",
+   "deck": 626419,
+   "player": "Jon Marco Panganiban",
+   "why": [
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control - Ring",
+   "deck": 627379,
+   "player": "ClaymoreTobi",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control - Ring",
+   "deck": 627378,
+   "player": "death_grips",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control - Ring",
+   "deck": 627382,
+   "player": "rastaf",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Control - Ring",
+   "deck": 627376,
+   "player": "ice_nine_BIGFAN",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Dimir",
+   "deck": 630758,
+   "player": "JakeTMS",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Flare of Denial (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Dimir",
+   "deck": 622909,
+   "player": "JakeTMS",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Flare of Denial (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Dimir",
+   "deck": 621482,
+   "player": "ChuckNoris43",
+   "why": [
+    "Flare of Denial (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Esper Goryo's",
+   "deck": 625165,
+   "player": "Julio Espina",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Ephemerate",
+   "deck": 623046,
+   "player": "SoIMBAGallade",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Guide of Souls (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Ephemerate",
+   "deck": 623327,
+   "player": "Daisuke Yamaguchi",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Guide of Souls (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Ephemerate",
+   "deck": 623514,
+   "player": "Quinn Z",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Guide of Souls (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mardu Ephemerate",
+   "deck": 631300,
+   "player": "Yamaguchi Daisuke",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Arena of Glory (not in legal sets)",
+    "Guide of Souls (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The Underworld Cookbook",
+   "deck": 624368,
+   "player": "Duvo88",
+   "why": [
+    "Detective's Phoenix (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Malevolent Rumble (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Necro",
+   "deck": 626190,
+   "player": "Guillermo Gutierrez",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Fell the Profane (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Necro",
+   "deck": 631594,
+   "player": "Borja Mateo",
+   "why": [
+    "Nethergoyf (not in legal sets)",
+    "Toxic Deluge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Necro",
+   "deck": 630727,
+   "player": "Marcel B",
+   "why": [
+    "Fell the Profane (not in legal sets)",
+    "Flare of Malice (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldratron",
+   "deck": 633030,
+   "player": "Raphael Prazeres",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Emrakul, the World Anew (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldratron",
+   "deck": 633032,
+   "player": "Jerome Ferraz",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Kozilek's Command (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goryo",
+   "deck": 628889,
+   "player": "Totonin",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goryo",
+   "deck": 629281,
+   "player": "Stissi Stefano",
+   "why": [
+    "Buried Alive (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Emperor of Bones (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necrodominance",
+   "deck": 623352,
+   "player": "Masaki Hori",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Fell the Profane (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Necrodominance",
+   "deck": 626425,
+   "player": "Kenneth Lagman",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Fell the Profane (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Living Ends",
+   "deck": 629585,
+   "player": "Lucas Moreira",
+   "why": [
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Izzet Control",
+   "deck": 628958,
+   "player": "Karl W\u00f6ll",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Necrodominance",
+   "deck": 624508,
+   "player": "Tassotti Nicol\u00f2",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Necrodominance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sultai Nadu",
+   "deck": 630720,
+   "player": "Nikolai T",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 623440,
+   "player": "Johnny Bresett",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 629739,
+   "player": "Saito Takaya",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 628973,
+   "player": "MestariMatti",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 624353,
+   "player": "Reto Sormani",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 625190,
+   "player": "Skepasg",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Aggro",
+   "deck": 628832,
+   "player": "Juanchomorales",
+   "why": [
+    "Nethergoyf (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Jeskai",
+   "deck": 623442,
+   "player": "Ryan Bellamy",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Jeskai",
+   "deck": 621909,
+   "player": "Parrotlet",
+   "why": [
+    "Galvanic Discharge (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)",
+    "Tune the Narrative (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Jeskai",
+   "deck": 629594,
+   "player": "McWinSauce",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Jeskai",
+   "deck": 624700,
+   "player": "Yiren Jiang",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu Toolbox",
+   "deck": 624674,
+   "player": "Simon Nielsen",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu Toolbox",
+   "deck": 627959,
+   "player": "alemilan19",
+   "why": [
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu Toolbox",
+   "deck": 628147,
+   "player": "shakeitoff",
+   "why": [
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu Toolbox",
+   "deck": 627716,
+   "player": "madd2",
+   "why": [
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control - Through the Breach",
+   "deck": 632152,
+   "player": "klien7",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Kozilek's Command (not in legal sets)",
+    "Sowing Mycospawn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control - Through the Breach",
+   "deck": 630753,
+   "player": "Mateusf34",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Kozilek's Command (not in legal sets)",
+    "Sowing Mycospawn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control - Through the Breach",
+   "deck": 628865,
+   "player": "Jarvis_Me",
+   "why": [
+    "Breaker of Creation (not in legal sets)",
+    "Devourer of Destiny (not in legal sets)",
+    "Kozilek's Command (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Eldrazi Control - Through the Breach",
+   "deck": 627371,
+   "player": "Jarvis_Me",
+   "why": [
+    "Devourer of Destiny (not in legal sets)",
+    "Kozilek's Command (not in legal sets)",
+    "Sowing Mycospawn (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Frog",
+   "deck": 628829,
+   "player": "Ibduduo",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Deep Analysis (not in legal sets)",
+    "Disruptor Flute (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Frog",
+   "deck": 629428,
+   "player": "Brendan Layne",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Frog",
+   "deck": 629455,
+   "player": "XantosCell",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Deep Analysis (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Frog",
+   "deck": 624545,
+   "player": "Ben Abraham",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Deep Analysis (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ur Wizards",
+   "deck": 626191,
+   "player": "Alejandro Mora",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ur Wizards",
+   "deck": 623949,
+   "player": "Ismael Boulbaz",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Invert Polarity (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ur Wizards",
+   "deck": 633722,
+   "player": "Timo Hungenberg",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 626081,
+   "player": "Tim Hansson",
+   "why": [
+    "Tamiyo, Inquisitive Student (not in legal sets)",
+    "Toxic Deluge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dredge",
+   "deck": 621476,
+   "player": "PintuMtg",
+   "why": [
+    "Chthonian Nightmare (not in legal sets)",
+    "Flare of Denial (not in legal sets)",
+    "Flare of Malice (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dredge",
+   "deck": 621578,
+   "player": "281_330_8004",
+   "why": [
+    "Flare of Denial (not in legal sets)",
+    "Flare of Malice (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Energy",
+   "deck": 631587,
+   "player": "Oscar Sanchez",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Energy",
+   "deck": 632588,
+   "player": "unagieel",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Death's Shadow",
+   "deck": 628959,
+   "player": "Peter Wolf",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Nethergoyf (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Death's Shadow",
+   "deck": 633720,
+   "player": "Patrick Grcic",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Nethergoyf (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu Combo",
+   "deck": 622061,
+   "player": "Samuel Mottaz",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu Combo",
+   "deck": 629286,
+   "player": "Marcellini Emiliano",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Midrange",
+   "deck": 621270,
+   "player": "Miamifornia",
+   "why": [
+    "Galvanic Discharge (not in legal sets)",
+    "Meltdown (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Midrange",
+   "deck": 625170,
+   "player": "Denis Bueno",
+   "why": [
+    "Arena of Glory (not in legal sets)",
+    "Orim's Chant (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jund Saga",
+   "deck": 623944,
+   "player": "Mickael Teyant",
+   "why": [
+    "Disruptor Flute (not in legal sets)",
+    "Toxic Deluge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Murktide",
+   "deck": 633718,
+   "player": "Eugen Libkin",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolks",
+   "deck": 631588,
+   "player": "Miguel Baeza",
+   "why": [
+    "Flare of Denial (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Monob",
+   "deck": 629282,
+   "player": "Antonioni Simoni",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Fell the Profane (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Storm",
+   "deck": 624509,
+   "player": "Martinelli Francesco",
+   "why": [
+    "Glimpse the Impossible (not in legal sets)",
+    "Ral, Monsoon Mage (not in legal sets)",
+    "Ruby Medallion (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Martyr",
+   "deck": 625327,
+   "player": "Josh Anderson",
+   "why": [
+    "Phlage, Titan of Fire's Fury (not in legal sets)",
+    "Sorin of House Markov (not in legal sets)",
+    "White Orchid Phantom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Ring",
+   "deck": 630721,
+   "player": "Nico B",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Gifts Control",
+   "deck": 622898,
+   "player": "Tulio_Jaudy",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death's Shadow",
+   "deck": 625193,
+   "player": "Barto",
+   "why": [
+    "Detective's Phoenix (not in legal sets)",
+    "Flare of Malice (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death's Shadow",
+   "deck": 623504,
+   "player": "Anthony Soon",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Psychic Frog (not in legal sets)",
+    "Sink into Stupor (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death's Shadow",
+   "deck": 625336,
+   "player": "Andr\u00e9s Rodr\u00edguez",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "The One Ring Esper",
+   "deck": 632988,
+   "player": "Ryan Gassaway",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Consuming Corruption (not in legal sets)",
+    "Psychic Frog (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Toolbox Nadu",
+   "deck": 623446,
+   "player": "Drew Buchanan",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)",
+    "Sylvan Safekeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Black Scam",
+   "deck": 626421,
+   "player": "Francis Manalo",
+   "why": [
+    "Boggart Trawler (not in legal sets)",
+    "Consuming Corruption (not in legal sets)",
+    "Fell the Profane (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Black Scam",
+   "deck": 628893,
+   "player": "Baptiste Platteau",
+   "why": [
+    "Disruptor Flute (not in legal sets)",
+    "Fell the Profane (not in legal sets)",
+    "Flare of Malice (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu",
+   "deck": 631590,
+   "player": "Kuldota",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu",
+   "deck": 631591,
+   "player": "Francisco Sanchez",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu",
+   "deck": 628993,
+   "player": "ArchaeusDota",
+   "why": [
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)",
+    "Springheart Nantuko (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nadu",
+   "deck": 626873,
+   "player": "shakeitoff",
+   "why": [
+    "Malevolent Rumble (not in legal sets)",
+    "Nadu, Winged Wisdom (not in legal sets)",
+    "Shifting Woodland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Landless Belcher",
+   "deck": 628995,
+   "player": "Fr0st3d",
+   "why": [
+    "Disciple of Freyalise (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Pinnacle Monk (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Landless Belcher",
+   "deck": 622070,
+   "player": "cool95",
+   "why": [
+    "Disciple of Freyalise (not in legal sets)",
+    "Galvanic Discharge (not in legal sets)",
+    "Pinnacle Monk (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Landless Belcher",
+   "deck": 632153,
+   "player": "Xenowan",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Harbinger of the Seas (not in legal sets)",
+    "Hydroelectric Specimen (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Omnath",
+   "deck": 626422,
+   "player": "Gilet Kenken",
+   "why": [
+    "Disruptor Flute (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)",
+    "Six (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Omnath",
+   "deck": 624549,
+   "player": "Ash Jurenko",
+   "why": [
+    "Consign to Memory (not in legal sets)",
+    "Phlage, Titan of Fire's Fury (not in legal sets)",
+    "Six (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Omnath",
+   "deck": 623947,
+   "player": "Duncan Chabernaud",
+   "why": [
+    "Phlage, Titan of Fire's Fury (not in legal sets)",
+    "Six (not in legal sets)",
+    "Wrath of the Skies (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death And Taxes",
+   "deck": 626082,
+   "player": "Pontus Eriksson",
+   "why": [
+    "Phelia, Exuberant Shepherd (not in legal sets)",
+    "Recruiter of the Guard (not in legal sets)",
+    "White Orchid Phantom (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death And Taxes",
+   "deck": 622074,
+   "player": "FedericoIIMadao",
+   "why": [
+    "Phelia, Exuberant Shepherd (not in legal sets)",
+    "White Orchid Phantom (not in legal sets)",
+    "Witch Enchanter (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death And Taxes",
+   "deck": 623527,
+   "player": "Carsoncaruso",
+   "why": [
+    "Ajani, Nacatl Pariah (not in legal sets)",
+    "Disruptor Flute (not in legal sets)",
+    "Phelia, Exuberant Shepherd (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Golgari Yawgmoth",
+   "player": "Jennifer Wang",
+   "kept": "Chord Toolbox",
+   "kept_player": "Stefan Sch\u00fctz"
+  },
+  {
+   "dropped": "UR Aggro",
+   "player": "matiaskm",
+   "kept": "Temur Prowess",
+   "kept_player": "Luis Kassel"
+  },
+  {
+   "dropped": "Rakdos Scam",
+   "player": "Leonardo Vignoli",
+   "kept": "Rakdos Aggro",
+   "kept_player": "Naisirc"
+  },
+  {
+   "dropped": "The One Ring Azorius",
+   "player": "nahuel10",
+   "kept": "The One Azorius",
+   "kept_player": "Ken-min Yeoh's Team"
+  },
+  {
+   "dropped": "UB Mill",
+   "player": "Jack Doucet",
+   "kept": "Uw Mill",
+   "kept_player": "vini_torres"
+  },
+  {
+   "dropped": "Jund Creativity",
+   "player": "Romulo Sganderla",
+   "kept": "Creativity",
+   "kept_player": "Alessandro Parisi"
+  },
+  {
+   "dropped": "The One Omnath",
+   "player": "McWinSauce",
+   "kept": "The One Azorius",
+   "kept_player": "Ken-min Yeoh's Team"
+  },
+  {
+   "dropped": "5c Domain",
+   "player": "Finton Naughton",
+   "kept": "5c Domain Aggro",
+   "kept_player": "Azja"
+  },
+  {
+   "dropped": "Coffers",
+   "player": "Alex Campbell",
+   "kept": "Mono Black Control",
+   "kept_player": "ClaymoreTobi"
+  },
+  {
+   "dropped": "Izzet Prowess",
+   "player": "Federico Vuono",
+   "kept": "Temur Prowess",
+   "kept_player": "Luis Kassel"
+  },
+  {
+   "dropped": "5c Creativity",
+   "player": "Reto Sormani",
+   "kept": "Creativity",
+   "kept_player": "Alessandro Parisi"
+  },
+  {
+   "dropped": "Mono-black Coffers",
+   "player": "Geoffroy Lenormand",
+   "kept": "Mono Black Control",
+   "kept_player": "ClaymoreTobi"
+  },
+  {
+   "dropped": "Rb Scam",
+   "player": "Marvin Backes",
+   "kept": "Rakdos Aggro",
+   "kept_player": "Naisirc"
+  },
+  {
+   "dropped": "The One Ring Control",
+   "player": "nahuel10",
+   "kept": "The One Azorius",
+   "kept_player": "Ken-min Yeoh's Team"
+  },
+  {
+   "dropped": "Bg Yawgmoth",
+   "player": "Isaac Dodd",
+   "kept": "Chord Toolbox",
+   "kept_player": "Stefan Sch\u00fctz"
+  },
+  {
+   "dropped": "Domain Zoo",
+   "player": "Paul Rieger",
+   "kept": "5c Domain Aggro",
+   "kept_player": "Azja"
+  },
+  {
+   "dropped": "The One Bant",
+   "player": "Nicol\u00f2 Alfiniti",
+   "kept": "The One Azorius",
+   "kept_player": "Ken-min Yeoh's Team"
+  },
+  {
+   "dropped": "Mono-black Ring Midrange",
+   "player": "Joe Nguyen",
+   "kept": "Mono Black Control",
+   "kept_player": "ClaymoreTobi"
+  },
+  {
+   "dropped": "Yawgmoth",
+   "player": "Miguel Angel Velasco",
+   "kept": "Chord Toolbox",
+   "kept_player": "Stefan Sch\u00fctz"
+  },
+  {
+   "dropped": "4/5c Aggro",
+   "player": "Olivier Degros",
+   "kept": "5c Domain Aggro",
+   "kept_player": "Azja"
+  },
+  {
+   "dropped": "Temur Aggro",
+   "player": "Alan07",
+   "kept": "Temur Prowess",
+   "kept_player": "Luis Kassel"
+  },
+  {
+   "dropped": "Ur Murktide",
+   "player": "Matteo Palma",
+   "kept": "UR Murktide",
+   "kept_player": "O_danielakos"
+  },
+  {
+   "dropped": "The One Dimir",
+   "player": "Galanf",
+   "kept": "The One Azorius",
+   "kept_player": "Ken-min Yeoh's Team"
+  },
+  {
+   "dropped": "Mono Black Coffers",
+   "player": "Tulio_Jaudy",
+   "kept": "Mono Black Control",
+   "kept_player": "ClaymoreTobi"
+  },
+  {
+   "dropped": "Underworld Breach",
+   "player": "Bartosz Bojarowski",
+   "kept": "Breach",
+   "kept_player": "daibloXSC"
+  },
+  {
+   "dropped": "Azorius Mill",
+   "player": "Scot Itakura",
+   "kept": "Uw Mill",
+   "kept_player": "vini_torres"
+  },
+  {
+   "dropped": "Black Scam",
+   "player": "Diem4x",
+   "kept": "Mono Black Scam",
+   "kept_player": "Selfeisek"
+  },
+  {
+   "dropped": "Jund Saga",
+   "player": "Marco Del Pivo",
+   "kept": "Jund",
+   "kept_player": "McWinSauce"
+  }
+ ],
+ "objective": 19.217010779623298,
+ "pool_colors": {
+  "B": 16,
+  "G": 15,
+  "U": 21,
+  "R": 18,
+  "W": 16
+ },
+ "pool_styles": {
+  "aggro": 16,
+  "combo": 5,
+  "midrange": 10,
+  "control": 9
+ },
+ "kept_lost": []
+}

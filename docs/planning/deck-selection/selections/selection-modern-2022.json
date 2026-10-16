@@ -1,0 +1,2295 @@
+{
+ "era": {
+  "year": 2022,
+  "season_start": "2021-09-24",
+  "start": "2022-04-29",
+  "end": "2022-09-09",
+  "snapshot_file": "2022-04-29",
+  "format": "Modern (SNC)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12, ISD, DKA, AVR, M13, RTR, GTC, DGM, MMA, M14, THS, BNG, JOU, MD1, M15, KTK, FRF, DTK, MM2, ORI, BFZ, OGW, SOI, W16, EMN, KLD, AER, MM3, W17, AKH, HOU, XLN, RIX, DOM, M19, GRN, GK1, G18, RNA, GK2, WAR, MH1, M20, ELD, THB, IKO, M21, ZNR, KHM, STX, MH2, AFR, MID, VOW, DBL, NEO, SNC",
+  "banned": [
+   "Ancient Den",
+   "Arcum's Astrolabe",
+   "Birthing Pod",
+   "Blazing Shoal",
+   "Bridge from Below",
+   "Chrome Mox",
+   "Cloudpost",
+   "Dark Depths",
+   "Deathrite Shaman",
+   "Dig Through Time",
+   "Dread Return",
+   "Eye of Ugin",
+   "Faithless Looting",
+   "Field of the Dead",
+   "Gitaxian Probe",
+   "Glimpse of Nature",
+   "Golgari Grave-Troll",
+   "Great Furnace",
+   "Green Sun's Zenith",
+   "Hogaak, Arisen Necropolis",
+   "Hypergenesis",
+   "Krark-Clan Ironworks",
+   "Lurrus of the Dream-Den",
+   "Mental Misstep",
+   "Mox Opal",
+   "Mycosynth Lattice",
+   "Mystic Sanctuary",
+   "Oko, Thief of Crowns",
+   "Once Upon a Time",
+   "Ponder",
+   "Preordain",
+   "Punishing Fire",
+   "Rite of Flame",
+   "Seat of the Synod",
+   "Second Sunrise",
+   "Seething Song",
+   "Sensei's Divining Top",
+   "Simian Spirit Guide",
+   "Skullclamp",
+   "Splinter Twin",
+   "Summer Bloom",
+   "Tibalt's Trickery",
+   "Treasure Cruise",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Uro, Titan of Nature's Wrath",
+   "Vault of Whispers"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 485007,
+   "event": 38105,
+   "archetype": "UR Aggro",
+   "player": "Maxx Kominowski",
+   "event_name": "$20,000 Team Showdown @ NRG Series (St. Louis)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-08-28",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 13,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 7,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Brazen Borrower // Petty Theft": 1,
+     "Ledger Shredder": 2,
+     "Murktide Regent": 3,
+     "Dragon's Rage Channeler": 3,
+     "Ragavan, Nimble Pilferer": 4,
+     "Mishra's Bauble": 4,
+     "Spell Snare": 1,
+     "Archmage's Charm": 1,
+     "Spell Pierce": 2,
+     "Lightning Bolt": 3,
+     "Unholy Heat": 4,
+     "Counterspell": 4,
+     "Consider": 4,
+     "Serum Visions": 1,
+     "Expressive Iteration": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 174
+  },
+  {
+   "deck": 484991,
+   "event": 38104,
+   "archetype": "Hammer Time",
+   "player": "Jordan Lidsky",
+   "event_name": "$5,000 @ NRG Series (St. Louis)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-08-28",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.34,
+    "pips": {
+     "W": 28.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Memnite": 1,
+     "Gingerbrute": 1,
+     "Kor Outfitter": 2,
+     "Giver of Runes": 2,
+     "Stoneforge Mystic": 4,
+     "Esper Sentinel": 4,
+     "Puresteel Paladin": 4,
+     "Ornithopter": 4,
+     "Shadowspear": 1,
+     "Kaldra Compleat": 1,
+     "Nettlecyst": 1,
+     "Springleaf Drum": 3,
+     "Colossus Hammer": 4,
+     "Blacksmith's Skill": 2,
+     "Sigarda's Aid": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 129
+  },
+  {
+   "deck": 474103,
+   "event": 36402,
+   "archetype": "Amulet Titan",
+   "player": "Will Kowalczyk",
+   "event_name": "$5,000 Trial @ NRG Series (Minneapolis)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-05-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 26,
+    "lands": 34,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Azusa, Lost but Seeking": 1,
+     "Cultivator Colossus": 2,
+     "Primeval Titan": 4,
+     "Dryad of the Ilysian Grove": 4,
+     "Arboreal Grazer": 4,
+     "Relic of Progenitus": 1,
+     "Expedition Map": 1,
+     "Amulet of Vigor": 4,
+     "Summoner's Pact": 4,
+     "Explore": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 117
+  },
+  {
+   "deck": 476483,
+   "event": 36774,
+   "archetype": "Living End",
+   "player": "StormGuyisme",
+   "event_name": "MTGO Showcase Challenge",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-06-12",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 30,
+    "counters": 4,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.17,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 20.0,
+     "R": 4.0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Architects of Will": 4,
+     "Colossal Skyturtle": 2,
+     "Curator of Mysteries": 4,
+     "Grief": 4,
+     "Shardless Agent": 4,
+     "Street Wraith": 4,
+     "Striped Riverwinder": 4,
+     "Subtlety": 1,
+     "Waker of Waves": 3,
+     "Living End": 3,
+     "Force of Negation": 4,
+     "Violent Outburst": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 104
+  },
+  {
+   "deck": 481854,
+   "event": 37626,
+   "archetype": "4c Yorion",
+   "player": "Zach_dubin",
+   "event_name": "$10,000 Trial - Chicagoland @ NRG Series",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-07-30",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 50,
+    "lands": 30,
+    "creatures": 17,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 9,
+    "burn": 7,
+    "avg_cmc": 2.32,
+    "pips": {
+     "W": 25.0,
+     "U": 25.0,
+     "B": 0,
+     "R": 17.0,
+     "G": 25.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Fury": 1,
+     "Endurance": 2,
+     "Eternal Witness": 2,
+     "Solitude": 4,
+     "Ice-Fang Coatl": 4,
+     "Omnath, Locus of Creation": 4,
+     "Eladamri's Call": 1,
+     "Ephemerate": 2,
+     "March of Otherworldly Light": 2,
+     "Lightning Bolt": 3,
+     "Counterspell": 4,
+     "Expressive Iteration": 4,
+     "Prismatic Ending": 4,
+     "Dress Down": 1,
+     "Abundant Growth": 4,
+     "Teferi, Time Raveler": 4,
+     "Wrenn and Six": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 102
+  },
+  {
+   "deck": 483604,
+   "event": 37903,
+   "archetype": "Crashing Footfalls Cascade",
+   "player": "James Joash Primicias",
+   "event_name": "MTG SEA Championships Open @ Oracle Events (Philippines)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-08-14",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 17,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.14,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 28.0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Subtlety": 2,
+     "Bonecrusher Giant // Stomp": 3,
+     "Shardless Agent": 4,
+     "Fury": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Dead // Gone": 3,
+     "Violent Outburst": 4,
+     "Force of Negation": 4,
+     "Fire // Ice": 4,
+     "Crashing Footfalls": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 90
+  },
+  {
+   "deck": 479023,
+   "event": 37187,
+   "archetype": "Burn",
+   "player": "Shayne Brown",
+   "event_name": "Road to Pro Tour : F2F Tour Stop @ Calgary (Canada)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-05-25",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 28,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 0,
+     "R": 48.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Lightning Bolt": 4,
+     "Goblin Guide": 4,
+     "Monastery Swiftspear": 4,
+     "Lava Spike": 4,
+     "Rift Bolt": 4,
+     "Skewer the Critics": 4,
+     "Searing Blaze": 4,
+     "Eidolon of the Great Revel": 4,
+     "Boros Charm": 4,
+     "Lightning Helix": 2,
+     "Skullcrack": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 84
+  },
+  {
+   "deck": 482305,
+   "event": 37696,
+   "archetype": "Creativity",
+   "player": "Diego Mayo",
+   "event_name": "IMPACT Returns 2022 @ Nar\u00f3n (Spain)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-07-30",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 4,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 23.0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Archon of Cruelty": 4,
+     "Lightning Bolt": 1,
+     "Prismari Command": 3,
+     "Fatal Push": 3,
+     "Tainted Indulgence": 4,
+     "Transmogrify": 1,
+     "Hard Evidence": 4,
+     "Indomitable Creativity": 4,
+     "Thoughtseize": 4,
+     "Persist": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 40
+  },
+  {
+   "deck": 484221,
+   "event": 37991,
+   "archetype": "Creatures Toolbox",
+   "player": "David Johnson",
+   "event_name": "$5K @ SCG CON Baltimore",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-08-21",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 16.0,
+     "R": 0,
+     "G": 50.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Blood Artist": 1,
+     "Endurance": 1,
+     "Geralf's Messenger": 1,
+     "Young Wolf": 4,
+     "Yawgmoth, Thran Physician": 4,
+     "Wall of Roots": 4,
+     "Strangleroot Geist": 4,
+     "Ignoble Hierarch": 4,
+     "Birds of Paradise": 4,
+     "Chord of Calling": 4,
+     "Eldritch Evolution": 4,
+     "Grist, the Hunger Tide": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 39
+  },
+  {
+   "deck": 485636,
+   "event": 38206,
+   "archetype": "UrzaTron",
+   "player": "Brady Munroe",
+   "event_name": "$20K @ SCG CON Columbus",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-09-03",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 7,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Walking Ballista": 3,
+     "Spellskite": 4,
+     "Welding Jar": 1,
+     "Basilisk Collar": 1,
+     "Relic of Progenitus": 1,
+     "Pithing Needle": 1,
+     "Sorcerous Spyglass": 2,
+     "Ensnaring Bridge": 3,
+     "Expedition Map": 4,
+     "Chalice of the Void": 4,
+     "Mystic Forge": 4,
+     "Serum Powder": 4,
+     "Warping Wail": 1,
+     "Karn, the Great Creator": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 22
+  },
+  {
+   "deck": 485480,
+   "event": 38183,
+   "archetype": "Breach",
+   "player": "Ross Merriam",
+   "event_name": "$20K @ SCG CON Columbus",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-09-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 5,
+    "avg_cmc": 1.44,
+    "pips": {
+     "W": 0,
+     "U": 14.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Springleaf Drum": 1,
+     "Aether Spellbomb": 1,
+     "Lightning Bolt": 1,
+     "Mox Amber": 3,
+     "Grinding Station": 3,
+     "Mishra's Bauble": 4,
+     "Unholy Heat": 4,
+     "Expressive Iteration": 4,
+     "Underworld Breach": 4,
+     "Dragon's Rage Channeler": 1,
+     "Thassa's Oracle": 1,
+     "Emry, Lurker of the Loch": 4,
+     "Ledger Shredder": 4,
+     "Ragavan, Nimble Pilferer": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 17
+  },
+  {
+   "deck": 476998,
+   "event": 36859,
+   "archetype": "Valakut",
+   "player": "Will Kreuger",
+   "event_name": "2022 Magic Online Champions Showcase Season 1",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-06-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 8,
+    "avg_cmc": 2.75,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 28.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wrenn and Six": 4,
+     "Wish": 4,
+     "Explore": 4,
+     "Search for Tomorrow": 4,
+     "Lightning Bolt": 4,
+     "Dryad of the Ilysian Grove": 4,
+     "Primeval Titan": 4,
+     "Sakura-Tribe Elder": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 483859,
+   "event": 37940,
+   "archetype": "Reanimator",
+   "player": "Dillon Evans",
+   "event_name": "$10k Regional Championship Qualifier @ Card Monster Con (Chattanooga, TN)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-08-15",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 1,
+    "avg_cmc": 3.33,
+    "pips": {
+     "W": 22.0,
+     "U": 12.0,
+     "B": 29.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Priest of Fell Rites": 1,
+     "Mulldrifter": 2,
+     "Solitude": 4,
+     "Archon of Cruelty": 4,
+     "Grief": 4,
+     "Faithful Mending": 2,
+     "Tainted Indulgence": 4,
+     "Ephemerate": 4,
+     "Unburial Rites": 1,
+     "Prismatic Ending": 2,
+     "Unmarked Grave": 2,
+     "Persist": 4,
+     "Kaya, Orzhov Usurper": 1,
+     "Teferi, Time Raveler": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 10
+  },
+  {
+   "deck": 482110,
+   "event": 37667,
+   "archetype": "Goblins",
+   "player": "Trick Bannon",
+   "event_name": "PSBG 4 Headliner RCQ @ Laughing Dragon MtG (Issaquah, WA)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-07-30",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.3,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 9.0,
+     "R": 35.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Mogg War Marshal": 3,
+     "Skirk Prospector": 1,
+     "Goblin Chieftain": 1,
+     "Pashalik Mons": 1,
+     "Goblin Warchief": 1,
+     "Kiki-Jiki, Mirror Breaker": 2,
+     "Goblin Ringleader": 2,
+     "Mogg Fanatic": 2,
+     "Conspicuous Snoop": 4,
+     "Goblin Matron": 4,
+     "Chalice of the Void": 3,
+     "Aether Vial": 4,
+     "Sling-Gang Lieutenant": 2,
+     "Boggart Harbinger": 3,
+     "Munitions Expert": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 479636,
+   "event": 37276,
+   "archetype": "Calibrated Blast",
+   "player": "Alexandre Damiens",
+   "event_name": "Grand Biche - Main event @ Espace Champeret (Paris, France)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-07-09",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 22,
+    "lands": 38,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 11.27,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 8.0,
+     "R": 6.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Throes of Chaos": 2,
+     "Calibrated Blast": 4,
+     "Emrakul, the Aeons Torn": 4,
+     "Scion of Draco": 4,
+     "Shadow of Mortality": 4,
+     "Autochthon Wurm": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 7
+  },
+  {
+   "deck": 477512,
+   "event": 36939,
+   "archetype": "Mono Blue Tempo",
+   "player": "David Bishop",
+   "event_name": "Road to Pro Tour : F2F Tour Stop @ Vancouver",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-06-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 16,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 0,
+     "U": 56.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Dismember": 4,
+     "Counterspell": 4,
+     "Spreading Seas": 4,
+     "Vendilion Clique": 4,
+     "Svyelun of Sea and Sky": 4,
+     "Brazen Borrower // Petty Theft": 4,
+     "Force of Negation": 4,
+     "Subtlety": 4,
+     "Chalice of the Void": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 485652,
+   "event": 38207,
+   "archetype": "UW Control",
+   "player": "Raja Sulaiman",
+   "event_name": "$10K @ SCG CON Columbus",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-09-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 6,
+    "counters": 8,
+    "sweepers": 2,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 23.0,
+     "U": 41.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "March of Otherworldly Light": 1,
+     "Dress Down": 1,
+     "Jace, the Mind Sculptor": 2,
+     "Teferi, Hero of Dominaria": 2,
+     "Supreme Verdict": 2,
+     "Memory Deluge": 2,
+     "Chalice of the Void": 3,
+     "Archmage's Charm": 4,
+     "Counterspell": 4,
+     "Prismatic Ending": 4,
+     "Teferi, Time Raveler": 4,
+     "Subtlety": 2,
+     "Solitude": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 31
+  },
+  {
+   "deck": 479086,
+   "event": 37195,
+   "archetype": "Eldra Tron",
+   "player": "Damian Del Nero",
+   "event_name": "Trial @ SCG CON Syracuse",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-08",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 1,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Walking Ballista": 3,
+     "Thought-Knot Seer": 4,
+     "Reality Smasher": 4,
+     "Matter Reshaper": 4,
+     "Relic of Progenitus": 2,
+     "Expedition Map": 4,
+     "Chalice of the Void": 4,
+     "Dismember": 3,
+     "All Is Dust": 1,
+     "Ugin, the Spirit Dragon": 1,
+     "Karn, Scion of Urza": 1,
+     "Ugin, the Ineffable": 2,
+     "Karn, the Great Creator": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 13
+  },
+  {
+   "deck": 476124,
+   "event": 36720,
+   "archetype": "UB Mill",
+   "player": "Tanahashi Takuya",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 8,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 0,
+     "U": 44.0,
+     "B": 12.0,
+     "R": 0,
+     "G": 2.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Ruin Crab": 4,
+     "Hedron Crab": 4,
+     "Abrupt Decay": 1,
+     "Murderous Cut": 1,
+     "Extirpate": 1,
+     "Crypt Incursion": 1,
+     "Baleful Mastery": 1,
+     "Assassin's Trophy": 1,
+     "Surgical Extraction": 2,
+     "Fatal Push": 2,
+     "Visions of Beyond": 4,
+     "Drown in the Loch": 4,
+     "Archive Trap": 4,
+     "Tasha's Hideous Laughter": 4,
+     "Fractured Sanity": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 8
+  },
+  {
+   "deck": 482160,
+   "event": 37674,
+   "archetype": "Tron",
+   "player": "Cole Cunningham",
+   "event_name": "Dreamhack RCQ Atlanta @ Games Ahoy! (Plymouth, NH)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 5,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 2,
+    "avg_cmc": 3.26,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Ancient Stirrings": 4,
+     "Chromatic Star": 4,
+     "Chromatic Sphere": 4,
+     "Expedition Map": 4,
+     "Karn Liberated": 4,
+     "Karn, the Great Creator": 4,
+     "Oblivion Stone": 3,
+     "Relic of Progenitus": 2,
+     "Sylvan Scrying": 4,
+     "Ugin, the Spirit Dragon": 2,
+     "Ulamog, the Ceaseless Hunger": 2,
+     "Warping Wail": 2,
+     "Wurmcoil Engine": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 474401,
+   "event": 36438,
+   "archetype": "Death And Taxes",
+   "player": "Ryan Barger",
+   "event_name": "1K @ Mox Boarding House (Portland, Oregon)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-05-15",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 50,
+    "lands": 30,
+    "creatures": 36,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.12,
+    "pips": {
+     "W": 44.0,
+     "U": 0,
+     "B": 0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Eater of Virtue": 1,
+     "Shadowspear": 1,
+     "The Wandering Emperor": 1,
+     "Kaldra Compleat": 1,
+     "Path to Exile": 3,
+     "March of Otherworldly Light": 3,
+     "Aether Vial": 4,
+     "Charming Prince": 1,
+     "Drannith Magistrate": 1,
+     "Kataki, War's Wage": 1,
+     "Lion Sash": 1,
+     "Sanctifier en-Vec": 1,
+     "Magus of the Moon": 1,
+     "Skyclave Apparition": 3,
+     "Imperial Recruiter": 3,
+     "Esper Sentinel": 4,
+     "Ragavan, Nimble Pilferer": 4,
+     "Squadron Hawk": 4,
+     "Stoneforge Mystic": 4,
+     "Solitude": 4,
+     "Thalia, Guardian of Thraben": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 475469,
+   "event": 36618,
+   "archetype": "Bring to Scapeshift",
+   "player": "Jack Komer",
+   "event_name": "Cup @ Mavericks",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-04",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 3,
+    "burn": 4,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 12.0,
+     "U": 15.0,
+     "B": 1.0,
+     "R": 11.0,
+     "G": 20.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Valki, God of Lies // Tibalt, Cosmic Impostor": 1,
+     "Arboreal Grazer": 3,
+     "Omnath, Locus of Creation": 3,
+     "Dryad of the Ilysian Grove": 4,
+     "Scapeshift": 1,
+     "Supreme Verdict": 1,
+     "Prismatic Ending": 4,
+     "Bring to Light": 4,
+     "Expressive Iteration": 4,
+     "Teferi, Time Raveler": 3,
+     "Wrenn and Six": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 479628,
+   "event": 37275,
+   "archetype": "Scapeshift",
+   "player": "Rob Lyons",
+   "event_name": "RCQ @ Time Capsule (Hopewell, VA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-10",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 30,
+    "lands": 30,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 3.0,
+     "G": 31.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Lightning Bolt": 3,
+     "Search for Tomorrow": 4,
+     "Farseek": 4,
+     "Sakura-Tribe Elder": 4,
+     "Dryad of the Ilysian Grove": 3,
+     "Scapeshift": 4,
+     "Primeval Titan": 4,
+     "Summoner's Pact": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 484792,
+   "event": 38077,
+   "archetype": "4c Archon",
+   "player": "Alan 07",
+   "event_name": "RED 1,5k @ Rio de Janeiro (Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-24",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 7,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 10,
+    "avg_cmc": 2.92,
+    "pips": {
+     "W": 3.0,
+     "U": 15.0,
+     "B": 8.0,
+     "R": 29.0,
+     "G": 6.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 1,
+     "Wrenn and Six": 3,
+     "Expressive Iteration": 3,
+     "Indomitable Creativity": 4,
+     "Transmogrify": 1,
+     "Archon of Cruelty": 4,
+     "Prismari Command": 3,
+     "Hard Evidence": 4,
+     "Lightning Bolt": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 3,
+     "Teferi, Time Raveler": 3,
+     "Explore": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 477778,
+   "event": 36986,
+   "archetype": "Glimpse of Tomorrow",
+   "player": "Simon Nielsen",
+   "event_name": "MMM Showdown June @ cardmarket.com",
+   "stars": 3,
+   "rank": "1",
+   "date": "2022-06-25",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.31,
+    "pips": {
+     "W": 4.0,
+     "U": 16.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 28.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Fury": 4,
+     "Wavesifter": 4,
+     "Omnath, Locus of Creation": 4,
+     "Risen Reef": 4,
+     "Shardless Agent": 4,
+     "Endurance": 4,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 4,
+     "Violent Outburst": 4,
+     "Glimpse of Tomorrow": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 13
+  },
+  {
+   "deck": 485239,
+   "event": 38139,
+   "archetype": "Death's Shadow",
+   "player": "Hunter Taylor",
+   "event_name": "RCQ @ CM Games Cedar Bluff (Knoxville, TN)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-29",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 18,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 5,
+    "avg_cmc": 1.46,
+    "pips": {
+     "W": 0,
+     "U": 12.0,
+     "B": 15.0,
+     "R": 23.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Kroxa, Titan of Death's Hunger": 2,
+     "Fury": 2,
+     "Dragon's Rage Channeler": 3,
+     "Death's Shadow": 3,
+     "Ragavan, Nimble Pilferer": 4,
+     "Ledger Shredder": 4,
+     "Mishra's Bauble": 4,
+     "Terminate": 1,
+     "Fatal Push": 1,
+     "Lightning Bolt": 1,
+     "Unholy Heat": 4,
+     "Drown in the Loch": 4,
+     "Thoughtseize": 4,
+     "Expressive Iteration": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 37
+  },
+  {
+   "deck": 481362,
+   "event": 37547,
+   "archetype": "Jund",
+   "player": "Ooe Yoshiyuki",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 21.0,
+     "R": 27.0,
+     "G": 11.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Seasoned Pyromancer": 2,
+     "Fury": 3,
+     "Tarmogoyf": 4,
+     "Ragavan, Nimble Pilferer": 4,
+     "Terminate": 1,
+     "Kolaghan's Command": 2,
+     "Fatal Push": 2,
+     "Lightning Bolt": 3,
+     "Riveteers Charm": 4,
+     "Inquisition of Kozilek": 2,
+     "Thoughtseize": 4,
+     "Wrenn and Six": 3,
+     "Liliana of the Veil": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 26
+  },
+  {
+   "deck": 483399,
+   "event": 37869,
+   "archetype": "Rakdos Aggro",
+   "player": "Pete Williams",
+   "event_name": "The Doghouse II @ YungDingo",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-13",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 3,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 29.0,
+     "R": 29.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Kolaghan's Command": 1,
+     "Liliana of the Veil": 1,
+     "Night's Whisper": 1,
+     "Lightning Bolt": 2,
+     "Blood Moon": 2,
+     "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki": 2,
+     "Thoughtseize": 3,
+     "Terminate": 3,
+     "Undying Malice": 4,
+     "Kroxa, Titan of Death's Hunger": 1,
+     "Dauthi Voidwalker": 3,
+     "Seasoned Pyromancer": 3,
+     "Fury": 4,
+     "Grief": 4,
+     "Ragavan, Nimble Pilferer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 17
+  },
+  {
+   "deck": 472023,
+   "event": 36129,
+   "archetype": "Dredge",
+   "player": "Ooshima Keisuke",
+   "event_name": "GW Special @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-05-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.38,
+    "pips": {
+     "W": 4.0,
+     "U": 12.0,
+     "B": 23.0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Ox of Agonas": 2,
+     "Silversmote Ghoul": 3,
+     "Stinkweed Imp": 4,
+     "Narcomoeba": 4,
+     "Prized Amalgam": 4,
+     "Golgari Thug": 4,
+     "Otherworldly Gaze": 4,
+     "Darkblast": 4,
+     "Conflagrate": 1,
+     "Thrilling Discovery": 4,
+     "Cathartic Reunion": 4,
+     "Creeping Chill": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 17
+  },
+  {
+   "deck": 476126,
+   "event": 36720,
+   "archetype": "Merfolk",
+   "player": "Nauchi Daisuke",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 32,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 4.0,
+     "U": 58.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Harbinger of the Tides": 2,
+     "Merrow Reejerey": 2,
+     "Tide Shaper": 4,
+     "Silvergill Adept": 4,
+     "Merfolk Trickster": 4,
+     "Unsettled Mariner": 4,
+     "Lord of Atlantis": 4,
+     "Master of the Pearl Trident": 4,
+     "Svyelun of Sea and Sky": 4,
+     "Aether Vial": 4,
+     "Force of Negation": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 17
+  },
+  {
+   "deck": 481368,
+   "event": 37547,
+   "archetype": "4cc",
+   "player": "Zudin Rodion",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 22.0,
+     "U": 25.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 18.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Sosuke's Summons": 2,
+     "Ephemerate": 2,
+     "Lightning Bolt": 4,
+     "Force of Negation": 4,
+     "Prismatic Ending": 4,
+     "Teferi, Time Raveler": 4,
+     "Shigeki, Jukai Visionary": 1,
+     "Seshiro the Anointed": 1,
+     "Lonis, Cryptozoologist": 1,
+     "Ice-Fang Coatl": 4,
+     "Omnath, Locus of Creation": 4,
+     "Solitude": 4,
+     "Coiling Oracle": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 14
+  },
+  {
+   "deck": 481371,
+   "event": 37547,
+   "archetype": "The Underworld Cookbook",
+   "player": "Nakayama Kenichi",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 18.0,
+     "R": 0,
+     "G": 17.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Chatterfang, Squirrel General": 1,
+     "Ovalchase Daredevil": 4,
+     "Gilded Goose": 4,
+     "Asmoranomardicadaistinaculdacar": 4,
+     "Cauldron Familiar": 4,
+     "Street Wraith": 4,
+     "Shadowspear": 1,
+     "Witch's Oven": 3,
+     "The Underworld Cookbook": 4,
+     "Assassin's Trophy": 1,
+     "Finale of Devastation": 3,
+     "Trail of Crumbs": 4,
+     "Grist, the Hunger Tide": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 12
+  },
+  {
+   "deck": 482878,
+   "event": 37790,
+   "archetype": "Hardened Scales",
+   "player": "Duncan Mcadams",
+   "event_name": "RCQ @ CM Games (Morristown, TN)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-08-08",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 0.81,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Patchwork Automaton": 3,
+     "Walking Ballista": 4,
+     "Arcbound Ravager": 4,
+     "Zabaz, the Glimmerwasp": 4,
+     "Hangarback Walker": 4,
+     "Springleaf Drum": 1,
+     "Aether Spellbomb": 1,
+     "Mishra's Bauble": 3,
+     "The Ozolith": 3,
+     "Welding Jar": 3,
+     "Ancient Stirrings": 3,
+     "Hardened Scales": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 10
+  },
+  {
+   "deck": 481366,
+   "event": 37547,
+   "archetype": "Plating Affinity",
+   "player": "Bourgoin Hadrien",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-07-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 17,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 0,
+     "U": 16.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Gingerbrute": 1,
+     "Thought Monitor": 4,
+     "Ornithopter": 4,
+     "Memnite": 4,
+     "Glint-Nest Crane": 4,
+     "Pithing Needle": 1,
+     "Shadowspear": 1,
+     "Aether Spellbomb": 1,
+     "Tormod's Crypt": 1,
+     "Welding Jar": 4,
+     "Springleaf Drum": 4,
+     "Cranial Plating": 4,
+     "Metallic Rebuke": 4,
+     "Thoughtcast": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 10
+  },
+  {
+   "deck": 476127,
+   "event": 36720,
+   "archetype": "CopyCat",
+   "player": "Mimido Ryuji",
+   "event_name": "Daily Tournaments @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-06-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 52,
+    "lands": 28,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 3,
+    "avg_cmc": 2.87,
+    "pips": {
+     "W": 28.0,
+     "U": 10.0,
+     "B": 0,
+     "R": 18.0,
+     "G": 32.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Seasoned Pyromancer": 1,
+     "Kiki-Jiki, Mirror Breaker": 1,
+     "Birds of Paradise": 1,
+     "Karmic Guide": 2,
+     "Solitude": 2,
+     "Omnath, Locus of Creation": 4,
+     "Arbor Elf": 4,
+     "Renegade Rallier": 4,
+     "Planebound Accomplice": 4,
+     "Felidar Guardian": 4,
+     "Prismatic Ending": 4,
+     "Oath of Nissa": 4,
+     "Utopia Sprawl": 4,
+     "Saheeli Rai": 2,
+     "Wrenn and Six": 3,
+     "Vivien on the Hunt": 4,
+     "Teferi, Time Raveler": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 472167,
+   "event": 36151,
+   "archetype": "Jeskai Murktide",
+   "player": "Jake Coenen",
+   "event_name": "d20's 5yr Anni 3K Tournament @ d20 Gaming LLC (Eau Claire, WI)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2022-05-07",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 4,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 6.0,
+     "U": 36.0,
+     "B": 0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Mishra's Bauble": 4,
+     "Dragon's Rage Channeler": 4,
+     "Ragavan, Nimble Pilferer": 4,
+     "Unholy Heat": 4,
+     "Prismatic Ending": 4,
+     "Spell Pierce": 1,
+     "Consider": 4,
+     "Counterspell": 4,
+     "Expressive Iteration": 4,
+     "Archmage's Charm": 3,
+     "Teferi, Time Raveler": 2,
+     "Murktide Regent": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  }
+ ],
+ "pool_size": 56,
+ "rejected_illegal": [],
+ "duplicates_dropped": [
+  {
+   "dropped": "Omnath Elementals",
+   "player": "Brandon Dempsey",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "4c Omnath",
+   "player": "Devon Straub",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Prison Tron",
+   "player": "Oscar Christensen",
+   "kept": "UrzaTron",
+   "kept_player": "Brady Munroe"
+  },
+  {
+   "dropped": "Chord Toolbox",
+   "player": "Steven Yean",
+   "kept": "Creatures Toolbox",
+   "kept_player": "David Johnson"
+  },
+  {
+   "dropped": "Ur Murktide",
+   "player": "Luka \u008eabkar",
+   "kept": "UR Aggro",
+   "kept_player": "Maxx Kominowski"
+  },
+  {
+   "dropped": "Izzet Murktide",
+   "player": "Tyler Phelps",
+   "kept": "UR Aggro",
+   "kept_player": "Maxx Kominowski"
+  },
+  {
+   "dropped": "Temur Rhinos",
+   "player": "James Brennan",
+   "kept": "Crashing Footfalls Cascade",
+   "kept_player": "James Joash Primicias"
+  },
+  {
+   "dropped": "Rakdos Midrange",
+   "player": "Filippo Daminelli",
+   "kept": "Rakdos Aggro",
+   "kept_player": "Pete Williams"
+  },
+  {
+   "dropped": "Jeskai Control",
+   "player": "Bryce Morgan",
+   "kept": "UW Control",
+   "kept_player": "Raja Sulaiman"
+  },
+  {
+   "dropped": "Bg Yawgmoth",
+   "player": "Antonino Ammirata",
+   "kept": "Creatures Toolbox",
+   "kept_player": "David Johnson"
+  },
+  {
+   "dropped": "Crashing Footfalls",
+   "player": "Iven Tan",
+   "kept": "Crashing Footfalls Cascade",
+   "kept_player": "James Joash Primicias"
+  },
+  {
+   "dropped": "4c Elementals",
+   "player": "Jonathan Maclean",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Uw Hammer",
+   "player": "Kevin Haramia",
+   "kept": "Hammer Time",
+   "kept_player": "Jordan Lidsky"
+  },
+  {
+   "dropped": "Ur Aggro",
+   "player": "Felippi Bento",
+   "kept": "UR Aggro",
+   "kept_player": "Maxx Kominowski"
+  },
+  {
+   "dropped": "Elementals",
+   "player": "Derek Eubanks",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Azorius Affinity",
+   "player": "Kuroda Masashiro",
+   "kept": "Plating Affinity",
+   "kept_player": "Bourgoin Hadrien"
+  },
+  {
+   "dropped": "Yawgmoth",
+   "player": "Man Lok Wong",
+   "kept": "Creatures Toolbox",
+   "kept_player": "David Johnson"
+  },
+  {
+   "dropped": "Boros Burn",
+   "player": "Rohm, Cedric",
+   "kept": "Burn",
+   "kept_player": "Shayne Brown"
+  },
+  {
+   "dropped": "Murktide",
+   "player": "Evan Moore",
+   "kept": "UR Aggro",
+   "kept_player": "Maxx Kominowski"
+  },
+  {
+   "dropped": "4c Yorion Elementals",
+   "player": "Max Magnuson",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Murktide Regent",
+   "player": "Andrew Trayno",
+   "kept": "UR Aggro",
+   "kept_player": "Maxx Kominowski"
+  },
+  {
+   "dropped": "4c Control",
+   "player": "Josh Warsaw",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "4c Elementals Yorion",
+   "player": "Michael Pelaez",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "4c Elemental Yorion",
+   "player": "Maxx Paustian",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "4c Yorion Control",
+   "player": "Brad Bonin",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Mono Green Tron",
+   "player": "Shea Leech",
+   "kept": "Tron",
+   "kept_player": "Cole Cunningham"
+  },
+  {
+   "dropped": "4 Color Elementals",
+   "player": "Ammi Obejas",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Ub Mill",
+   "player": "Arnaud Gauthier",
+   "kept": "UB Mill",
+   "kept_player": "Tanahashi Takuya"
+  },
+  {
+   "dropped": "Death\u0092s Shadow",
+   "player": "Taylor Kitson",
+   "kept": "Death's Shadow",
+   "kept_player": "Hunter Taylor"
+  },
+  {
+   "dropped": "Uw Hammer Time",
+   "player": "Heng Chye Hwee",
+   "kept": "Hammer Time",
+   "kept_player": "Jordan Lidsky"
+  },
+  {
+   "dropped": "Mono-white Hammer",
+   "player": "David Kinsey",
+   "kept": "Hammer Time",
+   "kept_player": "Jordan Lidsky"
+  },
+  {
+   "dropped": "Mill",
+   "player": "Marc Szymoniak",
+   "kept": "UB Mill",
+   "kept_player": "Tanahashi Takuya"
+  },
+  {
+   "dropped": "Bring To Valakut",
+   "player": "Julien Poiraud",
+   "kept": "Bring to Scapeshift",
+   "kept_player": "Jack Komer"
+  },
+  {
+   "dropped": "Yawgmoth Combo",
+   "player": "Dan Petro",
+   "kept": "Creatures Toolbox",
+   "kept_player": "David Johnson"
+  },
+  {
+   "dropped": "4c Blink (y)",
+   "player": "Chase Swick",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "5c Archon",
+   "player": "Raymond Wriven",
+   "kept": "4c Archon",
+   "kept_player": "Alan 07"
+  },
+  {
+   "dropped": "Grinding Station",
+   "player": "Corey Baumeister",
+   "kept": "Breach",
+   "kept_player": "Ross Merriam"
+  },
+  {
+   "dropped": "4 Color Scapeshift",
+   "player": "Christopher Kral",
+   "kept": "Bring to Scapeshift",
+   "kept_player": "Jack Komer"
+  },
+  {
+   "dropped": "4-color Creativity",
+   "player": "Anthony Gonzales",
+   "kept": "Creativity",
+   "kept_player": "Diego Mayo"
+  },
+  {
+   "dropped": "U/w Hammer",
+   "player": "Joey Wyatt",
+   "kept": "Hammer Time",
+   "kept_player": "Jordan Lidsky"
+  },
+  {
+   "dropped": "Glimpse Elementals",
+   "player": "Alex Barrera",
+   "kept": "Glimpse of Tomorrow",
+   "kept_player": "Simon Nielsen"
+  },
+  {
+   "dropped": "Money Pile",
+   "player": "Nicolas Brown",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "4c Control (y)",
+   "player": "Chase Swick",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "4 Color Midrange",
+   "player": "Jose Rios",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Temur Murktide",
+   "player": "Filippo Ziveri",
+   "kept": "UR Aggro",
+   "kept_player": "Maxx Kominowski"
+  },
+  {
+   "dropped": "Grixis Shredder",
+   "player": "Kyle Jacobsen",
+   "kept": "Death's Shadow",
+   "kept_player": "Hunter Taylor"
+  },
+  {
+   "dropped": "Azorius Control",
+   "player": "Carlo Negrete",
+   "kept": "UW Control",
+   "kept_player": "Raja Sulaiman"
+  },
+  {
+   "dropped": "Instant Reanimator",
+   "player": "Zach Goodboe",
+   "kept": "Reanimator",
+   "kept_player": "Dillon Evans"
+  },
+  {
+   "dropped": "Hammertime",
+   "player": "Jiahe Pan",
+   "kept": "Hammer Time",
+   "kept_player": "Jordan Lidsky"
+  },
+  {
+   "dropped": "RDW",
+   "player": "Kimura Kazuyuki",
+   "kept": "Burn",
+   "kept_player": "Shayne Brown"
+  },
+  {
+   "dropped": "Ur Grinding Station",
+   "player": "Gabriel Ebady",
+   "kept": "Breach",
+   "kept_player": "Ross Merriam"
+  },
+  {
+   "dropped": "4c Creativity",
+   "player": "Alexander Samaniego",
+   "kept": "Creativity",
+   "kept_player": "Diego Mayo"
+  },
+  {
+   "dropped": "Titanshift",
+   "player": "Joonas Himmanen",
+   "kept": "Valakut",
+   "kept_player": "Will Kreuger"
+  },
+  {
+   "dropped": "Tameshi Wargate",
+   "player": "Cosmic_Sans",
+   "kept": "Tameshi Bloom",
+   "kept_player": "Planter Carlos"
+  },
+  {
+   "dropped": "Yawgmoth Chord Toolbox",
+   "player": "Hector Mu\u00f1oz",
+   "kept": "Creatures Toolbox",
+   "kept_player": "David Johnson"
+  },
+  {
+   "dropped": "4c Money Pile",
+   "player": "Jonathan Hobbs",
+   "kept": "4c Yorion",
+   "kept_player": "Zach_dubin"
+  },
+  {
+   "dropped": "Uw Control",
+   "player": "Daniele Bonazza",
+   "kept": "UW Control",
+   "kept_player": "Raja Sulaiman"
+  },
+  {
+   "dropped": "Grixis Shadow",
+   "player": "Adam Cohem",
+   "kept": "Death's Shadow",
+   "kept_player": "Hunter Taylor"
+  },
+  {
+   "dropped": "Rhinos",
+   "player": "Tobias Wensing",
+   "kept": "Crashing Footfalls Cascade",
+   "kept_player": "James Joash Primicias"
+  },
+  {
+   "dropped": "Urza",
+   "player": "Matsuoka Masahiko",
+   "kept": "Azorius Urza",
+   "kept_player": "Murai Tatsuya"
+  },
+  {
+   "dropped": "Grixis Death's Shadow",
+   "player": "Sylvain Hazard",
+   "kept": "Death's Shadow",
+   "kept_player": "Hunter Taylor"
+  },
+  {
+   "dropped": "Grixis Creativity",
+   "player": "Marcel Bux",
+   "kept": "Creativity",
+   "kept_player": "Diego Mayo"
+  },
+  {
+   "dropped": "Green Tron",
+   "player": "Mike Hundley",
+   "kept": "Tron",
+   "kept_player": "Cole Cunningham"
+  },
+  {
+   "dropped": "Charbelcher",
+   "player": "Liam Tiller-collins",
+   "kept": "Belcher",
+   "kept_player": "Hugo Ribeiro"
+  }
+ ],
+ "objective": 21.939075630252102,
+ "pool_colors": {
+  "U": 30,
+  "R": 33,
+  "W": 22,
+  "G": 26,
+  "B": 17
+ },
+ "pool_styles": {
+  "aggro": 24,
+  "midrange": 21,
+  "combo": 5,
+  "control": 6
+ },
+ "kept_lost": []
+}

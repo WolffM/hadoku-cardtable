@@ -1,0 +1,40 @@
+[metadata]
+Name=Reanimator (qbeczkowo)
+Deck Type=Constructed
+Format=Modern (OTJ)
+Effective=2024-04-19
+Source URL=https://www.mtgtop8.com/event?e=54642&d=605944&f=MO
+Comment=MTGO Challenge 64: qbeczkowo, 1st, Reanimator. Transcribed from mtgtop8 deck 605944.
+[Main]
+1 Not Dead After All|WOE
+2 Prismatic Ending|MH2
+4 Tainted Indulgence|SNC
+4 Ephemerate|MH1
+4 Persist|MH2
+4 Faithful Mending|DBL
+1 Snapcaster Mage|ISD
+2 Subtlety|MH2
+4 Troll of Khazad-dûm|LTR
+4 Archon of Cruelty|MH2
+4 Solitude|MH2
+4 Grief|MH2
+4 Satoru, the Infiltrator|OTJ
+1 Island|OTJ
+1 Swamp|OTJ
+1 Hallowed Fountain|RNA
+1 Godless Shrine|RNA
+1 Watery Grave|GRN
+1 Plains|OTJ
+1 Undercity Sewers|MKM
+1 Shadowy Backstreet|MKM
+2 Polluted Delta|KTK
+4 Marsh Flats|ZEN
+4 Flooded Strand|KTK
+[Sideboard]
+2 Force of Negation|MH1
+2 Teferi, Time Raveler|WAR
+2 Dovin's Veto|WAR
+2 Thoughtseize|THS
+3 Leyline of the Void|M20
+2 Prismatic Ending|MH2
+2 Subtlety|MH2

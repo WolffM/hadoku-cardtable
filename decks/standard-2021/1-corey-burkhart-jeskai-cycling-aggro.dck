@@ -1,0 +1,35 @@
+[metadata]
+Name=Jeskai Cycling Aggro (Corey Burkhart)
+Deck Type=Constructed
+Format=Standard (AFR)
+Effective=2021-07-23
+Source URL=https://www.mtgtop8.com/event?e=31356&d=443229&f=ST
+Comment=July Strixhaven Weekend @ Rivals League: Corey Burkhart, 1st, Jeskai Cycling Aggro. Transcribed from mtgtop8 deck 443229.
+[Main]
+4 Irencrag Pyromancer|ELD
+4 Flourishing Fox|IKO
+4 Drannith Stinger|IKO
+4 Valiant Rescuer|IKO
+1 Frostveil Ambush|IKO
+4 Startling Development|IKO
+4 Zenith Flare|IKO
+4 Boon of the Wish-Giver|IKO
+4 Go for Blood|IKO
+4 Improbable Alliance|ELD
+4 Footfall Crater|IKO
+1 Plains|AFR
+1 Island|AFR
+1 Mountain|AFR
+4 Hengegate Pathway|KHM
+4 Raugrin Triome|IKO
+4 Riverglide Pathway|ZNR
+4 Needleverge Pathway|ZNR
+[Sideboard]
+1 Shredded Sails|IKO
+1 Test of Talents|STX
+1 Disdainful Stroke|KHM
+1 Soul-Guide Lantern|THB
+2 Mystical Dispute|ELD
+3 Redcap Melee|ELD
+3 Glass Casket|ELD
+3 Negate|ZNR

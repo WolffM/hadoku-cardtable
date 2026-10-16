@@ -195,7 +195,9 @@ describe('checkSeat', () => {
 	 * Every count here is derived. A new collection or a new frozen pool moves
 	 * all of them and must not fail this.
 	 */
-	it('answers the era filter for every deck and every era, with no dead option at either end', () => {
+	// Every deck against every era: 1,459 decks by 67 eras since the library ran to 2025,
+	// near 100,000 checks, so it gets the time that takes rather than the default 5 s.
+	it('answers the era filter for every deck and every era, with no dead option at either end', { timeout: 30_000 }, () => {
 		const offered = new Map<string, string[]>();
 		for (const format of library.formats) {
 			const legal = library.decks

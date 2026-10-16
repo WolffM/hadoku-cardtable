@@ -1,0 +1,2552 @@
+{
+ "era": {
+  "year": 2020,
+  "season_start": "2019-10-04",
+  "start": "2020-08-03",
+  "end": "2020-09-25",
+  "snapshot_file": "2020-07-17",
+  "format": "Legacy (JMP)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU, C17, XLN, DDT, IMA, V17, E02, RIX, A25, DDU, DOM, CM2, BBD, SS1, GS1, M19, C18, GRN, MPS_GRN, GK1, G18, GNT, UMA, RNA, MPS_RNA, GK2, WAR, MPS_WAR, MH1, SS2, M20, C19, ELD, MB1, GN2, THB, IKO, C20, SS3, M21, JMP",
+  "banned": [
+   "Adriana's Valor",
+   "Advantageous Proclamation",
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Assemble the Rank and Vile",
+   "Backup Plan",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Brago's Favor",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Cleanse",
+   "Contract from Below",
+   "Crusade",
+   "Darkpact",
+   "Deathrite Shaman",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dig Through Time",
+   "Double Stroke",
+   "Earthcraft",
+   "Echoing Boon",
+   "Emissary's Ploy",
+   "Falling Star",
+   "Fastbond",
+   "Flash",
+   "Frantic Search",
+   "Gitaxian Probe",
+   "Goblin Recruiter",
+   "Gush",
+   "Hermit Druid",
+   "Hired Heist",
+   "Hold the Perimeter",
+   "Hymn of the Wilds",
+   "Immediate Action",
+   "Imperial Seal",
+   "Imprison",
+   "Incendiary Dissent",
+   "Invoke Prejudice",
+   "Iterative Analysis",
+   "Jeweled Bird",
+   "Jihad",
+   "Library of Alexandria",
+   "Lurrus of the Dream-Den",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Mental Misstep",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Muzzio's Preparations",
+   "Mystical Tutor",
+   "Natural Unity",
+   "Necropotence",
+   "Oath of Druids",
+   "Power Play",
+   "Pradesh Gypsies",
+   "Rebirth",
+   "Secret Summoning",
+   "Secrets of Paradise",
+   "Sensei's Divining Top",
+   "Sentinel Dispatch",
+   "Shahrazad",
+   "Skullclamp",
+   "Sol Ring",
+   "Sovereign's Realm",
+   "Stone-Throwing Devils",
+   "Strip Mine",
+   "Summoner's Bond",
+   "Survival of the Fittest",
+   "Tempest Efreet",
+   "Time Vault",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Treasure Cruise",
+   "Underworld Breach",
+   "Unexpected Potential",
+   "Vampiric Tutor",
+   "Weight Advantage",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldknit",
+   "Wrenn and Six",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will",
+   "Zirda, the Dawnwaker"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 418036,
+   "event": 27449,
+   "archetype": "Hogaak",
+   "player": "Nammersquats",
+   "event_name": "MTGO Legacy Champs",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-09-21",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.32,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 35.0,
+     "R": 0,
+     "G": 14.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Bridge from Below": 4,
+     "Altar of Dementia": 4,
+     "Once Upon a Time": 2,
+     "Careful Study": 4,
+     "Cabal Therapy": 3,
+     "Bloodghast": 4,
+     "Gravecrawler": 4,
+     "Hedron Crab": 4,
+     "Hogaak, Arisen Necropolis": 4,
+     "Stitcher's Supplier": 4,
+     "Vengevine": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 51
+  },
+  {
+   "deck": 414504,
+   "event": 27250,
+   "archetype": "Lands",
+   "player": "Giacomo Battaglia",
+   "event_name": "4Season @ Bologna (Italy)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-09-06",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 26,
+    "lands": 34,
+    "creatures": 2,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 3,
+    "avg_cmc": 1.19,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 6.0,
+     "G": 16.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Mox Diamond": 4,
+     "Elvish Reclaimer": 2,
+     "Exploration": 4,
+     "Sylvan Library": 2,
+     "Crop Rotation": 4,
+     "Punishing Fire": 3,
+     "Life from the Loam": 4,
+     "Gamble": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 32
+  },
+  {
+   "deck": 416335,
+   "event": 27313,
+   "archetype": "TES",
+   "player": "Bryant_Cook",
+   "event_name": "MTGO Legacy Champ Qual",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-09-13",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 47,
+    "lands": 13,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 1.17,
+    "pips": {
+     "W": 0,
+     "U": 10.0,
+     "B": 12.0,
+     "R": 8.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Burning Wish": 4,
+     "Echo of Eons": 1,
+     "Ponder": 4,
+     "Rite of Flame": 4,
+     "Tendrils of Agony": 1,
+     "Ad Nauseam": 1,
+     "Brainstorm": 4,
+     "Dark Ritual": 4,
+     "Veil of Summer": 4,
+     "Chrome Mox": 3,
+     "Defense Grid": 2,
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4,
+     "Mox Opal": 3,
+     "Wishclaw Talisman": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 18
+  },
+  {
+   "deck": 402667,
+   "event": 26429,
+   "archetype": "Canadian Threshold",
+   "player": "Manuel_Danninger",
+   "event_name": "MTGO Legacy Showcase Challenge",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-07-13",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 12,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 5,
+    "avg_cmc": 2.12,
+    "pips": {
+     "W": 0,
+     "U": 34.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Spell Pierce": 2,
+     "Lightning Bolt": 4,
+     "Force of Will": 4,
+     "Force of Negation": 2,
+     "Daze": 4,
+     "Brainstorm": 4,
+     "Preordain": 1,
+     "Ponder": 4,
+     "Chain Lightning": 1,
+     "Tarmogoyf": 3,
+     "Hooting Mandrills": 2,
+     "Dreadhorde Arcanist": 3,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Oko, Thief of Crowns": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 106
+  },
+  {
+   "deck": 363913,
+   "event": 23638,
+   "archetype": "UR Delver",
+   "player": "Hemsley",
+   "event_name": "MTGO Legacy PTQ",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-11-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 13,
+    "counters": 13,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 7,
+    "avg_cmc": 1.88,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Dreadhorde Arcanist": 3,
+     "True-Name Nemesis": 3,
+     "Young Pyromancer": 3,
+     "Chain Lightning": 2,
+     "Ponder": 4,
+     "Preordain": 1,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Force of Will": 4,
+     "Lightning Bolt": 4,
+     "Magmatic Sinkhole": 1,
+     "Spell Pierce": 2,
+     "Stifle": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 65
+  },
+  {
+   "deck": 367487,
+   "event": 24017,
+   "archetype": "Death & Taxes",
+   "player": "Daryl_Ayers",
+   "event_name": "MTGO Legacy Format Playoff",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-12-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 2.06,
+    "pips": {
+     "W": 32.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Flickerwisp": 3,
+     "Mirran Crusader": 2,
+     "Mother of Runes": 4,
+     "Palace Jailer": 1,
+     "Phyrexian Revoker": 3,
+     "Recruiter of the Guard": 2,
+     "Sanctum Prelate": 1,
+     "Stoneforge Mystic": 4,
+     "Thalia, Guardian of Thraben": 4,
+     "Swords to Plowshares": 4,
+     "Aether Vial": 4,
+     "Batterskull": 1,
+     "Sword of Fire and Ice": 1,
+     "Umezawa's Jitte": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 42
+  },
+  {
+   "deck": 394030,
+   "event": 25916,
+   "archetype": "4cc",
+   "player": "Jiho",
+   "event_name": "Lotus Box League Season 1: Legacy 1.5K! @ Team Lotus Box",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-05-31",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 52,
+    "lands": 28,
+    "creatures": 11,
+    "counters": 10,
+    "sweepers": 1,
+    "draw": 16,
+    "burn": 4,
+    "avg_cmc": 2.12,
+    "pips": {
+     "W": 0,
+     "U": 40.0,
+     "B": 15.0,
+     "R": 9.0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 1,
+     "Toxic Deluge": 1,
+     "Abrupt Decay": 1,
+     "Fatal Push": 1,
+     "Lightning Bolt": 1,
+     "Pyroblast": 1,
+     "Force of Negation": 2,
+     "Cling to Dust": 3,
+     "Punishing Fire": 3,
+     "Drown in the Loch": 3,
+     "Assassin's Trophy": 4,
+     "Arcum's Astrolabe": 4,
+     "Force of Will": 4,
+     "Ponder": 4,
+     "Dack Fayden": 4,
+     "Brainstorm": 4,
+     "Baleful Strix": 2,
+     "Snapcaster Mage": 2,
+     "Uro, Titan of Nature's Wrath": 3,
+     "Ice-Fang Coatl": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 34
+  },
+  {
+   "deck": 366158,
+   "event": 23882,
+   "archetype": "Miracles",
+   "player": "Marc Vogt",
+   "event_name": "Grand Prix Bologna 2019",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-12-02",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 5,
+    "counters": 7,
+    "sweepers": 3,
+    "draw": 17,
+    "burn": 0,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 14.0,
+     "U": 35.0,
+     "B": 0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Teferi, Time Raveler": 1,
+     "Oko, Thief of Crowns": 3,
+     "Jace, the Mind Sculptor": 2,
+     "Terminus": 3,
+     "Ponder": 4,
+     "Entreat the Angels": 1,
+     "Veil of Summer": 2,
+     "Swords to Plowshares": 4,
+     "Force of Will": 4,
+     "Force of Negation": 2,
+     "Counterspell": 1,
+     "Brainstorm": 4,
+     "Arcum's Astrolabe": 4,
+     "Snapcaster Mage": 3,
+     "Ice-Fang Coatl": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 34
+  },
+  {
+   "deck": 366962,
+   "event": 23959,
+   "archetype": "Goblins",
+   "player": "Marcelo Scatena",
+   "event_name": "Sunday PTQ @ MagicFest Bologna",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-12-01",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 32,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 4.0,
+     "R": 36.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Goblin Lackey": 4,
+     "Skirk Prospector": 1,
+     "Stingscourger": 1,
+     "Goblin Piledriver": 2,
+     "Munitions Expert": 2,
+     "Goblin Cratermaker": 3,
+     "Mogg War Marshal": 2,
+     "Goblin Sharpshooter": 1,
+     "Goblin Matron": 4,
+     "Goblin Warchief": 1,
+     "Goblin Chieftain": 2,
+     "Gempalm Incinerator": 2,
+     "Goblin Ringleader": 4,
+     "Krenko, Mob Boss": 1,
+     "Sling-Gang Lieutenant": 2,
+     "Goblin Trashmaster": 1,
+     "Aether Vial": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 16
+  },
+  {
+   "deck": 395686,
+   "event": 26018,
+   "archetype": "Artifacts Blue",
+   "player": "LeMasters",
+   "event_name": "MTGO Legacy Showcase Challenge",
+   "stars": 3,
+   "rank": "1",
+   "date": "2020-06-08",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Mishra's Bauble": 2,
+     "Lion's Eye Diamond": 3,
+     "Karn, the Great Creator": 4,
+     "Narset, Parter of Veils": 4,
+     "Echo of Eons": 4,
+     "Urza's Bauble": 4,
+     "Mox Opal": 4,
+     "Lotus Petal": 4,
+     "Chalice of the Void": 4,
+     "Sai, Master Thopterist": 2,
+     "Emry, Lurker of the Loch": 4,
+     "Urza, Lord High Artificer": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 370108,
+   "event": 24352,
+   "archetype": "Salvager Combo",
+   "player": "Komiyama Kenichirou",
+   "event_name": "Eternal Party 2019 @ Tokyo (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-12-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.4,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Mystic Forge": 3,
+     "Lion's Eye Diamond": 3,
+     "Mox Opal": 3,
+     "Urza's Bauble": 4,
+     "Auriok Salvagers": 4,
+     "Monastery Mentor": 4,
+     "Walking Ballista": 3,
+     "Karn, the Great Creator": 4,
+     "Chalice of the Void": 4,
+     "Lotus Petal": 4,
+     "Mishra's Bauble": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 414075,
+   "event": 27208,
+   "archetype": "Dark Depths",
+   "player": "sakuragi21722749",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-06",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.59,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 21.0,
+     "R": 0,
+     "G": 17.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Pithing Needle": 2,
+     "Once Upon a Time": 4,
+     "Crop Rotation": 4,
+     "Abrupt Decay": 2,
+     "Thoughtseize": 4,
+     "Inquisition of Kozilek": 3,
+     "Vampire Hexmage": 4,
+     "Elvish Spirit Guide": 3,
+     "Elvish Reclaimer": 4,
+     "Dark Confidant": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 46
+  },
+  {
+   "deck": 414309,
+   "event": 27232,
+   "archetype": "Elves",
+   "player": "Takano Shigeki",
+   "event_name": "God of Legacy Trial @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-09-05",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.71,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 48.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Glimpse of Nature": 4,
+     "Green Sun's Zenith": 4,
+     "Natural Order": 3,
+     "Once Upon a Time": 3,
+     "Allosaurus Shepherd": 4,
+     "Nettle Sentinel": 4,
+     "Wirewood Symbiote": 4,
+     "Heritage Druid": 4,
+     "Quirion Ranger": 4,
+     "Elvish Visionary": 4,
+     "Birchlore Rangers": 1,
+     "Regal Force": 1,
+     "Craterhoof Behemoth": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 34
+  },
+  {
+   "deck": 411082,
+   "event": 26962,
+   "archetype": "Show and Tell",
+   "player": "Andrew Fiedler",
+   "event_name": "MTGO Open #3 @ NRG Series",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 6,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 4.12,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 12.0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Omniscience": 3,
+     "Sneak Attack": 3,
+     "Show and Tell": 4,
+     "Ponder": 4,
+     "Preordain": 1,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Spell Pierce": 3,
+     "Cunning Wish": 3,
+     "Intuition": 1,
+     "Impulse": 1,
+     "Lotus Petal": 4,
+     "Griselbrand": 3,
+     "Emrakul, the Aeons Torn": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 21
+  },
+  {
+   "deck": 408532,
+   "event": 26831,
+   "archetype": "12 - Post",
+   "player": "Nakamura Ryousuke",
+   "event_name": "\"Emperor of Legacy\" Tournament 9th Season @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-08",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 3.8,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Emrakul, the Aeons Torn": 1,
+     "Golos, Tireless Pilgrim": 2,
+     "Ulamog, the Ceaseless Hunger": 2,
+     "Walking Ballista": 2,
+     "Ugin, the Ineffable": 1,
+     "All Is Dust": 2,
+     "Grim Monolith": 4,
+     "Sorcerous Spyglass": 3,
+     "Chalice of the Void": 3,
+     "Manifold Key": 2,
+     "Trinisphere": 2,
+     "Thran Dynamo": 1,
+     "Mazemind Tome": 1,
+     "Thought-Knot Seer": 4,
+     "Karn, the Great Creator": 4,
+     "Ugin, the Spirit Dragon": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 16
+  },
+  {
+   "deck": 394368,
+   "event": 25934,
+   "archetype": "Reanimator",
+   "player": "wonderPreaux",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-06-01",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 46,
+    "lands": 14,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.52,
+    "pips": {
+     "W": 13.0,
+     "U": 0,
+     "B": 45.0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Unmask": 4,
+     "Thoughtseize": 2,
+     "Tendrils of Agony": 1,
+     "Reanimate": 4,
+     "Faithless Looting": 4,
+     "Exhume": 4,
+     "Cabal Therapy": 1,
+     "Griselbrand": 4,
+     "Chancellor of the Annex": 4,
+     "Children of Korlis": 1,
+     "Animate Dead": 4,
+     "Lotus Petal": 4,
+     "Chrome Mox": 1,
+     "Entomb": 4,
+     "Dark Ritual": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 31
+  },
+  {
+   "deck": 377316,
+   "event": 25145,
+   "archetype": "Bant Control",
+   "player": "MM_17",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-04-07",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 7,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 4.0,
+     "U": 32.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 13.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 1,
+     "Oko, Thief of Crowns": 3,
+     "Teferi, Time Raveler": 1,
+     "Ice-Fang Coatl": 4,
+     "Leovold, Emissary of Trest": 1,
+     "Plague Engineer": 1,
+     "Uro, Titan of Nature's Wrath": 1,
+     "Dead of Winter": 1,
+     "Ponder": 2,
+     "Abrupt Decay": 2,
+     "Brainstorm": 4,
+     "Cling to Dust": 1,
+     "Drown in the Loch": 2,
+     "Force of Negation": 2,
+     "Force of Will": 4,
+     "Swords to Plowshares": 3,
+     "Arcum's Astrolabe": 4,
+     "Sylvan Library": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 400931,
+   "event": 26337,
+   "archetype": "Aluren",
+   "player": "Taniguchi Hiroaki",
+   "event_name": "127th KMC @ Japan",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-05",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 21,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.54,
+    "pips": {
+     "W": 0,
+     "U": 33.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 27.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Brainstorm": 4,
+     "Ponder": 2,
+     "Aluren": 3,
+     "Oko, Thief of Crowns": 3,
+     "Cavern Harpy": 2,
+     "Baleful Strix": 2,
+     "Gilded Goose": 3,
+     "Uro, Titan of Nature's Wrath": 3,
+     "Ice-Fang Coatl": 4,
+     "Abrupt Decay": 2,
+     "Force of Will": 4,
+     "Barrin, Tolarian Archmage": 1,
+     "Leovold, Emissary of Trest": 1,
+     "Ayara, First of Locthwain": 1,
+     "Jolrael, Mwonvuli Recluse": 1,
+     "Eternal Witness": 1,
+     "Shardless Agent": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 13
+  },
+  {
+   "deck": 362009,
+   "event": 23452,
+   "archetype": "UWx Control",
+   "player": "Allen Wu",
+   "event_name": "5K @ ChannelFireball Game Center",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-10-13",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 5,
+    "counters": 8,
+    "sweepers": 1,
+    "draw": 17,
+    "burn": 0,
+    "avg_cmc": 2.27,
+    "pips": {
+     "W": 12.0,
+     "U": 43.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Snapcaster Mage": 3,
+     "Counterbalance": 2,
+     "Monastery Mentor": 2,
+     "Narset, Parter of Veils": 1,
+     "Jace, the Mind Sculptor": 3,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Opt": 2,
+     "Swords to Plowshares": 4,
+     "Spell Pierce": 1,
+     "Spell Snare": 1,
+     "Mystical Dispute": 1,
+     "Accumulated Knowledge": 4,
+     "Council's Judgment": 2,
+     "Supreme Verdict": 1,
+     "Force of Negation": 1,
+     "Force of Will": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 11
+  },
+  {
+   "deck": 374025,
+   "event": 24860,
+   "archetype": "Burn",
+   "player": "Luis Paiva Castaings",
+   "event_name": "TCGeek Final @ Belo Horizonte (Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-02-02",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 22,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 53.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Sulfuric Vortex": 1,
+     "Pyrostatic Pillar": 1,
+     "Searing Blaze": 2,
+     "Rift Bolt": 4,
+     "Price of Progress": 3,
+     "Lightning Bolt": 4,
+     "Light Up the Stage": 3,
+     "Lava Spike": 4,
+     "Fireblast": 4,
+     "Chain Lightning": 4,
+     "Monastery Swiftspear": 4,
+     "Goblin Guide": 4,
+     "Eidolon of the Great Revel": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 11
+  },
+  {
+   "deck": 401436,
+   "event": 26372,
+   "archetype": "Painter",
+   "player": "Chefen",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 16,
+    "counters": 6,
+    "sweepers": 1,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.7,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 17.0,
+     "G": 3.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Soul-Guide Lantern": 1,
+     "Lotus Petal": 4,
+     "Grindstone": 3,
+     "Ensnaring Bridge": 1,
+     "Arcum's Astrolabe": 4,
+     "Veil of Summer": 2,
+     "Red Elemental Blast": 2,
+     "Pyroblast": 4,
+     "Wurmcoil Engine": 1,
+     "Seasoned Pyromancer": 1,
+     "Phyrexian Revoker": 1,
+     "Painter's Servant": 4,
+     "Klothys, God of Destiny": 1,
+     "Imperial Recruiter": 2,
+     "Goblin Welder": 3,
+     "Goblin Engineer": 3,
+     "Karn, the Great Creator": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 7
+  },
+  {
+   "deck": 369651,
+   "event": 24297,
+   "archetype": "Zoo",
+   "player": "Tokuyama Kouta",
+   "event_name": "Emperor of Legacy Tournament 8th Season @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-01-13",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.51,
+    "pips": {
+     "W": 5.0,
+     "U": 3.0,
+     "B": 0,
+     "R": 6.0,
+     "G": 29.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Domri, Anarch of Bolas": 2,
+     "Oko, Thief of Crowns": 3,
+     "Oath of Nissa": 3,
+     "Sylvan Library": 3,
+     "Green Sun's Zenith": 3,
+     "Lightning Bolt": 4,
+     "Swords to Plowshares": 4,
+     "Ramunap Excavator": 1,
+     "Qasali Pridemage": 1,
+     "Noble Hierarch": 3,
+     "Hexdrinker": 3,
+     "Tarmogoyf": 3,
+     "Elvish Reclaimer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 366516,
+   "event": 23918,
+   "archetype": "Gw Maverick",
+   "player": "Alex Rouw",
+   "event_name": "Dutch Open Series @ Jaarbeurs (Utrecht)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-11-10",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 1.83,
+    "pips": {
+     "W": 22.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 1,
+     "Gaddock Teeg": 1,
+     "Giver of Runes": 3,
+     "Green Sun's Zenith": 4,
+     "Knight of the Reliquary": 4,
+     "Noble Hierarch": 3,
+     "Qasali Pridemage": 1,
+     "Questing Beast": 1,
+     "Ramunap Excavator": 1,
+     "Scavenging Ooze": 1,
+     "Scryb Ranger": 1,
+     "Stoneforge Mystic": 2,
+     "Sword of Fire and Ice": 1,
+     "Swords to Plowshares": 4,
+     "Sylvan Library": 1,
+     "Thalia, Guardian of Thraben": 3,
+     "Tireless Tracker": 1,
+     "Tomik, Distinguished Advokist": 2,
+     "Umezawa's Jitte": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 362033,
+   "event": 23454,
+   "archetype": "Oko Foundry",
+   "player": "Diego Nunes",
+   "event_name": "Super Eternal Challenge @ Brasil",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-10-20",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 4,
+    "counters": 8,
+    "sweepers": 4,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 19.0,
+     "U": 32.0,
+     "B": 0,
+     "R": 0,
+     "G": 2.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 2,
+     "Oko, Thief of Crowns": 2,
+     "Teferi, Time Raveler": 1,
+     "Monastery Mentor": 2,
+     "Snapcaster Mage": 2,
+     "Force of Will": 4,
+     "Force of Negation": 2,
+     "Dovin's Veto": 2,
+     "Terminus": 3,
+     "Supreme Verdict": 1,
+     "Council's Judgment": 1,
+     "Swords to Plowshares": 4,
+     "Retrofitter Foundry": 3,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Arcum's Astrolabe": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 413482,
+   "event": 27140,
+   "archetype": "Pro Bant",
+   "player": "Higuchi Yuma",
+   "event_name": "The Last Sun 2020 Qualifier @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-30",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.27,
+    "pips": {
+     "W": 12.0,
+     "U": 13.0,
+     "B": 2.0,
+     "R": 2.0,
+     "G": 31.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Swords to Plowshares": 4,
+     "Green Sun's Zenith": 4,
+     "Natural Order": 4,
+     "Sylvan Library": 1,
+     "Oko, Thief of Crowns": 3,
+     "Teferi, Time Raveler": 3,
+     "Uro, Titan of Nature's Wrath": 1,
+     "Tireless Tracker": 1,
+     "Progenitus": 1,
+     "Archon of Valor's Reach": 1,
+     "Knight of the Reliquary": 2,
+     "Birds of Paradise": 4,
+     "Noble Hierarch": 4,
+     "Brainstorm": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 416336,
+   "event": 27313,
+   "archetype": "Esper Vial",
+   "player": "jtl005",
+   "event_name": "MTGO Legacy Champ Qual",
+   "stars": 3,
+   "rank": "2",
+   "date": "2020-09-13",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 22,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 22.0,
+     "U": 28.0,
+     "B": 5.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Teferi, Time Raveler": 2,
+     "Baleful Strix": 4,
+     "Barrin, Tolarian Archmage": 1,
+     "Charming Prince": 2,
+     "Flickerwisp": 1,
+     "Meddling Mage": 4,
+     "Palace Jailer": 1,
+     "Peacekeeper": 1,
+     "Plague Engineer": 1,
+     "Recruiter of the Guard": 4,
+     "Soulherder": 2,
+     "Venser, Shaper Savant": 1,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Swords to Plowshares": 3,
+     "Aether Vial": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 10
+  },
+  {
+   "deck": 368806,
+   "event": 24183,
+   "archetype": "Storm",
+   "player": "Maruyama Takayoshi",
+   "event_name": "Win a DCI Force of Will Rumble @ Hareruya (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-12-30",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 1.24,
+    "pips": {
+     "W": 0,
+     "U": 12.0,
+     "B": 27.0,
+     "R": 1.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4,
+     "Wishclaw Talisman": 1,
+     "Dark Ritual": 4,
+     "Brainstorm": 4,
+     "Ad Nauseam": 1,
+     "Cabal Therapy": 4,
+     "Infernal Tutor": 4,
+     "Duress": 4,
+     "Thoughtseize": 4,
+     "Preordain": 4,
+     "Ponder": 4,
+     "Tendrils of Agony": 1,
+     "Past in Flames": 1,
+     "Dark Petition": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 47
+  },
+  {
+   "deck": 393688,
+   "event": 25894,
+   "archetype": "Eldrazi Aggro",
+   "player": "themightylinguine",
+   "event_name": "MTGO Legacy Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-05-29",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.47,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 7.0,
+     "G": 3.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Endless One": 4,
+     "Endbringer": 1,
+     "Eldrazi Obligator": 3,
+     "Eldrazi Mimic": 4,
+     "Reality Smasher": 4,
+     "Matter Reshaper": 4,
+     "Chalice of the Void": 4,
+     "Once Upon a Time": 3,
+     "Walking Ballista": 1,
+     "Thought-Knot Seer": 4,
+     "Simian Spirit Guide": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 39
+  },
+  {
+   "deck": 407446,
+   "event": 26752,
+   "archetype": "Dredge",
+   "player": "Shinohara Gen",
+   "event_name": "128th KMC @ Japan",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-08-01",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 47,
+    "lands": 13,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.6,
+    "pips": {
+     "W": 0,
+     "U": 6.0,
+     "B": 37.0,
+     "R": 8.0,
+     "G": 9.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Terror of the Peaks": 1,
+     "Ox of Agonas": 1,
+     "Hogaak, Arisen Necropolis": 1,
+     "Street Wraith": 1,
+     "Golgari Thug": 2,
+     "Putrid Imp": 2,
+     "Shambling Shell": 4,
+     "Stinkweed Imp": 4,
+     "Ichorid": 4,
+     "Narcomoeba": 4,
+     "Golgari Grave-Troll": 4,
+     "Lion's Eye Diamond": 4,
+     "Dread Return": 1,
+     "Breakthrough": 1,
+     "Careful Study": 1,
+     "Faithless Looting": 4,
+     "Cabal Therapy": 4,
+     "Bridge from Below": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 33
+  },
+  {
+   "deck": 406837,
+   "event": 26705,
+   "archetype": "Dragon Stompy",
+   "player": "gazmon48",
+   "event_name": "MTGO Legacy Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-29",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.6,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 32.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Blood Moon": 4,
+     "Trinisphere": 2,
+     "Ensnaring Bridge": 2,
+     "Chrome Mox": 4,
+     "Chalice of the Void": 4,
+     "Simian Spirit Guide": 4,
+     "Magus of the Moon": 4,
+     "Goblin Rabblemaster": 4,
+     "Bonecrusher Giant // Stomp": 4,
+     "Karn, the Great Creator": 4,
+     "Chandra, Torch of Defiance": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 24
+  },
+  {
+   "deck": 372816,
+   "event": 24703,
+   "archetype": "Infect",
+   "player": "Calvin Thomsen",
+   "event_name": "Eternal Clash #19 @ Flensburg (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-02-15",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 8,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 4,
+     "Blighted Agent": 4,
+     "Glistener Elf": 4,
+     "Invigorate": 4,
+     "Vines of Vastwood": 3,
+     "Berserk": 2,
+     "Become Immense": 1,
+     "Crop Rotation": 1,
+     "Daze": 4,
+     "Force of Will": 3,
+     "Spell Pierce": 2,
+     "Brainstorm": 4,
+     "Scale Up": 1,
+     "Ponder": 2,
+     "Sylvan Library": 1,
+     "Oko, Thief of Crowns": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 24
+  },
+  {
+   "deck": 407021,
+   "event": 26724,
+   "archetype": "Ninja",
+   "player": "Capitano_CL",
+   "event_name": "MTGO Legacy Preliminary",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-07-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 18,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Retrofitter Foundry": 3,
+     "Murderous Cut": 1,
+     "Force of Will": 4,
+     "Fatal Push": 1,
+     "Drown in the Loch": 1,
+     "Daze": 3,
+     "Brainstorm": 4,
+     "Thoughtseize": 3,
+     "Ponder": 4,
+     "Yuriko, the Tiger's Shadow": 4,
+     "Ornithopter": 4,
+     "Ingenious Infiltrator": 4,
+     "Changeling Outcast": 4,
+     "Baleful Strix": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 12
+  },
+  {
+   "deck": 394564,
+   "event": 25946,
+   "archetype": "Gyruda",
+   "player": "Rohuty",
+   "event_name": "3rd KMC Online @ MagicOnline",
+   "stars": 2,
+   "rank": "1",
+   "date": "2020-05-24",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.6,
+    "pips": {
+     "W": 4.0,
+     "U": 16.0,
+     "B": 5.0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Lotus Petal": 4,
+     "Chrome Mox": 4,
+     "Chalice of the Void": 4,
+     "Lion's Eye Diamond": 4,
+     "Dragonlord Kolaghan": 1,
+     "Sakashima the Impostor": 1,
+     "Sire of Insanity": 1,
+     "Thought-Knot Seer": 2,
+     "Gyruda, Doom of Depths": 3,
+     "Phantasmal Image": 3,
+     "Dack's Duplicate": 4,
+     "Spark Double": 4,
+     "Restoration Angel": 4,
+     "Phyrexian Metamorph": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 360828,
+   "event": 23341,
+   "archetype": "Death's Shadow",
+   "player": "Marcel J\u00f8rgensen",
+   "event_name": "Danish Masters Fall '19 @ Faraos Cigarer (Copenhagen)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-10-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 14,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.36,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Snuff Out": 1,
+     "Street Wraith": 4,
+     "Daze": 4,
+     "Force of Will": 4,
+     "Gurmag Angler": 2,
+     "Force of Negation": 2,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Death's Shadow": 4,
+     "Reanimate": 2,
+     "Dismember": 1,
+     "Fatal Push": 2,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Thoughtseize": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 366893,
+   "event": 23948,
+   "archetype": "5c Snow Control",
+   "player": "Romario Neto",
+   "event_name": "Quest for Duals @ MTGFirst Game Center",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-12-07",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 6,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 15,
+    "burn": 0,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 5.0,
+     "U": 32.0,
+     "B": 17.0,
+     "R": 0,
+     "G": 5.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Baleful Strix": 4,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "Inquisition of Kozilek": 3,
+     "Teferi, Time Raveler": 3,
+     "Oko, Thief of Crowns": 3,
+     "Arcum's Astrolabe": 3,
+     "Hymn to Tourach": 3,
+     "Abrupt Decay": 2,
+     "Snapcaster Mage": 2,
+     "Swords to Plowshares": 2,
+     "Drown in the Loch": 2,
+     "Jace, the Mind Sculptor": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 366463,
+   "event": 23913,
+   "archetype": "Slivers",
+   "player": "Daniel Nunes",
+   "event_name": "NL19 Super Legacy (B\u00f4nus LML) @ Belo Horizonte (Brazil)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-12-01",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 32,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 16.0,
+     "U": 22.0,
+     "B": 3.0,
+     "R": 6.0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Aether Vial": 4,
+     "Cloudshredder Sliver": 3,
+     "Crystalline Sliver": 4,
+     "Force of Will": 4,
+     "Galerider Sliver": 4,
+     "Hibernation Sliver": 3,
+     "Muscle Sliver": 2,
+     "Plated Sliver": 2,
+     "Predatory Sliver": 4,
+     "Sinew Sliver": 4,
+     "Striking Sliver": 3,
+     "Unsettled Mariner": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  }
+ ],
+ "pool_size": 57,
+ "rejected_illegal": [
+  {
+   "archetype": "Grixis Control",
+   "deck": 391622,
+   "player": "Ryan_39",
+   "why": [
+    "Lurrus of the Dream-Den (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 391753,
+   "player": "Ozymandias17",
+   "why": [
+    "Lurrus of the Dream-Den (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 362583,
+   "player": "Riccardo Zampini",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 386253,
+   "player": "TheStyle",
+   "why": [
+    "Lurrus of the Dream-Den (banned)"
+   ]
+  },
+  {
+   "archetype": "Rug Delver",
+   "deck": 362170,
+   "player": "Christian Rothen",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "Rug Delver",
+   "deck": 362172,
+   "player": "Dario Vicedomini",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 365595,
+   "player": "Tim Wilder",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 372686,
+   "player": "Gul_Dukat",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 372716,
+   "player": "Roberto Venditti",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 372819,
+   "player": "Dennis Kampelmann",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Breach",
+   "deck": 373261,
+   "player": "Sarusta",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Delver",
+   "deck": 363599,
+   "player": "Katou Yuuki",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Delver",
+   "deck": 364490,
+   "player": "Carles Mesegu\u00c3\u00a9",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "Patriot Aggro",
+   "deck": 384206,
+   "player": "Beenew",
+   "why": [
+    "Lurrus of the Dream-Den (banned)"
+   ]
+  },
+  {
+   "archetype": "Patriot Aggro",
+   "deck": 384207,
+   "player": "Theo_Jung",
+   "why": [
+    "Lurrus of the Dream-Den (banned)"
+   ]
+  },
+  {
+   "archetype": "Underworld Breach",
+   "deck": 370763,
+   "player": "MentalMisstep",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Underworld Breach",
+   "deck": 371922,
+   "player": "Antoine Dambron",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Underworld Breach",
+   "deck": 371485,
+   "player": "AronGomu",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Underworld Breach",
+   "deck": 371474,
+   "player": "SoulStrong",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Jeskai Breach",
+   "deck": 372046,
+   "player": "Mattias Anderson",
+   "why": [
+    "Underworld Breach (banned)"
+   ]
+  },
+  {
+   "archetype": "Loamless",
+   "deck": 365221,
+   "player": "Yanagisawa Yuta",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  },
+  {
+   "archetype": "Loam",
+   "deck": 360399,
+   "player": "Zan Syed",
+   "why": [
+    "Wrenn and Six (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Grixis Delver",
+   "player": "Hans Jacob Goddik",
+   "kept": "UR Delver",
+   "kept_player": "Hemsley"
+  },
+  {
+   "dropped": "Bant Mentor",
+   "player": "Oliver Tomajko",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "Omni - Show",
+   "player": "Murkyblack11",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Fiedler"
+  },
+  {
+   "dropped": "Bridgevine",
+   "player": "Giacomo Righini",
+   "kept": "Hogaak",
+   "kept_player": "Nammersquats"
+  },
+  {
+   "dropped": "Ur Delver",
+   "player": "Zachattack23",
+   "kept": "Canadian Threshold",
+   "kept_player": "Manuel_Danninger"
+  },
+  {
+   "dropped": "BUG Threshold",
+   "player": "qbturtle15",
+   "kept": "Canadian Threshold",
+   "kept_player": "Manuel_Danninger"
+  },
+  {
+   "dropped": "Bant Miracles",
+   "player": "Tulio Reis",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "Sneak Show",
+   "player": "Ichino Takahito",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Fiedler"
+  },
+  {
+   "dropped": "Bomberman",
+   "player": "Yamanaka Kousuke",
+   "kept": "Salvager Combo",
+   "kept_player": "Komiyama Kenichirou"
+  },
+  {
+   "dropped": "Temur Delver",
+   "player": "Maxx Kominowski",
+   "kept": "Canadian Threshold",
+   "kept_player": "Manuel_Danninger"
+  },
+  {
+   "dropped": "Ant",
+   "player": "James Johnson",
+   "kept": "Storm",
+   "kept_player": "Maruyama Takayoshi"
+  },
+  {
+   "dropped": "Eldrazi Stompy",
+   "player": "Will Santos",
+   "kept": "Eldrazi Aggro",
+   "kept_player": "themightylinguine"
+  },
+  {
+   "dropped": "Tes",
+   "player": "Philipp Altmann",
+   "kept": "TES",
+   "kept_player": "Bryant_Cook"
+  },
+  {
+   "dropped": "Br Reanimator",
+   "player": "Martin Stark",
+   "kept": "Reanimator",
+   "kept_player": "wonderPreaux"
+  },
+  {
+   "dropped": "Jeskai Mentor",
+   "player": "Mikael Heikinheimo",
+   "kept": "UWx Control",
+   "kept_player": "Allen Wu"
+  },
+  {
+   "dropped": "Dat",
+   "player": "Douglas Rosa",
+   "kept": "Death & Taxes",
+   "kept_player": "Daryl_Ayers"
+  },
+  {
+   "dropped": "12 Post",
+   "player": "Ian Mccarthy",
+   "kept": "12 - Post",
+   "kept_player": "Nakamura Ryousuke"
+  },
+  {
+   "dropped": "Ant Storm",
+   "player": "Davi Pereira",
+   "kept": "Storm",
+   "kept_player": "Maruyama Takayoshi"
+  },
+  {
+   "dropped": "Urza",
+   "player": "_Togno",
+   "kept": "Artifacts Blue",
+   "kept_player": "LeMasters"
+  },
+  {
+   "dropped": "Mono Red Prison",
+   "player": "Glenn Van Roey",
+   "kept": "Dragon Stompy",
+   "kept_player": "gazmon48"
+  },
+  {
+   "dropped": "Golos Post",
+   "player": "Marwin Bravin",
+   "kept": "12 - Post",
+   "kept_player": "Nakamura Ryousuke"
+  },
+  {
+   "dropped": "Bug Hogaak",
+   "player": "Luo Ding",
+   "kept": "Hogaak",
+   "kept_player": "Nammersquats"
+  },
+  {
+   "dropped": "Uwg Miracles",
+   "player": "Stefano Garcia",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "Hogaak Depths",
+   "player": "Matheus Gossn",
+   "kept": "Dark Depths",
+   "kept_player": "sakuragi21722749"
+  },
+  {
+   "dropped": "UR Painter",
+   "player": "Draco_Fyrwing",
+   "kept": "Painter",
+   "kept_player": "Chefen"
+  },
+  {
+   "dropped": "U/w Miracles",
+   "player": "Glenn Van Roey",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "Bant Snoko",
+   "player": "Nathan Vaughn",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "Jund Hogaak",
+   "player": "Philipp Klein",
+   "kept": "Hogaak",
+   "kept_player": "Nammersquats"
+  },
+  {
+   "dropped": "Blue Man Group",
+   "player": "Falkoneye",
+   "kept": "Artifacts Blue",
+   "kept_player": "LeMasters"
+  },
+  {
+   "dropped": "Prison Pyro",
+   "player": "Austin Stark",
+   "kept": "Dragon Stompy",
+   "kept_player": "gazmon48"
+  },
+  {
+   "dropped": "Abzan Depths",
+   "player": "Fynn St\u00f6ter",
+   "kept": "Dark Depths",
+   "kept_player": "sakuragi21722749"
+  },
+  {
+   "dropped": "BUG Midrange",
+   "player": "Tristan P\u00f6lzl",
+   "kept": "Bug Zenith",
+   "kept_player": "William Kim"
+  },
+  {
+   "dropped": "Rb Reanimator",
+   "player": "Leonhard Badenberg",
+   "kept": "Reanimator",
+   "kept_player": "wonderPreaux"
+  },
+  {
+   "dropped": "Thopter Ninja",
+   "player": "Satou Tsubasa",
+   "kept": "Ninja",
+   "kept_player": "Capitano_CL"
+  },
+  {
+   "dropped": "Five-color Astrolabe",
+   "player": "Rodrigo Togores",
+   "kept": "5c Snow Control",
+   "kept_player": "Romario Neto"
+  },
+  {
+   "dropped": "Turbo Depths",
+   "player": "Nicodemo Sasso",
+   "kept": "Dark Depths",
+   "kept_player": "sakuragi21722749"
+  },
+  {
+   "dropped": "Miracle 4c",
+   "player": "Alessandro Tassini",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "Slow Depths",
+   "player": "Francesco Fabris",
+   "kept": "Dark Depths",
+   "kept_player": "sakuragi21722749"
+  },
+  {
+   "dropped": "Death And Taxes",
+   "player": "Alessandro Danesi",
+   "kept": "Death & Taxes",
+   "kept_player": "Daryl_Ayers"
+  },
+  {
+   "dropped": "Merfolk",
+   "player": "Morishita Mizuki",
+   "kept": "Merfolks",
+   "kept_player": "Julio Junior"
+  },
+  {
+   "dropped": "Bug Oko",
+   "player": "Alex Samaniego",
+   "kept": "Bug Zenith",
+   "kept_player": "William Kim"
+  },
+  {
+   "dropped": "4cc Yorion",
+   "player": "Graciasportanto",
+   "kept": "4cc",
+   "kept_player": "Jiho"
+  },
+  {
+   "dropped": "Bant Miracle",
+   "player": "Johannes Gutbrod",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "U/g Infect",
+   "player": "Andreas Hofverberg",
+   "kept": "Infect",
+   "kept_player": "Calvin Thomsen"
+  },
+  {
+   "dropped": "Grixis Ninja",
+   "player": "Yamaro",
+   "kept": "Ninja",
+   "kept_player": "Capitano_CL"
+  },
+  {
+   "dropped": "Rug Delver",
+   "player": "Robin Svens\u00e9n",
+   "kept": "Canadian Threshold",
+   "kept_player": "Manuel_Danninger"
+  },
+  {
+   "dropped": "Maverick",
+   "player": "Shimada Katsuhiro",
+   "kept": "Gw Maverick",
+   "kept_player": "Alex Rouw"
+  },
+  {
+   "dropped": "Stoneblade",
+   "player": "Momme Grupp",
+   "kept": "UWx Control",
+   "kept_player": "Allen Wu"
+  },
+  {
+   "dropped": "Bg Depths",
+   "player": "Vitor Silva",
+   "kept": "Dark Depths",
+   "kept_player": "sakuragi21722749"
+  },
+  {
+   "dropped": "BUG Control",
+   "player": "Itou Shuusaku",
+   "kept": "Bant Control",
+   "kept_player": "MM_17"
+  },
+  {
+   "dropped": "Izzet Delver",
+   "player": "Fabricio Miranda",
+   "kept": "UR Delver",
+   "kept_player": "Hemsley"
+  },
+  {
+   "dropped": "Bant Stoneblade",
+   "player": "Diego Silva",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "4c Miracles",
+   "player": "Davi Pereira",
+   "kept": "Miracles",
+   "kept_player": "Marc Vogt"
+  },
+  {
+   "dropped": "U/r Delver",
+   "player": "Ilja Berukof",
+   "kept": "UR Delver",
+   "kept_player": "Hemsley"
+  },
+  {
+   "dropped": "Bugr Control",
+   "player": "Evan Nelson",
+   "kept": "Bug Control",
+   "kept_player": "Milan Bhayana"
+  },
+  {
+   "dropped": "5c Loam",
+   "player": "William Kim",
+   "kept": "4c Loam",
+   "kept_player": "Yamakiller"
+  },
+  {
+   "dropped": "Loam",
+   "player": "Hayashi Tatsuya",
+   "kept": "4c Loam",
+   "kept_player": "Yamakiller"
+  },
+  {
+   "dropped": "4c Delver",
+   "player": "Saitou Takaya",
+   "kept": "UR Delver",
+   "kept_player": "Hemsley"
+  }
+ ],
+ "objective": 17.64060615936125,
+ "pool_colors": {
+  "U": 37,
+  "B": 26,
+  "G": 29,
+  "R": 17,
+  "W": 20
+ },
+ "pool_styles": {
+  "aggro": 21,
+  "midrange": 15,
+  "combo": 9,
+  "control": 12
+ },
+ "kept_lost": []
+}

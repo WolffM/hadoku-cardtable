@@ -1,0 +1,45 @@
+[metadata]
+Name=Grixis Control (Andrea Boccia)
+Deck Type=Constructed
+Format=Legacy (MAT)
+Effective=2023-05-29
+Source URL=https://www.mtgtop8.com/event?e=42842&d=516654&f=LE
+Comment=LLM#4 (Italy): Andrea Boccia, 1st, Grixis Control. Transcribed from mtgtop8 deck 516654.
+[Main]
+1 Fire // Ice|AP
+1 Pyroblast|IA
+1 Snuff Out|MM
+2 Narset, Parter of Veils|WAR
+2 Rise // Fall|DIS
+2 Inquisition of Kozilek|ROE
+2 Sheoldred's Edict|ONE
+2 Kolaghan's Command|DTK
+3 Lightning Bolt|A
+4 Brainstorm|IA
+4 Force of Will|AL
+4 Ponder|LRW
+1 Caves of Chaos Adventurer|CLB
+2 Fury|MH2
+2 Gurmag Angler|FRF
+3 Snapcaster Mage|ISD
+4 Baleful Strix|PC2
+1 Badlands|A
+1 Swamp|A
+2 Island|A
+2 Underground Sea|A
+3 Bloodstained Mire|ON
+3 Volcanic Island|B
+4 Scalding Tarn|ZEN
+4 Polluted Delta|ON
+[Sideboard]
+2 Tourach, Dread Cantor|MH2
+3 Surgical Extraction|NPH
+2 Red Elemental Blast|A
+1 Plague Engineer|H1R
+1 Meltdown|US
+1 Hydroblast|IA
+1 Hidetsugu Consumes All|NEO
+1 Force of Negation|2X2
+1 Engineered Explosives|FD
+1 Blue Elemental Blast|A
+1 Pyroblast|IA

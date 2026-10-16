@@ -1,0 +1,2405 @@
+{
+ "era": {
+  "year": 2019,
+  "season_start": "2018-10-05",
+  "start": "2019-08-30",
+  "end": "2019-10-04",
+  "format": "Standard (2019-08-30)",
+  "sets": "XLN, RIX, DOM, M19, GRN, G18, RNA, WAR, M20",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 358437,
+   "event": 23082,
+   "archetype": "Esper Control",
+   "player": "Carlos Rom\u00e3o",
+   "event_name": "Fandom Legends",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-09-15",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 2,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 7,
+    "burn": 3,
+    "avg_cmc": 3.28,
+    "pips": {
+     "W": 18.0,
+     "U": 22.0,
+     "B": 30.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Vraska's Contempt": 2,
+     "Unmoored Ego": 1,
+     "Tyrant's Scorn": 2,
+     "Thought Erasure": 4,
+     "The Elderspell": 1,
+     "Teferi, Time Raveler": 4,
+     "Teferi, Hero of Dominaria": 3,
+     "Basilica Bell-Haunt": 2,
+     "Command the Dreadhorde": 2,
+     "Kaya's Wrath": 2,
+     "Legion's End": 2,
+     "Narset, Parter of Veils": 4,
+     "Oath of Kaya": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 138
+  },
+  {
+   "deck": 357173,
+   "event": 22950,
+   "archetype": "Bant Aggro",
+   "player": "djbmppwns",
+   "event_name": "MTGO Standard MCQ",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-09-01",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 13.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 0,
+     "G": 33.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Finale of Glory": 2,
+     "Voracious Hydra": 2,
+     "Trostani Discordant": 2,
+     "Risen Reef": 4,
+     "Paradise Druid": 3,
+     "Llanowar Elves": 4,
+     "Leafkin Druid": 4,
+     "Hydroid Krasis": 4,
+     "Deputy of Detention": 3,
+     "Teferi, Time Raveler": 4,
+     "Nissa, Who Shakes the World": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 38
+  },
+  {
+   "deck": 357969,
+   "event": 23029,
+   "archetype": "Kethis Combo",
+   "player": "Kobayashi Ryohei",
+   "event_name": "Nationals - Japan 2019",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-09-08",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 3,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 12.0,
+     "U": 24.0,
+     "B": 14.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Diligent Excavator": 4,
+     "Fblthp, the Lost": 4,
+     "Lazav, the Multifarious": 4,
+     "Kethis, the Hidden Hand": 4,
+     "Teshar, Ancestor's Apostle": 1,
+     "Mox Amber": 4,
+     "Yawgmoth's Vile Offering": 1,
+     "Oath of Kaya": 3,
+     "Teferi, Time Raveler": 4,
+     "Ashiok, Dream Render": 2,
+     "Tamiyo, Collector of Tales": 3,
+     "Jace, Wielder of Mysteries": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 359126,
+   "event": 23154,
+   "archetype": "Rakdos Aggro",
+   "player": "Martin J\u016fza",
+   "event_name": "Fandom Legends",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-09-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 30.0,
+     "R": 22.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Rotting Regisaur": 4,
+     "Shock": 2,
+     "Spawn of Mayhem": 3,
+     "Lava Coil": 4,
+     "Knight of the Ebon Legion": 4,
+     "Gutterbones": 4,
+     "Fireblade Artist": 4,
+     "Experimental Frenzy": 4,
+     "Dreadhorde Butcher": 4,
+     "Chandra, Acolyte of Flame": 1,
+     "Bedevil": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 357367,
+   "event": 22965,
+   "archetype": "Mono Green Aggro",
+   "player": "Kamo Riki",
+   "event_name": "Season Masters Core Set 2020 @ Hareruya (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-08-31",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 60.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Vivien, Arkbow Ranger": 4,
+     "Ghalta, Primal Hunger": 1,
+     "God-Eternal Rhonas": 1,
+     "Vine Mare": 4,
+     "Steel Leaf Champion": 4,
+     "Paradise Druid": 4,
+     "Growth-Chamber Guardian": 4,
+     "Barkhide Troll": 4,
+     "Pelt Collector": 4,
+     "Llanowar Elves": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 352917,
+   "event": 22484,
+   "archetype": "Red Deck Wins",
+   "player": "Aaron Barich",
+   "event_name": "Star City Games Open Worcester",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-07-13",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 11,
+    "avg_cmc": 2.12,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 52.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Chandra's Spitfire": 4,
+     "Ember Hauler": 4,
+     "Fanatical Firebrand": 4,
+     "Ghitu Lavarunner": 4,
+     "Goblin Chainwhirler": 4,
+     "Runaway Steam-Kin": 4,
+     "Lightning Strike": 4,
+     "Shock": 4,
+     "Light Up the Stage": 4,
+     "Skewer the Critics": 3,
+     "Experimental Frenzy": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 154
+  },
+  {
+   "deck": 349324,
+   "event": 22091,
+   "archetype": "Golgari Aggro",
+   "player": "Rei Sato",
+   "event_name": "MPL Spark Split Week 3",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 3.25,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 17.0,
+     "R": 0,
+     "G": 47.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Nissa, Who Shakes the World": 1,
+     "Vraska, Golgari Queen": 1,
+     "Vivien Reid": 3,
+     "Casualties of War": 3,
+     "Assassin's Trophy": 4,
+     "Massacre Girl": 1,
+     "Ravenous Chupacabra": 2,
+     "Paradise Druid": 2,
+     "Carnage Tyrant": 3,
+     "Wildgrowth Walker": 4,
+     "Merfolk Branchwalker": 4,
+     "Llanowar Elves": 4,
+     "Jadelight Ranger": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 83
+  },
+  {
+   "deck": 351679,
+   "event": 22351,
+   "archetype": "Gruul Aggro",
+   "player": "Shahar Shenhar",
+   "event_name": "Fandom Legends",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-06-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 31.0,
+     "G": 22.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Thorn Lieutenant": 4,
+     "Skarrgan Hellkite": 3,
+     "Shock": 4,
+     "Rekindling Phoenix": 4,
+     "Llanowar Elves": 4,
+     "Legion Warboss": 3,
+     "Gruul Spellbreaker": 4,
+     "Growth-Chamber Guardian": 4,
+     "Domri, Anarch of Bolas": 3,
+     "Domri's Ambush": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 68
+  },
+  {
+   "deck": 335019,
+   "event": 20536,
+   "archetype": "Jeskai Control",
+   "player": "Adrian Sullivan",
+   "event_name": "GP Milwaukee",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-11-18",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 31,
+    "lands": 29,
+    "creatures": 7,
+    "counters": 5,
+    "sweepers": 3,
+    "draw": 7,
+    "burn": 3,
+    "avg_cmc": 3.23,
+    "pips": {
+     "W": 8.0,
+     "U": 37.0,
+     "B": 0,
+     "R": 33.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Teferi, Hero of Dominaria": 3,
+     "Enigma Drake": 2,
+     "Niv-Mizzet, Parun": 4,
+     "Rekindling Phoenix": 1,
+     "Deafening Clarion": 3,
+     "Lava Coil": 2,
+     "Dive Down": 2,
+     "Expansion // Explosion": 3,
+     "Ionize": 2,
+     "Opt": 4,
+     "Settle the Wreckage": 1,
+     "Shock": 1,
+     "Spell Pierce": 1,
+     "Syncopate": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 68
+  },
+  {
+   "deck": 353579,
+   "event": 22545,
+   "archetype": "Nexus Reclamation",
+   "player": "Sam Lawrence",
+   "event_name": "Star City Games Team Open Philadelphia",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-07-20",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 30,
+    "lands": 30,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 3.33,
+    "pips": {
+     "W": 0,
+     "U": 26.0,
+     "B": 0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Blink of an Eye": 1,
+     "Chemister's Insight": 4,
+     "Growth Spiral": 4,
+     "Nexus of Fate": 4,
+     "Opt": 4,
+     "Root Snare": 4,
+     "Callous Dismissal": 1,
+     "Wilderness Reclamation": 4,
+     "Tamiyo, Collector of Tales": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 50
+  },
+  {
+   "deck": 356038,
+   "event": 22827,
+   "archetype": "Bant Scapeshift",
+   "player": "James Lu",
+   "event_name": "Star City Games Team Open Richmond",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-08-17",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 31,
+    "lands": 29,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.9,
+    "pips": {
+     "W": 10.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 0,
+     "G": 27.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Elvish Rejuvenator": 4,
+     "Deputy of Detention": 2,
+     "Arboreal Grazer": 3,
+     "Teferi, Time Raveler": 4,
+     "Time Wipe": 1,
+     "Scapeshift": 4,
+     "Circuitous Route": 4,
+     "Settle the Wreckage": 1,
+     "Growth Spiral": 4,
+     "Hydroid Krasis": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 44
+  },
+  {
+   "deck": 355259,
+   "event": 22735,
+   "archetype": "Orzhov Aggro",
+   "player": "Kanyebest",
+   "event_name": "Fandom Legends",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-08-09",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 13.0,
+     "U": 0,
+     "B": 32.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Adanto Vanguard": 4,
+     "Cast Down": 2,
+     "Champion of Dusk": 4,
+     "Knight of the Ebon Legion": 4,
+     "Legion Lieutenant": 4,
+     "Legion's End": 2,
+     "Sanctum Seeker": 2,
+     "Skymarcher Aspirant": 4,
+     "Sorin, Imperious Bloodlord": 4,
+     "Vicious Conquistador": 3,
+     "Vona, Butcher of Magan": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 42
+  },
+  {
+   "deck": 352895,
+   "event": 22482,
+   "archetype": "Esper Precinct One",
+   "player": "Brian Braun-Duin",
+   "event_name": "Fandom Legends",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-07-14",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 3,
+    "avg_cmc": 3.21,
+    "pips": {
+     "W": 20.0,
+     "U": 25.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Bolas's Citadel": 1,
+     "Hostage Taker": 3,
+     "Command the Dreadhorde": 1,
+     "Narset, Parter of Veils": 2,
+     "Oath of Kaya": 3,
+     "Despark": 2,
+     "Elite Guardmage": 3,
+     "Teferi, Time Raveler": 4,
+     "Thought Erasure": 4,
+     "Tyrant's Scorn": 3,
+     "Teferi, Hero of Dominaria": 4,
+     "Hero of Precinct One": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 36
+  },
+  {
+   "deck": 348278,
+   "event": 21982,
+   "archetype": "Grixis Control",
+   "player": "Diogo Martins",
+   "event_name": "MCQ Barcelona @ Arena (Porto, Portugal)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-18",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 10,
+    "burn": 2,
+    "avg_cmc": 4.34,
+    "pips": {
+     "W": 0,
+     "U": 26.0,
+     "B": 54.0,
+     "R": 18.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Ugin, the Ineffable": 1,
+     "Enter the God-Eternals": 2,
+     "Ritual of Soot": 2,
+     "Nicol Bolas, Dragon-God": 4,
+     "Narset, Parter of Veils": 2,
+     "Cry of the Carnarium": 2,
+     "Thought Erasure": 4,
+     "Discovery // Dispersal": 4,
+     "Liliana, Dreadhorde General": 2,
+     "Nicol Bolas, the Ravager // Nicol Bolas, the Arisen": 4,
+     "Bedeck // Bedazzle": 2,
+     "Angrath's Rampage": 2,
+     "Bedevil": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 31
+  },
+  {
+   "deck": 349710,
+   "event": 22131,
+   "archetype": "Simic Nexus",
+   "player": "Janne Mikkonen",
+   "event_name": "MPL Spark Split Week 4",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.23,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 0,
+     "R": 0,
+     "G": 39.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Elvish Rejuvenator": 3,
+     "Hydroid Krasis": 4,
+     "Incubation Druid": 4,
+     "Jadelight Ranger": 4,
+     "Llanowar Elves": 4,
+     "Growth Spiral": 4,
+     "Nexus of Fate": 4,
+     "Nissa, Who Shakes the World": 4,
+     "Tamiyo, Collector of Tales": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 29
+  },
+  {
+   "deck": 354886,
+   "event": 22692,
+   "archetype": "Boros Feather",
+   "player": "Schiaveto",
+   "event_name": "MTGO Standard MCQ",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-08-05",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 8,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 27.0,
+     "U": 0,
+     "B": 0,
+     "R": 23.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Adanto Vanguard": 4,
+     "Dreadhorde Arcanist": 4,
+     "Feather, the Redeemed": 4,
+     "Legion Warboss": 3,
+     "Tenth District Legionnaire": 4,
+     "Gird for Battle": 2,
+     "Defiant Strike": 4,
+     "Gods Willing": 4,
+     "Reckless Rage": 4,
+     "Sheltering Light": 1,
+     "Shock": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 24
+  },
+  {
+   "deck": 347727,
+   "event": 21927,
+   "archetype": "Esper Midrange",
+   "player": "Alessandro Portaro",
+   "event_name": "MCQ Barcelona #1 @ Rome (Italy)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-11",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 13,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 1,
+    "avg_cmc": 3.2,
+    "pips": {
+     "W": 24.0,
+     "U": 20.0,
+     "B": 26.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Hero of Precinct One": 4,
+     "Thief of Sanity": 4,
+     "Basilica Bell-Haunt": 3,
+     "Elite Guardmage": 2,
+     "Teferi, Hero of Dominaria": 3,
+     "Teferi, Time Raveler": 3,
+     "Liliana, Dreadhorde General": 1,
+     "Ugin, the Ineffable": 1,
+     "Thought Erasure": 4,
+     "Dovin's Veto": 2,
+     "Tyrant's Scorn": 2,
+     "Mortify": 3,
+     "Oath of Kaya": 1,
+     "Vraska's Contempt": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 19
+  },
+  {
+   "deck": 348330,
+   "event": 21986,
+   "archetype": "Jeskai PW",
+   "player": "Zan Syed",
+   "event_name": "Star City Games Open Syracuse",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-18",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 0,
+    "counters": 3,
+    "sweepers": 3,
+    "draw": 9,
+    "burn": 5,
+    "avg_cmc": 2.51,
+    "pips": {
+     "W": 8.0,
+     "U": 23.0,
+     "B": 0,
+     "R": 19.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Teferi, Hero of Dominaria": 1,
+     "Lightning Strike": 1,
+     "Mox Amber": 2,
+     "Karn, Scion of Urza": 2,
+     "Spell Pierce": 3,
+     "Deafening Clarion": 3,
+     "Saheeli, Sublime Artificer": 3,
+     "Opt": 4,
+     "Shock": 4,
+     "Narset, Parter of Veils": 4,
+     "Teferi, Time Raveler": 4,
+     "Sarkhan the Masterless": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 15
+  },
+  {
+   "deck": 350315,
+   "event": 22200,
+   "archetype": "Bant Control",
+   "player": "Kim Seok Hyun",
+   "event_name": "Grand Prix Taipei 2019",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-06-09",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 15,
+    "counters": 2,
+    "sweepers": 3,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 10.0,
+     "U": 28.0,
+     "B": 0,
+     "R": 0,
+     "G": 27.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Finale of Glory": 1,
+     "Time Wipe": 1,
+     "The Immortal Sun": 1,
+     "Entrancing Melody": 2,
+     "Mass Manipulation": 3,
+     "Teferi, Time Raveler": 4,
+     "Nissa, Who Shakes the World": 4,
+     "Frilled Mystic": 2,
+     "Shalai, Voice of Plenty": 2,
+     "Hydroid Krasis": 3,
+     "Paradise Druid": 4,
+     "Llanowar Elves": 4,
+     "Incubation Druid": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 15
+  },
+  {
+   "deck": 349559,
+   "event": 22117,
+   "archetype": "Command the Dreadhorde",
+   "player": "Jim Davis",
+   "event_name": "Fandom Legends",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-31",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 7,
+    "burn": 2,
+    "avg_cmc": 3.44,
+    "pips": {
+     "W": 8.0,
+     "U": 9.0,
+     "B": 14.0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Wildgrowth Walker": 4,
+     "Vraska, Golgari Queen": 2,
+     "Trostani Discordant": 1,
+     "Teferi, Time Raveler": 4,
+     "Teferi, Hero of Dominaria": 1,
+     "Tamiyo, Collector of Tales": 4,
+     "Sorin, Vengeful Bloodlord": 2,
+     "Paradise Druid": 3,
+     "Merfolk Branchwalker": 4,
+     "Massacre Girl": 1,
+     "Jadelight Ranger": 4,
+     "Command the Dreadhorde": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 13
+  },
+  {
+   "deck": 357437,
+   "event": 22972,
+   "archetype": "Rg Dinos",
+   "player": "Jethro Amadeus Chanco",
+   "event_name": "Hobbycon 2019 @ San Pedro Laguna",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.9,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 0,
+     "R": 24.0,
+     "G": 31.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Domri, Anarch of Bolas": 3,
+     "Commune with Dinosaurs": 3,
+     "Reckless Rage": 2,
+     "Uncaged Fury": 1,
+     "Bond of Flourishing": 2,
+     "Lightning Strike": 2,
+     "Domri's Ambush": 2,
+     "Otepec Huntmaster": 2,
+     "Marauding Raptor": 4,
+     "Drover of the Mighty": 2,
+     "Ranging Raptors": 3,
+     "Rampaging Ferocidon": 2,
+     "Ripjaw Raptor": 4,
+     "Shifting Ceratops": 2,
+     "Regisaur Alpha": 3,
+     "Etali, Primal Storm": 1,
+     "Gishath, Sun's Avatar": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 332578,
+   "event": 20283,
+   "archetype": "Golgari Midrange",
+   "player": "Edgar Tan",
+   "event_name": "PPTQ @ Geek City Games (North Liberty, IA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-10-14",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.47,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 29.0,
+     "R": 0,
+     "G": 37.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Find // Finality": 1,
+     "Vraska, Relic Seeker": 3,
+     "Carnage Tyrant": 1,
+     "Vivien Reid": 1,
+     "The Eldest Reborn": 3,
+     "Ravenous Chupacabra": 3,
+     "Golgari Findbroker": 3,
+     "Vraska, Golgari Queen": 3,
+     "Jadelight Ranger": 4,
+     "Plaguecrafter": 1,
+     "Merfolk Branchwalker": 4,
+     "Cast Down": 2,
+     "Assassin's Trophy": 3,
+     "Llanowar Elves": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 37
+  },
+  {
+   "deck": 353583,
+   "event": 22546,
+   "archetype": "DinoJund",
+   "player": "Benjo617",
+   "event_name": "Arena Super Cup Qualifier - Double",
+   "stars": 2,
+   "rank": "1",
+   "date": "2019-07-20",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 3.77,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 4.0,
+     "R": 17.0,
+     "G": 35.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Domri's Ambush": 2,
+     "Collision // Colossus": 2,
+     "Commune with Dinosaurs": 4,
+     "Ghalta, Primal Hunger": 3,
+     "Marauding Raptor": 4,
+     "Regisaur Alpha": 4,
+     "Ripjaw Raptor": 4,
+     "Rotting Regisaur": 4,
+     "Shifting Ceratops": 4,
+     "Otepec Huntmaster": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 15
+  },
+  {
+   "deck": 333724,
+   "event": 20414,
+   "archetype": "Boros Angels",
+   "player": "Tony Boozan",
+   "event_name": "PPTQ @ Kingslayer Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-10-28",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 40.0,
+     "U": 0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Ixalan's Binding": 2,
+     "Aurelia, Exemplar of Justice": 2,
+     "Tocatli Honor Guard": 4,
+     "History of Benalia": 4,
+     "Resplendent Angel": 4,
+     "Lyra Dawnbringer": 3,
+     "Justice Strike": 2,
+     "Adanto Vanguard": 3,
+     "Ajani, Adversary of Tyrants": 1,
+     "Knight of Grace": 3,
+     "Rekindling Phoenix": 4,
+     "Lava Coil": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 12
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 349332,
+   "event": 22091,
+   "archetype": "Weenie White",
+   "player": "Lee Shi Tian",
+   "event_name": "MPL Spark Split Week 3",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 49.0,
+     "U": 2.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Teferi, Time Raveler": 2,
+     "History of Benalia": 4,
+     "Conclave Tribunal": 2,
+     "Venerated Loxodon": 4,
+     "Tomik, Distinguished Advokist": 1,
+     "Tithe Taker": 2,
+     "Snubhorn Sentry": 2,
+     "Skymarcher Aspirant": 4,
+     "Law-Rune Enforcer": 4,
+     "Dauntless Bodyguard": 4,
+     "Benalish Marshal": 4,
+     "Adanto Vanguard": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 79
+  },
+  {
+   "deck": 337837,
+   "event": 20830,
+   "archetype": "Boros Aggro",
+   "player": "Watanabe Takanori",
+   "event_name": "The Finals 2018 - Top8",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-12-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 2.64,
+    "pips": {
+     "W": 38.0,
+     "U": 0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Ajani, Adversary of Tyrants": 2,
+     "History of Benalia": 4,
+     "Conclave Tribunal": 4,
+     "Lava Coil": 1,
+     "Heroic Reinforcements": 3,
+     "Tajic, Legion's Edge": 2,
+     "Hunted Witness": 3,
+     "Dauntless Bodyguard": 4,
+     "Boros Challenger": 4,
+     "Aurelia, Exemplar of Justice": 2,
+     "Adanto Vanguard": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 70
+  },
+  {
+   "deck": 349712,
+   "event": 22131,
+   "archetype": "Sultai Aggro",
+   "player": "Luis Salvatto",
+   "event_name": "MPL Spark Split Week 4",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 0,
+     "U": 10.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 37.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Hostage Taker": 2,
+     "Hydroid Krasis": 4,
+     "Jadelight Ranger": 4,
+     "Llanowar Elves": 4,
+     "Merfolk Branchwalker": 4,
+     "Paradise Druid": 2,
+     "Wildgrowth Walker": 4,
+     "Cast Down": 1,
+     "Command the Dreadhorde": 3,
+     "Nissa, Who Shakes the World": 3,
+     "Tamiyo, Collector of Tales": 4,
+     "Vraska, Golgari Queen": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 58
+  },
+  {
+   "deck": 349693,
+   "event": 22131,
+   "archetype": "UR Aggro",
+   "player": "Jean-Emmanuel Depraz",
+   "event_name": "MPL Spark Split Week 4",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 13,
+    "burn": 11,
+    "avg_cmc": 2.15,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 34.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Arclight Phoenix": 4,
+     "Crackling Drake": 4,
+     "Goblin Electromancer": 4,
+     "Lightning Strike": 4,
+     "Opt": 4,
+     "Radical Idea": 2,
+     "Shock": 4,
+     "Spell Pierce": 2,
+     "Chart a Course": 4,
+     "Finale of Promise": 2,
+     "Lava Coil": 3,
+     "Tormenting Voice": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 53
+  },
+  {
+   "deck": 348073,
+   "event": 21958,
+   "archetype": "Mono Blue Aggro",
+   "player": "Autumn Burchett",
+   "event_name": "MPL Spark Split Week 2 Decklists",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 17,
+    "counters": 15,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 1.63,
+    "pips": {
+     "W": 0,
+     "U": 59.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Siren Stormtamer": 4,
+     "Tempest Djinn": 4,
+     "Merfolk Trickster": 4,
+     "Pteramander": 4,
+     "Surge Mare": 1,
+     "Dive Down": 4,
+     "Opt": 4,
+     "Wizard's Retort": 4,
+     "Essence Capture": 1,
+     "Spell Pierce": 3,
+     "Negate": 2,
+     "Quench": 1,
+     "Chart a Course": 1,
+     "Curious Obsession": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 43
+  },
+  {
+   "deck": 349343,
+   "event": 22091,
+   "archetype": "Temur Reclamation",
+   "player": "Jean-Emmanuel Depraz",
+   "event_name": "MPL Spark Split Week 3",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 0,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 11,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 0,
+     "R": 23.0,
+     "G": 8.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Blink of an Eye": 2,
+     "Chemister's Insight": 3,
+     "Expansion // Explosion": 4,
+     "Growth Spiral": 4,
+     "Lightning Strike": 4,
+     "Negate": 2,
+     "Shock": 4,
+     "Lava Coil": 1,
+     "Wilderness Reclamation": 4,
+     "Narset, Parter of Veils": 2,
+     "Ral, Storm Conduit": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 14
+  },
+  {
+   "deck": 349714,
+   "event": 22131,
+   "archetype": "UB Control",
+   "player": "Jessica Estephan",
+   "event_name": "MPL Spark Split Week 4",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 9,
+    "counters": 2,
+    "sweepers": 2,
+    "draw": 8,
+    "burn": 4,
+    "avg_cmc": 2.92,
+    "pips": {
+     "W": 0,
+     "U": 33.0,
+     "B": 27.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Chemister's Insight": 1,
+     "Tyrant's Scorn": 1,
+     "Ugin, the Ineffable": 1,
+     "Liliana, Dreadhorde General": 1,
+     "The Elderspell": 1,
+     "Cast Down": 2,
+     "Negate": 2,
+     "Vraska's Contempt": 2,
+     "Cry of the Carnarium": 2,
+     "Chart a Course": 3,
+     "Opt": 3,
+     "Enter the God-Eternals": 4,
+     "Thought Erasure": 4,
+     "God-Eternal Kefnet": 2,
+     "Augur of Bolas": 3,
+     "Thief of Sanity": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 13
+  },
+  {
+   "deck": 349346,
+   "event": 22091,
+   "archetype": "Selesnya Aggro",
+   "player": "Brad Nelson",
+   "event_name": "MPL Spark Split Week 3",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-22",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 13,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.81,
+    "pips": {
+     "W": 34.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Gideon Blackblade": 1,
+     "The Immortal Sun": 2,
+     "March of the Multitudes": 2,
+     "History of Benalia": 4,
+     "Conclave Tribunal": 4,
+     "Saproling Migration": 4,
+     "Flower // Flourish": 4,
+     "District Guide": 1,
+     "Trostani Discordant": 3,
+     "Emmara, Soul of the Accord": 3,
+     "Venerated Loxodon": 4,
+     "Thorn Lieutenant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 12
+  },
+  {
+   "deck": 349695,
+   "event": 22131,
+   "archetype": "Jeskai Planeswalker",
+   "player": "John Rolf",
+   "event_name": "MPL Spark Split Week 4",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 3,
+    "counters": 4,
+    "sweepers": 3,
+    "draw": 8,
+    "burn": 6,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 12.0,
+     "U": 23.0,
+     "B": 0,
+     "R": 17.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Fblthp, the Lost": 3,
+     "Negate": 3,
+     "Shock": 2,
+     "Spell Pierce": 1,
+     "Deafening Clarion": 3,
+     "Lava Coil": 4,
+     "Ixalan's Binding": 1,
+     "Prison Realm": 2,
+     "Kasmina, Enigmatic Mentor": 2,
+     "Narset, Parter of Veils": 4,
+     "Sarkhan the Masterless": 4,
+     "Teferi, Hero of Dominaria": 2,
+     "Teferi, Time Raveler": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 9
+  },
+  {
+   "deck": 336941,
+   "event": 20741,
+   "archetype": "Grixis Drakes",
+   "player": "Andrew Jessup",
+   "event_name": "StarCityGames Invitational (Roanoke)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-12-07",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 10,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 9,
+    "avg_cmc": 2.73,
+    "pips": {
+     "W": 0,
+     "U": 39.0,
+     "B": 6.0,
+     "R": 27.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Beacon Bolt": 1,
+     "Dive Down": 3,
+     "Spell Pierce": 3,
+     "Shock": 4,
+     "Opt": 4,
+     "Chart a Course": 4,
+     "Discovery // Dispersal": 4,
+     "Lava Coil": 4,
+     "Niv-Mizzet, Parun": 2,
+     "Crackling Drake": 4,
+     "Enigma Drake": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 7
+  },
+  {
+   "deck": 348071,
+   "event": 21958,
+   "archetype": "Gruul PW Aggro",
+   "player": "Shahar Shenhar",
+   "event_name": "MPL Spark Split Week 2 Decklists",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 2.84,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 35.0,
+     "G": 19.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Vivien, Champion of the Wilds": 1,
+     "Lightning Strike": 2,
+     "Shock": 2,
+     "Domri, Anarch of Bolas": 2,
+     "Sarkhan the Masterless": 2,
+     "Nissa, Who Shakes the World": 2,
+     "Chandra, Fire Artisan": 3,
+     "Dire Fleet Daredevil": 3,
+     "Rekindling Phoenix": 4,
+     "Llanowar Elves": 4,
+     "Legion Warboss": 4,
+     "Gruul Spellbreaker": 4,
+     "Growth-Chamber Guardian": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 349694,
+   "event": 22131,
+   "archetype": "UR Wizards Aggro",
+   "player": "Andrew Cuneo",
+   "event_name": "MPL Spark Split Week 4",
+   "stars": 3,
+   "rank": "1",
+   "date": "2019-05-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 17,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 9,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 20.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Reckless Rage": 1,
+     "Opt": 4,
+     "Shock": 4,
+     "Wizard's Lightning": 4,
+     "Wizard's Retort": 4,
+     "Chart a Course": 4,
+     "Naru Meha, Master Wizard": 2,
+     "Goblin Electromancer": 3,
+     "Adeliz, the Cinder Wind": 4,
+     "Dreadhorde Arcanist": 4,
+     "Augur of Bolas": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 60,
+ "rejected_illegal": [
+  {
+   "archetype": "Simic Aggro",
+   "deck": 359818,
+   "player": "Shahar Shenhar",
+   "why": [
+    "Brazen Borrower (not in legal sets)",
+    "Castle Garenbrig (not in legal sets)",
+    "Gilded Goose (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic Aggro",
+   "deck": 359952,
+   "player": "Lucas Esper Berthoud",
+   "why": [
+    "Castle Garenbrig (not in legal sets)",
+    "Gilded Goose (not in legal sets)",
+    "Oko, Thief of Crowns (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Esper Doom",
+   "deck": 359787,
+   "player": "Bryan Gottlieb",
+   "why": [
+    "Castle Vantress (not in legal sets)",
+    "Dance of the Manse (not in legal sets)",
+    "Doom Foretold (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Esper Doom",
+   "deck": 359815,
+   "player": "Carlos Rom\u00e3o",
+   "why": [
+    "Castle Vantress (not in legal sets)",
+    "Dance of the Manse (not in legal sets)",
+    "Doom Foretold (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic Flash",
+   "deck": 359835,
+   "player": "Markwells",
+   "why": [
+    "Brazen Borrower (not in legal sets)",
+    "Castle Vantress (not in legal sets)",
+    "Fabled Passage (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic Flash",
+   "deck": 359851,
+   "player": "Tgp_kroge",
+   "why": [
+    "Brazen Borrower (not in legal sets)",
+    "Fabled Passage (not in legal sets)",
+    "Mystical Dispute (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant PW",
+   "deck": 359788,
+   "player": "Javier Dominguez",
+   "why": [
+    "Fabled Passage (not in legal sets)",
+    "Gilded Goose (not in legal sets)",
+    "Glass Casket (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant PW",
+   "deck": 359786,
+   "player": "Kbol",
+   "why": [
+    "Fabled Passage (not in legal sets)",
+    "Gilded Goose (not in legal sets)",
+    "Glass Casket (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Golos Ramp",
+   "deck": 359819,
+   "player": "Bryan Gottlieb",
+   "why": [
+    "Castle Vantress (not in legal sets)",
+    "Fabled Passage (not in legal sets)",
+    "Once Upon a Time (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Hydra",
+   "deck": 353555,
+   "player": "Cain Rianhard",
+   "why": [
+    "incomplete list: 60 main, 16 sideboard"
+   ]
+  },
+  {
+   "archetype": "Simic PW",
+   "deck": 359790,
+   "player": "Brad Nelson",
+   "why": [
+    "Brazen Borrower (not in legal sets)",
+    "Castle Garenbrig (not in legal sets)",
+    "Gilded Goose (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic PW",
+   "deck": 359814,
+   "player": "Mike Sigrist",
+   "why": [
+    "Castle Garenbrig (not in legal sets)",
+    "Gilded Goose (not in legal sets)",
+    "Oko, Thief of Crowns (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic PW",
+   "deck": 359847,
+   "player": "Nerevar83",
+   "why": [
+    "Castle Garenbrig (not in legal sets)",
+    "Feasting Troll King (not in legal sets)",
+    "Gilded Goose (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic PW",
+   "deck": 359756,
+   "player": "Vodkacrusader",
+   "why": [
+    "Gilded Goose (not in legal sets)",
+    "Oko, Thief of Crowns (not in legal sets)",
+    "Once Upon a Time (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 359816,
+   "player": "Alexander Hayne",
+   "why": [
+    "Ayara, First of Locthwain (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Murderous Rider (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 359812,
+   "player": "Yellowhat",
+   "why": [
+    "Blacklance Paragon (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Murderous Rider (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 359748,
+   "player": "Facehunter",
+   "why": [
+    "Ayara, First of Locthwain (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Murderous Rider (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black Aggro",
+   "deck": 359752,
+   "player": "Medvedev",
+   "why": [
+    "Ayara, First of Locthwain (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Murderous Rider (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic Oko",
+   "deck": 359789,
+   "player": "Caleb D",
+   "why": [
+    "Castle Garenbrig (not in legal sets)",
+    "Feasting Troll King (not in legal sets)",
+    "Gilded Goose (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Simic Oko",
+   "deck": 359823,
+   "player": "Axax89",
+   "why": [
+    "Gilded Goose (not in legal sets)",
+    "Oko, Thief of Crowns (not in legal sets)",
+    "Wicked Wolf (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Adventure Jund",
+   "deck": 359817,
+   "player": "Ethan Saks",
+   "why": [
+    "Beanstalk Giant (not in legal sets)",
+    "Bonecrusher Giant (not in legal sets)",
+    "Edgewall Innkeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black",
+   "deck": 359850,
+   "player": "Anaximandrosanaximandros",
+   "why": [
+    "Ayara, First of Locthwain (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Murderous Rider (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Black",
+   "deck": 359827,
+   "player": "Scottynada",
+   "why": [
+    "Ayara, First of Locthwain (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Murderous Rider (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dimir Midrange",
+   "deck": 359747,
+   "player": "Camdenrk",
+   "why": [
+    "Castle Locthwain (not in legal sets)",
+    "Castle Vantress (not in legal sets)",
+    "Drown in the Loch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Lucky Clover",
+   "deck": 359813,
+   "player": "Semulin",
+   "why": [
+    "Beanstalk Giant (not in legal sets)",
+    "Castle Locthwain (not in legal sets)",
+    "Edgewall Innkeeper (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Lucky Clover",
+   "deck": 359950,
+   "player": "John Rolf",
+   "why": [
+    "Edgewall Innkeeper (not in legal sets)",
+    "Fabled Passage (not in legal sets)",
+    "Foulmire Knight (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Izzet Phoenix",
+   "player": "Abi Hilario",
+   "kept": "UR Aggro",
+   "kept_player": "Jean-Emmanuel Depraz"
+  },
+  {
+   "dropped": "Izzet Drakes",
+   "player": "Agasyan Artur",
+   "kept": "UR Aggro",
+   "kept_player": "Jean-Emmanuel Depraz"
+  },
+  {
+   "dropped": "Esper Hero Control",
+   "player": "Autumnlily",
+   "kept": "Esper Precinct One",
+   "kept_player": "Brian Braun-Duin"
+  },
+  {
+   "dropped": "Esper Hero",
+   "player": "Brad Nelson",
+   "kept": "Esper Control",
+   "kept_player": "Carlos Rom\u00e3o"
+  },
+  {
+   "dropped": "Jeskai Superfriends",
+   "player": "Amir Okic",
+   "kept": "Jeskai PW",
+   "kept_player": "Zan Syed"
+  },
+  {
+   "dropped": "Simic Mass Manipulation",
+   "player": "Yellowhat",
+   "kept": "Simic Nexus",
+   "kept_player": "Janne Mikkonen"
+  },
+  {
+   "dropped": "Naya Feather",
+   "player": "Pat0presidente",
+   "kept": "Boros Feather",
+   "kept_player": "Schiaveto"
+  },
+  {
+   "dropped": "Gruul Midrange",
+   "player": "Tomas Rios",
+   "kept": "Gruul Aggro",
+   "kept_player": "Shahar Shenhar"
+  },
+  {
+   "dropped": "Monored Aggro",
+   "player": "Jake Flaczinski",
+   "kept": "Red Deck Wins",
+   "kept_player": "Aaron Barich"
+  },
+  {
+   "dropped": "Bant Ramp",
+   "player": "Diego Fernandes Ferraz",
+   "kept": "Bant Control",
+   "kept_player": "Kim Seok Hyun"
+  },
+  {
+   "dropped": "Frenzy Red",
+   "player": "Etienne Busson",
+   "kept": "Red Deck Wins",
+   "kept_player": "Aaron Barich"
+  },
+  {
+   "dropped": "Golos Nexus",
+   "player": "Ali Eldrazi",
+   "kept": "Simic Nexus",
+   "kept_player": "Janne Mikkonen"
+  },
+  {
+   "dropped": "5c Scapeshift",
+   "player": "Ehara Kouta",
+   "kept": "Bant Scapeshift",
+   "kept_player": "James Lu"
+  },
+  {
+   "dropped": "Esper Hero PW",
+   "player": "Ben Friedman",
+   "kept": "Esper Control",
+   "kept_player": "Carlos Rom\u00e3o"
+  },
+  {
+   "dropped": "Selesnya Tokens",
+   "player": "Zachary Kiihne",
+   "kept": "Selesnya Aggro",
+   "kept_player": "Brad Nelson"
+  },
+  {
+   "dropped": "Mono Red",
+   "player": "Scott Li",
+   "kept": "Red Deck Wins",
+   "kept_player": "Aaron Barich"
+  },
+  {
+   "dropped": "Mono Red Aggro",
+   "player": "Alex Deng",
+   "kept": "Red Deck Wins",
+   "kept_player": "Aaron Barich"
+  },
+  {
+   "dropped": "Golgari Explore",
+   "player": "Maxwell Jones",
+   "kept": "Golgari Midrange",
+   "kept_player": "Edgar Tan"
+  },
+  {
+   "dropped": "Sultai Dreadhorde",
+   "player": "Keraan Chetty",
+   "kept": "Sultai Aggro",
+   "kept_player": "Luis Salvatto"
+  },
+  {
+   "dropped": "Bant Midrange",
+   "player": "Kevin Anctil",
+   "kept": "Bant Control",
+   "kept_player": "Kim Seok Hyun"
+  },
+  {
+   "dropped": "Sultai",
+   "player": "Rob De Haan",
+   "kept": "Golgari Midrange",
+   "kept_player": "Edgar Tan"
+  },
+  {
+   "dropped": "Gb Midrange",
+   "player": "Jean-emmanuel Depraz",
+   "kept": "Golgari Midrange",
+   "kept_player": "Edgar Tan"
+  },
+  {
+   "dropped": "Bant Nexus",
+   "player": "Franco Troiano",
+   "kept": "Nexus Reclamation",
+   "kept_player": "Sam Lawrence"
+  },
+  {
+   "dropped": "Sultai Command the Dreadhorde",
+   "player": "Evan Lee",
+   "kept": "Sultai Aggro",
+   "kept_player": "Luis Salvatto"
+  },
+  {
+   "dropped": "Feather Boros",
+   "player": "Sergio Courtois",
+   "kept": "Boros Feather",
+   "kept_player": "Schiaveto"
+  },
+  {
+   "dropped": "Bant Nexushift",
+   "player": "Uenishi Keisuke",
+   "kept": "Bant Scapeshift",
+   "kept_player": "James Lu"
+  },
+  {
+   "dropped": "Immortal Gruul",
+   "player": "Josh Napper",
+   "kept": "Gruul Aggro",
+   "kept_player": "Shahar Shenhar"
+  },
+  {
+   "dropped": "Gr",
+   "player": "Timothy Wu",
+   "kept": "Rg",
+   "kept_player": "Timothy Wu"
+  },
+  {
+   "dropped": "Esper Mid",
+   "player": "Antoine Robert",
+   "kept": "Esper Precinct One",
+   "kept_player": "Brian Braun-Duin"
+  },
+  {
+   "dropped": "Rakdos Control",
+   "player": "Matt Haney",
+   "kept": "Jund",
+   "kept_player": "Lev Ducenko"
+  },
+  {
+   "dropped": "RDW",
+   "player": "Freddie Crespo Jr.",
+   "kept": "Red Deck Wins",
+   "kept_player": "Aaron Barich"
+  },
+  {
+   "dropped": "Golgari Citadel",
+   "player": "Huey Jensen",
+   "kept": "Golgari Aggro",
+   "kept_player": "Rei Sato"
+  },
+  {
+   "dropped": "Esper Citadel",
+   "player": "Covertgoblue",
+   "kept": "Esper Precinct One",
+   "kept_player": "Brian Braun-Duin"
+  },
+  {
+   "dropped": "Izzet Spells",
+   "player": "Pascalmaynard",
+   "kept": "UR Aggro",
+   "kept_player": "Jean-Emmanuel Depraz"
+  },
+  {
+   "dropped": "Esper Superfriends",
+   "player": "Adrian Schrenk",
+   "kept": "Esper Walkers",
+   "kept_player": "Morgan Helmueller"
+  },
+  {
+   "dropped": "Sulta\u00ef Dreadhorde",
+   "player": "Brad Nelson",
+   "kept": "Sultai Aggro",
+   "kept_player": "Luis Salvatto"
+  },
+  {
+   "dropped": "Esper PW",
+   "player": "Atsuki Kihara",
+   "kept": "Esper Control",
+   "kept_player": "Carlos Rom\u00e3o"
+  },
+  {
+   "dropped": "Mono Blue Tempo",
+   "player": "Gabriel Nassif",
+   "kept": "Mono Blue Aggro",
+   "kept_player": "Autumn Burchett"
+  },
+  {
+   "dropped": "Dino Jund",
+   "player": "Corey Baumeister",
+   "kept": "DinoJund",
+   "kept_player": "Benjo617"
+  },
+  {
+   "dropped": "Jund Midrange",
+   "player": "Seth Yandrofski",
+   "kept": "Gruul PW Aggro",
+   "kept_player": "Shahar Shenhar"
+  },
+  {
+   "dropped": "Bant Nexus Golos",
+   "player": "Autumnlilymtg",
+   "kept": "Bant Scapeshift",
+   "kept_player": "James Lu"
+  },
+  {
+   "dropped": "4c Dreadhorde",
+   "player": "Christian Schwarz",
+   "kept": "Command the Dreadhorde",
+   "kept_player": "Jim Davis"
+  },
+  {
+   "dropped": "Esper PW Hero",
+   "player": "Francisco Avila",
+   "kept": "Esper Control",
+   "kept_player": "Carlos Rom\u00e3o"
+  },
+  {
+   "dropped": "Jund Dinosaurs",
+   "player": "CalebD",
+   "kept": "DinoJund",
+   "kept_player": "Benjo617"
+  },
+  {
+   "dropped": "Temur Elemental aggro",
+   "player": "Chris Johnson",
+   "kept": "Temur Elemental",
+   "kept_player": "Thalai"
+  },
+  {
+   "dropped": "Red Aggro",
+   "player": "Joao Claudio Souza",
+   "kept": "Red Deck Wins",
+   "kept_player": "Aaron Barich"
+  },
+  {
+   "dropped": "Mono White",
+   "player": "Nils Kern",
+   "kept": "Weenie White",
+   "kept_player": "Lee Shi Tian"
+  },
+  {
+   "dropped": "Precinct One Esper",
+   "player": "lasjg",
+   "kept": "Esper Precinct One",
+   "kept_player": "Brian Braun-Duin"
+  },
+  {
+   "dropped": "Drakes",
+   "player": "Alienware_",
+   "kept": "Grixis Drakes",
+   "kept_player": "Andrew Jessup"
+  },
+  {
+   "dropped": "Bant Hydra",
+   "player": "Yellowhat",
+   "kept": "Bant Aggro",
+   "kept_player": "djbmppwns"
+  }
+ ],
+ "objective": 18.12,
+ "pool_colors": {
+  "W": 26,
+  "U": 40,
+  "B": 24,
+  "G": 31,
+  "R": 28
+ },
+ "pool_styles": {
+  "control": 15,
+  "aggro": 22,
+  "combo": 2,
+  "midrange": 21
+ },
+ "kept_lost": []
+}

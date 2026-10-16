@@ -1,0 +1,35 @@
+[metadata]
+Name=Bomberman (xJCloud)
+Deck Type=Constructed
+Format=Legacy (C19)
+Effective=2019-08-30
+Source URL=https://www.mtgtop8.com/event?e=23161&d=359196&f=LE
+Comment=MTGO Legacy Challenge: xJCloud, 1st, Bomberman. Transcribed from mtgtop8 deck 359196.
+[Main]
+6 Plains|A
+2 Karakas|LG
+4 City of Traitors|EX
+4 Cavern of Souls|AVR
+4 Ancient Tomb|TE
+4 Urza's Bauble|IA
+3 Mystic Forge|M20
+3 Mox Opal|SOM
+4 Mishra's Bauble|CSP
+4 Lotus Petal|TE
+3 Lion's Eye Diamond|MI
+4 Chalice of the Void|MR
+3 Walking Ballista|AER
+4 Monastery Mentor|FRF
+4 Auriok Salvagers|FD
+4 Karn, the Great Creator|WAR
+[Sideboard]
+1 Tormod's Crypt|DK
+3 Swords to Plowshares|A
+1 Mycosynth Lattice|DS
+1 Ensnaring Bridge|SH
+1 Engineered Explosives|FD
+2 Disenchant|A
+3 Containment Priest|C14
+1 Cast Out|AKH
+1 Lion's Eye Diamond|MI
+1 Walking Ballista|AER

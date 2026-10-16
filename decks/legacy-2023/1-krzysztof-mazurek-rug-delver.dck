@@ -1,0 +1,38 @@
+[metadata]
+Name=Rug Delver (Krzysztof Mazurek)
+Deck Type=Constructed
+Format=Legacy (MAT)
+Effective=2023-05-29
+Source URL=https://www.mtgtop8.com/event?e=45357&d=535021&f=LE
+Comment=Polish National Championship @ Łódź (Poland): Krzysztof Mazurek, 1st, Rug Delver. Transcribed from mtgtop8 deck 535021.
+[Main]
+3 Tarmogoyf|FUT
+4 Delver of Secrets|ISD
+4 Dragon's Rage Channeler|MH2
+3 Murktide Regent|MH2
+4 Brainstorm|IA
+1 Chain Lightning|LG
+4 Lightning Bolt|A
+4 Ponder|LRW
+1 Pyroblast|IA
+1 Spell Pierce|ZEN
+4 Daze|NE
+4 Force of Will|AL
+4 Mishra's Bauble|CSP
+4 Flooded Strand|ON
+2 Polluted Delta|ON
+2 Misty Rainforest|ZEN
+2 Tropical Island|A
+4 Volcanic Island|B
+1 Island|A
+4 Wasteland|TE
+[Sideboard]
+1 Pyroblast|IA
+2 Meltdown|US
+1 Abrade|HOU
+2 Force of Negation|2X2
+1 Grafdigger's Cage|DKA
+2 Hydroblast|IA
+2 Minsc & Boo, Timeless Heroes|CLB
+2 Red Elemental Blast|A
+2 Surgical Extraction|NPH

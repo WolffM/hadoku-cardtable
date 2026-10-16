@@ -1,0 +1,34 @@
+[metadata]
+Name=Gruul Aggro (Paskardi)
+Deck Type=Constructed
+Format=Standard (SNC)
+Effective=2022-04-29
+Source URL=https://www.mtgtop8.com/event?e=32771&d=451233&f=ST
+Comment=MTGO Standard Super Qualifier: Paskardi, 1st, Gruul Aggro. Transcribed from mtgtop8 deck 451233.
+[Main]
+2 Briarbridge Tracker|MID
+4 Goldspan Dragon|KHM
+4 Jaspera Sentinel|KHM
+4 Magda, Brazen Outlaw|KHM
+3 Prosperous Innkeeper|AFR
+4 Reckless Stormseeker|MID
+4 Shatterskull Smashing|ZNR
+3 Dragon's Fire|AFR
+2 Negate|ZNR
+4 Esika's Chariot|KHM
+4 Ranger Class|AFR
+4 Barkchannel Pathway|KHM
+4 Cragcrown Pathway|ZNR
+2 Den of the Bugbear|AFR
+4 Forest|SNC
+2 Lair of the Hydra|AFR
+1 Mountain|SNC
+4 Riverglide Pathway|ZNR
+1 Rockfall Vale|MID
+[Sideboard]
+4 Burning Hands|AFR
+2 Disdainful Stroke|SNC
+2 Kessig Naturalist|MID
+3 Play with Fire|MID
+3 Tangletrap|STX
+1 Test of Talents|STX

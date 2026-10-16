@@ -1,0 +1,44 @@
+[metadata]
+Name=Golgari Control (Rex_Iudex)
+Deck Type=Constructed
+Format=Standard (2023-05-29)
+Effective=2023-05-29
+Source URL=https://www.mtgtop8.com/event?e=45966&d=539648&f=ST
+Comment=MTGO Challenge 32: Rex_Iudex, 14th, Golgari Control. Transcribed from mtgtop8 deck 539648.
+[Main]
+2 Graveyard Trespasser|MID
+4 Storm the Festival|MID
+2 Path of Peril|VOW
+4 Deathcap Glade|VOW
+2 Sorin the Mirthless|VOW
+4 Azusa's Many Journeys|NEO
+2 Boseiju, Who Endures|NEO
+1 Takenuma, Abandoned Mire|NEO
+3 Ziatora's Proving Ground|SNC
+3 Go for the Throat|BRO
+3 Sheoldred, the Apocalypse|DMU
+2 Floriferous Vinewall|DMU
+1 Tear Asunder|DMU
+4 Llanowar Wastes|BRO
+1 Sheoldred's Edict|ONE
+2 Contagious Vorrac|ONE
+2 Glissa Sunslayer|ONE
+2 Mirrex|ONE
+2 Vorinclex|MOM
+1 Breach the Multiverse|MOM
+1 Invasion of Innistrad|MOM
+2 Sheoldred|MOM
+1 Overgrown Pest|MOM
+5 Swamp|MOM
+4 Forest|MOM
+[Sideboard]
+1 Path of Peril|VOW
+1 Breach the Multiverse|MOM
+2 Obstinate Baloth|BRO
+3 Duress|ONE
+1 Parasitic Grasp|VOW
+1 Unlicensed Hearse|SNC
+2 Cut Down|DMU
+2 Fade from History|BRO
+1 Thrun, Breaker of Silence|ONE
+1 Wrenn and Realmbreaker|MOM

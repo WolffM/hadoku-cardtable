@@ -1,0 +1,35 @@
+[metadata]
+Name=Dinosaurs (Voltzwagon)
+Deck Type=Constructed
+Format=Standard (M19)
+Effective=2018-07-13
+Source URL=https://www.mtgtop8.com/event?e=18898&d=318403&f=ST
+Comment=MTGO Standard MOCS: Voltzwagon, 1st, Dinosaurs. Transcribed from mtgtop8 deck 318403.
+[Main]
+4 Commune with Dinosaurs|XLN
+2 Struggle // Survive|HOU
+4 Abrade|HOU
+2 Blossoming Defense|KLD
+1 Magma Spray|AKH
+2 Heart of Kiran|AER
+7 Forest|M19
+2 Hashep Oasis|HOU
+7 Mountain|M19
+4 Rootbound Crag|XLN
+3 Sheltered Thicket|AKH
+4 Deathgorge Scavenger|XLN
+2 Ghalta, Primal Hunger|RIX
+4 Merfolk Branchwalker|XLN
+4 Regisaur Alpha|XLN
+4 Rekindling Phoenix|RIX
+2 Rhonas the Indomitable|AKH
+2 Thrashing Brontodon|RIX
+[Sideboard]
+1 Struggle // Survive|HOU
+2 Magma Spray|AKH
+2 Carnage Tyrant|XLN
+2 Chandra, Torch of Defiance|KLD
+3 Chandra's Defeat|HOU
+2 Lifecrafter's Bestiary|AER
+2 Sweltering Suns|AKH
+1 Thrashing Brontodon|RIX

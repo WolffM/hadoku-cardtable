@@ -1,0 +1,40 @@
+[metadata]
+Name=Rakdos Aggro (Naisirc)
+Deck Type=Constructed
+Format=Modern (OTJ)
+Effective=2024-04-19
+Source URL=https://www.mtgtop8.com/event?e=56421&d=620740&f=MO
+Comment=MTGO Challenge 64: Naisirc, 1st, Rakdos Aggro. Transcribed from mtgtop8 deck 620740.
+[Main]
+2 Angrath's Rampage|WAR
+2 Verdant Catacombs|ZEN
+4 Thoughtseize|THS
+1 Terminate|ARB
+1 Castle Locthwain|ELD
+3 Swamp|OTJ
+4 Fable of the Mirror-Breaker|NEO
+2 Fatal Push|AER
+4 Ragavan, Nimble Pilferer|MH2
+1 Kroxa, Titan of Death's Hunger|THB
+1 Polluted Delta|KTK
+4 Orcish Bowmasters|LTR
+4 Not Dead After All|WOE
+2 Marsh Flats|ZEN
+2 Lightning Bolt|M11
+4 Grief|MH2
+1 Raucous Theater|MKM
+2 Sheoldred, the Apocalypse|DMU
+4 Dauthi Voidwalker|MH2
+1 Takenuma, Abandoned Mire|NEO
+4 Bloodstained Mire|KTK
+4 Blood Crypt|RNA
+1 Undying Evil|DKA
+2 Blackcleave Cliffs|ONE
+[Sideboard]
+2 Angrath's Rampage|WAR
+1 Liliana of the Veil|DMU
+1 Bonecrusher Giant|ELD
+2 Chalice of the Void|MR
+2 Kolaghan's Command|DTK
+4 Leyline of the Void|M20
+3 Blood Moon|9E

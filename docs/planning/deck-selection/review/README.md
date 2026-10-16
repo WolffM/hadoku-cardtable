@@ -1,12 +1,12 @@
-# Deck selection review — "power summers", Standard 1995–2016, Modern and Legacy
+# Deck selection review — "power summers", Standard 1995–2025, Modern and Legacy
 
-One era per year per format: for Standard, the format in force **just before the fall rotation**, when the old block and the new one are legal together. Type 2 in 1995 and 1996 had no autumn rotation and changed its restricted list between Worlds and the autumn set, so those two years take the format in force on August 1st. Modern and Legacy do not rotate, so their eras are pinned to the same year’s Standard era’s own dates (wave 48, Settled) — same season window, snapshot taken from the latest dated Modern/Legacy format file on or before that date.
+One era per year per format: for Standard, the format in force **just before the fall rotation**, when the old block and the new one are legal together. Type 2 in 1995 and 1996 had no autumn rotation and changed its restricted list between Worlds and the autumn set, so those two years take the format in force on August 1st; so does 2023, when WotC moved Standard to a three-year rotation and Wilds of Eldraine dropped no set. Modern and Legacy do not rotate, so their eras are pinned to the same year’s Standard era’s own dates (wave 48, Settled) — same season window, snapshot taken from the latest dated Modern/Legacy format file on or before that date.
 
 ## How the decks were chosen
 
 1. **Candidates:** every deck from a competitive-level event (Pro Tour, Worlds, Grand Prix, Nationals, SCG Opens, PTQs; not online dailies) in the season before that fall rotation, from [mtgtop8](https://www.mtgtop8.com). Events inside the summer window count more than earlier ones. A season whose competitive events cannot fill the era also takes mtgtop8’s **regular** events (local tournaments); they carry the fewest stars, so they only ever fill gaps.
 2. **One deck per archetype**, the one that went furthest (a bigger event counts more). **No near-duplicates:** two lists count as the same deck when they share 60% of their cards, or 45% and the same colours, or 30% and the same archetype name.
-3. **Legal in that era**, checked card by card against Forge's own format file (legal sets, bans, and Type 2's restricted list and one-of-each-legendary rule) — ST's own dated Standard file, MO/LE's latest dated file on or before the era's snapshot date.
+3. **Legal in that era**, checked card by card against Forge's own format file (legal sets, bans, and Type 2's restricted list and one-of-each-legendary rule) — ST's own dated Standard file, MO/LE's latest dated file on or before the era's snapshot date. **Loadable**, too: every card has a script in Forge at the pinned commit, or the deck could not be played here.
 4. **Colour spread:** the chosen decks are searched so each of the five colours is played by about the same number of them (a colour may sit 2 decks off the mean for free). Colours are read from mana costs, not from the archetype name.
 5. **Style spread:** at least 4 decks of each style when the era has them, at most 10 of any one, and the targets lean toward the rarer styles.
 6. **Strength still counts:** within those limits the search maximises how well the decks actually placed. 24 decks per era where the season has them — **thin seasons are reported, not padded** (fewer than 24 legal candidates means a smaller era).
@@ -17,7 +17,7 @@ One era per year per format: for Standard, the format in force **just before the
 
 Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style is a heuristic** (creature count, average cost, counterspells and sweepers, plus archetype names); each format section’s table shows how every deck was judged. Wrong ones can be fixed in `style-overrides.json` (Standard), `style-overrides-modern.json`, `style-overrides-legacy.json`.
 
-**811 decks across 40 eras.**
+**1459 decks across 67 eras.**
 
 ## Standard eras
 
@@ -45,7 +45,16 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | [2014](2014.md) | Standard (M15) | 2014-07-18 → 2014-09-26 | 50 | 24 | 13 | 9 | 13 | 9 | 12 | 7 | 8 | 8 | 1 |
 | [2015](2015.md) | Standard (ORI) | 2015-07-17 → 2015-10-02 | 75 | 24 | 10 | 11 | 11 | 13 | 13 | 8 | 8 | 5 | 3 |
 | [2016](2016.md) | Standard (EMN) | 2016-07-22 → 2016-09-30 | 45 | 24 | 11 | 9 | 9 | 11 | 12 | 8 | 9 | 7 | 0 |
-| **all** | | | | **401** | 152 | 170 | 154 | 180 | 172 | 131 | 133 | 113 | 24 |
+| [2017](2017.md) | Standard (HOU) | 2017-07-14 → 2017-09-29 | 50 | 24 | 11 | 13 | 11 | 12 | 10 | 9 | 7 | 8 | 0 |
+| [2018](2018.md) | Standard (M19) | 2018-07-13 → 2018-10-05 | 53 | 24 | 11 | 11 | 12 | 8 | 8 | 9 | 8 | 7 | 0 |
+| [2019](2019.md) | Standard (2019-08-30) | 2019-08-30 → 2019-10-04 | 60 | 24 | 13 | 13 | 10 | 10 | 13 | 8 | 8 | 6 | 2 |
+| [2020](2020.md) | Standard (2020-08-03) | 2020-08-03 → 2020-09-25 | 46 | 24 | 9 | 13 | 10 | 10 | 13 | 10 | 7 | 7 | 0 |
+| [2021](2021.md) | Standard (AFR) | 2021-07-23 → 2021-09-24 | 49 | 24 | 10 | 13 | 11 | 11 | 13 | 8 | 7 | 9 | 0 |
+| [2022](2022.md) | Standard (SNC) | 2022-04-29 → 2022-09-09 | 56 | 24 | 13 | 11 | 11 | 11 | 9 | 9 | 7 | 7 | 1 |
+| [2023](2023.md) | Standard (2023-05-29) | 2023-05-29 → 2023-09-08 | 39 | 24 | 12 | 11 | 11 | 8 | 8 | 10 | 7 | 7 | 0 |
+| [2024](2024.md) | Standard (OTJ) | 2024-04-19 → 2024-08-02 | 58 | 24 | 11 | 12 | 13 | 9 | 10 | 10 | 6 | 7 | 1 |
+| [2025](2025.md) | Standard (2025-06-30) | 2025-06-30 → 2025-08-01 | 49 | 24 | 13 | 9 | 13 | 10 | 10 | 10 | 6 | 7 | 1 |
+| **all** | | | | **617** | 255 | 276 | 256 | 269 | 266 | 214 | 196 | 178 | 29 |
 
 ### Standard: how each archetype was judged (style)
 
@@ -452,6 +461,222 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2016 | Boros Aggro | aggro | label |
 | 2016 | Naya | midrange | default |
 | 2016 | Jund | midrange | default |
+| 2017 | Mardu Vehicles | aggro | cards |
+| 2017 | Mono Black Zombies | aggro | label |
+| 2017 | Temur Energy | aggro | cards |
+| 2017 | Azorius Aggro | aggro | label |
+| 2017 | Boros Aggro | aggro | label |
+| 2017 | Gw Ramp | midrange | default |
+| 2017 | Uw Eldrazi | midrange | default |
+| 2017 | 4-color Control | control | label |
+| 2017 | Golgari Delirium | aggro | cards |
+| 2017 | Emerge | midrange | default |
+| 2017 | Bg Constrictor | aggro | cards |
+| 2017 | Orzhov Control | control | label |
+| 2017 | Colossus Aggro Affinity | aggro | label |
+| 2017 | Gruul Ramp | control | cards |
+| 2017 | Rakdos Control | control | label |
+| 2017 | Sultai Aggro | aggro | label |
+| 2017 | UW Control | control | label |
+| 2017 | W/u Monument | midrange | default |
+| 2017 | Izzet Control | control | label |
+| 2017 | Temur Tower | control | cards |
+| 2017 | Mardu Control | control | label |
+| 2017 | Jeskai Gift | midrange | default |
+| 2017 | Sultai Midrange | midrange | default |
+| 2017 | Naya Ramp | midrange | default |
+| 2018 | Rakdos Aggro | aggro | label |
+| 2018 | Red Deck Wins | aggro | label |
+| 2018 | UW Control | control | label |
+| 2018 | Esper Control | control | label |
+| 2018 | Dimir Midrange | midrange | default |
+| 2018 | Mono Green Aggro | aggro | label |
+| 2018 | Orzhov Aggro | aggro | label |
+| 2018 | Mono-Blue Reservoir | control | cards |
+| 2018 | Golgari Constrictor | aggro | cards |
+| 2018 | Grixis Control | control | label |
+| 2018 | Mardu Vehicle | aggro | cards |
+| 2018 | God-Pharaoh's Gift Control | control | label |
+| 2018 | Selesnya Aggro | aggro | label |
+| 2018 | Orzhov Vehicles | midrange | default |
+| 2018 | Mono Black Aggro | aggro | label |
+| 2018 | Dinosaurs | midrange | default |
+| 2018 | WG Tokens | midrange | default |
+| 2018 | Gruul Aggro | aggro | label |
+| 2018 | Wu | midrange | default |
+| 2018 | Bant Nexus | control | cards |
+| 2018 | Grixis | midrange | default |
+| 2018 | Orzhov Control | control | label |
+| 2018 | Selesnya Ramp | midrange | default |
+| 2018 | Grixis Improvise | midrange | default |
+| 2019 | Esper Control | control | label |
+| 2019 | Bant Aggro | aggro | label |
+| 2019 | Kethis Combo | combo | label |
+| 2019 | Rakdos Aggro | aggro | label |
+| 2019 | Mono Green Aggro | aggro | label |
+| 2019 | Red Deck Wins | aggro | label |
+| 2019 | Golgari Aggro | aggro | label |
+| 2019 | Gruul Aggro | aggro | label |
+| 2019 | Jeskai Control | control | label |
+| 2019 | Nexus Reclamation | control | cards |
+| 2019 | Bant Scapeshift | combo | label |
+| 2019 | Orzhov Aggro | aggro | label |
+| 2019 | Esper Precinct One | midrange | default |
+| 2019 | Grixis Control | control | label |
+| 2019 | Simic Nexus | midrange | default |
+| 2019 | Boros Feather | aggro | cards |
+| 2019 | Esper Midrange | midrange | default |
+| 2019 | Jeskai PW | control | cards |
+| 2019 | Bant Control | control | label |
+| 2019 | Command the Dreadhorde | midrange | default |
+| 2019 | Rg Dinos | midrange | default |
+| 2019 | Golgari Midrange | midrange | default |
+| 2019 | DinoJund | midrange | default |
+| 2019 | Boros Angels | midrange | default |
+| 2020 | Sultai Control | control | label |
+| 2020 | Adventure | midrange | default |
+| 2020 | Temur Yorion Elementals | midrange | default |
+| 2020 | Mono Green Aggro | aggro | label |
+| 2020 | Red Deck Wins | aggro | label |
+| 2020 | Weenie White | aggro | label |
+| 2020 | Rakdos Aggro | aggro | label |
+| 2020 | Winota | aggro | cards |
+| 2020 | Mono Black Aggro | aggro | label |
+| 2020 | Temur Control | control | label |
+| 2020 | Temur Flash Aggro | aggro | label |
+| 2020 | Sultai Aggro | aggro | label |
+| 2020 | UGb | midrange | default |
+| 2020 | Jeskai Control | control | label |
+| 2020 | Gruul Aggro | aggro | label |
+| 2020 | Selesnya Aggro | aggro | label |
+| 2020 | Orzhov DOOM | midrange | default |
+| 2020 | 4c Control | control | label |
+| 2020 | Esper DOOM Uro | midrange | default |
+| 2020 | Sultai Flash | control | cards |
+| 2020 | UB Control | control | label |
+| 2020 | WW All That Glitters | midrange | default |
+| 2020 | Esper Control | control | label |
+| 2020 | Gyruda | midrange | default |
+| 2021 | Sultai Yorion Ultimatum | control | cards |
+| 2021 | Gruul Aggro | aggro | label |
+| 2021 | Naya Aggro | aggro | label |
+| 2021 | Izzet Control | control | label |
+| 2021 | Winota | midrange | default |
+| 2021 | Rakdos Aggro | aggro | label |
+| 2021 | Mono Green Aggro | aggro | label |
+| 2021 | Red Deck Wins | aggro | label |
+| 2021 | Dimir Mill | control | label |
+| 2021 | Temur Lukka | midrange | default |
+| 2021 | Weenie White | aggro | label |
+| 2021 | Jeskai Cycling Aggro | aggro | label |
+| 2021 | Jeskai Mutate | midrange | default |
+| 2021 | Dimir Control | control | label |
+| 2021 | Sultai Control | control | label |
+| 2021 | 4c Yorion | control | cards |
+| 2021 | Simic Aggro | aggro | label |
+| 2021 | Gyruda | midrange | default |
+| 2021 | Abzan Yorion | midrange | default |
+| 2021 | Grixis Control | control | label |
+| 2021 | Abzan Yorion Midrange | midrange | default |
+| 2021 | Mono Blue Control | control | label |
+| 2021 | Temur Ramp Ultimatum | midrange | default |
+| 2021 | Orzhov Control | control | label |
+| 2022 | Jeskai Hinata | midrange | default |
+| 2022 | Esper Aggro | aggro | label |
+| 2022 | Orzhov Aggro | aggro | label |
+| 2022 | Weenie White | aggro | label |
+| 2022 | Jeskai Control | control | label |
+| 2022 | Temur Aggro | aggro | label |
+| 2022 | Esper Control | control | label |
+| 2022 | Gruul Aggro | aggro | label |
+| 2022 | UW Control | control | label |
+| 2022 | Jund | midrange | default |
+| 2022 | Naya Runes Aggro | aggro | label |
+| 2022 | Boros Aggro | aggro | label |
+| 2022 | Esper Raffine | midrange | default |
+| 2022 | Rakdos Aggro | aggro | label |
+| 2022 | Azorius Aggro | aggro | label |
+| 2022 | Temur Control | control | label |
+| 2022 | Grixis Midrange | midrange | default |
+| 2022 | Orzhov Control | control | label |
+| 2022 | Mono Black Control | control | label |
+| 2022 | Golgari Control | control | label |
+| 2022 | Selesnya Midrange | midrange | default |
+| 2022 | Sultai Legends Midrange | midrange | default |
+| 2022 | Azorius Midrange | midrange | default |
+| 2022 | Reanimator | combo | label |
+| 2023 | Esper Raffine | midrange | default |
+| 2023 | Selesnya Aggro | aggro | label |
+| 2023 | Red Deck Wins | aggro | label |
+| 2023 | Azorius Soldier | aggro | cards |
+| 2023 | 4/5C Control | control | label |
+| 2023 | Dimir Aggro | aggro | label |
+| 2023 | Esper Control | control | label |
+| 2023 | Orzhov Control | control | label |
+| 2023 | Jeskai Control | control | label |
+| 2023 | Weenie White | aggro | label |
+| 2023 | Izzet Control | control | label |
+| 2023 | Rakdos Midrange | midrange | default |
+| 2023 | Bant Aggro | aggro | label |
+| 2023 | Mono Blue Tempo | midrange | default |
+| 2023 | Simic Aggro | aggro | label |
+| 2023 | Angels | midrange | default |
+| 2023 | Mardu Control | control | label |
+| 2023 | Golgari Aggro | aggro | label |
+| 2023 | Explosive Singularity | midrange | default |
+| 2023 | 5cc | midrange | default |
+| 2023 | Mono White Atraxa | midrange | default |
+| 2023 | Grixis Aggro | aggro | label |
+| 2023 | Jund Aggro | aggro | label |
+| 2023 | Golgari Control | control | label |
+| 2024 | Esper Raffine | midrange | default |
+| 2024 | Boros Convoke | aggro | cards |
+| 2024 | UW Control | control | label |
+| 2024 | Dimir Aggro | aggro | label |
+| 2024 | Golgari Aggro | aggro | label |
+| 2024 | Red Deck Wins | aggro | label |
+| 2024 | 4c Legends Aggro | aggro | label |
+| 2024 | Gruul Aggro | aggro | label |
+| 2024 | Temur Control | control | label |
+| 2024 | 4/5C Control | control | label |
+| 2024 | Orzhov Aggro | aggro | label |
+| 2024 | Rakdos Aggro | aggro | label |
+| 2024 | Esper Control | control | label |
+| 2024 | Domain | midrange | default |
+| 2024 | Zoetic Simic | aggro | cards |
+| 2024 | Jund Control | control | label |
+| 2024 | orzhov Aggro | aggro | label |
+| 2024 | Dimir Control | control | label |
+| 2024 | Splendid Reclamation | midrange | default |
+| 2024 | Jeskai Control | control | label |
+| 2024 | Azorius Tempo | midrange | default |
+| 2024 | Rakdos | midrange | default |
+| 2024 | 5cc | midrange | default |
+| 2024 | Reanimator - Rakdos Joins Up | combo | label |
+| 2025 | Dimir Aggro | aggro | label |
+| 2025 | UW Control | control | label |
+| 2025 | UR Soul Cauldron | aggro | cards |
+| 2025 | Golgari Aggro | aggro | label |
+| 2025 | Mono White Control | control | label |
+| 2025 | Mono Green Aggro | aggro | label |
+| 2025 | Mono Black Aggro | aggro | label |
+| 2025 | Boros Convoke | aggro | cards |
+| 2025 | Golgari Roots | aggro | cards |
+| 2025 | Naya Aggro | aggro | label |
+| 2025 | Jeskai Eidetic Memory | aggro | cards |
+| 2025 | Jeskai Control | control | label |
+| 2025 | Orzhov Midrange | midrange | default |
+| 2025 | Rakdos Aggro | aggro | label |
+| 2025 | Dimir Control | control | label |
+| 2025 | Selesnya Cage | midrange | default |
+| 2025 | UW Artifacts | midrange | default |
+| 2025 | Mardu Control | control | label |
+| 2025 | Squirming Emergence | midrange | default |
+| 2025 | Talented Otters | midrange | default |
+| 2025 | Abzan Control | control | label |
+| 2025 | Naya Yuna | midrange | default |
+| 2025 | 4/5C Zur Control | control | label |
+| 2025 | Reanimator | combo | label |
 
 ## Modern eras
 
@@ -463,7 +688,16 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | [2014](modern-2014.md) | Modern (M15) | 2014-07-18 → 2014-09-26 | 58 | 24 | 10 | 11 | 8 | 11 | 9 | 7 | 6 | 5 | 6 |
 | [2015](modern-2015.md) | Modern (ORI) | 2015-07-17 → 2015-10-02 | 64 | 24 | 10 | 13 | 9 | 9 | 13 | 7 | 6 | 6 | 5 |
 | [2016](modern-2016.md) | Modern (EMN) | 2016-07-22 → 2016-09-30 | 68 | 24 | 11 | 14 | 10 | 14 | 12 | 8 | 6 | 5 | 5 |
-| **all** | | | | **144** | 68 | 74 | 50 | 69 | 68 | 48 | 34 | 33 | 29 |
+| [2017](modern-2017.md) | Modern (HOU) | 2017-07-14 → 2017-09-29 | 73 | 24 | 10 | 10 | 10 | 12 | 13 | 8 | 7 | 5 | 4 |
+| [2018](modern-2018.md) | Modern (M19) | 2018-07-13 → 2018-10-05 | 59 | 24 | 10 | 10 | 9 | 12 | 11 | 8 | 7 | 5 | 4 |
+| [2019](modern-2019.md) | Modern (2019-08-30) | 2019-08-30 → 2019-10-04 | 53 | 24 | 11 | 12 | 8 | 11 | 9 | 8 | 7 | 5 | 4 |
+| [2020](modern-2020.md) | Modern (2020-07-13) | 2020-08-03 → 2020-09-25 | 54 | 24 | 8 | 12 | 8 | 11 | 11 | 8 | 6 | 5 | 5 |
+| [2021](modern-2021.md) | Modern (AFR) | 2021-07-23 → 2021-09-24 | 70 | 24 | 10 | 13 | 9 | 12 | 11 | 9 | 6 | 5 | 4 |
+| [2022](modern-2022.md) | Modern (SNC) | 2022-04-29 → 2022-09-09 | 56 | 24 | 8 | 12 | 8 | 12 | 10 | 8 | 8 | 4 | 4 |
+| [2023](modern-2023.md) | Modern (MAT) | 2023-05-29 → 2023-09-08 | 41 | 24 | 9 | 13 | 10 | 13 | 10 | 9 | 6 | 5 | 4 |
+| [2024](modern-2024.md) | Modern (OTJ) | 2024-04-19 → 2024-08-02 | 40 | 24 | 10 | 12 | 10 | 12 | 9 | 8 | 6 | 6 | 4 |
+| [2025](modern-2025.md) | Modern (FIN) | 2025-06-30 → 2025-08-01 | 55 | 24 | 8 | 12 | 9 | 12 | 9 | 7 | 7 | 6 | 4 |
+| **all** | | | | **360** | 152 | 180 | 131 | 176 | 161 | 121 | 94 | 79 | 66 |
 
 ### Modern: how each archetype was judged (style)
 
@@ -613,6 +847,222 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2016 | Esper Midrange | midrange | default |
 | 2016 | B/G Elves | aggro | label |
 | 2016 | UW Control | control | label |
+| 2017 | Affinity | aggro | label |
+| 2017 | Dredge | combo | label |
+| 2017 | Valakut | midrange | default |
+| 2017 | Junk | midrange | default |
+| 2017 | Eldra Tron | midrange | default |
+| 2017 | UR Storm | combo | label |
+| 2017 | Titanshift | midrange | default |
+| 2017 | UWr Midrange | midrange | default |
+| 2017 | Death's Shadow | aggro | cards |
+| 2017 | UW Control | control | label |
+| 2017 | Hatebear | aggro | cards |
+| 2017 | Ad Nauseam | combo | override |
+| 2017 | Death's Shadow Aggro | aggro | label |
+| 2017 | Collected Spirits | aggro | cards |
+| 2017 | Jund | midrange | default |
+| 2017 | Living End | combo | override |
+| 2017 | Lantern Control | control | label |
+| 2017 | UrzaTron | control | cards |
+| 2017 | Collected Bant | aggro | cards |
+| 2017 | Bant Knightfall | aggro | cards |
+| 2017 | Rakdos Control | control | label |
+| 2017 | Azusa Amulet | midrange | default |
+| 2017 | Bant Humans | aggro | label |
+| 2017 | Esper Control | control | label |
+| 2018 | Humans | aggro | label |
+| 2018 | Jund | midrange | default |
+| 2018 | Burn | aggro | label |
+| 2018 | Hollow One | midrange | default |
+| 2018 | Jeskai Control | control | label |
+| 2018 | UrzaTron | control | cards |
+| 2018 | UW Control | control | label |
+| 2018 | Living End | combo | override |
+| 2018 | Infect | aggro | label |
+| 2018 | Bant Spirits | aggro | cards |
+| 2018 | Hardened Modular | aggro | cards |
+| 2018 | Selesnya Value | aggro | cards |
+| 2018 | Ur Breach | control | cards |
+| 2018 | Martyr Life | aggro | cards |
+| 2018 | G/w Hexproof | aggro | label |
+| 2018 | Mardu Pyromancer | midrange | default |
+| 2018 | Dredge | combo | label |
+| 2018 | UR Storm | combo | label |
+| 2018 | Ad Nauseam | combo | override |
+| 2018 | Gruul Land Loss | midrange | default |
+| 2018 | Gr Eldrazi | midrange | default |
+| 2018 | Gift Control | control | label |
+| 2018 | Junk | midrange | default |
+| 2018 | 8 Rack | midrange | default |
+| 2019 | Dredge | combo | label |
+| 2019 | Humans | aggro | label |
+| 2019 | Burn | aggro | label |
+| 2019 | Jund | midrange | default |
+| 2019 | UrzaTron | midrange | default |
+| 2019 | Urza | control | cards |
+| 2019 | Death's Shadow | aggro | cards |
+| 2019 | Valakut | midrange | default |
+| 2019 | Jeskai Stoneblade | aggro | cards |
+| 2019 | UW Control | control | label |
+| 2019 | Amulet Titan | midrange | default |
+| 2019 | Eldra Tron | midrange | default |
+| 2019 | Hardened Scales | aggro | cards |
+| 2019 | UR Storm | combo | label |
+| 2019 | Martyr Life | aggro | cards |
+| 2019 | Boggle | midrange | default |
+| 2019 | Ur Delver | aggro | label |
+| 2019 | Devoted Druid Combo | combo | label |
+| 2019 | Eldritch Toolbox | aggro | cards |
+| 2019 | Niv | midrange | default |
+| 2019 | Ad Nauseam | combo | override |
+| 2019 | Faeries | control | label |
+| 2019 | UB Mill | control | label |
+| 2019 | Zur's Weirding | control | cards |
+| 2020 | Temur Reclamation | control | cards |
+| 2020 | Red Deck Wins | aggro | label |
+| 2020 | Amulet Titan | midrange | default |
+| 2020 | Eldra Tron | midrange | default |
+| 2020 | Burn | aggro | label |
+| 2020 | Dredge | combo | label |
+| 2020 | Humans | aggro | label |
+| 2020 | Valakut | midrange | default |
+| 2020 | Ad Nauseam | combo | override |
+| 2020 | Grixis Delver | aggro | label |
+| 2020 | W/u Stoneblade | midrange | default |
+| 2020 | UrzaTron | control | cards |
+| 2020 | Jund | midrange | default |
+| 2020 | Gruul Utopia | aggro | cards |
+| 2020 | Bant Control | control | label |
+| 2020 | Rakdos Aggro | aggro | label |
+| 2020 | Sultai Ninjas | aggro | cards |
+| 2020 | UR Storm | combo | label |
+| 2020 | Aura Hexproof | aggro | label |
+| 2020 | The Rock | midrange | default |
+| 2020 | Uw Control | control | label |
+| 2020 | Twiddle Storm | combo | label |
+| 2020 | Ub Control | control | label |
+| 2020 | Allosaurus Combo | combo | label |
+| 2021 | Living End | combo | override |
+| 2021 | Ur Murktide | midrange | default |
+| 2021 | Heliod Life | aggro | cards |
+| 2021 | UrzaTron | control | cards |
+| 2021 | Red Deck Wins | aggro | label |
+| 2021 | Crashing Footfalls | midrange | default |
+| 2021 | Grixis Food | aggro | cards |
+| 2021 | Orzhov Ephemerate | aggro | cards |
+| 2021 | Eldra Tron | midrange | default |
+| 2021 | Dredge | combo | label |
+| 2021 | Jund | midrange | default |
+| 2021 | UW Control | control | label |
+| 2021 | The Underworld Cookbook | aggro | cards |
+| 2021 | 4c Omnath | control | cards |
+| 2021 | Bant Control | control | label |
+| 2021 | Breach | midrange | default |
+| 2021 | Zoo | aggro | label |
+| 2021 | UWx Midrange | midrange | default |
+| 2021 | Grixis Creativity | control | cards |
+| 2021 | Eldrazi And Taxes | aggro | cards |
+| 2021 | Gb Yawgmoth | aggro | cards |
+| 2021 | Gruul Food | aggro | cards |
+| 2021 | Scapeshift | combo | label |
+| 2021 | UR Storm | combo | label |
+| 2022 | UR Aggro | aggro | label |
+| 2022 | Hammer Time | aggro | cards |
+| 2022 | Amulet Titan | midrange | default |
+| 2022 | Living End | combo | override |
+| 2022 | 4c Yorion | aggro | cards |
+| 2022 | Crashing Footfalls Cascade | midrange | default |
+| 2022 | Burn | aggro | label |
+| 2022 | Creativity | midrange | default |
+| 2022 | Creatures Toolbox | aggro | cards |
+| 2022 | UrzaTron | midrange | default |
+| 2022 | Breach | midrange | default |
+| 2022 | Valakut | midrange | default |
+| 2022 | Reanimator | combo | label |
+| 2022 | Goblins | aggro | label |
+| 2022 | Calibrated Blast | midrange | default |
+| 2022 | Mono Blue Tempo | aggro | cards |
+| 2022 | UW Control | control | label |
+| 2022 | Eldra Tron | midrange | default |
+| 2022 | UB Mill | control | label |
+| 2022 | Tron | control | cards |
+| 2022 | Death And Taxes | aggro | cards |
+| 2022 | Bring to Scapeshift | combo | label |
+| 2022 | Scapeshift | combo | label |
+| 2022 | 4c Archon | control | cards |
+| 2023 | Creativity | control | cards |
+| 2023 | Omnath Rhinos | midrange | default |
+| 2023 | Hardened Scales | aggro | cards |
+| 2023 | Hammer Time | aggro | cards |
+| 2023 | Burn | aggro | label |
+| 2023 | Breach | midrange | default |
+| 2023 | Death's Shadow | aggro | cards |
+| 2023 | Jund | midrange | default |
+| 2023 | Mono Black Control | control | label |
+| 2023 | Merfolk | aggro | cards |
+| 2023 | UW Control | control | label |
+| 2023 | Creatures Toolbox | aggro | cards |
+| 2023 | UB Mill | control | label |
+| 2023 | Instant Reanimator | combo | label |
+| 2023 | Big Red | aggro | cards |
+| 2023 | Bring to Scapeshift | combo | label |
+| 2023 | WW | aggro | cards |
+| 2023 | Mono White Ephemerate | aggro | cards |
+| 2023 | Temur Rhino | midrange | default |
+| 2023 | Green Tron | midrange | default |
+| 2023 | Dredge | combo | label |
+| 2023 | 4 Color Control | control | label |
+| 2023 | Goryo's Food | midrange | default |
+| 2023 | Reanimator | combo | label |
+| 2024 | Chord Toolbox | aggro | cards |
+| 2024 | Living End | combo | override |
+| 2024 | Amulet Titan | midrange | default |
+| 2024 | Creativity | midrange | default |
+| 2024 | The One Azorius | control | cards |
+| 2024 | Uw Mill | control | label |
+| 2024 | Temur Prowess | aggro | cards |
+| 2024 | Rakdos Aggro | aggro | label |
+| 2024 | 5c Domain Aggro | aggro | label |
+| 2024 | Mono Black Control | control | label |
+| 2024 | Red Deck Wins | aggro | label |
+| 2024 | Jund | midrange | default |
+| 2024 | 4c Control | control | label |
+| 2024 | Gruul Aggro | aggro | label |
+| 2024 | Mono Black Scam | midrange | default |
+| 2024 | Scapeshift | combo | label |
+| 2024 | Martyr Life | midrange | default |
+| 2024 | UR Control | control | label |
+| 2024 | Esper Goryo's | midrange | default |
+| 2024 | Reanimator | combo | label |
+| 2024 | UW Control | control | label |
+| 2024 | Elementals | aggro | cards |
+| 2024 | Burn | aggro | label |
+| 2024 | Ad Nauseam | combo | override |
+| 2025 | Esper & Taxes | aggro | cards |
+| 2025 | Boros Energy | aggro | cards |
+| 2025 | Broodscale Bloodchief | midrange | default |
+| 2025 | Dimir Control | control | label |
+| 2025 | Amulet Titan | midrange | default |
+| 2025 | Landless Belcher | midrange | default |
+| 2025 | UR Cutter Prowess | midrange | default |
+| 2025 | Instant Reanimator | combo | label |
+| 2025 | Living End | combo | override |
+| 2025 | Allosaurus Combo | combo | label |
+| 2025 | Jeskai Control | control | label |
+| 2025 | Ruby Storm | combo | label |
+| 2025 | UrzaTron | midrange | default |
+| 2025 | Eldrazi Aggro | aggro | label |
+| 2025 | Simic Birthing Ritual | aggro | cards |
+| 2025 | Death's Shadow | aggro | cards |
+| 2025 | Mono White Control | control | label |
+| 2025 | Hammertime | midrange | default |
+| 2025 | Ur Cutter | control | cards |
+| 2025 | Grixis Control | control | label |
+| 2025 | Mardu Aggro | aggro | label |
+| 2025 | 4/5c Control | control | label |
+| 2025 | Chord Toolbox | aggro | cards |
+| 2025 | Monoblack Necro | midrange | default |
 
 ## Legacy eras
 
@@ -630,7 +1080,16 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | [2014](legacy-2014.md) | Legacy (M15) | 2014-07-18 → 2014-09-26 | 58 | 24 | 8 | 12 | 10 | 9 | 12 | 7 | 7 | 5 | 5 |
 | [2015](legacy-2015.md) | Legacy (ORI) | 2015-07-17 → 2015-10-02 | 58 | 24 | 9 | 12 | 11 | 8 | 10 | 6 | 6 | 7 | 5 |
 | [2016](legacy-2016.md) | Legacy (EMN) | 2016-07-22 → 2016-09-30 | 60 | 24 | 8 | 12 | 12 | 8 | 10 | 6 | 8 | 5 | 5 |
-| **all** | | | | **266** | 101 | 137 | 107 | 101 | 119 | 84 | 66 | 70 | 46 |
+| [2017](legacy-2017.md) | Legacy (HOU) | 2017-07-14 → 2017-09-29 | 50 | 24 | 8 | 12 | 12 | 9 | 10 | 6 | 8 | 6 | 4 |
+| [2018](legacy-2018.md) | Legacy (M19) | 2018-07-13 → 2018-10-05 | 43 | 24 | 7 | 11 | 11 | 8 | 7 | 6 | 8 | 6 | 4 |
+| [2019](legacy-2019.md) | Legacy (C19) | 2019-08-30 → 2019-10-04 | 60 | 24 | 9 | 12 | 11 | 9 | 9 | 7 | 8 | 5 | 4 |
+| [2020](legacy-2020.md) | Legacy (JMP) | 2020-08-03 → 2020-09-25 | 57 | 24 | 8 | 12 | 9 | 9 | 12 | 8 | 6 | 5 | 5 |
+| [2021](legacy-2021.md) | Legacy (AFR) | 2021-07-23 → 2021-09-24 | 68 | 24 | 12 | 13 | 11 | 10 | 9 | 7 | 6 | 6 | 5 |
+| [2022](legacy-2022.md) | Legacy (SNC) | 2022-04-29 → 2022-09-09 | 66 | 24 | 10 | 12 | 10 | 8 | 10 | 8 | 6 | 5 | 5 |
+| [2023](legacy-2023.md) | Legacy (MAT) | 2023-05-29 → 2023-09-08 | 49 | 24 | 10 | 11 | 8 | 7 | 8 | 7 | 8 | 5 | 4 |
+| [2024](legacy-2024.md) | Legacy (OTJ) | 2024-04-19 → 2024-08-02 | 48 | 24 | 8 | 11 | 9 | 7 | 9 | 7 | 6 | 6 | 5 |
+| [2025](legacy-2025.md) | Legacy (FIN) | 2025-06-30 → 2025-08-01 | 62 | 24 | 7 | 10 | 9 | 6 | 8 | 7 | 6 | 6 | 5 |
+| **all** | | | | **482** | 180 | 241 | 197 | 174 | 201 | 147 | 128 | 120 | 87 |
 
 ### Legacy: how each archetype was judged (style)
 
@@ -902,3 +1361,219 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2016 | Grixis Control | control | label |
 | 2016 | Maverick | aggro | cards |
 | 2016 | Punishing Thing | control | cards |
+| 2017 | Miracles | control | cards |
+| 2017 | Dark Depths | midrange | default |
+| 2017 | Show and Tell | control | cards |
+| 2017 | Reanimator | combo | label |
+| 2017 | Aluren | combo | override |
+| 2017 | Elves | aggro | label |
+| 2017 | 4c Control | control | label |
+| 2017 | Storm | combo | label |
+| 2017 | Stoneblade | control | cards |
+| 2017 | Lands | midrange | default |
+| 2017 | Eldrazi Aggro | aggro | label |
+| 2017 | Death And Taxes | aggro | cards |
+| 2017 | Dragon Stompy | midrange | default |
+| 2017 | Loam | midrange | default |
+| 2017 | Grixis Pyromancer | midrange | default |
+| 2017 | Jund | aggro | cards |
+| 2017 | Berserk Poison | control | cards |
+| 2017 | Merfolk | aggro | cards |
+| 2017 | Canadian Threshold | midrange | default |
+| 2017 | Four-color Leovold | midrange | default |
+| 2017 | Depths Combo | combo | label |
+| 2017 | All-in Red | midrange | default |
+| 2017 | White Eldrazi | aggro | cards |
+| 2017 | UWR Control | control | label |
+| 2018 | Miracles | control | cards |
+| 2018 | Lands | midrange | default |
+| 2018 | Elves | aggro | label |
+| 2018 | Storm | combo | label |
+| 2018 | TES | combo | override |
+| 2018 | Four-color Loam | midrange | default |
+| 2018 | Death & Taxes | aggro | cards |
+| 2018 | Dark Depths | midrange | default |
+| 2018 | Dragon Stompy | midrange | default |
+| 2018 | Eldrazi | aggro | cards |
+| 2018 | UWx Control | control | label |
+| 2018 | Show and Tell | control | cards |
+| 2018 | Reanimator | combo | label |
+| 2018 | Canadian Threshold | midrange | default |
+| 2018 | Goblins | aggro | label |
+| 2018 | Steel Stompy | aggro | cards |
+| 2018 | Pox | midrange | default |
+| 2018 | Titan Post | midrange | default |
+| 2018 | Esper Control | control | label |
+| 2018 | Tezzeret Control | control | label |
+| 2018 | Azorius Helm | control | cards |
+| 2018 | Dredge | combo | label |
+| 2018 | Burn | aggro | label |
+| 2018 | Nic Fit | midrange | default |
+| 2019 | Grixis Control | control | label |
+| 2019 | Storm | combo | label |
+| 2019 | Canadian Threshold | midrange | default |
+| 2019 | Miracles | control | cards |
+| 2019 | UR Delver | aggro | label |
+| 2019 | Dark Depths | midrange | default |
+| 2019 | Stoneblade | control | cards |
+| 2019 | Show and Tell | control | cards |
+| 2019 | Eldrazi Aggro | aggro | label |
+| 2019 | Dragon Stompy | midrange | default |
+| 2019 | Loam | midrange | default |
+| 2019 | Death's Shadow | midrange | default |
+| 2019 | Lands | midrange | default |
+| 2019 | Dredge | combo | label |
+| 2019 | Bomberman | midrange | default |
+| 2019 | Patriot Aggro | aggro | label |
+| 2019 | Reanimator | combo | label |
+| 2019 | Maverick | aggro | cards |
+| 2019 | Goblins | aggro | label |
+| 2019 | TES | combo | override |
+| 2019 | Gw Depths | aggro | cards |
+| 2019 | Punishing Zoo | aggro | label |
+| 2019 | Dead Daretti | control | cards |
+| 2019 | Mono Green Post | midrange | default |
+| 2020 | Hogaak | aggro | cards |
+| 2020 | Lands | midrange | default |
+| 2020 | TES | combo | override |
+| 2020 | Canadian Threshold | midrange | default |
+| 2020 | UR Delver | aggro | label |
+| 2020 | Death & Taxes | aggro | cards |
+| 2020 | 4cc | midrange | default |
+| 2020 | Miracles | control | cards |
+| 2020 | Goblins | aggro | label |
+| 2020 | Artifacts Blue | midrange | default |
+| 2020 | Salvager Combo | combo | label |
+| 2020 | Dark Depths | midrange | default |
+| 2020 | Elves | aggro | label |
+| 2020 | Show and Tell | control | cards |
+| 2020 | 12 - Post | midrange | default |
+| 2020 | Reanimator | combo | label |
+| 2020 | Bant Control | control | label |
+| 2020 | Aluren | combo | override |
+| 2020 | UWx Control | control | label |
+| 2020 | Burn | aggro | label |
+| 2020 | Painter | combo | override |
+| 2020 | Zoo | aggro | label |
+| 2020 | Gw Maverick | aggro | cards |
+| 2020 | Oko Foundry | control | cards |
+| 2021 | Patriot Aggro | aggro | label |
+| 2021 | D&t Yorion | aggro | cards |
+| 2021 | UR Delver | aggro | label |
+| 2021 | Elves | aggro | label |
+| 2021 | Reanimator | combo | label |
+| 2021 | Esper Vial | aggro | cards |
+| 2021 | 4cc | control | cards |
+| 2021 | Hogaak | aggro | cards |
+| 2021 | Lands | midrange | default |
+| 2021 | Doomsday | combo | label |
+| 2021 | Sneak Show | combo | override |
+| 2021 | Stoneblade | midrange | default |
+| 2021 | Jeskai Ragavan | control | cards |
+| 2021 | Mono Red Storm | combo | label |
+| 2021 | Selesnya Depths | midrange | default |
+| 2021 | Imperial Painter | combo | override |
+| 2021 | Raga Jund | aggro | cards |
+| 2021 | Jund Smog | midrange | default |
+| 2021 | Grixis Control Ragavan | control | label |
+| 2021 | Dark Depths | midrange | default |
+| 2021 | Miracles | control | cards |
+| 2021 | Turbo Depths | control | cards |
+| 2021 | Breya Welder Control | control | label |
+| 2021 | Pikula | midrange | default |
+| 2022 | UR Aggro | aggro | label |
+| 2022 | Death & Taxes | aggro | cards |
+| 2022 | UWx Control | control | label |
+| 2022 | Grixis Control | control | label |
+| 2022 | Cephalid Breakfast | combo | override |
+| 2022 | Mono R Prison | aggro | cards |
+| 2022 | 4c Leovold | midrange | default |
+| 2022 | Elves | aggro | label |
+| 2022 | Reanimator | combo | label |
+| 2022 | Artifacts Blue | midrange | default |
+| 2022 | Selesnya Depths | midrange | default |
+| 2022 | TES | combo | override |
+| 2022 | Painter | combo | override |
+| 2022 | Dark Depths | control | cards |
+| 2022 | Sneak Show | combo | override |
+| 2022 | Patriot Aggro | aggro | label |
+| 2022 | Bg Depths | midrange | default |
+| 2022 | Faeries | control | label |
+| 2022 | Oops All Spells | aggro | cards |
+| 2022 | Grixis Day's Undoing | control | cards |
+| 2022 | Eldrazi Post | midrange | default |
+| 2022 | Titan Post | midrange | default |
+| 2022 | Eldrazi Aggro | aggro | label |
+| 2022 | Zoo | aggro | label |
+| 2023 | Death & Taxes | aggro | cards |
+| 2023 | Doomsday | combo | label |
+| 2023 | 4cc | control | cards |
+| 2023 | Storm | combo | label |
+| 2023 | Artifacts Blue | midrange | default |
+| 2023 | Rug Delver | aggro | label |
+| 2023 | Canadian Midrange | midrange | default |
+| 2023 | Reanimator | combo | label |
+| 2023 | Painter | combo | override |
+| 2023 | Death's Shadow | midrange | default |
+| 2023 | Lands | midrange | default |
+| 2023 | UWx Control | control | label |
+| 2023 | Naya Depths | midrange | default |
+| 2023 | Boros Initiative | aggro | cards |
+| 2023 | Miracles | control | cards |
+| 2023 | Dark Depths | midrange | default |
+| 2023 | Maverick | aggro | cards |
+| 2023 | Dark Maverick | aggro | cards |
+| 2023 | Elves | aggro | label |
+| 2023 | Hammer Time | aggro | cards |
+| 2023 | Grixis Control | control | label |
+| 2023 | Mono-black Helm | midrange | default |
+| 2023 | Karn | midrange | default |
+| 2023 | Bampo | control | cards |
+| 2024 | UB Reanimator | combo | label |
+| 2024 | Canadian Druid | midrange | default |
+| 2024 | Grixis Delver | aggro | label |
+| 2024 | Dark Depths | midrange | default |
+| 2024 | Dragon Stompy | aggro | cards |
+| 2024 | Death & Taxes | aggro | cards |
+| 2024 | 4/5c Control | control | label |
+| 2024 | Cephalid Breakfast | combo | override |
+| 2024 | Mono Black Scam | aggro | cards |
+| 2024 | Initiative Stompy | aggro | cards |
+| 2024 | Maverick | aggro | cards |
+| 2024 | Saga Storm | combo | label |
+| 2024 | Omni - Show | control | cards |
+| 2024 | Esper Control | control | label |
+| 2024 | Sultai Beans | control | cards |
+| 2024 | Lands | midrange | default |
+| 2024 | Doomsday | combo | label |
+| 2024 | Mississippi River | midrange | default |
+| 2024 | 5c Control | control | label |
+| 2024 | Painter | combo | override |
+| 2024 | Cradle Control | control | label |
+| 2024 | Cloudpost Ramp | midrange | default |
+| 2024 | Pox | midrange | default |
+| 2024 | Rakdos Painter | aggro | cards |
+| 2025 | UB Reanimator | combo | label |
+| 2025 | Lands | midrange | default |
+| 2025 | Dimir Tempo | midrange | default |
+| 2025 | Painter | combo | override |
+| 2025 | Mystic Forge | control | cards |
+| 2025 | Cephalid Breakfast | combo | override |
+| 2025 | Cradle Control | control | label |
+| 2025 | Dark Maverick | aggro | cards |
+| 2025 | Nadu Value | midrange | default |
+| 2025 | Dragon Stompy | aggro | cards |
+| 2025 | Eldrazi Aggro | aggro | label |
+| 2025 | Jeskai Control | control | label |
+| 2025 | 4/5c Control | control | label |
+| 2025 | Omnitell | control | cards |
+| 2025 | Death And Taxes | aggro | cards |
+| 2025 | Dredge | combo | label |
+| 2025 | Elves | aggro | label |
+| 2025 | Cradle Nadu | aggro | cards |
+| 2025 | Reanimator | combo | label |
+| 2025 | UWx Control | control | label |
+| 2025 | Turbo Necro | midrange | default |
+| 2025 | Artifacts Prison | midrange | default |
+| 2025 | Rakdos Discard | midrange | default |
+| 2025 | Boros Energy | aggro | cards |

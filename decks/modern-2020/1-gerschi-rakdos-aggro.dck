@@ -1,0 +1,39 @@
+[metadata]
+Name=Rakdos Aggro (Gerschi)
+Deck Type=Constructed
+Format=Modern (2020-07-13)
+Effective=2020-08-03
+Source URL=https://www.mtgtop8.com/event?e=27106&d=413195&f=MO
+Comment=MTGO Modern Preliminary: Gerschi, 1st, Rakdos Aggro. Transcribed from mtgtop8 deck 413195.
+[Main]
+1 Seal of Fire|DIS
+1 Crash Through|M21
+2 Cling to Dust|THB
+2 Manamorphose|SHM
+3 Mutagenic Growth|NPH
+4 Mishra's Bauble|CSP
+4 Bloodstained Mire|KTK
+4 Lightning Bolt|M11
+4 Lava Dart|JU
+4 Thoughtseize|THS
+2 Blood Crypt|RNA
+3 Mountain|M21
+3 Sunbaked Canyon|MH1
+4 Blackcleave Cliffs|SOM
+4 Soul-Scar Mage|AKH
+4 Monastery Swiftspear|KTK
+4 Kiln Fiend|ROE
+4 Abbot of Keral Keep|ORI
+1 Scalding Tarn|ZEN
+1 Swamp|M21
+1 Sacred Foundry|GRN
+[Sideboard]
+1 Lurrus of the Dream-Den|IKO
+2 Fatal Push|AER
+2 Wear // Tear|DGM
+1 Unearth|UL
+1 Noxious Grasp|M20
+1 Nihil Spellbomb|SOM
+3 Molten Rain|MR
+2 Dragon's Claw|M12
+2 Flame Slash|ROE

@@ -1,0 +1,2917 @@
+{
+ "era": {
+  "year": 2018,
+  "season_start": "2017-09-29",
+  "start": "2018-07-13",
+  "end": "2018-10-05",
+  "snapshot_file": "2018-07-13",
+  "format": "Legacy (M19)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU, C17, XLN, DDT, IMA, V17, E02, RIX, A25, DDU, DOM, CM2, BBD, SS1, GS1, M19",
+  "banned": [
+   "Adriana's Valor",
+   "Advantageous Proclamation",
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Assemble the Rank and Vile",
+   "Backup Plan",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Brago's Favor",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Contract from Below",
+   "Darkpact",
+   "Deathrite Shaman",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dig Through Time",
+   "Double Stroke",
+   "Earthcraft",
+   "Echoing Boon",
+   "Emissary's Ploy",
+   "Falling Star",
+   "Fastbond",
+   "Flash",
+   "Frantic Search",
+   "Gitaxian Probe",
+   "Goblin Recruiter",
+   "Gush",
+   "Hermit Druid",
+   "Hired Heist",
+   "Hold the Perimeter",
+   "Hymn of the Wilds",
+   "Immediate Action",
+   "Imperial Seal",
+   "Incendiary Dissent",
+   "Iterative Analysis",
+   "Jeweled Bird",
+   "Library of Alexandria",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Mental Misstep",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Muzzio's Preparations",
+   "Mystical Tutor",
+   "Natural Unity",
+   "Necropotence",
+   "Oath of Druids",
+   "Power Play",
+   "Rebirth",
+   "Secret Summoning",
+   "Secrets of Paradise",
+   "Sensei's Divining Top",
+   "Sentinel Dispatch",
+   "Shahrazad",
+   "Skullclamp",
+   "Sol Ring",
+   "Sovereign's Realm",
+   "Strip Mine",
+   "Summoner's Bond",
+   "Survival of the Fittest",
+   "Tempest Efreet",
+   "Time Vault",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Treasure Cruise",
+   "Unexpected Potential",
+   "Vampiric Tutor",
+   "Weight Advantage",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldknit",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 330103,
+   "event": 20046,
+   "archetype": "Miracles",
+   "player": "Yohan Blanchard",
+   "event_name": "MKM Series Paris 2018 - Legacy Main Event",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-09-09",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 3,
+    "counters": 8,
+    "sweepers": 3,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.34,
+    "pips": {
+     "W": 15.0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Snapcaster Mage": 3,
+     "Jace, the Mind Sculptor": 2,
+     "Entreat the Angels": 1,
+     "Spell Pierce": 1,
+     "Unexpectedly Absent": 1,
+     "Counterspell": 3,
+     "Force of Will": 4,
+     "Counterbalance": 2,
+     "Terminus": 3,
+     "Swords to Plowshares": 4,
+     "Predict": 3,
+     "Portent": 3,
+     "Ponder": 4,
+     "Brainstorm": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 121
+  },
+  {
+   "deck": 326463,
+   "event": 19683,
+   "archetype": "Lands",
+   "player": "Daniel Barkon",
+   "event_name": "SCG Team Open @ Philadelphia",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-07-21",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 25,
+    "lands": 35,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 4,
+    "avg_cmc": 1.12,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 8.0,
+     "G": 13.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Molten Vortex": 1,
+     "Manabond": 1,
+     "Exploration": 4,
+     "Life from the Loam": 4,
+     "Gamble": 4,
+     "Punishing Fire": 3,
+     "Crop Rotation": 4,
+     "Mox Diamond": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 66
+  },
+  {
+   "deck": 326752,
+   "event": 19717,
+   "archetype": "Elves",
+   "player": "Linus Valdemarsson",
+   "event_name": "MKM Series Prague 2018 - Legacy Main Event",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-07-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 20,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.73,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 48.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Quirion Ranger": 4,
+     "Glimpse of Nature": 4,
+     "Green Sun's Zenith": 4,
+     "Natural Order": 3,
+     "Elvish Visionary": 4,
+     "Wirewood Symbiote": 4,
+     "Nettle Sentinel": 4,
+     "Heritage Druid": 4,
+     "Birchlore Rangers": 2,
+     "Craterhoof Behemoth": 2,
+     "Reclamation Sage": 1,
+     "Scavenging Ooze": 1,
+     "Llanowar Elves": 2,
+     "Fyndhorn Elves": 1,
+     "Elvish Mystic": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 62
+  },
+  {
+   "deck": 328756,
+   "event": 19908,
+   "archetype": "Storm",
+   "player": "Takahashi Masataka",
+   "event_name": "Eternal Weekend Asia 2018 - Legacy Championship",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-08-19",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 45,
+    "lands": 15,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 1.38,
+    "pips": {
+     "W": 0,
+     "U": 12.0,
+     "B": 26.0,
+     "R": 2.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Thoughtseize": 4,
+     "Tendrils of Agony": 1,
+     "Preordain": 4,
+     "Ponder": 4,
+     "Past in Flames": 2,
+     "Infernal Tutor": 4,
+     "Duress": 3,
+     "Dark Petition": 1,
+     "Rain of Filth": 1,
+     "Dark Ritual": 4,
+     "Cabal Ritual": 4,
+     "Brainstorm": 4,
+     "Ad Nauseam": 1,
+     "Lotus Petal": 4,
+     "Lion's Eye Diamond": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 52
+  },
+  {
+   "deck": 325910,
+   "event": 19636,
+   "archetype": "TES",
+   "player": "Bryant Cook",
+   "event_name": "StarCityGames.com Team Open @ Worcester, MA",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-07-14",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 46,
+    "lands": 14,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.13,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 17.0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Chrome Mox": 4,
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4,
+     "Ad Nauseam": 1,
+     "Brainstorm": 4,
+     "Dark Ritual": 4,
+     "Burning Wish": 4,
+     "Duress": 3,
+     "Empty the Warrens": 2,
+     "Infernal Tutor": 4,
+     "Thoughtseize": 4,
+     "Rite of Flame": 4,
+     "Ponder": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 17
+  },
+  {
+   "deck": 331273,
+   "event": 20159,
+   "archetype": "Four-color Loam",
+   "player": "Matthew Vook",
+   "event_name": "SCG Legacy Open @ Baltimore",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-09-23",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 3,
+    "avg_cmc": 1.7,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 14.0,
+     "R": 3.0,
+     "G": 14.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Mox Diamond": 4,
+     "Vindicate": 1,
+     "Sylvan Library": 1,
+     "Abrupt Decay": 3,
+     "Liliana of the Veil": 3,
+     "Scavenging Ooze": 1,
+     "Green Sun's Zenith": 2,
+     "Punishing Fire": 3,
+     "Knight of the Reliquary": 4,
+     "Gaddock Teeg": 1,
+     "Dark Confidant": 4,
+     "Life from the Loam": 2,
+     "Chalice of the Void": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 320407,
+   "event": 19089,
+   "archetype": "Death & Taxes",
+   "player": "Jonathan Job",
+   "event_name": "StarCityGames.com Team Open - Atlanta",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-04-29",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 2.06,
+    "pips": {
+     "W": 25.0,
+     "U": 0,
+     "B": 0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Phyrexian Revoker": 2,
+     "Dire Fleet Daredevil": 2,
+     "Flickerwisp": 3,
+     "Magus of the Moon": 2,
+     "Mother of Runes": 4,
+     "Recruiter of the Guard": 2,
+     "Stoneforge Mystic": 4,
+     "Vryn Wingmare": 1,
+     "Pia and Kiran Nalaar": 1,
+     "Thalia, Guardian of Thraben": 4,
+     "Aether Vial": 4,
+     "Batterskull": 1,
+     "Sword of Fire and Ice": 1,
+     "Swords to Plowshares": 4,
+     "Umezawa's Jitte": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 70
+  },
+  {
+   "deck": 313437,
+   "event": 18296,
+   "archetype": "Dark Depths",
+   "player": "William Lo",
+   "event_name": "SCG Team Constructed - Philadelphia",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-01-27",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.39,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 17.0,
+     "R": 0,
+     "G": 15.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Thoughtseize": 4,
+     "Sylvan Scrying": 4,
+     "Inquisition of Kozilek": 1,
+     "Duress": 4,
+     "Crop Rotation": 4,
+     "Sylvan Library": 1,
+     "Pithing Needle": 3,
+     "Lotus Petal": 3,
+     "Expedition Map": 2,
+     "Vampire Hexmage": 4,
+     "Sylvan Safekeeper": 2,
+     "Elvish Spirit Guide": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 48
+  },
+  {
+   "deck": 321441,
+   "event": 19186,
+   "archetype": "Dragon Stompy",
+   "player": "Gary Campbell",
+   "event_name": "Grand Prix Birmingham 2018",
+   "stars": 3,
+   "rank": "1",
+   "date": "2018-05-12",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Chandra, Torch of Defiance": 2,
+     "Goblin Rabblemaster": 4,
+     "Magus of the Moon": 4,
+     "Simian Spirit Guide": 4,
+     "Hazoret the Fervent": 1,
+     "Pia and Kiran Nalaar": 2,
+     "Fiery Confluence": 4,
+     "Chalice of the Void": 4,
+     "Chrome Mox": 4,
+     "Ensnaring Bridge": 4,
+     "Trinisphere": 2,
+     "Blood Moon": 4,
+     "Karn, Scion of Urza": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 41
+  },
+  {
+   "deck": 309608,
+   "event": 17691,
+   "archetype": "Eldrazi",
+   "player": "Henrique Belumat",
+   "event_name": "Nacional Legacy (Brazil)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-11-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.49,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Chalice of the Void": 4,
+     "Umezawa's Jitte": 2,
+     "Dismember": 2,
+     "Thought-Knot Seer": 4,
+     "Simian Spirit Guide": 3,
+     "Matter Reshaper": 4,
+     "Endless One": 4,
+     "Endbringer": 2,
+     "Eldrazi Mimic": 4,
+     "Walking Ballista": 2,
+     "Reality Smasher": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 13
+  },
+  {
+   "deck": 310348,
+   "event": 17797,
+   "archetype": "UWx Control",
+   "player": "Pedro J Sanchez",
+   "event_name": "Legacy Main Event @ Nebraska\u00b4s War 5.0",
+   "stars": 3,
+   "rank": "1",
+   "date": "2017-12-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 3,
+    "counters": 10,
+    "sweepers": 3,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 20.0,
+     "U": 32.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Elspeth, Knight-Errant": 1,
+     "Gideon of the Trials": 1,
+     "Gideon, Ally of Zendikar": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Humility": 2,
+     "Supreme Verdict": 1,
+     "Ponder": 4,
+     "Council's Judgment": 1,
+     "Swords to Plowshares": 4,
+     "Spell Pierce": 2,
+     "Force of Will": 4,
+     "Flusterstorm": 2,
+     "Counterspell": 2,
+     "Brainstorm": 4,
+     "Engineered Explosives": 1,
+     "Snapcaster Mage": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 6
+  },
+  {
+   "deck": 329608,
+   "event": 19982,
+   "archetype": "Show and Tell",
+   "player": "Andrew Smelser",
+   "event_name": "Grand Prix Richmond 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 6,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 4.1,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 12.0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Sneak Attack": 3,
+     "Omniscience": 3,
+     "Lotus Petal": 4,
+     "Predict": 2,
+     "Cunning Wish": 3,
+     "Flusterstorm": 2,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Show and Tell": 4,
+     "Preordain": 2,
+     "Ponder": 4,
+     "Griselbrand": 3,
+     "Emrakul, the Aeons Torn": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 44
+  },
+  {
+   "deck": 329615,
+   "event": 19982,
+   "archetype": "Reanimator",
+   "player": "Jacob Therrian",
+   "event_name": "Grand Prix Richmond 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 48,
+    "lands": 12,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.77,
+    "pips": {
+     "W": 14.0,
+     "U": 3.0,
+     "B": 44.0,
+     "R": 5.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Lotus Petal": 4,
+     "Animate Dead": 4,
+     "Chrome Mox": 2,
+     "Entomb": 4,
+     "Dark Ritual": 4,
+     "Cabal Therapy": 2,
+     "Reanimate": 4,
+     "Faithless Looting": 4,
+     "Exhume": 4,
+     "Collective Brutality": 1,
+     "Unmask": 4,
+     "Tidespout Tyrant": 1,
+     "Elesh Norn, Grand Cenobite": 1,
+     "Sire of Insanity": 1,
+     "Griselbrand": 4,
+     "Chancellor of the Annex": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 24
+  },
+  {
+   "deck": 326008,
+   "event": 19644,
+   "archetype": "Canadian Threshold",
+   "player": "Leastbean",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-07-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 11,
+    "counters": 16,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 5,
+    "avg_cmc": 1.62,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 0,
+     "R": 5.0,
+     "G": 7.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tarfire": 1,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Nimble Mongoose": 4,
+     "Tarmogoyf": 3,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Dismember": 1,
+     "Force of Will": 4,
+     "Lightning Bolt": 4,
+     "Spell Pierce": 2,
+     "Spell Snare": 2,
+     "Stifle": 4,
+     "Winter Orb": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 17
+  },
+  {
+   "deck": 331306,
+   "event": 20162,
+   "archetype": "Goblins",
+   "player": "Guilherme Figueira",
+   "event_name": "4\u00b0 Liga Paulista @ Epic Game - S\u00e3o Paulo",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.49,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 42.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Goblin Trashmaster": 1,
+     "Goblin Chainwhirler": 1,
+     "Siege-Gang Commander": 2,
+     "Tarfire": 2,
+     "Aether Vial": 4,
+     "Goblin Lackey": 4,
+     "Goblin Matron": 4,
+     "Goblin Ringleader": 4,
+     "Skirk Prospector": 1,
+     "Stingscourger": 1,
+     "Goblin Piledriver": 2,
+     "Mogg War Marshal": 3,
+     "Gempalm Incinerator": 3,
+     "Goblin Warchief": 3,
+     "Goblin Sharpshooter": 1,
+     "Goblin Chieftain": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 9
+  },
+  {
+   "deck": 330700,
+   "event": 20098,
+   "archetype": "Steel Stompy",
+   "player": "David Salus",
+   "event_name": "Quest for Power: Mox Ruby @ MTGFirst",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-18",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.4,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Thorn of Amethyst": 3,
+     "Lotus Petal": 4,
+     "Mox Opal": 4,
+     "Arcbound Ravager": 4,
+     "Phyrexian Revoker": 4,
+     "Lodestone Golem": 4,
+     "Steel Overseer": 4,
+     "Vault Skirge": 3,
+     "Hangarback Walker": 1,
+     "Chalice of the Void": 4,
+     "Karn, Scion of Urza": 1,
+     "Walking Ballista": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 329612,
+   "event": 19982,
+   "archetype": "Pox",
+   "player": "Travis Parsley",
+   "event_name": "Grand Prix Richmond 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 25,
+    "creatures": 1,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 1,
+    "burn": 2,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 51.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Beseech the Queen": 1,
+     "Thoughtseize": 4,
+     "Bontu's Last Reckoning": 1,
+     "Dark Ritual": 3,
+     "Cursed Scroll": 2,
+     "Crucible of Worlds": 1,
+     "Ensnaring Bridge": 1,
+     "Phyrexian Totem": 1,
+     "Nether Void": 1,
+     "Chains of Mephistopheles": 1,
+     "Smallpox": 4,
+     "Innocent Blood": 3,
+     "Hymn to Tourach": 4,
+     "Sinkhole": 4,
+     "Nether Spirit": 1,
+     "Liliana of the Veil": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 329614,
+   "event": 19982,
+   "archetype": "Titan Post",
+   "player": "Tony Murata",
+   "event_name": "Grand Prix Richmond 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.58,
+    "pips": {
+     "W": 0,
+     "U": 12.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 15.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Crop Rotation": 4,
+     "Brainstorm": 4,
+     "Abrupt Decay": 3,
+     "Show and Tell": 4,
+     "Ponder": 4,
+     "Emrakul, the Aeons Torn": 1,
+     "Ulamog, the Ceaseless Hunger": 1,
+     "Primeval Titan": 4,
+     "Walking Ballista": 2,
+     "Expedition Map": 3,
+     "Pithing Needle": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 329607,
+   "event": 19982,
+   "archetype": "Esper Control",
+   "player": "Kjartan Uldahl",
+   "event_name": "Grand Prix Richmond 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 7,
+    "counters": 7,
+    "sweepers": 1,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 2.27,
+    "pips": {
+     "W": 5.0,
+     "U": 33.0,
+     "B": 13.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Flusterstorm": 1,
+     "Engineered Explosives": 1,
+     "Fatal Push": 1,
+     "Vindicate": 1,
+     "Toxic Deluge": 1,
+     "Liliana, the Last Hope": 1,
+     "Thoughtseize": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Counterspell": 2,
+     "Preordain": 3,
+     "Inquisition of Kozilek": 3,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Vendilion Clique": 1,
+     "Snapcaster Mage": 3,
+     "Gurmag Angler": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 326274,
+   "event": 19664,
+   "archetype": "Tezzeret Control",
+   "player": "Liu, Zida",
+   "event_name": "MTA Legacy Championship @ Guangzhou, China",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-07-14",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 5,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 2.5,
+     "U": 27.0,
+     "B": 11.5,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Talisman of Dominance": 1,
+     "Dimir Signet": 2,
+     "Ensnaring Bridge": 2,
+     "Whir of Invention": 1,
+     "Mox Diamond": 3,
+     "Daretti, Ingenious Iconoclast": 1,
+     "Crucible of Worlds": 1,
+     "Transmute Artifact": 1,
+     "Sword of the Meek": 2,
+     "Thopter Foundry": 3,
+     "Force of Will": 4,
+     "Baleful Strix": 4,
+     "Chalice of the Void": 4,
+     "Tezzeret, Agent of Bolas": 4,
+     "Dack Fayden": 2,
+     "Breya, Etherium Shaper": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 330718,
+   "event": 20099,
+   "archetype": "Azorius Helm",
+   "player": "Jeffrey White",
+   "event_name": "SCG Classic @ Syracuse (New York, USA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-16",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 0,
+    "counters": 7,
+    "sweepers": 2,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 13.0,
+     "U": 39.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Swords to Plowshares": 3,
+     "Force of Will": 4,
+     "Helm of Obedience": 2,
+     "Energy Field": 2,
+     "Back to Basics": 1,
+     "Brainstorm": 4,
+     "Predict": 2,
+     "Spell Snare": 1,
+     "Counterbalance": 3,
+     "Ponder": 4,
+     "Spell Pierce": 1,
+     "Jace, the Mind Sculptor": 3,
+     "Preordain": 3,
+     "Flusterstorm": 1,
+     "Terminus": 2,
+     "Rest in Peace": 4,
+     "Council's Judgment": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 319036,
+   "event": 18953,
+   "archetype": "Dredge",
+   "player": "Juan Amaral",
+   "event_name": "Grand Prix Seattle 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-04-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 48,
+    "lands": 12,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.29,
+    "pips": {
+     "W": 1.0,
+     "U": 11.0,
+     "B": 36.0,
+     "R": 6.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Careful Study": 4,
+     "Cabal Therapy": 4,
+     "Breakthrough": 3,
+     "Street Wraith": 2,
+     "Stinkweed Imp": 4,
+     "Putrid Imp": 3,
+     "Narcomoeba": 4,
+     "Ichorid": 4,
+     "Golgari Thug": 3,
+     "Golgari Grave-Troll": 4,
+     "Flame-Kin Zealot": 1,
+     "Bridge from Below": 4,
+     "Dread Return": 1,
+     "Faithless Looting": 4,
+     "Lion's Eye Diamond": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 319047,
+   "event": 18953,
+   "archetype": "Burn",
+   "player": "Justin Luk",
+   "event_name": "Grand Prix Seattle 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-04-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 23,
+    "avg_cmc": 2.02,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 53.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Searing Blaze": 3,
+     "Fireblast": 4,
+     "Price of Progress": 4,
+     "Lightning Bolt": 4,
+     "Rift Bolt": 4,
+     "Chain Lightning": 4,
+     "Lava Spike": 4,
+     "Simian Spirit Guide": 2,
+     "Grim Lavamancer": 1,
+     "Eidolon of the Great Revel": 4,
+     "Monastery Swiftspear": 4,
+     "Goblin Guide": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 320359,
+   "event": 19086,
+   "archetype": "Nic Fit",
+   "player": "Lukas Stahl",
+   "event_name": "Swiss Top 8 Warschau",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-04-22",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.76,
+    "pips": {
+     "W": 7.5,
+     "U": 1.5,
+     "B": 16.0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Ground Seal": 2,
+     "Pernicious Deed": 3,
+     "Sylvan Library": 1,
+     "Evolutionary Leap": 4,
+     "Sandwurm Convergence": 1,
+     "Overwhelming Splendor": 1,
+     "Dovescape": 1,
+     "Curse of Misfortunes": 1,
+     "Curse of Death's Hold": 1,
+     "Cruel Reality": 1,
+     "Cabal Therapy": 4,
+     "Living Wish": 3,
+     "Collective Brutality": 2,
+     "Green Sun's Zenith": 2,
+     "Abrupt Decay": 2,
+     "Veteran Explorer": 4,
+     "Academy Rector": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 329603,
+   "event": 19982,
+   "archetype": "Grixis Delver",
+   "player": "Juyao Tang",
+   "event_name": "Grand Prix Richmond 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 12,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 4,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 0,
+     "U": 32.0,
+     "B": 7.0,
+     "R": 8.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Fatal Push": 1,
+     "Dismember": 1,
+     "Spell Pierce": 2,
+     "Lightning Bolt": 4,
+     "Daze": 4,
+     "Force of Will": 4,
+     "Liliana, the Last Hope": 1,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Young Pyromancer": 4,
+     "Gurmag Angler": 2,
+     "True-Name Nemesis": 2,
+     "Ponder": 4,
+     "Preordain": 2,
+     "Thoughtseize": 2,
+     "Brainstorm": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 242
+  },
+  {
+   "deck": 329716,
+   "event": 20002,
+   "archetype": "Eldrazi Aggro",
+   "player": "Carroz",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-03",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.35,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Thran Dynamo": 2,
+     "Sorcerous Spyglass": 3,
+     "Grim Monolith": 2,
+     "Chalice of the Void": 4,
+     "All Is Dust": 2,
+     "Walking Ballista": 4,
+     "Ulamog, the Ceaseless Hunger": 1,
+     "Thought-Knot Seer": 4,
+     "Oblivion Sower": 3,
+     "Matter Reshaper": 4,
+     "Endbringer": 3,
+     "Karn, Scion of Urza": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 55
+  },
+  {
+   "deck": 330763,
+   "event": 20102,
+   "archetype": "Grixis Control",
+   "player": "blastoids",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-17",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 9,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 4,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 25.0,
+     "R": 4.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Lightning Bolt": 2,
+     "Kolaghan's Command": 2,
+     "Force of Will": 4,
+     "Fatal Push": 3,
+     "Diabolic Edict": 2,
+     "Brainstorm": 4,
+     "Thoughtseize": 2,
+     "Ponder": 4,
+     "Hymn to Tourach": 3,
+     "Snapcaster Mage": 3,
+     "Gurmag Angler": 2,
+     "Baleful Strix": 4,
+     "Liliana, the Last Hope": 1,
+     "Liliana of the Veil": 1,
+     "Jace, the Mind Sculptor": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 42
+  },
+  {
+   "deck": 329832,
+   "event": 20014,
+   "archetype": "Infect",
+   "player": "Fabian Salzmann",
+   "event_name": "Swiss Magic Masters 2018 @ Interlaken",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-02",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 8,
+    "counters": 9,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 0,
+     "U": 23.0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Ponder": 3,
+     "Invigorate": 4,
+     "Daze": 4,
+     "Brainstorm": 4,
+     "Berserk": 2,
+     "Vines of Vastwood": 3,
+     "Force of Will": 3,
+     "Spell Pierce": 2,
+     "Crop Rotation": 1,
+     "Become Immense": 2,
+     "Sylvan Library": 1,
+     "Noble Hierarch": 4,
+     "Glistener Elf": 4,
+     "Blighted Agent": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 27
+  },
+  {
+   "deck": 330163,
+   "event": 20051,
+   "archetype": "Death's Shadow",
+   "player": "m0ller",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-10",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 13,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 0,
+     "U": 26.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Stubborn Denial": 2,
+     "Snuff Out": 1,
+     "Force of Will": 4,
+     "Fatal Push": 2,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Dismember": 1,
+     "Thoughtseize": 4,
+     "Reanimate": 2,
+     "Ponder": 4,
+     "Street Wraith": 3,
+     "Gurmag Angler": 2,
+     "Delver of Secrets // Insectile Aberration": 4,
+     "Death's Shadow": 4,
+     "Liliana, the Last Hope": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 25
+  },
+  {
+   "deck": 329003,
+   "event": 19929,
+   "archetype": "Merfolk",
+   "player": "Eric Kubo",
+   "event_name": "Channel Fireball Legacy 2K @ Channel Fireball",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-08-26",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 24,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 1,
+    "burn": 0,
+    "avg_cmc": 2.05,
+    "pips": {
+     "W": 0,
+     "U": 46.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Smuggler's Copter": 1,
+     "Umezawa's Jitte": 1,
+     "Daze": 2,
+     "Chalice of the Void": 3,
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "True-Name Nemesis": 4,
+     "Cursecatcher": 4,
+     "Phantasmal Image": 4,
+     "Silvergill Adept": 4,
+     "Master of the Pearl Trident": 4,
+     "Lord of Atlantis": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 16
+  },
+  {
+   "deck": 330133,
+   "event": 20048,
+   "archetype": "Uw Stoneblade",
+   "player": "Jordan Aisaka",
+   "event_name": "Preservation Series 1K @ Mox Boarding House",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-09-08",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 14,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 10.0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Ponder": 4,
+     "Swords to Plowshares": 4,
+     "Jace, the Mind Sculptor": 2,
+     "Umezawa's Jitte": 1,
+     "Batterskull": 1,
+     "Vendilion Clique": 2,
+     "Venser, Shaper Savant": 2,
+     "True-Name Nemesis": 2,
+     "Stoneforge Mystic": 4,
+     "Snapcaster Mage": 4,
+     "Flusterstorm": 2,
+     "Spell Snare": 2,
+     "Council's Judgment": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 5
+  },
+  {
+   "deck": 325997,
+   "event": 19642,
+   "archetype": "Helmerator",
+   "player": "Ryan Burk",
+   "event_name": "Let's Get Wasted! @ Prodigy Games, Florida",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-07-14",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 8,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 0,
+     "U": 22.0,
+     "B": 14.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Engineered Explosives": 1,
+     "Transmute Artifact": 1,
+     "Helm of Obedience": 1,
+     "Karn, Scion of Urza": 2,
+     "Collective Brutality": 2,
+     "Thirst for Knowledge": 3,
+     "Chalice of the Void": 4,
+     "Force of Will": 4,
+     "Leyline of the Void": 4,
+     "Dimir Signet": 4,
+     "The Antiquities War": 4,
+     "Wurmcoil Engine": 1,
+     "Trinket Mage": 1,
+     "Walking Ballista": 2,
+     "Baleful Strix": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 319045,
+   "event": 18953,
+   "archetype": "12 - Post",
+   "player": "Rich Macgilvray",
+   "event_name": "Grand Prix Seattle 2018 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2018-04-06",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 11,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 4.5,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Grim Monolith": 4,
+     "Thran Dynamo": 2,
+     "Trinisphere": 3,
+     "Voltaic Key": 3,
+     "Chalice of the Void": 4,
+     "All Is Dust": 1,
+     "Ulamog, the Ceaseless Hunger": 2,
+     "Thought-Knot Seer": 4,
+     "Kozilek, the Great Distortion": 1,
+     "Endbringer": 3,
+     "Emrakul, the Promised End": 1,
+     "Ugin, the Spirit Dragon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 16
+  },
+  {
+   "deck": 327022,
+   "event": 19743,
+   "archetype": "Aluren",
+   "player": "JapaneseFisherman",
+   "event_name": "MTGO Legacy Challenge",
+   "stars": 2,
+   "rank": "2",
+   "date": "2018-07-30",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 15,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 20.0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Baleful Strix": 4,
+     "Cavern Harpy": 3,
+     "Coiling Oracle": 1,
+     "Leovold, Emissary of Trest": 2,
+     "Parasitic Strix": 1,
+     "Shardless Agent": 4,
+     "Hymn to Tourach": 2,
+     "Inquisition of Kozilek": 4,
+     "Ponder": 4,
+     "Abrupt Decay": 3,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Aluren": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 11
+  },
+  {
+   "deck": 326288,
+   "event": 19666,
+   "archetype": "Mono Red Sneak Attack",
+   "player": "Huang, Jiancong",
+   "event_name": "MTA Legacy Invitational @ Guangzhou, China",
+   "stars": 2,
+   "rank": "2",
+   "date": "2018-07-15",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 4.75,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 16.0,
+     "R": 22.0,
+     "G": 9.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Through the Breach": 4,
+     "Seething Song": 2,
+     "Worldspine Wurm": 2,
+     "Griselbrand": 3,
+     "Ashen Rider": 2,
+     "Emrakul, the Aeons Torn": 2,
+     "Woodfall Primus": 1,
+     "Lotus Petal": 4,
+     "Chalice of the Void": 4,
+     "Simian Spirit Guide": 4,
+     "Sneak Attack": 4,
+     "Thought-Knot Seer": 4,
+     "Chandra, Torch of Defiance": 2,
+     "Inferno Titan": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 4
+  },
+  {
+   "deck": 329818,
+   "event": 20013,
+   "archetype": "Sultai Control",
+   "player": "Eduardo Shimizu",
+   "event_name": "4\u00b0 Liga Paulista @ Epic Game (S\u00e3o Paulo, Brazil)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2018-08-26",
+   "summer": true,
+   "s": 0.5098039215686275,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 7,
+    "counters": 6,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 21.0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Pernicious Deed": 3,
+     "Liliana, the Last Hope": 1,
+     "Jace, the Mind Sculptor": 3,
+     "Force of Will": 4,
+     "Ancestral Vision": 4,
+     "Diabolic Edict": 1,
+     "Fatal Push": 3,
+     "Abrupt Decay": 2,
+     "Counterspell": 2,
+     "Brainstorm": 4,
+     "Life from the Loam": 1,
+     "Hymn to Tourach": 3,
+     "Snapcaster Mage": 3,
+     "Baleful Strix": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  }
+ ],
+ "pool_size": 43,
+ "rejected_illegal": [
+  {
+   "archetype": "Grixis Delver",
+   "deck": 317950,
+   "player": "Joe Bernal",
+   "why": [
+    "Deathrite Shaman (banned)",
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 316428,
+   "player": "Drake Sasser",
+   "why": [
+    "Deathrite Shaman (banned)",
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 315329,
+   "player": "Guillem Salvador",
+   "why": [
+    "Deathrite Shaman (banned)",
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 322158,
+   "player": "Lucas Siow",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 323746,
+   "player": "Justin_Sane",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 319048,
+   "player": "Mark Sadowski",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Control",
+   "deck": 319052,
+   "player": "Pingyi Zhang",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Dark Depths",
+   "deck": 320910,
+   "player": "Vladimir Arneuve",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Stoneblade",
+   "deck": 307302,
+   "player": "Jon Goss",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "BUG Threshold",
+   "deck": 320983,
+   "player": "Roshen Eapen",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "BUG Threshold",
+   "deck": 319037,
+   "player": "Alexander Drew",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "BUG Threshold",
+   "deck": 314701,
+   "player": "JPA93",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "BUG Threshold",
+   "deck": 307283,
+   "player": "Hans Jacob Goddik",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Czech Pile",
+   "deck": 312496,
+   "player": "Tomas Mar",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Czech Pile",
+   "deck": 316329,
+   "player": "Terrence Serraarens",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Ant Storm",
+   "deck": 307801,
+   "player": "Svante Landgraf",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "UR Delver",
+   "deck": 312200,
+   "player": "Richard Thompson",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Czech Pile",
+   "deck": 324550,
+   "player": "Tomas Mar",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Czech Pile",
+   "deck": 324921,
+   "player": "James Hames",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Czech Pile",
+   "deck": 321459,
+   "player": "Tim Wilder",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Czech Pile",
+   "deck": 319272,
+   "player": "Juan Carlos Jara",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Maverick",
+   "deck": 319516,
+   "player": "Mikael Heikinheimo",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Ant",
+   "deck": 317828,
+   "player": "Cyrus Corman-gill",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Delver",
+   "deck": 314874,
+   "player": "Alex Wood",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Delver",
+   "deck": 313628,
+   "player": "Hans Jacob Goddik",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Delver",
+   "deck": 318256,
+   "player": "Nicolas Laumonier",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Delver",
+   "deck": 316937,
+   "player": "Joris Koek",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Aluren",
+   "deck": 310838,
+   "player": "Kurokawa Takumi",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Griffin",
+   "deck": 314972,
+   "player": "Tommy Tomsovic",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Griffin",
+   "deck": 310343,
+   "player": "Michele Bacci",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Griffin",
+   "deck": 320357,
+   "player": "Oskar Schmitz",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Griffin",
+   "deck": 320982,
+   "player": "Cosmo Kwok",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Stoneblade",
+   "deck": 319049,
+   "player": "Ian Mckeown",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Stoneblade",
+   "deck": 316445,
+   "player": "William Moore",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Stoneblade",
+   "deck": 309603,
+   "player": "Daniel Caixeta",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Stoneblade",
+   "deck": 311027,
+   "player": "DNEELEY",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Esper Stoneblade",
+   "deck": 326032,
+   "player": "Moises Naz",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Nic Fit",
+   "deck": 321506,
+   "player": "Bahra",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Junk",
+   "deck": 315363,
+   "player": "KoDiamonds",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Junk",
+   "deck": 324909,
+   "player": "Robert Green",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Junk",
+   "deck": 321522,
+   "player": "Douglas Santos",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Junk",
+   "deck": 313616,
+   "player": "Brandon Chang",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Midrange",
+   "deck": 315325,
+   "player": "Artur Silva",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Midrange",
+   "deck": 323718,
+   "player": "Enrico Vair",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Midrange",
+   "deck": 312500,
+   "player": "Marius Hausmann",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Bug Midrange",
+   "deck": 318343,
+   "player": "Pascal Schmid",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Belcher",
+   "deck": 319039,
+   "player": "Neil Mccraw",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Belcher",
+   "deck": 322132,
+   "player": "Michael Lambers",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Belcher",
+   "deck": 316511,
+   "player": "dawayne",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Shardless BUG",
+   "deck": 319061,
+   "player": "Paul Riordan",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Shardless BUG",
+   "deck": 307429,
+   "player": "Wolfgang Wittmann",
+   "why": [
+    "Deathrite Shaman (banned)",
+    "unknown card: Unknown Card"
+   ]
+  },
+  {
+   "archetype": "Dark Maverick",
+   "deck": 314019,
+   "player": "Tyrik Strachan",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Shadow Stalker",
+   "deck": 314084,
+   "player": "Robert Stark",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "4c Maverick",
+   "deck": 311694,
+   "player": "Boin",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 307802,
+   "player": "Christopher Lindholm",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 318250,
+   "player": "Raffaele Cefala",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 315322,
+   "player": "Fabricio Carmelito",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Jund",
+   "deck": 306308,
+   "player": "Takamitsu Shinmoto",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Ub Ninjas",
+   "deck": 330132,
+   "player": "Mike Wallio",
+   "why": [
+    "Yuriko, the Tiger's Shadow (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Pyromancer",
+   "deck": 324551,
+   "player": "Claudio Bonanni",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Pyromancer",
+   "deck": 315335,
+   "player": "Giulio Cavalli",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Pyromancer",
+   "deck": 312495,
+   "player": "Tristan P\u00f6lzl",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Pyromancer",
+   "deck": 308335,
+   "player": "Call1Me1Dragon",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Chain",
+   "deck": 324903,
+   "player": "Leo Maros",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Chain",
+   "deck": 315327,
+   "player": "Tharso Peixoto",
+   "why": [
+    "Deathrite Shaman (banned)",
+    "5x Thoughtseize (over the four-copy limit)"
+   ]
+  },
+  {
+   "archetype": "Food Chain",
+   "deck": 310655,
+   "player": "Kevin Sze",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Food Chain",
+   "deck": 310066,
+   "player": "Leonardo Maros",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Team America",
+   "deck": 321061,
+   "player": "Andr\u00e9 Pankhurst",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Team America",
+   "deck": 318992,
+   "player": "Kotlyar Bogdan",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Team America",
+   "deck": 318988,
+   "player": "Nicolayev Roman",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Team America",
+   "deck": 308295,
+   "player": "Anders Mortensen",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "4c PW Control",
+   "deck": 320667,
+   "player": "Clashed",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Sacrifice Aggro",
+   "deck": 320358,
+   "player": "Antoni Jablonowski",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Burning Show",
+   "deck": 318249,
+   "player": "Marco Pacilio",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Sultai Midrange",
+   "deck": 314018,
+   "player": "Patrick Lampkin",
+   "why": [
+    "Deathrite Shaman (banned)"
+   ]
+  },
+  {
+   "archetype": "Turbo Mill",
+   "deck": 314083,
+   "player": "Tyler Marklyn",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Thwart Aggro",
+   "deck": 311695,
+   "player": "qbturtle15",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  },
+  {
+   "archetype": "Mimic Rector",
+   "deck": 312160,
+   "player": "Leonardo Donati",
+   "why": [
+    "Gitaxian Probe (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Loam",
+   "player": "Alexander Beiersdorfer",
+   "kept": "Four-color Loam",
+   "kept_player": "Matthew Vook"
+  },
+  {
+   "dropped": "Sneak And Show",
+   "player": "Greg Mitchell",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Smelser"
+  },
+  {
+   "dropped": "Dimir Shadow",
+   "player": "Case Johnson",
+   "kept": "Death's Shadow",
+   "kept_player": "m0ller"
+  },
+  {
+   "dropped": "Sultai Delver",
+   "player": "Ge, Jing",
+   "kept": "Grixis Delver",
+   "kept_player": "Juyao Tang"
+  },
+  {
+   "dropped": "Esper Blade",
+   "player": "Bruno Moreno",
+   "kept": "Uw Stoneblade",
+   "kept_player": "Jordan Aisaka"
+  },
+  {
+   "dropped": "Delver Stoneblade",
+   "player": "Thomas Smiley",
+   "kept": "Grixis Delver",
+   "kept_player": "Juyao Tang"
+  },
+  {
+   "dropped": "Stoneblade",
+   "player": "A22en",
+   "kept": "Uw Stoneblade",
+   "kept_player": "Jordan Aisaka"
+  },
+  {
+   "dropped": "Turbo Depths",
+   "player": "Harry Dunn",
+   "kept": "Dark Depths",
+   "kept_player": "William Lo"
+  },
+  {
+   "dropped": "Death And Taxes",
+   "player": "Lachlan Ward-smith",
+   "kept": "Death & Taxes",
+   "kept_player": "Jonathan Job"
+  },
+  {
+   "dropped": "Jeskai Stoneblade",
+   "player": "Jordan Aisaka",
+   "kept": "Uw Stoneblade",
+   "kept_player": "Jordan Aisaka"
+  },
+  {
+   "dropped": "Ur Delver",
+   "player": "Albert Brown",
+   "kept": "Grixis Delver",
+   "kept_player": "Juyao Tang"
+  },
+  {
+   "dropped": "Br Reanimator",
+   "player": "Jay Wojciechowski",
+   "kept": "Reanimator",
+   "kept_player": "Jacob Therrian"
+  },
+  {
+   "dropped": "Sneak Show",
+   "player": "pokerswizard",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Smelser"
+  },
+  {
+   "dropped": "Uwr Miracles",
+   "player": "Thomas Mechin",
+   "kept": "Miracles",
+   "kept_player": "Yohan Blanchard"
+  },
+  {
+   "dropped": "Uw Miracles",
+   "player": "Johan Steurs",
+   "kept": "Miracles",
+   "kept_player": "Yohan Blanchard"
+  },
+  {
+   "dropped": "Death&taxes",
+   "player": "Andrea Ranocchia",
+   "kept": "Death & Taxes",
+   "kept_player": "Jonathan Job"
+  },
+  {
+   "dropped": "Rug Delver",
+   "player": "Patrick Casey",
+   "kept": "Grixis Delver",
+   "kept_player": "Juyao Tang"
+  },
+  {
+   "dropped": "Moonwalker",
+   "player": "Zeilstra, Jelmer",
+   "kept": "Dragon Stompy",
+   "kept_player": "Gary Campbell"
+  },
+  {
+   "dropped": "Rb Reanimator",
+   "player": "Kellen Nuffer",
+   "kept": "Reanimator",
+   "kept_player": "Jacob Therrian"
+  },
+  {
+   "dropped": "Colorless Stompy",
+   "player": "Joe Ricci",
+   "kept": "Steel Stompy",
+   "kept_player": "David Salus"
+  },
+  {
+   "dropped": "Reanimate",
+   "player": "Mihara Yuuki",
+   "kept": "Reanimator",
+   "kept_player": "Jacob Therrian"
+  },
+  {
+   "dropped": "Konstrukt Stompy",
+   "player": "Michael Kiesel",
+   "kept": "Steel Stompy",
+   "kept_player": "David Salus"
+  },
+  {
+   "dropped": "Sneak Attack",
+   "player": "Bin, Jia",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Smelser"
+  },
+  {
+   "dropped": "Colorless Eldrazi",
+   "player": "Luke Kutrich",
+   "kept": "Eldrazi",
+   "kept_player": "Henrique Belumat"
+  },
+  {
+   "dropped": "Red Moon Rising",
+   "player": "Michael Tessier",
+   "kept": "Dragon Stompy",
+   "kept_player": "Gary Campbell"
+  },
+  {
+   "dropped": "UR Delver",
+   "player": "Simon Drochon",
+   "kept": "Grixis Delver",
+   "kept_player": "Juyao Tang"
+  },
+  {
+   "dropped": "Golgari Depths",
+   "player": "David Long",
+   "kept": "Dark Depths",
+   "kept_player": "William Lo"
+  },
+  {
+   "dropped": "Artifact Stompy",
+   "player": "Amadeus Gr\u00fcn",
+   "kept": "Steel Stompy",
+   "kept_player": "David Salus"
+  },
+  {
+   "dropped": "Ant",
+   "player": "Cyrus Corman-gill",
+   "kept": "Storm",
+   "kept_player": "Takahashi Masataka"
+  },
+  {
+   "dropped": "Temur Delver",
+   "player": "Liu, Ting",
+   "kept": "Grixis Delver",
+   "kept_player": "Juyao Tang"
+  },
+  {
+   "dropped": "Bg Depths",
+   "player": "Cau\u00ea Galbes",
+   "kept": "Dark Depths",
+   "kept_player": "William Lo"
+  },
+  {
+   "dropped": "Br Goblins",
+   "player": "Sandro Rajalin",
+   "kept": "Goblins",
+   "kept_player": "Guilherme Figueira"
+  },
+  {
+   "dropped": "Ub Death's Shadow",
+   "player": "Dario Vicedomini",
+   "kept": "Death's Shadow",
+   "kept_player": "m0ller"
+  },
+  {
+   "dropped": "Omni - Show",
+   "player": "Jean-Mary Accart",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Smelser"
+  },
+  {
+   "dropped": "Eldrazi Post",
+   "player": "Lucas Cruz",
+   "kept": "Eldrazi",
+   "kept_player": "Henrique Belumat"
+  },
+  {
+   "dropped": "Grixis Reanimator",
+   "player": "Michael Plummer",
+   "kept": "Reanimator",
+   "kept_player": "Jacob Therrian"
+  },
+  {
+   "dropped": "Eldrazi Stompy",
+   "player": "Gabriele Perotti",
+   "kept": "Eldrazi",
+   "kept_player": "Henrique Belumat"
+  },
+  {
+   "dropped": "Br Reanimate",
+   "player": "Bj\u00f6rn Djurberg",
+   "kept": "Reanimator",
+   "kept_player": "Jacob Therrian"
+  },
+  {
+   "dropped": "Esper Stoneblade",
+   "player": "Zhou, Haoquan",
+   "kept": "Uw Stoneblade",
+   "kept_player": "Jordan Aisaka"
+  },
+  {
+   "dropped": "Sneak & Show",
+   "player": "Caue Alvarez",
+   "kept": "Show and Tell",
+   "kept_player": "Andrew Smelser"
+  },
+  {
+   "dropped": "Affinity",
+   "player": "Zhang, Suizhan",
+   "kept": "Steel Stompy",
+   "kept_player": "David Salus"
+  },
+  {
+   "dropped": "Aggro Loam",
+   "player": "Steve Britton",
+   "kept": "Four-color Loam",
+   "kept_player": "Matthew Vook"
+  },
+  {
+   "dropped": "Azorius Stoneblade",
+   "player": "Michael Van Vaals",
+   "kept": "UWx Control",
+   "kept_player": "Pedro J Sanchez"
+  },
+  {
+   "dropped": "Ub Shadow",
+   "player": "Charles Wong",
+   "kept": "Death's Shadow",
+   "kept_player": "m0ller"
+  },
+  {
+   "dropped": "Brx Reanimator",
+   "player": "Peng, Yuan",
+   "kept": "Reanimator",
+   "kept_player": "Jacob Therrian"
+  },
+  {
+   "dropped": "Punishing Maverick",
+   "player": "Chris Arebalo",
+   "kept": "Maverick",
+   "kept_player": "Tristan P\u00f6lzl"
+  },
+  {
+   "dropped": "Red Stompy",
+   "player": "Irineu Mendes",
+   "kept": "Dragon Stompy",
+   "kept_player": "Gary Campbell"
+  },
+  {
+   "dropped": "Eldrazi Control",
+   "player": "Cyriss84",
+   "kept": "Eldrazi Aggro",
+   "kept_player": "Carroz"
+  },
+  {
+   "dropped": "Uw-miracles",
+   "player": "Popov Mikhail",
+   "kept": "Miracles",
+   "kept_player": "Yohan Blanchard"
+  },
+  {
+   "dropped": "Dnt",
+   "player": "Egget",
+   "kept": "Death & Taxes",
+   "kept_player": "Jonathan Job"
+  }
+ ],
+ "objective": 19.17628479623326,
+ "pool_colors": {
+  "W": 10,
+  "U": 26,
+  "R": 11,
+  "G": 13,
+  "B": 19
+ },
+ "pool_styles": {
+  "control": 11,
+  "midrange": 16,
+  "aggro": 11,
+  "combo": 5
+ },
+ "kept_lost": []
+}

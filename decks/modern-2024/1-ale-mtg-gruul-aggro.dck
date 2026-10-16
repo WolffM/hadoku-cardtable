@@ -1,0 +1,35 @@
+[metadata]
+Name=Gruul Aggro (Ale_Mtg)
+Deck Type=Constructed
+Format=Modern (OTJ)
+Effective=2024-04-19
+Source URL=https://www.mtgtop8.com/event?e=55361&d=611912&f=MO
+Comment=MTGO Challenge 32: Ale_Mtg, 1st, Gruul Aggro. Transcribed from mtgtop8 deck 611912.
+[Main]
+2 Underworld Breach|THB
+2 Tarfire|LRW
+2 Mutagenic Growth|NPH
+4 Lava Dart|JU
+4 Lightning Bolt|M11
+4 Mishra's Bauble|CSP
+4 Abundant Harvest|MH2
+4 Dragon's Rage Channeler|MH2
+4 Questing Druid|WOE
+4 Slickshot Show-Off|OTJ
+4 Tarmogoyf|FUT
+4 Monastery Swiftspear|BRO
+1 Commercial District|MKM
+2 Bloodstained Mire|KTK
+2 Wooded Foothills|KTK
+2 Arid Mesa|ZEN
+3 Mountain|OTJ
+4 Scalding Tarn|ZEN
+4 Stomping Ground|RNA
+[Sideboard]
+2 Tormod's Crypt|M21
+2 Blood Moon|9E
+4 Pick Your Poison|MKM
+2 Surgical Extraction|NPH
+1 Jegantha, the Wellspring|IKO
+2 Destructive Revelry|THS
+2 Magus of the Moon|FUT
