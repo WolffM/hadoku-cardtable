@@ -99,6 +99,31 @@ function PromptTitle({ title }: { title: string }) {
   );
 }
 
+/** Words compared as a reader compares them: case, spacing and a closing full stop do not count. */
+function wordsOf(text: string): string {
+  return plainRulesText(text).toLowerCase().replace(/\s+/g, ' ').replace(/[.\s]+$/, '').trim();
+}
+
+/**
+ * The ask's effect line as the sheet draws it, or null when it would say nothing new.
+ *
+ * The stack's own description leads with the card's name (`Ponder - Look at the top 3 cards …`);
+ * when the head draws that card (`drawsCard`) the name is said once, by the card, and the line
+ * keeps only the effect. And Forge often writes the effect into the question itself — an optional
+ * trigger asks *"Use triggered ability of X? (When X enters, …)"* — so a title, dialog label or
+ * plain-text message that already holds the effect leaves no line at all.
+ */
+function effectLine(asked: { source: AskSource; lookup: PromptLookup }, drawsCard: boolean, words: readonly ReactNode[]): string | null {
+  const { text: said } = asked.source;
+  const name = asked.lookup.card(asked.source.card.id)?.name;
+  const lead = name === undefined ? '' : `${name} - `;
+  const named = lead !== '' && said.toLowerCase().startsWith(lead.toLowerCase());
+  const text = (named ? said.slice(lead.length) : said).trim();
+  const effect = wordsOf(text);
+  if (effect === '' || words.some((w) => typeof w === 'string' && wordsOf(w).includes(effect))) return null;
+  return drawsCard ? text : said;
+}
+
 export function PromptShell({
   method,
   title,
@@ -114,9 +139,10 @@ export function PromptShell({
 }: PromptShellProps) {
   const asked = useContext(AskSourceContext);
   const head = face ?? (asked === null ? undefined : promptThumb(asked.lookup, asked.source.card, 'prompt-source'));
-  const effect = asked === null || asked.source.text === '' ? null : (
+  const said = asked === null ? null : effectLine(asked, face === undefined, [title, label, message]);
+  const effect = said === null ? null : (
     <p className="prompt__source" data-testid="prompt-source-text">
-      <RulesText text={asked.source.text} />
+      <RulesText text={said} />
     </p>
   );
   return (

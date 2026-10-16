@@ -602,12 +602,26 @@
   height: auto;
 }
 
-/* The question's own card, beside the title. */
+/*
+ * The question's own card, beside the title: the face (`promptThumb`), and the
+ * words — the title, the effect line (the ask's source) and Forge's message.
+ *
+ * The head is the column's words, so it shrinks and scrolls as they do (the
+ * three-part column above), card and all, and it gives way before the body
+ * does (`flex-shrink: 4`): the answer is what the sheet is for. A sheet with
+ * room keeps the whole head; a crowded one keeps one line of it, the room the
+ * bare title had before every ask drew its source — so the answers keep exactly
+ * that room. A head that would not shrink stood Ponder's stack description over
+ * its order lists and left them an 81px window their rows could not be clicked
+ * through (`e2e/w34.spec.ts` §E2).
+ */
 .prompt__head {
   display: flex;
-  align-items: center;
+  align-items: safe center;
   gap: 8px;
-  flex-shrink: 0;
+  flex-shrink: 4;
+  min-height: 1.5em;
+  overflow-y: auto;
 }
 
 .prompt__head > .prompt__thumb {
