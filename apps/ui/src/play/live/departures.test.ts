@@ -6,8 +6,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BoardCard } from '../adapter.ts';
-import { departureCause, EXIT_MOTIONS, exitMotionFor, installDepartures, LEAVING_GAP_ATTR, type Departure, type DepartureCause } from './departures.ts';
+import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
+import { departureCause, departuresOf, EXIT_MOTIONS, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -56,13 +56,46 @@ describe('exitMotionFor', () => {
     for (const cause of ['damage', 'sacrificed', 'zero-toughness', 'state-rule'] as const) expect(exitMotionFor(departure('graveyard', cause)), cause).toBe('crumple');
   });
 
-  it('with no cause (a Forge too old to say, and no hit): killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced; out of play any other way fades', () => {
+  it('with no cause (a Forge too old to say, and no hit): killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced; exiled fades', () => {
     expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('crumple');
     expect(exitMotionFor(departure('graveyard'))).toBe('slice');
     expect(exitMotionFor(departure('gone'))).toBe('slice');
     expect(exitMotionFor(departure('gone', 'damage'))).toBe('crumple');
     expect(exitMotionFor(departure('exile'))).toBe('fade');
-    expect(exitMotionFor(departure('hand'))).toBe('fade');
+  });
+
+  it('back to a hand flies there: face up into a hand this screen sees, turning over into one it does not', () => {
+    expect(exitMotionFor(departure('hand'))).toBe('return');
+    expect(exitMotionFor({ ...departure('hand'), hidden: true })).toBe('return-hidden');
+  });
+});
+
+describe('departuresOf', () => {
+  const card = (id: number): BoardCard => ({ id }) as BoardCard;
+  const player = (id: number, over: Partial<BoardPlayer>): BoardPlayer =>
+    ({ id, hand: null, handCount: 3, battlefield: [], graveyard: [], exile: [], ...over }) as BoardPlayer;
+  const view = (...players: BoardPlayer[]): BoardView => ({ players }) as unknown as BoardView;
+
+  it('a card in a hand this screen sees went to that hand, face up', () => {
+    const prev = view(player(0, { hand: [], handCount: 0, battlefield: [card(7)] }), player(1, {}));
+    const next = view(player(0, { hand: [card(7)], handCount: 1 }), player(1, {}));
+    expect(departuresOf(prev, next)).toEqual([expect.objectContaining({ cardId: 7, to: 'hand', toPlayerId: 0 })]);
+    expect(departuresOf(prev, next)[0]!.hidden).toBeUndefined();
+  });
+
+  it('a card found nowhere went to a hidden hand that grew — its own player’s first — and nowhere shown when none did', () => {
+    const prev = view(player(0, { hand: [] }), player(1, { battlefield: [card(7), card(8)] }));
+    const intoTheirs = view(player(0, { hand: [] }), player(1, { handCount: 4 }));
+    expect(departuresOf(prev, intoTheirs).map((d) => [d.cardId, d.to, d.toPlayerId, d.hidden])).toEqual([
+      [7, 'hand', 1, true],
+      [8, 'gone', 1, undefined],
+    ]);
+  });
+
+  it('a card a hidden hand shows this screen is found there, face up', () => {
+    const prev = view(player(0, { hand: [] }), player(1, { battlefield: [card(7)] }));
+    const next = view(player(0, { hand: [] }), player(1, { handCount: 4, handShown: [null, null, null, card(7)] }));
+    expect(departuresOf(prev, next).map((d) => [d.to, d.toPlayerId, d.hidden])).toEqual([['hand', 1, undefined]]);
   });
 });
 
@@ -140,6 +173,60 @@ describe('installDepartures', () => {
     handle.snapshot();
     vi.advanceTimersByTime(250);
     expect(report).toHaveBeenCalledWith(expect.objectContaining({ what: 'departure-layout', departures: 1, copyDx: 0, copyDy: 20 }));
+    handle.dispose();
+  });
+
+  it('back to a hand: the copy is aimed at its own card there, which is hidden until the copy arrives', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    keepPlace(canvas);
+    const hand = document.createElement('section');
+    hand.setAttribute('data-zone', 'hand');
+    hand.innerHTML = '<ul><li class="board-card" data-board-card="7"></li></ul>';
+    canvas.append(hand);
+    const own = hand.querySelector<HTMLElement>('li')!;
+    own.getBoundingClientRect = () => rect(500, 700, 45, 63);
+    handle.leave(departure('hand'), 50);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(standIn.getAttribute('data-exit')).toBe('return');
+    // From the gap's centre (330, 442) to the card's (522.5, 731.5), at the card's width over the gap's.
+    expect(['--to-x', '--to-y', '--to-scale'].map((v) => standIn.style.getPropertyValue(v))).toEqual(['192.5px', '289.5px', '0.75']);
+    expect(own.hasAttribute(LANDING_ATTR), 'not drawn twice while the copy flies').toBe(true);
+    vi.advanceTimersByTime(50 + EXIT_MOTIONS.return.ms);
+    expect(own.hasAttribute(LANDING_ATTR)).toBe(false);
+    expect(canvas.querySelector('.board-departure')).toBeNull();
+    handle.dispose();
+  });
+
+  it('into a hidden hand: the card and that hand’s own back, flown to the newest back — and a second card to the one before it', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    canvas.querySelector('[data-zone="battlefield"] ul')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="8"></li>');
+    handle.snapshot();
+    keepPlace(canvas);
+    const gap8 = document.createElement('li');
+    gap8.setAttribute(LEAVING_GAP_ATTR, '8');
+    gap8.getBoundingClientRect = () => rect(370, 400, 60, 84);
+    canvas.querySelector('[data-board-card="8"]')!.replaceWith(gap8);
+    const seat = document.createElement('div');
+    seat.className = 'seat';
+    seat.innerHTML = `<div data-player-face="" data-player-id="1"></div>
+      <section data-zone="hand"><ul class="card-backs"><li class="card-back" data-card-back=""></li><li class="card-back" data-card-back=""></li></ul></section>`;
+    canvas.append(seat);
+    const newest = seat.querySelectorAll<HTMLElement>('.card-back')[1]!;
+    handle.leave({ ...departure('hand'), toPlayerId: 1, hidden: true }, 0);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(standIn.getAttribute('data-exit')).toBe('return-hidden');
+    expect([...standIn.querySelectorAll('.board-departure__piece')].map((p) => p.firstElementChild!.className)).toEqual(['board-card', 'card-back']);
+    expect(newest.hasAttribute(LANDING_ATTR)).toBe(true);
+    expect(seat.querySelectorAll('.card-back')[0]!.hasAttribute(LANDING_ATTR)).toBe(false);
+    handle.leave({ ...departure('hand'), cardId: 8, toPlayerId: 1, hidden: true }, 0);
+    expect(seat.querySelectorAll('.card-back')[0]!.hasAttribute(LANDING_ATTR), 'a second card into the hand lands on the next back').toBe(true);
+    vi.advanceTimersByTime(EXIT_MOTIONS['return-hidden'].ms);
+    expect(newest.hasAttribute(LANDING_ATTR)).toBe(false);
     handle.dispose();
   });
 

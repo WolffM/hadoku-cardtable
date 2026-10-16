@@ -29,6 +29,17 @@
  * per card is a line there, and a new animation is an entry in the table plus its keyframe. Nothing
  * else in this module or in `Board.tsx` knows any motion's name.
  *
+ * ## A motion that travels
+ *
+ * A motion with `travels` in its entry is drawn going somewhere: its stand-in is given the way to its
+ * destination as `--to-x`/`--to-y` (from its centre to the destination's) and `--to-scale` (the
+ * destination's width over its own), and its keyframes end there. The destination's own element is
+ * hidden (`[data-departure-landing]`) until the stand-in reaches it, so the card is drawn once. Back to a
+ * hand (the operator, 2026-10-16: "next let's work on the return to hand animation") is the one today:
+ * the card lifts off its row and flies into its owner's hand — to its own card in a hand this screen
+ * sees, flipping over to a card back on the way into one it does not (`back`: its last piece is that
+ * hand's own back).
+ *
  * Reduced motion: no stand-in; the gap closes at the card's beat.
  */
 
@@ -74,11 +85,17 @@ export interface Departure {
   readonly index: number;
   /** Why it died, when it went to a graveyard: Forge's word (`BoardView.deathCauses`), else `numbers.ts`'s reading of the hits. */
   readonly cause?: DepartureCause;
+  /**
+   * Gone to a hand this screen does not see into: an opponent's hand is a count (`BoardPlayer.hand` is
+   * `null`), so a card going there is found by that count rising, and lands face down.
+   */
+  readonly hidden?: true;
 }
 
 /**
  * Every exit motion, by name: how long it plays, and how many copies of the card it is drawn with
- * (each `.board-departure__piece`, numbered `data-piece="1"`…). The CSS for each is
+ * (each `.board-departure__piece`, numbered `data-piece="1"`…); `back`, its last piece is a card back
+ * instead; `travels`, it goes to its destination (see "A motion that travels"). The CSS for each is
  * `.board-departure[data-exit="<name>"][data-exit-go]` in `departures.css`.
  */
 export const EXIT_MOTIONS = {
@@ -89,9 +106,16 @@ export const EXIT_MOTIONS = {
    * 2026-10-15: "a 'slice in half' effect where the card is cut in half and then fades away").
    */
   slice: { ms: 620, pieces: 2 },
-  /** Out of play some other way — exiled, returned to a hand: it lifts and fades. */
+  /** Back to a hand this screen sees: it lifts off its row and flies to its own card there. */
+  return: { ms: 760, pieces: 1, travels: true },
+  /** Back to a hand this screen does not see: the same flight, turning over to a card back on the way. */
+  'return-hidden': { ms: 760, pieces: 2, back: true, travels: true },
+  /** Out of play some other way — exiled: it lifts and fades. */
   fade: { ms: 300, pieces: 1 },
-} as const satisfies Record<string, { readonly ms: number; readonly pieces: number }>;
+} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly back?: true; readonly travels?: true }>;
+
+const backed = (motion: ExitMotion): boolean => 'back' in EXIT_MOTIONS[motion];
+const travels = (motion: ExitMotion): boolean => 'travels' in EXIT_MOTIONS[motion];
 
 export type ExitMotion = keyof typeof EXIT_MOTIONS;
 
@@ -101,6 +125,7 @@ export type ExitMotion = keyof typeof EXIT_MOTIONS;
  * a death no hit explains is taken for destroyed.
  */
 export function exitMotionFor(departure: Departure): ExitMotion {
+  if (departure.to === 'hand') return departure.hidden === true ? 'return-hidden' : 'return';
   if (departure.to !== 'graveyard' && departure.to !== 'gone') return 'fade';
   return departure.cause === undefined || departure.cause === 'destroyed' ? 'slice' : 'crumple';
 }
@@ -116,7 +141,7 @@ function destinationIn(view: BoardView, cardId: number): { to: ExitDestination |
     if (has(player.battlefield)) return { to: 'battlefield', playerId: player.id };
     if (has(player.graveyard)) return { to: 'graveyard', playerId: player.id };
     if (has(player.exile)) return { to: 'exile', playerId: player.id };
-    if (has(player.hand)) return { to: 'hand', playerId: player.id };
+    if (has(player.hand) || (player.handShown ?? []).some((c) => c?.id === cardId)) return { to: 'hand', playerId: player.id };
   }
   return { to: 'gone', playerId: null };
 }
@@ -125,14 +150,32 @@ function destinationIn(view: BoardView, cardId: number): { to: ExitDestination |
  * The permanents on a battlefield in `prev` that are on none in `next`. A permanent that changed
  * control is still on a battlefield, and stays out of it. Pure, so both screens draw the same
  * departures from the same two views.
+ *
+ * A card found in no zone of `next` went to a hand this screen does not see into when a hidden hand
+ * grew by more than it shows — one card per card it grew by, the hand of the battlefield it left
+ * first — and otherwise nowhere shown (`gone`).
  */
 export function departuresOf(prev: BoardView | null, next: BoardView): Departure[] {
   if (prev === null) return [];
   const out: Departure[] = [];
+  const grown = new Map<number, number>();
+  for (const player of next.players) {
+    const was = prev.players.find((p) => p.id === player.id);
+    if (player.hand === null && was !== undefined && player.handCount > was.handCount) grown.set(player.id, player.handCount - was.handCount);
+  }
+  const intoHidden = (from: number): number | null => {
+    const id = (grown.get(from) ?? 0) > 0 ? from : ([...grown].find(([, n]) => n > 0)?.[0] ?? null);
+    if (id !== null) grown.set(id, grown.get(id)! - 1);
+    return id;
+  };
   for (const player of prev.players) {
     player.battlefield.forEach((card, index) => {
       const { to, playerId } = destinationIn(next, card.id);
-      if (to !== 'battlefield') out.push({ cardId: card.id, playerId: player.id, to, toPlayerId: playerId ?? player.id, card, index });
+      if (to === 'battlefield') return;
+      const base = { cardId: card.id, playerId: player.id, card, index };
+      const hiddenHand = to === 'gone' ? intoHidden(player.id) : null;
+      if (hiddenHand !== null) out.push({ ...base, to: 'hand', toPlayerId: hiddenHand, hidden: true });
+      else out.push({ ...base, to, toPlayerId: playerId ?? player.id });
     });
   }
   return out;
@@ -174,6 +217,24 @@ function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** On a destination's own element while a stand-in travels to it: hidden, so the card is drawn once. */
+export const LANDING_ATTR = 'data-departure-landing';
+
+/**
+ * Where a card going back to its owner's hand lands: its own card there when this screen sees it, else
+ * that hand's newest back not yet flown to, else the hand itself. The hand is the one in the seat of the player's face.
+ */
+function handLanding(canvas: HTMLElement, departure: Departure): HTMLElement | null {
+  const own = canvas.querySelector<HTMLElement>(`[data-zone="hand"] [data-board-card="${departure.cardId}"]`);
+  if (own !== null) return own;
+  const seat = canvas.querySelector(`[data-player-face][data-player-id="${departure.toPlayerId}"]`)?.closest('.seat');
+  const hand = seat?.querySelector<HTMLElement>('[data-zone="hand"]') ?? null;
+  if (hand === null) return null;
+  // The newest back no other card is flying to: two cards into one hand land on two backs.
+  const backs = [...hand.querySelectorAll<HTMLElement>('.card-back')].filter((b) => !b.hasAttribute(LANDING_ATTR));
+  return backs.at(-1) ?? hand;
+}
+
 /** Ids, test ids and every hook another lane finds a card by: a stand-in is no card of the board's. */
 const STRIPPED = ['id', 'data-board-card', 'data-card-id', 'data-testid', 'data-arrange-card', 'data-selectable', 'tabindex'];
 
@@ -200,7 +261,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
   }
 
-  function standIn(from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion): HTMLElement {
+  function standIn(from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion, landing: HTMLElement | null): HTMLElement {
     const box = root.getBoundingClientRect();
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
@@ -211,8 +272,9 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     wrap.style.width = `${at.width}px`;
     // The copy is sized by the zone's own `--card-w`, which the overlay is outside of.
     wrap.style.setProperty('--card-w', `${at.width}px`);
-    for (let n = 1; n <= EXIT_MOTIONS[motion].pieces; n++) {
-      const copy = from.cloneNode(true) as HTMLElement;
+    const pieces = EXIT_MOTIONS[motion].pieces;
+    for (let n = 1; n <= pieces; n++) {
+      const copy = backed(motion) && n === pieces ? cardBack(landing) : (from.cloneNode(true) as HTMLElement);
       for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
       const piece = document.createElement('div');
       piece.className = 'board-departure__piece';
@@ -222,6 +284,22 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     }
     root.append(wrap);
     return wrap;
+  }
+
+  /** The hand's own back, drawn as one more piece: a copy of the newest there, else a plain one. */
+  function cardBack(landing: HTMLElement | null): HTMLElement {
+    const back = landing?.classList.contains('card-back') === true ? (landing.cloneNode(true) as HTMLElement) : document.createElement('div');
+    back.className = 'card-back';
+    back.removeAttribute(LANDING_ATTR);
+    return back;
+  }
+
+  /** The way from the stand-in to where it lands, written on it for its keyframes. */
+  function aim(wrap: HTMLElement, at: DOMRect, landing: HTMLElement): void {
+    const to = landing.getBoundingClientRect();
+    wrap.style.setProperty('--to-x', `${to.left + to.width / 2 - (at.left + at.width / 2)}px`);
+    wrap.style.setProperty('--to-y', `${to.top + to.height / 2 - (at.top + at.height / 2)}px`);
+    wrap.style.setProperty('--to-scale', String(at.width > 0 && to.width > 0 ? Math.min(1.2, to.width / at.width) : 1));
   }
 
   return {
@@ -287,11 +365,21 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         pending.copyDx = Math.max(pending.copyDx, Math.abs(at.left - was.left));
         pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
       }
-      const wrap = standIn(from, at, root, motion);
+      const landing = travels(motion) ? handLanding(canvas, departure) : null;
+      const wrap = standIn(from, at, root, motion, landing);
       wrap.setAttribute(DEPARTURE_ATTR, String(departure.cardId));
       standIns.add(wrap);
-      schedule(() => wrap.setAttribute('data-exit-go', ''), delayMs);
+      // Only a card or a back is hidden while it is flown to — never a whole hand.
+      const hides = landing !== null && landing.getAttribute('data-zone') === null;
+      if (hides) landing.setAttribute(LANDING_ATTR, '');
+      if (landing !== null) aim(wrap, at, landing);
       schedule(() => {
+        // Aimed again at its beat: the hand may have laid itself out anew since the card left.
+        if (landing?.isConnected === true) aim(wrap, at, landing);
+        wrap.setAttribute('data-exit-go', '');
+      }, delayMs);
+      schedule(() => {
+        if (hides) landing.removeAttribute(LANDING_ATTR);
         wrap.remove();
         standIns.delete(wrap);
         done();
@@ -303,6 +391,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       timers.clear();
       for (const el of standIns) el.remove();
       standIns.clear();
+      for (const el of canvas.querySelectorAll(`[${LANDING_ATTR}]`)) el.removeAttribute(LANDING_ATTR);
     },
   };
 }
