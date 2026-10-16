@@ -21,7 +21,9 @@
  * `od-tezzeret-pile`: alice activates Tezzeret's +1 over five non-artifacts, so all five go to the bottom
  * and Forge asks their order. `scry-one-prompt`: Foresee's Scry 4, the two-group order — and Foresee's
  * draw is the proof of which way up the top pile is. `order-drag-ponder`: Ponder puts three back on top,
- * and its draw is the card the pile drew farthest from the library.
+ * and its draw is the card the pile drew farthest from the library. `ol-relic-exile`: Relic of Progenitus
+ * exiles alice's three graveyard cards, Forge asks their order (*"this needs an auto button"*, the operator,
+ * 2026-10-16), and Auto answers it in one press with Forge's own order.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS and
  * its title says why.
@@ -359,6 +361,61 @@ test(
       const drew = (await handIds(page)).filter((id) => !handBefore.includes(id));
       console.log(`[od] ponder drew ${JSON.stringify(drew)} pile from the screen's top ${JSON.stringify(drawnDest)}`);
       expect(drew, 'Ponder drew the card drawn farthest from the library’s ghost').toEqual([drawnDest[0]]);
+    } finally {
+      await stack.stop();
+    }
+  },
+);
+
+test(
+  titled('Relic of Progenitus’s “exile all graveyards”: the exile order has an Auto button, one press closes it, and the cards land in exile in the order Forge offered them'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(3 * 60_000);
+    const stack = await startPlayStack(forge);
+    try {
+      const { alice, bob } = await startScenarioMatch(browser, stack, 'ol-relic-exile');
+      const page = alice.page;
+      await page.setViewportSize(SIZES[0]);
+      const relic = await ownPermanent(page, 'Relic of Progenitus');
+      expect(await clickPermanent(page, relic), 'Relic of Progenitus is offered').toBe(true);
+      const exileAll = page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]').filter({ hasText: /graveyards/i });
+      await expect
+        .poll(
+          async () => {
+            const method = await promptMethod(page);
+            if (method === 'order') return 'order';
+            if ((await exileAll.count()) > 0) await exileAll.first().click({ timeout: 1_000 }).catch(() => undefined);
+            else if (method !== null) await answerPrompt(page).catch(() => undefined);
+            for (const p of [page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
+            return method ?? 'none';
+          },
+          { timeout: 60_000, intervals: [250], message: 'Forge asks the order of the cards going to exile' },
+        )
+        .toBe('order');
+      const prompt = livePrompt(page);
+      console.log(`[od] relic prompt ${JSON.stringify(((await prompt.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 160))}`);
+      await expect(prompt, 'the exile question').toContainText('exile');
+      const offered = [...(await rowsIds(page.getByTestId('order-dest'))), ...(await rowsIds(page.getByTestId('order-source')))];
+      expect(offered, 'the three graveyard cards are ordered').toHaveLength(3);
+      // Somebody fiddles first: Auto still sends Forge's own order.
+      await page.getByTestId('order-source').locator(':scope > li').last().click();
+      await prompt.getByTestId('prompt-auto').click();
+      await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'one press of Auto answered the order' }).not.toBe('order');
+      const exiled = page.locator('.seat[data-viewer] [data-zone="exile"] [data-board-card]');
+      let inExile: number[] = [];
+      await expect
+        .poll(
+          async () => {
+            inExile = (await exiled.evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))))).filter((id) => offered.includes(id));
+            return inExile.length;
+          },
+          { timeout: 15_000, message: 'the three cards reached exile' },
+        )
+        .toBe(3);
+      console.log(`[od] relic offered ${JSON.stringify(offered)} exile ${JSON.stringify(inExile)}`);
+      expect(inExile, 'the cards are in exile in the order Forge offered them').toEqual(offered);
     } finally {
       await stack.stop();
     }

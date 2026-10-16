@@ -1,0 +1,17 @@
+# The operator, 2026-10-16, over "Choose order of cards to put into the exile zone": "this needs an
+# auto button." Alice (seat 0) holds her main phase with Relic of Progenitus and an untapped Island;
+# three different cards sit in her graveyard and none in Bob's, so "Exile all graveyards" asks only her
+# the order of her three (`GameActionUtil.orderCardsByTheirOwners`). `e2e/od-order-pile.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Relic of Progenitus;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=Lightning Bolt;Counterspell;Ponder
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
