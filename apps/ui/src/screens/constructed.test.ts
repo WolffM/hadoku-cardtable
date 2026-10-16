@@ -732,6 +732,28 @@ describe('the constructed screen without a room', () => {
   });
 });
 
+// The operator, 2026-10-16: "on first page load, i still see the room-id for a split second before
+// the room actually loads … can we show a loading skeleton before the room is loaded?"
+describe('a room that has not answered yet', () => {
+  it('draws the room’s outline, never its id, and swaps in the room when it answers', async () => {
+    const server = stubServer({ players: [opponent()], matchId: null });
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, feed: everyMs(10_000) }));
+    // No await: this is the first paint.
+    const room = screen.getByTestId('constructed');
+    expect(room.textContent).not.toContain(ROOM);
+    expect(screen.queryByTestId('room-name')).toBeNull();
+    expect(screen.getByTestId('room-skeleton')).toBeTruthy();
+    expect(room.querySelector('main')?.getAttribute('aria-busy')).toBe('true');
+    expect(room.textContent, 'no words while it waits').not.toMatch(/Waiting|Loading|Constructed 1v1/);
+
+    expect((await screen.findByTestId('room-name')).textContent).toBe('Friday night');
+    await deckPicker();
+    expect(screen.queryByTestId('room-skeleton')).toBeNull();
+    expect(screen.queryByTestId('deck-skeleton')).toBeNull();
+    expect(room.querySelector('main')?.hasAttribute('aria-busy')).toBe(false);
+  });
+});
+
 describe('a room the list read before navigating (rooms/warm.ts)', () => {
   it('draws the finished page on its first render: the name, the seats and a live deck picker', async () => {
     const server = stubServer({ players: [opponent()], matchId: null });
