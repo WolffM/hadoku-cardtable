@@ -1486,10 +1486,21 @@
 
 /* Fixed, so the deck grid's own scroll box does not clip it; placed inside the
    room screen's box by the component, so it never covers the chat. */
+/* The list and the layer its hovered card enlarges into (`DeckPeek.tsx`): neither draws a box of its own. */
+.peek-host {
+  display: contents;
+}
+
+.peek__zoom {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-zoom, 60);
+  pointer-events: none;
+}
+
 .peek {
   position: fixed;
   z-index: 40;
-  pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1550,6 +1561,11 @@
   align-items: center;
   gap: 6px;
   height: 18px;
+}
+
+/* The line whose card the inspector is showing. */
+.peek__line:hover {
+  background: var(--color-bg-hover);
 }
 
 .peek__n {

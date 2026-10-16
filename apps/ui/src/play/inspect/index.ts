@@ -101,7 +101,8 @@
  * where to place the expanded img."* Neither the window nor the card being
  * read is ever the thing the panel covers. An open pile view (`../PileView.tsx`)
  * is such a window too: a card read in it, or on the board while it is open,
- * stands beside it by the same rule, never over the cards it lists.
+ * stands beside it by the same rule, never over the cards it lists — and so
+ * is a deck's list in the room's picker, whose lines enlarge through here.
  *
  * ## Staleness, on purpose
  *
@@ -166,9 +167,11 @@ const ABILITY_CHIP = 'data-ability-chip';
 
 /**
  * A window the panel stands beside, never on: a decision pop-up that asks something (the "waiting for
- * the other player" pop-up asks nothing), or an open pile view.
+ * the other player" pop-up asks nothing), an open pile view, or a deck's list in the picker
+ * (`../../screens/DeckPeek.tsx`).
  */
-const OPEN_WINDOW = '.live__prompt:not(:has([data-testid="live-waiting-pop"])), [data-testid="pile-view"]';
+const OPEN_WINDOW =
+  '.live__prompt:not(:has([data-testid="live-waiting-pop"])), [data-testid="pile-view"], [data-testid="deck-peek"]';
 
 /** The box vocabulary `placeInspector` speaks. Client coordinates. */
 export interface Rect {

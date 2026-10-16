@@ -62,7 +62,7 @@ import ART_IDS from '../draft/art-ids.json';
 import DECK_ART_TRAITS from '../draft/deck-art-traits.json';
 import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckArt.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
-import { PEEK_DELAY_MS } from './DeckPeek.tsx';
+import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf } from '../draft/deckFromPool.ts';
@@ -1256,7 +1256,98 @@ describe('the deck picker', () => {
     expect(peek.textContent).toContain('Sideboard 15');
     expect(tile.getAttribute('aria-describedby')).toBe('deck-peek');
     fireEvent.pointerLeave(tile);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEEK_GRACE_MS);
+    });
     expect(screen.queryByTestId('deck-peek')).toBeNull();
+  });
+
+  // The operator, 2026-10-16: "remove the gap between the deck grid button and the expanded
+  // decklist so i can actually hover over things in there?"
+  describe('a peeked list the pointer can reach', () => {
+    async function openPeek(): Promise<{ tile: HTMLElement; other: HTMLElement }> {
+      await mountRoom({ players: [opponent()], matchId: null });
+      await deckPicker();
+      const grid = screen.getByTestId('deck-mine');
+      const tile = grid.querySelector<HTMLElement>(`[data-deck-id="${SECOND_DECK}"]`)!;
+      const other = grid.querySelector<HTMLElement>(`[data-deck-id="${UG_POLYMORPH}"]`)!;
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+      await advance(PEEK_DELAY_MS);
+      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      return { tile, other };
+    }
+    const advance = async (ms: number) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    };
+
+    it('stays open while the pointer moves from the tile into the list and rests there', async () => {
+      const { tile } = await openPeek();
+      fireEvent.pointerLeave(tile, { pointerType: 'mouse' });
+      await advance(PEEK_GRACE_MS / 2);
+      fireEvent.pointerEnter(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
+      await advance(PEEK_GRACE_MS * 10);
+      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      expect(tile.getAttribute('aria-describedby')).toBe('deck-peek');
+    });
+
+    it('closes once the pointer has left both the tile and the list', async () => {
+      const { tile } = await openPeek();
+      fireEvent.pointerLeave(tile, { pointerType: 'mouse' });
+      fireEvent.pointerEnter(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
+      // Back onto its own tile and off again: still the same list.
+      fireEvent.pointerLeave(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
+      fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+      await advance(PEEK_GRACE_MS * 2);
+      expect(screen.getByTestId('deck-peek')).toBeTruthy();
+      fireEvent.pointerLeave(tile, { pointerType: 'mouse' });
+      fireEvent.pointerEnter(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
+      fireEvent.pointerLeave(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
+      await advance(PEEK_GRACE_MS - 1);
+      expect(screen.getByTestId('deck-peek')).toBeTruthy();
+      await advance(1);
+      expect(screen.queryByTestId('deck-peek')).toBeNull();
+      expect(tile.hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('keeps the list when a diagonal path to it crosses another tile, and opens nothing for that tile', async () => {
+      const { tile, other } = await openPeek();
+      fireEvent.pointerLeave(tile, { pointerType: 'mouse' });
+      fireEvent.pointerEnter(other, { pointerType: 'mouse' });
+      fireEvent.pointerLeave(other, { pointerType: 'mouse' });
+      fireEvent.pointerEnter(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
+      await advance(PEEK_DELAY_MS * 2);
+      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      expect(other.hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('switches to another tile’s list when the pointer rests on that tile', async () => {
+      const { tile, other } = await openPeek();
+      fireEvent.pointerLeave(tile, { pointerType: 'mouse' });
+      fireEvent.pointerEnter(other, { pointerType: 'mouse' });
+      await advance(PEEK_GRACE_MS);
+      expect(screen.queryByTestId('deck-peek')).toBeNull();
+      await advance(PEEK_DELAY_MS - PEEK_GRACE_MS);
+      expect(screen.getByTestId('deck-peek').textContent).not.toContain('Jund (Emanuele Giusti)');
+      expect(other.getAttribute('aria-describedby')).toBe('deck-peek');
+    });
+
+    it('enlarges a line’s card in the inspector, beside the list', async () => {
+      await openPeek();
+      const list = screen.getByTestId('deck-peek');
+      fireEvent.pointerEnter(list, { pointerType: 'mouse' });
+      const island = [...list.querySelectorAll('.peek__line')].find((li) => li.querySelector('.peek__name')?.textContent === 'Island')!;
+      fireEvent.pointerOver(island, { pointerType: 'mouse' });
+      const panel = document.querySelector('[data-board-zoom] [data-inspect]');
+      expect(panel?.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//);
+      fireEvent.pointerOut(island, { pointerType: 'mouse', relatedTarget: list });
+      expect(document.querySelector('[data-inspect]')).toBeNull();
+    });
   });
 
   it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate once per pool', async () => {

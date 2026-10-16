@@ -200,7 +200,7 @@ import {
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
-import { DeckPeek, PEEK_DELAY_MS, type PeekLine, type PeekList } from './DeckPeek.tsx';
+import { DeckPeek, PEEK_DELAY_MS, PEEK_GRACE_MS, namedFace, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
@@ -269,13 +269,20 @@ interface DeckOption {
   deckStyle?: DeckStyle;
 }
 
-/** A library deck's lines, costed from the same committed slice the colours fold. */
+/**
+ * A line known by its name: costed from the same committed slice the colours
+ * fold, its face's art from the play board's own table (`LIBRARY_ART_IDS`).
+ */
+function namedPeekLine({ name, count }: DeckLine): PeekLine {
+  const printed = LIBRARY_CARD_COSTS[name] ?? '';
+  const cost = manaTokensOf(printed);
+  const manaValue = manaValueOf(printed);
+  return { name, count, cost, manaValue, face: namedFace(name, cost, manaValue, scryfallIdFor(LIBRARY_ART_IDS, name, '')) };
+}
+
+/** A library deck's lines: the wire sends names. */
 function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
-  const line = ({ name, count }: DeckLine): PeekLine => {
-    const cost = LIBRARY_CARD_COSTS[name] ?? '';
-    return { name, count, cost: manaTokensOf(cost), manaValue: manaValueOf(cost) };
-  };
-  return { main: main.map(line), sideboard: sideboard.map(line) };
+  return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
 }
 
 /** Converted mana cost of one Scryfall cost token — `'3'` → 3, `'2/W'` → 2, `'X'` → 0. */
@@ -735,18 +742,43 @@ function DeckChooser({
   const peekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** The tile the timer is running for, so a pointer moving within it does not restart it. */
   const peekPending = useRef<number | null>(null);
-  const closePeek = (): void => {
+  /** The close that leaving the tile or the list starts, which entering either cancels. */
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cancelPending = (): void => {
     clearTimeout(peekTimer.current);
     peekPending.current = null;
+  };
+  const closePeek = (): void => {
+    cancelPending();
+    clearTimeout(leaveTimer.current);
     setPeek(null);
   };
-  useEffect(() => () => clearTimeout(peekTimer.current), []);
+  /** Off the tile or the list: closed once {@link PEEK_GRACE_MS} passes without the pointer reaching either. */
+  const closePeekSoon = (): void => {
+    cancelPending();
+    clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => setPeek(null), PEEK_GRACE_MS);
+  };
+  /** On the list: it stays, and a tile crossed on the way there opens nothing. */
+  const holdPeek = (): void => {
+    cancelPending();
+    clearTimeout(leaveTimer.current);
+  };
+  useEffect(
+    () => () => {
+      clearTimeout(peekTimer.current);
+      clearTimeout(leaveTimer.current);
+    },
+    [],
+  );
   const openPeekSoon = (index: number): void => {
+    if (peek?.index === index) clearTimeout(leaveTimer.current);
     if (peekPending.current === index || peek?.index === index) return;
     clearTimeout(peekTimer.current);
     peekPending.current = index;
     peekTimer.current = setTimeout(() => {
       peekPending.current = null;
+      clearTimeout(leaveTimer.current);
       const tile = refs.current[index];
       if (tile === null || tile === undefined) return;
       const screen = tile.closest('[data-testid="constructed"]') ?? document.documentElement;
@@ -770,6 +802,7 @@ function DeckChooser({
   useEffect(() => {
     setFocus(null);
     clearTimeout(peekTimer.current);
+    clearTimeout(leaveTimer.current);
     peekPending.current = null;
     setPeek(null);
   }, [options]);
@@ -846,7 +879,7 @@ function DeckChooser({
           onPointerEnter={(event) => {
             if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
           }}
-          onPointerLeave={closePeek}
+          onPointerLeave={closePeekSoon}
           aria-describedby={peek?.index === index ? 'deck-peek' : undefined}
         >
           <DeckArt artId={option.artId} />
@@ -881,6 +914,8 @@ function DeckChooser({
           list={peeked.list}
           anchor={peek.anchor}
           bounds={peek.bounds}
+          onPointerEnter={holdPeek}
+          onPointerLeave={closePeekSoon}
         />
       )}
     </div>
@@ -1385,19 +1420,20 @@ function RoomTableScreen({
       // A drafted card carries its own id and its own mana value, so the art rule
       // needs no lookup table here — the pool IS the table.
       const byName = new Map((myPool ?? []).map((card) => [card.name, card]));
+      // A drafted card is its own face; a basic is not in the pool and is looked up by name.
+      const draftedLine = (entry: { card: { name: string }; count: number }): PeekLine => {
+        const card = byName.get(entry.card.name);
+        return card === undefined
+          ? namedPeekLine({ name: entry.card.name, count: entry.count })
+          : { name: card.name, count: entry.count, cost: card.manaCost, manaValue: card.manaValue, face: card };
+      };
       return [
         {
           value: DRAFTED_DECK,
           label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`,
           list: {
-            main: [...draftedDeck.main, ...draftedDeck.basics].map((entry) => {
-              const card = byName.get(entry.card.name);
-              return { name: entry.card.name, count: entry.count, cost: card?.manaCost ?? [], manaValue: card?.manaValue ?? 0 };
-            }),
-            sideboard: draftedDeck.sideboard.map((entry) => {
-              const card = byName.get(entry.card.name);
-              return { name: entry.card.name, count: entry.count, cost: card?.manaCost ?? [], manaValue: card?.manaValue ?? 0 };
-            }),
+            main: [...draftedDeck.main, ...draftedDeck.basics].map(draftedLine),
+            sideboard: draftedDeck.sideboard.map(draftedLine),
           },
           colors: mainDeckColors(draftedDeck, cardIndex(myPool ?? [])),
           art: rankDeckArt(
