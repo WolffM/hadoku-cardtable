@@ -110,9 +110,17 @@
 .board-card[data-pile-size] {
   --stack-step: 8px;
   --pile-fan: var(--stack-step);
+}
 
-  /* One stacking context per pile, so the order below is the pile's own
-     business and no card of it can paint over a neighbouring lane. */
+/*
+ * One stacking context per pile in its row, so the order below is the pile's own
+ * business and no card of it can paint over a neighbouring lane. Not on a pile's
+ * stand-in (`[data-cast-lift]`, `live/gestures/gestures.css`): this selector
+ * outranks that rule's `position: fixed`, and an equipped token's arriving copy
+ * was laid out IN `.board`'s two-track grid — a third track for its flight, and
+ * both battlefields shrank to make room.
+ */
+.board-card[data-pile-size]:not([data-cast-lift]) {
   position: relative;
   z-index: 0;
 }
