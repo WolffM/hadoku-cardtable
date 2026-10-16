@@ -1,0 +1,19 @@
+# A cost with two Phyrexian shards and a generic part, paid with life twice and
+# a land once. Alice (`human…`, seat 0) holds Dismember ({1}{B/P}{B/P}) and one
+# untapped Plains, an uncontested turn-1 Main Phase 1: the Plains cannot make
+# black, so each {B/P} can only be paid with 2 life (two presses of the payment
+# window's life button) and the Plains pays the {1}. Bob's Grizzly Bears (2/2)
+# is the only creature, so it is Dismember's target.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Dismember
+humanbattlefield=Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=Island
+aibattlefield=Grizzly Bears
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
