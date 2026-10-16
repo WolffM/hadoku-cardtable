@@ -803,7 +803,9 @@ public final class PlayBridge {
      * each time; a face-down card is never read.
      *
      * <p>Null when the cards cannot be read (the game thread moved them under the read): the frame
-     * then omits the field and the client keeps what it had.
+     * then omits the field and the client keeps what it had. A card whose own check Forge cannot
+     * answer outside its resolution (Pulse of the Forge's "that player", with no target yet) stays
+     * dark, is reported once, and every other card is still read.
      */
     static JsonArray conditionMetJson(final Game game) {
         final JsonArray out = new JsonArray();
@@ -811,13 +813,30 @@ public final class PlayBridge {
         try {
             for (final forge.game.player.Player p : game.getPlayers()) {
                 for (final forge.game.card.Card c : p.getCardsIn(List.of(ZoneType.Hand, ZoneType.Battlefield))) {
-                    if (!c.isFaceDown() && ConditionsOn.met(c)) { out.add(c.getId()); }
+                    if (!c.isFaceDown() && metOrUnaskable(c)) { out.add(c.getId()); }
                 }
             }
             return out;
         } catch (final ReflectiveOperationException | RuntimeException e) {
             System.err.println("[bridge] conditionMet: could not read the cards (" + e + ")");
             return null;
+        }
+    }
+
+    /** The card names whose check Forge threw on, each reported once. */
+    private static final Set<String> UNASKABLE_CONDITIONS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** {@link ConditionsOn#met}, with a check Forge throws on read as not met; a move under the read still fails the frame. */
+    private static boolean metOrUnaskable(final forge.game.card.Card c) throws ReflectiveOperationException {
+        try {
+            return ConditionsOn.met(c);
+        } catch (final java.util.ConcurrentModificationException moved) {
+            throw moved;
+        } catch (final RuntimeException e) {
+            if (UNASKABLE_CONDITIONS.add(c.getName())) {
+                System.err.println("[bridge] condition of " + c.getName() + " cannot be asked outside its resolution (" + e + ")");
+            }
+            return false;
         }
     }
 
