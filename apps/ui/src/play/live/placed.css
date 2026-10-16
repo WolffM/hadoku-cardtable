@@ -131,8 +131,11 @@
  * A spell held in the air is seen through a haze (`placed.ts`'s `HAZE_FILTER_ID`: noise that
  * displaces the face a pixel or two, slowly breathing) and a little more saturated than the table
  * (the operator, 2026-10-15: "a visual distortion shimmer and maybe a slight saturation change").
- * On the face, inside `.placed__hover`, whose own filter is the lift's shadow. Both drop off as it
- * leaves; an ability's chip has neither, and a reduced-motion screen keeps only the colour.
+ * On the face, inside `.placed__hover`, whose own filter is the lift's shadow. A resolved spell keeps
+ * both while it fades: a filter that is a reference cannot be transitioned, and dropping it as the
+ * fade began snapped the face sharp in one frame (the operator, 2026-10-16: "a slight flicker … when
+ * the STP card starded fading"). A countered one drops them as it shudders. An ability's chip has
+ * neither, and a reduced-motion screen keeps only the colour.
  */
 .placed__defs {
   position: absolute;
@@ -145,7 +148,7 @@
   filter: url('#placed-haze') saturate(1.16);
 }
 
-.placed:is([data-placed-leaving], [data-placed-countered]) > .placed__hover > * {
+.placed[data-placed-countered] > .placed__hover > * {
   filter: none;
 }
 
