@@ -43,9 +43,12 @@ export type ProjectileLook = keyof typeof PROJECTILES;
 /**
  * A slow drift off the source, then a snap into the slam (the operator, 2026-10-15: "the fireball
  * should start slow and then accellerate quicker", then "even slower start and even faster
- * accelleration"): steeper than an exponential ease-in.
+ * accelleration"), then "the final 1-3 frames are too fast. the impact should be fast but still
+ * visible". The curve's end slope caps the last frames: at (0.96, 0.04) it was 24× the mean speed and
+ * the final frame covered half the flight; (0.92, 0.45) ends near 7×, so the last three frames still
+ * draw the ball on its way in.
  */
-export const PROJECTILE_EASING = 'cubic-bezier(0.88, 0, 0.96, 0.04)';
+export const PROJECTILE_EASING = 'cubic-bezier(0.9, 0, 0.92, 0.45)';
 /** How far behind the ball each ember of its trail runs. */
 export const EMBER_LAG_MS = 28;
 /** The impact's burst, after the ball lands. */
