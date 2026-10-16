@@ -366,8 +366,12 @@ describe('the hot-path table', () => {
   });
 });
 
-/** Real ranges landed on main, read against this checkout. */
-describe('real landed ranges', () => {
+/**
+ * Real ranges landed on main, read against this checkout. Each replay reads git
+ * history and walks the tree's imports, some 1.5-6 s on a busy host, so these and
+ * the replays below get 20 s rather than the default 5.
+ */
+describe('real landed ranges', { timeout: 20_000 }, () => {
   const ranges = new Map<string, { range: string; files: Change[] }>();
   const read = (name: string): { range: string; files: Change[] } => {
     if (!ranges.has(name)) ranges.set(name, JSON.parse(readFileSync(join(ROOT, 'scripts/ci/fixtures', `${name}.json`), 'utf8')) as { range: string; files: Change[] });
@@ -420,7 +424,7 @@ describe('real landed ranges', () => {
  * and the land it shipped in, history included; replayed as a push, the guarding
  * spec must be picked.
  */
-describe('historical misses, replayed as a push', () => {
+describe('historical misses, replayed as a push', { timeout: 20_000 }, () => {
   interface Miss {
     commit: string;
     files: Change[];
