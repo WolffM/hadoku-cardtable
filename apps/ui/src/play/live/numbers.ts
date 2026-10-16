@@ -100,8 +100,10 @@
  * an arrival fades in, the number appears in place.
  */
 
+import type { ManaColor } from '@hadoku/shared';
+
 import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
-import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, RESOLVE_BLINK_MS, REVEAL_BEAT_MS } from '../motion.ts';
+import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
 import { DEPARTURE_ATTR, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { fly, impact } from './projectile.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
@@ -127,8 +129,6 @@ export const HIT_FLASH_MS = 360;
 export const ARRIVE_FADE_MS = 240;
 /** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
 export const ARRIVING_ATTR = 'data-arriving-from';
-/** After the last hit of a resolution lands, before the creatures it killed start to go. */
-export const EXIT_AFTER_HIT_MS = 120;
 /** A reveal drawn in the same paint as the stack item it belongs to can be noted a few ms before the item is. */
 const SAME_PAINT_MS = 150;
 
@@ -523,7 +523,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   /** One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn. */
-  function hit(from: Boxed, to: Element, key: string, colour: NumberColour, delayMs: number, land: () => void): void {
+  function hit(from: Boxed, to: Element, key: string, colour: NumberColour, delayMs: number, land: () => void, hue: ManaColor | null = null): void {
     const root = overlay();
     if (root === null || reduced()) {
       atBeat(() => {
@@ -538,11 +538,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // A card leaving is drawn as its copy over the kept gap (`departures.ts`): aim at the card, not the gap.
       const leavingId = to.getAttribute(LEAVING_GAP_ATTR);
       const end = centreIn((leavingId === null ? null : root.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"]`)) ?? to, box);
-      const look = colour === 'danger' ? 'fire' : 'heal';
-      const ball = fly(root, centreIn(from, box), end, key, look, HIT_MS);
+      const look = colour === 'danger' ? 'bolt' : 'heal';
+      const ball = fly(root, centreIn(from, box), end, key, look, HIT_MS, hue);
       schedule(() => {
         ball.remove();
-        impact(root, end, look, key);
+        impact(root, end, look, key, hue);
         flash(to, colour);
         land();
       }, HIT_MS);
@@ -550,10 +550,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   /** The impact alone, where `to` is — a hit with no projectile (combat damage). */
-  function slam(to: Element, key: string): void {
+  function slam(to: Element, key: string, hue: ManaColor | null): void {
     const root = overlay();
     if (root === null || reduced()) return;
-    impact(root, centreIn(to, root.getBoundingClientRect()), 'fire', key);
+    impact(root, centreIn(to, root.getBoundingClientRect()), 'bolt', key, hue);
   }
 
   /** A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in place when there is nowhere to come from. */
@@ -607,16 +607,23 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const hitIds = new Set(diff.hits.map((h) => h.cardId));
     const effects =
       diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
-    // A spell blinks on the stack before what it does is drawn (`motion.ts`'s `RESOLVE_BLINK_MS`, `placed.ts`).
-    const blink = item !== undefined && effects && stackBoxes.has(item.id) && !fast() && !reduced() ? RESOLVE_BLINK_MS : 0;
-    const startMs = Math.max(reveal?.waitMs ?? 0, blink);
+    // What it does starts at once (a reveal's beat aside); the spell waits on the stack meanwhile and goes last (`placed.ts`).
+    const startMs = reveal?.waitMs ?? 0;
+    /** A hit is drawn in its spell's colour (the operator, 2026-10-15): the resolving card's first colour, colourless for none. */
+    const spellHue = item?.sourceCard?.colors[0] ?? null;
     let beat = 0;
     const nextDelay = (): number => startMs + beat++ * BEAT_STAGGER_MS;
     /** When the last beat drawn so far is over. */
     let endMs = 0;
     const leaving = new Map(diff.departures.map((d) => [d.cardId, d]));
-    /** When the last hit on a card that is leaving lands: those go together, after it. */
-    let lastFatalLand = -1;
+    /** Each permanent's first colour — on a battlefield now, or just gone from one — for a hit with no spell behind it (combat). */
+    const hueOn = new Map<number, ManaColor>();
+    for (const card of [...(prevView?.players.flatMap((p) => p.battlefield) ?? []), ...diff.departures.map((d) => d.card)]) {
+      const first = card.card.colors[0];
+      if (first !== undefined) hueOn.set(card.id, first);
+    }
+    /** When the hit on each card that is leaving lands: it goes then (the operator: "die when they get impacted"). */
+    const fatalLand = new Map<number, number>();
 
     for (const change of diff.life) {
       const face = faceEl(change.playerId);
@@ -634,7 +641,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (span !== null) span.textContent = String(change.from);
       const delay = nextDelay();
       endMs = Math.max(endMs, delay + HIT_MS);
-      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land);
+      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue);
     }
     for (const change of diff.damage) {
       // Forge said who hit it (`diff.hits`, below): drawn from that, never twice.
@@ -652,7 +659,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       else {
         const delay = nextDelay();
         endMs = Math.max(endMs, delay + HIT_MS);
-        hit(origin, card, `card:${change.cardId}`, 'danger', delay, land);
+        hit(origin, card, `card:${change.cardId}`, 'danger', delay, land, spellHue);
       }
     }
     /*
@@ -670,12 +677,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // A projectile only from what resolved: combat damage is the impact alone, never a ball between two creatures.
       const delay = origin === null ? 0 : nextDelay();
       const landsAt = origin === null ? delay : delay + HIT_MS;
-      if (departure !== undefined) lastFatalLand = Math.max(lastFatalLand, landsAt);
+      if (departure !== undefined) fatalLand.set(h.cardId, Math.max(fatalLand.get(h.cardId) ?? 0, landsAt));
       endMs = Math.max(endMs, landsAt);
       if (origin === null) {
-        slam(target.card, key);
+        slam(target.card, key, h.sourceId === null ? null : (hueOn.get(h.sourceId) ?? null));
         land();
-      } else hit(origin, target.card, key, 'danger', delay, land);
+      } else hit(origin, target.card, key, 'danger', delay, land, spellHue);
     }
     for (const death of diff.deaths) {
       // "Nothing for 0": destroyed outright, sacrificed, or simply left the
@@ -703,11 +710,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay);
     }
     /*
-     * What left the battlefield goes at its beat: what a hit killed once the last such hit has landed,
-     * everything else (destroyed, sacrificed, exiled) as the effects start.
+     * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
+     * else (destroyed, sacrificed, exiled) as the effects start.
      */
     for (const departure of diff.departures) {
-      const delay = fast() ? 0 : hitIds.has(departure.cardId) && lastFatalLand >= 0 ? lastFatalLand + EXIT_AFTER_HIT_MS : startMs;
+      const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
       endMs = Math.max(endMs, delay + exitMs(departure));
       host.leave?.(departure, delay);
     }

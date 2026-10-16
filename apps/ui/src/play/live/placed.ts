@@ -94,7 +94,7 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { artCredit, useArtist } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, sizeAsCard } from '../card-size.ts';
-import { GLIDE_MS, PLACEMENT_WAIT_MS, RESOLVE_BLINK_MS, takeResolutionEffects } from '../motion.ts';
+import { GLIDE_MS, PLACEMENT_WAIT_MS, takeResolutionEffects } from '../motion.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { RulesText } from '../prompts/RulesText.tsx';
 import type { BoardView, StackEntry } from '../adapter.ts';
@@ -107,8 +107,8 @@ export type { Point };
 
 /** How long a resolved spell takes to travel into where it went, fading as it arrives — the house glide. Reduced motion skips straight to it. */
 export const LEAVE_FADE_MS = GLIDE_MS;
-/** AE27: the resolving counter's blink, before its target is destroyed — every resolution with something to draw blinks the same. */
-export { RESOLVE_BLINK_MS };
+/** AE27: the resolving counter's blink, before its target is destroyed. */
+export const RESOLVE_BLINK_MS = 400;
 /** AE27: the countered target's destroy motion, before the counter itself fades. */
 export const COUNTERED_MS = 400;
 /** On a permanent's own board card once it resolves off the stack, until its settle has run (`placed.css`'s `stack-settle`). */
@@ -847,19 +847,12 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       removeNow(id);
       return;
     }
-    // What it did is drawn first (`numbers.ts`'s beats: hits, a creature destroyed): it blinks as it
-    // takes effect, stays while that plays, and only then goes — the counter's three steps (AE27).
+    // What it did is drawn first (`numbers.ts`'s beats: hits, a creature destroyed): it stays where it
+    // is while that plays, and then goes the ordinary way — no blink (the operator, 2026-10-15: the
+    // "double blink" was "a bit slow and weird").
     const effectsUntil = takeResolutionEffects(id);
-    if (effectsUntil !== null) {
-      d.el.removeAttribute('data-placed-next');
-      d.el.setAttribute('data-placed-resolving', '');
-      schedule(
-        () => {
-          d.el.removeAttribute('data-placed-resolving');
-          fadeInto(id, d, cardId);
-        },
-        Math.max(RESOLVE_BLINK_MS, effectsUntil - Date.now()),
-      );
+    if (effectsUntil !== null && effectsUntil > Date.now()) {
+      schedule(() => fadeInto(id, d, cardId), effectsUntil - Date.now());
       return;
     }
     fadeInto(id, d, cardId);

@@ -15,11 +15,15 @@
  * ## Looks
  *
  * A look is a name in {@link PROJECTILES} and its rules in `projectile.css`
- * (`.effect-hit[data-projectile="<name>"]`, its trail's embers and its impact). `fire` is damage;
- * `heal` is life gained. A look per colour or per card is a new entry and its CSS.
+ * (`.effect-hit[data-projectile="<name>"]`, its trail's embers and its impact). `bolt` is damage, drawn
+ * in the colour of the card that dealt it (`data-colour`, a mana letter, `C` for colourless — the
+ * operator, 2026-10-15: "make the fireball color match the spell's color"); `heal` is life gained.
+ * A look per card is a new entry and its CSS.
  *
  * Every element is in the board's overlay, never a transform on a card in a row (table-fit).
  */
+
+import type { ManaColor } from '@hadoku/shared';
 
 import './projectile.css';
 
@@ -30,17 +34,18 @@ export interface Point {
 
 /** Every projectile look, by name: how many embers trail it. Its CSS is `projectile.css`. */
 export const PROJECTILES = {
-  fire: { embers: 3 },
+  bolt: { embers: 3 },
   heal: { embers: 2 },
 } as const satisfies Record<string, { readonly embers: number }>;
 
 export type ProjectileLook = keyof typeof PROJECTILES;
 
 /**
- * Slow off the source, then a hard acceleration into the slam — an exponential ease-in (the operator,
- * 2026-10-15: "the fireball should start slow and then accellerate quicker").
+ * A slow drift off the source, then a snap into the slam (the operator, 2026-10-15: "the fireball
+ * should start slow and then accellerate quicker", then "even slower start and even faster
+ * accelleration"): steeper than an exponential ease-in.
  */
-export const PROJECTILE_EASING = 'cubic-bezier(0.7, 0, 0.84, 0)';
+export const PROJECTILE_EASING = 'cubic-bezier(0.88, 0, 0.96, 0.04)';
 /** How far behind the ball each ember of its trail runs. */
 export const EMBER_LAG_MS = 28;
 /** The impact's burst, after the ball lands. */
@@ -86,7 +91,7 @@ function keyframes(start: Point, control: Point, end: Point): Keyframe[] {
  * Returns the ball, marked `data-hit=<key>` while it flies; it and its trail remove themselves when
  * they arrive. Without the Web Animations API (a test's DOM) the ball is placed at the end at once.
  */
-export function fly(root: HTMLElement, start: Point, end: Point, key: string, look: ProjectileLook, ms: number): HTMLElement {
+export function fly(root: HTMLElement, start: Point, end: Point, key: string, look: ProjectileLook, ms: number, hue: ManaColor | null = null): HTMLElement {
   const control = arcControl(start, end, seedOf(key));
   const frames = keyframes(start, control, end);
   const make = (ember: number): HTMLElement => {
@@ -94,6 +99,7 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
     el.className = ember === 0 ? 'effect-hit' : 'effect-hit-ember';
     el.setAttribute('aria-hidden', 'true');
     el.dataset.projectile = look;
+    el.dataset.colour = hue ?? 'C';
     if (ember > 0) el.style.setProperty('--ember', String(ember));
     root.append(el);
     return el;
@@ -116,11 +122,12 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
 }
 
 /** The slam where a projectile of `look` landed: a burst and sparks at `at`, gone after {@link IMPACT_MS}. */
-export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: string): HTMLElement {
+export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: string, hue: ManaColor | null = null): HTMLElement {
   const burst = document.createElement('div');
   burst.className = 'effect-impact';
   burst.setAttribute('aria-hidden', 'true');
   burst.dataset.projectile = look;
+  burst.dataset.colour = hue ?? 'C';
   burst.dataset.impact = key;
   burst.style.left = `${at.x}px`;
   burst.style.top = `${at.y}px`;

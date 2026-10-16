@@ -2,6 +2,10 @@
  * Projectiles (`projectile.ts`): the ball, its trail of embers and the impact where it lands. One block
  * per look, under its name from `PROJECTILES`. The ball is placed by its animation's transform from the
  * overlay's top left, so it has no `left`/`top` of its own.
+ *
+ * A bolt is drawn in the colour of the card that dealt it: `data-colour` (a mana letter, `C` for
+ * colourless) picks the colour-pie hue (`styles.css`'s `--c-*`), and every shade below is mixed from
+ * it — a hot core toward `--c-white` (`--bolt-heat` of the hue in it), a deep rim toward `--c-black`.
  */
 .effect-hit,
 .effect-hit-ember {
@@ -13,24 +17,53 @@
   pointer-events: none;
 }
 
-/*
- * Fire: a white-hot core in an amber-to-red flame, a glow around it — the theme's own warning and
- * danger, so it reads as fire in every theme without a colour of its own (`tokens.test.ts`).
- */
-.effect-hit[data-projectile='fire'] {
-  --fire-core: color-mix(in srgb, var(--warn) 30%, var(--c-white));
-  width: 22px;
-  height: 22px;
-  background: radial-gradient(circle at 40% 40%, var(--fire-core) 0 22%, var(--warn) 45%, var(--danger) 100%);
-  box-shadow:
-    0 0 14px 6px color-mix(in srgb, var(--warn) 90%, transparent),
-    0 0 36px 14px color-mix(in srgb, var(--danger) 55%, transparent);
+[data-colour='W'] {
+  --bolt: var(--c-white);
 }
 
-.effect-hit-ember[data-projectile='fire'] {
+[data-colour='U'] {
+  --bolt: var(--c-blue);
+}
+
+/* Black's core stays dark: a white-hot centre washes its colour out. */
+[data-colour='B'] {
+  --bolt: var(--c-black);
+  --bolt-heat: 75%;
+}
+
+[data-colour='R'] {
+  --bolt: var(--c-red);
+}
+
+[data-colour='G'] {
+  --bolt: var(--c-green);
+}
+
+[data-colour='C'] {
+  --bolt: var(--c-generic);
+}
+
+.effect-hit[data-projectile='bolt'],
+.effect-hit-ember[data-projectile='bolt'],
+.effect-impact[data-projectile='bolt'] {
+  --bolt-core: color-mix(in oklab, var(--bolt) var(--bolt-heat, 35%), var(--c-white));
+  --bolt-rim: color-mix(in oklab, var(--bolt) 75%, var(--c-black));
+}
+
+/* A bolt: a hot core in its colour's flame, a glow around it. */
+.effect-hit[data-projectile='bolt'] {
+  width: 22px;
+  height: 22px;
+  background: radial-gradient(circle at 40% 40%, var(--bolt-core) 0 22%, var(--bolt) 50%, var(--bolt-rim) 100%);
+  box-shadow:
+    0 0 14px 6px color-mix(in srgb, var(--bolt) 90%, transparent),
+    0 0 36px 14px color-mix(in srgb, var(--bolt) 50%, transparent);
+}
+
+.effect-hit-ember[data-projectile='bolt'] {
   width: calc(16px - var(--ember) * 3px);
   height: calc(16px - var(--ember) * 3px);
-  background: radial-gradient(circle, var(--warn) 0 30%, var(--danger) 70%, transparent 100%);
+  background: radial-gradient(circle, var(--bolt-core) 0 30%, var(--bolt) 70%, transparent 100%);
   opacity: calc(0.75 - var(--ember) * 0.18);
   filter: blur(1px);
 }
@@ -71,12 +104,12 @@
   animation: effect-impact-flash 380ms ease-out forwards;
 }
 
-.effect-impact[data-projectile='fire']::before {
+.effect-impact[data-projectile='bolt']::before {
   background: radial-gradient(
     circle,
-    color-mix(in srgb, var(--warn) 30%, var(--c-white)) 0 15%,
-    color-mix(in srgb, var(--warn) 90%, transparent) 35%,
-    color-mix(in srgb, var(--danger) 50%, transparent) 60%,
+    var(--bolt-core) 0 15%,
+    color-mix(in srgb, var(--bolt) 90%, transparent) 35%,
+    color-mix(in srgb, var(--bolt-rim) 50%, transparent) 60%,
     transparent 72%
   );
 }
@@ -104,14 +137,16 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--warn);
-  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--danger) 80%, transparent);
   animation: effect-impact-spark 380ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+
+.effect-impact[data-projectile='bolt'] .effect-impact__spark {
+  background: var(--bolt-core);
+  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--bolt) 80%, transparent);
 }
 
 .effect-impact[data-projectile='heal'] .effect-impact__spark {
   background: var(--success);
-  box-shadow: none;
 }
 
 @keyframes effect-impact-spark {

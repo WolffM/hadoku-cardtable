@@ -28,7 +28,7 @@ export const GLIDE_MS = 300;
 /** A revealed card's beat in the reveal notice, before anything it caused is drawn. */
 export const REVEAL_BEAT_MS = 450;
 /** A hit (damage, life lost or gained) travelling from its source to the player or creature it changes — on its arc, speeding up (`live/projectile.ts`). */
-export const HIT_MS = 560;
+export const HIT_MS = 700;
 /** Between two hits, or two created permanents, of one resolution. */
 export const BEAT_STAGGER_MS = 120;
 
@@ -60,13 +60,6 @@ export function noteRevealGone(card: Element | null): void {
 export function lastRevealBeat(): RevealBeat | null {
   return lastReveal;
 }
-
-/**
- * A resolving spell's blink on the stack (`placed.css`'s `placed-resolve`), before anything it does is
- * drawn: the operator, 2026-10-15, of Slagstorm and five creatures going to the graveyard in one
- * frame — "we should have seen it be played and then seen an animation for my cards being destroyed".
- */
-export const RESOLVE_BLINK_MS = 400;
 
 /** When each resolved stack item's drawn effects end (epoch ms), so its spell fades after them. */
 const effectsUntil = new Map<number, number>();

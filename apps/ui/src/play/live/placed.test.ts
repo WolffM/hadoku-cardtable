@@ -841,7 +841,7 @@ describe('installPlaced: an ability is drawn only when the chain halts over it',
 });
 
 describe('installPlaced: a resolution with something to draw (the operator’s Slagstorm, 2026-10-15)', () => {
-  it('the spell blinks as it takes effect and stays until what it did is drawn, then fades', () => {
+  it('the spell stays, still, until what it did is drawn, then fades the ordinary way — no blink', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     placeSpell(301, { x: 400, y: 300 }, 'them');
@@ -850,12 +850,11 @@ describe('installPlaced: a resolution with something to draw (the operator’s S
     noteResolutionEffects(9, Date.now() + 1500); // `numbers.ts` drew hits and creatures leaving, in this same commit
     handle.notify(view([]));
     const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect(spell.hasAttribute('data-placed-resolving'), 'it blinks').toBe(true);
+    expect(spell.hasAttribute('data-placed-resolving'), 'no blink').toBe(false);
     expect(spell.hasAttribute('data-placed-leaving'), 'it does not go yet').toBe(false);
     vi.advanceTimersByTime(1499);
     expect(spell.hasAttribute('data-placed-leaving'), 'it stays while its effects play').toBe(false);
     vi.advanceTimersByTime(1);
-    expect(spell.hasAttribute('data-placed-resolving')).toBe(false);
     expect(spell.hasAttribute('data-placed-leaving'), 'then it fades').toBe(true);
     handle.dispose();
   });
