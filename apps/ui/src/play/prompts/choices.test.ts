@@ -792,4 +792,23 @@ describe('an ask raised on behalf of a card', () => {
     expect(queryByTestId('prompt-source')).toBeNull();
     expect(queryByTestId('prompt-source-text')).toBeNull();
   });
+
+  const said = (source: { text: string }, message: string = ask.message) =>
+    render(
+      createElement(PromptFor, {
+        ask: parseServerFrame({ ...ask, message, source: { ...ask.source, ...source } }) as AskOf<'getChoices'>,
+        lookup: poolLookup,
+        onAnswer: () => {},
+      }),
+    ).queryByTestId('prompt-source-text')?.textContent ?? null;
+
+  it('says the card once: a stack description that leads with the drawn card’s name keeps only the effect', () => {
+    expect(said({ text: `${POOL[0]!.name} - Look at the top 3 cards of Alice's library.` })).toBe("Look at the top 3 cards of Alice's library.");
+  });
+
+  it('draws no effect line when Forge’s own question already says it', () => {
+    const effect = 'When it enters, draw a card.';
+    expect(said({ text: effect }, `Use triggered ability of ${POOL[0]!.name}?\n(${effect})`)).toBeNull();
+    expect(said({ text: `${POOL[0]!.name} - ${effect}` }, `Use triggered ability? (${effect})`), 'with or without the card’s name in front').toBeNull();
+  });
 });
