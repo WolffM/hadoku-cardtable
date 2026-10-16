@@ -26,7 +26,9 @@
  *    pointer is among the rows — not only from which row it is over;
  *  - carried to the top or bottom of the box the rows scroll in, the box scrolls,
  *    so a card can be carried to a row the box does not show yet — never toward
- *    an edge the card is being carried away from;
+ *    an edge the card is being carried away from; and a row the pointer comes
+ *    over with its top scrolled out of sight has its top scrolled back, so the
+ *    half of it that means "before it" can always be pointed at;
  *  - on release the rows that moved slide into their new places (`flip`, the
  *    hand's slide), the dropped one from where it was let go; a release that
  *    changes nothing glides the phantom back to its row.
@@ -175,6 +177,8 @@ interface Press {
   last: { at: At; event: PointerEvent } | null;
   /** The running edge scroll's frame. */
   frame: number | null;
+  /** The row last revealed under the pointer (`reveal`), so it is scrolled once. */
+  revealed: number | null;
   /** Takes the window listeners this press added off again. */
   off: () => void;
 }
@@ -238,6 +242,10 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
       slot = { testid: target.spec.testid, before: null };
     } else if (target !== null) {
       const rows = rowsOf(target.el).filter((r) => idOf(r) !== p.id);
+      if (reveal(p, rows, at)) {
+        track(p, at, event);
+        return;
+      }
       const before = rowBefore(rows, at);
       slot = { testid: target.spec.testid, before: before === null ? null : idOf(before) };
       bar = barBox(target.el, rows, before);
@@ -258,6 +266,30 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
     p.bar.el.style.width = `${bar.width}px`;
     p.bar.el.style.height = `${bar.height}px`;
     p.bar.place(bar.left, bar.top);
+  }
+
+  /**
+   * The row under the pointer, its top scrolled into view the first time the pointer is over it.
+   * Rows a scry draws do not fit its body two at a time, so the card above the one being carried
+   * often shows only its lower part: the half that means "before it" sat out of sight or in the
+   * edge band, where no still pointer holds, and a drop above it landed after it. Only a row cut
+   * off at the TOP moves — one cut off at the bottom still shows its upper half. The pointer stays
+   * over the row, since the scroll moves it by no more than its hidden part. True when the box moved.
+   */
+  function reveal(p: Press, rows: readonly HTMLElement[], at: At): boolean {
+    if (p.scroller === null) return false;
+    const row = rows.find((r) => {
+      const b = r.getBoundingClientRect();
+      return at.y >= b.top && at.y <= b.bottom && at.x >= b.left && at.x <= b.right;
+    });
+    if (row === undefined || idOf(row) === p.revealed) return false;
+    p.revealed = idOf(row);
+    const r = row.getBoundingClientRect();
+    const view = p.scroller.getBoundingClientRect();
+    const by = Math.min(0, r.top - view.top);
+    const was = p.scroller.scrollTop;
+    p.scroller.scrollTop = was + by;
+    return p.scroller.scrollTop !== was;
   }
 
   /** While the pointer holds near the scroller's top or bottom, scroll it a little every frame, and re-read the slot under the pointer. */
@@ -349,6 +381,7 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
       scroller: scrollerOf(row),
       last: null,
       frame: null,
+      revealed: null,
       off: () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
