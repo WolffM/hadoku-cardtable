@@ -1,0 +1,17 @@
+# Blood Moon turns every nonbasic land into a Mountain (AddType$ Mountain |
+# RemoveLandTypes$ True), on both sides, whether or not the cube pool knows
+# the land. Alice (seat 0) controls Blood Moon and an Adarkar Wastes; Bob
+# controls a Glacial Fortress. Neither land is in the cube pool.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Blood Moon;Adarkar Wastes
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Glacial Fortress
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

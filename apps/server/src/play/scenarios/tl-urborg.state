@@ -1,0 +1,18 @@
+# Urborg, Tomb of Yawgmoth makes every land a Swamp in addition, on both sides
+# of the table, for every land whether or not the cube pool knows it. Alice
+# (seat 0) controls Urborg, an Adarkar Wastes and a Plains; Bob controls a
+# Glacial Fortress. Neither nonbasic land is in the cube pool; both are printed
+# a bare Land.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Urborg, Tomb of Yawgmoth;Adarkar Wastes;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Glacial Fortress
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
