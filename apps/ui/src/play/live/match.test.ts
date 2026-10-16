@@ -2548,6 +2548,31 @@ describe('cantBlock — the bridge’s own wire fact', () => {
   });
 });
 
+describe('printedTypes — the bridge’s own wire fact', () => {
+  function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload },
+    });
+  }
+
+  it('folds onto the permanent’s own changedFrom, and a delta without it keeps it', async () => {
+    const { s, m } = await fullGame();
+    const changed = () => m.view!.players.flatMap((p) => p.battlefield).filter((c) => c.changedFrom != null);
+    expect(changed(), 'nothing is changed before a frame says so').toEqual([]);
+    const permanent = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!;
+    const printed = { t: 'cardtype', sup: ['Legendary'], core: ['Tribal'], sub: [], all: false, exc: [] };
+    await sendAndApply(s, m, [applyDeltaWith({ printedTypes: [[permanent.id, printed]] })]);
+    expect(changed().map((c) => [c.id, c.changedFrom])).toEqual([[permanent.id, { name: permanent.card.name, printed: 'Legendary Tribal' }]]);
+    await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
+    expect(changed().map((c) => c.id)).toEqual([permanent.id]);
+    await sendAndApply(s, m, [applyDeltaWith({ printedTypes: [] })]);
+    expect(changed()).toEqual([]);
+  });
+});
+
 describe('deaths — the bridge’s causes', () => {
   function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
     seq += 1;

@@ -417,6 +417,32 @@ describe('cantBlock', () => {
 	});
 });
 
+describe('printedTypes', () => {
+	it('keeps the pairs for cards a seat is sent, drops a card that seat may not see, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] };
+		const printedTypes = [[onField, land], [inTheirHand, land]] as const;
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, printedTypes } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.printedTypes).toEqual([[onField, land]]);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, printedTypes },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.printedTypes).toEqual(printedTypes);
+		expect('printedTypes' in createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } }).payload).toBe(false);
+	});
+});
+
 describe('deaths', () => {
 	it('keeps the deaths of cards this seat is sent, and rides applyDelta', () => {
 		const raw = fold(fixtureFrames());

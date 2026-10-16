@@ -647,6 +647,75 @@ public final class PlayBridge {
         if (tokens != null) { payload.add("tokenSources", tokens); }
         final JsonArray cantBlock = cantBlockJson(game);
         if (cantBlock != null) { payload.add("cantBlock", cantBlock); }
+        final JsonArray printedTypes = printedTypesJson(game);
+        if (printedTypes != null) { payload.add("printedTypes", printedTypes); }
+    }
+
+    /**
+     * The permanents on a battlefield whose type line is not the one printed on them, as
+     * {@code [cardId, printedType]} pairs ({@code printedType} in the same {@code cardtype} encoding
+     * the view's own {@code Type} uses). The view carries only the current line ({@code Type},
+     * {@code CardState.getTypeWithChanges}); the printed one is Forge's own too, read here:
+     * {@link #printedType}. Face-down permanents are left out: their printed line is the hidden
+     * face's. A full snapshot each time.
+     *
+     * <p>Null when the battlefields cannot be read (the game thread moved them under the read): the
+     * frame then omits the field and the client keeps what it had.
+     */
+    static JsonArray printedTypesJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                for (final forge.game.card.Card c : p.getCardsIn(ZoneType.Battlefield)) {
+                    if (c.isFaceDown()) { continue; }
+                    final JsonElement printed = encode(printedType(c));
+                    if (printed.equals(encode(c.getType()))) { continue; }
+                    final JsonArray pair = new JsonArray();
+                    pair.add(c.getId());
+                    pair.add(printed);
+                    out.add(pair);
+                }
+            }
+            return out;
+        } catch (final RuntimeException | ReflectiveOperationException e) {
+            System.err.println("[bridge] printedTypes: could not read the battlefields (" + e + ")");
+            return null;
+        }
+    }
+
+    /**
+     * A permanent's printed type line: the type of the face it shows before any effect changed it,
+     * plus its own characteristic-defining abilities (Changeling's every creature type is printed,
+     * CR 604.3). A copy's printed line is the copied card's ({@link #copiedBaseType}), so the copy
+     * effect's own exception — Phyrexian Metamorph's "it's an artifact in addition" — reads as the
+     * change it is.
+     */
+    static CardTypeView printedType(final forge.game.card.Card c) throws ReflectiveOperationException {
+        final java.lang.reflect.Field cda = forge.game.card.Card.class.getDeclaredField("changedCardTypesCharacterDefining");
+        cda.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        final com.google.common.collect.Table<Long, Long, forge.card.ICardChangedType> own =
+                (com.google.common.collect.Table<Long, Long, forge.card.ICardChangedType>) cda.get(c);
+        return copiedBaseType(c, c.getCurrentStateName(), 0).getTypeWithChanges(own.values());
+    }
+
+    /**
+     * The base type of {@code state} on {@code c}, before Layer 4: for a card that is a copy, the card
+     * it copied ({@code CardCloneStates.getOrigin}, followed through a copy of a copy, bounded so two
+     * copies of each other cannot loop); for any other card, its own state ({@code getOriginalState},
+     * never a clone's). A copy shows its origin's CURRENT face as its own front face
+     * ({@code CardFactory.getCloneStates}), so the front face is looked up on the origin as that.
+     */
+    static CardTypeView copiedBaseType(final forge.game.card.Card c, final forge.card.CardStateName state, final int depth) {
+        if (c.isCloned() && depth < 8 && c.getCloneStates() instanceof java.util.NavigableMap<Long, forge.game.card.CardCloneStates> clones) {
+            final forge.game.card.Card origin = clones.lastEntry().getValue().getOrigin();
+            if (origin != null && origin != c) {
+                return copiedBaseType(origin, state == forge.card.CardStateName.Original ? origin.getCurrentStateName() : state, depth + 1);
+            }
+        }
+        final forge.game.card.CardState own = c.getOriginalState(state);
+        return (own != null ? own : c.getState(state)).getType();
     }
 
     /**

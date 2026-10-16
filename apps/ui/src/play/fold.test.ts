@@ -151,6 +151,17 @@ describe('cantBlock', () => {
   });
 });
 
+describe('printedTypes', () => {
+  it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
+    const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] } as const;
+    expect(foldPackets([opening!]).printedTypes.size).toBe(0);
+    const first = { ...opening!, printedTypes: [[87, land]] as const };
+    expect([...foldPackets([first, { ...delta!, printedTypes: [[91, land]] as const }]).printedTypes.keys()]).toEqual([91]);
+    expect(foldPackets([first, delta!]).printedTypes.get(87)).toEqual(land);
+    expect(foldPackets([first, { ...delta!, printedTypes: [] }]).printedTypes.size).toBe(0);
+  });
+});
+
 describe('mana costs', () => {
   it('reads ManaCost.serialize output into our pip tokens', () => {
     expect(manaCostTokens('3\u0006BLUE\u0006BLUE\u0006BLACK\u0006BLACK')).toEqual({

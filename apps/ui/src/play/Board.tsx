@@ -2219,10 +2219,8 @@ function ChoiceWord({ word }: { word: string }) {
  * over the type bar."*
  *
  * `entry.changedFrom` is `adapter.ts`'s own comparison — the wire's CURRENT
- * `Type` against our own pool data's PRINTED type line — set only when they
- * disagree (wave 35 built the comparison; this pill is wave 53's visible
- * treatment of it, replacing the corner mark `StateMarks` used to draw for
- * the same fact). The pill's own visible text is the CURRENT type line —
+ * `Type` against the PRINTED type line Forge names for it (`PlayBridge.java`'s
+ * `printedTypes`) — set only when they disagree. The pill's own visible text is the CURRENT type line —
  * Forge's words, read live, exactly as `CardTile`'s own (art-covered)
  * `.card__type` would draw it — so a glance says what the permanent IS now;
  * hovering it (its `data-tip`, the board's one tooltip, `tip/index.ts`) says

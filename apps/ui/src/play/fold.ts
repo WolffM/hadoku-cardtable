@@ -23,7 +23,7 @@
  * battlefield is — that is `adapter.ts`.
  */
 
-import { isAnnotationKey, type WireObject, type WirePacket } from './wire.ts';
+import { isAnnotationKey, type Tagged, type WireObject, type WirePacket } from './wire.ts';
 
 /** Every object the client knows about, by delta key. */
 export type WireState = ReadonlyMap<string, WireObject>;
@@ -56,13 +56,17 @@ export type TokenSources = readonly (readonly [number, number])[];
 /** `PlayBridge.java`'s `cantBlock`, the packet's fifth sibling: the battlefield creatures that can't block (`packages/forge-wire`'s `CantBlockSchema`). */
 export type CantBlock = readonly number[];
 
-/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources} and {@link CantBlock} as sibling fields. */
+/** `PlayBridge.java`'s `printedTypes`, the packet's sixth sibling: `[cardId, printedType]` for each permanent whose type line is not its printed one (`packages/forge-wire`'s `PrintedTypesSchema`). */
+export type PrintedTypes = readonly (readonly [number, Tagged])[];
+
+/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources}, {@link CantBlock} and {@link PrintedTypes} as sibling fields. */
 export interface FoldablePacket extends WirePacket {
   stackTargetSpells?: StackTargetSpellPairs;
   pendingTriggers?: PendingTriggers;
   waitingEffects?: WaitingEffects;
   tokenSources?: TokenSources;
   cantBlock?: CantBlock;
+  printedTypes?: PrintedTypes;
 }
 
 export interface FoldResult {
@@ -89,6 +93,8 @@ export interface FoldResult {
   tokenSources: ReadonlyMap<number, number>;
   /** The latest `cantBlock` snapshot folded, as a set of card ids — replaced when present. */
   cantBlock: ReadonlySet<number>;
+  /** The latest `printedTypes` snapshot folded, as a `cardId → printedType` map — replaced when present. */
+  printedTypes: ReadonlyMap<number, Tagged>;
 }
 
 export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
@@ -100,6 +106,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let waitingEffects: WaitingEffects = [];
   let tokenSources = new Map<number, number>();
   let cantBlock = new Set<number>();
+  let printedTypes = new Map<number, Tagged>();
 
   for (const packet of packets) {
     if (packet.stackTargetSpells !== undefined) {
@@ -109,6 +116,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     if (packet.waitingEffects !== undefined) waitingEffects = packet.waitingEffects;
     if (packet.tokenSources !== undefined) tokenSources = new Map(packet.tokenSources);
     if (packet.cantBlock !== undefined) cantBlock = new Set(packet.cantBlock);
+    if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes);
     for (const [key, obj] of Object.entries(packet.newObjects)) {
       if (isAnnotationKey(key)) continue;
       state.set(key, withoutNulls(obj));
@@ -131,7 +139,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock };
+  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

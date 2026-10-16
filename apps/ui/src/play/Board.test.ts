@@ -21,7 +21,6 @@ import poolData from '../draft/pool.json';
 import {
   artIdIndex,
   CUBE_ART_IDS,
-  printedTypeLineIndex,
   scryfallIdFor,
   toBoardView,
   type ArtIdIndex,
@@ -3459,86 +3458,55 @@ describe('§A.15 — a card’s state is drawn', () => {
   });
 
   /**
-   * R15, the ADAPTER's own half of the feature (the two tests above are
-   * `Board.tsx`'s drawing of a hand-built `changedFrom`; this is
-   * `toBoardCard` actually computing one). The fixture's Izzet Guildgate
-   * (id 8, current type line "Land — Gate") stands in for Magus of the Moon's
-   * target without needing a live Magus match: supplying a `printedType`
-   * index that disagrees with the card's CURRENT wire type line is exactly
-   * the shape a real continuous effect produces (the wire always wins; only
-   * what counts as "printed" is swapped here). Scoped to the battlefield, the
-   * same way `printed` (P/T) already is, and for the identical reason —
-   * off the battlefield there is no continuous effect left to have changed it.
-   *
-   * Wave 53 T: `changedFrom` now also carries `printed` — the printed line
-   * itself — so the board's pill can draw its hover text without a second
-   * lookup.
+   * R15, the ADAPTER's own half: `toBoardCard` reading Forge's `printedTypes` (`PlayBridge.java`)
+   * onto `changedFrom`. The fixture's Izzet Guildgate (id 8, current type line "Land — Gate") stands
+   * in for a changed permanent: the printed line is whatever the bridge names for its id.
    */
-  it("R15: the adapter sets changedFrom when the wire's current type line disagrees with our own printed data", () => {
+  it("R15: the adapter sets changedFrom from Forge's printed type when it disagrees with the current one", () => {
     const state = foldPackets(loadPackets(fixture)).state;
     const guildgateId = 8;
     const land = (v: BoardView) => v.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === guildgateId)!;
+    const printed = (sub: string[]) => new Map([[guildgateId, { t: 'cardtype', sup: [], core: ['Land'], sub, all: false, exc: [] } as const]]);
 
-    const agrees = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Land — Gate' }]);
-    const same = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: agrees });
-    expect(land(same).card.typeLine, 'a precondition: this is really the wire’s current type line').toBe('Land — Gate');
-    expect(land(same).changedFrom, 'our own data agrees with the wire: nothing changed').toBeNull();
+    const unnamed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
+    expect(land(unnamed).card.typeLine, 'a precondition: this is really the wire’s current type line').toBe('Land — Gate');
+    expect(land(unnamed).changedFrom, 'Forge names no printed type: nothing changed').toBeNull();
 
-    const disagrees = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Land' }]);
-    const changed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: disagrees });
-    expect(land(changed).changedFrom, 'a mismatch sets it, naming the card and carrying the printed line').toEqual({
+    const changed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed([]) });
+    expect(land(changed).changedFrom, 'a printed line that differs sets it, naming the card and carrying the printed line').toEqual({
       name: 'Izzet Guildgate',
       printed: 'Land',
     });
 
-    // No printed data for this name at all (the default, cube-only index): no claim either way.
-    const unknown = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
-    expect(land(unknown).changedFrom, 'a card our data has never heard of is not "changed"').toBeNull();
+    const same = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed(['Gate']) });
+    expect(land(same).changedFrom, 'a printed line equal to the current one is no change').toBeNull();
 
-    // Off the battlefield the same shape of mismatch fires nothing: a graveyard
-    // card is never under a continuous battlefield effect. Fire Urchin (id 20,
-    // "Creature — Elemental") is this fixture's own graveyard card, given a
-    // printed type line that disagrees with ITS current one the same way.
-    const grave = printedTypeLineIndex([{ name: 'Fire Urchin', typeLine: 'Creature — Something Else' }]);
-    const graveyard = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: grave }).players.find(
-      (p) => p.isViewer,
-    )!.graveyard;
-    const fireUrchin = graveyard.find((c) => c.id === 20)!;
-    expect(fireUrchin.card.typeLine, 'a precondition').toBe('Creature — Elemental');
+    // Off the battlefield a printed type is never read: Fire Urchin (id 20) is this fixture's graveyard card.
+    const grave = new Map([[20, { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Something'], all: false, exc: [] } as const]]);
+    const fireUrchin = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: grave })
+      .players.find((p) => p.isViewer)!
+      .graveyard.find((c) => c.id === 20)!;
     expect(fireUrchin.changedFrom, 'a graveyard card is never "changed"').toBeNull();
   });
 
   /**
-   * AF74: Maskwood Nexus gives a creature every creature type, which crosses
-   * as the cardtype's `all` flag rather than a list. The type line reads it
-   * as Forge does (`(All)`), so it disagrees with the printed line and the
-   * pill shows; a changeling's own `(All)` is printed and shows nothing.
+   * AF74: Maskwood Nexus gives a creature every creature type, which crosses as the cardtype's `all`
+   * flag rather than a list. The type line reads it as Forge does (`(All)`), so it disagrees with the
+   * printed line and the pill shows. (A changeling's own every-type is printed: Forge's bridge counts
+   * characteristic-defining abilities as printed, so it never names one.)
    */
-  it("AF74: a creature given every creature type is changed; a changeling's own every-type is printed", () => {
-    // The fixture's Izzet Guildgate (id 8, on the viewer's battlefield) stands in, retyped on the wire
-    // the way R15's test above swaps the printed side: only the shape of the cardtype matters here.
+  it('AF74: a creature given every creature type is changed', () => {
     const gateId = 8;
-    const printedType = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Creature — Elemental' }]);
-    const viewWith = (all: boolean, keywords: string[]) => {
-      const state = new Map(foldPackets(loadPackets(fixture)).state);
-      const key = cardStateKey(gateId, 0);
-      state.set(key, {
-        ...state.get(key)!,
-        Type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all, exc: [] },
-        Keywords: { t: 'keywords', v: keywords },
-      } as WireObject);
-      return toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType }).players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === gateId)!;
-    };
+    const printedTypes = new Map([[gateId, { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: false, exc: [] } as const]]);
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = cardStateKey(gateId, 0);
+    state.set(key, { ...state.get(key)!, Type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: true, exc: [] } } as WireObject);
+    const nexus = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes }).players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === gateId)!;
 
-    expect(viewWith(false, []).changedFrom, 'a precondition: the printed line agrees').toBeNull();
-
-    const nexus = viewWith(true, []);
     expect(nexus.card.typeLine).toBe('Creature — Elemental (All)');
     expect(nexus.changedFrom).toEqual({ name: 'Izzet Guildgate', printed: 'Creature — Elemental' });
     const { container } = renderBoard(withState({ card: nexus.card, changedFrom: nexus.changedFrom }));
     expect(card(container).querySelector('.board-card__type-pill')?.textContent).toBe('Creature — Elemental (All)');
-
-    expect(viewWith(true, ['Changeling']).changedFrom, 'its own Changeling is printed, not a change').toBeNull();
   });
 
   it('counters are a badge with a number: +1/+1 is compact, a named counter falls back to its name', () => {

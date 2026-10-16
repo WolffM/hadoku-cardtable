@@ -9,8 +9,8 @@
  * type and gains Swamp alongside it), and Magus of the Moon turns a nonbasic
  * land INTO a Mountain (`AddType$ Mountain | RemoveLandTypes$ True` — the
  * land's own type is replaced outright). Both are the same `changedFrom`
- * mechanism (`adapter.ts`): the wire's live `Type` disagreeing with our own
- * static data's printed line.
+ * mechanism (`adapter.ts`): the wire's live `Type` disagreeing with the
+ * printed line Forge names for the card (`PlayBridge.java`'s `printedTypes`).
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without
  * one every test SKIPS and its title says why. Serves the prebuilt

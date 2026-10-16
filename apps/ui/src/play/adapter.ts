@@ -229,32 +229,17 @@ export interface BoardCard {
   blocking: boolean;
   token: boolean;
   /**
-   * R15 (wave 35, shape 1; wave 53 T adds `printed`). Set when an effect has
-   * changed what this permanent IS — Magus of the Moon's `AddType$ Mountain |
-   * RemoveLandTypes$ True` reads a nonbasic land's current type line as
-   * `Land — Mountain` (the wire gives us the CURRENT line directly, `Type`,
-   * read live — no adapter change needed for that half), and Urborg, Tomb of
-   * Yawgmoth's `AddType$ Swamp` (no `RemoveLandTypes`) turns a Plains into
-   * `Land — Plains Swamp` — but this is set ONLY when our own card data knows
-   * the card's PRINTED type line and it disagrees with the current one
-   * (`POOL_PRINTED_TYPE_LINE`, same 534-card cube-only ceiling `printed` above
-   * already accepts, for the same reason: Forge's wire has no printed-type
-   * field at all, only the live `Type` — confirmed against
-   * `TrackableProperty.java` — so "printed" can only ever come from our own
-   * static data). `name` is the card's own (unchanged) name — neither effect
-   * renames the permanent, only retypes it. `printed` is the printed line
-   * itself (`Land — Plains`, say), carried so the board can draw it directly
-   * (the pill's hover text) without a second lookup. `null` when nothing is
-   * known to have changed, which is also the honest answer for a card our
-   * data has never heard of.
+   * Set when an effect has changed what this permanent IS: its current type line (the wire's
+   * `Type`) is not the one printed on it, which Forge itself reports for every battlefield
+   * permanent (`PlayBridge.java`'s `printedTypes`: the face's own type before any effect, plus its
+   * characteristic-defining abilities; a copy's is the copied card's, so Phyrexian Metamorph's
+   * "an artifact in addition" is a change). Magus of the Moon's nonbasic land reads `Land — Mountain`
+   * against a printed `Land`; Urborg's Plains reads `Basic Land — Plains Swamp`. `name` is the
+   * card's own; `printed` the printed line, drawn as the pill's hover text. `null` when nothing
+   * changed.
    *
-   * `ChangedTypes` (`tier-c.ts`, Forge's `Card.getChangedTextTypeWords()`) is
-   * NOT this fact — read at the source
-   * (`forge-game/.../card/Card.java:5477`): it is a word-substitution map for
-   * RULES TEXT ("whenever a Human enters" reading "whenever a Wizard enters"
-   * after a type-change-text effect), never populated by either card here,
-   * and not a comparison with a printed line at all. This field stays exactly
-   * what wave 35 built: wire `Type` vs. our own pool data.
+   * `ChangedTypes` (`tier-c.ts`, Forge's `Card.getChangedTextTypeWords()`) is NOT this fact: it
+   * is a word-substitution map for RULES TEXT (`forge-game/.../card/Card.java:5477`).
    */
   changedFrom?: { name: string; printed: string } | null;
   /**
@@ -733,8 +718,6 @@ export interface AdaptOptions {
   artIds?: ArtIdIndex;
   /** Where a card's PRINTED power/toughness is looked up. Defaults to `POOL_PRINTED_PT`. */
   printedPT?: PrintedPTIndex;
-  /** Where a card's PRINTED type line is looked up, for `changedFrom` (R15). Defaults to `POOL_PRINTED_TYPE_LINE`. */
-  printedType?: PrintedTypeLineIndex;
   /**
    * Every seat's watchparty character, keyed by Forge PLAYER id — item 4, wave
    * 29 §A.6-8. Absent (the fixture path's default) draws every seat with the
@@ -769,6 +752,8 @@ export interface AdaptOptions {
   tokenSources?: ReadonlyMap<number, number>;
   /** `PlayBridge.java`'s `cantBlock` (`../fold.ts`), read onto each battlefield creature's `BoardCard.cantBlock`. */
   cantBlock?: ReadonlySet<number>;
+  /** `PlayBridge.java`'s `printedTypes` (`../fold.ts`): each changed permanent's printed type, read onto its `BoardCard.changedFrom`. */
+  printedTypes?: ReadonlyMap<number, Tagged>;
   /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
   hits?: readonly DamageHit[];
   /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
@@ -821,63 +806,6 @@ export function printedPTIndex(
 export const POOL_PRINTED_PT: PrintedPTIndex = printedPTIndex(
   (poolData as { cards: { name: string; power?: string; toughness?: string }[] }).cards,
 );
-
-// ── what a card's printed TYPE LINE is (R15) ─────────────────────────────────
-
-/** Printed type line by card name, lower-cased. A name it does not hold has no printed type to compare against. */
-export type PrintedTypeLineIndex = ReadonlyMap<string, string>;
-
-/**
- * A printed-type-line index over anything shaped like our card data. Same
- * shape and the same coverage limit as {@link printedPTIndex}: keyed by name
- * alone, first write wins.
- */
-export function printedTypeLineIndex(cards: readonly { name?: unknown; typeLine?: unknown }[]): PrintedTypeLineIndex {
-  const index = new Map<string, string>();
-  for (const card of cards) {
-    if (typeof card.name !== 'string' || typeof card.typeLine !== 'string' || card.typeLine.length === 0) continue;
-    const key = card.name.trim().toLowerCase();
-    if (!index.has(key)) index.set(key, card.typeLine);
-  }
-  return index;
-}
-
-/**
- * The five basic land type lines, in the exact shape `typeLineOf` builds off
- * the wire (`"Basic Land — Plains"`, not `"Land — Plains"` — Forge's own
- * `plains.txt` is `Types:Basic Land Plains`, confirmed against the cardsfolder
- * script). Unlike every other row in this index, these are not a cube-pool
- * fact that might be wrong for a different printing — a basic land's type
- * line is the same on every printing that has ever existed, so this is not
- * the same kind of guess `POOL_PRINTED_TYPE_LINE`'s other rows are.
- *
- * Why this exists at all: basic lands are never a cube's own drafted cards
- * (`pool.json` carries none of them — confirmed, zero rows for any of the
- * five names), so without this table Urborg, Tomb of Yawgmoth's own
- * textbook case — *"turns a Plains into a Swamp too"* (the operator,
- * Playtest 9) — could never be detected: the most common real-game target of
- * that effect would silently read "nothing changed" forever, not because the
- * effect did not fire but because this index had never heard of a Plains.
- */
-const BASIC_LAND_TYPE_LINES: readonly { name: string; typeLine: string }[] = (
-  ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'] as const
-).map((name) => ({ name, typeLine: `Basic Land — ${name}` }));
-
-/**
- * Every printed type line the browser knows: the five basic lands (always
- * correct, any printing — see {@link BASIC_LAND_TYPE_LINES}), then the
- * drafted cube's own pool — the same 534-card ceiling `POOL_PRINTED_PT`
- * already accepts, for the same reason (the wire carries no printed-type
- * field, and nothing here is wired to the committed `decks/` lists the way
- * art is). The pool is given LAST: `printedTypeLineIndex` keeps the first row
- * for a name, and a cube reprinting a basic by its plain name (it never does
- * today, but nothing stops a future cube from trying) must not shadow the one
- * fact about it that is never cube-specific.
- */
-export const POOL_PRINTED_TYPE_LINE: PrintedTypeLineIndex = printedTypeLineIndex([
-  ...BASIC_LAND_TYPE_LINES,
-  ...(poolData as { cards: { name: string; typeLine?: string }[] }).cards,
-]);
 
 // ── which Scryfall id a card is ──────────────────────────────────────────
 
@@ -1111,12 +1039,6 @@ function typeLineOf(t: Tagged | undefined): string {
   const all = ct.all ? [ct.exc.length > 0 ? `(All except ${ct.exc.join(' ')})` : '(All)'] : [];
   const tail = [...ct.sub, ...all];
   return tail.length > 0 ? `${head} — ${tail.join(' ')}` : head;
-}
-
-/** A printed type line as Forge draws it for a card whose own Changeling gives it every creature type. */
-function withChangeling(printed: string | undefined, keywords: readonly string[]): string | undefined {
-  if (printed === undefined || !hasKeyword(keywords, 'changeling')) return printed;
-  return printed.includes(' — ') ? `${printed} (All)` : `${printed} — (All)`;
 }
 
 function coreTypes(t: Tagged | undefined): string[] {
@@ -1444,7 +1366,7 @@ function toBoardCard(
   artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
   onBattlefield = false,
-  printedType: PrintedTypeLineIndex = POOL_PRINTED_TYPE_LINE,
+  printedType?: Tagged,
   playerName: (pid: number) => string = (pid) => wirePlayerName(state, pid),
 ): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
@@ -1492,14 +1414,8 @@ function toBoardCard(
   // a creature on the battlefield, so it is only reported there.
   const arrivedThisTurn = onBattlefield && core.includes('Creature') && readBool(view, 'Sickness');
   const printedBase = core.includes('Creature') ? printedPT.get(name.trim().toLowerCase()) : undefined;
-  // R15, shape 1: a permanent's current type line disagreeing with the one
-  // our own data knows for its (unchanged) name. Scoped to the battlefield —
-  // a continuous type-changing effect (Magus of the Moon's `AddType$
-  // Mountain`) only applies there, and a card elsewhere just reads printed.
-  // Changeling is a printed characteristic-defining ability (Forge's
-  // `AddAllCreatureTypes`), so its `(All)` is part of the printed line: only
-  // an outside effect — Maskwood Nexus — counts as a change.
-  const printedLine = onBattlefield ? withChangeling(printedType.get(name.trim().toLowerCase()), keywords) : undefined;
+  // Forge names a battlefield permanent's printed type only when it differs from the current one.
+  const printedLine = printedType !== undefined ? typeLineOf(printedType) : undefined;
   const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name, printed: printedLine } : null;
   const choices = readChoices(state, view, playerName);
   const relations = readRelations(state, view);
@@ -1595,11 +1511,10 @@ function revealedTop(
   libraryIds: readonly number[],
   artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
-  printedType: PrintedTypeLineIndex,
   promptCard: number | null,
 ): BoardCard | null {
   if (libraryIds[0] === promptCard) return null;
-  const seen = (id: number | undefined): BoardCard | null => (id === undefined ? null : known(toBoardCard(state, id, artIds, printedPT, false, printedType)));
+  const seen = (id: number | undefined): BoardCard | null => (id === undefined ? null : known(toBoardCard(state, id, artIds, printedPT)));
   const top = seen(libraryIds[0]);
   return top !== null && seen(libraryIds[1]) === null ? top : null;
 }
@@ -1614,7 +1529,6 @@ export function toBoardView(
     viewerPlayerId,
     artIds = KNOWN_ART_IDS,
     printedPT = POOL_PRINTED_PT,
-    printedType = POOL_PRINTED_TYPE_LINE,
     avatarByPlayerId,
     nameByPlayerId,
     stackTargetSpells,
@@ -1622,6 +1536,7 @@ export function toBoardView(
     waitingEffects,
     tokenSources,
     cantBlock,
+    printedTypes,
     hits,
     deathCauses,
     promptCard = null,
@@ -1640,7 +1555,7 @@ export function toBoardView(
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
-      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, printedType, playerName);
+      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, onBattlefield ? printedTypes?.get(id) : undefined, playerName);
       const waiting = onBattlefield ? waitingOn.get(id) : undefined;
       const createdBy = onBattlefield ? tokenSources?.get(id) : undefined;
       const blockless = onBattlefield && cantBlock?.has(id) === true;
@@ -1664,8 +1579,8 @@ export function toBoardView(
     const isViewer = pid === viewerPlayerId;
     const handIds = readIds(p, 'Hand');
     const libraryIds = readIds(p, 'Library');
-    const top = revealedTop(state, libraryIds, artIds, printedPT, printedType, promptCard);
-    const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, printedType, playerName)) : null);
+    const top = revealedTop(state, libraryIds, artIds, printedPT, promptCard);
+    const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null);
     const avatarId = avatarByPlayerId?.get(pid);
     const emblems = readEmblems(state, p, artIds, printedPT);
     const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
@@ -1717,7 +1632,7 @@ export function toBoardView(
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
     const isAbility = readBool(item, 'Ability');
     if (!isAbility && sourceCardId !== null && inAZone.has(sourceCardId)) return [];
-    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT, false, printedType) : null;
+    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     const chain = subInstanceChain(state, item);
     const targetCardIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetCards')))];
@@ -1747,7 +1662,7 @@ export function toBoardView(
   });
 
   const waiting: StackEntry[] = (pendingTriggers ?? []).map((t) => {
-    const source = toBoardCard(state, t.hostCard, artIds, printedPT, false, printedType);
+    const source = toBoardCard(state, t.hostCard, artIds, printedPT);
     const sourceName = source?.card.name ?? null;
     return {
       id: -t.id,

@@ -743,6 +743,17 @@ export const CantBlockSchema = z.array(JavaInt);
 export type CantBlock = z.infer<typeof CantBlockSchema>;
 
 /**
+ * The bridge's eighth addition beside the packet: the permanents on a battlefield whose type line
+ * is not the one printed on them, as `[cardId, printedType]` (`PlayBridge.java`'s
+ * `printedTypesJson`: the face's own type before any effect, plus its characteristic-defining
+ * abilities; a copy's is the copied card's). The view's `Type` is only ever the current line. A
+ * full snapshot each time.
+ */
+export const PrintedTypesSchema = z.array(z.tuple([JavaInt, CardTypeValue]));
+
+export type PrintedTypes = z.infer<typeof PrintedTypesSchema>;
+
+/**
  * The bridge's sixth addition beside the packet: the damage dealt to cards since the seat's last
  * state frame (`PlayBridge.java`'s `DamageJournal`, Forge's own `GameEventCardDamaged`), oldest
  * first, as `[targetId, sourceId, amount]` — `sourceId` -1 when Forge names none. An event list, not
@@ -787,6 +798,7 @@ export const SetGameViewSchema = z.strictObject({
     waitingEffects: WaitingEffectsSchema.optional(),
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
+    printedTypes: PrintedTypesSchema.optional(),
   }),
 });
 
@@ -822,6 +834,7 @@ export const ApplyDeltaSchema = z.strictObject({
     waitingEffects: WaitingEffectsSchema.optional(),
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
+    printedTypes: PrintedTypesSchema.optional(),
     damage: DamageSchema.optional(),
     deaths: DeathsSchema.optional(),
   }),

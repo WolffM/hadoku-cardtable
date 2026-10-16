@@ -172,6 +172,9 @@ export type TokenSources = readonly (readonly [number, number])[];
 /** `PlayBridge.java`'s `cantBlock` — `packages/forge-wire/src/tier-c.ts`'s `CantBlockSchema`: battlefield creature ids. */
 export type CantBlock = readonly number[];
 
+/** `PlayBridge.java`'s `printedTypes` — `packages/forge-wire/src/tier-c.ts`'s `PrintedTypesSchema`: `[cardId, printedType]`. */
+export type PrintedTypes = readonly (readonly [number, unknown])[];
+
 /** `PlayBridge.java`'s `damage` — `packages/forge-wire/src/tier-c.ts`'s `DamageSchema`: `[targetId, sourceId, amount]`, sourceId -1 for none. */
 export type Damage = readonly (readonly [number, number, number])[];
 
@@ -180,9 +183,9 @@ export type Deaths = readonly (readonly [number, string])[];
 
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; damage?: Damage; deaths?: Deaths } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; damage?: Damage; deaths?: Deaths } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -805,6 +808,13 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return { cantBlock: ids.filter((id) => cardVisibility(raw, zones, id, who) !== 'hidden') };
 	}
 
+	/** The printed type lines, for the cards this seat is sent at all: a battlefield permanent is public, and the bridge never names a face-down one. */
+	function printedTypesSeen(pairs: PrintedTypes | undefined): { printedTypes?: PrintedTypes } {
+		if (pairs === undefined) return {};
+		const zones = indexZones(raw);
+		return { printedTypes: pairs.filter(([id]) => cardVisibility(raw, zones, id, who) !== 'hidden') };
+	}
+
 	/**
 	 * The damage dealt, for the cards this seat is sent at all — a battlefield creature is public, so
 	 * in practice every hit — with a source this seat may not see named as none (-1).
@@ -873,6 +883,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
+							...printedTypesSeen(frame.payload.printedTypes),
 						},
 					};
 				}
@@ -889,6 +900,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
+							...printedTypesSeen(frame.payload.printedTypes),
 							...damageSeen(frame.payload.damage),
 							...deathsSeen(frame.payload.deaths),
 						},
