@@ -743,7 +743,9 @@ function Cell({
                   e.dataTransfer.setData('text/plain', JSON.stringify({ file: f, from: cellId }))
                 }
                 onClick={(e) => {
-                  if (holding !== null) return;
+                  // The take in hand falls through to the cell, which places it; any other placed take just plays
+                  // (the operator, 2026-10-16: "clicking on a different sound's pill should let me preview it").
+                  if (holding === f) return;
                   e.stopPropagation();
                   onPlayPill(f);
                 }}

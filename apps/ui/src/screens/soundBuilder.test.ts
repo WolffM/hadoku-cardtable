@@ -446,6 +446,21 @@ describe('SoundBuilder', () => {
     expect(client.saves).toEqual([]);
   });
 
+  it('a placed take plays when clicked even with another take in hand, and places nothing', async () => {
+    const client = stubClient({ cells: { 'W|spell': [TAKE_A.file] }, canEdit: true });
+    const player = stubPlayer();
+    const { container } = render(createElement(SoundBuilder, { client, player }));
+    await screen.findByText('Sound Builder');
+    showColours();
+
+    fireEvent.click(screen.getByRole('button', { name: /Water · 2: play and pick up/ }));
+    player.playFile.mockClear();
+    const placed = container.querySelector('[data-cell="W|spell"] .sound-builder__pill--placed')!;
+    fireEvent.click(placed);
+    expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file, 1);
+    expect(client.saves).toEqual([]);
+  });
+
   it('opens on the roles, and a take placed on a role saves that role cell', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
     const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
