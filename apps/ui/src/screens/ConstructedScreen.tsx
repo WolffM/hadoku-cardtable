@@ -1341,6 +1341,8 @@ function RoomTableScreen({
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
   /** The room answered with a refusal rather than a table: there is nothing more to wait for. */
   const settled = locked !== null || tableError !== null;
+  /** The empty seat Forge's AI is offered on, if any: the last one, while nobody but me is seated. */
+  const botSeat = players.every((p) => p.you) ? [0, 1].findLast((seat) => players[seat] === undefined) : undefined;
   /** Nothing of the room's own to draw yet: its skeleton instead. */
   const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
@@ -2030,6 +2032,7 @@ function RoomTableScreen({
                         <span className="tables__name">Empty seat</span>
                       {/* Sitting is its own act (2026-10-12): one button per free seat, dead
                           once I hold one, once the table is locked, or once a match is under way. */}
+                      <span className="tables__actions">
                       <button
                         type="button"
                         className="tables__sit"
@@ -2040,6 +2043,26 @@ function RoomTableScreen({
                       >
                         Sit here
                       </button>
+                      {/*
+                       * Forge's AI takes this seat (the operator, 2026-10-02 and
+                       * 2026-10-16): offered while nobody ELSE is seated, on the one
+                       * empty seat that will not be mine — loading a deck seats me at
+                       * the first free one. Live once I am seated with a legal deck;
+                       * the server plays a random library deck legal in this room's
+                       * pool, and holds the same gate.
+                       */}
+                      {botSeat === seat && (
+                        <button
+                          type="button"
+                          className="tables__sit"
+                          data-testid="play-vs-bot"
+                          disabled={busy || mine === null || !mine.legal || underway}
+                          onClick={startVsBot}
+                        >
+                          AI
+                        </button>
+                      )}
+                      </span>
                       </span>
                     </li>
                   ) : (
@@ -2048,6 +2071,9 @@ function RoomTableScreen({
                       seat={seat}
                       player={player}
                       leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
+                      {...(player.you
+                        ? { onReady: () => setReady(!player.ready), readyDisabled: busy || deckId === '' || !player.legal || underway }
+                        : {})}
                       {...(player.you ? { onStand: standUp, standDisabled: busy || tableLocked || underway } : {})}
                     />
                   );
@@ -2080,70 +2106,17 @@ function RoomTableScreen({
               loadError === null && <DeckCardSkeleton />
             ) : (
                 <section className="lobby__card lobby__decks">
-                  <div className="lobby__deckhead">
-                    <h2>Your deck</h2>
-                    {/* The two actions sit ABOVE the list, not after it — beside the
-                      card's own heading since 2026-10-10, when the room became
-                      rows and every line above the grid came off its height. Operator,
-                        2026-09-30: *"the random button should be at the top, the
-                        ready button should also be at the top"* — the list is a grid
-                        of decks, and a Ready you have to scroll past every one of
-                        them to reach is a Ready nobody finds. Random is a button and
-                        not one of the radios because it is not a state a deck can be
-                        in: it resolves to one of the decks on offer, and the chooser
-                        then reads that deck (`chooseDeck`). */}
-                    <div className="deckpick__bar" data-testid="deck-actions">
-                      <button
-                        type="button"
-                        className="lobby__go"
-                        data-testid="ready-toggle"
-                        aria-pressed={mine?.ready === true}
-                        disabled={busy || deckId === '' || mine === null || !mine.legal || underway}
-                        onClick={() => setReady(!(mine?.ready === true))}
-                      >
-                        {mine?.ready === true ? 'Stand down' : 'Ready'}
-                      </button>
-                      <button
-                        type="button"
-                        className="deckpick__random"
-                        data-testid="deck-random"
-                        data-deck-id={RANDOM_DECK}
-                        disabled={deckOptions === null || underway}
-                        onClick={() => chooseDeck(RANDOM_DECK)}
-                      >
-                        Random
-                      </button>
-                      {/*
-                       * The only one SEATED: play Forge's AI instead of waiting for
-                       * someone (the operator, 2026-10-02). The bot plays a random
-                       * library deck legal in this room's pool; the server picks it.
-                       * Since 2026-10-12 the gate is the seat and not the room —
-                       * a room full of watchers can see one friend play the AI.
-                       * Drawn while nobody ELSE is seated: alone and not yet seated
-                       * (loading the deck seats you), or seated alone. Another
-                       * seated player hides it. The server holds the same gate.
-                       */}
-                      {players.every((p) => p.you) && (
-                        <button
-                          type="button"
-                          className="deckpick__random"
-                          data-testid="play-vs-bot"
-                          disabled={busy || mine === null || !mine.legal || underway}
-                          onClick={startVsBot}
-                        >
-                          Play vs Forge AI
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  {/* The card's heading opens the pool's row: Ready is on my seat, Forge's AI
+                      on the empty one, and Random among the filters (the operator,
+                      2026-10-16), so the heading has no line of its own to fill. */}
                   <div className="lobby__deckformat">
+                    <h2>Your deck</h2>
                     {/* The table's pool: "Format" — one pool, both seats, checked
                         against the same list, across Standard, Modern and Legacy
                         alike (wave 48 §U). The LEADER gets a control; everybody else reads
                         the same text and cannot move it, which is the whole of
                         *"people who join can only select from the deck
-                        dropdown"*. The leader is named beside it rather than
-                        explained: a mark and a name, not a sentence. */}
+                        dropdown"*. */}
                     {iAmLeader ? (
                       <>
                         {/* On Free pick the leader's switch says so and the browse tabs
@@ -2282,43 +2255,44 @@ function RoomTableScreen({
                         </select>
                       </>
                     )}
-                    {/* Free pick is a switch of its own, not a fourth tab: on, the
-                        whole library is the pool and everyone browses it by format
-                        on this row; off, the leader's tabs pick the room's era again. Off
-                        lands on the era being browsed, else that format's newest. */}
+                    {/* The leader's switches, together at the row's far end. */}
                     {iAmLeader && (
-                      <button
-                        type="button"
-                        className="lobby__free-pick"
-                        aria-pressed={freePick}
-                        data-testid="free-pick"
-                        disabled={busy || underway}
-                        onClick={() => {
-                          if (!freePick) {
-                            setBrowse({ family: formatTab === 'draft' ? 'standard' : formatTab, era: '' });
-                            choosePool(FREE_PICK);
-                            return;
-                          }
-                          const era = browse.era || erasOf(loaded.formats, browse.family)[0]?.id;
-                          choosePool(era ?? newestFormat(loaded.formats));
-                        }}
-                      >
-                        Free pick
-                      </button>
-                    )}
-                    {/* The room's first match setting: the opening hand nearer the
-                        deck's land ratio, each mulligan weighted toward it. */}
-                    {iAmLeader && (
-                      <button
-                        type="button"
-                        className="lobby__free-pick"
-                        aria-pressed={handSmoothing}
-                        data-testid="hand-smoothing"
-                        disabled={busy || underway}
-                        onClick={toggleHandSmoothing}
-                      >
-                        Hand smoothing
-                      </button>
+                      <span className="lobby__switches">
+                        {/* Free pick is a switch of its own, not a fourth tab: on, the
+                            whole library is the pool and everyone browses it by format
+                            on this row; off, the leader's tabs pick the room's era again. Off
+                            lands on the era being browsed, else that format's newest. */}
+                        <button
+                          type="button"
+                          className="lobby__free-pick"
+                          aria-pressed={freePick}
+                          data-testid="free-pick"
+                          disabled={busy || underway}
+                          onClick={() => {
+                            if (!freePick) {
+                              setBrowse({ family: formatTab === 'draft' ? 'standard' : formatTab, era: '' });
+                              choosePool(FREE_PICK);
+                              return;
+                            }
+                            const era = browse.era || erasOf(loaded.formats, browse.family)[0]?.id;
+                            choosePool(era ?? newestFormat(loaded.formats));
+                          }}
+                        >
+                          Free pick
+                        </button>
+                        {/* The room's first match setting: the opening hand nearer the
+                            deck's land ratio, each mulligan weighted toward it. */}
+                        <button
+                          type="button"
+                          className="lobby__free-pick"
+                          aria-pressed={handSmoothing}
+                          data-testid="hand-smoothing"
+                          disabled={busy || underway}
+                          onClick={toggleHandSmoothing}
+                        >
+                          Hand smoothing
+                        </button>
+                      </span>
                     )}
 
                   </div>
@@ -2331,6 +2305,19 @@ function RoomTableScreen({
                   <div className="lobby__setsrow">
                     {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
                     {pod === null && <DeckFilterBar filter={deckFilter} onChange={setDeckFilter} />}
+                    {/* Random is a button and not one of the tiles because it is not a
+                        state a deck can be in: it resolves to one of the decks on offer,
+                        and the chooser then reads that deck (`chooseDeck`). */}
+                    <button
+                      type="button"
+                      className="deckpick__random"
+                      data-testid="deck-random"
+                      data-deck-id={RANDOM_DECK}
+                      disabled={deckOptions === null || underway}
+                      onClick={() => chooseDeck(RANDOM_DECK)}
+                    >
+                      Random
+                    </button>
                   </div>
 
                   {actionError !== null && (
@@ -2626,6 +2613,8 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */
 const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
+/** A pass: the ready and legal pills' tick. */
+const TICK = 'M2.6 6.3 4.9 8.8 9.4 3.3';
 
 /**
  * A status, drawn: a shape, a colour and a word.
@@ -2659,7 +2648,7 @@ function StatusPill({
   return (
     <span className={`pill pill--${kind}`} data-testid={testId} data-state={state} data-mark={mark}>
       <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-        {mark === 'tick' && <path d="M2.6 6.3 4.9 8.8 9.4 3.3" />}
+        {mark === 'tick' && <path d={TICK} />}
         {mark === 'cross' && <path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5" />}
         {mark === 'ring' && <circle cx="6" cy="6" r="3.4" />}
         {mark === 'crown' && <path d={CROWN} />}
@@ -2694,9 +2683,14 @@ function PlayerRow({
   onStand,
   standDisabled = false,
   leader = false,
+  onReady,
+  readyDisabled = false,
 }: {
   seat: number;
   player: RoomPlayer;
+  /** My own row only: the ready state is a button that sets it. */
+  onReady?: () => void;
+  readyDisabled?: boolean;
   /** This seat's player sets the table: a crown beside the name, where the format row once named them. */
   leader?: boolean;
   /** My own row only: give the seat back (2026-10-12). */
@@ -2734,13 +2728,31 @@ function PlayerRow({
         label={player.legal ? 'legal' : noDeck ? 'no deck' : 'illegal'}
         {...(player.legal || noDeck ? {} : { count: player.issueCount })}
       />
-      <StatusPill
-        kind="ready"
-        testId={`room-seat-${seat}-ready`}
-        state={player.ready ? 'yes' : 'no'}
-        mark={player.ready ? 'tick' : 'ring'}
-        label={player.ready ? 'ready' : 'not ready'}
-      />
+      {onReady === undefined ? (
+        <StatusPill
+          kind="ready"
+          testId={`room-seat-${seat}-ready`}
+          state={player.ready ? 'yes' : 'no'}
+          mark={player.ready ? 'tick' : 'ring'}
+          label={player.ready ? 'ready' : 'not ready'}
+        />
+      ) : (
+        <button
+          type="button"
+          className="pill pill--ready pill--button"
+          data-testid="ready-toggle"
+          data-state={player.ready ? 'yes' : 'no'}
+          data-mark={player.ready ? 'tick' : 'ring'}
+          aria-pressed={player.ready}
+          disabled={readyDisabled}
+          onClick={onReady}
+        >
+          <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+            {player.ready ? <path d={TICK} /> : <circle cx="6" cy="6" r="3.4" />}
+          </svg>
+          Ready
+        </button>
+      )}
     </li>
   );
 }
@@ -2769,13 +2781,10 @@ function RoomSkeleton() {
   );
 }
 
-/** The deck card before the catalogue has answered: heading, the format row, the sets and filters, and tiles. */
+/** The deck card before the catalogue has answered: its heading's row, the sets and filters, and tiles. */
 function DeckCardSkeleton() {
   return (
     <section className="lobby__card lobby__decks" data-testid="deck-skeleton">
-      <div className="lobby__deckhead">
-        <span className="skeleton skeleton--heading" />
-      </div>
       <span className="skeleton skeleton--row" />
       <span className="skeleton skeleton--sets" />
       <div className="deckpick">

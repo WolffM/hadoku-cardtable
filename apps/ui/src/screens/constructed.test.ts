@@ -818,11 +818,17 @@ describe('a room’s table', () => {
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-alice (you)');
     expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('no deck');
-    expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
+    // My own seat's ready state is the button that sets it.
+    const ready = within(screen.getByTestId('room-seat-0')).getByTestId('ready-toggle');
+    expect(ready.dataset.state).toBe('no');
+    expect(ready.getAttribute('aria-pressed')).toBe('false');
     await screen.findByTestId('deck-mine');
     expect(screen.getAllByTestId('seat-sit'), 'the other seat stays on offer').toHaveLength(1);
     expect((screen.getByTestId('seat-sit') as HTMLButtonElement).disabled, 'but not to someone already seated').toBe(true);
-    expect(screen.queryByTestId('play-vs-bot'), 'the only one seated may play the AI').not.toBeNull();
+    expect(
+      within(screen.getByTestId('room-seat-1-empty')).queryByTestId('play-vs-bot'),
+      'the only one seated may put Forge’s AI in the empty seat',
+    ).not.toBeNull();
   });
 
   it('Stand up gives the seat back', async () => {
@@ -1213,16 +1219,17 @@ describe('a start in flight', () => {
 /* ── the picker: two selects, one button (wave 22 §B) ────────────────── */
 
 describe('the deck picker', () => {
-  it('says Ready, not “I’m ready”, and is dead until a deck is chosen', async () => {
+  it('says Ready, not “I’m ready”, on my seat, which I take by choosing a deck', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
-    const ready = screen.getByTestId('ready-toggle') as HTMLButtonElement;
-    expect(ready.textContent).toBe('Ready');
-    // Nothing is chosen for you, so nothing is loaded and Ready cannot be pressed.
+    // Nothing is chosen for you, so you hold no seat and there is no Ready to press.
     await deckPicker();
     expect(chosen()).toBe('');
-    expect(ready.disabled).toBe(true);
+    expect(screen.queryByTestId('ready-toggle')).toBeNull();
 
     await pick(SECOND_DECK);
+    const ready = (await screen.findByTestId('ready-toggle')) as HTMLButtonElement;
+    expect(ready.closest('[data-testid="room-seat-1"]')).not.toBeNull();
+    expect(ready.textContent).toBe('Ready');
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
   });
 
@@ -1535,7 +1542,9 @@ describe('the deck picker', () => {
     await stepped.reread(12);
     expect(roomReads(server), 'it did re-read').toBeGreaterThanOrEqual(reads + 12);
     expect(server.calls.filter((c) => c.url.endsWith('/deck'))).toHaveLength(0);
-    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down');
+    const ready = screen.getByTestId('ready-toggle');
+    expect(ready.getAttribute('aria-pressed'), 'the held readiness is on my seat, pressed').toBe('true');
+    expect(ready.dataset.state).toBe('yes');
   });
 });
 
@@ -2092,16 +2101,14 @@ describe('a builtin room is what it has always been', () => {
   it('shows none of the draft furniture, and asks for no room write of its own', async () => {
     // The other half of the branch: `constructed-1v1` must be what it was, and
     // the draft lobby must not leak into it.
-    const server = await mountRoom({ players: [opponent()], matchId: null });
+    const server = await mountRoom({ players: [opponent(), opponent({ name: 'user-alice', you: true })], matchId: null });
     expect(screen.queryByTestId('draft-lobby')).toBeNull();
     expect(screen.queryByTestId('draft-members')).toBeNull();
     expect(screen.queryByTestId('draft-rule')).toBeNull();
     expect(screen.queryByTestId('draft-restart-note')).toBeNull();
     expect(screen.queryByTestId('pod')).toBeNull();
-    // The one shared id belongs to the deck picker's own toggle here.
-    expect(screen.getByTestId('ready-toggle').closest('section')).toBe(
-      screen.getByTestId('deck-mine').closest('section'),
-    );
+    // The one shared id belongs to my seat's own toggle here.
+    expect(screen.getByTestId('ready-toggle').closest('[data-testid="room-seat-1"]')).not.toBeNull();
     // The room's readiness and start routes are the draft's; this path uses the
     // table's, and asks neither of the new ones.
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/ready`))).toHaveLength(0);
@@ -2895,11 +2902,16 @@ describe('the deck grid filters', () => {
 /* ── the deck section's order, and what it no longer says (2026-09-30) ──── */
 
 describe('Ready and Random come before the deck list, and the era note is not printed', () => {
-  it('puts Ready and Random ABOVE the list of decks', async () => {
+  // The operator, 2026-10-16: "Random button can be in the same row as the filter options", and
+  // "Ready can be on the seat. just replace the 'not ready' pill with a button instead".
+  it('puts Ready on my seat and Random among the filters, both ABOVE the list of decks', async () => {
     await mountRoom({ players: [], matchId: null });
     const list = await deckPicker();
-    const ready = screen.getByTestId('ready-toggle');
+    await pick(SECOND_DECK);
+    const ready = await screen.findByTestId('ready-toggle');
     const random = screen.getByTestId('deck-random');
+    expect(ready.closest('[data-testid="room-seat-0"]')).not.toBeNull();
+    expect(random.parentElement).toBe(screen.getByTestId('deck-filter').parentElement);
     // DOCUMENT_POSITION_FOLLOWING (4): the list comes after each button.
     expect(ready.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(random.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
