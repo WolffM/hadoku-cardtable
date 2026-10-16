@@ -657,3 +657,24 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   frames 30–40 ms apart, and drew Grizzly Bears on the battlefield and on the
   stack at once. `apps/ui/src/play/adapter.ts` now drops a spell's stack entry
   once a zone list holds its card.
+
+## A mana X is asked as ten numbers and "Other…" — 2026-10-15 (lane XW)
+
+- **VERIFIED (read)** — `PlayerControllerHuman.announceRequirements`
+  (`forge-gui/.../player/PlayerControllerHuman.java:370`) asks X with
+  `getGui().getInteger(title, min, max, min + 9)`. For a mana X (`{X}{R}{G}`)
+  `max` is `Integer.MAX_VALUE`: `AbilityUtils.getAnnouncementBounds`
+  (`forge-game/.../ability/AbilityUtils.java:2987`) caps only by `XMax`/`AnnounceMax`,
+  and `Cost.getMaxForNonManaX` only walks non-mana cost parts.
+  `AbstractGuiGame.getInteger(…, cutoff)` (`forge-gui/.../match/AbstractGuiGame.java`)
+  then lists `min..cutoff` plus `lblOtherInteger`, and asks for anything above
+  in a second, free-text dialog.
+- **VERIFIED (measured, `e2e/xw-kessig-x.spec.ts` on the claws, run 38859062729)** —
+  Kessig Wolf Run with fourteen basics: the ask reached the browser as 0..9 with no
+  mark, so X stopped at 9. `getInteger` runs on the server side
+  (`RemoteClientGuiGame` is an `AbstractGuiGame`), so the bridge's seat sees only
+  the cut-off `getChoices`; it lists on past the cutoff (`PlayBridge.java`'s
+  `numberAsk`) and answers a higher pick through Forge's own "Other…" follow-up,
+  where Forge still checks it against the true maximum. The fork's
+  `PlayerControllerHuman.getAnnouncing()` (pin `ed4d9f60`) names the ability so the
+  bridge can try its cost at each X with `ComputerUtilMana.canPayManaCost`.
