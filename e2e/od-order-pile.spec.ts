@@ -233,8 +233,19 @@ test(
       // Every card placed, so the answer is the pile of five.
       for (let guard = 0; guard < 10 && (await rowsIds(source)).length > 0; guard++) await source.locator(':scope > li').first().click();
       await expect.poll(() => rowsIds(dest)).toHaveLength(5);
+      // Every card must be placed (Forge leaves none unplaced here), so an empty "Unplaced" group holds
+      // nothing to place and nothing to drop back: it is gone, and the pile's group has the sheet's width.
+      await expect(source, 'the empty Unplaced group is not drawn').toHaveCount(0);
+      await expect(prompt.getByRole('heading', { name: /^Unplaced/ }), 'no "Unplaced" heading').toHaveCount(0);
       for (const size of SIZES) {
         await page.setViewportSize(size);
+        const widths = await prompt.evaluate((host) => {
+          const dual = host.querySelector('.prompt__dual')!.getBoundingClientRect().width;
+          const group = host.querySelector('[data-testid="order-dest"]')!.closest('section')!.getBoundingClientRect().width;
+          return { dual: Math.round(dual), group: Math.round(group) };
+        });
+        console.log(`[od] tezzeret placed ${JSON.stringify(page.viewportSize())} widths ${JSON.stringify(widths)}`);
+        expect(widths.group, 'the pile’s group spans the sheet').toBeGreaterThanOrEqual(widths.dual - 2);
         const placed = (await expectPiles(page, 'tezzeret placed')).find((p) => p.list === 'order-dest')!;
         // Forge reverses this answer and slides each card under the library in turn
         // (`PlayerControllerHuman.orderMoveToZoneList`, `DigEffect`'s `LibraryPosition2` -1): the answer's
