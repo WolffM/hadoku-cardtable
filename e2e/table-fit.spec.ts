@@ -1035,19 +1035,36 @@ test(TITLE, async ({ browser }) => {
       // ourselves while waiting — the same "declare nothing, move on"
       // mechanism `w33.spec.ts`'s own `passDeclareAttackers` uses — rather
       // than only watching for the window to end on its own.
+      //
+      // The same holds for a DECISION this seat has open — a spell it was
+      // casting when the bots paused (bob's Quiet Speculation asking for its
+      // target, 2026-10-16): the board does not arm an arrange-drag under an
+      // open decision, and a paused bot never answers it. It gets two seconds
+      // to close on its own, then its Cancel, which backs the cast out.
       const notDeclaring = /^COMBAT_DECLARE_(ATTACKERS|BLOCKERS)$/;
+      const decision = f.page.getByTestId('live-decision');
       const declareDeadline = Date.now() + 30_000;
-      while (notDeclaring.test((await f.page.getByTestId('live-phases').getAttribute('data-phase')) ?? '')) {
+      let decidingSince = 0;
+      while (
+        notDeclaring.test((await f.page.getByTestId('live-phases').getAttribute('data-phase')) ?? '') ||
+        (await decision.count()) > 0
+      ) {
         if (Date.now() > declareDeadline) {
-          throw new Error(`${f.name}: still sitting in a combat-declare window after 30s of pressing OK on both pages — install.ts claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`);
+          throw new Error(`${f.name}: still in a combat-declare window or an open decision after 30s — the board claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`);
         }
-        // The window may be the OTHER seat's (blockers, while this one attacked), and the
-        // bots are paused: answer it on whichever page has the OK.
-        for (const g of friends) if ((await enabledOk(g).count()) > 0) await enabledOk(g).click({ timeout: 2_000 }).catch(() => {});
+        if ((await decision.count()) > 0) {
+          if (decidingSince === 0) decidingSince = Date.now();
+          if (Date.now() - decidingSince > 2_000) await f.page.getByTestId('live-decision-cancel').click({ timeout: 2_000 }).catch(() => {});
+        } else {
+          // The window may be the OTHER seat's (blockers, while this one attacked), and the
+          // bots are paused: answer it on whichever page has the OK.
+          for (const g of friends) if ((await enabledOk(g).count()) > 0) await enabledOk(g).click({ timeout: 2_000 }).catch(() => {});
+        }
         await f.page.waitForTimeout(250);
       }
       const phaseNow = await f.page.getByTestId('live-phases').getAttribute('data-phase');
       expect(phaseNow, `${f.name}: the precondition this drag needs — out of a combat-declare window`).not.toMatch(notDeclaring);
+      expect(await decision.count(), `${f.name}: the precondition this drag needs — no decision open`).toBe(0);
       // Re-read, not the `seats` snapshot taken before the wait above: the
       // board is not frozen just because the bots are paused (Forge's own
       // combat progression moved it past the declare window on its own), so
