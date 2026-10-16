@@ -1,0 +1,17 @@
+# e2e/av-aether-vial.spec.ts — the operator, 2026-10-16: "why does aether vial say 'Search your hand?
+# Yes/No' when i tap it? obviously i want to activate it if i tapped it." Alice (seat 0), her turn-1
+# Main Phase 1: Aether Vial with two charge counters, and Grizzly Bears (mana value 2) in hand beside
+# a Memnite (0) that the Vial cannot put in. Bob has an Island and nothing to cast.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Grizzly Bears;Memnite
+humanbattlefield=Aether Vial|Counters:CHARGE=2;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
