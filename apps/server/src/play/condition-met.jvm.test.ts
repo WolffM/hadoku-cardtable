@@ -30,7 +30,8 @@
  * light the card; nor must Curious Obsession's "if you didn't attack" (a trigger's `SVarCompare$ EQ0`,
  * which Forge reads from the trigger's own parameters rather than the map it is handed), nor Jeweled
  * Amulet's "activate only if there are no charge counters" (an activation's `SVarCompare$ EQ0`), nor
- * Mythos of Illuna's plain copy (`ConditionManaNotSpent$`, beside its "if {R}{G} was spent").
+ * Mythos of Illuna's plain copy (`ConditionManaNotSpent$`, beside its "if {R}{G} was spent"). A lone
+ * comparison met at 0 is no default: Bloodghast's haste with the opponent at 10 life (`LE10`) lights.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -72,8 +73,8 @@ const EMPTY_GRAVEYARDS = [
 	'activeplayer=human',
 	'activephase=MAIN1',
 	'humanlife=20',
-	'ailife=20',
-	'humanhand=Fiery Impulse;Arrow Storm;Curious Obsession;Jeweled Amulet;Mythos of Illuna;Mountain',
+	'ailife=10',
+	'humanhand=Fiery Impulse;Arrow Storm;Curious Obsession;Jeweled Amulet;Mythos of Illuna;Bloodghast;Mountain',
 	'humanbattlefield=',
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=',
@@ -179,6 +180,8 @@ describe.skipIf(!available.ok)(title, () => {
 					const c = named(hand, name);
 					expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
 				}
+				const bloodghast = named(hand, 'Bloodghast');
+				expect(seat0, `Bloodghast#${bloodghast.id} is on with the opponent at 10 life`).toContain(bloodghast.id);
 			} finally {
 				await s.stop();
 			}
