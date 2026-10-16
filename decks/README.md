@@ -152,6 +152,22 @@ selection. This file used to carry a hand-made copy of both — 31 tables and
 338 rows — which doubling the library would have made 676 rows to keep in step
 by hand, so the copy is gone and the generated docs are the one source.
 
+### Regenerating what is derived from the library
+
+After a selection or catalogue change, from the repo root (none needs the
+corpus or the network):
+
+```sh
+node packages/deck/src/library/build-deck-costs.ts    # deck-costs.generated.ts: every played card's cost
+node packages/deck/src/library/build-deck-styles.ts   # deck-styles.generated.ts: every deck's play style
+```
+
+`build-deck-styles.ts` joins each `.dck` (by its `Source URL`'s mtgtop8 deck
+id) to the `style` its era's `selections/selection[-<family>]-<year>.json`
+gave it, overrides already applied; the deck picker draws it as a tag. Both
+maps are re-derived by their tests on every run, so forgetting either is red,
+and a catalogued deck with no style in its selection fails the build.
+
 ### Three decks the selection chose could not be transcribed
 
 Found doing it, not invented: three mtgtop8 exports in the `chosen` lists
