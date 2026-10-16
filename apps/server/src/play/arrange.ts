@@ -13,9 +13,11 @@
  *
  * The operator: *"we should be able to finish a scry trigger in a single
  * prompt"*. So the first `order` goes to the seat with `rest` set — the
- * cards left in `sourceChoices` are a group of their own, "Cards on top",
- * and the reply orders it too — and the second `order` is answered here from
- * that same reply, never shown.
+ * cards left in `sourceChoices` are a group of their own, going back on top
+ * of the library, and the reply orders it too — and the second `order` is
+ * answered here from that same reply, never shown. Where the first group
+ * goes (under the library, or into the graveyard) is the ask's own
+ * `destination`, which the bridge sets.
  *
  * Forge's caption for the first question (`lblCardsToPutOnTheBottom`,
  * `lblCardsToPutInTheGraveyard`) is the only thing that tells a scry's
@@ -31,23 +33,26 @@ import type { AutoAnswer } from './auto.js';
 
 type OrderAsk = Extract<ServerFrame, { kind: 'ask'; method: 'order' }>;
 
-/** Forge's caption for the first question → the two groups the seat sees. */
-const ARRANGEMENTS: ReadonlyMap<string, { top: string; rest: string }> = new Map([
-	['Cards to put on the bottom', { top: 'Cards on bottom', rest: 'Cards on top' }],
-	['Cards to put in the graveyard', { top: 'Cards in graveyard', rest: 'Cards on top' }],
-]);
+/** Forge's captions for the first question of a scry and of a surveil. */
+const ARRANGEMENTS: ReadonlySet<string> = new Set(['Cards to put on the bottom', 'Cards to put in the graveyard']);
+
+/**
+ * Where the cards a scry or surveil leaves go: back on top of the library, the
+ * group's first card highest — `GameAction.scry` and `Player.surveil` reverse
+ * the top group and put each card on top in turn.
+ */
+const BACK_ON_TOP = { zone: 'library', end: 'top', first: 'top' } as const;
 
 const cardIdOf = (c: ChoiceOption): number | null => (c.ref !== null && c.ref.kind === 'card' ? c.ref.id : null);
 
 /**
  * The first question of a scry or surveil, as the seat is asked it: the same
- * ask with its two groups named, the top one ordered by the reply's `rest`.
- * Null for any other ask.
+ * ask with the cards it leaves a group of their own, going back on top and
+ * ordered by the reply's `rest`. Null for any other ask.
  */
 export function arrangeAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderAsk | null {
 	if (frame.method !== 'order' || frame.rest !== undefined) return null;
-	const names = ARRANGEMENTS.get(frame.top);
-	if (names === undefined) return null;
+	if (!ARRANGEMENTS.has(frame.top)) return null;
 	const shaped =
 		frame.remainingObjectsMin === -1 &&
 		frame.remainingObjectsMax === -1 &&
@@ -56,7 +61,7 @@ export function arrangeAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderA
 		frame.sourceChoices.every((c) => cardIdOf(c) !== null) &&
 		!frame.sideboardingMode &&
 		!frame.showRememberCheckbox;
-	return shaped ? { ...frame, top: names.top, rest: names.rest } : null;
+	return shaped ? { ...frame, rest: BACK_ON_TOP } : null;
 }
 
 /**

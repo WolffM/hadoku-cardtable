@@ -2865,11 +2865,110 @@ public final class PlayBridge {
             f.add("referenceCard", refOrNull(referenceCard));
             f.addProperty("sideboardingMode", sideboardingMode);
             f.addProperty("showRememberCheckbox", showRememberCheckbox);
+            final JsonObject destination = orderDestination(title, top);
+            if (destination != null) { f.add("destination", destination); }
             final JsonElement r = await(ask, f);
             if (r == ABORTED) { return null; }
             final JsonObject o = r.getAsJsonObject();
             final List<T> ordered = byKeys(ask, o.get("ordered"));
             return new OrderResult<>(ordered, o.get("rememberDecision").getAsBoolean());
+        }
+
+        /**
+         * Where an order's cards go ({@code OrderDestinationSchema}): the zone, its end, and which way
+         * the answer's first card lies from the others once there. Null when the items are not cards
+         * moving into a library or a graveyard.
+         *
+         * <p>Forge's caption does not say it. {@code PlayerControllerHuman.orderMoveToZoneList} labels a
+         * library order "Closest to top" or "Closest to bottom" from {@code orderedMoveToTopOfLibrary},
+         * which reads only {@code LibraryPosition}/{@code RevealedLibraryPosition} — Tezzeret's +1 (a
+         * {@code Dig} whose rest go to {@code LibraryPosition2}, -1 by default) is labelled "Closest to
+         * top" and goes to the bottom. What that caption does say is how Forge reads the answer: it
+         * reverses it exactly when the caption is "Closest to top", then moves the cards one by one to
+         * where the effect puts them. Each card moved goes next to the one before it, on the far side
+         * from the rest of the zone, so the card moved FIRST ends next to the rest of the library: the
+         * lowest of them on top, the highest of them at the bottom.
+         *
+         * <p>The question's own method in {@code PlayerControllerHuman} says which question this is,
+         * read off this thread's stack (the game thread is parked in it); for a library order the end
+         * is read off the ability doing the moving ({@link #libraryEndIsTop}).
+         */
+        private JsonObject orderDestination(final String title, final String top) {
+            final forge.util.Localizer l = forge.util.Localizer.getInstance();
+            final List<StackWalker.StackFrame> frames = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+                    .walk(s -> s.limit(64).collect(java.util.stream.Collectors.toList()));
+            String asker = null;
+            for (final StackWalker.StackFrame frame : frames) {
+                if (frame.getDeclaringClass() == PlayerControllerHuman.class) { asker = frame.getMethodName(); break; }
+            }
+            if (asker == null) { return null; }
+            final boolean libraryTop = l.getMessage("lblTopOfLibrary").equals(top);
+            switch (asker) {
+                case "tuckCardsViaMulligan":
+                    // Under the library one after another (LondonMulligan.keep: moveToLibrary(c, -1)).
+                    return destination("library", false, true);
+                case "arrangeForScry":
+                    if (l.getMessage("lblCardsToPutOnTheBottom").equals(top)) { return destination("library", false, true); }
+                    return libraryTop ? destination("library", true, true) : null;
+                case "arrangeForSurveil":
+                    if (l.getMessage("lblCardsToPutInTheGraveyard").equals(top)) { return destination("graveyard", true, false); }
+                    return libraryTop ? destination("library", true, true) : null;
+                case "orderMoveToZoneList":
+                    if (l.getMessage("lblChooseOrderCardsPutIntoGraveyard").equals(title)) { return destination("graveyard", true, false); }
+                    if (!l.getMessage("lblChooseOrderCardsPutIntoLibrary").equals(title)) { return null; }
+                    final boolean reversed = l.getMessage("lblClosestToTop").equals(top);
+                    final boolean onTop = libraryEndIsTop(frames, reversed);
+                    // The first card moved is the answer's last when reversed: next to the library,
+                    // so the lowest on top, the highest at the bottom.
+                    return destination("library", onTop, reversed == onTop);
+                default:
+                    return null;
+            }
+        }
+
+        private static JsonObject destination(final String zone, final boolean onTop, final boolean firstHighest) {
+            final JsonObject o = new JsonObject();
+            o.addProperty("zone", zone);
+            o.addProperty("end", onTop ? "top" : "bottom");
+            o.addProperty("first", firstHighest ? "top" : "bottom");
+            return o;
+        }
+
+        /**
+         * Whether the cards being ordered go on top of the library: read off the ability moving them,
+         * the effect on this thread's stack matched to the resolving item's ability or one of its
+         * sub-abilities, and that effect's own position parameter with its own default — the same
+         * expressions the effects pass to {@code GameAction.moveTo} ({@code DigEffect.java:124-125},
+         * {@code ChangeZoneEffect}'s and {@code ChangeZoneAllEffect}'s {@code LibraryPosition} with 0,
+         * {@code DigUntilEffect}'s {@code RevealedLibraryPosition}, {@code RearrangeTopOfLibraryEffect}'s
+         * 0). A {@code Dig} orders its rest for {@code LibraryPosition2}, and its chosen cards (through
+         * {@code GameActionUtil.orderCardsByTheirOwners}) for {@code LibraryPosition}. When no such
+         * ability is found, Forge's own reading stands: it reverses exactly when it takes the cards to
+         * go on top.
+         */
+        private static boolean libraryEndIsTop(final List<StackWalker.StackFrame> frames, final boolean reversed) {
+            Class<?> effect = null;
+            boolean byOwners = false;
+            for (final StackWalker.StackFrame frame : frames) {
+                if (frame.getDeclaringClass() == forge.game.GameActionUtil.class && "orderCardsByTheirOwners".equals(frame.getMethodName())) { byOwners = true; }
+                if (forge.game.ability.SpellAbilityEffect.class.isAssignableFrom(frame.getDeclaringClass())) { effect = frame.getDeclaringClass(); break; }
+            }
+            final Game game = liveGame();
+            if (effect == null || game == null || !game.getStack().isResolving() || game.getStack().isEmpty()) { return reversed; }
+            SpellAbility sa = game.getStack().peek().getSpellAbility();
+            while (sa != null && (sa.getApi() == null || sa.getApi().getSpellEffect().getClass() != effect)) { sa = sa.getSubAbility(); }
+            if (sa == null) { return reversed; }
+            final String param;
+            final int otherwise;
+            switch (sa.getApi()) {
+                case RearrangeTopOfLibrary: return true;
+                case Dig: param = byOwners ? "LibraryPosition" : "LibraryPosition2"; otherwise = -1; break;
+                case DigUntil: param = "RevealedLibraryPosition"; otherwise = 0; break;
+                default: param = "LibraryPosition"; otherwise = 0; break;
+            }
+            final int position = sa.hasParam(param)
+                    ? forge.game.ability.AbilityUtils.calculateAmount(sa.getHostCard(), sa.getParam(param), sa) : otherwise;
+            return position >= 0;
         }
 
         @Override

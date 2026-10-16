@@ -2,8 +2,11 @@
  * `order` — Forge's dual list (`DualListBox.java`), as two lists and a drag.
  *
  * The left list is what is still unplaced (`sourceChoices`), the right one is
- * the answer being built (`destChoices` to start with), labelled with Forge's
- * own caption for it (`top`, e.g. "Resolve first", "Top of library").
+ * the answer being built (`destChoices` to start with). A group of cards going
+ * into a library or a graveyard is labelled with where they go, in words
+ * ("Bottom of library"), from the ask's `destination` (`rest` for the left
+ * group of a scry); any other list keeps Forge's own caption (`top`, e.g.
+ * "Resolve first") and its count.
  *
  * **Drag is the gesture** (operator, 2026-10-06: *"can we make this drag
  * instead of 'place' button? i hate place button"*). An unplaced item is
@@ -48,13 +51,33 @@
  *
  * So a list of cards is ONE pile (`.prompt__pile`, `prompts.css`), read the
  * way the board's piles are read (`card.css`): the card in front is drawn
- * whole and the ones under it peek out. The first item — the one closest to
- * the top of the library, the next one drawn — is the card in front, at the
- * pile's foot; each later one sits behind the one before it, its name strip
- * showing above it, so the last is the deepest. A pile is fitted to the room
- * its column has: the cards narrow as there are more of them, so the sheet
- * does not scroll. A pile tells `./row-drag.ts` so (`data-pile`), and a drop
- * lands by where the pointer is on the strips that show.
+ * whole, at the pile's foot, and each one above it peeks out by its name
+ * strip. A pile is fitted to the room its column has: the cards narrow as
+ * there are more of them, so the sheet does not scroll. A drop lands by where
+ * the pointer is on the strips that show.
+ *
+ * ## The library is drawn where it is
+ *
+ * The operator, 2026-10-16, over Tezzeret's pile labelled "Closest to top":
+ * *"the 'Closest to top 2' wording is confusing. can we instead just show
+ * 'Bottom of deck' and show a transparent ethereal representation of the deck
+ * above the stack?"* So a group with a `destination` draws a ghost of that zone
+ * (`.prompt__library`, card backs at low opacity) on the side the zone is, the
+ * screen's up being the library's up: ABOVE the pile when the cards go under
+ * the library, BELOW it when they go on top. The pile is drawn the same way up,
+ * so the card that ends next to the rest of the library is the one touching
+ * the ghost, and the lowest card in the library is the one in front:
+ *
+ *  - the answer's first card lowest (`first: 'bottom'`): drawn from the foot
+ *    up (`data-pile`, `./row-drag.ts` reads it), the default for a list with
+ *    no destination too;
+ *  - the answer's first card highest (`first: 'top'`): drawn from the top
+ *    down, the last card in front, as a list is read.
+ *
+ * A scry's two groups each have their own ghost — the top group sits on one,
+ * the bottom group hangs under its own — rather than one ghost between them:
+ * the two groups stay side by side, so each pile keeps the column's whole
+ * height and the sheet still never scrolls.
  *
  * The nudges: a row of words keeps its ↑/↓ on its own tile
  * (`.prompt__card-order`, shared with `ManipulateCardListPrompt.tsx`); a card in
@@ -68,10 +91,27 @@ import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName, translateTargetWords } from './lookup.ts';
 import { moveBetween, moveItem, orderProblems, type OrderLists } from './rules.ts';
 import { PILE_ATTR, useRowDrag } from './row-drag.ts';
-import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
+import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
 
 const LIST_TESTID = { source: 'order-source', dest: 'order-dest' } as const;
 type Side = keyof OrderLists;
+type Destination = NonNullable<AskOf<'order'>['destination']>;
+
+const ZONE_WORDS: Readonly<Record<Destination['zone'], string>> = { library: 'library', graveyard: 'graveyard' };
+
+/** Where a group's cards go, in words: "Bottom of library". */
+const destinationWords = (d: Destination): string => `${d.end === 'top' ? 'Top' : 'Bottom'} of ${ZONE_WORDS[d.zone]}`;
+
+/** The ghost of the zone a group goes into: a few card backs, see-through. */
+function ZoneGhost({ destination }: { destination: Destination }) {
+  return (
+    <div className="prompt__library" data-testid="order-library" data-zone={destination.zone} data-end={destination.end} aria-hidden="true">
+      <span className="card-back" />
+      <span className="card-back" />
+      <span className="card-back" />
+    </div>
+  );
+}
 
 export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   const all = [...ask.sourceChoices, ...ask.destChoices];
@@ -138,9 +178,14 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     },
   });
 
+  /** Where each group's cards go, when they are cards going into a zone. */
+  const destinationOf: Readonly<Record<Side, Destination | undefined>> = { source: ask.rest, dest: ask.destination };
+  /** A pile drawn from its foot up: its first card in front, at the foot (`data-pile`). */
+  const drawnUp = (side: Side): boolean => anyCards && destinationOf[side]?.first !== 'top';
+
   /**
    * The keys on a focused item: Enter or Space does what a click does; in a list whose order is the
-   * answer, the arrows move it the way they point — in a pile, up is deeper (`data-pile`).
+   * answer, the arrows move it the way they point — in a pile drawn from its foot up, up is later.
    */
   const onKey = (act: () => void, side: Side, i: number, ordered: boolean) => (e: ReactKeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -149,7 +194,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
       return;
     }
     if (!ordered || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-    const later = (e.key === 'ArrowDown') !== anyCards;
+    const later = (e.key === 'ArrowDown') !== drawnUp(side);
     const to = later ? i + 1 : i - 1;
     if (to < 0 || to >= lists[side].length) return;
     e.preventDefault();
@@ -160,69 +205,92 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   const face = (key: string) => cardOrWordsFace(lookup, cardIdOf.get(key), labelOf.get(key));
 
   /**
-   * One list: its heading and its rows — the cards as one pile, words as a list with each row's arrows
-   * where its order is part of the answer.
+   * One list: its heading and its rows — the cards as one pile with the ghost of the zone they go into,
+   * words as a list with each row's arrows where its order is part of the answer.
    */
-  const group = (side: Side, heading: string, ordered: boolean) => {
+  const group = (side: Side, caption: string, ordered: boolean) => {
     const keys = lists[side];
     const Tag = ordered ? 'ol' : 'ul';
+    const destination = anyCards ? destinationOf[side] : undefined;
+    const up = drawnUp(side);
+    const heading = destination === undefined ? caption : destinationWords(destination);
+    const list = (
+      <Tag
+        className={anyCards ? 'prompt__pile' : 'prompt__list'}
+        data-testid={LIST_TESTID[side]}
+        data-over={drag.over === LIST_TESTID[side] || undefined}
+        {...(up && { [PILE_ATTR]: '' })}
+      >
+        {keys.map((key, i) => (
+          <li
+            key={key}
+            data-key={key}
+            data-card-id={liftIdOf.get(key)}
+            role="button"
+            tabIndex={0}
+            aria-label={`${side === 'source' ? 'place' : 'unplace'} ${labelOf.get(key)}`}
+            data-dragging={drag.liftedId === liftIdOf.get(key) || undefined}
+            // The card lower down a pile is drawn over the one above it.
+            style={anyCards ? { zIndex: up ? keys.length - i : i + 1 } : undefined}
+            onPointerDown={drag.onRowPointerDown(liftIdOf.get(key)!)}
+            onClick={() => move(key, other(side), null)}
+            onKeyDown={onKey(() => move(key, other(side), null), side, i, ordered)}
+          >
+            {face(key)}
+            {ordered && !anyCards && (
+              <span className="prompt__card-order">
+                <button
+                  type="button"
+                  aria-label={`move ${labelOf.get(key)} up`}
+                  disabled={i === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    nudge(side, i, i - 1);
+                  }}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label={`move ${labelOf.get(key)} down`}
+                  disabled={i === keys.length - 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    nudge(side, i, i + 1);
+                  }}
+                >
+                  ↓
+                </button>
+              </span>
+            )}
+          </li>
+        ))}
+      </Tag>
+    );
     return (
       <section aria-label={heading}>
         <h4 className="prompt__col-head">
-          {heading} <span className="zone__count">{keys.length}</span>
+          {heading}
+          {destination === undefined && (
+            <>
+              {' '}
+              <span className="zone__count">{keys.length}</span>
+            </>
+          )}
         </h4>
-        <Tag
-          className={anyCards ? 'prompt__pile' : 'prompt__list'}
-          data-testid={LIST_TESTID[side]}
-          data-over={drag.over === LIST_TESTID[side] || undefined}
-          {...(anyCards && { [PILE_ATTR]: '' })}
-          style={anyCards && keys.length > 0 ? ({ '--pile-n': keys.length } as CSSProperties) : undefined}
-        >
-          {keys.map((key, i) => (
-            <li
-              key={key}
-              data-key={key}
-              data-card-id={liftIdOf.get(key)}
-              role="button"
-              tabIndex={0}
-              aria-label={`${side === 'source' ? 'place' : 'unplace'} ${labelOf.get(key)}`}
-              data-dragging={drag.liftedId === liftIdOf.get(key) || undefined}
-              // In a pile each card is drawn over the one after it.
-              style={anyCards ? { zIndex: keys.length - i } : undefined}
-              onPointerDown={drag.onRowPointerDown(liftIdOf.get(key)!)}
-              onClick={() => move(key, other(side), null)}
-              onKeyDown={onKey(() => move(key, other(side), null), side, i, ordered)}
-            >
-              {face(key)}
-              {ordered && !anyCards && (
-                <span className="prompt__card-order">
-                  <button
-                    type="button"
-                    aria-label={`move ${labelOf.get(key)} up`}
-                    disabled={i === 0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      nudge(side, i, i - 1);
-                    }}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`move ${labelOf.get(key)} down`}
-                    disabled={i === keys.length - 1}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      nudge(side, i, i + 1);
-                    }}
-                  >
-                    ↓
-                  </button>
-                </span>
-              )}
-            </li>
-          ))}
-        </Tag>
+        {anyCards ? (
+          <div
+            className="prompt__heap"
+            data-ghost={destination?.end}
+            style={keys.length > 0 ? ({ '--pile-n': keys.length } as CSSProperties) : undefined}
+          >
+            {destination?.end === 'bottom' && <ZoneGhost destination={destination} />}
+            {list}
+            {destination?.end === 'top' && <ZoneGhost destination={destination} />}
+          </div>
+        ) : (
+          list
+        )}
       </section>
     );
   };
@@ -231,7 +299,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     <PromptShell method="order" title={ask.title} problems={problems} onSubmit={submit}>
       {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
       <div className="prompt__dual" data-piles={anyCards || undefined}>
-        {group('source', ask.rest ?? 'Unplaced', ask.rest !== undefined)}
+        {group('source', 'Unplaced', ask.rest !== undefined)}
         {group('dest', ask.top, true)}
       </div>
       {ask.showRememberCheckbox && (

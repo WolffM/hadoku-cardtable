@@ -96,14 +96,17 @@ test(
       await expect(destRows, 'both cards are now placed').toHaveCount(2);
       await expect(destRows.first(), 'the second drag landed before the first').toHaveAttribute('data-key', secondKey!);
 
-      // The second half of the brief, as a pile has it: a placed card moves with the arrow keys — up the pile is deeper.
+      // The second half of the brief, as a pile has it: a placed card moves with the arrow keys, the way they
+      // point as the pile is drawn — up a pile drawn from its foot (`data-pile`), down one drawn from its top.
       await expect(dest.locator('.prompt__row-actions, .prompt__card-order'), 'no button row on a card — that shape is gone').toHaveCount(0);
+      const fromFoot = (await dest.getAttribute('data-pile')) !== null;
+      const [later, earlier] = fromFoot ? ['ArrowUp', 'ArrowDown'] : ['ArrowDown', 'ArrowUp'];
       await destRows.first().focus();
-      await page.keyboard.press('ArrowUp');
-      await expect(destRows.nth(1), 'ArrowUp sent the front card one deeper').toHaveAttribute('data-key', secondKey!);
+      await page.keyboard.press(later);
+      await expect(destRows.nth(1), `${later} sent the first card one along the pile`).toHaveAttribute('data-key', secondKey!);
       await destRows.nth(1).focus();
-      await page.keyboard.press('ArrowDown');
-      await expect(destRows.first(), 'ArrowDown brought it back to the front').toHaveAttribute('data-key', secondKey!);
+      await page.keyboard.press(earlier);
+      await expect(destRows.first(), `${earlier} brought it back`).toHaveAttribute('data-key', secondKey!);
 
       // Submit: the answer reaches Forge — the prompt closes, and the match moves on.
       await page.getByTestId('prompt-submit').click();

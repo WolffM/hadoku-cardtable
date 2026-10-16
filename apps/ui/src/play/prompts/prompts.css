@@ -771,39 +771,66 @@
 
 /*
  * One pile of cards, the board's way of stacking them (`card.css`): the card in
- * front drawn whole, the ones under it peeking out — here above it, by the
+ * front drawn whole, at the foot, and each one above it peeking out by the
  * strip that carries a card's name (`--pile-strip`, a share of the card's
- * width: a card's title bar ends 15% of its width down). The first card is the
- * one in front, at the foot (`column-reverse`), and `OrderPrompt.tsx` stacks
- * each later one behind the one before it (`z-index`).
+ * width: a card's title bar ends 15% of its width down). `OrderPrompt.tsx`
+ * stacks each card over the one above it (`z-index`). A pile marked
+ * `data-pile` is drawn from its first card up (`column-reverse`); any other
+ * from its first card down.
  *
- * The pile's box is what fits it, and the cards follow: it asks for a card as
- * wide as its column plus a strip per card under it (`aspect-ratio`), may be
- * shrunk below that by the sheet (`min-height`), and every card is the width
- * that fits the box it got — `100cqw` wide or `100cqh` tall for the whole
- * pile, whichever is less. More cards: narrower ones, never a scroll bar.
+ * `.prompt__heap` is the box that fits it, with the ghost of the zone its
+ * cards go into (`.prompt__library`) above or below it: it asks for a card as
+ * wide as its column plus a strip per card under it and the ghost's share
+ * (`aspect-ratio`), may be shrunk below that by the sheet (`min-height`), and
+ * every card is the width that fits the box it got — `100cqw` wide or `100cqh`
+ * tall for the whole heap, whichever is less. More cards: narrower ones, never
+ * a scroll bar. The pile and its ghost sit together at the top of the box, so
+ * the ghost always touches the pile.
  */
-.prompt__pile {
+.prompt__heap {
   --pile-strip: 0.16;
-  --pile-k: calc(680 / 488 + var(--pile-strip) * (var(--pile-n) - 1));
+  --pile-ghost: 0;
+  --pile-k: calc(680 / 488 + var(--pile-strip) * (max(var(--pile-n, 1), 1) - 1) + var(--pile-ghost));
 
   container-type: size;
   flex: 1 1 auto;
   min-height: 2.4rem;
   aspect-ratio: 1 / var(--pile-k);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.prompt__heap[data-ghost] {
+  --pile-ghost: 0.3;
+}
+
+.prompt__heap > * {
+  --w: min(100cqw, 100cqh / var(--pile-k));
+}
+
+.prompt__pile {
+  flex: none;
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
-  flex-direction: column-reverse;
-  justify-content: flex-end;
+  flex-direction: column;
   align-items: flex-start;
   user-select: none;
 }
 
-.prompt__pile > li {
-  --w: min(100cqw, 100cqh / var(--pile-k));
+.prompt__pile[data-pile] {
+  flex-direction: column-reverse;
+}
 
+/* An empty group is still all drop target: it fills what its heap has left. */
+.prompt__pile:empty {
+  flex: 1 1 auto;
+  align-self: stretch;
+}
+
+.prompt__pile > li {
   position: relative;
   flex: none;
   width: var(--w);
@@ -813,7 +840,8 @@
   box-shadow: 0 -2px 6px var(--shadow);
 }
 
-.prompt__pile > li:not(:last-child) {
+.prompt__pile[data-pile] > li:not(:last-child),
+.prompt__pile:not([data-pile]) > li:not(:first-child) {
   margin-top: calc(var(--w) * (var(--pile-strip) - 680 / 488));
 }
 
@@ -825,6 +853,45 @@
 
 .prompt__pile > li[data-dragging] {
   opacity: 0.5;
+}
+
+/*
+ * The ghost of the library (or graveyard) the pile goes into: the operator,
+ * 2026-10-16, *"a transparent ethereal representation of the deck above the
+ * stack"*. Three card backs (`card.css`'s own back), each peeking out above the
+ * next the way the pile's cards do, see-through, and never in a hand's way.
+ */
+.prompt__library {
+  position: relative;
+  flex: none;
+  width: var(--w);
+  height: calc(var(--w) * var(--pile-ghost));
+  overflow: hidden;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.prompt__library > .card-back {
+  --card-back-w: 100%;
+
+  position: absolute;
+  left: 0;
+  top: calc(var(--w) * var(--pile-ghost) * (var(--i) / 3));
+  margin: 0;
+  border-color: var(--ink-faint);
+  box-shadow: 0 -2px 6px var(--shadow);
+}
+
+.prompt__library > .card-back:nth-child(1) {
+  --i: 0;
+}
+
+.prompt__library > .card-back:nth-child(2) {
+  --i: 1;
+}
+
+.prompt__library > .card-back:nth-child(3) {
+  --i: 2;
 }
 
 .prompt__pile[data-over] {

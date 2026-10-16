@@ -3268,11 +3268,11 @@ describe('a scry is one prompt', () => {
 	const orderReply = (callId: string, result: { ordered: string[]; rememberDecision: boolean; rest?: string[] }) =>
 		ClientFrameSchema.parse({ kind: 'reply', callId, method: 'order', result });
 
-	it('the seat sees two named groups; Forge gets the bottom, then the top in the order the same reply gave, never asked again', () => {
+	it('the seat sees the cards left as a group going back on top; Forge gets the bottom, then the top in the order the same reply gave, never asked again', () => {
 		const h = harness();
 		h.host.push(...OPENING);
 		h.host.push({ t: 'frame', seat: 0, frame: bottomAsk('x-scry-1', [700, 701, 702, 703]) });
-		expect(shown(h, 'x-scry-1')[0]?.envelope.frame).toMatchObject({ method: 'order', rest: 'Cards on top', top: 'Cards on bottom' });
+		expect(shown(h, 'x-scry-1')[0]?.envelope.frame).toMatchObject({ method: 'order', rest: { zone: 'library', end: 'top', first: 'top' }, top: 'Cards to put on the bottom' });
 
 		expect(h.match.fromClient(0, orderReply('x-scry-1', { ordered: ['b1'], rememberDecision: false, rest: ['b2', 'b0', 'b3'] }))).toEqual({ ok: true });
 		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-scry-1', result: { ordered: ['b1'], rememberDecision: false } }]);
@@ -3301,7 +3301,7 @@ describe('a scry is one prompt', () => {
 		const h = harness();
 		h.host.push(...OPENING);
 		h.host.push({ t: 'frame', seat: 0, frame: bottomAsk('x-surveil', [740, 741], 'Cards to put in the graveyard') });
-		expect(shown(h, 'x-surveil')[0]?.envelope.frame).toMatchObject({ rest: 'Cards on top', top: 'Cards in graveyard' });
+		expect(shown(h, 'x-surveil')[0]?.envelope.frame).toMatchObject({ rest: { zone: 'library', end: 'top', first: 'top' }, top: 'Cards to put in the graveyard' });
 		h.host.push({ t: 'frame', seat: 0, frame: bottomAsk('x-exile', [750, 751], 'Cards to exile') });
 		expect(shown(h, 'x-exile')[0]?.envelope.frame).not.toHaveProperty('rest');
 	});

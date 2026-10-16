@@ -245,16 +245,18 @@ describe('order over cards Forge pre-rendered', () => {
 });
 
 /*
- * A scry: the server names the group left behind (`rest`), so it is ordered
- * too, and one reply answers both of Forge's questions
- * (`apps/server/src/play/arrange.ts`).
+ * A scry: the server says where the group left behind goes (`rest`), so it is
+ * ordered too, and one reply answers both of Forge's questions
+ * (`apps/server/src/play/arrange.ts`); the bridge says where the placed group
+ * goes (`destination`).
  */
 describe('a scry: cards on top and cards on bottom, one prompt', () => {
   const scryAsk = () => ({
     ...askFor('order'),
     title: 'Select cards to be put on the bottom of your library',
-    top: 'Cards on bottom',
-    rest: 'Cards on top',
+    top: 'Cards to put on the bottom',
+    destination: { zone: 'library' as const, end: 'bottom' as const, first: 'top' as const },
+    rest: { zone: 'library' as const, end: 'top' as const, first: 'top' as const },
     remainingObjectsMin: -1,
     remainingObjectsMax: -1,
     showRememberCheckbox: false,
@@ -273,9 +275,9 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     return { ...utils, top, bottom, rowsOf, dragTo: dragRow };
   };
 
-  it('names both groups, every card starts on top in Forge’s order, and OK is ready', () => {
+  it('names both groups by where they go, every card starts on top in Forge’s order, and OK is ready', () => {
     const { top, bottom, submit, container } = scry();
-    expect([...container.querySelectorAll('.prompt__col-head')].map((h) => h.textContent)).toEqual(['Cards on top 3', 'Cards on bottom 0']);
+    expect([...container.querySelectorAll('.prompt__col-head')].map((h) => h.textContent)).toEqual(['Top of library', 'Bottom of library']);
     expect(container.textContent).not.toContain('Unplaced');
     expect(keysIn(top())).toEqual(['s0', 's1', 's2']);
     expect(keysIn(bottom())).toEqual([]);
@@ -302,12 +304,12 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
 
   it('reorders the top by drag and by the arrow keys, sends one to the bottom, and answers both in one reply', () => {
     const { top, bottom, rowsOf, dragTo, submit, answers } = scry();
-    // Up the pile is deeper: the card in front goes one under.
-    fireEvent.keyDown(rowsOf(top())[0]!, { key: 'ArrowUp' });
+    // The top group is drawn from the library's top down: the top card goes one deeper with ArrowDown.
+    fireEvent.keyDown(rowsOf(top())[0]!, { key: 'ArrowDown' });
     expect(keysIn(top())).toEqual(['s1', 's0', 's2']);
-    fireEvent.keyDown(rowsOf(top())[1]!, { key: 'ArrowDown' });
+    fireEvent.keyDown(rowsOf(top())[1]!, { key: 'ArrowUp' });
     expect(keysIn(top())).toEqual(['s0', 's1', 's2']);
-    fireEvent.keyDown(rowsOf(top())[0]!, { key: 'ArrowUp' });
+    fireEvent.keyDown(rowsOf(top())[0]!, { key: 'ArrowDown' });
     expect(keysIn(top())).toEqual(['s1', 's0', 's2']);
     dragTo(rowsOf(top())[2]!, rowsOf(top())[0]!);
     expect(keysIn(top())).toEqual(['s2', 's1', 's0']);
@@ -327,11 +329,17 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     expect(keysIn(top())).toEqual(['s1', 's2', 's0']);
   });
 
-  it('draws each group as one pile: the first card in front, each next one behind it, and no arrows on a card', () => {
-    const { top, rowsOf, container } = scry();
-    expect(top().hasAttribute('data-pile')).toBe(true);
-    expect(top().style.getPropertyValue('--pile-n')).toBe('3');
-    expect(rowsOf(top()).map((li) => Number(li.style.zIndex))).toEqual([3, 2, 1]);
+  it('draws each group as one pile the library’s way up, the library’s ghost on the side it is, and no arrows on a card', () => {
+    const { top, bottom, rowsOf, container } = scry();
+    // Going on top: the first card highest, drawn from the top down, the last in front, the ghost below.
+    expect(top().hasAttribute('data-pile')).toBe(false);
+    expect((top().parentElement as HTMLElement).style.getPropertyValue('--pile-n')).toBe('3');
+    expect(rowsOf(top()).map((li) => Number(li.style.zIndex))).toEqual([1, 2, 3]);
+    expect(top().nextElementSibling?.getAttribute('data-testid')).toBe('order-library');
+    expect(top().nextElementSibling?.getAttribute('data-end')).toBe('top');
+    // Going under: the ghost above.
+    expect(bottom().previousElementSibling?.getAttribute('data-testid')).toBe('order-library');
+    expect(bottom().previousElementSibling?.getAttribute('data-end')).toBe('bottom');
     expect(container.querySelector('.prompt__card-order')).toBeNull();
     expect(container.querySelector('.prompt__cards')).toBeNull();
   });

@@ -675,12 +675,31 @@ export const GetChoicesReplySchema = z.array(z.string());
  * boolean rememberDecision)` (IGuiGame.java:41), so the reply is that pair with
  * `ordered` as keys.
  *
- * `rest` is ours, never Forge's: the server sets it on a scry or a surveil
+ * `destination` is ours, never Forge's: where the answer's cards go, read by
+ * the bridge (`PlayBridge.java`'s `orderDestination`) from what Forge is
+ * doing when it asks — Forge's own caption (`top`, "Closest to top") says only
+ * how Forge reads the list, not whether the cards go on top of the library or
+ * under it. Absent when the items are not cards moving into a library or a
+ * graveyard (a damage order, a trigger order).
+ *
+ * `rest` is ours too: the server sets it on a scry or a surveil
  * (`apps/server/src/play/arrange.ts`), whose items left in `sourceChoices`
  * stay on top of the library in an order Forge asks for in a second `order`.
- * It names that group, and the reply's `rest` is its order — the server
- * answers Forge's second question with it, so the player is asked once.
+ * It is where that group goes, and the reply's `rest` is its order — the
+ * server answers Forge's second question with it, so the player is asked once.
  */
+/**
+ * Where an order's cards go: `zone`, at its `end`; and `first`, which way the
+ * answer's first card lies from the others once they are there — `'top'`: it
+ * is the highest of them. The card that ends up next to the rest of the zone
+ * is the highest one when they go to the bottom, the lowest when they go on top.
+ */
+export const OrderDestinationSchema = z.strictObject({
+  zone: z.enum(['library', 'graveyard']),
+  end: z.enum(['top', 'bottom']),
+  first: z.enum(['top', 'bottom']),
+});
+
 export const OrderSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
@@ -695,7 +714,8 @@ export const OrderSchema = z.strictObject({
   referenceCard: CardRefSchema.nullable(),
   sideboardingMode: z.boolean(),
   showRememberCheckbox: z.boolean(),
-  rest: z.string().optional(),
+  destination: OrderDestinationSchema.optional(),
+  rest: OrderDestinationSchema.optional(),
 });
 
 export const OrderReplySchema = z.strictObject({

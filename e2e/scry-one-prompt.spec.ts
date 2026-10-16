@@ -66,8 +66,9 @@ test(
       const looked = await idsIn(top);
       console.log(`[scry] looked at ${JSON.stringify(await namesIn(top))} ids ${JSON.stringify(looked)}`);
       console.log(`[scry] headings ${JSON.stringify(await prompt.locator('.prompt__col-head').allInnerTexts())}`);
-      await expect.soft(prompt.getByRole('heading', { name: /^Cards on top/ }), 'the top group says "Cards on top"').toHaveCount(1);
-      await expect.soft(prompt.getByRole('heading', { name: /^Cards on bottom/ }), 'the bottom group says "Cards on bottom"').toHaveCount(1);
+      // The operator, 2026-10-16: each group says where its cards go ("Bottom of deck", `od-order-pile.spec.ts`).
+      await expect.soft(prompt.getByRole('heading', { name: /^Top of library/ }), 'the top group says "Top of library"').toHaveCount(1);
+      await expect.soft(prompt.getByRole('heading', { name: /^Bottom of library/ }), 'the bottom group says "Bottom of library"').toHaveCount(1);
       await expect.soft(prompt, 'no "Unplaced" anywhere on a scry').not.toContainText('Unplaced');
 
       const [a, b, c, d] = looked as [number, number, number, number];
