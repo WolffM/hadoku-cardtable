@@ -1,0 +1,20 @@
+# e2e/pw-ojutai.spec.ts — a combat-damage trigger that asks a choice.
+# alice (human, seat 0) attacks bob with Dragonlord Ojutai already declared
+# (the |Attacking marker; `activephase` lands on Declare ATTACKERS so the
+# harness's state-effects pass runs before combat moves on — README "Combat,
+# specifically"). bob has no creatures, so nothing blocks: Ojutai deals 5 to
+# bob, its DamageDone trigger goes on the stack, and when it resolves Forge
+# asks alice which of her top three cards to put into her hand.
+turn=1
+activeplayer=human
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Dragonlord Ojutai|Attacking
+humanlibrary=Island;Plains;Island;Plains;Island
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
