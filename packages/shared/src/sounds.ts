@@ -184,7 +184,6 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.counter-off', 'Counter removed', 'A counter comes off.'),
 			game('g.attach', 'Attach', 'An aura or equipment attaches.'),
 			game('g.transform', 'Transform', 'A card flips or transforms.'),
-			game('g.mana', 'Mana', 'Mana is added to a pool.'),
 		],
 	},
 	{
@@ -222,7 +221,6 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.game-start', 'Coin toss', 'The coin flips to settle who goes first, on both screens.'),
 			game('g.mulligan', 'Mulligan', 'A hand goes back.'),
 			game('g.turn-mine', 'Your turn', 'Your turn begins.', true),
-			game('g.turn-theirs', 'Their turn', 'The opponent’s turn begins.', true),
 			game('g.phase', 'Phase change', 'The game moves to the next step.'),
 			game('g.win', 'Victory', 'You win the game.', true),
 			game('g.lose', 'Defeat', 'You lose the game.', true),

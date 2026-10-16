@@ -2914,8 +2914,9 @@ describe('End Turn goes straight to the other turn', () => {
     await waitFor(() => expect(m.view!.phase).toBe('END_OF_TURN'));
     expect(soundCalls.map((e) => e.role)).not.toContain('g.phase');
 
-    s.send(turnDelta(m, them.id, m.view!.turn + 1));
-    await waitFor(() => expect(soundCalls.map((e) => e.role)).toContain('g.turn-theirs'));
+    const theirTurn = m.view!.turn + 1;
+    s.send(turnDelta(m, them.id, theirTurn));
+    await waitFor(() => expect(m.view!.turn).toBe(theirTurn));
     const endTurnLine = () =>
       s.received.find((r) => r.event === 'forge:client' && (r.payload as { data: Record<string, unknown> }).data.what === 'end-turn')?.payload as
         | { data: Record<string, unknown> }

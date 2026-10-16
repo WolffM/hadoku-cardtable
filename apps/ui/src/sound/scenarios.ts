@@ -97,17 +97,14 @@ export const SCENARIOS: readonly Scenario[] = [
       { at: 2830, role: 'g.land', label: 'Play a land', layer: 'basic' },
       { at: 3400, role: 'g.tap', label: 'Tap a land' },
       { at: 3550, role: 'g.tap', label: 'Tap a land' },
-      { at: 3600, role: 'g.mana', label: 'Mana' },
       ...creature(3900, 'me', 'Creature'),
       { at: 6000, role: 'ui.pass', label: 'End turn' },
-      { at: 6500, role: 'g.turn-theirs', label: 'Their turn' },
     ]),
   },
   {
     id: 'their-turn',
     name: 'Their turn',
     beats: sorted([
-      { at: 0, role: 'g.turn-theirs', label: 'Their turn' },
       ...run(600, 4, 90, { role: 'g.untap', label: 'Untap', seat: 'opp' }),
       { at: 1100, role: 'g.draw', label: 'Draw', seat: 'opp' },
       { at: 1900, role: 'g.land', label: 'Play a land', seat: 'opp', layer: 'basic' },

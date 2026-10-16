@@ -50,7 +50,7 @@ Later directions, verbatim, in order:
 | Who hears | The whole table. The opponent's touches and hovers are silent; their game events play **quieter**. |
 | Sandbox | Both: **scripted timelines** and **recorded-match replays**. |
 | Casting a creature (2026-10-09) | A three-sound stack: **spell cast** (generic, one per spell type, low, no colour) → **creature sound** (the colour × creature cell) → **lands on the table** (generic). Spell-cast sounds stay quiet and colourless. |
-| Music | **In scope for alpha.** A couple of found tracks on their own bus. |
+| Music | **In scope for alpha.** A couple of found tracks on their own bus. The operator, 2026-10-16: *"lobby & draft, and in a match sounds are gonna be longer soundscapes that i need to find somewhere else"*: never generated here; `add-track.py` brings a found one in. |
 | Shuffle | Has a sound, so the server forwards Forge's shuffle event. |
 | Generation | Claude writes prompts, runs Stable Audio and imports takes; the operator picks. **Only after the operator's first assignment pass.** |
 
@@ -130,7 +130,6 @@ object, but the id may still be stable.
 | `g.counter-on` / `g.counter-off` | `counters` count changes |
 | `g.attach` | `attachedToId` changes |
 | `g.transform` | `changedFrom` appears or changes |
-| `g.mana` | `manaPool` grows (subtle) |
 | `g.lifegain` | `life` rises |
 
 ### Combat
@@ -146,7 +145,7 @@ object, but the id may still be stable.
 
 | Role | Trigger |
 | --- | --- |
-| `g.turn-mine` / `g.turn-theirs` | `activePlayerId` changes |
+| `g.turn-mine` | `activePlayerId` changes to the viewer. Mana and the opponent's turn are silent since 2026-10-16 (the operator: *"i dont need a sound for their turn nor for mana"*) |
 | `g.phase` | `phase` changes (maybe only combat and end step) |
 | `g.game-start` | coin toss resolves |
 | `g.mulligan` | a mulligan is taken |
@@ -169,7 +168,7 @@ colour layer.
 
 ## Mixing rules
 
-- Four buses: **ui**, **game**, **colour** and **music**, each with its own volume. Music plays a couple of tracks (lobby/draft and match), loops them, and ducks under `g.win`/`g.lose`/`g.turn-*`. Tracks must carry a licence that allows this use (CC0/CC-BY or similar, with attribution in `NOTICE.md`). Their bytes live in `CARDTABLE_SOUNDS_DIR` like takes, never in the repo. The
+- Four buses: **ui**, **game**, **colour** and **music**, each with its own volume. Music plays a couple of tracks (lobby/draft and match), loops them, and ducks under `g.win`/`g.lose`/`g.turn-mine`. Tracks must carry a licence that allows this use (CC0/CC-BY or similar, with attribution in `NOTICE.md`). Their bytes live in `CARDTABLE_SOUNDS_DIR` like takes, never in the repo. The
   player's settings expose mute, overall volume and music volume (per browser,
   `sound/mute.ts`), in cardtable's own settings popover — the avatar in a
   match, the gear in a screen's head row elsewhere (`apps/ui/src/settings/`).

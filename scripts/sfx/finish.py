@@ -33,7 +33,7 @@ LOUDNESS = {'moment': -23.0, 'game': -26.0, 'ui': -31.0, 'hover': -37.0}
 TRANSIENT_HEADROOM_DB = 4.0
 # The hovers fire constantly and were "a bit harsh" (2026-10-12): a slow attack, a long fade, no top end.
 SOFT_FADE_IN_S, SOFT_LOWPASS_HZ = 0.02, 5000
-MOMENT_ROLES = ('g.turn-mine', 'g.turn-theirs', 'g.win', 'g.lose', 'g.game-start', 'g.match-start')
+MOMENT_ROLES = ('g.turn-mine', 'g.win', 'g.lose', 'g.game-start', 'g.match-start')
 PEAK_CEILING_DB = -1.0
 GATE_DB = -45.0          # relative to the take's own peak: quieter than this is silence
 FADE_IN_S, FADE_OUT_S = 0.004, 0.04
@@ -47,10 +47,10 @@ TAIL_PAD_S = 0.03
 # Then too long again for the quick ones (2026-10-11: "many sounds like hovering, tapping, destroying should be
 # shorter and simpler"), so the roles that answer a gesture or tick by often get their own short limit.
 MOMENT_CAP = {'m-turn': 2.5, 'm-win': 4.0, 'm-lose': 4.0}
-ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.turn-theirs': 2.5, 'g.game-start': 2.5, 'g.match-start': 3.0,
+ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.game-start': 2.5, 'g.match-start': 3.0,
             'ui.hover-card': 0.25, 'ui.hover-control': 0.2, 'ui.select': 0.3, 'ui.pass': 0.4, 'ui.lift': 0.35,
             'ui.place': 0.35, 'ui.deny': 0.4, 'ui.target': 0.4, 'ui.inspect': 0.4, 'ui.draft-pick': 0.4,
-            'g.tap': 0.35, 'g.untap': 0.35, 'g.counter-on': 0.4, 'g.counter-off': 0.4, 'g.mana': 0.5,
+            'g.tap': 0.35, 'g.untap': 0.35, 'g.counter-on': 0.4, 'g.counter-off': 0.4,
             'g.phase': 0.4, 'g.draw': 0.5, 'g.discard': 0.6, 'g.mill': 0.8, 'g.attach': 0.6,
             'g.destroy': 0.9, 'g.dies': 1.0, 'g.exile': 0.9, 'g.bounce': 0.8, 'g.counter': 0.9, 'g.damage': 0.8}
 UI_CAP, GAME_CAP = 0.6, 2.0

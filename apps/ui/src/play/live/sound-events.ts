@@ -177,7 +177,6 @@ function placements(view: BoardView): Map<number, Placed> {
 const seatOf = (player: BoardPlayer | undefined): Seat => (player === undefined || player.isViewer ? 'me' : 'opp');
 
 const counterTotal = (entry: BoardCard): number => entry.counters.reduce((n, c) => n + c.count, 0);
-const poolTotal = (p: BoardPlayer): number => (p.manaPool ?? []).reduce((n, m) => n + m.count, 0);
 
 export function deriveSoundEvents(prev: BoardView | null, next: BoardView): DelayedSoundEvent[] {
   if (prev === null || next.seq <= prev.seq) return [];
@@ -195,8 +194,9 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
     push(viewer?.hasLost === true ? 'g.lose' : 'g.win', 'me');
     return events;
   }
+  // The opponent's turn starting is silent (the operator, 2026-10-16: "i dont need a sound for their turn nor for mana").
   if (next.turn > prev.turn && next.activePlayerId !== null) {
-    push(active === 'me' ? 'g.turn-mine' : 'g.turn-theirs', 'me');
+    if (active === 'me') push('g.turn-mine', 'me');
   } else if (next.phase !== prev.phase && next.phase !== null) {
     push('g.phase', active);
   }
@@ -319,7 +319,6 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
     if (shuffled) push('g.shuffle', seat, mulligan ? { delayMs: 250 } : {});
     if (p.life < prevP.life) push('g.damage-player', active);
     if (p.life > prevP.life) push('g.lifegain', seat);
-    if (poolTotal(p) > poolTotal(prevP)) push('g.mana', seat);
   }
 
   return events.length > SNAPSHOT_EVENT_LIMIT ? [] : events;

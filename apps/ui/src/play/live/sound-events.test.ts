@@ -365,10 +365,10 @@ describe('deriveSoundEvents', () => {
     ]);
   });
 
-  it('a new turn is whose turn it is, and says nothing else about the phase', () => {
+  it('their turn starting is silent, and says nothing about the phase', () => {
     const before = view(1, {}, {}, { turn: 3, activePlayerId: 1, phase: 'CLEANUP' });
     const after = view(2, {}, {}, { turn: 4, activePlayerId: 2, phase: 'UNTAP' });
-    expect(deriveSoundEvents(before, after)).toEqual([{ role: 'g.turn-theirs', seat: 'me' }]);
+    expect(deriveSoundEvents(before, after)).toEqual([]);
   });
 
   it('attackers and blockers, from their controllers', () => {
@@ -465,7 +465,7 @@ describe('against a real captured game', () => {
       }
       prev = next;
     }
-    for (const role of ['g.turn-mine', 'g.turn-theirs', 'g.draw', 'g.land', 'g.cast.creature', 'g.resolve', 'g.creature', 'g.enter', 'g.tap', 'g.untap', 'g.attack', 'g.block', 'g.dies', 'g.damage-player']) {
+    for (const role of ['g.turn-mine', 'g.draw', 'g.land', 'g.cast.creature', 'g.resolve', 'g.creature', 'g.enter', 'g.tap', 'g.untap', 'g.attack', 'g.block', 'g.dies', 'g.damage-player']) {
       expect(roles, role).toContain(role);
     }
     expect(roles, 'no false shuffles in an ordinary game').not.toContain('g.shuffle');
