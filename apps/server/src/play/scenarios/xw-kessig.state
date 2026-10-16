@@ -1,0 +1,20 @@
+# Kessig Wolf Run's X above Forge's own ten-wide list (the operator, 2026-10-15:
+# "kessig wolf run should allow going up to 20, and it should also attempt to
+# indicate how much mana you can maximally pay"). Alice (seat 0) has Kessig Wolf
+# Run ({X}{R}{G},{T}: target creature gets +X/+0 and gains trample), seven
+# Mountains, seven Forests and Grizzly Bears, all untapped, on an uncontested
+# turn-1 Main Phase 1. Kessig taps for its own cost, so fourteen basics pay it:
+# {R}{G} leaves twelve, and the most X she can pay is 12.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Kessig Wolf Run;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
