@@ -132,14 +132,150 @@
   visibility: hidden;
 }
 
-/* Exiled: it lifts a little and fades. */
-.board-departure[data-exit='fade'][data-exit-go] {
-  animation: board-exit-fade 300ms ease-out forwards;
+/*
+ * Exiled: it dissolves. `--dissolve` is where the edge is along the card's diagonal, from its bottom
+ * left corner (0%) to its top right (100%); the card is kept only ahead of it, with a band of fine grain
+ * just behind it for a crumbling border (`mask-composite`: the grain cut to the band, added to what is
+ * whole), and its second copy adds a coarser grain over a wider band. The colour of what exiled it (`--bolt`, set by `data-colour` in `projectile.css`; grey without
+ * one) burns along the edge, tints the card and glows around what is left of it; each mote
+ * (`.board-departure__speck`) leaves as the edge passes it and drifts up and away.
+ */
+@property --dissolve {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: -12%;
 }
 
-@keyframes board-exit-fade {
+.board-departure[data-exit='dissolve'] {
+  --ash: var(--bolt, var(--c-generic));
+}
+
+.board-departure[data-exit='dissolve'][data-exit-go] {
+  animation: board-exit-dissolve-aura 1600ms forwards;
+}
+
+.board-departure[data-exit='dissolve'] > .board-departure__piece {
+  --dissolve: -12%;
+
+  position: relative;
+  mask-image:
+    linear-gradient(to top right, transparent var(--dissolve), var(--ink) calc(var(--dissolve) + 0.5%)),
+    radial-gradient(circle, var(--ink) 0 0.8px, transparent 1.2px),
+    linear-gradient(to top right, transparent calc(var(--dissolve) - 7%), var(--ink) calc(var(--dissolve) - 6%), var(--ink) var(--dissolve), transparent calc(var(--dissolve) + 0.5%));
+  mask-size:
+    100% 100%,
+    3px 3px,
+    100% 100%;
+  mask-composite: add, intersect;
+}
+
+/* The second copy is only crumbs: a coarser grain, offset from the first, over a wider band trailing the edge. */
+.board-departure[data-exit='dissolve'] > .board-departure__piece[data-piece='2'] {
+  position: absolute;
+  mask-image:
+    radial-gradient(circle at 30% 70%, var(--ink) 0 1px, transparent 1.4px),
+    linear-gradient(to top right, transparent calc(var(--dissolve) - 14%), var(--ink) calc(var(--dissolve) - 9%), var(--ink) var(--dissolve), transparent calc(var(--dissolve) + 0.5%));
+  mask-size:
+    4.6px 4.6px,
+    100% 100%;
+  mask-composite: intersect;
+}
+
+/* The edge burning in the colour, and the card going over to it ahead of the edge. */
+.board-departure[data-exit='dissolve'] > .board-departure__piece::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    to top right,
+    color-mix(in oklab, var(--ash) 55%, var(--c-white)) calc(var(--dissolve) + 1%),
+    var(--ash) calc(var(--dissolve) + 4%),
+    color-mix(in srgb, var(--ash) 45%, transparent) calc(var(--dissolve) + 12%),
+    color-mix(in srgb, var(--ash) 20%, transparent) calc(var(--dissolve) + 40%)
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+.board-departure[data-exit='dissolve'][data-exit-go] > .board-departure__piece {
+  animation: board-exit-dissolve 1600ms forwards;
+}
+
+.board-departure[data-exit='dissolve'][data-exit-go] > .board-departure__piece::after {
+  animation: board-exit-dissolve-tint 1600ms forwards;
+}
+
+@keyframes board-exit-dissolve {
+  0%,
+  6% {
+    --dissolve: -12%;
+
+    animation-timing-function: cubic-bezier(0.35, 0, 0.75, 1);
+  }
+
+  70%,
   100% {
-    translate: 0 -8px;
+    --dissolve: 112%;
+  }
+}
+
+@keyframes board-exit-dissolve-tint {
+  0% {
+    opacity: 0;
+  }
+
+  8%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* A glow in the colour around what is left of the card, the crumbling edge included. */
+@keyframes board-exit-dissolve-aura {
+  0% {
+    filter: drop-shadow(0 0 0 var(--ash));
+  }
+
+  10%,
+  60% {
+    filter: drop-shadow(0 0 7px var(--ash));
+  }
+
+  100% {
+    filter: drop-shadow(0 0 0 var(--ash));
+  }
+}
+
+.board-departure__speck {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--size, 4px);
+  height: var(--size, 4px);
+  margin: calc(var(--size, 4px) / -2) 0 0 calc(var(--size, 4px) / -2);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--ash) 55%, var(--c-white));
+  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--ash) 85%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.board-departure[data-exit-go] > .board-departure__speck {
+  animation: board-exit-speck 700ms cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+  animation-delay: calc(var(--at) * 1600ms + 60ms);
+}
+
+@keyframes board-exit-speck {
+  0% {
+    translate: 0 0;
+    scale: 1.2;
+    opacity: 1;
+  }
+
+  100% {
+    translate: var(--dx) var(--dy);
+    scale: 0.2;
     opacity: 0;
   }
 }

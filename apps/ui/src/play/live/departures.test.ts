@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
-import { departureCause, departuresOf, EXIT_MOTIONS, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, type Departure, type DepartureCause } from './departures.ts';
+import { departureCause, departuresOf, DISSOLVE_SWEEP, EXIT_MOTIONS, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -56,12 +56,15 @@ describe('exitMotionFor', () => {
     for (const cause of ['damage', 'sacrificed', 'zero-toughness', 'state-rule'] as const) expect(exitMotionFor(departure('graveyard', cause)), cause).toBe('crumple');
   });
 
-  it('with no cause (a Forge too old to say, and no hit): killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced; exiled fades', () => {
+  it('with no cause (a Forge too old to say, and no hit): killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced', () => {
     expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('crumple');
     expect(exitMotionFor(departure('graveyard'))).toBe('slice');
     expect(exitMotionFor(departure('gone'))).toBe('slice');
     expect(exitMotionFor(departure('gone', 'damage'))).toBe('crumple');
-    expect(exitMotionFor(departure('exile'))).toBe('fade');
+  });
+
+  it('exiled dissolves', () => {
+    expect(exitMotionFor(departure('exile'))).toBe('dissolve');
   });
 
   it('back to a hand flies there: face up into a hand this screen sees, turning over into one it does not', () => {
@@ -230,14 +233,62 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('a dissolve is drawn in the colour of what exiled it, shedding its motes, and grey for nothing', () => {
+    const canvas = board();
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    keepPlace(canvas);
+    handle.leave({ ...departure('exile'), hue: 'U' }, 0);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(standIn.getAttribute('data-colour')).toBe('U');
+    expect(standIn.querySelectorAll('.board-departure__speck')).toHaveLength(EXIT_MOTIONS.dissolve.specks);
+    expect(standIn.querySelectorAll('.board-departure__piece'), 'the card and its crumbs').toHaveLength(2);
+    handle.dispose();
+    const plain = board();
+    const again = installDepartures(plain, { onDone: () => undefined });
+    again.snapshot();
+    keepPlace(plain);
+    again.leave(departure('exile'), 0);
+    expect(plain.querySelector('.board-departure')!.hasAttribute('data-colour')).toBe(false);
+    again.dispose();
+  });
+
+  it('a turned card’s stand-in is the turned card’s box: its centring margins are dropped and the stand-in moved down by them', () => {
+    const canvas = board();
+    const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
+    card.style.marginTop = '26px';
+    card.style.marginBottom = '26px';
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    keepPlace(canvas);
+    handle.leave(departure('exile'), 0);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(standIn.style.top).toBe('426px');
+    for (const copy of standIn.querySelectorAll<HTMLElement>('.board-departure__piece > .board-card')) expect(copy.style.marginBlock).toBe('0px');
+    handle.dispose();
+  });
+
   it('dispose takes every copy down', () => {
     const canvas = board();
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     keepPlace(canvas);
     handle.leave(departure('exile'), 0);
-    expect(canvas.querySelector('.board-departure[data-exit="fade"]')).not.toBeNull();
+    expect(canvas.querySelector('.board-departure[data-exit="dissolve"]')).not.toBeNull();
     handle.dispose();
     expect(canvas.querySelector('.board-departure')).toBeNull();
+  });
+});
+
+describe('specks', () => {
+  it('a card always comes apart the same way, each mote leaving as the edge passes it, from the bottom left corner on', () => {
+    expect(specks(7, 28)).toEqual(specks(7, 28));
+    expect(specks(7, 28)).not.toEqual(specks(8, 28));
+    for (const s of specks(7, 28)) {
+      expect(s.at).toBeGreaterThanOrEqual(0);
+      expect(s.at).toBeLessThanOrEqual(DISSOLVE_SWEEP);
+      expect(s.at).toBeCloseTo(((s.x + 1 - s.y) / 2) * DISSOLVE_SWEEP);
+      expect(s.dy, 'up and away').toBeLessThan(0);
+    }
   });
 });

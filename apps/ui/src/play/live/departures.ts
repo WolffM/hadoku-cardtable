@@ -43,8 +43,11 @@
  * Reduced motion: no stand-in; the gap closes at the card's beat.
  */
 
+import type { ManaColor } from '@hadoku/shared';
+
 import type { BoardCard, BoardView, DeathCause } from '../adapter.ts';
 import './departures.css';
+import { seedOf } from './projectile.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -90,12 +93,16 @@ export interface Departure {
    * `null`), so a card going there is found by that count rising, and lands face down.
    */
   readonly hidden?: true;
+  /** The first colour of what moved it — the resolving spell or ability's card — for a motion drawn in it (`data-colour`); absent for none. */
+  readonly hue?: ManaColor;
 }
 
 /**
  * Every exit motion, by name: how long it plays, and how many copies of the card it is drawn with
  * (each `.board-departure__piece`, numbered `data-piece="1"`…); `back`, its last piece is a card back
- * instead; `travels`, it goes to its destination (see "A motion that travels"). The CSS for each is
+ * instead; `travels`, it goes to its destination (see "A motion that travels"); `specks`, how many
+ * motes it sheds (`.board-departure__speck`, each placed by `--x`/`--y` across the card, sent off by
+ * `--dx`/`--dy`, `--size` across, and starting at `--at`, a share of the motion). The CSS for each is
  * `.board-departure[data-exit="<name>"][data-exit-go]` in `departures.css`.
  */
 export const EXIT_MOTIONS = {
@@ -110,12 +117,46 @@ export const EXIT_MOTIONS = {
   return: { ms: 760, pieces: 1, travels: true },
   /** Back to a hand this screen does not see: the same flight, turning over to a card back on the way. */
   'return-hidden': { ms: 760, pieces: 2, back: true, travels: true },
-  /** Out of play some other way — exiled: it lifts and fades. */
-  fade: { ms: 300, pieces: 1 },
-} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly back?: true; readonly travels?: true }>;
+  /**
+   * Exiled: it dissolves (the operator, 2026-10-16: "for exile can we try something 'disolving' or
+   * 'disintegrating'? might be nice to apply a color effect also dependning on the color source of the
+   * spell"). An edge crosses it from one corner to the other, eating it away with a ragged border that
+   * glows in the colour of what exiled it, and it sheds motes of that colour as the edge passes. Two
+   * copies: the card, and the crumbs trailing behind the edge in a second, coarser grain, so the two
+   * grains together read as crumbling rather than as a pattern.
+   */
+  dissolve: { ms: 1600, pieces: 2, specks: 46 },
+} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly back?: true; readonly travels?: true; readonly specks?: number }>;
 
 const backed = (motion: ExitMotion): boolean => 'back' in EXIT_MOTIONS[motion];
 const travels = (motion: ExitMotion): boolean => 'travels' in EXIT_MOTIONS[motion];
+const specksOf = (motion: ExitMotion): number => {
+  const entry = EXIT_MOTIONS[motion];
+  return 'specks' in entry ? entry.specks : 0;
+};
+
+/**
+ * Where a dissolving card's edge is, as a share of the motion, when it passes a point a share `along`
+ * of the way across the card from the corner it starts at: it crosses in the first two thirds, so the
+ * last motes it sheds have time to drift.
+ */
+export const DISSOLVE_SWEEP = 0.7;
+
+/**
+ * The motes a card sheds: each at a point across it (`x`, `y`, shares of its width and height), sent off
+ * up and away by `dx`/`dy` (px), `size` px across, starting as the edge passes it (`at`, a share of the motion). Seeded by
+ * the card, so a card always comes apart the same way.
+ */
+export function specks(cardId: number, count: number): { x: number; y: number; dx: number; dy: number; size: number; at: number }[] {
+  return Array.from({ length: count }, (_, n) => {
+    const r = (k: string): number => seedOf(`${cardId}:${n}:${k}`);
+    const x = r('x');
+    const y = r('y');
+    // The edge goes from the bottom left corner to the top right one.
+    const along = (x + (1 - y)) / 2;
+    return { x, y, dx: 18 + r('dx') * 60, dy: -(28 + r('dy') * 70), size: 2 + r('size') * 4, at: along * DISSOLVE_SWEEP };
+  });
+}
 
 export type ExitMotion = keyof typeof EXIT_MOTIONS;
 
@@ -126,7 +167,7 @@ export type ExitMotion = keyof typeof EXIT_MOTIONS;
  */
 export function exitMotionFor(departure: Departure): ExitMotion {
   if (departure.to === 'hand') return departure.hidden === true ? 'return-hidden' : 'return';
-  if (departure.to !== 'graveyard' && departure.to !== 'gone') return 'fade';
+  if (departure.to === 'exile') return 'dissolve';
   return departure.cause === undefined || departure.cause === 'destroyed' ? 'slice' : 'crumple';
 }
 
@@ -261,7 +302,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
   }
 
-  function standIn(from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion, landing: HTMLElement | null): HTMLElement {
+  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion, landing: HTMLElement | null): HTMLElement {
     const box = root.getBoundingClientRect();
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
@@ -273,6 +314,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     // The copy is sized by the zone's own `--card-w`, which the overlay is outside of.
     wrap.style.setProperty('--card-w', `${at.width}px`);
     const pieces = EXIT_MOTIONS[motion].pieces;
+    if (departure.hue !== undefined) wrap.setAttribute('data-colour', departure.hue);
     for (let n = 1; n <= pieces; n++) {
       const copy = backed(motion) && n === pieces ? cardBack(landing) : (from.cloneNode(true) as HTMLElement);
       for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
@@ -282,7 +324,27 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       piece.append(copy);
       wrap.append(piece);
     }
+    for (const speck of specks(departure.cardId, specksOf(motion))) {
+      const el = document.createElement('i');
+      el.className = 'board-departure__speck';
+      el.style.setProperty('--x', `${(speck.x * 100).toFixed(1)}%`);
+      el.style.setProperty('--y', `${(speck.y * 100).toFixed(1)}%`);
+      el.style.setProperty('--dx', `${speck.dx.toFixed(1)}px`);
+      el.style.setProperty('--dy', `${speck.dy.toFixed(1)}px`);
+      el.style.setProperty('--size', `${speck.size.toFixed(1)}px`);
+      el.style.setProperty('--at', speck.at.toFixed(3));
+      wrap.append(el);
+    }
     root.append(wrap);
+    // A turned card is centred in its upright place by margins above and below (`card.css`): the
+    // stand-in is the turned card's own box instead, moved down by that margin, so every piece, its
+    // tint and its motes are the card's shape and not an upright card's.
+    const copies = [...wrap.querySelectorAll<HTMLElement>(':scope > .board-departure__piece > .board-card')];
+    const step = copies.length === 0 ? 0 : parseFloat(getComputedStyle(copies[0]!).marginTop) || 0;
+    if (step > 0) {
+      for (const copy of copies) copy.style.marginBlock = '0';
+      wrap.style.top = `${at.top - box.top + step}px`;
+    }
     return wrap;
   }
 
@@ -366,7 +428,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
       }
       const landing = travels(motion) ? handLanding(canvas, departure) : null;
-      const wrap = standIn(from, at, root, motion, landing);
+      const wrap = standIn(departure, from, at, root, motion, landing);
       wrap.setAttribute(DEPARTURE_ATTR, String(departure.cardId));
       standIns.add(wrap);
       // Only a card or a back is hidden while it is flown to — never a whole hand.

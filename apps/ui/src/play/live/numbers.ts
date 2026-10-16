@@ -595,7 +595,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // Why it died: Forge's word, else a hit drawn here killed it, else unknown (`departures.ts`'s `exitMotionFor`).
       const said = prevView?.deathCauses?.get(dep.cardId);
       const cause = said !== undefined ? departureCause(said) : fatalLand.has(dep.cardId) ? 'damage' : undefined;
-      const departure: Departure = cause === undefined ? dep : { ...dep, cause };
+      const departure: Departure = { ...dep, ...(cause === undefined ? {} : { cause }), ...(spellHue === null ? {} : { hue: spellHue }) };
       const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
       endMs = Math.max(endMs, delay + exitMs(departure));
       host.leave?.(departure, delay);
