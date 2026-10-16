@@ -36,8 +36,11 @@ export const PROJECTILES = {
 
 export type ProjectileLook = keyof typeof PROJECTILES;
 
-/** Slow off the source, fastest at the end: the slam. */
-export const PROJECTILE_EASING = 'cubic-bezier(0.55, 0, 0.9, 0.35)';
+/**
+ * Slow off the source, then a hard acceleration into the slam — an exponential ease-in (the operator,
+ * 2026-10-15: "the fireball should start slow and then accellerate quicker").
+ */
+export const PROJECTILE_EASING = 'cubic-bezier(0.7, 0, 0.84, 0)';
 /** How far behind the ball each ember of its trail runs. */
 export const EMBER_LAG_MS = 28;
 /** The impact's burst, after the ball lands. */
