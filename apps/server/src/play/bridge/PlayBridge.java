@@ -882,7 +882,8 @@ public final class PlayBridge {
         /**
          * An activated ability's "activate only if …" keys, of everything
          * {@code SpellAbilityRestriction.setRestrictions} reads; the rest of what it reads is a zone, a
-         * timing or a limit, which are not conditions.
+         * timing or a limit, which are not conditions. Their comparisons ({@code SVarCompare$},
+         * {@code PresentCompare$}) are not on the list, but are asked at the floor all the same.
          */
         private static final Set<String> RESTRICTION_CONDITIONS = Set.of("Activation", "CheckSVar", "IsPresent", "ActivationLifeTotal");
         private static java.lang.reflect.Method commonRequirements;
@@ -968,8 +969,9 @@ public final class PlayBridge {
             if (!sa.isActivatedAbility()) { return false; }
             final Recorder r = new Recorder(sa.getMapParams());
             new forge.game.spellability.SpellAbilityRestriction().setRestrictions(r);
-            r.found.retainAll(RESTRICTION_CONDITIONS);
-            return counts(r.found, sa)
+            final Set<String> conditions = new java.util.HashSet<>(r.found);
+            conditions.retainAll(RESTRICTION_CONDITIONS);
+            return counts(conditions, sa) && !floorMet(r.found, sa)
                     && sa.getRestrictions().checkOtherRestrictions(c, sa, controller);
         }
 
