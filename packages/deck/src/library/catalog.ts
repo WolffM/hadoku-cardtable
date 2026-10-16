@@ -2254,7 +2254,7 @@ export const POWER_SUMMER_2009_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2010.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 9, U 12, B 8, R 9, G 12; aggro 8,
- * midrange 5, control 7, combo 4. Blue dominated this era’s candidate pool (30%
+ * midrange 5, control 6, combo 5. Blue dominated this era’s candidate pool (30%
  * of its colour pips) and was given extra slots (12 of 24 chosen).
  */
 export const POWER_SUMMER_2010_LEGACY: LibraryCollection = {
@@ -2388,7 +2388,7 @@ export const POWER_SUMMER_2012_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2013.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 8, U 12, B 10, R 10, G 9; aggro 6,
- * midrange 7, control 6, combo 5. Blue dominated this era’s candidate pool (29%
+ * midrange 7, control 5, combo 6. Blue dominated this era’s candidate pool (29%
  * of its colour pips) and was given extra slots (12 of 24 chosen).
  */
 export const POWER_SUMMER_2013_LEGACY: LibraryCollection = {
@@ -2522,7 +2522,7 @@ export const POWER_SUMMER_2015_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2016.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 8, U 12, B 12, R 8, G 10; aggro 6,
- * midrange 8, control 5, combo 5.
+ * midrange 8, control 4, combo 6.
  */
 export const POWER_SUMMER_2016_LEGACY: LibraryCollection = {
   family: 'legacy',
@@ -2566,7 +2566,7 @@ export const POWER_SUMMER_2016_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2017.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 8, U 12, B 12, R 9, G 10; aggro 6,
- * midrange 8, control 6, combo 4.
+ * midrange 8, control 5, combo 5.
  */
 export const POWER_SUMMER_2017_LEGACY: LibraryCollection = {
   family: 'legacy',
@@ -2610,7 +2610,7 @@ export const POWER_SUMMER_2017_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2018.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 7, U 11, B 11, R 8, G 7; aggro 6,
- * midrange 8, control 6, combo 4. Blue dominated this era’s candidate pool (33%
+ * midrange 8, control 5, combo 5. Blue dominated this era’s candidate pool (33%
  * of its colour pips) and was given extra slots (11 of 24 chosen).
  */
 export const POWER_SUMMER_2018_LEGACY: LibraryCollection = {
@@ -2655,7 +2655,7 @@ export const POWER_SUMMER_2018_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2019.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 9, U 12, B 11, R 9, G 9; aggro 7,
- * midrange 8, control 5, combo 4.
+ * midrange 8, control 4, combo 5.
  */
 export const POWER_SUMMER_2019_LEGACY: LibraryCollection = {
   family: 'legacy',
@@ -2699,7 +2699,7 @@ export const POWER_SUMMER_2019_LEGACY: LibraryCollection = {
  * (`docs/planning/deck-selection/review/legacy-2020.md` has the full table and
  * the ones dropped as illegal or near-duplicate); 24 chosen. One per archetype,
  * searched for colour and style spread: W 8, U 12, B 9, R 9, G 12; aggro 8,
- * midrange 6, control 5, combo 5. Blue dominated this era’s candidate pool (29%
+ * midrange 6, control 4, combo 6. Blue dominated this era’s candidate pool (29%
  * of its colour pips) and was given extra slots (12 of 24 chosen).
  */
 export const POWER_SUMMER_2020_LEGACY: LibraryCollection = {

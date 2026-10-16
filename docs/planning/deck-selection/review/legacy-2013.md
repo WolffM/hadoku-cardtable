@@ -2,11 +2,11 @@
 
 Format in force **2013-07-19 → 2013-09-27** (Legacy does not rotate; this snapshot is pinned to 2013’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14. Banned: Amulet of Quoz, Ancestral Recall, Balance, Bazaar of Baghdad, Black Lotus, Black Vise, Bronze Tablet, Channel, Chaos Orb, Contract from Below, Darkpact, Demonic Attorney, Demonic Consultation, Demonic Tutor, Earthcraft, Falling Star, Fastbond, Flash, Frantic Search, Goblin Recruiter, Gush, Hermit Druid, Imperial Seal, Jeweled Bird, Library of Alexandria, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mental Misstep, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Mystical Tutor, Necropotence, Oath of Druids, Rebirth, Shahrazad, Skullclamp, Sol Ring, Strip Mine, Survival of the Fittest, Tempest Efreet, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Vampiric Tutor, Wheel of Fortune, Windfall, Worldgorger Dragon, Yawgmoth's Bargain, Yawgmoth's Will.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 10, Red 10, Green 9. Styles: aggro 6, midrange 7, control 6, combo 5.
+**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 10, Red 10, Green 9. Styles: aggro 6, midrange 7, control 5, combo 6.
 
 - Blue dominated this era’s candidate pool (29% of its colour pips) and was given extra slots (12 of 24 chosen).
 
-**The candidate pool’s own shares** (before selection; 66 legal decks): colours White 19, Blue 43, Black 30, Red 25, Green 31. Styles: aggro 17, midrange 24, control 15, combo 10.
+**The candidate pool’s own shares** (before selection; 66 legal decks): colours White 19, Blue 43, Black 30, Red 25, Green 31. Styles: aggro 17, midrange 24, control 14, combo 11.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
@@ -28,7 +28,7 @@ Format in force **2013-07-19 → 2013-09-27** (Legacy does not rotate; this snap
 | 16 | **Zoo (Tokuyama Kouta)** | 1 · Known Magician's Clan - 24th @ Japan · 2013-09-08 ★ ★ | WG | aggro | 4× Tarmogoyf, 4× Thalia, Guardian of Thraben, 4× Lightning Bolt, 4× Noble Hierarch, 4× Swords to Plowshares, 4× Wild Nacatl |
 | 17 | **Death & Taxes (Jonathan Kurpaska)** | 2 · Starcitygames Legacy Series: Somerset · 2013-07-28 ★ ★ ★ | W | aggro | 4× Mirran Crusader, 4× Phyrexian Revoker, 4× Serra Avenger, 4× Stoneforge Mystic, 4× Thalia, Guardian of Thraben, 4× Aether Vial |
 | 18 | **High Tide (Feline Longmore)** | 1 · Starcitygames Open Series: Seattle · 2012-11-18 ★ ★ | U | control | 4× Time Spiral, 4× Force of Will, 4× Merchant Scroll, 4× Brainstorm, 4× Candelabra of Tawnos, 4× High Tide |
-| 19 | **Show and Tell (Tony Murata)** | 1 · Starcitygames Open Series: San Diego · 2013-01-13 ★ ★ | UG | control | 4× Primeval Titan, 4× Show and Tell, 4× Brainstorm, 4× Crop Rotation, 4× Repeal, 4× Sensei's Divining Top |
+| 19 | **Show and Tell (Tony Murata)** | 1 · Starcitygames Open Series: San Diego · 2013-01-13 ★ ★ | UG | combo | 4× Primeval Titan, 4× Show and Tell, 4× Brainstorm, 4× Crop Rotation, 4× Repeal, 4× Sensei's Divining Top |
 | 20 | **MUD (Martin Pohlmeyer)** | 1 · GP Trial@ Hannover · 2013-03-15 ★ ★ | colourless | midrange | 4× Wurmcoil Engine, 4× Lodestone Golem, 4× Thran Dynamo, 4× Grim Monolith, 4× Chalice of the Void, 3× Steel Hellkite |
 | 21 | **Nic Fit (Juan Miguel Carrascosa)** | 1 · 1er Open Factoria de Mishra · 2012-11-17 ★ ★ | BRG | midrange | 4× Burning Wish, 4× Cabal Therapy, 4× Green Sun's Zenith, 4× Veteran Explorer, 3× Pernicious Deed, 3× Abrupt Decay |
 | 22 | **Belcher (Ben Perry)** | 3 · Starcitygames Open Series: Cincinnati · 2013-09-01 ★ ★ ★ | RG | combo | 4× Goblin Charbelcher, 4× Elvish Spirit Guide, 4× Seething Song, 4× Simian Spirit Guide, 4× Burning Wish, 4× Desperate Ritual |
@@ -821,7 +821,7 @@ Sideboard
 
 ### 19. Show and Tell (Tony Murata)
 
-1 at Starcitygames Open Series: San Diego, 2013-01-13 · [mtgtop8](https://www.mtgtop8.com/event?e=4171&d=224377&f=LE) · UG · control (by cards) · avg cost 2.74, 7 creatures
+1 at Starcitygames Open Series: San Diego, 2013-01-13 · [mtgtop8](https://www.mtgtop8.com/event?e=4171&d=224377&f=LE) · UG · combo (by override) · avg cost 2.74, 7 creatures
 
 ```
 1 Emrakul, the Aeons Torn

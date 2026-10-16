@@ -1038,8 +1038,8 @@
      "Sneak Attack": 4
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 1
   },
   {
@@ -2162,7 +2162,7 @@
    "kept_player": "Eddy Pereira"
   }
  ],
- "objective": 13.21449486129768,
+ "objective": 12.685569241462971,
  "pool_colors": {
   "W": 14,
   "G": 25,
@@ -2173,8 +2173,8 @@
  "pool_styles": {
   "aggro": 16,
   "midrange": 7,
-  "control": 16,
-  "combo": 5
+  "control": 15,
+  "combo": 6
  },
  "kept_lost": []
 }

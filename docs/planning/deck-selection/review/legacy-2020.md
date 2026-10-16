@@ -2,11 +2,11 @@
 
 Format in force **2020-08-03 → 2020-09-25** (Legacy does not rotate; this snapshot is pinned to 2020’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU, C17, XLN, DDT, IMA, V17, E02, RIX, A25, DDU, DOM, CM2, BBD, SS1, GS1, M19, C18, GRN, MPS_GRN, GK1, G18, GNT, UMA, RNA, MPS_RNA, GK2, WAR, MPS_WAR, MH1, SS2, M20, C19, ELD, MB1, GN2, THB, IKO, C20, SS3, M21, JMP. Banned: Adriana's Valor, Advantageous Proclamation, Amulet of Quoz, Ancestral Recall, Assemble the Rank and Vile, Backup Plan, Balance, Bazaar of Baghdad, Black Lotus, Brago's Favor, Bronze Tablet, Channel, Chaos Orb, Cleanse, Contract from Below, Crusade, Darkpact, Deathrite Shaman, Demonic Attorney, Demonic Consultation, Demonic Tutor, Dig Through Time, Double Stroke, Earthcraft, Echoing Boon, Emissary's Ploy, Falling Star, Fastbond, Flash, Frantic Search, Gitaxian Probe, Goblin Recruiter, Gush, Hermit Druid, Hired Heist, Hold the Perimeter, Hymn of the Wilds, Immediate Action, Imperial Seal, Imprison, Incendiary Dissent, Invoke Prejudice, Iterative Analysis, Jeweled Bird, Jihad, Library of Alexandria, Lurrus of the Dream-Den, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mental Misstep, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Muzzio's Preparations, Mystical Tutor, Natural Unity, Necropotence, Oath of Druids, Power Play, Pradesh Gypsies, Rebirth, Secret Summoning, Secrets of Paradise, Sensei's Divining Top, Sentinel Dispatch, Shahrazad, Skullclamp, Sol Ring, Sovereign's Realm, Stone-Throwing Devils, Strip Mine, Summoner's Bond, Survival of the Fittest, Tempest Efreet, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Treasure Cruise, Underworld Breach, Unexpected Potential, Vampiric Tutor, Weight Advantage, Wheel of Fortune, Windfall, Worldknit, Wrenn and Six, Yawgmoth's Bargain, Yawgmoth's Will, Zirda, the Dawnwaker.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 9, Red 9, Green 12. Styles: aggro 8, midrange 6, control 5, combo 5.
+**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 9, Red 9, Green 12. Styles: aggro 8, midrange 6, control 4, combo 6.
 
 - Blue dominated this era’s candidate pool (29% of its colour pips) and was given extra slots (12 of 24 chosen).
 
-**The candidate pool’s own shares** (before selection; 57 legal decks): colours White 20, Blue 37, Black 26, Red 17, Green 29. Styles: aggro 21, midrange 15, control 12, combo 9.
+**The candidate pool’s own shares** (before selection; 57 legal decks): colours White 20, Blue 37, Black 26, Red 17, Green 29. Styles: aggro 21, midrange 15, control 11, combo 10.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Format in force **2020-08-03 → 2020-09-25** (Legacy does not rotate; this snap
 | 11 | **Salvager Combo (Komiyama Kenichirou)** | 1 · Eternal Party 2019 @ Tokyo (Japan) · 2019-12-22 ★ ★ ★ | W | combo | 4× Auriok Salvagers, 4× Karn, the Great Creator, 4× Monastery Mentor, 4× Chalice of the Void, 4× Lotus Petal, 4× Mishra's Bauble |
 | 12 | **Dark Depths (sakuragi21722749)** | 1 · MTGO Legacy Challenge · 2020-09-06 ★ ★ | BG | midrange | 4× Dark Confidant, 4× Once Upon a Time, 4× Vampire Hexmage, 4× Crop Rotation, 4× Elvish Reclaimer, 4× Thoughtseize |
 | 13 | **Elves (Takano Shigeki)** | 1 · God of Legacy Trial @ Hareruya (Japan) · 2020-09-05 ★ ★ | G | aggro | 4× Elvish Visionary, 4× Allosaurus Shepherd, 4× Glimpse of Nature, 4× Green Sun's Zenith, 4× Heritage Druid, 4× Nettle Sentinel |
-| 14 | **Show and Tell (Andrew Fiedler)** | 1 · MTGO Open #3 @ NRG Series · 2020-08-16 ★ ★ | UB | control | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 4× Lotus Petal, 3× Emrakul, the Aeons Torn |
+| 14 | **Show and Tell (Andrew Fiedler)** | 1 · MTGO Open #3 @ NRG Series · 2020-08-16 ★ ★ | UB | combo | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 4× Lotus Petal, 3× Emrakul, the Aeons Torn |
 | 15 | **12 - Post (Nakamura Ryousuke)** | 1 · "Emperor of Legacy" Tournament 9th Season @ Hareruya (Japan) · 2020-08-08 ★ ★ | colourless | midrange | 4× Karn, the Great Creator, 4× Thought-Knot Seer, 4× Grim Monolith, 3× Sorcerous Spyglass, 3× Chalice of the Void, 2× Ulamog, the Ceaseless Hunger |
 | 16 | **Reanimator (wonderPreaux)** | 1 · MTGO Legacy Challenge · 2020-06-01 ★ ★ | WB | combo | 4× Griselbrand, 4× Chancellor of the Annex, 4× Unmask, 4× Animate Dead, 4× Exhume, 4× Dark Ritual |
 | 17 | **Bant Control (MM_17)** | 1 · MTGO Legacy Challenge · 2020-04-07 ★ ★ | UBG | control | 4× Force of Will, 4× Ice-Fang Coatl, 4× Arcum's Astrolabe, 4× Brainstorm, 3× Oko, Thief of Crowns, 3× Swords to Plowshares |
@@ -683,7 +683,7 @@ Sideboard
 
 ### 14. Show and Tell (Andrew Fiedler)
 
-1 at MTGO Open #3 @ NRG Series, 2020-08-16 · [mtgtop8](https://www.mtgtop8.com/event?e=26962&d=411082&f=LE) · UB · control (by cards) · avg cost 4.12, 6 creatures
+1 at MTGO Open #3 @ NRG Series, 2020-08-16 · [mtgtop8](https://www.mtgtop8.com/event?e=26962&d=411082&f=LE) · UB · combo (by override) · avg cost 4.12, 6 creatures
 
 ```
 4 Scalding Tarn

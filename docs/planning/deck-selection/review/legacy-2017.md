@@ -2,16 +2,16 @@
 
 Format in force **2017-07-14 → 2017-09-29** (Legacy does not rotate; this snapshot is pinned to 2017’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU. Banned: Adriana's Valor, Advantageous Proclamation, Amulet of Quoz, Ancestral Recall, Assemble the Rank and Vile, Backup Plan, Balance, Bazaar of Baghdad, Black Lotus, Brago's Favor, Bronze Tablet, Channel, Chaos Orb, Contract from Below, Darkpact, Demonic Attorney, Demonic Consultation, Demonic Tutor, Dig Through Time, Double Stroke, Earthcraft, Echoing Boon, Emissary's Ploy, Falling Star, Fastbond, Flash, Frantic Search, Goblin Recruiter, Gush, Hermit Druid, Hired Heist, Hold the Perimeter, Hymn of the Wilds, Immediate Action, Imperial Seal, Incendiary Dissent, Iterative Analysis, Jeweled Bird, Library of Alexandria, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mental Misstep, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Muzzio's Preparations, Mystical Tutor, Natural Unity, Necropotence, Oath of Druids, Power Play, Rebirth, Secret Summoning, Secrets of Paradise, Sensei's Divining Top, Sentinel Dispatch, Shahrazad, Skullclamp, Sol Ring, Sovereign's Realm, Strip Mine, Summoner's Bond, Survival of the Fittest, Tempest Efreet, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Treasure Cruise, Unexpected Potential, Vampiric Tutor, Weight Advantage, Wheel of Fortune, Windfall, Worldknit, Yawgmoth's Bargain, Yawgmoth's Will.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 12, Red 9, Green 10. Styles: aggro 6, midrange 8, control 6, combo 4.
+**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 12, Red 9, Green 10. Styles: aggro 6, midrange 8, control 5, combo 5.
 
 
-**The candidate pool’s own shares** (before selection; 50 legal decks): colours White 15, Blue 29, Black 27, Red 19, Green 18. Styles: aggro 14, midrange 20, control 10, combo 6.
+**The candidate pool’s own shares** (before selection; 50 legal decks): colours White 15, Blue 29, Black 27, Red 19, Green 18. Styles: aggro 14, midrange 20, control 9, combo 7.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
 | 1 | **Miracles (Kobayashi Tatsuumi)** | 1 · Grand Prix Kyoto 2017 - Side Event · 2017-07-23 ★ ★ ★ | WU | control | 4× Predict, 4× Snapcaster Mage, 4× Brainstorm, 4× Ponder, 4× Portent, 4× Swords to Plowshares |
 | 2 | **Dark Depths (Eli Kasis)** | 1 · Eternal Extravaganza 7 · 2017-09-16 ★ ★ ★ | BG | midrange | 4× Elvish Spirit Guide, 4× Living Wish, 4× Vampire Hexmage, 4× Crop Rotation, 4× Lotus Petal, 3× Gitaxian Probe |
-| 3 | **Show and Tell (Dennis Zens)** | 1 · MKM Series Hamburg 2017 - Main Legacy · 2017-09-17 ★ ★ ★ | UB | control | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 3× Emrakul, the Aeons Torn, 3× Omniscience |
+| 3 | **Show and Tell (Dennis Zens)** | 1 · MKM Series Hamburg 2017 - Main Legacy · 2017-09-17 ★ ★ ★ | UB | combo | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 3× Emrakul, the Aeons Torn, 3× Omniscience |
 | 4 | **Reanimator (Michel Chevalier)** | 1 · Eternal Weekend 2016 · 2016-10-22 ★ ★ ★ | WBR | combo | 4× Griselbrand, 4× Chancellor of the Annex, 4× Simian Spirit Guide, 4× Exhume, 4× Dark Ritual, 4× Entomb |
 | 5 | **Aluren (Alexander Barnett)** | 1 · SCG Classic - Milwaukee · 2016-10-23 ★ ★ ★ | UBG | combo | 4× Aluren, 4× Imperial Recruiter, 4× Shardless Agent, 4× Baleful Strix, 4× Brainstorm, 4× Cabal Therapy |
 | 6 | **Elves (Julian23)** | 1 · MTGO Legacy Challenge · 2017-08-21 ★ ★ | G | aggro | 4× Elvish Visionary, 4× Deathrite Shaman, 4× Glimpse of Nature, 4× Green Sun's Zenith, 4× Heritage Druid, 4× Nettle Sentinel |
@@ -91,7 +91,7 @@ Format in force **2017-07-14 → 2017-09-29** (Legacy does not rotate; this snap
 - Punishing Lands (Tim Winter) → kept Lands (Sven Anders Karlsson)
 - Eldrazi Ramp (Salih Serdenak) → kept Eldrazi Aggro (nmks)
 - Bant Blade (Janne Öhman) → kept Four-color Leovold (Nathan Sexton)
-- True Name BUG (Pascal Richter) → kept Shardless Sultai (Jonathan Orr)
+- True Name BUG (Pascal Richter) → kept 4c Control (Tom Brown)
 - 4 Color Delver (Louis Bachaud) → kept Grixis Delver (SorboOne)
 - Delver BUG (Fujihira Kohei) → kept Grixis Delver (SorboOne)
 - Bant Deathblade (Thomas Smiley) → kept Four-color Leovold (Nathan Sexton)
@@ -116,7 +116,7 @@ Format in force **2017-07-14 → 2017-09-29** (Legacy does not rotate; this snap
 - Ad Nauseam Tendrils (Brandon Owen) → kept Storm (Robert Swiecki)
 - Eldrazi Stompy (Michael Rodriguez) → kept Eldrazi Aggro (nmks)
 - Turbo Depths (José Maria Zilli Jr) → kept Dark Depths (Eli Kasis)
-- RUG Delver (Niklas Lyytikäinen) → kept Grixis Delver (SorboOne)
+- RUG Delver (Niklas Lyytikäinen) → kept Canadian Threshold (Tom Fischer)
 
 ## Skipped as illegal in this era
 
@@ -227,7 +227,7 @@ Sideboard
 
 ### 3. Show and Tell (Dennis Zens)
 
-1 at MKM Series Hamburg 2017 - Main Legacy, 2017-09-17 · [mtgtop8](https://www.mtgtop8.com/event?e=16936&d=304760&f=LE) · UB · control (by cards) · avg cost 4.12, 6 creatures
+1 at MKM Series Hamburg 2017 - Main Legacy, 2017-09-17 · [mtgtop8](https://www.mtgtop8.com/event?e=16936&d=304760&f=LE) · UB · combo (by override) · avg cost 4.12, 6 creatures
 
 ```
 3 Volcanic Island

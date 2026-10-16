@@ -2,11 +2,11 @@
 
 Format in force **2018-07-13 → 2018-10-05** (Legacy does not rotate; this snapshot is pinned to 2018’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU, C17, XLN, DDT, IMA, V17, E02, RIX, A25, DDU, DOM, CM2, BBD, SS1, GS1, M19. Banned: Adriana's Valor, Advantageous Proclamation, Amulet of Quoz, Ancestral Recall, Assemble the Rank and Vile, Backup Plan, Balance, Bazaar of Baghdad, Black Lotus, Brago's Favor, Bronze Tablet, Channel, Chaos Orb, Contract from Below, Darkpact, Deathrite Shaman, Demonic Attorney, Demonic Consultation, Demonic Tutor, Dig Through Time, Double Stroke, Earthcraft, Echoing Boon, Emissary's Ploy, Falling Star, Fastbond, Flash, Frantic Search, Gitaxian Probe, Goblin Recruiter, Gush, Hermit Druid, Hired Heist, Hold the Perimeter, Hymn of the Wilds, Immediate Action, Imperial Seal, Incendiary Dissent, Iterative Analysis, Jeweled Bird, Library of Alexandria, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mental Misstep, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Muzzio's Preparations, Mystical Tutor, Natural Unity, Necropotence, Oath of Druids, Power Play, Rebirth, Secret Summoning, Secrets of Paradise, Sensei's Divining Top, Sentinel Dispatch, Shahrazad, Skullclamp, Sol Ring, Sovereign's Realm, Strip Mine, Summoner's Bond, Survival of the Fittest, Tempest Efreet, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Treasure Cruise, Unexpected Potential, Vampiric Tutor, Weight Advantage, Wheel of Fortune, Windfall, Worldknit, Yawgmoth's Bargain, Yawgmoth's Will.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 7, Blue 11, Black 11, Red 8, Green 7. Styles: aggro 6, midrange 8, control 6, combo 4.
+**Balance of the chosen decks.** Colours (decks playing each): White 7, Blue 11, Black 11, Red 8, Green 7. Styles: aggro 6, midrange 8, control 5, combo 5.
 
 - Blue dominated this era’s candidate pool (33% of its colour pips) and was given extra slots (11 of 24 chosen).
 
-**The candidate pool’s own shares** (before selection; 43 legal decks): colours White 10, Blue 26, Black 19, Red 11, Green 13. Styles: aggro 11, midrange 16, control 11, combo 5.
+**The candidate pool’s own shares** (before selection; 43 legal decks): colours White 10, Blue 26, Black 19, Red 11, Green 13. Styles: aggro 11, midrange 16, control 10, combo 6.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ Format in force **2018-07-13 → 2018-10-05** (Legacy does not rotate; this snap
 | 9 | **Dragon Stompy (Gary Campbell)** | 1 · Grand Prix Birmingham 2018 · 2018-05-12 ★ ★ ★ | R | midrange | 4× Fiery Confluence, 4× Blood Moon, 4× Ensnaring Bridge, 4× Goblin Rabblemaster, 4× Magus of the Moon, 4× Simian Spirit Guide |
 | 10 | **Eldrazi (Henrique Belumat)** | 1 · Nacional Legacy (Brazil) · 2017-11-25 ★ ★ ★ | colourless | aggro | 4× Reality Smasher, 4× Thought-Knot Seer, 4× Matter Reshaper, 4× Eldrazi Mimic, 4× Chalice of the Void, 4× Endless One |
 | 11 | **UWx Control (Pedro J Sanchez)** | 1 · Legacy Main Event @ Nebraska´s War 5.0 · 2017-12-03 ★ ★ ★ | WU | control | 4× Force of Will, 4× Brainstorm, 4× Ponder, 4× Swords to Plowshares, 3× Snapcaster Mage, 2× Gideon, Ally of Zendikar |
-| 12 | **Show and Tell (Andrew Smelser)** | 1 · Grand Prix Richmond 2018 - Trial Winners · 2018-08-31 ★ ★ | UB | control | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 4× Lotus Petal, 3× Emrakul, the Aeons Torn |
+| 12 | **Show and Tell (Andrew Smelser)** | 1 · Grand Prix Richmond 2018 - Trial Winners · 2018-08-31 ★ ★ | UB | combo | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 4× Lotus Petal, 3× Emrakul, the Aeons Torn |
 | 13 | **Reanimator (Jacob Therrian)** | 1 · Grand Prix Richmond 2018 - Trial Winners · 2018-08-31 ★ ★ | WB | combo | 4× Griselbrand, 4× Chancellor of the Annex, 4× Unmask, 4× Animate Dead, 4× Exhume, 4× Dark Ritual |
 | 14 | **Canadian Threshold (Leastbean)** | 1 · MTGO Legacy Challenge · 2018-07-16 ★ ★ | URG | midrange | 4× Force of Will, 4× Daze, 4× Brainstorm, 4× Delver of Secrets // Insectile Aberration, 4× Lightning Bolt, 4× Nimble Mongoose |
 | 15 | **Goblins (Guilherme Figueira)** | 1 · 4° Liga Paulista @ Epic Game - São Paulo · 2018-09-16 ★ ★ | R | aggro | 4× Goblin Ringleader, 4× Goblin Matron, 4× Aether Vial, 4× Goblin Lackey, 3× Gempalm Incinerator, 3× Goblin Warchief |
@@ -70,7 +70,7 @@ Format in force **2018-07-13 → 2018-10-05** (Legacy does not rotate; this snap
 - Uwr Miracles (Thomas Mechin) → kept Miracles (Yohan Blanchard)
 - Uw Miracles (Johan Steurs) → kept Miracles (Yohan Blanchard)
 - Death&taxes (Andrea Ranocchia) → kept Death & Taxes (Jonathan Job)
-- Rug Delver (Patrick Casey) → kept Grixis Delver (Juyao Tang)
+- Rug Delver (Patrick Casey) → kept Canadian Threshold (Leastbean)
 - Moonwalker (Zeilstra, Jelmer) → kept Dragon Stompy (Gary Campbell)
 - Rb Reanimator (Kellen Nuffer) → kept Reanimator (Jacob Therrian)
 - Colorless Stompy (Joe Ricci) → kept Steel Stompy (David Salus)
@@ -83,7 +83,7 @@ Format in force **2018-07-13 → 2018-10-05** (Legacy does not rotate; this snap
 - Golgari Depths (David Long) → kept Dark Depths (William Lo)
 - Artifact Stompy (Amadeus Grün) → kept Steel Stompy (David Salus)
 - Ant (Cyrus Corman-gill) → kept Storm (Takahashi Masataka)
-- Temur Delver (Liu, Ting) → kept Grixis Delver (Juyao Tang)
+- Temur Delver (Liu, Ting) → kept Canadian Threshold (Leastbean)
 - Bg Depths (Cauê Galbes) → kept Dark Depths (William Lo)
 - Br Goblins (Sandro Rajalin) → kept Goblins (Guilherme Figueira)
 - Ub Death's Shadow (Dario Vicedomini) → kept Death's Shadow (m0ller)
@@ -114,7 +114,6 @@ Format in force **2018-07-13 → 2018-10-05** (Legacy does not rotate; this snap
 - 4c Control (Justin_Sane): Deathrite Shaman (banned)
 - 4c Control (Mark Sadowski): Deathrite Shaman (banned)
 - 4c Control (Pingyi Zhang): Deathrite Shaman (banned)
-- Dark Depths (Vladimir Arneuve): Deathrite Shaman (banned)
 - Stoneblade (Jon Goss): Deathrite Shaman (banned)
 - BUG Threshold (Roshen Eapen): Deathrite Shaman (banned)
 - BUG Threshold (Alexander Drew): Deathrite Shaman (banned)
@@ -132,6 +131,7 @@ Format in force **2018-07-13 → 2018-10-05** (Legacy does not rotate; this snap
 - Ant (Cyrus Corman-gill): Gitaxian Probe (banned)
 - Bug Delver (Alex Wood): Deathrite Shaman (banned)
 - Bug Delver (Hans Jacob Goddik): Deathrite Shaman (banned)
+- Bug Delver (Nicolas Laumonier): Deathrite Shaman (banned)
 
 ---
 
@@ -586,7 +586,7 @@ Sideboard
 
 ### 12. Show and Tell (Andrew Smelser)
 
-1 at Grand Prix Richmond 2018 - Trial Winners, 2018-08-31 · [mtgtop8](https://www.mtgtop8.com/event?e=19982&d=329608&f=LE) · UB · control (by cards) · avg cost 4.1, 6 creatures
+1 at Grand Prix Richmond 2018 - Trial Winners, 2018-08-31 · [mtgtop8](https://www.mtgtop8.com/event?e=19982&d=329608&f=LE) · UB · combo (by override) · avg cost 4.1, 6 creatures
 
 ```
 3 Volcanic Island

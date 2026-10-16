@@ -513,8 +513,8 @@
      "Emrakul, the Aeons Torn": 3
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 45
   },
   {
@@ -2333,7 +2333,7 @@
    "kept_player": "Liz Lynn"
   }
  ],
- "objective": 18.11294117647059,
+ "objective": 17.152941176470588,
  "pool_colors": {
   "U": 30,
   "B": 30,
@@ -2342,8 +2342,8 @@
   "W": 17
  },
  "pool_styles": {
-  "control": 11,
-  "combo": 4,
+  "control": 10,
+  "combo": 5,
   "midrange": 25,
   "aggro": 20
  },

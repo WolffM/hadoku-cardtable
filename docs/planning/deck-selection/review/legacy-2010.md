@@ -2,11 +2,11 @@
 
 Format in force **2010-07-16 → 2010-10-01** (Legacy does not rotate; this snapshot is pinned to 2010’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11. Banned: Amulet of Quoz, Ancestral Recall, Balance, Bazaar of Baghdad, Black Lotus, Black Vise, Bronze Tablet, Channel, Chaos Orb, Contract from Below, Darkpact, Demonic Attorney, Demonic Consultation, Demonic Tutor, Earthcraft, Falling Star, Fastbond, Flash, Frantic Search, Goblin Recruiter, Gush, Hermit Druid, Imperial Seal, Jeweled Bird, Land Tax, Library of Alexandria, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Mystical Tutor, Necropotence, Oath of Druids, Rebirth, Shahrazad, Skullclamp, Sol Ring, Strip Mine, Tempest Efreet, Time Spiral, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Vampiric Tutor, Wheel of Fortune, Windfall, Worldgorger Dragon, Yawgmoth's Bargain, Yawgmoth's Will.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 9, Blue 12, Black 8, Red 9, Green 12. Styles: aggro 8, midrange 5, control 7, combo 4.
+**Balance of the chosen decks.** Colours (decks playing each): White 9, Blue 12, Black 8, Red 9, Green 12. Styles: aggro 8, midrange 5, control 6, combo 5.
 
 - Blue dominated this era’s candidate pool (30% of its colour pips) and was given extra slots (12 of 24 chosen).
 
-**The candidate pool’s own shares** (before selection; 44 legal decks): colours White 14, Blue 29, Black 16, Red 14, Green 25. Styles: aggro 16, midrange 7, control 16, combo 5.
+**The candidate pool’s own shares** (before selection; 44 legal decks): colours White 14, Blue 29, Black 16, Red 14, Green 25. Styles: aggro 16, midrange 7, control 15, combo 6.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
@@ -28,7 +28,7 @@ Format in force **2010-07-16 → 2010-10-01** (Legacy does not rotate; this snap
 | 16 | **Team America (Shinya Satou)** | 2 · Tokyo's Eternal Festival (Japan) · 2010-09-20 ★ | UBG | control | 4× Force of Will, 4× Snuff Out, 4× Daze, 4× Hymn to Tourach, 4× Tarmogoyf, 4× Brainstorm |
 | 17 | **Four-color Counterbalance (Tom Martell)** | 2 · Grand Prix Columbus 2010 · 2010-08-01 ★ | WUG | control | 4× Force of Will, 4× Counterbalance, 4× Tarmogoyf, 4× Brainstorm, 4× Sensei's Divining Top, 4× Swords to Plowshares |
 | 18 | **Ichorid (Nicola Cantarutti)** | 3 · Legacy Academy Trieste (Italy) · 2009-11-29 ★ ★ | UBG | aggro | 4× Golgari Grave-Troll, 4× Bridge from Below, 4× Stinkweed Imp, 4× Narcomoeba, 4× Breakthrough, 4× Cabal Therapy |
-| 19 | **Show and Tell/Sneak Attack (Yuuki Ookubo)** | 3-4 · Tokyo's Eternal Festival (Japan) · 2010-09-20 ★ | WUBR | control | 4× Emrakul, the Aeons Torn, 4× Force of Will, 4× Sneak Attack, 4× Intuition, 4× Show and Tell, 4× Brainstorm |
+| 19 | **Show and Tell/Sneak Attack (Yuuki Ookubo)** | 3-4 · Tokyo's Eternal Festival (Japan) · 2010-09-20 ★ | WUBR | combo | 4× Emrakul, the Aeons Torn, 4× Force of Will, 4× Sneak Attack, 4× Intuition, 4× Show and Tell, 4× Brainstorm |
 | 20 | **Belcher (Cedric Phillips)** | 6 · SCG $5,000 Legacy Open - Philadelphia (USA) · 2009-10-11 ★ ★ | RG | combo | 4× Goblin Charbelcher, 4× Elvish Spirit Guide, 4× Seething Song, 4× Simian Spirit Guide, 4× Burning Wish, 4× Desperate Ritual |
 | 21 | **42 lands (Chris Woltereck)** | 7 · SCG $5,000 Legacy Open - Philadelphia (USA) · 2009-10-11 ★ ★ | G | midrange | 4× Life from the Loam, 4× Exploration, 4× Manabond, 4× Mox Diamond, 3× Intuition, 3× Gamble |
 | 22 | **Ad Nauseam Tendrils (Yuu Saitou)** | 5-8 · Tokyo's Eternal Festival (Japan) · 2010-09-20 ★ | UB | control | 4× Cabal Ritual, 4× Infernal Tutor, 4× Brainstorm, 4× Dark Ritual, 4× Ponder, 4× Lion's Eye Diamond |
@@ -778,7 +778,7 @@ Sideboard
 
 ### 19. Show and Tell/Sneak Attack (Yuuki Ookubo)
 
-3-4 at Tokyo's Eternal Festival (Japan), 2010-09-20 · [mtgtop8](https://www.mtgtop8.com/event?e=191&d=206911&f=LE) · WUBR · control (by cards) · avg cost 4.38, 8 creatures
+3-4 at Tokyo's Eternal Festival (Japan), 2010-09-20 · [mtgtop8](https://www.mtgtop8.com/event?e=191&d=206911&f=LE) · WUBR · combo (by override) · avg cost 4.38, 8 creatures
 
 ```
 4 Emrakul, the Aeons Torn

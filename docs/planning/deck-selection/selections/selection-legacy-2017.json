@@ -250,8 +250,8 @@
      "Brainstorm": 4
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 14
   },
   {
@@ -2317,8 +2317,8 @@
   {
    "dropped": "True Name BUG",
    "player": "Pascal Richter",
-   "kept": "Shardless Sultai",
-   "kept_player": "Jonathan Orr"
+   "kept": "4c Control",
+   "kept_player": "Tom Brown"
   },
   {
    "dropped": "4 Color Delver",
@@ -2467,11 +2467,11 @@
   {
    "dropped": "RUG Delver",
    "player": "Niklas Lyytik\u00e4inen",
-   "kept": "Grixis Delver",
-   "kept_player": "SorboOne"
+   "kept": "Canadian Threshold",
+   "kept_player": "Tom Fischer"
   }
  ],
- "objective": 18.421929411764708,
+ "objective": 18.634729411764706,
  "pool_colors": {
   "W": 15,
   "U": 29,
@@ -2480,9 +2480,9 @@
   "R": 19
  },
  "pool_styles": {
-  "control": 10,
+  "control": 9,
   "midrange": 20,
-  "combo": 6,
+  "combo": 7,
   "aggro": 14
  },
  "kept_lost": []

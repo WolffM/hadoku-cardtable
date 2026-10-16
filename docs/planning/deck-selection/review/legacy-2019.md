@@ -2,10 +2,10 @@
 
 Format in force **2019-08-30 → 2019-10-04** (Legacy does not rotate; this snapshot is pinned to 2019’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN, V16, CN2, DDR, KLD, MPS_KLD, C16, PZ2, PCA, AER, MM3, DDS, AKH, MPS_AKH, W17, CMA, E01, HOU, C17, XLN, DDT, IMA, V17, E02, RIX, A25, DDU, DOM, CM2, BBD, SS1, GS1, M19, C18, GRN, MPS_GRN, GK1, G18, GNT, UMA, RNA, MPS_RNA, GK2, WAR, MPS_WAR, MH1, SS2, M20, C19. Banned: Adriana's Valor, Advantageous Proclamation, Amulet of Quoz, Ancestral Recall, Assemble the Rank and Vile, Backup Plan, Balance, Bazaar of Baghdad, Black Lotus, Brago's Favor, Bronze Tablet, Channel, Chaos Orb, Contract from Below, Darkpact, Deathrite Shaman, Demonic Attorney, Demonic Consultation, Demonic Tutor, Dig Through Time, Double Stroke, Earthcraft, Echoing Boon, Emissary's Ploy, Falling Star, Fastbond, Flash, Frantic Search, Gitaxian Probe, Goblin Recruiter, Gush, Hermit Druid, Hired Heist, Hold the Perimeter, Hymn of the Wilds, Immediate Action, Imperial Seal, Incendiary Dissent, Iterative Analysis, Jeweled Bird, Library of Alexandria, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mental Misstep, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Muzzio's Preparations, Mystical Tutor, Natural Unity, Necropotence, Oath of Druids, Power Play, Rebirth, Secret Summoning, Secrets of Paradise, Sensei's Divining Top, Sentinel Dispatch, Shahrazad, Skullclamp, Sol Ring, Sovereign's Realm, Strip Mine, Summoner's Bond, Survival of the Fittest, Tempest Efreet, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Treasure Cruise, Unexpected Potential, Vampiric Tutor, Weight Advantage, Wheel of Fortune, Windfall, Worldknit, Yawgmoth's Bargain, Yawgmoth's Will.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 9, Blue 12, Black 11, Red 9, Green 9. Styles: aggro 7, midrange 8, control 5, combo 4.
+**Balance of the chosen decks.** Colours (decks playing each): White 9, Blue 12, Black 11, Red 9, Green 9. Styles: aggro 7, midrange 8, control 4, combo 5.
 
 
-**The candidate pool’s own shares** (before selection; 60 legal decks): colours White 17, Blue 30, Black 30, Red 21, Green 22. Styles: aggro 20, midrange 25, control 11, combo 4.
+**The candidate pool’s own shares** (before selection; 60 legal decks): colours White 17, Blue 30, Black 30, Red 21, Green 22. Styles: aggro 20, midrange 25, control 10, combo 5.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ Format in force **2019-08-30 → 2019-10-04** (Legacy does not rotate; this snap
 | 5 | **UR Delver (Koushou Tomoya)** | 1 · 13th God of Legacy @ Hareruya (Japan) · 2019-05-25 ★ ★ ★ | UR | aggro | 4× Force of Will, 4× Daze, 4× Dreadhorde Arcanist, 4× Young Pyromancer, 4× Brainstorm, 4× Delver of Secrets // Insectile Aberration |
 | 6 | **Dark Depths (Brian Rogers)** | 1 · Star City Games Team Open Richmond · 2019-08-17 ★ ★ ★ | BG | midrange | 4× Elvish Spirit Guide, 4× Sylvan Scrying, 4× Vampire Hexmage, 4× Crop Rotation, 4× Duress, 4× Pithing Needle |
 | 7 | **Stoneblade (tamir1313)** | 1 · MTGO Legacy MCQ · 2019-08-11 ★ ★ ★ | WU | control | 4× Force of Will, 4× Stoneforge Mystic, 4× Brainstorm, 4× Ponder, 4× Swords to Plowshares, 3× Jace, the Mind Sculptor |
-| 8 | **Show and Tell (Justin Miller)** | 1 · Star City Games Team Open Richmond · 2019-08-17 ★ ★ ★ | UB | control | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 4× Lotus Petal, 3× Emrakul, the Aeons Torn |
+| 8 | **Show and Tell (Justin Miller)** | 1 · Star City Games Team Open Richmond · 2019-08-17 ★ ★ ★ | UB | combo | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 4× Lotus Petal, 3× Emrakul, the Aeons Torn |
 | 9 | **Eldrazi Aggro (Teruya Kakumae)** | 1 · Grand Prix Shizuoka · 2018-11-30 ★ ★ ★ | colourless | aggro | 4× Reality Smasher, 4× Thought-Knot Seer, 4× Matter Reshaper, 4× Eldrazi Mimic, 4× Chalice of the Void, 4× Endless One |
 | 10 | **Dragon Stompy (Ikeda Takahiro)** | 1 · The 14th God of Legacy @ Hareruya (Japan) · 2019-08-11 ★ ★ ★ | R | midrange | 4× Chandra, Torch of Defiance, 4× Blood Moon, 4× Ensnaring Bridge, 4× Goblin Rabblemaster, 4× Simian Spirit Guide, 4× Chalice of the Void |
 | 11 | **Loam (Christopher Minor)** | 1 · Star City Games Team Open Cincinnati · 2019-03-23 ★ ★ ★ | WBG | midrange | 4× Knight of the Reliquary, 4× Dark Confidant, 4× Chalice of the Void, 4× Mox Diamond, 3× Liliana of the Veil, 3× Punishing Fire |
@@ -411,7 +411,7 @@ Sideboard
 
 ### 8. Show and Tell (Justin Miller)
 
-1 at Star City Games Team Open Richmond, 2019-08-17 · [mtgtop8](https://www.mtgtop8.com/event?e=22825&d=356024&f=LE) · UB · control (by cards) · avg cost 4.12, 6 creatures
+1 at Star City Games Team Open Richmond, 2019-08-17 · [mtgtop8](https://www.mtgtop8.com/event?e=22825&d=356024&f=LE) · UB · combo (by override) · avg cost 4.12, 6 creatures
 
 ```
 2 Volcanic Island

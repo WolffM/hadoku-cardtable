@@ -1073,23 +1073,23 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | [2007](legacy-2007.md) | Legacy (10E) | 2007-07-20 → 2007-10-20 | 27 | 24 | 9 | 12 | 9 | 8 | 11 | 9 | 4 | 7 | 4 |
 | [2008](legacy-2008.md) | Legacy (EVE) | 2008-07-25 → 2008-10-03 | 69 | 24 | 10 | 14 | 13 | 10 | 12 | 8 | 7 | 5 | 4 |
 | [2009](legacy-2009.md) | Legacy (M10) | 2009-07-17 → 2009-10-02 | 24 | 24 | 7 | 15 | 9 | 7 | 10 | 8 | 5 | 7 | 4 |
-| [2010](legacy-2010.md) | Legacy (M11) | 2010-07-16 → 2010-10-01 | 44 | 24 | 9 | 12 | 8 | 9 | 12 | 8 | 5 | 7 | 4 |
+| [2010](legacy-2010.md) | Legacy (M11) | 2010-07-16 → 2010-10-01 | 44 | 24 | 9 | 12 | 8 | 9 | 12 | 8 | 5 | 6 | 5 |
 | [2011](legacy-2011.md) | Legacy (M12) | 2011-07-15 → 2011-09-30 | 52 | 24 | 14 | 14 | 10 | 10 | 12 | 7 | 6 | 6 | 5 |
 | [2012](legacy-2012.md) | Legacy (M13) | 2012-07-13 → 2012-10-05 | 59 | 24 | 8 | 12 | 10 | 10 | 10 | 7 | 6 | 6 | 5 |
-| [2013](legacy-2013.md) | Legacy (M14) | 2013-07-19 → 2013-09-27 | 66 | 24 | 8 | 12 | 10 | 10 | 9 | 6 | 7 | 6 | 5 |
+| [2013](legacy-2013.md) | Legacy (M14) | 2013-07-19 → 2013-09-27 | 66 | 24 | 8 | 12 | 10 | 10 | 9 | 6 | 7 | 5 | 6 |
 | [2014](legacy-2014.md) | Legacy (M15) | 2014-07-18 → 2014-09-26 | 58 | 24 | 8 | 12 | 10 | 9 | 12 | 7 | 7 | 5 | 5 |
 | [2015](legacy-2015.md) | Legacy (ORI) | 2015-07-17 → 2015-10-02 | 58 | 24 | 9 | 12 | 11 | 8 | 10 | 6 | 6 | 7 | 5 |
-| [2016](legacy-2016.md) | Legacy (EMN) | 2016-07-22 → 2016-09-30 | 60 | 24 | 8 | 12 | 12 | 8 | 10 | 6 | 8 | 5 | 5 |
-| [2017](legacy-2017.md) | Legacy (HOU) | 2017-07-14 → 2017-09-29 | 50 | 24 | 8 | 12 | 12 | 9 | 10 | 6 | 8 | 6 | 4 |
-| [2018](legacy-2018.md) | Legacy (M19) | 2018-07-13 → 2018-10-05 | 43 | 24 | 7 | 11 | 11 | 8 | 7 | 6 | 8 | 6 | 4 |
-| [2019](legacy-2019.md) | Legacy (C19) | 2019-08-30 → 2019-10-04 | 60 | 24 | 9 | 12 | 11 | 9 | 9 | 7 | 8 | 5 | 4 |
-| [2020](legacy-2020.md) | Legacy (JMP) | 2020-08-03 → 2020-09-25 | 57 | 24 | 8 | 12 | 9 | 9 | 12 | 8 | 6 | 5 | 5 |
+| [2016](legacy-2016.md) | Legacy (EMN) | 2016-07-22 → 2016-09-30 | 60 | 24 | 8 | 12 | 12 | 8 | 10 | 6 | 8 | 4 | 6 |
+| [2017](legacy-2017.md) | Legacy (HOU) | 2017-07-14 → 2017-09-29 | 50 | 24 | 8 | 12 | 12 | 9 | 10 | 6 | 8 | 5 | 5 |
+| [2018](legacy-2018.md) | Legacy (M19) | 2018-07-13 → 2018-10-05 | 43 | 24 | 7 | 11 | 11 | 8 | 7 | 6 | 8 | 5 | 5 |
+| [2019](legacy-2019.md) | Legacy (C19) | 2019-08-30 → 2019-10-04 | 60 | 24 | 9 | 12 | 11 | 9 | 9 | 7 | 8 | 4 | 5 |
+| [2020](legacy-2020.md) | Legacy (JMP) | 2020-08-03 → 2020-09-25 | 57 | 24 | 8 | 12 | 9 | 9 | 12 | 8 | 6 | 4 | 6 |
 | [2021](legacy-2021.md) | Legacy (AFR) | 2021-07-23 → 2021-09-24 | 68 | 24 | 12 | 13 | 11 | 10 | 9 | 7 | 6 | 6 | 5 |
 | [2022](legacy-2022.md) | Legacy (SNC) | 2022-04-29 → 2022-09-09 | 66 | 24 | 10 | 12 | 10 | 8 | 10 | 8 | 6 | 5 | 5 |
 | [2023](legacy-2023.md) | Legacy (MAT) | 2023-05-29 → 2023-09-08 | 49 | 24 | 10 | 11 | 8 | 7 | 8 | 7 | 8 | 5 | 4 |
 | [2024](legacy-2024.md) | Legacy (OTJ) | 2024-04-19 → 2024-08-02 | 48 | 24 | 8 | 11 | 9 | 7 | 9 | 7 | 6 | 6 | 5 |
 | [2025](legacy-2025.md) | Legacy (FIN) | 2025-06-30 → 2025-08-01 | 62 | 24 | 7 | 10 | 9 | 6 | 8 | 7 | 6 | 6 | 5 |
-| **all** | | | | **482** | 180 | 241 | 197 | 174 | 201 | 147 | 128 | 120 | 87 |
+| **all** | | | | **482** | 180 | 241 | 197 | 174 | 201 | 147 | 128 | 113 | 94 |
 
 ### Legacy: how each archetype was judged (style)
 
@@ -1211,7 +1211,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2010 | Team America | control | cards |
 | 2010 | Four-color Counterbalance | control | cards |
 | 2010 | Ichorid | aggro | cards |
-| 2010 | Show and Tell/Sneak Attack | control | cards |
+| 2010 | Show and Tell/Sneak Attack | combo | override |
 | 2010 | Belcher | combo | override |
 | 2010 | 42 lands | midrange | default |
 | 2010 | Ad Nauseam Tendrils | control | cards |
@@ -1283,7 +1283,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2013 | Zoo | aggro | label |
 | 2013 | Death & Taxes | aggro | cards |
 | 2013 | High Tide | control | cards |
-| 2013 | Show and Tell | control | cards |
+| 2013 | Show and Tell | combo | override |
 | 2013 | MUD | midrange | default |
 | 2013 | Nic Fit | midrange | default |
 | 2013 | Belcher | combo | override |
@@ -1350,7 +1350,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2016 | Elves | aggro | label |
 | 2016 | Lands | midrange | default |
 | 2016 | Dredge | combo | label |
-| 2016 | Show and Tell | control | cards |
+| 2016 | Show and Tell | combo | override |
 | 2016 | Aluren | combo | override |
 | 2016 | MUD | midrange | default |
 | 2016 | Reanimator | combo | label |
@@ -1363,7 +1363,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2016 | Punishing Thing | control | cards |
 | 2017 | Miracles | control | cards |
 | 2017 | Dark Depths | midrange | default |
-| 2017 | Show and Tell | control | cards |
+| 2017 | Show and Tell | combo | override |
 | 2017 | Reanimator | combo | label |
 | 2017 | Aluren | combo | override |
 | 2017 | Elves | aggro | label |
@@ -1396,7 +1396,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2018 | Dragon Stompy | midrange | default |
 | 2018 | Eldrazi | aggro | cards |
 | 2018 | UWx Control | control | label |
-| 2018 | Show and Tell | control | cards |
+| 2018 | Show and Tell | combo | override |
 | 2018 | Reanimator | combo | label |
 | 2018 | Canadian Threshold | midrange | default |
 | 2018 | Goblins | aggro | label |
@@ -1416,7 +1416,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2019 | UR Delver | aggro | label |
 | 2019 | Dark Depths | midrange | default |
 | 2019 | Stoneblade | control | cards |
-| 2019 | Show and Tell | control | cards |
+| 2019 | Show and Tell | combo | override |
 | 2019 | Eldrazi Aggro | aggro | label |
 | 2019 | Dragon Stompy | midrange | default |
 | 2019 | Loam | midrange | default |
@@ -1446,7 +1446,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2020 | Salvager Combo | combo | label |
 | 2020 | Dark Depths | midrange | default |
 | 2020 | Elves | aggro | label |
-| 2020 | Show and Tell | control | cards |
+| 2020 | Show and Tell | combo | override |
 | 2020 | 12 - Post | midrange | default |
 | 2020 | Reanimator | combo | label |
 | 2020 | Bant Control | control | label |

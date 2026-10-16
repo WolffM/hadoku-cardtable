@@ -2,10 +2,10 @@
 
 Format in force **2016-07-22 → 2016-09-30** (Legacy does not rotate; this snapshot is pinned to 2016’s Standard era’s own dates, Settled wave 48). Sets: LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11, FVR, DDF, SOM, TD1, PD2, ME4, MBS, DDG, NPH, TD2, COM, M12, FVL, DDH, ISD, PD3, DKA, DDI, AVR, PC2, M13, V12, DDJ, RTR, CM1, GTC, DDK, DGM, MMA, M14, V13, DDL, THS, C13, BNG, DDM, JOU, MD1, CNS, VMA, M15, V14, DDN, KTK, C14, DVD, EVG, GVL, JVC, FRF, UGF, DDO, DTK, TPR, MM2, ORI, V15, DDP, BFZ, EXP, C15, PZ1, OGW, DDQ, SOI, W16, EMA, EMN. Banned: Advantageous Proclamation, Amulet of Quoz, Ancestral Recall, Backup Plan, Balance, Bazaar of Baghdad, Black Lotus, Brago's Favor, Bronze Tablet, Channel, Chaos Orb, Contract from Below, Darkpact, Demonic Attorney, Demonic Consultation, Demonic Tutor, Dig Through Time, Double Stroke, Earthcraft, Falling Star, Fastbond, Flash, Frantic Search, Goblin Recruiter, Gush, Hermit Druid, Immediate Action, Imperial Seal, Iterative Analysis, Jeweled Bird, Library of Alexandria, Mana Crypt, Mana Drain, Mana Vault, Memory Jar, Mental Misstep, Mind Twist, Mind's Desire, Mishra's Workshop, Mox Emerald, Mox Jet, Mox Pearl, Mox Ruby, Mox Sapphire, Muzzio's Preparations, Mystical Tutor, Necropotence, Oath of Druids, Power Play, Rebirth, Secret Summoning, Secrets of Paradise, Sentinel Dispatch, Shahrazad, Skullclamp, Sol Ring, Strip Mine, Survival of the Fittest, Tempest Efreet, Time Vault, Time Walk, Timetwister, Timmerian Fiends, Tinker, Tolarian Academy, Treasure Cruise, Unexpected Potential, Vampiric Tutor, Wheel of Fortune, Windfall, Worldknit, Yawgmoth's Bargain, Yawgmoth's Will.
 
-**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 12, Red 8, Green 10. Styles: aggro 6, midrange 8, control 5, combo 5.
+**Balance of the chosen decks.** Colours (decks playing each): White 8, Blue 12, Black 12, Red 8, Green 10. Styles: aggro 6, midrange 8, control 4, combo 6.
 
 
-**The candidate pool’s own shares** (before selection; 60 legal decks): colours White 17, Blue 34, Black 29, Red 20, Green 30. Styles: aggro 14, midrange 26, control 11, combo 9.
+**The candidate pool’s own shares** (before selection; 60 legal decks): colours White 17, Blue 34, Black 29, Red 20, Green 30. Styles: aggro 14, midrange 26, control 10, combo 10.
 
 | # | deck | finish | colours | style | the list is built around |
 | --- | --- | --- | --- | --- | --- |
@@ -22,7 +22,7 @@ Format in force **2016-07-22 → 2016-09-30** (Legacy does not rotate; this snap
 | 11 | **Elves (Jan Lenger)** | 1 · Eternal Clash - Flensburg · 2016-08-20 ★ ★ | G | aggro | 4× Elvish Visionary, 4× Deathrite Shaman, 4× Glimpse of Nature, 4× Green Sun's Zenith, 4× Heritage Druid, 4× Nettle Sentinel |
 | 12 | **Lands (Hori Masataka)** | 1 · Known Magicians Clan 63th · 2016-08-14 ★ ★ | RG | midrange | 4× Life from the Loam, 4× Punishing Fire, 4× Crop Rotation, 4× Exploration, 4× Gamble, 4× Mox Diamond |
 | 13 | **Dredge (Damon Whitby)** | 1 · SCG Classic - Richmond · 2016-09-04 ★ ★ | UB | combo | 4× Golgari Grave-Troll, 4× Bridge from Below, 4× Stinkweed Imp, 4× Golgari Thug, 4× Narcomoeba, 4× Breakthrough |
-| 14 | **Show and Tell (Tom Luckett)** | 1 · SCG Classic - Columbus · 2016-07-24 ★ ★ | UB | control | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 3× Emrakul, the Aeons Torn, 3× Omniscience |
+| 14 | **Show and Tell (Tom Luckett)** | 1 · SCG Classic - Columbus · 2016-07-24 ★ ★ | UB | combo | 4× Force of Will, 4× Show and Tell, 4× Brainstorm, 4× Ponder, 3× Emrakul, the Aeons Torn, 3× Omniscience |
 | 15 | **Aluren (Matt McCullough)** | 1 · Mox Boarding House $1K · 2016-08-21 ★ ★ | UBG | combo | 4× Aluren, 4× Imperial Recruiter, 4× Baleful Strix, 4× Brainstorm, 4× Cabal Therapy, 4× Deathrite Shaman |
 | 16 | **MUD (Demetrio Morselli)** | 1 · Ovino XI - Legacy side event · 2016-09-23 ★ ★ | colourless | midrange | 4× Lodestone Golem, 4× Thought-Knot Seer, 4× Grim Monolith, 4× Thorn of Amethyst, 4× Expedition Map, 3× Warping Wail |
 | 17 | **Reanimator (Chevallier Michel)** | 2 · BoM Paris 2016 · 2016-09-10 ★ ★ ★ | WBR | combo | 4× Griselbrand, 4× Chancellor of the Annex, 4× Simian Spirit Guide, 4× Animate Dead, 4× Exhume, 4× Dark Ritual |
@@ -659,7 +659,7 @@ Sideboard
 
 ### 14. Show and Tell (Tom Luckett)
 
-1 at SCG Classic - Columbus, 2016-07-24 · [mtgtop8](https://www.mtgtop8.com/event?e=13104&d=276665&f=LE) · UB · control (by cards) · avg cost 4.07, 6 creatures
+1 at SCG Classic - Columbus, 2016-07-24 · [mtgtop8](https://www.mtgtop8.com/event?e=13104&d=276665&f=LE) · UB · combo (by override) · avg cost 4.07, 6 creatures
 
 ```
 3 Emrakul, the Aeons Torn

@@ -808,8 +808,8 @@
      "Show and Tell": 4
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 9
   },
   {
@@ -2329,7 +2329,7 @@
    "kept_player": "Noah Walker"
   }
  ],
- "objective": 17.641568627450983,
+ "objective": 16.681568627450982,
  "pool_colors": {
   "U": 34,
   "B": 29,
@@ -2338,10 +2338,10 @@
   "W": 17
  },
  "pool_styles": {
-  "combo": 9,
+  "combo": 10,
   "midrange": 26,
   "aggro": 14,
-  "control": 11
+  "control": 10
  },
  "kept_lost": []
 }

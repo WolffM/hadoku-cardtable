@@ -1043,8 +1043,8 @@
      "Candelabra of Tawnos": 2
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 6
   },
   {
@@ -2276,7 +2276,7 @@
    "kept_player": "Jack Wang"
   }
  ],
- "objective": 17.821712850388874,
+ "objective": 17.22667152807482,
  "pool_colors": {
   "G": 31,
   "U": 43,
@@ -2286,9 +2286,9 @@
  },
  "pool_styles": {
   "aggro": 17,
-  "combo": 10,
+  "combo": 11,
   "midrange": 24,
-  "control": 15
+  "control": 14
  },
  "kept_lost": []
 }

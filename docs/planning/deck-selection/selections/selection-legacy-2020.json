@@ -829,8 +829,8 @@
      "Emrakul, the Aeons Torn": 3
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 21
   },
   {
@@ -2534,7 +2534,7 @@
    "kept_player": "Hemsley"
   }
  ],
- "objective": 17.64060615936125,
+ "objective": 16.518722502851556,
  "pool_colors": {
   "U": 37,
   "B": 26,
@@ -2545,8 +2545,8 @@
  "pool_styles": {
   "aggro": 21,
   "midrange": 15,
-  "combo": 9,
-  "control": 12
+  "combo": 10,
+  "control": 11
  },
  "kept_lost": []
 }

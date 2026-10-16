@@ -706,8 +706,8 @@
      "Emrakul, the Aeons Torn": 3
     }
    },
-   "style": "control",
-   "style_why": "cards",
+   "style": "combo",
+   "style_why": "override",
    "label_count": 44
   },
   {
@@ -2027,14 +2027,6 @@
    ]
   },
   {
-   "archetype": "Dark Depths",
-   "deck": 320910,
-   "player": "Vladimir Arneuve",
-   "why": [
-    "Deathrite Shaman (banned)"
-   ]
-  },
-  {
    "archetype": "Stoneblade",
    "deck": 307302,
    "player": "Jon Goss",
@@ -2262,14 +2254,6 @@
    "archetype": "Esper Stoneblade",
    "deck": 326032,
    "player": "Moises Naz",
-   "why": [
-    "Deathrite Shaman (banned)"
-   ]
-  },
-  {
-   "archetype": "Nic Fit",
-   "deck": 321506,
-   "player": "Bahra",
    "why": [
     "Deathrite Shaman (banned)"
    ]
@@ -2697,8 +2681,8 @@
   {
    "dropped": "Rug Delver",
    "player": "Patrick Casey",
-   "kept": "Grixis Delver",
-   "kept_player": "Juyao Tang"
+   "kept": "Canadian Threshold",
+   "kept_player": "Leastbean"
   },
   {
    "dropped": "Moonwalker",
@@ -2775,8 +2759,8 @@
   {
    "dropped": "Temur Delver",
    "player": "Liu, Ting",
-   "kept": "Grixis Delver",
-   "kept_player": "Juyao Tang"
+   "kept": "Canadian Threshold",
+   "kept_player": "Leastbean"
   },
   {
    "dropped": "Bg Depths",
@@ -2899,7 +2883,7 @@
    "kept_player": "Jonathan Job"
   }
  ],
- "objective": 19.17628479623326,
+ "objective": 18.89126586708237,
  "pool_colors": {
   "W": 10,
   "U": 26,
@@ -2908,10 +2892,10 @@
   "B": 19
  },
  "pool_styles": {
-  "control": 11,
+  "control": 10,
   "midrange": 16,
   "aggro": 11,
-  "combo": 5
+  "combo": 6
  },
  "kept_lost": []
 }
