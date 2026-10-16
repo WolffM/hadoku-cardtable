@@ -16,6 +16,11 @@
  * shared with `ManipulateCardListPrompt.tsx`), never an HTML5
  * `dragstart`/`dragover`/`drop` sequence.
  *
+ * The on-card ↑/↓ were the second half of that note. Since 2026-10-15 an
+ * order over cards is a pile (`e2e/od-order-pile.spec.ts`): a card behind
+ * shows only its name strip, which has no room for them, so a focused card
+ * moves with the arrow keys, up the pile or down it as drawn.
+ *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`);
  * without one the test SKIPS and its title says why.
  */
@@ -32,7 +37,7 @@ const titled = makeTitled(forge);
 
 test(
   titled(
-    'casting Preordain opens the real scry ask (Forge’s `order`); a press-drag of the first card into the answer shows the board’s own lift and commits; a placed card’s ↑ sits on its own tile',
+    'casting Preordain opens the real scry ask (Forge’s `order`); a press-drag of the first card into the answer shows the board’s own lift and commits; a placed card moves with the arrow keys',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -84,24 +89,21 @@ test(
       await expect(destRows.first(), 'the dragged card is the one placed').toHaveAttribute('data-key', firstKey!);
       await expect(page.locator('[data-arrange-ghost]'), 'the phantom is gone once the drag resolves').toHaveCount(0);
 
-      // Drag the SECOND card onto the upper half of the placed one — lands just before it, so the dest list now has two.
+      // Drag the SECOND card just before the placed one, so the dest list now has two.
       const second = source.locator(':scope > li').first();
       const secondKey = await second.getAttribute('data-key');
-      await dragRowOnto(page, second, destRows.first(), { x: 0.5, y: 0.25 });
+      await dragRowOnto(page, second, destRows.first(), 'before');
       await expect(destRows, 'both cards are now placed').toHaveCount(2);
       await expect(destRows.first(), 'the second drag landed before the first').toHaveAttribute('data-key', secondKey!);
 
-      // The second half of the brief: the ↑ for a placed row sits ON its own tile, not in a row beside it.
-      const placedFirst = destRows.first();
-      await expect(placedFirst.locator('.prompt__row-actions'), 'no actions row — that shape is gone').toHaveCount(0);
-      const placedBox = (await placedFirst.boundingBox())!;
-      const up = placedFirst.locator('.prompt__card-order button').first();
-      await expect(up, 'the ↑ nudge is drawn').toHaveCount(1);
-      const upBox = (await up.boundingBox())!;
-      expect(upBox.x, 'the ↑ sits inside the card’s own tile — left edge').toBeGreaterThanOrEqual(placedBox.x - 1);
-      expect(upBox.x + upBox.width, 'the ↑ sits inside the card’s own tile — right edge').toBeLessThanOrEqual(placedBox.x + placedBox.width + 1);
-      expect(upBox.y, 'the ↑ sits inside the card’s own tile — top edge').toBeGreaterThanOrEqual(placedBox.y - 1);
-      expect(upBox.y + upBox.height, 'the ↑ sits inside the card’s own tile — bottom edge').toBeLessThanOrEqual(placedBox.y + placedBox.height + 1);
+      // The second half of the brief, as a pile has it: a placed card moves with the arrow keys — up the pile is deeper.
+      await expect(dest.locator('.prompt__row-actions, .prompt__card-order'), 'no button row on a card — that shape is gone').toHaveCount(0);
+      await destRows.first().focus();
+      await page.keyboard.press('ArrowUp');
+      await expect(destRows.nth(1), 'ArrowUp sent the front card one deeper').toHaveAttribute('data-key', secondKey!);
+      await destRows.nth(1).focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(destRows.first(), 'ArrowDown brought it back to the front').toHaveAttribute('data-key', secondKey!);
 
       // Submit: the answer reaches Forge — the prompt closes, and the match moves on.
       await page.getByTestId('prompt-submit').click();

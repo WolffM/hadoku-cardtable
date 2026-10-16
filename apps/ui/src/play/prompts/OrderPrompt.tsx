@@ -7,11 +7,11 @@
  *
  * **Drag is the gesture** (operator, 2026-10-06: *"can we make this drag
  * instead of 'place' button? i hate place button"*). An unplaced item is
- * dragged INTO the answer and lands where it is dropped — on an item, just
- * before it; on the list's empty space, at the end. A placed item drags to a
- * new spot, or back to the left to unplace it. A click is the short form:
- * clicking an unplaced item appends it, clicking a placed one takes it back.
- * The up/down arrows stay as the keyboard path. There is no Place, Place all
+ * dragged INTO the answer and lands where it is dropped — between the two
+ * items it is let go between; on the list's empty space, at the end. A placed
+ * item drags to a new spot, or back to the left to unplace it. A click is the
+ * short form: clicking an unplaced item appends it, clicking a placed one takes
+ * it back. The arrow keys are the keyboard path. There is no Place, Place all
  * or Remove button.
  *
  * An item that stands for a CARD is a tile, the board's card look with art ids
@@ -39,17 +39,35 @@
  * the card back. Released anywhere else, the card glides home and nothing
  * changes.
  *
- * The up/down nudges moved onto each placed row's own tile
- * (`.prompt__card-order`, shared with `ManipulateCardListPrompt.tsx`) —
- * `prompt__row-actions` is drawn by neither file now, so its CSS is gone.
+ * ## Cards are a pile, the way the board piles them
+ *
+ * The operator, 2026-10-15, over Tezzeret's "put the rest on the bottom in any
+ * order" drawn as a grid of whole tiles: *"it's not clear what card is on top …
+ * the goal is still for this view to not need a scroll bar. why not just
+ * visually stack the cards like how we stack cards on the board?"*
+ *
+ * So a list of cards is ONE pile (`.prompt__pile`, `prompts.css`), read the
+ * way the board's piles are read (`card.css`): the card in front is drawn
+ * whole and the ones under it peek out. The first item — the one closest to
+ * the top of the library, the next one drawn — is the card in front, at the
+ * pile's foot; each later one sits behind the one before it, its name strip
+ * showing above it, so the last is the deepest. A pile is fitted to the room
+ * its column has: the cards narrow as there are more of them, so the sheet
+ * does not scroll. A pile tells `./row-drag.ts` so (`data-pile`), and a drop
+ * lands by where the pointer is on the strips that show.
+ *
+ * The nudges: a row of words keeps its ↑/↓ on its own tile
+ * (`.prompt__card-order`, shared with `ManipulateCardListPrompt.tsx`); a card in
+ * a pile shows only its name strip, which has no room for them, so a focused
+ * card moves with the arrow keys instead — up the pile or down it, as drawn.
  */
 
-import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName, translateTargetWords } from './lookup.ts';
 import { moveBetween, moveItem, orderProblems, type OrderLists } from './rules.ts';
-import { useRowDrag } from './row-drag.ts';
+import { PILE_ATTR, useRowDrag } from './row-drag.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 
 const LIST_TESTID = { source: 'order-source', dest: 'order-dest' } as const;
@@ -120,18 +138,31 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     },
   });
 
-  /** Enter or Space on a focused item does what a click does. */
-  const onKey = (act: () => void) => (e: ReactKeyboardEvent) => {
+  /**
+   * The keys on a focused item: Enter or Space does what a click does; in a list whose order is the
+   * answer, the arrows move it the way they point — in a pile, up is deeper (`data-pile`).
+   */
+  const onKey = (act: () => void, side: Side, i: number, ordered: boolean) => (e: ReactKeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       act();
+      return;
     }
+    if (!ordered || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    const later = (e.key === 'ArrowDown') !== anyCards;
+    const to = later ? i + 1 : i - 1;
+    if (to < 0 || to >= lists[side].length) return;
+    e.preventDefault();
+    nudge(side, i, to);
   };
 
   /** One item's face: the tile when the item is a card, the words otherwise (T5). */
   const face = (key: string) => cardOrWordsFace(lookup, cardIdOf.get(key), labelOf.get(key));
 
-  /** One list: its heading, its rows and — where its order is part of the answer — each row's arrows. */
+  /**
+   * One list: its heading and its rows — the cards as one pile, words as a list with each row's arrows
+   * where its order is part of the answer.
+   */
   const group = (side: Side, heading: string, ordered: boolean) => {
     const keys = lists[side];
     const Tag = ordered ? 'ol' : 'ul';
@@ -140,7 +171,13 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
         <h4 className="prompt__col-head">
           {heading} <span className="zone__count">{keys.length}</span>
         </h4>
-        <Tag className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={LIST_TESTID[side]} data-over={drag.over === LIST_TESTID[side] || undefined}>
+        <Tag
+          className={anyCards ? 'prompt__pile' : 'prompt__list'}
+          data-testid={LIST_TESTID[side]}
+          data-over={drag.over === LIST_TESTID[side] || undefined}
+          {...(anyCards && { [PILE_ATTR]: '' })}
+          style={anyCards && keys.length > 0 ? ({ '--pile-n': keys.length } as CSSProperties) : undefined}
+        >
           {keys.map((key, i) => (
             <li
               key={key}
@@ -150,12 +187,14 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
               tabIndex={0}
               aria-label={`${side === 'source' ? 'place' : 'unplace'} ${labelOf.get(key)}`}
               data-dragging={drag.liftedId === liftIdOf.get(key) || undefined}
+              // In a pile each card is drawn over the one after it.
+              style={anyCards ? { zIndex: keys.length - i } : undefined}
               onPointerDown={drag.onRowPointerDown(liftIdOf.get(key)!)}
               onClick={() => move(key, other(side), null)}
-              onKeyDown={onKey(() => move(key, other(side), null))}
+              onKeyDown={onKey(() => move(key, other(side), null), side, i, ordered)}
             >
               {face(key)}
-              {ordered && (
+              {ordered && !anyCards && (
                 <span className="prompt__card-order">
                   <button
                     type="button"
@@ -191,7 +230,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   return (
     <PromptShell method="order" title={ask.title} problems={problems} onSubmit={submit}>
       {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
-      <div className="prompt__dual">
+      <div className="prompt__dual" data-piles={anyCards || undefined}>
         {group('source', ask.rest ?? 'Unplaced', ask.rest !== undefined)}
         {group('dest', ask.top, true)}
       </div>

@@ -300,9 +300,14 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     }
   });
 
-  it('reorders the top by drag and by its arrows, sends one to the bottom, and answers both in one reply', () => {
+  it('reorders the top by drag and by the arrow keys, sends one to the bottom, and answers both in one reply', () => {
     const { top, bottom, rowsOf, dragTo, submit, answers } = scry();
-    fireEvent.click(rowsOf(top())[0]!.querySelector<HTMLElement>('button[aria-label$=" down"]')!);
+    // Up the pile is deeper: the card in front goes one under.
+    fireEvent.keyDown(rowsOf(top())[0]!, { key: 'ArrowUp' });
+    expect(keysIn(top())).toEqual(['s1', 's0', 's2']);
+    fireEvent.keyDown(rowsOf(top())[1]!, { key: 'ArrowDown' });
+    expect(keysIn(top())).toEqual(['s0', 's1', 's2']);
+    fireEvent.keyDown(rowsOf(top())[0]!, { key: 'ArrowUp' });
     expect(keysIn(top())).toEqual(['s1', 's0', 's2']);
     dragTo(rowsOf(top())[2]!, rowsOf(top())[0]!);
     expect(keysIn(top())).toEqual(['s2', 's1', 's0']);
@@ -320,6 +325,15 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     expect(keysIn(bottom())).toEqual(['s0']);
     fireEvent.click(rowsOf(bottom())[0]!);
     expect(keysIn(top())).toEqual(['s1', 's2', 's0']);
+  });
+
+  it('draws each group as one pile: the first card in front, each next one behind it, and no arrows on a card', () => {
+    const { top, rowsOf, container } = scry();
+    expect(top().hasAttribute('data-pile')).toBe(true);
+    expect(top().style.getPropertyValue('--pile-n')).toBe('3');
+    expect(rowsOf(top()).map((li) => Number(li.style.zIndex))).toEqual([3, 2, 1]);
+    expect(container.querySelector('.prompt__card-order')).toBeNull();
+    expect(container.querySelector('.prompt__cards')).toBeNull();
   });
 
   it('a bottom card dropped on a top card lands just before it', () => {

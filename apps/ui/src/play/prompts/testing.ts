@@ -15,6 +15,7 @@ import { parseClientFrame, REPLY_SCHEMAS } from '@hadoku/forge-wire';
 import { expect, vi } from 'vitest';
 
 import { PROMPT_COMPONENTS } from './index.ts';
+import { PILE_ATTR } from './row-drag.ts';
 import { fixtureLookup } from './fixtures.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import type { AskOf, PromptMethod, ReplyOf } from './types.ts';
@@ -98,9 +99,11 @@ const ROW_PX = 44;
  * lands just before it; onto a list or a zone, at its end. jsdom has no
  * layout, and the drag reads where the pointer is among the rows, so for the
  * length of the gesture every drop target is a column (`DROP_TARGETS`' order)
- * and its rows a stack down it. `press` is where on the row the press lands —
- * a child, say, the way a seat presses the card panel. The click a browser
- * leaves behind a release is fired too, so a test sees what it would.
+ * and its rows a stack down it — up it, first row lowest, for a pile
+ * (`PILE_ATTR`), where "just before" a row is the half of it nearer the foot.
+ * `press` is where on the row the press lands — a child, say, the way a seat
+ * presses the card panel. The click a browser leaves behind a release is fired
+ * too, so a test sees what it would.
  */
 export function dragRow(row: Element, onto: Element, press: Element = row): void {
   const rowsIn = (list: Element) => [...list.querySelectorAll(':scope > li[data-card-id]')];
@@ -109,7 +112,10 @@ export function dragRow(row: Element, onto: Element, press: Element = row): void
     const own = column(this);
     if (own !== -1) return new DOMRect(own * COLUMN_PX, 0, COLUMN_PX / 2, Math.max(rowsIn(this).length, 1) * ROW_PX);
     if (this.matches('li[data-card-id]') && column(this.parentElement) !== -1) {
-      return new DOMRect(column(this.parentElement) * COLUMN_PX, rowsIn(this.parentElement!).indexOf(this) * ROW_PX, COLUMN_PX / 2, ROW_PX - 4);
+      const rows = rowsIn(this.parentElement!);
+      const at = rows.indexOf(this);
+      const down = this.parentElement!.hasAttribute(PILE_ATTR) ? rows.length - 1 - at : at;
+      return new DOMRect(column(this.parentElement) * COLUMN_PX, down * ROW_PX, COLUMN_PX / 2, ROW_PX - 4);
     }
     return new DOMRect(0, 0, 0, 0);
   });
@@ -117,8 +123,10 @@ export function dragRow(row: Element, onto: Element, press: Element = row): void
     const from = row.getBoundingClientRect();
     const start = { clientX: from.left + from.width / 2, clientY: from.top + from.height / 2 };
     const box = onto.getBoundingClientRect();
-    // Onto a row: its upper quarter, so before it. Onto a list or a zone: far below its last row.
-    const at = onto.matches('li') ? { clientX: box.left + 10, clientY: box.top + box.height / 4 } : { clientX: box.left + 10, clientY: 100_000 };
+    // Onto a row: the quarter of it nearer the list's start, so before it. Onto a list or a zone: past its last row.
+    const pile = onto.parentElement?.hasAttribute(PILE_ATTR) === true;
+    const end = onto.hasAttribute(PILE_ATTR) ? -100_000 : 100_000;
+    const at = onto.matches('li') ? { clientX: box.left + 10, clientY: box.top + (box.height * (pile ? 3 : 1)) / 4 } : { clientX: box.left + 10, clientY: end };
     // A browser follows the release with a click on what the press and the release share — found
     // now, since the release can re-render the pressed row into the other list.
     let shared: Element | null = press;

@@ -75,9 +75,8 @@ test(
       // The second card goes to the bottom: a drag into the bottom group's own space.
       await dragRowOnto(page, row(b), bottom);
       await expect(rows(bottom), 'one card on the bottom').toHaveCount(1);
-      // The third card goes above the first: a drag within the top group.
-      // Onto the upper part of the first card: the half that lands before it.
-      await dragRowOnto(page, row(c), row(a), { x: 0.5, y: 0.25 });
+      // The third card goes above the first: a drag within the top group, let go just before it.
+      await dragRowOnto(page, row(c), row(a), 'before');
       const arranged = await idsIn(top);
       console.log(`[scry] arranged top ${JSON.stringify(await namesIn(top))} bottom ${JSON.stringify(await namesIn(bottom))}`);
       expect.soft(arranged, 'the top group reorders by drag: the third card now sits first').toEqual([c, a, d]);

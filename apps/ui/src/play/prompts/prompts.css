@@ -428,8 +428,10 @@
  * the up/down arrow for reordering let's display those up/down arrows on top
  * of the card rather than in their own row. that makes it look a bit more
  * compact."*). Shared by `ManipulateCardListPrompt.tsx`'s pile and
- * `OrderPrompt.tsx`'s placed list — `prompt__row-actions` is drawn by neither
- * any more and is gone (it lived beside `.prompt__stepper`, above).
+ * `OrderPrompt.tsx`'s rows of words — `prompt__row-actions` is drawn by neither
+ * any more and is gone (it lived beside `.prompt__stepper`, above). An order
+ * over cards draws none: its cards are a pile (`.prompt__pile`, below), where a
+ * card behind shows only its name strip, and the arrow keys move it.
  */
 .prompt__card-order {
   position: absolute;
@@ -739,10 +741,91 @@
   flex-direction: column;
 }
 
-.prompt__dual > section > .prompt__cards,
 .prompt__dual > section > .prompt__list {
   flex: 1 1 auto;
   align-content: start;
+}
+
+/*
+ * An order over cards is two PILES (`OrderPrompt.tsx`), and a pile is fitted to
+ * the room the sheet has rather than scrolled: the operator, 2026-10-15, *"the
+ * goal is still for this view to not need a scroll bar"*. So the piles are the
+ * part of the sheet that gives way — the body's flex column shrinks the two
+ * columns, each column its pile, and the cards in a pile narrow to fit the
+ * height it was left (below).
+ */
+.prompt__dual[data-piles] {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.prompt__dual[data-piles] > section {
+  min-height: 0;
+}
+
+/*
+ * One pile of cards, the board's way of stacking them (`card.css`): the card in
+ * front drawn whole, the ones under it peeking out — here above it, by the
+ * strip that carries a card's name (`--pile-strip`, a share of the card's
+ * width: a card's title bar ends 15% of its width down). The first card is the
+ * one in front, at the foot (`column-reverse`), and `OrderPrompt.tsx` stacks
+ * each later one behind the one before it (`z-index`).
+ *
+ * The pile's box is what fits it, and the cards follow: it asks for a card as
+ * wide as its column plus a strip per card under it (`aspect-ratio`), may be
+ * shrunk below that by the sheet (`min-height`), and every card is the width
+ * that fits the box it got — `100cqw` wide or `100cqh` tall for the whole
+ * pile, whichever is less. More cards: narrower ones, never a scroll bar.
+ */
+.prompt__pile {
+  --pile-strip: 0.16;
+  --pile-k: calc(680 / 488 + var(--pile-strip) * (var(--pile-n) - 1));
+
+  container-type: size;
+  flex: 1 1 auto;
+  min-height: 2.4rem;
+  aspect-ratio: 1 / var(--pile-k);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  align-items: flex-start;
+  user-select: none;
+}
+
+.prompt__pile > li {
+  --w: min(100cqw, 100cqh / var(--pile-k));
+
+  position: relative;
+  flex: none;
+  width: var(--w);
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius);
+  box-shadow: 0 -2px 6px var(--shadow);
+}
+
+.prompt__pile > li:not(:last-child) {
+  margin-top: calc(var(--w) * (var(--pile-strip) - 680 / 488));
+}
+
+.prompt__pile .card {
+  width: 100%;
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+.prompt__pile > li[data-dragging] {
+  opacity: 0.5;
+}
+
+.prompt__pile[data-over] {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
 @media (max-width: 560px) {

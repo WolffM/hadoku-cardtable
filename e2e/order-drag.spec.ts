@@ -30,7 +30,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { castCard, makeTitled, offered, promptMethod } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { pointIn, settle, type Point } from './play/order.ts';
+import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -155,26 +155,24 @@ function probe(page: Page, at: Point, dragged: number): Promise<Frame> {
 }
 
 /**
- * A real press-drag of `row` onto `onto` (at `at` across and down it), a step at a time the way a hand drags,
- * every frame past the first two probed. The last frame is taken with the pointer held still over the drop
- * point, before the release.
+ * A real press-drag of `row` onto `onto` (at `at` across and down it, or `'before'` it), a step at a time the
+ * way a hand drags, every frame past the first two probed. The last frame is taken with the pointer held still
+ * over the drop point, before the release.
  */
-async function dragProbed(page: Page, label: string, row: Locator, onto: Locator, at: Point = { x: 0.5, y: 0.5 }): Promise<void> {
+async function dragProbed(page: Page, label: string, row: Locator, onto: Locator, at: Point | 'before' = { x: 0.5, y: 0.5 }): Promise<void> {
   const dragged = Number(await row.getAttribute('data-card-id'));
-  // Pressed on the card's own name, the way a hand grabs a card: a press on text is where a drag selects it.
-  const name = row.locator('.card__name').first();
-  const grip = (await name.count()) > 0 ? name : row;
   // Where a person would scroll first: the drop target into view, then the card to pick up if that hid it.
   await onto.scrollIntoViewIfNeeded();
-  const gripShown = await pointIn(grip).then(
+  const gripShown = await stripPoint(row).then(
     () => true,
     () => false,
   );
   if (!gripShown) await row.scrollIntoViewIfNeeded();
   // The previous drop's rows have finished sliding: this drag's measurements are this drag's alone.
   await settle(page);
-  const from = await pointIn(grip);
-  const to = await pointIn(onto, at);
+  // Pressed on the strip of the card that shows, where its name is: a press on text is where a drag selects it.
+  const from = await stripPoint(row);
+  const to = at === 'before' ? await beforePoint(onto) : await pointIn(onto, at);
   await page.mouse.move(from.x, from.y);
   await snapshot(page);
   await page.mouse.down();
@@ -247,11 +245,11 @@ test(
 
       await dragProbed(page, 'first card into the empty order', card(a), dest);
       await expect.poll(() => idsIn(dest)).toEqual([a]);
-      await dragProbed(page, 'second card above the first', card(b), card(a), { x: 0.3, y: 0.25 });
+      await dragProbed(page, 'second card above the first', card(b), card(a), 'before');
       await expect.poll(() => idsIn(dest)).toEqual([b, a]);
-      await dragProbed(page, 'third card between them', card(c), card(a), { x: 0.3, y: 0.25 });
+      await dragProbed(page, 'third card between them', card(c), card(a), 'before');
       await expect.poll(() => idsIn(dest)).toEqual([b, c, a]);
-      await dragProbed(page, 'a placed card to the top', card(c), card(b), { x: 0.3, y: 0.25 });
+      await dragProbed(page, 'a placed card to the top', card(c), card(b), 'before');
       await expect.poll(() => idsIn(dest)).toEqual([c, b, a]);
 
       const handBefore = await handIds(page);
@@ -314,7 +312,7 @@ test(
 
       await dragProbed(page, 'scry: second card to the bottom', card(b), bottom);
       await expect.poll(() => idsIn(bottom)).toEqual([b]);
-      await dragProbed(page, 'scry: third card above the first', card(c), card(a), { x: 0.3, y: 0.25 });
+      await dragProbed(page, 'scry: third card above the first', card(c), card(a), 'before');
       await expect.poll(() => idsIn(top)).toEqual([c, a, d]);
 
       await page.getByTestId('prompt-submit').click();
