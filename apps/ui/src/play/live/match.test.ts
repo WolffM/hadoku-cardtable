@@ -1928,6 +1928,77 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
 });
 
 /*
+ * A Forge window's two halves, applied together.
+ *
+ * `showPromptMessage` and `updateButtons` are two notifies, in each input's own order: a
+ * confirm sends its Yes/No first (`InputConfirm.showMessage`), a priority window its line first
+ * (`InputPassPriority.showMessage`). The server pairs them (`holdPromptWindow`) and marks the
+ * first `pairsWithNext`; the client holds it until the second, so `prompt` and `buttons` never
+ * belong to two different inputs — measured on a claw as "Priority: Alice … Stack: Empty"
+ * under "Search your hand?"'s Yes/No, and "Select a card from your hand" under "Cancel Search?"'s.
+ */
+describe('a window is applied whole: a prompt never stands under another input’s bar', () => {
+  const yesNo = parseServerFrame({
+    kind: 'notify',
+    method: 'updateButtons',
+    owner: { kind: 'player', id: 0 },
+    label1: 'Yes',
+    label2: 'No',
+    enable1: true,
+    enable2: true,
+    focus1: true,
+  });
+
+  /** Deliver `frame` marked `pairsWithNext`, and wait until the client has taken it. */
+  async function firstHalf(s: ReplayServer, m: LiveMatch, frame: ServerFrame): Promise<void> {
+    const target = m.stats.applied + 1;
+    const cursor = s.lose(frame);
+    s.sendRaw({ ...s.sent(cursor.seq), pairsWithNext: true });
+    await until('the first half taken', () => m.stats.applied >= target);
+  }
+
+  it("a confirm's Yes/No, sent before its question, is not drawn under the priority line", async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority: Alice'), bar(true)]);
+
+    await firstHalf(s, m, yesNo);
+    expect(m.prompt).toBe('Priority: Alice');
+    expect(liveBar(m)).toMatchObject({ label1: 'OK', label2: 'Cancel' });
+
+    await sendAndApply(s, m, [prompt('Search your hand?')]);
+    expect(m.prompt).toBe('Search your hand?');
+    expect(liveBar(m)).toMatchObject({ label1: 'Yes', label2: 'No', enable1: true, enable2: true });
+    expect(m.windowHalf).toBeNull();
+  });
+
+  it("a priority line, sent before its bar, is not drawn over the last window's Yes/No", async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [yesNo, prompt('Cancel Search?')]);
+
+    await firstHalf(s, m, prompt('Priority: Alice'));
+    expect(m.prompt).toBe('Cancel Search?');
+    expect(liveBar(m)).toMatchObject({ label1: 'Yes', label2: 'No' });
+
+    await sendAndApply(s, m, [bar(true)]);
+    expect(m.prompt).toBe('Priority: Alice');
+    expect(liveBar(m)).toMatchObject({ label1: 'OK', label2: 'Cancel' });
+  });
+
+  it('a resync drops a held half: the server re-sends the window whole after the snapshot', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority: Alice'), bar(true)]);
+    await firstHalf(s, m, yesNo);
+    expect(m.windowHalf).not.toBeNull();
+
+    // A frame lost on the way: the gap asks for a snapshot, and nothing held from before it survives.
+    s.lose(prompt('Search your hand?'));
+    s.send(sentinel());
+    await until('the resync snapshot', () => m.stats.snapshots === 2);
+    expect(m.windowHalf).toBeNull();
+  });
+});
+
+/*
  * Combat, read off the state channel (wave 24 §B.1 and §B.3).
  *
  * The phase and the attackers are structured facts that have been on the wire

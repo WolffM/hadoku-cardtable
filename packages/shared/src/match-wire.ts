@@ -341,7 +341,7 @@ export type TriggerDecisions = z.infer<typeof TriggerDecisionsSchema>;
  * `parseServerEnvelope` does not").
  */
 export const ServerEnvelopeSchema = z
-  .object({ matchId: z.string().min(1), cursor: WireCursorSchema, frame: ServerFrameSchema, displayOnly: z.literal(true).optional() })
+  .object({ matchId: z.string().min(1), cursor: WireCursorSchema, frame: ServerFrameSchema, displayOnly: z.literal(true).optional(), pairsWithNext: z.literal(true).optional() })
   .strict();
 
 /** `ServerEnvelopeSchema`, with `frame` loosened to `unknown` — `parseServerEnvelope`'s own first stage. */
@@ -358,6 +358,14 @@ export interface ServerEnvelope {
    * anyone still waits on it is the server's fact. Absent on every other frame.
    */
   displayOnly?: true;
+  /**
+   * The frame is one half of a Forge window (`showPromptMessage` and `updateButtons`, which Forge
+   * sends as two notifies in an order of each input's own) and its other half is the very next
+   * frame on this seat's wire (`apps/server/src/play/match.ts`'s `sendWindow`). The browser applies
+   * the two together, so a prompt is never drawn under another input's buttons, nor buttons under
+   * another input's prompt. Absent on every other frame.
+   */
+  pairsWithNext?: true;
 }
 
 /**

@@ -573,6 +573,15 @@ export interface LiveMatch {
    * editing `buttons`.
    */
   barHold: BarHold | null;
+  /**
+   * The first half of a Forge window — a `showPromptMessage` or an `updateButtons` the server
+   * marked `pairsWithNext` — held until its partner, the next frame, arrives, so the two are
+   * applied together and {@link prompt} and {@link buttons} always belong to the same input.
+   * Forge sends the halves in each input's own order (a confirm's Yes/No before its question,
+   * a selection's question before its bar), so applying each as it came drew one input's line
+   * under another's buttons for a frame.
+   */
+  windowHalf: ServerFrame | null;
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
   /**
@@ -974,6 +983,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     triggerDecisions: [],
     buttons: null,
     barHold: null,
+    windowHalf: null,
     selectables: null,
     weaklySelectable: null,
     weaklySelectableManaOnly: null,
@@ -2598,6 +2608,8 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.says = [];
   match.inputLive = false;
   match.barHold = null;
+  // The server re-sends the window after the snapshot, both halves.
+  match.windowHalf = null;
   match.over = false;
   match.finished = false;
   match.losers = null;
@@ -2853,7 +2865,11 @@ export function ingest(match: LiveMatch, raw: unknown): void {
   match.cursor = cursor;
   match.stats.applied += 1;
   match.resyncsWithoutProgress = 0;
-  if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
+  const half = match.windowHalf;
+  match.windowHalf = null;
+  if (half !== null) applyFrame(match, half);
+  if (envelope.value.pairsWithNext === true) match.windowHalf = parsed.value;
+  else if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
   else applyFrame(match, parsed.value);
   if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match));
   notify(match);
@@ -3071,6 +3087,7 @@ function discardLocal(match: LiveMatch): void {
   match.promptTrigger = null;
   match.buttons = null;
   match.barHold = null;
+  match.windowHalf = null;
   match.selectables = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;

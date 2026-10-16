@@ -2355,6 +2355,51 @@ describe('hold-decide-forward', () => {
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['updateButtons', 'showPromptMessage']);
 	});
 
+	/**
+	 * The browser applies a window whole: the first half of every pair sent is marked
+	 * `pairsWithNext`, its partner is the next frame, and nothing else is marked. Without it a
+	 * confirm's Yes/No drew for a frame under the previous input's line.
+	 */
+	it('a window sent to the seat marks its first half pairsWithNext, in either order, and on the resend after a snapshot', () => {
+		const h = openedHarness();
+		h.match.setStopPolicy(SEAT1_ID, STRICT_PAYMENT_POLICY);
+		const marks = (from: number) => envelopesFor(h, SEAT1_ID).slice(from).map((e) => [e.frame.method, e.pairsWithNext ?? null]);
+		let before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty') },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+		);
+		expect(marks(before)).toEqual([
+			['showPromptMessage', true],
+			['updateButtons', null],
+		]);
+		before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') },
+		);
+		expect(marks(before)).toEqual([
+			['updateButtons', true],
+			['showPromptMessage', null],
+		]);
+		// A confirm no decider reads (no `confirmAbility`): its Yes/No, parked, goes out with its question.
+		before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Yes', label2: 'No', enable2: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Cancel Search?') },
+		);
+		expect(marks(before)).toEqual([
+			['updateButtons', true],
+			['showPromptMessage', null],
+		]);
+		before = envelopesFor(h, SEAT1_ID).length;
+		h.match.resendAfterSnapshot(SEAT1_ID);
+		expect(marks(before).filter(([method]) => method === 'showPromptMessage' || method === 'updateButtons')).toEqual([
+			['showPromptMessage', true],
+			['updateButtons', null],
+		]);
+	});
+
 	it('the safety flush: a half with no partner is forwarded, undecided, after the hold window', () => {
 		vi.useFakeTimers();
 		const h = openedHarness();

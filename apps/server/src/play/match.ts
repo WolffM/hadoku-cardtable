@@ -1664,8 +1664,9 @@ export class Match {
 		const s = this.seats[seat];
 		if (s === undefined) return;
 		for (const said of s.says) this.send(s, said);
-		if (s.prompt !== null) this.send(s, s.prompt);
-		if (s.buttons !== null) this.send(s, s.buttons);
+		if (s.prompt !== null && s.buttons !== null) this.sendWindow(s, s.prompt, s.buttons);
+		else if (s.prompt !== null) this.send(s, s.prompt);
+		else if (s.buttons !== null) this.send(s, s.buttons);
 		for (const ask of s.asks.values()) this.send(s, ask.frame);
 		/*
 		 * The open SELECTION, in the order Forge publishes it: the offer, then the
@@ -1925,7 +1926,7 @@ export class Match {
 
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
-	private send(s: SeatState, frame: ServerFrame, displayOnly = false): void {
+	private send(s: SeatState, frame: ServerFrame, mark: 'displayOnly' | 'pairsWithNext' | null = null): void {
 		if (frame.method === 'updateButtons') {
 			s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
 			this.noteCoinToss(s, frame);
@@ -1933,7 +1934,17 @@ export class Match {
 		s.seq += 1;
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
-		this.deps.emit(s.seat, displayOnly ? { matchId: this.id, cursor, frame, displayOnly: true } : { matchId: this.id, cursor, frame });
+		this.deps.emit(s.seat, mark === null ? { matchId: this.id, cursor, frame } : { matchId: this.id, cursor, frame, [mark]: true });
+	}
+
+	/**
+	 * Both halves of one Forge window, back to back, the first marked `pairsWithNext` so the
+	 * browser applies them together: drawn as each arrived, a confirm's Yes/No (sent before its
+	 * question) showed for a frame under the previous input's line.
+	 */
+	private sendWindow(s: SeatState, first: ServerFrame, second: ServerFrame): void {
+		this.send(s, first, 'pairsWithNext');
+		this.send(s, second);
 	}
 
 	/**
@@ -2298,6 +2309,7 @@ export class Match {
 	 * prompt never replaces a held one, it pushes the held one out first,
 	 * because a prompt is a question. A held half nothing pairs with goes out
 	 * undecided after {@link PROMPT_HOLD_FLUSH_MS}, or when an ask arrives.
+	 * Whenever both halves go out, they go out as one ({@link sendWindow}).
 	 */
 	private holdPromptWindow(s: SeatState, frame: PromptFrame | ButtonsFrame): void {
 		if (frame.method === 'showPromptMessage') {
@@ -2317,8 +2329,13 @@ export class Match {
 				this.decideWindow(s, frame, buttons, 'buttons-first');
 				return;
 			}
-			this.flushPendingWindow(s);
-			this.send(s, frame);
+			// No decider reads this prompt, but a held bar is still its own: only a buttons-first input
+			// (a confirm, a payment) leaves one parked, and its prompt is what comes next.
+			const held = s.pendingButtons;
+			s.pendingButtons = null;
+			this.clearPendingTimer(s);
+			if (held === null) this.send(s, frame);
+			else this.forwardUnpaired(s, frame, held, 'buttons-first');
 			return;
 		}
 		if (s.pendingPrompt !== null) {
@@ -2393,12 +2410,12 @@ export class Match {
 		if (answered) {
 			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);
 			if (s.wireButtonsLive && bar !== null) this.send(s, { ...bar, enable1: false, enable2: false, focus1: false });
+		} else if (buttons === null) {
+			this.send(s, prompt);
 		} else if (order === 'buttons-first') {
-			if (buttons !== null) this.send(s, buttons);
-			this.send(s, prompt);
+			this.sendWindow(s, buttons, prompt);
 		} else {
-			this.send(s, prompt);
-			if (buttons !== null) this.send(s, buttons);
+			this.sendWindow(s, prompt, buttons);
 		}
 		// A kept window names the rule that kept it (`maybeAutoPass` ran on it: every decider did),
 		// and for `has-play` the cards, by the names this seat sees, so the log answers "why here?".
@@ -2451,9 +2468,12 @@ export class Match {
 		this.forwardUnpaired(s, prompt, buttons);
 	}
 
-	private forwardUnpaired(s: SeatState, prompt: PromptFrame | null, buttons: ButtonsFrame | null): void {
-		if (prompt !== null) this.send(s, prompt);
-		if (buttons !== null) this.send(s, buttons);
+	private forwardUnpaired(s: SeatState, prompt: PromptFrame | null, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first' = 'prompt-first'): void {
+		if (prompt !== null && buttons !== null) {
+			if (order === 'buttons-first') this.sendWindow(s, buttons, prompt);
+			else this.sendWindow(s, prompt, buttons);
+		} else if (prompt !== null) this.send(s, prompt);
+		else if (buttons !== null) this.send(s, buttons);
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		this.deps.log({ evt: 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why: 'unpaired' });
 		this.logOffered(s, kind);
@@ -3348,7 +3368,7 @@ export class Match {
 
 	private showReveal(s: SeatState, frame: RevealFrame): void {
 		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices) });
-		this.send(s, frame, true);
+		this.send(s, frame, 'displayOnly');
 	}
 
 	private closeAllAsks(): void {
