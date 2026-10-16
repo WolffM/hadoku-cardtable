@@ -1276,7 +1276,8 @@ describe('the deck picker', () => {
       await vi.advanceTimersByTimeAsync(250);
     });
     const peek = screen.getByTestId('deck-peek');
-    expect(peek.textContent).toContain('Jund (Emanuele Giusti)');
+    expect(peek.querySelector('.peek__title')?.textContent).toBe('Jund');
+    expect(peek.querySelector('.peek__pilot')?.textContent).toBe('Emanuele Giusti');
     expect(peek.textContent).toContain('Main 60');
     expect(peek.textContent).toContain('Island');
     expect(peek.textContent).toContain('Sideboard 15');
@@ -1303,7 +1304,7 @@ describe('the deck picker', () => {
       });
       fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
       await advance(PEEK_DELAY_MS);
-      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).toBe('Jund');
       return { tile, other };
     }
     const advance = async (ms: number) => {
@@ -1321,7 +1322,7 @@ describe('the deck picker', () => {
     it('stays open while a box outside the grid scrolls', async () => {
       await openPeek();
       fireEvent.scroll(screen.getByTestId('deck-peek'));
-      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).toBe('Jund');
     });
 
     it('stays open while the pointer moves from the tile into the list and rests there', async () => {
@@ -1330,7 +1331,7 @@ describe('the deck picker', () => {
       await advance(PEEK_GRACE_MS / 2);
       fireEvent.pointerEnter(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
       await advance(PEEK_GRACE_MS * 10);
-      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).toBe('Jund');
       expect(tile.getAttribute('aria-describedby')).toBe('deck-peek');
     });
 
@@ -1360,7 +1361,7 @@ describe('the deck picker', () => {
       fireEvent.pointerLeave(other, { pointerType: 'mouse' });
       fireEvent.pointerEnter(screen.getByTestId('deck-peek'), { pointerType: 'mouse' });
       await advance(PEEK_DELAY_MS * 2);
-      expect(screen.getByTestId('deck-peek').textContent).toContain('Jund (Emanuele Giusti)');
+      expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).toBe('Jund');
       expect(other.hasAttribute('aria-describedby')).toBe(false);
     });
 
@@ -1371,7 +1372,7 @@ describe('the deck picker', () => {
       await advance(PEEK_GRACE_MS);
       expect(screen.queryByTestId('deck-peek')).toBeNull();
       await advance(PEEK_DELAY_MS - PEEK_GRACE_MS);
-      expect(screen.getByTestId('deck-peek').textContent).not.toContain('Jund (Emanuele Giusti)');
+      expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).not.toBe('Jund');
       expect(other.getAttribute('aria-describedby')).toBe('deck-peek');
     });
 
@@ -2631,14 +2632,17 @@ function realDeck(collectionId: string, file: string): TableDeck {
   // Every library deck names itself — `library.test.ts` refuses one that does
   // not — so a null here is a broken file, not a case to tolerate.
   if (parsed.name === null) throw new Error(`${file} has no [metadata] Name`);
+  const archetype = parsed.metadata.get(LIBRARY_ARCHETYPE_KEY.toLowerCase());
+  const pilot = parsed.metadata.get(LIBRARY_PILOT_KEY.toLowerCase());
+  if (archetype === undefined || pilot === undefined) throw new Error(`${file} has no [metadata] Archetype or Pilot`);
   const lines = (section: string) =>
     (parsed.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
   return {
     id: entry.id,
     collection: collection.id,
     name: parsed.name,
-    archetype: parsed.metadata.get(LIBRARY_ARCHETYPE_KEY.toLowerCase()) ?? '',
-    pilot: parsed.metadata.get(LIBRARY_PILOT_KEY.toLowerCase()) ?? '',
+    archetype,
+    pilot,
     format: collection.format,
     date: collection.date,
     provenance: 'Transcribed from mtgtop8.',
@@ -2661,7 +2665,7 @@ const SOLAR_FLARE = realDeck('power-summer-2012', '1-jeremy-dombek-solar-flare.d
 const LONG_NAME_DECK = deck(
   'deck-with-an-unreasonably-long-name',
   'The Collected Works of a Pilot Who Could Not Settle on a Shorter Title for This Deck',
-  'Somebody With a Long Name',
+  'Somebody With a Similarly Unreasonable Name',
 );
 
 describe('the deck dropdown shows its colours', () => {
@@ -2704,16 +2708,16 @@ describe('the deck dropdown shows its colours', () => {
 
     const two = deckRow(UW_DELVER.id);
     expect(two.dataset['colors']).toBe('WU');
-    // The row's own visible text is the deck's NAME and nothing else: the
+    // The row's own visible text is the deck's NAME and its player, and nothing else: the
     // ` · WU` suffix the `<option>` needed is gone, because the row draws real
     // pips, and the play style is a mark with no word.
-    expect(rowName(two)).toBe(UW_DELVER.name);
-    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(UW_DELVER.name);
+    expect(rowName(two)).toBe(UW_DELVER.archetype);
+    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(`${UW_DELVER.archetype}${UW_DELVER.pilot}`);
     expect(within(two).getByTestId('deck-colors').dataset['colors']).toBe('WU');
 
     const one = deckRow(MONO_GREEN.id);
     expect(one.dataset['colors']).toBe('G');
-    expect(rowName(one)).toBe(MONO_GREEN.name);
+    expect(rowName(one)).toBe(MONO_GREEN.archetype);
     expect(within(one).getByTestId('deck-colors').dataset['colors']).toBe('G');
 
     // Not a second fold, and not a second map: the shipped slice the screen
@@ -2766,7 +2770,7 @@ describe('the deck dropdown shows its colours', () => {
     await mountRoom({ players: [], matchId: null });
     await deckPicker();
     expect(deckRow(UG_POLYMORPH).dataset['colors']).toBe('');
-    expect(rowName(deckRow(UG_POLYMORPH))).toBe('UG Polymorph (Antoine Ruel)');
+    expect(rowName(deckRow(UG_POLYMORPH))).toBe('UG Polymorph');
     // A colourless deck's row says the word rather than drawing nothing.
     expect(within(deckRow(UG_POLYMORPH)).getByTestId('deck-colors').textContent).toBe('colourless');
     await pick(UG_POLYMORPH);
@@ -2784,6 +2788,28 @@ describe('the deck dropdown shows its colours', () => {
  * peek, as a word (so a reader hears it) beside a hue. A deck the selection
  * never saw draws no tag rather than a guess.
  */
+// The operator, 2026-10-16: "the black bar at the bottom has two rows: row1: deckname, deck type
+// icon, color symbols. row2: player name".
+describe('a library deck’s tile names the deck, then its player', () => {
+  it('draws the file’s Archetype on the first line and its Pilot on the second, the whole name in the title and the accessible name', async () => {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, LONG_NAME_DECK] });
+    const group = await deckPicker();
+    const uw = deckRow(UW_DELVER.id);
+    expect(UW_DELVER.name).toBe(`${UW_DELVER.archetype} (${UW_DELVER.pilot})`);
+    const name = uw.querySelector('.deckpick__name')!;
+    expect(name.textContent).toBe(UW_DELVER.archetype);
+    expect(name.getAttribute('title')).toBe(UW_DELVER.name);
+    expect(uw.querySelector('.deckpick__pilot')?.textContent).toBe(UW_DELVER.pilot);
+    // Deck, player, style and colours, all in what a reader hears.
+    const radio = within(group).getByRole('radio', { name: new RegExp(`${UW_DELVER.archetype}.*Aggro.*W U.*${UW_DELVER.pilot}`) });
+    expect(radio).toBe(uw);
+
+    const long = deckRow(LONG_NAME_DECK.id);
+    expect(long.querySelector('.deckpick__name')?.textContent).toBe(LONG_NAME_DECK.archetype);
+    expect(long.querySelector('.deckpick__pilot')?.textContent).toBe(LONG_NAME_DECK.pilot);
+  });
+});
+
 describe('the deck chooser tags a library deck with its play style', () => {
   it('tags the library deck with its selection style, and the deck with none not at all', async () => {
     await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, LONG_NAME_DECK] });
@@ -2987,7 +3013,7 @@ describe('the deck chooser', () => {
     // of art. The pip classes are the font's own, asserted as classes because that
     // is what decides whether a browser draws a symbol or nothing.
     const uw = deckRow(UW_DELVER.id);
-    expect(rowName(uw)).toBe(UW_DELVER.name);
+    expect(rowName(uw)).toBe(UW_DELVER.archetype);
     expect(
       [...uw.querySelectorAll('.deckcolors__pip i')].map((i) => i.className),
     ).toEqual(['ms ms-w ms-cost', 'ms ms-u ms-cost']);
@@ -3126,15 +3152,20 @@ describe('the deck chooser', () => {
     const list = document.querySelector('.deckpick')!;
     expect(css(list, 'grid-auto-rows'), 'a fixed track, not one per content').not.toMatch(/^(auto)?$/);
     expect(css(list, 'align-items')).toBe('stretch');
-    for (const name of document.querySelectorAll('.deckpick__name')) expect(css(name, 'text-overflow')).toBe('ellipsis');
+    for (const name of document.querySelectorAll('.deckpick__name')) {
+      expect(css(name, 'text-overflow')).toBe('ellipsis');
+      expect(css(name, 'white-space'), 'one line, the player on the next').toBe('nowrap');
+    }
+    // The player's row is a fixed height, drawn or not, so every art band is the same size.
+    expect(css(deckRow(UW_DELVER.id), 'grid-template')).toMatch(/'pilot pilot pilot' 22px/);
 
-    // The clamp hides the overflow visually, but the full name is still there —
+    // The ellipsis hides the overflow visually, but the full name is still there —
     // on the element's `title`, so a reader (and a mouse hover) still gets it.
     const short = deckRow(UW_DELVER.id).querySelector('.deckpick__name');
     const long = deckRow(LONG_NAME_DECK.id).querySelector('.deckpick__name');
     expect(short?.getAttribute('title')).toBe(UW_DELVER.name);
     expect(long?.getAttribute('title')).toBe(LONG_NAME_DECK.name);
-    expect(long?.textContent).toBe(LONG_NAME_DECK.name);
+    expect(long?.textContent).toBe(LONG_NAME_DECK.archetype);
   });
 });
 
