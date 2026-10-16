@@ -156,7 +156,7 @@
 
 /*
  * Their hand's row count, carried on the wire as `handRows` (`presence.ts`'s
- * `draw`, which sets this attribute). `board.css`'s own hidden-hand grid is
+ * `drawTheirHandRows`, which sets this attribute). `board.css`'s own hidden-hand grid is
  * one row regardless of how many backs it holds; this runs the identical
  * `--rows` arithmetic `board.css` already runs for a lane that earns a
  * second row, aimed at `.card-backs` instead, only when told the sender's own

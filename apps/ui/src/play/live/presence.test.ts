@@ -565,6 +565,26 @@ describe('sending', () => {
     handle.dispose();
   });
 
+  it('says its hand row count the moment it changes — a card drawn, a window resized — with no pointer move', async () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    ownHand(canvas, 4, 1);
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const hand = canvas.querySelector('[data-zone="hand"][data-owner="you"]')!;
+    hand.replaceChildren();
+    ownHand(canvas, 8, 2);
+    await vi.waitFor(() => expect(t.sent, 'the drawn card wrapped the hand: said at once').toHaveLength(1));
+    expect(t.sent[0]!.payload).toMatchObject({ pointer: null, handRows: 2 });
+    for (const li of hand.querySelectorAll<HTMLElement>('li')) li.getBoundingClientRect = () => rect({ left: 100, top: 650, width: 56, height: 84 });
+    window.dispatchEvent(new Event('resize'));
+    expect(t.sent, 'a wider window: one row, said at once').toHaveLength(2);
+    expect(t.sent[1]!.payload).toMatchObject({ pointer: null, handRows: 1 });
+    window.dispatchEvent(new Event('resize'));
+    expect(t.sent, 'a resize that changes no row count says nothing').toHaveLength(2);
+    handle.dispose();
+  });
+
   it('a held card, drawn at the pointer, does not count as a second row', () => {
     // The operator, 2026-10-07: "when i pull one out, they suddenly get reorganized into two rows" — the
     // lifted card's top is wherever the pointer is, and it was measured with the row.
@@ -1501,6 +1521,25 @@ describe('receiving', () => {
     expect(theirHand.getAttribute('data-presence-rows'), 'their hand draws two rows').toBe('2');
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(theirHand.hasAttribute('data-presence-rows'), 'back to one row: no attribute').toBe(false);
+    handle.dispose();
+  });
+
+  it('their hand rows outlive their cursor: a pointer that leaves, or goes quiet, never re-lays their hand out', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const theirHand = canvas.querySelector('[data-zone="hand"][data-owner="them"]')!;
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 2, arranging: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 2, arranging: null });
+    expect(canvas.querySelector('.presence'), 'their pointer left: no cursor').toBeNull();
+    expect(theirHand.getAttribute('data-presence-rows'), 'their hand still draws two rows').toBe('2');
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 2, arranging: null });
+    vi.advanceTimersByTime(PRESENCE_STALE_MS + 1);
+    expect(canvas.querySelector('.presence'), 'gone quiet: no cursor').toBeNull();
+    expect(theirHand.getAttribute('data-presence-rows'), 'and still two rows').toBe('2');
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null });
+    expect(theirHand.hasAttribute('data-presence-rows'), 'a pointer-less message still carries their rows').toBe(false);
     handle.dispose();
   });
 

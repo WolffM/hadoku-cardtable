@@ -39,7 +39,8 @@
  * by scaling inside whichever zone it names, and smoothed by a short CSS
  * transition. A seat heard nothing from for `PRESENCE_STALE_MS` is drawn no
  * more. Their hidden hand draws in the row count their own message carries
- * (`handRows`) via `[data-presence-rows]`, which `presence.css` reads.
+ * (`handRows`) via `[data-presence-rows]`, which `presence.css` reads — kept
+ * when their cursor goes: it is their hand's shape, not their pointer's.
  *
  * ## The handoff
  *
@@ -550,10 +551,28 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    */
   const liftWatch = new MutationObserver(() => {
     const state = liftStateOf();
-    if (state === lastLiftState) return;
-    lastLiftState = state;
-    sendNow();
+    if (state !== lastLiftState) {
+      lastLiftState = state;
+      sendNow();
+      return;
+    }
+    rowsChanged();
   });
+
+  /**
+   * This seat's hand row count, said the moment it changes — a card drawn into a second row, a
+   * window resized — not on the next pointer move, which may never come: the other screen lays
+   * their mirror of this hand out by it, and holding it back until this pointer next entered the
+   * page re-laid that hand out the moment this cursor appeared there. Card changes reach it through
+   * `liftWatch`; a window resize changes no DOM, so `resize` checks it too.
+   */
+  let lastRows = handRowsOf(canvas);
+  function rowsChanged(): void {
+    const rows = handRowsOf(canvas);
+    if (rows === lastRows) return;
+    lastRows = rows;
+    sendNow();
+  }
 
   /**
    * `./gestures/hand.ts` just committed a reorder: sent at once, outside the
@@ -892,7 +911,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     }
     hinted?.removeAttribute('data-presence-hint');
     hinted = null;
-    canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]')?.removeAttribute('data-presence-rows');
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = null;
   }
@@ -974,6 +992,19 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     setTimeout(() => ghost.remove(), GLIDE_MS);
   }
 
+  /**
+   * Their hidden hand in the row count their own screen draws it in. That is a fact about their
+   * hand, not their pointer: every message carries it, the one that says their pointer left too,
+   * and it outlives their cursor — taking it down with the cursor (`takeDown`) re-laid their hand
+   * out every time their pointer entered or left their page (the operator, 2026-10-16: "weird bug
+   * with cards resizing … if cursor is on screen … if cursor is not on screen").
+   */
+  function drawTheirHandRows(rows: 1 | 2): void {
+    const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
+    if (rows === 2) theirHand?.setAttribute('data-presence-rows', '2');
+    else theirHand?.removeAttribute('data-presence-rows');
+  }
+
   function draw(echo: PresenceEcho): void {
     const root = overlay();
     if (root === null) return;
@@ -981,6 +1012,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     drawArranging(root, box, echo.arranging);
     glideHandMove(root, box, echo.handMove);
     if (echo.placing !== null) renewWait();
+    drawTheirHandRows(echo.handRows);
     // Anchored to the twin of what their pointer is in (`anchorOf`) — the board fraction drifts off
     // a card the moment the two screens size a row differently; it is the fallback outside every zone.
     const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor) ?? placeSpot(canvas, echo.pointer);
@@ -1051,10 +1083,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       clearTimeout(waiting.timer);
       waiting.timer = setTimeout(() => expire('grace'), CLEARED_GRACE_MS);
     }
-
-    const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
-    if (echo.handRows === 2) theirHand?.setAttribute('data-presence-rows', '2');
-    else theirHand?.removeAttribute('data-presence-rows');
 
     // The arrow is the tail of an active aim — `from` is sent for nothing else (a parked card
     // being aimed from, or the targeter's own start), so it is drawn whenever it is there.
@@ -1467,6 +1495,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   canvas.addEventListener('pointercancel', onPointerRelease);
   document.addEventListener('visibilitychange', onVisibility);
   liftWatch.observe(canvas, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-cast-lift'] });
+  window.addEventListener('resize', rowsChanged);
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
   host.transport.on(PLACED_EVENT, onPlaced);
@@ -1490,12 +1519,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       canvas.removeEventListener('pointercancel', onPointerRelease);
       document.removeEventListener('visibilitychange', onVisibility);
       liftWatch.disconnect();
+      window.removeEventListener('resize', rowsChanged);
       if (sendTimer !== null) clearTimeout(sendTimer);
       sendTimer = null;
       armRestate(false);
       if (placedTimer !== null) clearTimeout(placedTimer);
       placedTimer = null;
       takeDown();
+      drawTheirHandRows(1);
     },
   };
 }
