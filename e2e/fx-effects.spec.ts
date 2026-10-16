@@ -12,8 +12,8 @@
  *  - Kalitas: the Zombie arrives FROM Kalitas — its row card is marked `data-arriving-from="<Kalitas>"`
  *    and a stand-in travels from Kalitas's place into the Zombie's slot;
  *  - Sorin: the revealed card has its beat first (`data-reveal-beat` on the notice), THEN a hit
- *    (`[data-hit="player:<bob>"]`) travels from the revealed card to bob's face, and only when it
- *    lands does bob's -2 rise.
+ *    (`[data-hit="player:<bob>"]`) sets off from the revealed card and slams into bob's face
+ *    (`[data-impact]` there), and only when it lands does bob's -2 rise.
  *
  * Scenarios: `fx-kalitas`, `fx-sorin`. Every step prints one `[fx]` line.
  *
@@ -38,6 +38,8 @@ interface Frame {
   /** The notice's first card's centre. */
   revealAt: { x: number; y: number } | null;
   hits: { key: string; x: number; y: number }[];
+  /** Where each hit slammed in (`projectile.ts`'s impact): its key and centre. */
+  impacts: { key: string; x: number; y: number }[];
   numbers: string[];
   arriving: { id: string; from: string }[];
   ghosts: { x: number; y: number }[];
@@ -66,6 +68,7 @@ async function record(page: Page): Promise<void> {
         beat: notice?.hasAttribute('data-reveal-beat') === true,
         revealAt: first === null ? null : centre(first),
         hits: Array.from(document.querySelectorAll('[data-hit]')).map((el) => ({ key: el.getAttribute('data-hit') ?? '', ...centre(el) })),
+        impacts: Array.from(document.querySelectorAll('[data-impact]')).map((el) => ({ key: el.getAttribute('data-impact') ?? '', ...centre(el) })),
         numbers: Array.from(document.querySelectorAll('.board-number')).map((el) => el.textContent ?? ''),
         arriving: Array.from(document.querySelectorAll('[data-arriving-from]')).map((el) => ({ id: el.getAttribute('data-board-card') ?? '', from: el.getAttribute('data-arriving-from') ?? '' })),
         ghosts: Array.from(document.querySelectorAll('[data-cast-ghost]')).map(centre),
@@ -247,6 +250,7 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
         beatAt: beat?.t ?? null,
         revealAt: beat?.revealAt ?? seen.find((f) => f.revealAt !== null)?.revealAt ?? null,
         hits: hits.map((f) => `${f.t}:${f.hits.map((h) => `${h.x},${h.y}`).join('|')}`).slice(0, 20),
+        impacts: seen.flatMap((f) => f.impacts.map((i) => `${f.t}:${i.key}@${i.x},${i.y}`)).slice(0, 5),
         numberAt: number?.t ?? null,
         face: bobFace[who],
       });
@@ -256,10 +260,11 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
       const from = hits[0]!.hits[0]!;
       const revealAt = seen.filter((f) => f.t <= hits[0]!.t && f.revealAt !== null).at(-1)?.revealAt ?? null;
       expect(revealAt === null || near(from, revealAt, 80), `${who}: it sets off from the revealed card (${JSON.stringify(from)} vs ${JSON.stringify(revealAt)})`).toBe(true);
-      // Where it is between two frames depends on the runner's frame rate: what does not is that it
-      // closes on bob's face — the last frame drawn with it is most of the way there.
-      const dist = (p: { x: number; y: number }): number => Math.hypot(p.x - bobFace[who].x, p.y - bobFace[who].y);
-      expect(dist(hits.at(-1)!.hits[0]!), `${who}: and travels to bob’s face`).toBeLessThan(dist(from) / 2);
+      // The bolt creeps off and then snaps in (`projectile.ts`), so where a frame catches it says little;
+      // where it lands does: its impact, on bob's face.
+      const impact = seen.flatMap((f) => f.impacts).find((i) => i.key === `player:${bobId}`);
+      expect(impact, `${who}: it slams into bob`).not.toBeUndefined();
+      expect(near(impact!, bobFace[who], 80), `${who}: on bob’s face (${JSON.stringify(impact)} vs ${JSON.stringify(bobFace[who])})`).toBe(true);
       expect(number, `${who}: bob’s -2 rises`).not.toBeUndefined();
       expect(number!.t, `${who}: once the hit has landed, not with it`).toBeGreaterThan(hits[0]!.t);
     }

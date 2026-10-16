@@ -13,8 +13,6 @@ import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.t
 import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import {
-  DEATH_FADE_MS,
-  DEATH_FADE_START_MS,
   LIFE_COLOUR_MS,
   POP_MS,
   POP_THRESHOLD,
@@ -99,37 +97,31 @@ function view(players: BoardPlayer[]): BoardView {
 describe('diffViews', () => {
   it('the first view ever seen diffs to nothing — there is no "before" to compare it against', () => {
     const v = view([player(0, 20), player(1, 20)]);
-    expect(diffViews(null, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(null, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 
   it('a life change is reported for the player it happened to, and nobody else', () => {
     const before = view([player(0, 20), player(1, 20)]);
     const after = view([player(0, 17), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 
   it('a damage change on a creature still on a battlefield is reported, keyed by card id and owner', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [card(7, 1)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 
-  it('a creature that leaves the battlefield AND lands in a graveyard in the same view is a death, carrying the damage it last had', () => {
+  it('a creature that leaves the battlefield for a graveyard is a departure', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 3)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [], deaths: [{ cardId: 7, ownerId: 0, damage: 3 }], resolved: [], arrivals: [], hits: [],
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [],
       departures: [{ cardId: 7, playerId: 0, to: 'graveyard', toPlayerId: 0, card: card(7, 3), index: 0 }] });
-  });
-
-  it('a creature that leaves the battlefield and is NOT in any graveyard (bounced to a hand, say) is not a death', () => {
-    const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
-    const after = view([player(0, 20, { battlefield: [] }), player(1, 20)]);
-    expect(diffViews(before, after).deaths).toEqual([]);
   });
 
   it('nothing moving at all diffs to nothing', () => {
     const v = view([player(0, 20, { battlefield: [card(7, 2)] }), player(1, 20)]);
-    expect(diffViews(v, v)).toEqual({ life: [], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(v, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], departures: [] });
   });
 });
 
@@ -157,10 +149,9 @@ describe('colour and text', () => {
     expect(lifeColour(-3)).toBe('danger');
   });
 
-  it('formatDelta signs life directly and flips damage, so a hit always reads as a loss', () => {
-    expect(formatDelta(3, 'life')).toBe('+3');
-    expect(formatDelta(-3, 'life')).toBe('-3');
-    expect(formatDelta(3, 'damage'), 'three NEW damage reads as -3, the harm it is — the only direction installNumbers ever spawns one for').toBe('-3');
+  it('formatDelta signs a life change', () => {
+    expect(formatDelta(3)).toBe('+3');
+    expect(formatDelta(-3)).toBe('-3');
   });
 });
 
@@ -327,102 +318,17 @@ describe('installNumbers: life', () => {
   });
 });
 
-describe('installNumbers: damage', () => {
-  it('damage on a creature spawns at its P/T corner, signed as harm', () => {
+describe('installNumbers: a creature gets no number', () => {
+  it('damage marked on a creature, or a creature dying with damage on it, draws no number — its hit is the impact (Forge’s own hits)', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 1)] }), player(1, 20)]));
-
-    const el = overlay.querySelector<HTMLElement>('.board-number')!;
-    expect(el.textContent).toBe('-1');
-    expect(el.dataset.numberColour).toBe('danger');
-    expect(el.style.left).toBe('312px'); // the P/T corner's centre (300 + 24/2), overlay-relative
-    expect(el.style.top).toBe('408px');
-    handle.dispose();
-  });
-
-  it('nothing for 0: a damage "change" of zero (there is none) and a life change of zero never happen — diffViews already excludes them', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    expect(overlay.querySelectorAll('.board-number')).toHaveLength(0);
-    handle.dispose();
-  });
-
-  it('a creature that dies gets its number, which turns toward its owner’s graveyard at its own halfway point and is gone by the cleanup', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)])); // the fatal hit, while still alive
-    vi.advanceTimersByTime(RISE_MS); // that number finishes its ordinary life
-    expect(overlay.querySelectorAll('.board-number'), 'the survivor’s number is gone before the death is noticed').toHaveLength(0);
-
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]));
-    const dying = overlay.querySelector<HTMLElement>('.board-number')!;
-    expect(dying, 'the death gets its own number, at the last place the creature was seen').not.toBeNull();
-    expect(dying.textContent).toBe('-3');
-    expect(dying.dataset.numberDying).toBeUndefined();
-
-    vi.advanceTimersByTime(DEATH_FADE_START_MS - 1);
-    expect(dying.dataset.numberDying, 'not yet at the halfway point').toBeUndefined();
-    vi.advanceTimersByTime(1);
-    expect(dying.dataset.numberDying, 'the halfway point: it turns toward the graveyard').toBe('');
-    expect(dying.style.getPropertyValue('--number-dx'), 'aimed at the graveyard it actually died into').not.toBe('');
-
-    vi.advanceTimersByTime(DEATH_FADE_MS - 1);
-    expect(overlay.querySelectorAll('.board-number')).toHaveLength(1);
-    vi.advanceTimersByTime(1);
-    expect(overlay.querySelectorAll('.board-number'), 'gone once the drift finishes').toHaveLength(0);
-    handle.dispose();
-  });
-
-  it('a creature removed with no damage ever recorded (destroyed outright) draws no number at all', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [] }), player(1, 20, { graveyard: [card(7, 0)] })]));
-    expect(overlay.querySelectorAll('.board-number'), 'no damage was ever seen for it, so there is nothing to show').toHaveLength(0);
-    handle.dispose();
-  });
-
-  it('a cleanup wipe (damage decreasing) is not an event: it spawns no floating number, only the pill catches up', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)]));
-    vi.advanceTimersByTime(RISE_MS); // the hit's own number finishes
-
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    expect(overlay.querySelectorAll('.board-number'), 'a decrease never spawns a number, success-coloured or otherwise').toHaveLength(0);
-    handle.dispose();
-  });
-});
-
-describe('installNumbers: damage that stays is the badge’s, not this layer’s', () => {
-  it('once a hit’s own number has risen, nothing of it is left in the overlay', () => {
-    vi.useFakeTimers();
-    const { canvas } = board();
-    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)]));
-    expect(overlay.querySelectorAll('.board-number'), 'the hit rises').toHaveLength(1);
-    vi.advanceTimersByTime(RISE_MS);
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 3)] }), player(1, 20)]));
-    expect(overlay.children, 'still damaged, and no standing element beside the P/T badge').toHaveLength(0);
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 2)] }), player(1, 20)]));
+    expect(overlay.querySelectorAll('.board-number'), 'damage marked: the badge shows it, nothing floats').toHaveLength(0);
+    handle.notify(view([player(0, 20, { isViewer: true, graveyard: [card(7, 2)] }), player(1, 20)]));
+    expect(overlay.querySelectorAll('.board-number'), 'it died: still no number').toHaveLength(0);
     handle.dispose();
   });
 });

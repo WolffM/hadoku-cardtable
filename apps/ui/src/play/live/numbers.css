@@ -10,8 +10,7 @@
  * `numbers.ts` places each `.board-number` at its anchor's centre (`left`/
  * `top`, in pixels, already offset for stacking) and leaves the rise, pop and
  * fade to the animations below — it only ever sets `left`/`top` once, at
- * spawn, and (for a dying creature) the `--number-dx`/`--number-dy` custom
- * properties partway through.
+ * spawn.
  */
 
 .board-number {
@@ -73,27 +72,10 @@
   }
 }
 
-/* A creature that dies: at the number's own halfway point, `numbers.ts` sets `data-number-dying` and the drift-to-graveyard-and-fade below takes over for the rest of its one lifetime. */
-.board-number[data-number-dying] {
-  animation: board-number-dying 420ms ease-in forwards;
-}
-
-@keyframes board-number-dying {
-  0% {
-    transform: translate(-50%, calc(-50% - 28px));
-    opacity: 1;
-  }
-  100% {
-    transform: translate(calc(-50% + var(--number-dx, 0px)), calc(-50% - 28px + var(--number-dy, 0px)));
-    opacity: 0;
-  }
-}
-
-/* Reduced motion: no rise, no pop, no drift — fade only. */
+/* Reduced motion: no rise, no pop — fade only. */
 @media (prefers-reduced-motion: reduce) {
   .board-number,
-  .board-number[data-number-pop],
-  .board-number[data-number-dying] {
+  .board-number[data-number-pop] {
     animation: board-number-fade 700ms linear forwards;
   }
 }

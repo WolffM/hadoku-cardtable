@@ -1,6 +1,9 @@
 /*
- * Floating combat numbers: life changing at a seat's face, damage changing at
- * a creature's power/toughness corner. Approved design:
+ * Floating combat numbers: life changing at a seat's face. A creature gets no
+ * number since 2026-10-15 — its hit is the projectile's impact (the operator:
+ * "we dont have to show a number, just the impact would be fine"), and the
+ * damage that stays is its P/T badge's. Approved design (its creature
+ * artboards are retired):
  * https://claude.ai/artifact/BZGfndqa4MeDCDrDwDdCvn — four artboards (damage
  * to a player, life gain with stacking, damage on a creature that survives or
  * dies, and the 700ms timeline). The rules below restate it so this module
@@ -10,8 +13,7 @@
  *
  * Every call to `notify(view)` diffs the new view against the one before it
  * (`diffViews`, pure — no DOM, unit-tested on hand-built views): a player
- * whose `life` moved, a battlefield creature whose `damage` moved, and a
- * creature that was on a battlefield and is now in a graveyard (it died).
+ * whose `life` moved, and what a resolution did (below).
  * Nothing spawns from a click or a local guess — only from what the view
  * itself says changed, so the two seats' screens draw the same numbers from
  * the same facts, at mirrored positions, by construction.
@@ -20,12 +22,7 @@
  *
  * A life number lands on `[data-player-face][data-player-id="<id>"]`
  * (`Board.tsx`'s own face markup; `data-viewer` on that element is also how
- * this module tells a graveyard's owner apart — `you` or `them`). A damage
- * number lands on that card's `.board-card__pt` — the same badge
- * `PowerToughness` already draws, which is where damage that STAYS is drawn
- * (what is left of the toughness, in the danger ink, until cleanup); this
- * module draws only the TRANSIENT number, never the badge itself, which is
- * React's and stays exactly as it is.
+ * this module tells a seat's own face apart).
  *
  * ## The theme, not a colour of our own
  *
@@ -45,16 +42,6 @@
  * nothing visibly snaps). Nothing is drawn beside it: the operator, 2026-10-10,
  * of a struck-through old value that sat above the counter, *"let's just remove
  * teh weird crossed out number so the UI doesn't shift"*.
- *
- * ## Dying
- *
- * A creature that dies still gets its damage number — the hit that killed it
- * is a `DamageChange` like any other, read while the card was still on the
- * battlefield in `prev`. At the number's OWN halfway point
- * (`DEATH_FADE_START_MS`, half of `RISE_MS`) it stops rising in place and
- * instead drifts to its owner's graveyard pile while fading, over
- * `DEATH_FADE_MS`. One element does both halves of its life; nothing extra is
- * drawn.
  *
  * ## Reduced motion and Fast Mode
  *
@@ -120,9 +107,6 @@ export const STACK_OFFSET_PX = 12;
 export const STACK_STAGGER_MS = 80;
 export const TICK_STEP_MS = 150;
 export const LIFE_COLOUR_MS = 1500;
-/** Half of `RISE_MS` — the number's own halfway point, where a dying creature's number turns toward the graveyard. */
-export const DEATH_FADE_START_MS = RISE_MS / 2;
-export const DEATH_FADE_MS = 420;
 /** How long what a hit reached flashes (`numbers.css`'s `effect-hit-flash`). */
 export const HIT_FLASH_MS = 360;
 /** An arrival with nowhere to travel from fades in over this long. */
@@ -147,20 +131,6 @@ export interface DamageChange {
   readonly to: number;
 }
 
-/**
- * A battlefield creature that is no longer on any battlefield and is now, in
- * the SAME view, sitting in a graveyard. `damage` is what it carried the last
- * time it was seen alive — the fatal blow, when it was damage that killed it;
- * `0` for anything else (destroyed outright, sacrificed, bounced-then-not —
- * `installNumbers` draws no number for those, the same "nothing for 0" rule
- * every other change follows).
- */
-export interface DeathChange {
-  readonly cardId: number;
-  readonly ownerId: number;
-  readonly damage: number;
-}
-
 /** A permanent on a battlefield now that the viewer saw nowhere before: a token, or a card out of a library. */
 export interface Arrival {
   readonly cardId: number;
@@ -171,7 +141,6 @@ export interface Arrival {
 export interface ViewDiff {
   readonly life: readonly LifeChange[];
   readonly damage: readonly DamageChange[];
-  readonly deaths: readonly DeathChange[];
   /** The stack items that left the stack in this view, top first: what resolved (or was countered). */
   readonly resolved: readonly StackEntry[];
   readonly arrivals: readonly Arrival[];
@@ -181,17 +150,11 @@ export interface ViewDiff {
   readonly departures: readonly Departure[];
 }
 
-const NO_DIFF: ViewDiff = { life: [], damage: [], deaths: [], resolved: [], arrivals: [], hits: [], departures: [] };
+const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], departures: [] };
 
 function battlefieldDamage(view: BoardView): Map<number, { damage: number; ownerId: number }> {
   const out = new Map<number, { damage: number; ownerId: number }>();
   for (const player of view.players) for (const card of player.battlefield) out.set(card.id, { damage: card.damage, ownerId: player.id });
-  return out;
-}
-
-function graveyardOwners(view: BoardView): Map<number, number> {
-  const out = new Map<number, number>();
-  for (const player of view.players) for (const card of player.graveyard) out.set(card.id, player.id);
   return out;
 }
 
@@ -218,13 +181,6 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
     if (was !== undefined && was.damage !== cur.damage) damage.push({ cardId, ownerId: cur.ownerId, from: was.damage, to: cur.damage });
   }
 
-  const nowInGraveyard = graveyardOwners(next);
-  const deaths: DeathChange[] = [];
-  for (const [cardId, was] of prevDamage) {
-    if (nextDamage.has(cardId)) continue; // still on a battlefield — not a death
-    const ownerId = nowInGraveyard.get(cardId);
-    if (ownerId !== undefined) deaths.push({ cardId, ownerId, damage: was.damage });
-  }
 
   const stillOn = new Set(next.stack.map((item) => item.id));
   const resolved = prev.stack.filter((item) => !stillOn.has(item.id));
@@ -255,7 +211,7 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
   const lastHit = Math.max(0, ...(prev.hits ?? []).map((h) => h.seq));
   const nowOnField = new Set(nextDamage.keys());
   const hits = (next.hits ?? []).filter((h) => h.seq > lastHit && (prevDamage.has(h.cardId) || nowOnField.has(h.cardId)));
-  return { life, damage, deaths, resolved, arrivals, hits, departures: departuresOf(prev, next) };
+  return { life, damage, resolved, arrivals, hits, departures: departuresOf(prev, next) };
 }
 
 /* ── pure: stacking (simultaneous numbers at one anchor) ─────────────── */
@@ -290,10 +246,9 @@ export function lifeColour(delta: number): NumberColour {
   return delta < 0 ? 'danger' : 'success';
 }
 
-/** `+3` for a gain, `-3` for a loss — life's delta read directly; damage's delta flipped, because MORE damage marked is drawn as a loss. */
-export function formatDelta(delta: number, kind: 'life' | 'damage'): string {
-  const signed = kind === 'damage' ? -delta : delta;
-  return signed > 0 ? `+${signed}` : `${signed}`;
+/** `+3` for a gain, `-3` for a loss. */
+export function formatDelta(delta: number): string {
+  return delta > 0 ? `+${delta}` : `${delta}`;
 }
 
 /* ── the module: finding anchors and drawing into the overlay ────────── */
@@ -343,15 +298,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   /** How many numbers are currently active at each anchor key — `stackLayout`'s own input, decremented on cleanup. */
   const activeAt = new Map<string, number>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
-  /**
-   * Every damaged creature's P/T corner, in VIEWPORT coordinates, as of the
-   * last view that still had it on a battlefield. A dying creature has
-   * already been removed from the DOM by the time its `DeathChange` arrives
-   * — `boardCard__pt` is drawn `onBattlefield` only — so this is the one
-   * thing that survives past the element itself. Written every time a
-   * `DamageChange` is applied; read, once, by the death it may precede.
-   */
-  const lastSeenBox = new Map<number, DOMRect>();
   /** When each stack item was first drawn here — a reveal shown after it was put there is its reveal. */
   const firstSeen = new Map<number, number>();
   /** Where each stack item was drawn as of the last view (`placed.ts`'s cards): a resolved one is gone from there by the next. */
@@ -370,16 +316,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
   function battlefieldCard(cardId: number): HTMLElement | null {
     return canvas.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${cardId}"]`);
-  }
-  function ptEl(cardId: number): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>(`[data-card-id="${cardId}"] .board-card__pt`);
-  }
-  /** `you`/`them`, off the face this view already marks — never a second source for the same fact. */
-  function ownerOf(playerId: number): 'you' | 'them' {
-    return faceEl(playerId)?.hasAttribute('data-viewer') === true ? 'you' : 'them';
-  }
-  function graveyardEl(ownerId: number): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>(`[data-zone="graveyard"][data-owner="${ownerOf(ownerId)}"]`);
   }
 
   function schedule(fn: () => void, ms: number): void {
@@ -403,32 +339,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return next - by; // the count BEFORE this change — the index a spawn wants
   }
 
-  /** Drift a dying number's own element to its owner's graveyard, fading it out — the second half of its one lifetime. */
-  function turnToGraveyard(el: HTMLElement, box: DOMRect, ownerId: number): void {
-    const grave = graveyardEl(ownerId);
-    if (grave === null) return; // no graveyard to aim at — the number simply finishes its ordinary rise-and-fade instead
-    const from = { x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) };
-    const to = centreIn(grave, box);
-    el.style.setProperty('--number-dx', `${to.x - from.x}px`);
-    el.style.setProperty('--number-dy', `${to.y - from.y}px`);
-    el.dataset.numberDying = '';
-  }
-
   function spawn(options: {
     anchorKey: string;
     at: Boxed;
-    kind: 'life' | 'damage';
     delta: number;
-    dying?: { ownerId: number };
   }): void {
     const root = overlay();
     if (root === null || options.delta === 0) return;
     const box = root.getBoundingClientRect();
     const index = bumpActive(options.anchorKey, 1);
     const layout = stackLayout(index);
-    // Damage only ever spawns a number for a HIT (a decrease — a cleanup wipe — never spawns one,
-    // below): `lifeColour` is the only sign-dependent colour left.
-    const colour = options.kind === 'life' ? lifeColour(options.delta) : 'danger';
+    const colour = lifeColour(options.delta);
     const isReduced = reduced();
     const pop = Math.abs(options.delta) >= POP_THRESHOLD;
 
@@ -438,7 +359,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     el.dataset.numberColour = colour;
     if (pop && !isReduced) el.dataset.numberPop = '';
     if (isReduced) el.dataset.numberReduced = '';
-    el.textContent = formatDelta(options.delta, options.kind);
+    el.textContent = formatDelta(options.delta);
 
     const centre = centreIn(options.at, box, layout.offsetPx);
     el.style.left = `${centre.x}px`;
@@ -452,23 +373,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     else place();
 
     const riseMs = isReduced ? RISE_MS : pop ? POP_MS + RISE_MS : RISE_MS;
-    const dying = options.dying;
-    if (dying !== undefined && !isReduced) {
-      // The halfway point is the RISE's own, which starts after the pop (if any) — so the pop's own
-      // length counts toward it too, or a popped death would turn toward the graveyard before it had
-      // even started rising.
-      const halfway = (pop ? POP_MS : 0) + DEATH_FADE_START_MS;
-      schedule(() => turnToGraveyard(el, box, dying.ownerId), layout.delayMs + halfway);
-      schedule(() => {
-        el.remove();
-        bumpActive(options.anchorKey, -1);
-      }, layout.delayMs + halfway + DEATH_FADE_MS);
-    } else {
-      schedule(() => {
-        el.remove();
-        bumpActive(options.anchorKey, -1);
-      }, layout.delayMs + riseMs);
-    }
+    schedule(() => {
+      el.remove();
+      bumpActive(options.anchorKey, -1);
+    }, layout.delayMs + riseMs);
   }
 
   /** The seat bar's own life span: coloured, and stepped through on its way to what React already rendered there. */
@@ -592,19 +500,15 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }, delayMs);
   }
 
-  /** Where a card's hit lands and its number rises: its row card, else the gap its row keeps while it leaves. */
-  function hitTarget(cardId: number): { card: HTMLElement; at: Boxed } | null {
-    const card = battlefieldCard(cardId);
-    if (card !== null) return { card, at: ptEl(cardId) ?? card };
-    const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
-    return gap === null ? null : { card: gap, at: gap };
+  /** Where a card's hit lands: its row card, else the gap its row keeps while it leaves. */
+  function hitTarget(cardId: number): HTMLElement | null {
+    return battlefieldCard(cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
   function apply(diff: ViewDiff): void {
     const item = diff.resolved[0];
     const reveal = revealOf(item);
     const origin = reveal?.at ?? sourceOf(item);
-    const hitIds = new Set(diff.hits.map((h) => h.cardId));
     const effects =
       diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
     // What it does starts at once (a reveal's beat aside); the spell waits on the stack meanwhile and goes last (`placed.ts`).
@@ -630,7 +534,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (face === null) continue;
       const land = (): void => {
         animateLifeCounter(change.playerId, change.from, change.to);
-        spawn({ anchorKey: `face:${change.playerId}`, at: face, kind: 'life', delta: change.to - change.from });
+        spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: change.to - change.from });
       };
       if (origin === null || item === undefined) {
         land();
@@ -643,25 +547,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       endMs = Math.max(endMs, delay + HIT_MS);
       hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue);
     }
-    for (const change of diff.damage) {
-      // Forge said who hit it (`diff.hits`, below): drawn from that, never twice.
-      if (hitIds.has(change.cardId)) continue;
-      const at = ptEl(change.cardId);
-      if (at === null) continue;
-      lastSeenBox.set(change.cardId, at.getBoundingClientRect());
-      const delta = change.to - change.from;
-      // A decrease is a cleanup wipe, never a hit: not an event of its own — the badge already
-      // reads less (or no) damage marked now.
-      if (delta <= 0) continue;
-      const land = (): void => spawn({ anchorKey: `card:${change.cardId}`, at, kind: 'damage', delta });
-      const card = battlefieldCard(change.cardId);
-      if (origin === null || item === undefined || card === null) land();
-      else {
-        const delay = nextDelay();
-        endMs = Math.max(endMs, delay + HIT_MS);
-        hit(origin, card, `card:${change.cardId}`, 'danger', delay, land, spellHue);
-      }
-    }
     /*
      * Forge's own hits (`PlayBridge.java`'s `damage`): a creature that took lethal damage is already in
      * its graveyard in this view, so this is the only word that it was hit. From what resolved, else
@@ -672,7 +557,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (target === null) continue;
       const departure = leaving.get(h.cardId);
       // No number: the slam is the hit (the operator, 2026-10-15) — what is left of its toughness is the badge's.
-      const land = (): void => flash(target.card, 'danger');
+      const land = (): void => flash(target, 'danger');
       const key = `card:${h.cardId}:${h.seq}`;
       // A projectile only from what resolved: combat damage is the impact alone, never a ball between two creatures.
       const delay = origin === null ? 0 : nextDelay();
@@ -680,26 +565,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (departure !== undefined) fatalLand.set(h.cardId, Math.max(fatalLand.get(h.cardId) ?? 0, landsAt));
       endMs = Math.max(endMs, landsAt);
       if (origin === null) {
-        slam(target.card, key, h.sourceId === null ? null : (hueOn.get(h.sourceId) ?? null));
+        slam(target, key, h.sourceId === null ? null : (hueOn.get(h.sourceId) ?? null));
         land();
-      } else hit(origin, target.card, key, 'danger', delay, land, spellHue);
-    }
-    for (const death of diff.deaths) {
-      // "Nothing for 0": destroyed outright, sacrificed, or simply left the
-      // battlefield with no damage marked draws no number — there is nothing
-      // to say and nowhere this module ever saw it hit from. A hit this view
-      // carries was drawn above.
-      if (death.damage <= 0 || hitIds.has(death.cardId)) continue;
-      const box = lastSeenBox.get(death.cardId);
-      lastSeenBox.delete(death.cardId);
-      if (box === undefined) continue;
-      spawn({
-        anchorKey: `card:${death.cardId}`,
-        at: box,
-        kind: 'damage',
-        delta: death.damage,
-        dying: { ownerId: death.ownerId },
-      });
+      } else hit(origin, target, key, 'danger', delay, land, spellHue);
     }
     let fromMaker = 0;
     for (const arrival of diff.arrivals) {
