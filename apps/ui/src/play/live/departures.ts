@@ -37,8 +37,9 @@
  * hidden (`[data-departure-landing]`) until the stand-in reaches it, so the card is drawn once. Back to a
  * hand (the operator, 2026-10-16: "next let's work on the return to hand animation") is the one today:
  * the card lifts off its row and flies into its owner's hand — to its own card in a hand this screen
- * sees, flipping over to a card back on the way into one it does not (`back`: its last piece is that
- * hand's own back).
+ * sees, else onto that hand's newest back. Face up all the way, into either: it was on the battlefield
+ * for everyone to see (the operator, 2026-10-16: "i notice the unsummon flips the card around. this is
+ * unecessary").
  *
  * Reduced motion: no stand-in; the gap closes at the card's beat.
  */
@@ -88,19 +89,13 @@ export interface Departure {
   readonly index: number;
   /** Why it died, when it went to a graveyard: Forge's word (`BoardView.deathCauses`), else `numbers.ts`'s reading of the hits. */
   readonly cause?: DepartureCause;
-  /**
-   * Gone to a hand this screen does not see into: an opponent's hand is a count (`BoardPlayer.hand` is
-   * `null`), so a card going there is found by that count rising, and lands face down.
-   */
-  readonly hidden?: true;
   /** The first colour of what moved it — the resolving spell or ability's card — for a motion drawn in it (`data-colour`); absent for none. */
   readonly hue?: ManaColor;
 }
 
 /**
  * Every exit motion, by name: how long it plays, and how many copies of the card it is drawn with
- * (each `.board-departure__piece`, numbered `data-piece="1"`…); `back`, its last piece is a card back
- * instead; `travels`, it goes to its destination (see "A motion that travels"); `specks`, how many
+ * (each `.board-departure__piece`, numbered `data-piece="1"`…); `travels`, it goes to its destination (see "A motion that travels"); `specks`, how many
  * motes it sheds (`.board-departure__speck`, each placed by `--x`/`--y` across the card, sent off by
  * `--dx`/`--dy`, `--size` across, and starting at `--at`, a share of the motion). The CSS for each is
  * `.board-departure[data-exit="<name>"][data-exit-go]` in `departures.css`.
@@ -113,10 +108,8 @@ export const EXIT_MOTIONS = {
    * 2026-10-15: "a 'slice in half' effect where the card is cut in half and then fades away").
    */
   slice: { ms: 620, pieces: 2 },
-  /** Back to a hand this screen sees: it lifts off its row and flies to its own card there. */
+  /** Back to a hand: it lifts off its row and flies, face up, to its own card there or the hand's newest back. */
   return: { ms: 760, pieces: 1, travels: true },
-  /** Back to a hand this screen does not see: the same flight, turning over to a card back on the way. */
-  'return-hidden': { ms: 760, pieces: 2, back: true, travels: true },
   /**
    * Exiled: it dissolves (the operator, 2026-10-16: "for exile can we try something 'disolving' or
    * 'disintegrating'? might be nice to apply a color effect also dependning on the color source of the
@@ -126,9 +119,8 @@ export const EXIT_MOTIONS = {
    * grains together read as crumbling rather than as a pattern.
    */
   dissolve: { ms: 1600, pieces: 2, specks: 46 },
-} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly back?: true; readonly travels?: true; readonly specks?: number }>;
+} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly travels?: true; readonly specks?: number }>;
 
-const backed = (motion: ExitMotion): boolean => 'back' in EXIT_MOTIONS[motion];
 const travels = (motion: ExitMotion): boolean => 'travels' in EXIT_MOTIONS[motion];
 const specksOf = (motion: ExitMotion): number => {
   const entry = EXIT_MOTIONS[motion];
@@ -166,7 +158,7 @@ export type ExitMotion = keyof typeof EXIT_MOTIONS;
  * a death no hit explains is taken for destroyed.
  */
 export function exitMotionFor(departure: Departure): ExitMotion {
-  if (departure.to === 'hand') return departure.hidden === true ? 'return-hidden' : 'return';
+  if (departure.to === 'hand') return 'return';
   if (departure.to === 'exile') return 'dissolve';
   return departure.cause === undefined || departure.cause === 'destroyed' ? 'slice' : 'crumple';
 }
@@ -215,7 +207,7 @@ export function departuresOf(prev: BoardView | null, next: BoardView): Departure
       if (to === 'battlefield') return;
       const base = { cardId: card.id, playerId: player.id, card, index };
       const hiddenHand = to === 'gone' ? intoHidden(player.id) : null;
-      if (hiddenHand !== null) out.push({ ...base, to: 'hand', toPlayerId: hiddenHand, hidden: true });
+      if (hiddenHand !== null) out.push({ ...base, to: 'hand', toPlayerId: hiddenHand });
       else out.push({ ...base, to, toPlayerId: playerId ?? player.id });
     });
   }
@@ -302,7 +294,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
   }
 
-  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion, landing: HTMLElement | null): HTMLElement {
+  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion): HTMLElement {
     const box = root.getBoundingClientRect();
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
@@ -316,7 +308,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     const pieces = EXIT_MOTIONS[motion].pieces;
     if (departure.hue !== undefined) wrap.setAttribute('data-colour', departure.hue);
     for (let n = 1; n <= pieces; n++) {
-      const copy = backed(motion) && n === pieces ? cardBack(landing) : (from.cloneNode(true) as HTMLElement);
+      const copy = from.cloneNode(true) as HTMLElement;
       for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
       const piece = document.createElement('div');
       piece.className = 'board-departure__piece';
@@ -346,14 +338,6 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       wrap.style.top = `${at.top - box.top + step}px`;
     }
     return wrap;
-  }
-
-  /** The hand's own back, drawn as one more piece: a copy of the newest there, else a plain one. */
-  function cardBack(landing: HTMLElement | null): HTMLElement {
-    const back = landing?.classList.contains('card-back') === true ? (landing.cloneNode(true) as HTMLElement) : document.createElement('div');
-    back.className = 'card-back';
-    back.removeAttribute(LANDING_ATTR);
-    return back;
   }
 
   /** The way from the stand-in to where it lands, written on it for its keyframes. */
@@ -428,7 +412,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
       }
       const landing = travels(motion) ? handLanding(canvas, departure) : null;
-      const wrap = standIn(departure, from, at, root, motion, landing);
+      const wrap = standIn(departure, from, at, root, motion);
       wrap.setAttribute(DEPARTURE_ATTR, String(departure.cardId));
       standIns.add(wrap);
       // Only a card or a back is hidden while it is flown to — never a whole hand.

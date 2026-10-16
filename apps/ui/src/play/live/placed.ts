@@ -442,6 +442,13 @@ export function squareWidth(area: number, fixed: number, padX: number, min: numb
 export interface PlacedHost {
   /** Defaults to the real `prefers-reduced-motion` media query. */
   readonly reducedMotion?: () => boolean;
+  /**
+   * Told the card ids of the resolved items still drawn here on their way out, whenever that set
+   * changes: `Board.tsx` keeps each out of the pile it went to until it is gone from here (the
+   * operator, 2026-10-16: "make sure all these animations can finish before the card show up in the
+   * gy/exile zones").
+   */
+  readonly onHolding?: (cardIds: ReadonlySet<number>) => void;
 }
 
 /**
@@ -820,7 +827,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     return at === null ? null : { at, reserved: null };
   }
 
+  /** The resolved items drawn on their way out, by item id: their card ids, for `PlacedHost.onHolding`. */
+  const holding = new Map<number, number>();
+  function hold(id: number, cardId: number | null): void {
+    if (cardId === null) return;
+    holding.set(id, cardId);
+    host.onHolding?.(new Set(holding.values()));
+  }
+
   function removeNow(id: number): void {
+    if (holding.delete(id)) host.onHolding?.(new Set(holding.values()));
     const d = drawn.get(id);
     if (d === undefined) return;
     deferUnmount(d.root);
@@ -843,6 +859,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
     if (d.leaving) return;
     d.leaving = true;
+    hold(id, cardId);
     if (reduced()) {
       removeNow(id);
       return;

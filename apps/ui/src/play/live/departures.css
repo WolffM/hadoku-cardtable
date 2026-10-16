@@ -57,8 +57,7 @@
  * growing to `--to-scale`, all three written by `departures.ts` — easing out as it arrives, where its
  * own card (or the hand's newest back) is hidden until it is there (`[data-departure-landing]`).
  */
-.board-departure[data-exit='return'][data-exit-go],
-.board-departure[data-exit='return-hidden'][data-exit-go] {
+.board-departure[data-exit='return'][data-exit-go] {
   animation: board-exit-return 760ms forwards;
 }
 
@@ -81,49 +80,6 @@
     translate: var(--to-x, 0) var(--to-y, 0);
     scale: var(--to-scale, 1);
     filter: drop-shadow(0 0 0 var(--shadow));
-  }
-}
-
-/* Into a hand this screen does not see: halfway there the card turns over, its face edging away and the back turning in. */
-.board-departure[data-exit='return-hidden'] > .board-departure__piece > .card-back {
-  --card-back-w: 100%;
-
-  height: 100%;
-}
-
-.board-departure[data-exit='return-hidden'] > .board-departure__piece[data-piece='2'] {
-  scale: 0 1;
-}
-
-.board-departure[data-exit='return-hidden'][data-exit-go] > .board-departure__piece[data-piece='1'] {
-  animation: board-exit-turn-away 760ms linear forwards;
-}
-
-.board-departure[data-exit='return-hidden'][data-exit-go] > .board-departure__piece[data-piece='2'] {
-  animation: board-exit-turn-in 760ms linear forwards;
-}
-
-@keyframes board-exit-turn-away {
-  0%,
-  40% {
-    scale: 1 1;
-  }
-
-  54%,
-  100% {
-    scale: 0 1;
-  }
-}
-
-@keyframes board-exit-turn-in {
-  0%,
-  54% {
-    scale: 0 1;
-  }
-
-  68%,
-  100% {
-    scale: 1 1;
   }
 }
 

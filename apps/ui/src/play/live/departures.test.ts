@@ -67,9 +67,8 @@ describe('exitMotionFor', () => {
     expect(exitMotionFor(departure('exile'))).toBe('dissolve');
   });
 
-  it('back to a hand flies there: face up into a hand this screen sees, turning over into one it does not', () => {
+  it('back to a hand flies there, face up', () => {
     expect(exitMotionFor(departure('hand'))).toBe('return');
-    expect(exitMotionFor({ ...departure('hand'), hidden: true })).toBe('return-hidden');
   });
 });
 
@@ -83,22 +82,21 @@ describe('departuresOf', () => {
     const prev = view(player(0, { hand: [], handCount: 0, battlefield: [card(7)] }), player(1, {}));
     const next = view(player(0, { hand: [card(7)], handCount: 1 }), player(1, {}));
     expect(departuresOf(prev, next)).toEqual([expect.objectContaining({ cardId: 7, to: 'hand', toPlayerId: 0 })]);
-    expect(departuresOf(prev, next)[0]!.hidden).toBeUndefined();
   });
 
   it('a card found nowhere went to a hidden hand that grew — its own player’s first — and nowhere shown when none did', () => {
     const prev = view(player(0, { hand: [] }), player(1, { battlefield: [card(7), card(8)] }));
     const intoTheirs = view(player(0, { hand: [] }), player(1, { handCount: 4 }));
-    expect(departuresOf(prev, intoTheirs).map((d) => [d.cardId, d.to, d.toPlayerId, d.hidden])).toEqual([
-      [7, 'hand', 1, true],
-      [8, 'gone', 1, undefined],
+    expect(departuresOf(prev, intoTheirs).map((d) => [d.cardId, d.to, d.toPlayerId])).toEqual([
+      [7, 'hand', 1],
+      [8, 'gone', 1],
     ]);
   });
 
   it('a card a hidden hand shows this screen is found there, face up', () => {
     const prev = view(player(0, { hand: [] }), player(1, { battlefield: [card(7)] }));
     const next = view(player(0, { hand: [] }), player(1, { handCount: 4, handShown: [null, null, null, card(7)] }));
-    expect(departuresOf(prev, next).map((d) => [d.to, d.toPlayerId, d.hidden])).toEqual([['hand', 1, undefined]]);
+    expect(departuresOf(prev, next).map((d) => [d.to, d.toPlayerId])).toEqual([['hand', 1]]);
   });
 });
 
@@ -203,7 +201,7 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
-  it('into a hidden hand: the card and that hand’s own back, flown to the newest back — and a second card to the one before it', () => {
+  it('into a hidden hand: the card, face up, flown to the newest back — and a second card to the one before it', () => {
     vi.useFakeTimers();
     const canvas = board();
     const handle = installDepartures(canvas, { onDone: () => undefined });
@@ -220,15 +218,15 @@ describe('installDepartures', () => {
       <section data-zone="hand"><ul class="card-backs"><li class="card-back" data-card-back=""></li><li class="card-back" data-card-back=""></li></ul></section>`;
     canvas.append(seat);
     const newest = seat.querySelectorAll<HTMLElement>('.card-back')[1]!;
-    handle.leave({ ...departure('hand'), toPlayerId: 1, hidden: true }, 0);
+    handle.leave({ ...departure('hand'), toPlayerId: 1 }, 0);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
-    expect(standIn.getAttribute('data-exit')).toBe('return-hidden');
-    expect([...standIn.querySelectorAll('.board-departure__piece')].map((p) => p.firstElementChild!.className)).toEqual(['board-card', 'card-back']);
+    expect(standIn.getAttribute('data-exit')).toBe('return');
+    expect([...standIn.querySelectorAll('.board-departure__piece')].map((p) => p.firstElementChild!.className)).toEqual(['board-card']);
     expect(newest.hasAttribute(LANDING_ATTR)).toBe(true);
     expect(seat.querySelectorAll('.card-back')[0]!.hasAttribute(LANDING_ATTR)).toBe(false);
-    handle.leave({ ...departure('hand'), cardId: 8, toPlayerId: 1, hidden: true }, 0);
+    handle.leave({ ...departure('hand'), cardId: 8, toPlayerId: 1 }, 0);
     expect(seat.querySelectorAll('.card-back')[0]!.hasAttribute(LANDING_ATTR), 'a second card into the hand lands on the next back').toBe(true);
-    vi.advanceTimersByTime(EXIT_MOTIONS['return-hidden'].ms);
+    vi.advanceTimersByTime(EXIT_MOTIONS.return.ms);
     expect(newest.hasAttribute(LANDING_ATTR)).toBe(false);
     handle.dispose();
   });

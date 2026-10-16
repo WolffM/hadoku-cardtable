@@ -2697,6 +2697,13 @@ function ZoneShell({
  */
 const NOTHING_LEAVING: readonly Departure[] = [];
 
+const NOTHING_HELD: ReadonlySet<number> = new Set();
+
+/** A pile less the cards still on their way to it. */
+function unheld(cards: readonly BoardCard[], held: ReadonlySet<number>): readonly BoardCard[] {
+  return held.size === 0 || !cards.some((c) => held.has(c.id)) ? cards : cards.filter((c) => !held.has(c.id));
+}
+
 /**
  * A battlefield's cards with the ones still drawn leaving put back where they were — each at its
  * old index, and holding nothing: whatever was attached to it is a permanent of its own now.
@@ -3265,6 +3272,7 @@ function PlayerArea({
   arranged,
   layout,
   leaving,
+  held,
   onOpenPile,
   onOpenSettings,
 }: {
@@ -3274,6 +3282,8 @@ function PlayerArea({
   arranged: Arrangement;
   layout: BoardLayout;
   leaving: readonly Departure[];
+  /** Cards still on their way to a pile (`Board`'s `held`): left out of the graveyard and exile until they arrive. */
+  held: ReadonlySet<number>;
   onOpenPile: (zone: PileZone) => void;
   onOpenSettings?: (from: Element) => void;
 }) {
@@ -3405,7 +3415,7 @@ function PlayerArea({
             ownerSide={side}
             zone="graveyard"
             label="Graveyard"
-            cards={player.graveyard}
+            cards={unheld(player.graveyard, held)}
             interaction={interaction}
             onOpen={() => onOpenPile('graveyard')}
           />
@@ -3414,7 +3424,7 @@ function PlayerArea({
             ownerSide={side}
             zone="exile"
             label="Exile"
-            cards={player.exile}
+            cards={unheld(player.exile, held)}
             interaction={interaction}
             onOpen={() => onOpenPile('exile')}
           />
@@ -3760,12 +3770,7 @@ export function Board({
    * opens again on the next click.
    */
   const [openPile, setOpenPile] = useState<{ playerId: number; zone: PileZone } | null>(null);
-  const pileOwner = openPile === null ? undefined : view.players.find((p) => p.id === openPile.playerId);
-  const pileCards = pileOwner === undefined || openPile === null ? [] : pileOwner[openPile.zone];
-  const shownPile = pileCards.length > 0 ? openPile : null;
   const closePile = useCallback(() => setOpenPile(null), []);
-  const openPileOf = (playerId: number) => (zone: PileZone) =>
-    setOpenPile(shownPile?.playerId === playerId && shownPile.zone === zone ? null : { playerId, zone });
   /** A selection made in the view closes it, then answers exactly as the board's own click does. */
   const pileInteraction: BoardInteraction | undefined =
     interaction === undefined
@@ -3849,6 +3854,20 @@ export function Board({
     const out = [...leaving.values()].filter((l) => l.departure.playerId === playerId).map((l) => l.departure);
     return out.length === 0 ? NOTHING_LEAVING : out;
   };
+  /*
+   * A card still drawn on its way to a pile — a permanent leaving the battlefield, a resolved spell
+   * waiting on the stack while its effects play (`live/placed.ts`'s `onHolding`) — is in no pile yet:
+   * it shows up there, and the pile's count goes up, once its motion is over (the operator,
+   * 2026-10-16: "make sure all these animations can finish before the card show up in the gy/exile
+   * zones").
+   */
+  const [spellsHeld, setSpellsHeld] = useState<ReadonlySet<number>>(NOTHING_HELD);
+  const held = leaving.size === 0 && spellsHeld.size === 0 ? NOTHING_HELD : new Set([...leaving.keys(), ...spellsHeld]);
+  const pileOwner = openPile === null ? undefined : view.players.find((p) => p.id === openPile.playerId);
+  const pileCards = pileOwner === undefined || openPile === null ? [] : unheld(pileOwner[openPile.zone], held);
+  const shownPile = pileCards.length > 0 ? openPile : null;
+  const openPileOf = (playerId: number) => (zone: PileZone) =>
+    setOpenPile(shownPile?.playerId === playerId && shownPile.zone === zone ? null : { playerId, zone });
   const departures = useRef<ReturnType<typeof installDepartures> | null>(null);
   useLayoutEffect(() => {
     const el = root.current;
@@ -3893,7 +3912,7 @@ export function Board({
   useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
-    const handle = installPlaced(el);
+    const handle = installPlaced(el, { onHolding: setSpellsHeld });
     placed.current = handle;
     return () => {
       placed.current = null;
@@ -4027,6 +4046,7 @@ export function Board({
             /* Mine only (Q15c): the opponent's board is always the default one. */
             layout="single"
             leaving={leavingOn(p.id)}
+            held={held}
             onOpenPile={openPileOf(p.id)}
           />
         ))}
@@ -4059,6 +4079,7 @@ export function Board({
           arranged={arranged}
           layout={boardLayout}
           leaving={leavingOn(viewer.id)}
+          held={held}
           onOpenPile={openPileOf(viewer.id)}
           onOpenSettings={onOpenSettings}
         />
