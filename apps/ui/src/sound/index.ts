@@ -174,6 +174,18 @@ export function setMatchMusic(on: boolean): void {
   applyMusic();
 }
 
+/**
+ * For a screen's `onPointerOver`: the pointer arriving on an enabled button plays the card hover. One sound for
+ * both (the operator, 2026-10-16: "drop hover a button. make it the same as hover a card"). A card tile that is a
+ * button plays its own hover, and moving between a button's children is not arriving.
+ */
+export function hoverControl(event: { target: EventTarget | null; relatedTarget: EventTarget | null }): void {
+  const button = event.target instanceof Element ? event.target.closest('button') : null;
+  if (button === null || button.disabled || button.hasAttribute('data-card-id')) return;
+  if (event.relatedTarget instanceof Node && button.contains(event.relatedTarget)) return;
+  playRole('ui.hover-card');
+}
+
 const handlers = new Map<string, () => void>();
 
 /**

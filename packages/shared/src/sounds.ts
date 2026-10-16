@@ -140,7 +140,6 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		name: 'Interface',
 		roles: [
 			ui('ui.hover-card', 'Hover a card', 'The pointer arrives on a card. Fires constantly; keep it faint.'),
-			ui('ui.hover-control', 'Hover a button', 'The pointer arrives on a control.'),
 			ui('ui.select', 'Select', 'A click that took effect.'),
 			ui('ui.lift', 'Pick up a card', 'A press-drag takes a card in hand.'),
 			ui('ui.place', 'Put a card down', 'A drag lands somewhere it may.'),

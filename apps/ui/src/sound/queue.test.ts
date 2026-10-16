@@ -11,7 +11,7 @@ function take(file: string, section: SoundTake['section'] = 'Moments'): SoundTak
 describe('the queue’s order', () => {
   it('serves empty cells only: roles first in group order, then mono colours, never music', () => {
     const q = emptyCells({ 'ui.hover-card|play': ['x/take-1.ogg'] });
-    expect(q[0]!.cell).toBe('ui.hover-control|play');
+    expect(q[0]!.cell).toBe('ui.select|play');
     expect(q.some((i) => i.cell.startsWith('music.'))).toBe(false);
     expect(q.some((i) => i.cell === 'ui.hover-card|play')).toBe(false);
     const firstColour = q.findIndex((i) => !i.cell.endsWith('|play'));
@@ -35,7 +35,7 @@ describe('the queue’s order', () => {
   it('a skipped cell goes to the back, in the order it was skipped', () => {
     const q = queueOrder({}, ['ui.select|play', 'ui.hover-card|play']);
     expect(q.slice(-2).map((i) => i.cell)).toEqual(['ui.select|play', 'ui.hover-card|play']);
-    expect(q[0]!.cell).toBe('ui.hover-control|play');
+    expect(q[0]!.cell).toBe('ui.lift|play');
   });
 });
 

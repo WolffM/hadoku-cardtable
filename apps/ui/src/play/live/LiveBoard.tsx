@@ -284,7 +284,7 @@ import { deriveSoundEvents } from './sound-events.ts';
 import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
-import { isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
+import { hoverControl, isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import { boardBusyUntil, lifeImpactAt } from '../motion.ts';
 import {
   abortAsk,
@@ -2919,6 +2919,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       ref={rootRef}
       data-spectator={spectator ? '' : undefined}
       data-role={watcher ? 'watcher' : undefined}
+      onPointerOver={hoverControl}
       // The board's own arranging drag is HTML5 and is lane A's; a watcher's
       // window refuses it here, at the root, rather than teaching the board.
       onDragStartCapture={spectator ? (event) => event.preventDefault() : undefined}

@@ -85,7 +85,7 @@ has not been checked against a real dump.
 | Role | When | Notes |
 | --- | --- | --- |
 | `ui.hover-card` | pointer enters a card (hand, board, pack) | quietest, ~30 ms throttle |
-| `ui.hover-control` | pointer enters a button | quieter still, or off |
+| (button hover) | pointer enters an enabled button in a match | plays `ui.hover-card`; its own role was dropped 2026-10-16 (the operator: *"drop hover a button. make it the same as hover a card"*) |
 | `ui.select` | a click that took effect | |
 | `ui.lift` | press-drag latches a card | the shared press-drag slop from 05843b8 |
 | `ui.place` | a drag lands somewhere legal (arrangement, zone) | |

@@ -164,7 +164,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'Hover fatigue',
     beats: Array.from({ length: 70 }, (_, i) => ({
       at: i * 70 + Math.floor(i / 7) * 250,
-      role: i % 7 === 6 ? 'ui.hover-control' : 'ui.hover-card',
+      role: 'ui.hover-card',
       label: i % 7 === 6 ? 'Hover a button' : 'Hover a card',
     })),
   },

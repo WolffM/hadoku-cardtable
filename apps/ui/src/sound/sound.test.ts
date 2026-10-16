@@ -22,6 +22,7 @@ import type { SoundEvent } from './mix.ts';
 import { SoundSettings } from '../settings/SoundSettings.tsx';
 import { LEVEL_KEYS, MUTE_KEY, getLevel, isMuted, resetMutedForTests, setMuted } from './mute.ts';
 import {
+  hoverControl,
   playRole,
   playSoundEvents,
   resetRolePlayerForTests,
@@ -92,6 +93,28 @@ describe('playRole', () => {
   it('gives one stable listener per role, so a memoised tile stays memoised', () => {
     expect(roleHandler('ui.hover-card')).toBe(roleHandler('ui.hover-card'));
     expect(roleHandler('ui.hover-card')).not.toBe(roleHandler('ui.select'));
+  });
+});
+
+describe('hoverControl', () => {
+  it('plays the card hover when the pointer arrives on an enabled button, not within it, nor on a card or a disabled one', () => {
+    const events = recorder();
+    const { container } = render(
+      createElement('div', { onPointerOver: hoverControl }, [
+        createElement('button', { key: 'ok', type: 'button' }, createElement('span', null, 'OK')),
+        createElement('button', { key: 'off', type: 'button', disabled: true }, 'Off'),
+        createElement('button', { key: 'card', type: 'button', 'data-card-id': 7 }, 'Card'),
+        createElement('p', { key: 'text' }, 'text'),
+      ]),
+    );
+    const [ok, off, card] = Array.from(container.querySelectorAll('button'));
+    const label = ok!.querySelector('span')!;
+    fireEvent.pointerOver(ok!, { relatedTarget: container.querySelector('p') });
+    fireEvent.pointerOver(label, { relatedTarget: ok });
+    fireEvent.pointerOver(off!);
+    fireEvent.pointerOver(card!);
+    fireEvent.pointerOver(container.querySelector('p')!);
+    expect(events).toEqual([{ role: 'ui.hover-card' }]);
   });
 });
 
