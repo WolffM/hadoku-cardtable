@@ -343,7 +343,7 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
       if (r.evt !== 'client' || (r.kind !== 'handover' && r.kind !== 'landing')) continue;
       const f = (k: string) => (r[k] === undefined ? '-' : String(r[k]));
       console.log(
-        `[w67-hand] ${run.label} telemetry seat ${f('seat')} ${f('screen')} ${String(r.kind)} ${f('how')}: from ${f('fromX')},${f('fromY')} to ${f('toX')},${f('toY')} dist ${f('dist')}px; glide ${f('glideMs')}ms done=${f('glideDone')}; ${f('msSinceRelease')}ms since release, ${f('msSinceStackFrame')}ms since the stack frame; motion=${f('motion')} doubled=${f('doubled')}`,
+        `[w67-hand] ${run.label} telemetry seat ${f('seat')} ${f('screen')} ${String(r.kind)} ${f('how')}: from ${f('fromX')},${f('fromY')} to ${f('toX')},${f('toY')} dist ${f('dist')}px shrink ${f('shrink')}px; glide ${f('glideMs')}ms done=${f('glideDone')}; ${f('msSinceRelease')}ms since release, ${f('msSinceStackFrame')}ms since the stack frame; motion=${f('motion')} doubled=${f('doubled')}`,
       );
     }
 
@@ -398,14 +398,20 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
     // drawn, is a swap in place, never a 300 ms "trip" from the gap to the gap with the real card
     // hidden under it. A cast card waits over its gap at a hand card's size (the operator,
     // 2026-10-15), so its landing there is the shrink into the slot — a change of size, in place.
-    for (const [who, rec] of [['alice', mine], ['bob', theirs]] as const) {
-      const end = rec.filter((s) => s.what === 'field' && s.attrs !== 'gone').at(-1);
-      const flights = rec.filter((s) => s.at >= t0 && (s.what === 'handoff' || /data-cast-lift=returning/.test(s.attrs)));
-      const first = flights[0];
-      if (end === undefined || first === undefined) continue;
-      const moves = Math.hypot(first.x - end.x, first.y - end.y) > 4;
-      const shrinks = Math.abs(first.w - end.w) > 4 || Math.abs(first.h - end.h) > 4;
-      expect(moves || shrinks, `${who}: a landing flight starts where it ends, at the size it ends (${rel(first.at, t0)}ms @${first.x},${first.y} ${first.w}x${first.h}; ends @${end.x},${end.y} ${end.w}x${end.h})`).toBe(true);
+    // Judged on each screen's own landing report, measured where the trip starts: the recorder's
+    // first frame of a flight can come a long frame into its 300 ms shrink (124 ms on a busy claw,
+    // 71x98 of an 85x118 → 68x95 shrink), which is no start point at all.
+    // A report of a swap is one with no flight drawn on that screen.
+    for (const [screen, rec] of [['caster', mine], ['receiver', theirs]] as const) {
+      const landings = serverLog(stack).slice(logFrom).filter((r) => r.evt === 'client' && r.kind === 'landing' && r.screen === screen);
+      expect(landings.map((r) => r.how), `the ${screen}'s screen reports one landing, swapped in place or flown`).toEqual([expect.stringMatching(/^(swap|flight)$/)]);
+      const [r] = landings;
+      const flown = rec.filter((s) => s.at >= t0 && (s.what === 'handoff' || /data-cast-lift=returning/.test(s.attrs)));
+      if (r?.how !== 'flight') {
+        expect(flown.map((s) => `${rel(s.at, t0)}ms @${s.x},${s.y} ${s.w}x${s.h}`), `${screen}: reported a swap in place, and drew no flight`).toEqual([]);
+        continue;
+      }
+      expect(Number(r.dist) > 4 || Math.abs(Number(r.shrink)) > 4, `${screen}: a landing flight starts where it ends, at the size it ends (from ${String(r.fromX)},${String(r.fromY)} to ${String(r.toX)},${String(r.toY)}, shrink ${String(r.shrink)}px)`).toBe(true);
     }
   } finally {
     await stack.stop();
