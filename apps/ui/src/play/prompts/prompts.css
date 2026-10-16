@@ -769,6 +769,11 @@
   min-height: 0;
 }
 
+/* One group left (`OrderPrompt.tsx` draws no empty "Unplaced" when nothing may stay there): it has the width. */
+.prompt__dual[data-one] {
+  grid-template-columns: 1fr;
+}
+
 /*
  * One pile of cards, the board's way of stacking them (`card.css`): the card in
  * front drawn whole, at the foot, and each one above it peeking out by the

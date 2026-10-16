@@ -232,6 +232,23 @@ describe('order over cards Forge pre-rendered', () => {
     expectWireReply('order', answers[0]);
   });
 
+  it('once every card is placed in an order that leaves none unplaced, the empty Unplaced group is gone; unplacing one brings it back', () => {
+    const ask = { ...cardsAsk(), remainingObjectsMin: 0, remainingObjectsMax: 0 };
+    const { getByTestId, queryByTestId, container } = mountPrompt('order', ask, poolLookup);
+    for (const li of [...getByTestId('order-source').querySelectorAll<HTMLElement>(':scope > li')]) fireEvent.click(li);
+    expect(queryByTestId('order-source')).toBeNull();
+    expect(container.querySelector('.prompt__dual')!.hasAttribute('data-one')).toBe(true);
+    fireEvent.click(getByTestId('order-dest').querySelector<HTMLElement>(':scope > li')!);
+    expect(keysIn(getByTestId('order-source'))).toEqual(['s0']);
+  });
+
+  it('an empty Unplaced group stays while a card may be left in it', () => {
+    const ask = { ...cardsAsk(), remainingObjectsMin: 0, remainingObjectsMax: 3 };
+    const { getByTestId } = mountPrompt('order', ask, poolLookup);
+    for (const li of [...getByTestId('order-source').querySelectorAll<HTMLElement>(':scope > li')]) fireEvent.click(li);
+    expect(keysIn(getByTestId('order-source'))).toEqual([]);
+  });
+
   it('Auto answers in one press with the order Forge offered', () => {
     const { getByTestId, answers } = mountPrompt('order', cardsAsk(), poolLookup);
     fireEvent.click(getByTestId('order-source').querySelector<HTMLElement>(':scope > li:last-child')!);

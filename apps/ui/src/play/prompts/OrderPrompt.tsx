@@ -79,6 +79,11 @@
  * the two groups stay side by side, so each pile keeps the column's whole
  * height and the sheet still never scrolls.
  *
+ * Once every card of an order that must place them all is placed, the empty
+ * "Unplaced" group is gone and the answer takes the sheet's width (the
+ * operator, 2026-10-16, over Tezzeret's "Unplaced 0": *"sure that seems
+ * reasonable"*).
+ *
  * The operator, 2026-10-16, over "Choose order of cards to put into the exile
  * zone": *"this needs an auto button."* Every order over cards has one, the
  * damage window's own (`AssignPrompts.tsx`): it answers with the order Forge
@@ -197,6 +202,14 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
       return move(key, slot.testid === LIST_TESTID.dest ? 'dest' : 'source', before);
     },
   });
+
+  /**
+   * A pile's unplaced group is drawn while it holds a card, or while a card may be left in it — a
+   * scry's top, an answer that may leave some unplaced. Empty in an order that must place every card,
+   * it holds nothing to place and takes nothing back, so it is not drawn and the pile has the width.
+   * A list of words keeps both columns: it is narrow either way.
+   */
+  const showSource = !anyCards || lists.source.length > 0 || ask.rest !== undefined || ask.remainingObjectsMax !== 0;
 
   /** Where each group's cards go, when they are cards going into a zone. */
   const destinationOf: Readonly<Record<Side, Destination | undefined>> = { source: ask.rest, dest: ask.destination };
@@ -331,8 +344,8 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
       }
     >
       {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
-      <div className="prompt__dual" data-piles={anyCards || undefined}>
-        {group('source', 'Unplaced', ask.rest !== undefined)}
+      <div className="prompt__dual" data-piles={anyCards || undefined} data-one={!showSource || undefined}>
+        {showSource && group('source', 'Unplaced', ask.rest !== undefined)}
         {group('dest', ask.top, true)}
       </div>
       {ask.showRememberCheckbox && (
