@@ -5,8 +5,8 @@ take moves to a folder named after the cell it plays in (`g.phase/`,
 `u-basic/`, `rw-land/`) as `take-<n>.ogg`, and its label becomes the cell's
 name ("Phase change 2", "Island 1"). Every catalogue reference follows:
 assignments, marks. `sources.json` keeps new name -> generated name, so
-`finish.py --into` still finds a renamed take's raw render. A copy of every
-chosen take goes to ~/.local/share/cardtable-sfx/chosen/ under its new name.
+`finish.py --into` still finds a renamed take's raw render.
+~/.local/share/cardtable-sfx/chosen/ is made a copy of exactly the chosen takes.
 
 Everything else in the catalogue is retired as `unused` (moved to `retired/`,
 logged in `retired.jsonl`), which `retired.py` counts but does not treat as
@@ -140,7 +140,14 @@ def main():
         if not files and not os.listdir(folder):
             os.rmdir(folder)
 
+    # The archive mirrors the current picks: a take dropped since an earlier pass is in retired/, not here.
     chosen = os.path.join(ROOT, 'chosen')
+    current = {t['file'] for t in kept}
+    for folder, _, files in os.walk(chosen):
+        for f in files:
+            rel = os.path.relpath(os.path.join(folder, f), chosen)
+            if f.endswith('.ogg') and rel not in current:
+                os.remove(os.path.join(folder, f))
     for take in kept:
         target = os.path.join(chosen, take['file'])
         os.makedirs(os.path.dirname(target), exist_ok=True)
