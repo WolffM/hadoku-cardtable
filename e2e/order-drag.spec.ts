@@ -33,6 +33,9 @@ import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
+/** `apps/ui/src/play/live/gestures/types.ts`'s `DRAG_SLOP_PX`: how far a press travels before it is a drag. */
+const DRAG_SLOP_PX = 6;
+
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
@@ -156,7 +159,7 @@ function probe(page: Page, at: Point, dragged: number): Promise<Frame> {
 
 /**
  * A real press-drag of `row` onto `onto` (at `at` across and down it, or `'before'` it), a step at a time the
- * way a hand drags, every frame past the first two probed. The last frame is taken with the pointer held still
+ * way a hand drags, every frame past the drag slop probed. The last frame is taken with the pointer held still
  * over the drop point, before the release.
  */
 async function dragProbed(page: Page, label: string, row: Locator, onto: Locator, at: Point | 'before' = { x: 0.5, y: 0.5 }): Promise<void> {
@@ -184,7 +187,8 @@ async function dragProbed(page: Page, label: string, row: Locator, onto: Locator
       y: from.y + ((to.y - from.y) * i) / steps,
     };
     await page.mouse.move(at.x, at.y);
-    if (i >= 3) frames.push(await probe(page, at, dragged));
+    // A drag starts once the pointer is past the board's slop (`DRAG_SLOP_PX`, 6px): every frame past it is measured.
+    if (Math.hypot(at.x - from.x, at.y - from.y) >= DRAG_SLOP_PX + 1) frames.push(await probe(page, at, dragged));
   }
   await page.waitForTimeout(100);
   const last = await probe(page, to, dragged);

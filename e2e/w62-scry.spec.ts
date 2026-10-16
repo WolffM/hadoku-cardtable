@@ -29,7 +29,7 @@ import { expect, test } from '@playwright/test';
 
 import { castCard, makeTitled, offered, promptMethod } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { dragRowOnto } from './play/order.ts';
+import { dragRowOnto, stripPoint } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -65,10 +65,9 @@ test(
       // A real press-drag of the first card into the answer's own empty space.
       const first = sourceRows.nth(0);
       const firstKey = await first.getAttribute('data-key');
-      const from = (await first.boundingBox())!;
+      // Pressed on the part of the card that shows: in a pile the cards in front cover the rest of it.
+      const { x: fx, y: fy } = await stripPoint(first);
       const to = (await dest.boundingBox())!;
-      const fx = from.x + from.width / 2;
-      const fy = from.y + from.height / 2;
       const tx = to.x + to.width / 2;
       const ty = to.y + to.height / 2;
 
