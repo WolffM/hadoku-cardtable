@@ -1036,18 +1036,20 @@ public final class PlayBridge {
         }
 
         /**
-         * Whether the condition keys {@code found} hold when nothing has been counted: a comparison
-         * ({@code SVarCompare$ LT2}, {@code ConditionCompare$ EQ0}, {@code PresentCompare$ LE3} …) that
-         * Forge's own compare meets at 0 — "NotPresent" is Forge's {@code EQ0} — or a {@code False} /
-         * {@code None} flag. A comparison not given is Forge's default {@code GE1}, which 0 never meets.
+         * Whether the condition keys {@code found} hold when nothing has been counted or paid: a
+         * comparison ({@code SVarCompare$ LT2}, {@code ConditionCompare$ EQ0}, {@code PresentCompare$ LE3}
+         * …) that Forge's own compare meets at 0, a key Forge names as a negation
+         * ({@code ConditionNotPresent$}, {@code ConditionManaNotSpent$} — Mythos of Illuna's copy beside
+         * its "if {R}{G} was spent"), or a {@code False} / {@code None} flag. A comparison not given is
+         * Forge's default {@code GE1}, which 0 never meets. Timing is not a floor.
          */
         private static boolean floorMet(final Set<String> found, final forge.game.CardTraitBase trait) {
             final Map<String, String> params = trait.getMapParams();
             for (final String key : found) {
                 final String value = params.get(key);
-                if ("False".equalsIgnoreCase(value) || "None".equalsIgnoreCase(value)) { return true; }
-                final String compare = key.contains("NotPresent") ? "EQ0" : key.matches(".*Compare\\d?") ? value : null;
-                if (compare != null && atFloor(compare, trait.getHostCard(), trait)) { return true; }
+                if (timing(key, value)) { continue; }
+                if (key.contains("Not") || "False".equalsIgnoreCase(value) || "None".equalsIgnoreCase(value)) { return true; }
+                if (key.matches(".*Compare\\d?") && atFloor(value, trait.getHostCard(), trait)) { return true; }
             }
             return false;
         }
@@ -1066,12 +1068,14 @@ public final class PlayBridge {
          */
         private static boolean timingOnly(final Set<String> found, final Map<String, String> params) {
             for (final String key : found) {
-                final String value = params.get(key);
-                final boolean timing = key.contains("Turn") || key.contains("Phase")
-                        || (key.equals("Condition") && value != null && (value.contains("Turn") || value.contains("Phase")));
-                if (!timing) { return false; }
+                if (!timing(key, params.get(key))) { return false; }
             }
             return true;
+        }
+
+        private static boolean timing(final String key, final String value) {
+            return key.contains("Turn") || key.contains("Phase")
+                    || (key.equals("Condition") && value != null && (value.contains("Turn") || value.contains("Phase")));
         }
 
         private static java.lang.reflect.Method commonRequirements() throws NoSuchMethodException {
