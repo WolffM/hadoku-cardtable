@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { SOUND_MATRIX, SOUND_ROLES, type CellId, type SoundBus, type SoundTake } from '@hadoku/shared';
+import { REVERSED_ROLES, SOUND_MATRIX, SOUND_ROLES, type CellId, type SoundBus, type SoundTake } from '@hadoku/shared';
 
 import { soundsClient, type SoundsClient } from '../sound/builderClient.ts';
 import { GainSlider } from '../sound/GainSlider.tsx';
@@ -286,7 +286,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
                           </span>
                           <span className="sound-builder__rowsub">
                             {event.seat === 'opp' ? 'Them · ' : ''}
-                            {SOUND_ROLES.get(beat.role)?.name}
+                            {SOUND_ROLES.get(REVERSED_ROLES[beat.role] ?? beat.role)?.name}
                             {event.colourCell != null ? ` + ${event.colourCell}` : ''}
                           </span>
                         </div>

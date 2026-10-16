@@ -79,9 +79,9 @@ describe('the queue’s candidates', () => {
   it('offers a cut or reversed take before the take it was made from', () => {
     const c = candidatesFor('g.counter-on|play', [take('g.counter-on/take-v1-5000.ogg'), take('g.counter-on/take-v1-5000-half.ogg')], new Set());
     expect(c[0]!.file).toBe('g.counter-on/take-v1-5000-half.ogg');
-    expect(candidatesFor('g.untap|play', [take('g.untap-all/take-v1-5000.ogg'), take('g.untap/take-rev-v3-5002.ogg')], new Set()).map((t) => t.file).slice(0, 2)).toEqual([
-      'g.untap/take-rev-v3-5002.ogg',
-      'g.untap-all/take-v1-5000.ogg',
+    expect(candidatesFor('g.tap|play', [take('g.tap/take-v3-5002.ogg'), take('g.tap/take-rev-v3-5002.ogg')], new Set()).map((t) => t.file)).toEqual([
+      'g.tap/take-rev-v3-5002.ogg',
+      'g.tap/take-v3-5002.ogg',
     ]);
   });
 
@@ -98,6 +98,12 @@ describe('the queue’s candidates', () => {
 
   it('offers a basic land its land takes, then its colour’s land', () => {
     expect(candidatesFor('U|basic', takes, new Set()).slice(0, 2).map((t) => t.file)).toEqual(['land-island/take-1.ogg', 'u.land/take-1.ogg']);
+  });
+
+  it('offers a colour cell the takes harvested into its own folder, `u-spell` as well as `u.spell`', () => {
+    const own = [take('u-spell/take-1.ogg'), take('u-spell/take-v1-11000.ogg'), take('u-basic/take-1.ogg')];
+    expect(candidatesFor('U|spell', own, new Set()).slice(0, 2).map((t) => t.file)).toEqual(['u-spell/take-1.ogg', 'u-spell/take-v1-11000.ogg']);
+    expect(candidatesFor('U|basic', own, new Set())[0]!.file).toBe('u-basic/take-1.ogg');
   });
 
   it('fills a thin choice to three from the library, never past six, and never twice the same', () => {

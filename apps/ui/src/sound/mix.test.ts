@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isCellId, SOUND_ROLES } from '@hadoku/shared';
+import { isCellId, REVERSED_ROLES, SOUND_ROLES } from '@hadoku/shared';
 
 import { createMixPlanner, DEFAULT_MIX, type MixSettings } from './mix.ts';
 import { capturedGameScenario } from './captured.ts';
@@ -54,6 +54,15 @@ describe('plan', () => {
     for (let i = 1; i < files.length; i++) expect(files[i]).not.toBe(files[i - 1]);
   });
 
+  it('plays Untap as the Tap cell backwards, collapsing only with another Untap', () => {
+    const p = planner({ 'g.tap|play': ['a/take-1.ogg'] }, { 'g.tap|play': 0.5 });
+    expect(p.plan({ role: 'g.tap' }, 0, MIX).voices).toHaveLength(1);
+    expect(p.plan({ role: 'g.untap' }, 10, MIX).voices).toEqual([
+      { cell: 'g.tap|play', file: 'a/take-1.ogg', bus: 'game', gain: 0.5, duck: false, reverse: true },
+    ]);
+    expect(p.plan({ role: 'g.untap' }, 20, MIX).skipped).toEqual([{ cell: 'g.tap|play', reason: 'collapsed' }]);
+  });
+
   it('plays a music role on the music bus', () => {
     const p = planner({ 'music.match|play': ['music-x/take-1.ogg'] });
     expect(p.plan({ role: 'music.match' }, 0, { ...MIX, bus: { ...MIX.bus, music: 0.3 } }).voices).toEqual([
@@ -71,7 +80,7 @@ describe('SCENARIOS', () => {
   it('every beat names a real role, and its colour layer is a real cell', () => {
     for (const s of [...SCENARIOS, capturedGameScenario()]) {
       for (const b of s.beats) {
-        expect(SOUND_ROLES.has(b.role), `${s.id}: ${b.role}`).toBe(true);
+        expect(SOUND_ROLES.has(REVERSED_ROLES[b.role] ?? b.role), `${s.id}: ${b.role}`).toBe(true);
         const cell = beatEvent(b, { me: 'RG', opp: 'UB' }).colourCell;
         if (cell != null) expect(isCellId(cell), `${s.id}: ${cell}`).toBe(true);
       }

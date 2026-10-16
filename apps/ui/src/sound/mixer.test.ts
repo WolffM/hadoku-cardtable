@@ -23,6 +23,21 @@ interface FakeSource {
 
 let contexts: FakeContext[] = [];
 
+class FakeBuffer {
+  duration = 0.3;
+  sampleRate = 48000;
+  constructor(private readonly channels: Float32Array[]) {}
+  get numberOfChannels(): number {
+    return this.channels.length;
+  }
+  get length(): number {
+    return this.channels[0]!.length;
+  }
+  getChannelData(ch: number): Float32Array {
+    return this.channels[ch]!;
+  }
+}
+
 class FakeContext {
   state: 'suspended' | 'running' = 'suspended';
   currentTime = 0;
@@ -56,8 +71,11 @@ class FakeContext {
     this.sources.push(s);
     return s;
   }
-  async decodeAudioData(): Promise<{ duration: number }> {
-    return { duration: 0.3 };
+  async decodeAudioData(): Promise<FakeBuffer> {
+    return new FakeBuffer([new Float32Array([1, 2, 3])]);
+  }
+  createBuffer(channels: number, length: number): FakeBuffer {
+    return new FakeBuffer(Array.from({ length: channels }, () => new Float32Array(length)));
   }
   /** Held until `grant()`: the browser only lets a gesture resume a context, and then every pending resume settles. */
   resume(): Promise<void> {
@@ -120,6 +138,21 @@ describe('the mixer', () => {
     expect(ctx.sources[0]!.started).toBe(true);
     // ui bus 0.5 × the cell's 0.5.
     expect(ctx.gains.at(-1)!.gain.value).toBeCloseTo(0.25);
+  });
+
+  it('plays Untap as the Tap take backwards, and Tap still forwards', async () => {
+    const planner = createMixPlanner(() => 0);
+    planner.setAssignments({ 'g.tap|play': ['a/take-1.ogg'] }, {});
+    const m = createMixer((f) => `/takes/${f}`, planner);
+    m.play({ role: 'g.untap' });
+    const ctx = contexts[0]!;
+    ctx.grant();
+    await flush();
+    m.play({ role: 'g.tap' }, performance.now() + 1000);
+    await flush();
+    const [untap, tap] = ctx.sources.map((s) => Array.from((s.buffer as FakeBuffer).getChannelData(0)));
+    expect(untap).toEqual([3, 2, 1]);
+    expect(tap).toEqual([1, 2, 3]);
   });
 
   it('a sound asked for while locked is dropped, not played when the gesture finally comes', async () => {

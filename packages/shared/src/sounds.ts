@@ -179,8 +179,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			// Not lands: a played land is `g.land` alone. "Lands on the table" read as the card type (the operator, 2026-10-11).
 			game('g.enter', 'Hits the table', 'Any other permanent arrives: the thud after a creature’s voice, an artifact, an enchantment.'),
 			game('g.token', 'Token appears', 'A token is created.'),
-			game('g.tap', 'Tap', 'A permanent turns sideways.'),
-			game('g.untap', 'Untap', 'A single permanent untaps.'),
+			game('g.tap', 'Tap', 'A permanent turns sideways. Untapping plays it backwards.'),
 			game('g.counter-on', 'Counter added', 'A +1/+1, loyalty or other counter is put on.'),
 			game('g.counter-off', 'Counter removed', 'A counter comes off.'),
 			game('g.attach', 'Attach', 'An aura or equipment attaches.'),
@@ -243,6 +242,12 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 export const SOUND_ROLES: ReadonlyMap<string, SoundRole> = new Map(
 	SOUND_ROLE_GROUPS.flatMap((g) => g.roles.map((r) => [r.id, r] as const)),
 );
+
+/**
+ * Events that play another role's take backwards and so have no cell of their own. Untap is always Tap
+ * reversed (the operator, 2026-10-15: *"untap should always be the reverse of tap, doesn't need its own sound"*).
+ */
+export const REVERSED_ROLES: Readonly<Record<string, string>> = { 'g.untap': 'g.tap' };
 
 /** `<ColourId>|<ParadigmId>` or `<role id>|play`. Validated by `isCellId`. */
 export type CellId = `${ColourId}|${ParadigmId}` | `${string}|play`;

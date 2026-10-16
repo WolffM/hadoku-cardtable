@@ -17,9 +17,11 @@
  *   once: six creatures dying together is one `g.dies`.
  * - **Variation.** A cell with several takes plays one at random, never the
  *   one it played last.
+ * - **Reversed.** A `REVERSED_ROLES` event (Untap) plays its other role's
+ *   cell backwards, and collapses only with itself.
  */
 
-import { SOUND_ROLES, type SoundBus } from '@hadoku/shared';
+import { REVERSED_ROLES, SOUND_ROLES, type SoundBus } from '@hadoku/shared';
 
 import { pickRandom } from './builderClient.ts';
 
@@ -56,6 +58,8 @@ export interface PlannedVoice {
   bus: SoundBus;
   gain: number;
   duck: boolean;
+  /** Played backwards: the event was a `REVERSED_ROLES` one. */
+  reverse?: true;
 }
 
 export type SkipReason = 'empty' | 'collapsed' | 'opponent-ui' | 'unknown-role';
@@ -88,21 +92,24 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
     gainOf,
     plan(event, nowMs, settings) {
       const seat = event.seat ?? 'me';
-      const roleCell = `${event.role}|play`;
-      const role = SOUND_ROLES.get(event.role);
+      const reversedFrom = REVERSED_ROLES[event.role];
+      const roleCell = `${reversedFrom ?? event.role}|play`;
+      const role = SOUND_ROLES.get(reversedFrom ?? event.role);
       if (role === undefined) return { voices: [], skipped: [{ cell: roleCell, reason: 'unknown-role' }] };
       if (seat === 'opp' && role.bus === 'ui') {
         return { voices: [], skipped: [{ cell: roleCell, reason: 'opponent-ui' }] };
       }
 
-      const layers: { cell: string; bus: SoundBus; duck: boolean }[] = [
-        { cell: roleCell, bus: role.bus, duck: role.duck === true },
+      const layers: { cell: string; collapse: string; bus: SoundBus; duck: boolean }[] = [
+        { cell: roleCell, collapse: `${event.role}|play`, bus: role.bus, duck: role.duck === true },
       ];
-      if (event.colourCell != null) layers.push({ cell: event.colourCell, bus: 'colour', duck: false });
+      if (event.colourCell != null) {
+        layers.push({ cell: event.colourCell, collapse: event.colourCell, bus: 'colour', duck: false });
+      }
 
       const result: PlanResult = { voices: [], skipped: [] };
       for (const layer of layers) {
-        const key = `${layer.cell}#${seat}`;
+        const key = `${layer.collapse}#${seat}`;
         const prev = lastAt.get(key);
         if (prev !== undefined && nowMs - prev < settings.collapseMs) {
           result.skipped.push({ cell: layer.cell, reason: 'collapsed' });
@@ -122,6 +129,7 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
           bus: layer.bus,
           gain: gainOf(layer.cell) * settings.bus[layer.bus] * seatLevel,
           duck: layer.duck,
+          ...(reversedFrom !== undefined && layer.cell === roleCell ? { reverse: true as const } : {}),
         });
       }
       return result;

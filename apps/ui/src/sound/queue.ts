@@ -128,8 +128,8 @@ function shuffled<T>(items: readonly T[], seed: number): T[] {
 const folderOf = (t: SoundTake): string => t.file.slice(0, t.file.indexOf('/'));
 /** A take cut or turned from another (`-first`, `-half`, `take-rev-`): the operator asked for it, so it comes first. */
 const isEdited = (t: SoundTake): boolean => /-(?:first|half)\.ogg$|\/take-rev-/.test(t.file);
-/** `wu.spell`, `g.creature`, `bgu.r2`: a colour code and what it was generated as. */
-const COLOUR_FOLDER = /^([wubrgc]+)\.(spell|creature|land|artifact|artifact-creature|r2)$/;
+/** `wu.spell`, `g.creature`, `bgu.r2`: a colour code and what it was generated as; `u-basic`, a cell harvested (`scripts/sfx/harvest.py`). */
+const COLOUR_FOLDER = /^([wubrgc]+)[.-](spell|creature|land|basic|artifact|artifact-creature|r2)$/;
 
 /** Lower rank is a better guess; `null` is not a candidate for this cell at all. */
 function rankFor(cell: string, folder: string): number | null {
@@ -138,8 +138,6 @@ function rankFor(cell: string, folder: string): number | null {
     if (folder === row) return 0;
     // The older moment folders: `m-draw` was made for what is now `g.draw`.
     if (row.startsWith('g.') && folder === `m-${row.slice(2)}`) return 0;
-    // The retired untap step's takes are untaps (2026-10-10).
-    if (row === 'g.untap' && folder === 'g.untap-all') return 1;
     return null;
   }
   const code = row.toLowerCase();
@@ -151,7 +149,7 @@ function rankFor(cell: string, folder: string): number | null {
   const m = COLOUR_FOLDER.exec(folder);
   if (m === null || m[1] !== code) return null;
   const kind = m[2]!;
-  if (col === 'basic') return kind === 'land' ? 1 : null;
+  if (col === 'basic') return kind === 'basic' ? 0 : kind === 'land' ? 1 : null;
   if (kind === col) return 0;
   if (col === 'artifact-creature' && (kind === 'creature' || kind === 'artifact')) return 1;
   return 2;

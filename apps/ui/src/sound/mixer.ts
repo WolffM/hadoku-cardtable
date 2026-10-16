@@ -129,6 +129,22 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     return task;
   };
 
+  /** A take backwards, decoded once: a copy, so the forward buffer still plays forward. */
+  const reversed = new Map<string, Promise<AudioBuffer | null>>();
+  const loadReversed = (file: string): Promise<AudioBuffer | null> => {
+    const known = reversed.get(file);
+    if (known !== undefined) return known;
+    const task = load(file).then((buf) => {
+      const ac = context();
+      if (buf === null || ac === null) return null;
+      const out = ac.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+      for (let ch = 0; ch < buf.numberOfChannels; ch++) out.getChannelData(ch).set(buf.getChannelData(ch).slice().reverse());
+      return out;
+    });
+    reversed.set(file, task);
+    return task;
+  };
+
   const duck = (ac: AudioContext, seconds: number): void => {
     if (duckNode === null) return;
     const now = ac.currentTime;
@@ -140,14 +156,14 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     p.linearRampToValueAtTime(1, now + Math.min(seconds, 1.2) + 0.4);
   };
 
-  const start = (file: string, gain: number, ducks: boolean): void => {
+  const start = (file: string, gain: number, ducks: boolean, reverse = false): void => {
     const ac = context();
     if (ac === null) return;
     const asked = performance.now();
     // Inside a gesture this unlocks the context; outside one the browser holds it, and the
     // staleness check below drops the sound rather than playing it whenever a gesture comes.
     const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
-    void Promise.all([load(file), ready]).then(([buf]) => {
+    void Promise.all([reverse ? loadReversed(file) : load(file), ready]).then(([buf]) => {
       if (ac.state !== 'running' || performance.now() - asked > STALE_MS) return;
       if (buf === null || master === null || duckNode === null || live >= VOICE_CAP) return;
       const src = ac.createBufferSource();
@@ -187,7 +203,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     settings: DEFAULT_MIX,
     play(event, nowMs = performance.now()) {
       const plan = planner.plan(event, nowMs, mixer.settings);
-      for (const v of plan.voices) start(v.file, v.gain, v.duck);
+      for (const v of plan.voices) start(v.file, v.gain, v.duck, v.reverse === true);
       return plan;
     },
     playFile(file, gain = 1) {

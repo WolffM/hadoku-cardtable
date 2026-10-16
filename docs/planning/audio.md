@@ -126,7 +126,7 @@ object, but the id may still be stable.
 
 | Role | Trigger |
 | --- | --- |
-| `g.tap` / `g.untap` | `tapped` flips; the untap step plays `g.untap` once per card, 90 ms apart, at most 8 (2026-10-10; `g.untap-all` retired) |
+| `g.tap` / `g.untap` | `tapped` flips; the untap step plays `g.untap` once per card, 90 ms apart, at most 8 (2026-10-10; `g.untap-all` retired). Since 2026-10-15 `g.untap` has no cell: it plays the Tap take backwards (`REVERSED_ROLES`). The operator: *"untap should always be the reverse of tap, doesn't need its own sound"* |
 | `g.counter-on` / `g.counter-off` | `counters` count changes |
 | `g.attach` | `attachedToId` changes |
 | `g.transform` | `changedFrom` appears or changes |
