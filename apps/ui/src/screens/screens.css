@@ -1223,16 +1223,16 @@
 
 /*
  * The art takes every pixel the footer does not (operator, 2026-10-09: *"allow
- * for the card art to take more of the box's space"*). The name and the colours
- * share one footer row instead of stacking, and the footer is a fixed two-line
+ * for the card art to take more of the box's space"*). The name, the play-style
+ * mark and the colours share one footer row instead of stacking, and the footer is a fixed two-line
  * height so every deck's art band is the same size whatever its name's length.
  */
 .deckpick__option {
   position: relative;
   display: grid;
   grid-template:
-    'art art' minmax(0, 1fr)
-    'name colors' auto / minmax(0, 1fr) auto;
+    'art art art' minmax(0, 1fr)
+    'name style colors' auto / minmax(0, 1fr) auto auto;
   align-items: center;
   min-width: 0;
   height: 100%;
@@ -1404,11 +1404,23 @@
   --decktag-mark: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
 }
 
-/* Top-left of the art band; the `chosen` chip has the top-right. */
+/* The mark alone, in the footer between the name and the colours, level with the pips. */
+.decktag--mark {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.decktag--mark::before {
+  width: 12px;
+  height: 12px;
+}
+
 .deckpick__option .decktag {
-  position: absolute;
-  top: 6px;
-  left: 6px;
+  grid-area: style;
+  align-self: start;
+  padding-top: 9px;
+  padding-left: 6px;
 }
 
 /* Beside the colours, which the title pushes to the right. */

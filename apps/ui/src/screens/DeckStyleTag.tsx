@@ -6,9 +6,12 @@
  *
  * The style is the one the deck selection gave the deck
  * (`@hadoku/deck/library`'s `LIBRARY_DECK_STYLES`); a deck with none, a
- * drafted pool or a prebuilt, draws no tag rather than a guess. The word is
- * the tag's text, so it is part of the tile's accessible name; the mark beside
- * it (`screens.css`, `.decktag`) is for scanning a grid, never the only signal.
+ * drafted pool or a prebuilt, draws no tag rather than a guess. The peek and
+ * the filter row draw the mark with the word beside it. A grid tile draws the
+ * mark alone, between the name and the colours (operator, 2026-10-16: *"put it
+ * between the deck name and the mana symbols … remove the words from the
+ * grid"*), and names it with `aria-label`, so the word is still part of the
+ * tile's accessible name.
  */
 import type { DeckStyle } from '@hadoku/deck/library';
 
@@ -22,8 +25,17 @@ const NAMES: Readonly<Record<DeckStyle, string>> = {
   combo: 'Combo',
 };
 
-export function DeckStyleTag({ style }: { style: DeckStyle }) {
-  return (
+export function DeckStyleTag({ style, markOnly = false }: { style: DeckStyle; markOnly?: boolean }) {
+  return markOnly ? (
+    <span
+      className="decktag decktag--mark"
+      data-testid="deck-style"
+      data-style={style}
+      role="img"
+      aria-label={NAMES[style]}
+      title={NAMES[style]}
+    />
+  ) : (
     <span className="decktag" data-testid="deck-style" data-style={style}>
       {NAMES[style]}
     </span>

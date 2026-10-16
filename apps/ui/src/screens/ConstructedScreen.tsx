@@ -850,10 +850,10 @@ function DeckChooser({
           aria-describedby={peek?.index === index ? 'deck-peek' : undefined}
         >
           <DeckArt artId={option.artId} />
-          {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} />}
           <span className="deckpick__name" title={option.label}>
             {option.label}
           </span>
+          {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} markOnly />}
           <DeckColors
             colors={option.colors}
             label={`${option.label}: ${

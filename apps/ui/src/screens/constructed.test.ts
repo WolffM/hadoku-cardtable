@@ -2532,11 +2532,11 @@ describe('the deck dropdown shows its colours', () => {
 
     const two = deckRow(UW_DELVER.id);
     expect(two.dataset['colors']).toBe('WU');
-    // The row's own visible text is the deck's play style and NAME and nothing
-    // else: the ` · WU` suffix the `<option>` needed is gone, because the row
-    // draws real pips.
+    // The row's own visible text is the deck's NAME and nothing else: the
+    // ` · WU` suffix the `<option>` needed is gone, because the row draws real
+    // pips, and the play style is a mark with no word.
     expect(rowName(two)).toBe(UW_DELVER.name);
-    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(`Aggro${UW_DELVER.name}`);
+    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(UW_DELVER.name);
     expect(within(two).getByTestId('deck-colors').dataset['colors']).toBe('WU');
 
     const one = deckRow(MONO_GREEN.id);
@@ -2620,7 +2620,11 @@ describe('the deck chooser tags a library deck with its play style', () => {
     expect(LIBRARY_DECK_STYLES[UW_DELVER.id]).toBe('aggro');
     const uw = deckRow(UW_DELVER.id);
     expect(uw.dataset['style']).toBe('aggro');
-    expect(within(uw).getByTestId('deck-style').textContent).toBe('Aggro');
+    // A mark between the name and the colours, with no word drawn.
+    const mark = within(uw).getByTestId('deck-style');
+    expect(mark.textContent).toBe('');
+    expect(mark.getAttribute('aria-label')).toBe('Aggro');
+    expect(mark.previousElementSibling?.classList.contains('deckpick__name')).toBe(true);
     // In the tile's accessible name, not only painted on it.
     expect(within(group).getByRole('radio', { name: /Aggro/ })).toBe(uw);
 
