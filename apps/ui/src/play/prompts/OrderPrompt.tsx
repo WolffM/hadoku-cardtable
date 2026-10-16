@@ -79,6 +79,11 @@
  * the two groups stay side by side, so each pile keeps the column's whole
  * height and the sheet still never scrolls.
  *
+ * The operator, 2026-10-16, over "Choose order of cards to put into the exile
+ * zone": *"this needs an auto button."* Every order over cards has one, the
+ * damage window's own (`AssignPrompts.tsx`): it answers with the order Forge
+ * offered, in one press.
+ *
  * The nudges: a row of words keeps its ↑/↓ on its own tile
  * (`.prompt__card-order`, shared with `ManipulateCardListPrompt.tsx`); a card in
  * a pile shows only its name strip, which has no room for them, so a focused
@@ -153,6 +158,21 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     assertAnswerable('order', problems);
     onAnswer(checkedReply('order', reply));
   };
+
+  /**
+   * Forge's own order, sent in one press: everything placed in the order Forge offered it (what it
+   * placed first, then the rest), or, for a scry, the groups as Forge offered them. Null when that
+   * order is not an answer this ask takes.
+   */
+  const offered = (() => {
+    const dest = ask.destChoices.map((c) => c.key);
+    const source = ask.sourceChoices.map((c) => c.key);
+    const answer =
+      ask.rest !== undefined
+        ? { ordered: dest, rememberDecision: false, rest: source }
+        : { ordered: [...dest, ...source], rememberDecision: false };
+    return orderProblems(ask, answer).length === 0 ? answer : null;
+  })();
 
   const other = (side: Side): Side => (side === 'dest' ? 'source' : 'dest');
   /** Move `key` to `to`, just before `before`; false when nothing would change. */
@@ -296,7 +316,20 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   };
 
   return (
-    <PromptShell method="order" title={ask.title} problems={problems} onSubmit={submit}>
+    <PromptShell
+      method="order"
+      title={ask.title}
+      problems={problems}
+      onSubmit={submit}
+      actions={
+        anyCards &&
+        offered !== null && (
+          <button type="button" data-testid="prompt-auto" onClick={() => onAnswer(checkedReply('order', offered))}>
+            Auto
+          </button>
+        )
+      }
+    >
       {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
       <div className="prompt__dual" data-piles={anyCards || undefined}>
         {group('source', 'Unplaced', ask.rest !== undefined)}

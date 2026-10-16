@@ -232,6 +232,14 @@ describe('order over cards Forge pre-rendered', () => {
     expectWireReply('order', answers[0]);
   });
 
+  it('Auto answers in one press with the order Forge offered', () => {
+    const { getByTestId, answers } = mountPrompt('order', cardsAsk(), poolLookup);
+    fireEvent.click(getByTestId('order-source').querySelector<HTMLElement>(':scope > li:last-child')!);
+    fireEvent.click(getByTestId('prompt-auto'));
+    expect(answers).toEqual([{ ordered: ['s0', 's1', 's2'], rememberDecision: false }]);
+    expectWireReply('order', answers[0]);
+  });
+
   it('a press on a CARD drags its row', () => {
     const { getByTestId } = mountPrompt('order', cardsAsk(), poolLookup);
     const first = getByTestId('order-source').querySelector<HTMLElement>(':scope > li')!;
@@ -318,6 +326,13 @@ describe('a scry: cards on top and cards on bottom, one prompt', () => {
     expect(keysIn(bottom())).toEqual(['s1']);
     fireEvent.click(submit());
     expect(answers).toEqual([{ ordered: ['s1'], rememberDecision: false, rest: ['s2', 's0'] }]);
+    expectWireReply('order', answers[0]);
+  });
+
+  it('Auto keeps every card on top in Forge’s order, in one press', () => {
+    const { getByTestId, answers } = scry();
+    fireEvent.click(getByTestId('prompt-auto'));
+    expect(answers).toEqual([{ ordered: [], rememberDecision: false, rest: ['s0', 's1', 's2'] }]);
     expectWireReply('order', answers[0]);
   });
 
