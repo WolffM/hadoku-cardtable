@@ -265,19 +265,25 @@ def run_spec(args):
         negative = spec['negative']
         if sound.get('music'):
             negative = negative.replace('music, melody, ', '')
-        seconds = sound.get('seconds', spec['seconds'])
         for k, text in enumerate(sound['prompts']):
-            prompt = f"{text}. {spec['suffix']}"
-            for j in range(args.takes):
+            # A sibling (round 8) is a chosen take's own render settings, verbatim, under new seeds.
+            sibling = text if isinstance(text, dict) else {}
+            prompt = sibling.get('prompt') or f"{text}. {spec['suffix']}"
+            seconds = sibling.get('seconds') or sound.get('seconds', spec['seconds'])
+            steps, cfg = sibling.get('steps', args.steps), sibling.get('cfg', args.cfg)
+            args.steps, args.cfg = steps, cfg
+            for j in range(sibling.get('takes', args.takes)):
                 seed = args.seed + j
                 base = os.path.join(OUT, folder, f'take-v{k + 1}-{seed}')
                 if os.path.exists(base + '.wav'):
                     continue
-                audio = render(pipe, prompt, seed, {'id': folder}, args, negative, seconds)
+                audio = render(pipe, prompt, seed, {'id': folder}, args, sibling.get('negative', negative), seconds)
+                if sibling.get('reverse'):
+                    audio = audio.flip(-1)  # the chosen take was the reversed render (Untap is Tap backwards)
                 save(base, audio, rate)
                 json.dump({'id': folder, 'name': sound['name'], 'group': sound['group'], 'variant': k + 1,
-                           'prompt': prompt, 'negative': negative, 'seed': seed, 'steps': args.steps, 'cfg': args.cfg,
-                           'seconds': seconds, 'model': MODEL,
+                           'prompt': prompt, 'negative': sibling.get('negative', negative), 'seed': seed, 'steps': steps,
+                           'cfg': cfg, 'seconds': seconds, 'model': MODEL, 'reverse': bool(sibling.get('reverse')),
                            'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)'},
                           open(base + '.json', 'w'), indent=1)
         print(f'{folder:>18}  {len(sound["prompts"])} prompts x {args.takes}  {time.time() - started:6.1f}s', flush=True)

@@ -206,6 +206,9 @@ def recut_in_place(sounds_dir):
         raw[f"{sid.lower()}/{os.path.splitext(os.path.basename(wav))[0]}.ogg"] = (wav, sid)
     cat_path = os.path.join(sounds_dir, 'catalogue.json')
     catalogue = json.load(open(cat_path, encoding='utf-8'))
+    # harvest.py renames a chosen take after its cell; sources.json keeps the name it was generated under.
+    sources_path = os.path.join(sounds_dir, 'sources.json')
+    sources = json.load(open(sources_path, encoding='utf-8')) if os.path.exists(sources_path) else {}
     # A placed take is cut for the role it plays, not the folder it came from: "Hover a card" plays a creature take.
     placed = {}
     assignments = os.path.join(sounds_dir, 'assignments.json')
@@ -216,12 +219,12 @@ def recut_in_place(sounds_dir):
                 placed.setdefault(file, []).append(row)
     done = levelled = longer = 0
     for take in catalogue['takes']:
-        source = raw.get(take['file'])
+        source = raw.get(sources.get(take['file'], take['file']))
         roles = placed.get(take['file'], [])
         target = os.path.join(sounds_dir, 'takes', take['file'])
         if source is None:
             # A hand edit (a first hit cut out, a take reversed) has no raw source: level the take itself, gain only.
-            sid = take['file'].split('/')[0]
+            sid = sources.get(take['file'], take['file']).split('/')[0]
             loudness = min([loudness_for(r) for r in roles] + ([] if roles else [loudness_for(sid)]))
             relevel(target, loudness)
             levelled += 1

@@ -55,7 +55,7 @@ def main():
                      'perTake': round(per_game / pool, 1) if pool else None})
     rows.sort(key=lambda r: -r['perGame'])
     json.dump({'games': games, 'turns': all_turns, 'events': len(events),
-               'from': events[0]['t'] if events else None, 'to': events[-1]['t'] if events else None,
+               'from': min(e['t'] for e in events) if events else None, 'to': max(e['t'] for e in events) if events else None,
                'interfaceCounted': any(e['why'] == 'tally' for e in events), 'rows': rows}, sys.stdout, indent=1)
 
 

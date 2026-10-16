@@ -1,0 +1,489 @@
+{
+ "note": "Round 8 (2026-10-15): see make-round8.py.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+ "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+ "seconds": 2.5,
+ "sounds": {
+  "ui.hover-card": {
+   "group": "Round 8",
+   "name": "Hover a card",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A creature arrives, the desert endures: wind over sand and a low solemn hum. Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
+     "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb, echo, delay, long tail, repeated hits, double hit, two sounds",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 8
+    }
+   ]
+  },
+  "g.phase": {
+   "group": "Round 8",
+   "name": "Phase change",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Single soft wooden click. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 8
+    }
+   ]
+  },
+  "g.tap": {
+   "group": "Round 8",
+   "name": "Tap",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Light tap of a finger on a card then a short paper slide, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 8
+    }
+   ]
+  },
+  "g.resolve": {
+   "group": "Round 8",
+   "name": "Resolves",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Soft release of air, a short descending whoosh settling, close-mic. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    },
+    {
+     "prompt": "A soft release of air, a short falling whoosh that settles. High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.untap": {
+   "group": "Round 8",
+   "name": "Untap",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Paper card pivoted on cloth, soft brush, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": true,
+     "takes": 8
+    }
+   ]
+  },
+  "ui.pass": {
+   "group": "Round 8",
+   "name": "Pass / OK",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Two soft knocks of knuckles on a wooden table, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 8
+    }
+   ]
+  },
+  "g.draw": {
+   "group": "Round 8",
+   "name": "Draw",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A quick paper slide, light and dry. Short game sound effect for a card game: draw a card. Clean, dry, close, one shot.",
+     "negative": "music, melody, song, speech, voice, vocals, singing, low quality, muffled, clipping, distortion, hum, silence",
+     "seconds": 1.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 2
+    },
+    {
+     "prompt": "A quick paper slide, light and dry. Short game sound effect for a card game: draw a card. Clean, dry, close, one shot.",
+     "negative": "music, melody, song, speech, voice, vocals, singing, low quality, muffled, clipping, distortion, hum, silence",
+     "seconds": 1.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 2
+    },
+    {
+     "prompt": "Playing card slid up off a felt table and lifted, short paper swish, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 2
+    }
+   ]
+  },
+  "g.ability": {
+   "group": "Round 8",
+   "name": "Ability",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Short rising whoosh with a soft click at the end, close-mic. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 7
+    }
+   ]
+  },
+  "ui.prompt": {
+   "group": "Round 8",
+   "name": "Decision needed",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A single gentle mallet tap on a small wooden block. Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
+     "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb, echo, delay, long tail, repeated hits, double hit, two sounds",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 7
+    }
+   ]
+  },
+  "g.land": {
+   "group": "Round 8",
+   "name": "Play a land",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A huge rock split by a heavy blow. High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+     "seconds": 2.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 6
+    }
+   ]
+  },
+  "ui.lift": {
+   "group": "Round 8",
+   "name": "Pick up a card",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Single card picked up from a table, soft scrape then lift, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 6
+    }
+   ]
+  },
+  "ui.place": {
+   "group": "Round 8",
+   "name": "Put a card down",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Playing card placed flat onto a felt table, soft slap, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 6
+    }
+   ]
+  },
+  "g.mill": {
+   "group": "Round 8",
+   "name": "Mill",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Pages ripped out of a book quickly. High-quality, stereo, 44.1kHz, sound effect, field recording.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 5
+    }
+   ]
+  },
+  "g.enter": {
+   "group": "Round 8",
+   "name": "Hits the table",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A heavy card lands on a wooden table, one deep thud. Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
+     "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb, echo, delay, long tail, repeated hits, double hit, two sounds",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 5
+    }
+   ]
+  },
+  "g.turn-mine": {
+   "group": "Round 8",
+   "name": "Your turn",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Single small brass bell struck once softly, short ring, close-mic. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 2.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 5
+    }
+   ]
+  },
+  "g.creature": {
+   "group": "Round 8",
+   "name": "Creature voice",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A short low creature grunt, a single breath. Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
+     "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb, echo, delay, long tail, repeated hits, double hit, two sounds",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 5
+    }
+   ]
+  },
+  "g.cast.creature": {
+   "group": "Round 8",
+   "name": "Cast a creature",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Leather glove gripping and a deep soft thump, short, close-mic. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 5
+    }
+   ]
+  },
+  "g.shuffle": {
+   "group": "Round 8",
+   "name": "Shuffle",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A quick overhand shuffle of cards, soft paper slaps. High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+     "seconds": 1.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "u-spell": {
+   "group": "Round 8",
+   "name": "Blue spell",
+   "section": "Colour sounds",
+   "prompts": [
+    {
+     "prompt": "A water drop into a deep cave pool, a hollow plunk. High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+     "seconds": 2.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.discard": {
+   "group": "Round 8",
+   "name": "Discard",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Card flicked away across a table, quick swish, close-mic, dry. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.cast.sorcery": {
+   "group": "Round 8",
+   "name": "Cast a sorcery",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Pages of a heavy book flipping fast then slammed shut. High-quality, stereo, 44.1kHz, sound effect, field recording.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.exile": {
+   "group": "Round 8",
+   "name": "Exile",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A short airy vanishing whoosh, something pulled into nothing. Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
+     "negative": "low quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb, echo, delay, long tail, repeated hits, double hit, two sounds",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.dies": {
+   "group": "Round 8",
+   "name": "Creature dies",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A falling breath into a low thud. Short game sound effect for a card game: creature dies. Clean, dry, close, one shot.",
+     "negative": "music, melody, song, speech, voice, vocals, singing, low quality, muffled, clipping, distortion, hum, silence",
+     "seconds": 1.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "c-land": {
+   "group": "Round 8",
+   "name": "Colourless land",
+   "section": "Colour sounds",
+   "prompts": [
+    {
+     "prompt": "Heavy stone blocks grinding into place in an old ruin. High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+     "seconds": 2.5,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.lifegain": {
+   "group": "Round 8",
+   "name": "Life gain",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "A short neat click of a small metal clasp. High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+     "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, bell, bells, chime, chimes, gong, glockenspiel, music, melody, song, speech, voice, vocals, singing, harsh, shrill",
+     "seconds": 1.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.cast.instant": {
+   "group": "Round 8",
+   "name": "Cast an instant",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Quick snap of fingers followed by a short airy swish, close-mic. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "ui.priority": {
+   "group": "Round 8",
+   "name": "Priority back to you",
+   "section": "Moments",
+   "prompts": [
+    {
+     "prompt": "Metal object crushed, short crunch and clatter, close-mic. High-quality, stereo, 44.1kHz, sound effect.",
+     "negative": "low quality, average quality, muffled, lo-fi, noise, hiss, distortion, clipping, music, melody, speech, voice, vocals, reverb wash",
+     "seconds": 3.0,
+     "steps": 150,
+     "cfg": 7.0,
+     "reverse": false,
+     "takes": 4
+    }
+   ]
+  },
+  "g.mana": {
+   "group": "Turn and game",
+   "name": "Mana",
+   "section": "Moments",
+   "seconds": 1.0,
+   "prompts": [
+    "A short soft crackle of a small spark, one quick tick",
+    "A small smooth pebble tapped once against a stone, a light dry tick",
+    "A quick soft puff of breath into cupped hands"
+   ]
+  },
+  "g.turn-theirs": {
+   "group": "Turn and game",
+   "name": "Their turn",
+   "section": "Moments",
+   "seconds": 2.0,
+   "prompts": [
+    "Single small brass bell struck once very softly and muffled by a hand, a short low ring",
+    "One low soft knock on a thick wooden door across the room",
+    "A heavy wooden chess piece set down on a board, one soft dry knock"
+   ]
+  }
+ }
+}

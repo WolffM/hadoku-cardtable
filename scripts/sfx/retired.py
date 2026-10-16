@@ -36,9 +36,12 @@ def main():
             else:
                 open_retirements.pop(line['file'], None)
 
+    # Keyed by the folder a prompt was generated in: harvest.py moves a chosen take into its cell's folder, sources.json keeps where it came from.
+    sources_path = os.path.join(args.dir, 'sources.json')
+    sources = json.load(open(sources_path, encoding='utf-8')) if os.path.exists(sources_path) else {}
     kept = collections.Counter()
     for take in json.load(open(os.path.join(args.dir, 'catalogue.json'), encoding='utf-8'))['takes']:
-        kept[(take['file'].split('/')[0], take['prompt'])] += 1
+        kept[(sources.get(take['file'], take['file']).split('/')[0], take['prompt'])] += 1
 
     rows = collections.defaultdict(lambda: {'kept': 0, 'bad': 0, 'broken': 0, 'unused': 0, 'cells': set()})
     for (folder, prompt), n in kept.items():

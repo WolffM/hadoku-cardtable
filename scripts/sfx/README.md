@@ -206,3 +206,33 @@ python3 scripts/sfx/make-round7.py
 ~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 9000 --out finished-r7
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r7 --to apps/server/data/sounds --add
 ```
+
+## Harvest (2026-10-15)
+
+When the operator has been through every take (*"save and rename the chosen sounds and get rid of the non-chosen
+ones"*), `harvest.py` closes the pass. A placed take (or one marked keep) moves to a folder named after its cell,
+`g.phase/take-1.ogg` or `u-basic/take-2.ogg`, labelled "Phase change 1" or "Island 2". The assignments and marks
+follow it, and a copy goes to `~/.local/share/cardtable-sfx/chosen/`. Everything else is retired as `unused`.
+`sources.json` maps each new name to the one it was generated under; `finish.py --into`, `retired.py` and
+`make-round8.py` read it to find the raw render.
+
+```sh
+python3 scripts/sfx/harvest.py apps/server/data/sounds --dry-run
+python3 scripts/sfx/harvest.py apps/server/data/sounds
+```
+
+## Round 8: siblings of the chosen (2026-10-15)
+
+The picks show the operator chooses a sound, not a description of the event: a creature take plays on "Hover a
+card", a clasp click on "Life gain". So a cell that repeats gets its chosen take rendered again from its own sidecar
+(prompt, negative, length, steps, cfg) under new seeds: the same source, a different performance. "Repeats" is
+`played.py`'s raises per game per take, 2 or more. The siblings scale from 4 to 8 with it. A reversed take (Untap)
+is rendered and reversed. Mana and Their turn, still empty, get fresh prompts.
+
+```sh
+python3 scripts/sfx/played.py apps/server/data/sounds > played.json
+python3 scripts/sfx/make-round8.py apps/server/data/sounds played.json
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round8.json --takes 2 --seed 11000 --offload model
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 11000 --out finished-r8
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r8 --to apps/server/data/sounds --add
+```

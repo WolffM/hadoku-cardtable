@@ -136,7 +136,7 @@ def main() -> None:
 	manifest = json.load(open(os.path.join(args.src, 'manifest.json'), encoding='utf-8'))
 
 	lib_names: dict = {}
-	for spec in ('round3.json', 'round4.json', 'round5.json'):
+	for spec in ('round3.json', 'round4.json', 'round5.json', 'round8.json'):
 		spec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), spec)
 		if os.path.exists(spec_path):
 			lib_names.update(json.load(open(spec_path, encoding='utf-8'))['sounds'])
