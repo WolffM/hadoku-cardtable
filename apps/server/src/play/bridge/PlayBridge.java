@@ -866,15 +866,13 @@ public final class PlayBridge {
      * wrapped in a {@link Recorder} while Forge's checker reads it, and a trait the checker found no
      * parameter of is unconditional.
      *
-     * <p>A check that holds at its count's floor never lights a card: Forge scripts an "instead" as
-     * two branches, and the default one is the one met when nothing has been counted yet (Fiery
-     * Impulse's {@code LT2} beside its spell mastery's {@code GE2}, Arrow Storm's {@code EQ0} beside its
-     * raid's {@code GE1}); a drawback that lifts once a count is reached (a god's "isn't a creature"
-     * below five devotion) is met there too. Each comparison is asked with Forge's own
-     * {@code Expressions.compare} at 0, and a {@code False}/{@code None} flag is its floor. A branching
-     * count lights only when the branch Forge takes now is not the one it takes at the floor. Nor does
-     * a check that is only a turn or a phase ("during your turn"): it is when an ability works, and
-     * would light the card every turn.
+     * <p>A trait in {@link #quiet} never lights a card: the default branch of an "instead" (Forge
+     * scripts one as two traits comparing the same count, Fiery Impulse's {@code LT2} beside its spell
+     * mastery's {@code GE2}, and the default is the one met when nothing has been counted), and a lone
+     * check that means "none" ({@code EQ0}, a {@code False} flag). A branching count lights only when
+     * the branch Forge takes now is not the one it takes at 0. Nor does a check that is only a turn
+     * or a phase ("during your turn"): it is when an ability works, and would light the card every
+     * turn.
      */
     static final class ConditionsOn {
         private static final int IF = 1_000_001;
@@ -882,8 +880,7 @@ public final class PlayBridge {
         /**
          * An activated ability's "activate only if …" keys, of everything
          * {@code SpellAbilityRestriction.setRestrictions} reads; the rest of what it reads is a zone, a
-         * timing or a limit, which are not conditions. Their comparisons ({@code SVarCompare$},
-         * {@code PresentCompare$}) are not on the list, but are asked at the floor all the same.
+         * timing or a limit, which are not conditions.
          */
         private static final Set<String> RESTRICTION_CONDITIONS = Set.of("Activation", "CheckSVar", "IsPresent", "ActivationLifeTotal");
         private static java.lang.reflect.Method commonRequirements;
@@ -912,24 +909,41 @@ public final class PlayBridge {
             if (controller == null) { return false; }
             /* Every parameter value of the traits asked below, with the trait it is on: the SVars they name are the amounts the branch probe asks. */
             final Map<String, forge.game.CardTraitBase> named = new HashMap<>();
+            final List<forge.game.CardTraitBase> asked = new ArrayList<>();
+            for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                if (st.isIntrinsic()) { asked.add(st); }
+            }
+            for (final forge.game.trigger.Trigger t : c.getTriggers()) {
+                if (!t.isIntrinsic()) { continue; }
+                asked.add(t);
+                for (SpellAbility s = t.getOverridingAbility(); s != null; s = s.getSubAbility()) { asked.add(s); }
+            }
+            for (final forge.game.replacement.ReplacementEffect r : c.getReplacementEffects()) {
+                if (r.isIntrinsic()) { asked.add(r); }
+            }
+            for (final SpellAbility sa : c.getSpellAbilities()) {
+                if (!sa.isIntrinsic()) { continue; }
+                for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { asked.add(s); }
+            }
+            final Set<forge.game.CardTraitBase> quiet = quiet(c, asked);
             for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
                 if (!st.isIntrinsic()) { continue; }
                 name(named, st);
-                if (staticOn(st, c)) { return true; }
+                if (!quiet.contains(st) && staticOn(st, c)) { return true; }
             }
             for (final forge.game.trigger.Trigger t : c.getTriggers()) {
                 if (!t.isIntrinsic()) { continue; }
                 name(named, t);
                 for (SpellAbility s = t.getOverridingAbility(); s != null; s = s.getSubAbility()) { name(named, s); }
-                if (commonOn(t, () -> t.copy(c, true)) || chainOn(t.getOverridingAbility(), controller)) { return true; }
+                if ((!quiet.contains(t) && commonOn(t)) || chainOn(t.getOverridingAbility(), controller, quiet)) { return true; }
             }
             for (final forge.game.replacement.ReplacementEffect r : c.getReplacementEffects()) {
-                if (r.isIntrinsic() && commonOn(r, () -> r.copy(c, true))) { return true; }
+                if (r.isIntrinsic() && !quiet.contains(r) && commonOn(r)) { return true; }
             }
             for (final SpellAbility sa : c.getSpellAbilities()) {
                 if (!sa.isIntrinsic()) { continue; }
                 for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { name(named, s); }
-                if (restrictionOn(sa, c, controller) || chainOn(sa, controller)) { return true; }
+                if ((!quiet.contains(sa) && restrictionOn(sa, c, controller)) || chainOn(sa, controller, quiet)) { return true; }
             }
             return branchOn(c, named);
         }
@@ -948,30 +962,21 @@ public final class PlayBridge {
             mapParams().set(copy, all);
             final boolean on = copy.checkConditions();
             all.found.removeAll(zones.found);
-            return on && counts(all.found, copy);
+            return on && counts(all.found, copy.getMapParams());
         }
 
-        /**
-         * A trigger's or replacement's intervening "if". Forge reads the condition keys from the map it
-         * is handed, but their comparisons ({@code PresentCompare$}, {@code SVarCompare$}) from the
-         * trait's own; a trait with a condition is asked again on a copy whose own map records too.
-         */
-        private static boolean commonOn(final forge.game.CardTraitBase trait, final java.util.function.Supplier<? extends forge.game.CardTraitBase> copy) throws ReflectiveOperationException {
-            final Recorder conditions = new Recorder(trait.getMapParams());
-            if (!(Boolean) commonRequirements().invoke(trait, conditions) || conditions.found.isEmpty()) { return false; }
-            final forge.game.CardTraitBase asked = copy.get();
-            final Recorder all = new Recorder(asked.getMapParams());
-            mapParams().set(asked, all);
-            return (Boolean) commonRequirements().invoke(asked, all) && counts(all.found, asked);
+        private static boolean commonOn(final forge.game.CardTraitBase trait) throws ReflectiveOperationException {
+            final Recorder r = new Recorder(trait.getMapParams());
+            final boolean on = (Boolean) commonRequirements().invoke(trait, r);
+            return on && counts(r.found, trait.getMapParams());
         }
 
         private static boolean restrictionOn(final SpellAbility sa, final forge.game.card.Card c, final forge.game.player.Player controller) {
             if (!sa.isActivatedAbility()) { return false; }
             final Recorder r = new Recorder(sa.getMapParams());
             new forge.game.spellability.SpellAbilityRestriction().setRestrictions(r);
-            final Set<String> conditions = new java.util.HashSet<>(r.found);
-            conditions.retainAll(RESTRICTION_CONDITIONS);
-            return counts(conditions, sa) && !floorMet(r.found, sa)
+            r.found.retainAll(RESTRICTION_CONDITIONS);
+            return counts(r.found, sa.getMapParams())
                     && sa.getRestrictions().checkOtherRestrictions(c, sa, controller);
         }
 
@@ -980,16 +985,17 @@ public final class PlayBridge {
          * activating it; a card in hand has none yet, so the chain is asked on a copy its controller
          * activates (the live one is never touched).
          */
-        private static boolean chainOn(final SpellAbility root, final forge.game.player.Player controller) {
+        private static boolean chainOn(final SpellAbility root, final forge.game.player.Player controller, final Set<forge.game.CardTraitBase> quiet) {
             if (root == null) { return false; }
             SpellAbility asked = null;
             for (SpellAbility s = root; s != null; s = s.getSubAbility()) {
+                if (quiet.contains(s)) { continue; }
                 final Recorder r = new Recorder(s.getMapParams());
                 new forge.game.spellability.SpellAbilityCondition().setConditions(r);
-                if (r.found.isEmpty()) { continue; }
+                if (!counts(r.found, s.getMapParams())) { continue; }
                 if (asked == null) { asked = root.getActivatingPlayer() == null ? root.copy(root.getHostCard(), controller, true) : root; }
                 final SpellAbility same = same(asked, root, s);
-                if (same != null && counts(r.found, same) && same.getConditions().areMet(same)) { return true; }
+                if (same != null && same.getConditions().areMet(same)) { return true; }
             }
             return false;
         }
@@ -1005,8 +1011,8 @@ public final class PlayBridge {
 
         /**
          * The card's branching counts that one of its asked traits names as an amount, each asked through
-         * that trait: on when Forge takes a different branch now than at the floor, where only a
-         * {@code Compare} (its comparison asked at 0) can take the first one.
+         * that trait: on when Forge takes a different branch now than at the floor. A branch is itself an
+         * either/or; only a {@code Compare} (its comparison asked at 0) takes the first branch there.
          */
         private static boolean branchOn(final forge.game.card.Card c, final Map<String, forge.game.CardTraitBase> named) {
             for (final Map.Entry<String, String> svar : c.getSVars().entrySet()) {
@@ -1018,7 +1024,8 @@ public final class PlayBridge {
                 try {
                     final boolean now = forge.game.ability.AbilityUtils.xCount(c, parts[0] + "." + IF + "." + ELSE, asker) == IF;
                     final String[] compare = parts[0].split(" ");
-                    final boolean floor = compare[0].equals("Count$Compare") && compare.length == 3 && atFloor(compare[2], c, asker);
+                    final boolean floor = compare[0].equals("Count$Compare") && compare.length == 3
+                            && new Check(compare[1], compare[2], asker).holds(0);
                     if (now != floor) { return true; }
                 } catch (final RuntimeException notABranch) {
                     // Not a branching count: Forge could not read it with markers in its branches.
@@ -1028,36 +1035,114 @@ public final class PlayBridge {
         }
 
         /**
-         * Whether the condition keys a checker {@code found} on {@code trait} make a condition this card
-         * lights for: at least one, not only timing, and none met at its floor.
+         * One count a trait compares: what it counts (an SVar's expression, a "present" spec with its
+         * zone and owner, the mana a spell was paid with, a flag), the comparison, and the trait.
          */
-        private static boolean counts(final Set<String> found, final forge.game.CardTraitBase trait) {
-            return !found.isEmpty() && !timingOnly(found, trait.getMapParams()) && !floorMet(found, trait);
+        static final class Check {
+            final String count;
+            final String compare;
+            final forge.game.CardTraitBase trait;
+            Check(final String count, final String compare, final forge.game.CardTraitBase trait) {
+                this.count = count;
+                this.compare = compare;
+                this.trait = trait;
+            }
+            /** Whether {@code value} meets the comparison, by Forge's own compare, its right side counted by Forge for the trait. */
+            boolean holds(final int value) {
+                return forge.util.Expressions.compare(value, compare, right());
+            }
+            int right() {
+                return forge.game.ability.AbilityUtils.calculateAmount(trait.getHostCard(), compare.substring(2), trait);
+            }
         }
 
         /**
-         * Whether the condition keys {@code found} hold when nothing has been counted or paid: a
-         * comparison ({@code SVarCompare$ LT2}, {@code ConditionCompare$ EQ0}, {@code PresentCompare$ LE3}
-         * …) that Forge's own compare meets at 0, a key Forge names as a negation
-         * ({@code ConditionNotPresent$}, {@code ConditionManaNotSpent$} — Mythos of Illuna's copy beside
-         * its "if {R}{G} was spent"), or a {@code False} / {@code None} flag. A comparison not given is
-         * Forge's default {@code GE1}, which 0 never meets. Timing is not a floor.
+         * The traits that never light, from the counts they compare:
+         * <ul>
+         * <li>the default branch of an "instead". Forge scripts one as two or more traits comparing the
+         *     same count with comparisons that between them take every value exactly once (Fiery
+         *     Impulse's {@code LT2} beside its spell mastery's {@code GE2}, Scythecat Cub's {@code NE2}
+         *     beside {@code EQ2}, Mythos of Illuna's mana not spent beside spent, a flag's
+         *     {@code False} beside {@code True}); the one met when nothing has been counted is the
+         *     default;</li>
+         * <li>a lone check that means "none" — met at 0 and not at 1 ({@code EQ0}, {@code LT1}, a
+         *     {@code False} flag, "not present", mana not spent): Curious Obsession's "if you didn't
+         *     attack".</li>
+         * </ul>
+         * Any other lone comparison lights when met, whichever way it points: Bloodghast's opponent at
+         * {@code LE10} life, a god's devotion below five.
          */
-        private static boolean floorMet(final Set<String> found, final forge.game.CardTraitBase trait) {
-            final Map<String, String> params = trait.getMapParams();
-            for (final String key : found) {
-                final String value = params.get(key);
-                if (timing(key, value)) { continue; }
-                if (key.contains("Not") || "False".equalsIgnoreCase(value) || "None".equalsIgnoreCase(value)) { return true; }
-                if (key.matches(".*Compare\\d?") && atFloor(value, trait.getHostCard(), trait)) { return true; }
+        private static Set<forge.game.CardTraitBase> quiet(final forge.game.card.Card c, final List<forge.game.CardTraitBase> traits) {
+            final Map<String, List<Check>> byCount = new HashMap<>();
+            for (final forge.game.CardTraitBase trait : traits) {
+                for (final Check check : checks(c, trait)) { byCount.computeIfAbsent(check.count, k -> new ArrayList<>()).add(check); }
             }
-            return false;
+            final Set<forge.game.CardTraitBase> quiet = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            for (final List<Check> same : byCount.values()) {
+                for (final Check a : same) {
+                    if (a.holds(0) && !a.holds(1)) { quiet.add(a.trait); continue; }
+                    for (final Check b : same) {
+                        if (b.trait != a.trait && a.holds(0) && complementary(a, b)) { quiet.add(a.trait); }
+                    }
+                }
+            }
+            return quiet;
         }
 
-        /** Whether 0 meets {@code compare} ({@code LT2}, {@code GEX} …), its right side counted by Forge for {@code trait}. */
-        private static boolean atFloor(final String compare, final forge.game.card.Card host, final forge.game.CardTraitBase trait) {
-            final int right = forge.game.ability.AbilityUtils.calculateAmount(host, compare.substring(2), trait);
-            return forge.util.Expressions.compare(0, compare, right);
+        /** Whether exactly one of the two comparisons holds at every value from 0 to the larger of their right sides. */
+        private static boolean complementary(final Check a, final Check b) {
+            final int top = Math.min(1000, Math.max(0, Math.max(a.right(), b.right())));
+            for (int v = 0; v <= top; v++) {
+                if (a.holds(v) == b.holds(v)) { return false; }
+            }
+            return true;
+        }
+
+        /** The counts {@code trait}'s parameters compare, in Forge's names for them, with Forge's default comparison {@code GE1}. */
+        private static List<Check> checks(final forge.game.card.Card c, final forge.game.CardTraitBase trait) {
+            final Map<String, String> p = trait.getMapParams();
+            final List<Check> out = new ArrayList<>();
+            svar(out, c, trait, p, "CheckSVar", "SVarCompare");
+            svar(out, c, trait, p, "CheckSecondSVar", "SecondSVarCompare");
+            svar(out, c, trait, p, "ConditionCheckSVar", "ConditionSVarCompare");
+            present(out, trait, p, p.get("IsPresent"), p.get("PresentCompare"), "PresentZone", "PresentPlayer", "PresentDefined");
+            present(out, trait, p, p.get("IsPresent2"), p.get("PresentCompare2"), "PresentZone2", "PresentPlayer2", "PresentDefined");
+            present(out, trait, p, p.get("ConditionPresent"), p.get("ConditionCompare"), "ConditionZone", "ConditionPlayerDefined", "ConditionDefined");
+            present(out, trait, p, p.get("ConditionPresent2"), p.get("ConditionCompare2"), "ConditionZone", "ConditionPlayerDefined", "ConditionDefined2");
+            present(out, trait, p, p.get("ConditionNotPresent"), "EQ0", "ConditionZone", "ConditionPlayerDefined", "ConditionDefined");
+            for (final String spent : List.of("ManaSpent", "ConditionManaSpent")) {
+                if (p.containsKey(spent)) { out.add(new Check("mana:" + p.get(spent), "EQ1", trait)); }
+            }
+            for (final String notSpent : List.of("ManaNotSpent", "ConditionManaNotSpent")) {
+                if (p.containsKey(notSpent)) { out.add(new Check("mana:" + p.get(notSpent), "EQ0", trait)); }
+            }
+            for (final Map.Entry<String, String> e : p.entrySet()) {
+                final String v = e.getValue();
+                if (timing(e.getKey(), v)) { continue; }
+                if ("True".equalsIgnoreCase(v)) { out.add(new Check("flag:" + e.getKey(), "EQ1", trait)); }
+                if ("False".equalsIgnoreCase(v) || "None".equalsIgnoreCase(v)) { out.add(new Check("flag:" + e.getKey(), "EQ0", trait)); }
+            }
+            return out;
+        }
+
+        private static void svar(final List<Check> out, final forge.game.card.Card c, final forge.game.CardTraitBase trait, final Map<String, String> p, final String check, final String compare) {
+            final String name = p.get(check);
+            if (name == null) { return; }
+            final String expression = c.getSVar(name);
+            out.add(new Check("svar:" + (expression == null || expression.isEmpty() ? name : expression), p.getOrDefault(compare, "GE1"), trait));
+        }
+
+        private static void present(final List<Check> out, final forge.game.CardTraitBase trait, final Map<String, String> p, final String spec, final String compare, final String zone, final String player, final String defined) {
+            if (spec == null) { return; }
+            out.add(new Check("present:" + spec + "|" + p.get(zone) + "|" + p.get(player) + "|" + p.get(defined), compare == null ? "GE1" : compare, trait));
+        }
+
+        /**
+         * Whether the condition keys a checker {@code found} make a condition this card lights for: at
+         * least one, and not only timing.
+         */
+        private static boolean counts(final Set<String> found, final Map<String, String> params) {
+            return !found.isEmpty() && !timingOnly(found, params);
         }
 
         /**

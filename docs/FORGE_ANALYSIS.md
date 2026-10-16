@@ -709,11 +709,14 @@ checker. `PlayBridge.java`'s `ConditionsOn` asks each with Forge's own method.
 - **VERIFIED (read)** — an "instead" is scripted as two branches, the default one
   negated: Arrow Storm's 4 damage carries `ConditionSVarCompare$ EQ0` on the
   raid count, its 5 damage the default `GE1` (`res/cardsfolder/a/arrow_storm.txt`).
-  The default branch is the one met when nothing has been counted, so a check
-  that Forge's own `Expressions.compare` meets at 0 never lights a card —
-  Fiery Impulse's default 2 damage is `ConditionSVarCompare$ LT2` beside its
-  spell mastery's `GE2` (`res/cardsfolder/f/fiery_impulse.txt`), which a
-  list of "negated" comparators (`EQ0`, `LT1`) missed (2026-10-16, lane CF).
+  The two branches compare the same count with comparisons that between them
+  take every value exactly once, and the default is the one Forge's own
+  `Expressions.compare` meets at 0 — Fiery Impulse's default 2 damage is
+  `ConditionSVarCompare$ LT2` beside its spell mastery's `GE2`
+  (`res/cardsfolder/f/fiery_impulse.txt`), which a list of "negated"
+  comparators (`EQ0`, `LT1`) missed (2026-10-16, lane CF). A lone comparison
+  met at 0 is not a default: Bloodghast's `LE10` on the opponent's life is a
+  bonus (`res/cardsfolder/b/bloodghast.txt`).
 - **VERIFIED (measured, `apps/server/src/play/condition-met.jvm.test.ts` on
   the claws, run 38860570475)** — a card with only a keyword (Ornithopter's
   Flying) carries traits with no condition parameter, and a checker that reads
