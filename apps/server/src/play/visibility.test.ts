@@ -443,6 +443,36 @@ describe('printedTypes', () => {
 	});
 });
 
+describe('conditionMet', () => {
+	it('keeps the cards a seat may read, and drops a card in the other seat’s hand, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const conditionMet = [onField, inTheirHand];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, conditionMet } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.conditionMet).toEqual([onField]);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, conditionMet },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.conditionMet).toEqual([onField, inTheirHand]);
+	});
+
+	it('leaves the field off a frame that carried none', () => {
+		const gameView = Object.fromEntries(fold(fixtureFrames()));
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		expect('conditionMet' in out.payload).toBe(false);
+	});
+});
+
 describe('deaths', () => {
 	it('keeps the deaths of cards this seat is sent, and rides applyDelta', () => {
 		const raw = fold(fixtureFrames());

@@ -62,7 +62,10 @@ export type PrintedTypes = readonly (readonly [number, Tagged])[];
 /** `PlayBridge.java`'s `lifePaying`, the packet's seventh sibling: `[playerId, life]`, the life each player has committed to an open payment and Forge has not taken yet (`packages/forge-wire`'s `LifePayingSchema`). */
 export type LifePaying = readonly (readonly [number, number])[];
 
-/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources}, {@link CantBlock}, {@link PrintedTypes} and {@link LifePaying} as sibling fields. */
+/** `PlayBridge.java`'s `conditionMet`, the packet's eighth sibling: the hand and battlefield cards whose condition is on (`packages/forge-wire`'s `ConditionMetSchema`). */
+export type ConditionMet = readonly number[];
+
+/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources}, {@link CantBlock}, {@link PrintedTypes}, {@link LifePaying} and {@link ConditionMet} as sibling fields. */
 export interface FoldablePacket extends WirePacket {
   stackTargetSpells?: StackTargetSpellPairs;
   pendingTriggers?: PendingTriggers;
@@ -71,6 +74,7 @@ export interface FoldablePacket extends WirePacket {
   cantBlock?: CantBlock;
   printedTypes?: PrintedTypes;
   lifePaying?: LifePaying;
+  conditionMet?: ConditionMet;
 }
 
 export interface FoldResult {
@@ -101,6 +105,8 @@ export interface FoldResult {
   printedTypes: ReadonlyMap<number, Tagged>;
   /** The latest `lifePaying` snapshot folded, as a `playerId → life` map — replaced when present. */
   lifePaying: ReadonlyMap<number, number>;
+  /** The latest `conditionMet` snapshot folded, as a set of card ids — replaced when present. */
+  conditionMet: ReadonlySet<number>;
 }
 
 export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
@@ -114,6 +120,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let cantBlock = new Set<number>();
   let printedTypes = new Map<number, Tagged>();
   let lifePaying = new Map<number, number>();
+  let conditionMet = new Set<number>();
 
   for (const packet of packets) {
     if (packet.stackTargetSpells !== undefined) {
@@ -125,6 +132,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     if (packet.cantBlock !== undefined) cantBlock = new Set(packet.cantBlock);
     if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes);
     if (packet.lifePaying !== undefined) lifePaying = new Map(packet.lifePaying);
+    if (packet.conditionMet !== undefined) conditionMet = new Set(packet.conditionMet);
     for (const [key, obj] of Object.entries(packet.newObjects)) {
       if (isAnnotationKey(key)) continue;
       state.set(key, withoutNulls(obj));
@@ -147,7 +155,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying };
+  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

@@ -765,6 +765,16 @@ export const LifePayingSchema = z.array(z.tuple([JavaInt, JavaInt]));
 export type LifePaying = z.infer<typeof LifePayingSchema>;
 
 /**
+ * The bridge's tenth addition beside the packet: the ids of the cards in a hand or on a battlefield
+ * whose own conditional ability is on right now — metalcraft, threshold, delirium, hellbent, "as long
+ * as you control …" (`PlayBridge.java`'s `conditionMetJson`, every verdict Forge's own check). The
+ * view itself never says. A full snapshot each time.
+ */
+export const ConditionMetSchema = z.array(JavaInt);
+
+export type ConditionMet = z.infer<typeof ConditionMetSchema>;
+
+/**
  * The bridge's sixth addition beside the packet: the damage dealt to cards since the seat's last
  * state frame (`PlayBridge.java`'s `DamageJournal`, Forge's own `GameEventCardDamaged`), oldest
  * first, as `[targetId, sourceId, amount]` — `sourceId` -1 when Forge names none. An event list, not
@@ -811,6 +821,7 @@ export const SetGameViewSchema = z.strictObject({
     cantBlock: CantBlockSchema.optional(),
     printedTypes: PrintedTypesSchema.optional(),
     lifePaying: LifePayingSchema.optional(),
+    conditionMet: ConditionMetSchema.optional(),
   }),
 });
 
@@ -848,6 +859,7 @@ export const ApplyDeltaSchema = z.strictObject({
     cantBlock: CantBlockSchema.optional(),
     printedTypes: PrintedTypesSchema.optional(),
     lifePaying: LifePayingSchema.optional(),
+    conditionMet: ConditionMetSchema.optional(),
     damage: DamageSchema.optional(),
     deaths: DeathsSchema.optional(),
   }),

@@ -67,10 +67,18 @@ const RARITY_LETTER: Record<string, string> = {
  * board's own text still writes TAP as a word (`play/Board.tsx`) — that is a
  * different renderer and a different lane.
  */
-function RulesLine({ line }: { line: string }) {
-  const pieces = line.split(/(\{[^}]{1,5}\})/g).filter((p) => p !== '');
+function RulesLine({ line, conditionMet = false }: { line: string; conditionMet?: boolean }) {
+  const word = conditionMet ? ABILITY_WORD.exec(line) : null;
+  const rest = word === null ? line : line.slice(word[0].length);
+  const pieces = rest.split(/(\{[^}]{1,5}\})/g).filter((p) => p !== '');
   return (
     <span className="card__rules-line">
+      {word !== null && (
+        <span className="card__ability-word">
+          {word[1]}
+        </span>
+      )}
+      {word !== null && word[0].slice(word[1].length)}
       {pieces.map((piece, i) => {
         const symbol = /^\{([^}]{1,5})\}$/.exec(piece);
         if (!symbol) return <span key={i}>{piece}</span>;
@@ -79,6 +87,13 @@ function RulesLine({ line }: { line: string }) {
     </span>
   );
 }
+
+/**
+ * A rules line that opens with an ability word — "Metalcraft — ", "Spell mastery — ": the
+ * printed convention for the clause a condition governs, one to three words then a spaced dash.
+ * "Choose one —" opens a mode list, not a condition, and is not one.
+ */
+const ABILITY_WORD = /^((?!Choose\b)[A-Z][A-Za-z']*(?: [A-Za-z']+){0,2}) — /;
 
 export interface CardTileProps {
   card: DraftCard;
@@ -103,9 +118,15 @@ export interface CardTileProps {
    * it when Forge is actually saying something more.
    */
   liveText?: string | null;
+  /**
+   * The board's `BoardCard.conditionMet` (`play/adapter.ts`): Forge says this card's own condition
+   * is on. The tile glows (`play/card.css`, `.card[data-condition-met]`) and the ability word that
+   * names the condition is tinted. The inspector clones this tile, so it shows both too.
+   */
+  conditionMet?: boolean;
 }
 
-function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui.select' }: CardTileProps) {
+function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui.select', conditionMet = false }: CardTileProps) {
   const identity = card.colors.length === 0 ? 'colorless' : card.colors.join('').toLowerCase();
   const shownText = liveText != null && liveText.trim() !== card.oracleText.trim() ? liveText : card.oracleText;
   // Splitting rules text runs a regex per line. It is small per card and
@@ -171,7 +192,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
       <span className="card__type">{card.typeLine}</span>
       <span className="card__rules">
         {rulesLines.map((line, i) => (
-          <RulesLine key={i} line={line} />
+          <RulesLine key={i} line={line} conditionMet={conditionMet} />
         ))}
       </span>
       <span className="card__foot">
@@ -204,7 +225,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
       // Hover cues a pool tile too. A pool card is not clickable but it IS the
       // thing you are reading, and a cue that only fires on half the cards on
       // screen reads as a bug rather than as a rule.
-      <article className="card" data-card-id={card.cardId} data-testid="card" onMouseEnter={onHover}>
+      <article className="card" data-card-id={card.cardId} data-testid="card" data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
         {body}
       </article>
     );

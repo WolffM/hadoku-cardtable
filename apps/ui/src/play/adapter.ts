@@ -270,6 +270,14 @@ export interface BoardCard {
    */
   cantBlock?: true;
   /**
+   * The operator, 2026-10-15: *"i would like it if the game told you when things like 'metalcraft'
+   * are active … in hearthstone the card turns orange when its conditional effect is 'active'"*. Set
+   * when Forge says this card's own condition is met right now (`PlayBridge.java`'s `conditionMet`:
+   * metalcraft, threshold, delirium, hellbent, "as long as you control …"), in a hand or on a
+   * battlefield. Absent for every card whose condition is off, and for a card with none.
+   */
+  conditionMet?: true;
+  /**
    * The operator: *"i played 'Cry of Contrition' which has haunt. i expect
    * to see the 'haunt' keyword on my creature … is there an easier way to
    * always get that effect name to popup rather than having to hardcode all
@@ -761,6 +769,8 @@ export interface AdaptOptions {
    * now, so each press shows, and a cancelled payment gives it back.
    */
   lifePaying?: ReadonlyMap<number, number>;
+  /** `PlayBridge.java`'s `conditionMet` (`../fold.ts`), read onto each card's `BoardCard.conditionMet`: the bridge names only hand and battlefield cards. */
+  conditionMet?: ReadonlySet<number>;
   /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
   hits?: readonly DamageHit[];
   /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
@@ -1545,6 +1555,7 @@ export function toBoardView(
     cantBlock,
     printedTypes,
     lifePaying,
+    conditionMet,
     hits,
     deathCauses,
     promptCard = null,
@@ -1567,14 +1578,16 @@ export function toBoardView(
       const waiting = onBattlefield ? waitingOn.get(id) : undefined;
       const createdBy = onBattlefield ? tokenSources?.get(id) : undefined;
       const blockless = onBattlefield && cantBlock?.has(id) === true;
+      const met = conditionMet?.has(id) === true;
       if (c === null) missing.push(id);
-      else if (waiting === undefined && createdBy === undefined && !blockless) out.push(c);
+      else if (waiting === undefined && createdBy === undefined && !blockless && !met) out.push(c);
       else
         out.push({
           ...c,
           ...(waiting === undefined ? {} : { waiting }),
           ...(createdBy === undefined ? {} : { createdBy }),
           ...(blockless ? { cantBlock: true as const } : {}),
+          ...(met ? { conditionMet: true as const } : {}),
         });
     }
     return out;

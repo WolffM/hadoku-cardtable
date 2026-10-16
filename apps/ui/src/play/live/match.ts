@@ -711,6 +711,8 @@ export interface LiveMatch {
   printedTypes: ReadonlyMap<number, Tagged>;
   /** The life each player has committed to an open payment and Forge has not taken yet (`../fold.ts`'s `lifePaying`), taken off the life drawn. */
   lifePaying: ReadonlyMap<number, number>;
+  /** The hand and battlefield cards whose condition is on (`../fold.ts`'s `conditionMet`), drawn glowing. */
+  conditionMet: ReadonlySet<number>;
   /**
    * The latest damage hits each `applyDelta` carried (`PlayBridge.java`'s `damage`), numbered as they
    * came (`DamageHit.seq`) and kept to the last {@link HITS_KEPT}: an event, never folded into state,
@@ -985,6 +987,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     cantBlock: new Set(),
     printedTypes: new Map(),
     lifePaying: new Map(),
+    conditionMet: new Set(),
     hits: [],
     nextHitSeq: 1,
     deathCauses: new Map(),
@@ -2587,6 +2590,7 @@ function statePacket(match: LiveMatch): WirePacket & {
   cantBlock: readonly number[];
   printedTypes: readonly (readonly [number, Tagged])[];
   lifePaying: readonly (readonly [number, number])[];
+  conditionMet: readonly number[];
 } {
   return {
     seq: match.forgeSeq,
@@ -2607,6 +2611,7 @@ function statePacket(match: LiveMatch): WirePacket & {
     cantBlock: [...match.cantBlock],
     printedTypes: [...match.printedTypes],
     lifePaying: [...match.lifePaying],
+    conditionMet: [...match.conditionMet],
   };
 }
 
@@ -2623,7 +2628,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet } = frame.payload;
       packets = [
         {
           seq: sequenceNumber,
@@ -2639,12 +2644,13 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
           cantBlock,
           printedTypes,
           lifePaying,
+          conditionMet,
         },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, damage, deaths } = frame.payload;
-      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying });
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet, damage, deaths } = frame.payload;
+      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet });
       if (damage !== undefined) noteHits(match, damage);
       if (deaths !== undefined) noteDeaths(match, deaths);
       changed = true;
@@ -2672,6 +2678,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.cantBlock = folded.cantBlock;
   match.printedTypes = folded.printedTypes;
   match.lifePaying = folded.lifePaying;
+  match.conditionMet = folded.conditionMet;
   redraw(match);
 }
 
@@ -2711,6 +2718,7 @@ function redraw(match: LiveMatch): void {
           cantBlock: match.cantBlock,
           printedTypes: match.printedTypes,
           lifePaying: match.lifePaying,
+          conditionMet: match.conditionMet,
           hits: match.hits,
           deathCauses: match.deathCauses,
           promptCard: match.promptCard,
@@ -3039,6 +3047,7 @@ function discardLocal(match: LiveMatch): void {
   match.cantBlock = new Set();
   match.printedTypes = new Map();
   match.lifePaying = new Map();
+  match.conditionMet = new Set();
   match.hits = [];
   match.deathCauses = new Map();
   match.promptTargetMore = 0;

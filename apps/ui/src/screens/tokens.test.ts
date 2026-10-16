@@ -196,6 +196,31 @@ describe('danger and success as text', () => {
   });
 });
 
+/*
+ * A card whose condition is on glows in `--condition` (the warning pulled toward the danger), and
+ * the ability word it lights is `--condition-ink`, a mix of that toward the ink.
+ */
+describe('the condition glow and its ink', () => {
+  const fillOf = /--condition:\s*color-mix\(in srgb,\s*var\(--warn\)\s*(\d+)%,\s*var\(--danger\)\)/.exec(ownCss);
+  const inkOf = /--condition-ink:\s*color-mix\(in srgb,\s*var\(--condition\)\s*(\d+)%,\s*var\(--ink\)\)/.exec(ownCss);
+
+  it('is the warning toward the danger, and its ink clears 4.5:1 on the page and on a card in every theme', () => {
+    expect(fillOf).not.toBeNull();
+    expect(inkOf).not.toBeNull();
+    const [warnShare, inkShare] = [Number(fillOf![1]) / 100, Number(inkOf![1]) / 100];
+    const mix = (a: Rgb, b: Rgb, s: number): Rgb => a.map((c, i) => Math.round(c * s + b[i]! * (1 - s))) as Rgb;
+    let worst = Infinity;
+    for (const t of themes) {
+      const [warning, danger, ink] = [hex(t.vars.warning), hex(t.vars.danger), hex(t.vars.text)];
+      expect(warning, `${t.name} defines a warning`).not.toBeNull();
+      expect(danger, `${t.name} defines a danger`).not.toBeNull();
+      const text = mix(mix(warning!, danger!, warnShare), ink!, inkShare);
+      worst = Math.min(worst, contrast(text, t.bg), contrast(text, t.card));
+    }
+    expect(worst).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe('the stacking scale (wave 32 shape 2)', () => {
   it('declares the four layers on :root, in order', () => {
     const z = (n: string): number => Number(new RegExp(`--z-${n}:\\s*(\\d+);`).exec(ownCss)?.[1] ?? Number.NaN);

@@ -650,6 +650,8 @@ public final class PlayBridge {
         if (cantBlock != null) { payload.add("cantBlock", cantBlock); }
         final JsonArray printedTypes = printedTypesJson(game);
         if (printedTypes != null) { payload.add("printedTypes", printedTypes); }
+        final JsonArray conditionMet = conditionMetJson(game);
+        if (conditionMet != null) { payload.add("conditionMet", conditionMet); }
     }
 
     /**
@@ -743,6 +745,271 @@ public final class PlayBridge {
         } catch (final RuntimeException e) {
             System.err.println("[bridge] cantBlock: could not read the battlefields (" + e + ")");
             return null;
+        }
+    }
+
+    /**
+     * The cards in a hand or on a battlefield whose own conditional ability is on right now —
+     * metalcraft with three artifacts, threshold with seven cards in the graveyard, delirium, hellbent,
+     * revolt, morbid, raid, ferocious, spell mastery, coven, "as long as you control …". Never on the
+     * view: {@code CardView} has no property for it. Every verdict is Forge's own check, on the card's
+     * own intrinsic traits ({@link ConditionsOn}); nothing here knows an ability word. A full snapshot
+     * each time; a face-down card is never read.
+     *
+     * <p>Null when the cards cannot be read (the game thread moved them under the read): the frame
+     * then omits the field and the client keeps what it had.
+     */
+    static JsonArray conditionMetJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                for (final forge.game.card.Card c : p.getCardsIn(List.of(ZoneType.Hand, ZoneType.Battlefield))) {
+                    if (!c.isFaceDown() && ConditionsOn.met(c)) { out.add(c.getId()); }
+                }
+            }
+            return out;
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[bridge] conditionMet: could not read the cards (" + e + ")");
+            return null;
+        }
+    }
+
+    /**
+     * Whether a card's conditional ability is on, asked of Forge's own checks. Four places carry a
+     * condition, and each is asked with the method Forge itself asks it with:
+     * <ul>
+     * <li>a static ability: {@code StaticAbility.checkConditions} ({@code Condition$ Metalcraft},
+     *     {@code CheckSVar$}, {@code IsPresent$} …), on a copy that is active in every zone, so a
+     *     card in hand is asked what it would be on the battlefield;</li>
+     * <li>a trigger's or replacement's intervening "if": {@code CardTraitBase.meetsCommonRequirements}
+     *     ({@code Delirium$ True}, {@code Revolt$ True}, {@code CheckSVar$} …);</li>
+     * <li>a spell or ability, a trigger's effect, and each sub-ability under them:
+     *     {@code SpellAbilityCondition.areMet} ({@code ConditionCheckSVar$}, {@code ConditionPresent$},
+     *     {@code Condition$ Metalcraft} …) — not a replacement's effect, whose condition is a land's
+     *     "enters tapped unless …", a drawback rather than a bonus — and
+     *     an activated ability's {@code Activation$ Threshold}-style restriction
+     *     ({@code SpellAbilityRestriction.checkOtherRestrictions});</li>
+     * <li>a branching count: an SVar {@code Count$<Name>.<if>.<else>} (Galvanic Blast's
+     *     {@code Count$Metalcraft.4.2}, {@code Count$Compare X GE1.<if>.<else>}), asked through
+     *     {@code AbilityUtils.xCount} with two marker numbers in place of its branches: the marker
+     *     that comes back says which branch Forge took. Any other SVar returns neither marker. Only
+     *     an SVar one of the traits above names as an amount is asked: a replacement's own plumbing
+     *     (Starting Town's "enters tapped unless …" count) is not a bonus.</li>
+     * </ul>
+     * Whether a trait HAS a condition is not a list of ability words either: its parameter map is
+     * wrapped in a {@link Recorder} while Forge's checker reads it, and a trait the checker found no
+     * parameter of is unconditional.
+     *
+     * <p>A check written as a negation — {@code EQ0}/{@code LT1}/{@code NE}, a {@code False} flag,
+     * "NotPresent" — never lights a card on its own: Forge scripts an "instead" as two branches, the
+     * default one negated ("deals 4 damage unless you attacked" beside "5 if you did"), and the
+     * default branch is always met. Nor does a check that is only a turn or a phase ("during your
+     * turn"): it is when an ability works, and would light the card every turn.
+     */
+    static final class ConditionsOn {
+        private static final int IF = 1_000_001;
+        private static final int ELSE = 1_000_002;
+        private static final Set<String> NEGATIONS = Set.of("EQ0", "LT1");
+        /**
+         * An activated ability's "activate only if …" keys, of everything
+         * {@code SpellAbilityRestriction.setRestrictions} reads; the rest of what it reads is a zone, a
+         * timing or a limit, which are not conditions.
+         */
+        private static final Set<String> RESTRICTION_CONDITIONS = Set.of("Activation", "CheckSVar", "IsPresent", "ActivationLifeTotal");
+        private static java.lang.reflect.Method commonRequirements;
+        private static java.lang.reflect.Field mapParams;
+
+        /** A parameter map that remembers which of its keys a checker found. */
+        static final class Recorder extends com.google.common.collect.ForwardingMap<String, String> {
+            private final Map<String, String> params;
+            final Set<String> found = new java.util.LinkedHashSet<>();
+            Recorder(final Map<String, String> params) { this.params = params; }
+            @Override protected Map<String, String> delegate() { return params; }
+            @Override public boolean containsKey(final Object key) {
+                final boolean has = params.containsKey(key);
+                if (has) { found.add((String) key); }
+                return has;
+            }
+            @Override public String get(final Object key) {
+                final String v = params.get(key);
+                if (v != null) { found.add((String) key); }
+                return v;
+            }
+        }
+
+        static boolean met(final forge.game.card.Card c) throws ReflectiveOperationException {
+            final forge.game.player.Player controller = c.getController();
+            if (controller == null) { return false; }
+            /* Every parameter value of the traits asked below, with the trait it is on: the SVars they name are the amounts the branch probe asks. */
+            final Map<String, forge.game.CardTraitBase> named = new HashMap<>();
+            for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                if (!st.isIntrinsic()) { continue; }
+                name(named, st);
+                if (staticOn(st, c)) { return true; }
+            }
+            for (final forge.game.trigger.Trigger t : c.getTriggers()) {
+                if (!t.isIntrinsic()) { continue; }
+                name(named, t);
+                for (SpellAbility s = t.getOverridingAbility(); s != null; s = s.getSubAbility()) { name(named, s); }
+                if (commonOn(t) || chainOn(t.getOverridingAbility(), controller)) { return true; }
+            }
+            for (final forge.game.replacement.ReplacementEffect r : c.getReplacementEffects()) {
+                if (r.isIntrinsic() && commonOn(r)) { return true; }
+            }
+            for (final SpellAbility sa : c.getSpellAbilities()) {
+                if (!sa.isIntrinsic()) { continue; }
+                for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { name(named, s); }
+                if (restrictionOn(sa, c, controller) || chainOn(sa, controller)) { return true; }
+            }
+            return branchOn(c, named);
+        }
+
+        private static void name(final Map<String, forge.game.CardTraitBase> named, final forge.game.CardTraitBase trait) {
+            for (final String value : trait.getMapParams().values()) { named.putIfAbsent(value, trait); }
+        }
+
+        private static boolean staticOn(final forge.game.staticability.StaticAbility st, final forge.game.card.Card c) throws ReflectiveOperationException {
+            final forge.game.staticability.StaticAbility copy = st.copy(c, true);
+            copy.setActiveZone(java.util.EnumSet.allOf(ZoneType.class));
+            final Recorder zones = new Recorder(copy.getMapParams());
+            mapParams().set(copy, zones);
+            copy.zonesCheck();
+            final Recorder all = new Recorder(zones.params);
+            mapParams().set(copy, all);
+            final boolean on = copy.checkConditions();
+            all.found.removeAll(zones.found);
+            return on && counts(all.found, copy.getMapParams());
+        }
+
+        private static boolean commonOn(final forge.game.CardTraitBase trait) throws ReflectiveOperationException {
+            final Recorder r = new Recorder(trait.getMapParams());
+            final boolean on = (Boolean) commonRequirements().invoke(trait, r);
+            return on && counts(r.found, trait.getMapParams());
+        }
+
+        private static boolean restrictionOn(final SpellAbility sa, final forge.game.card.Card c, final forge.game.player.Player controller) {
+            if (!sa.isActivatedAbility()) { return false; }
+            final Recorder r = new Recorder(sa.getMapParams());
+            new forge.game.spellability.SpellAbilityRestriction().setRestrictions(r);
+            r.found.retainAll(RESTRICTION_CONDITIONS);
+            return counts(r.found, sa.getMapParams())
+                    && sa.getRestrictions().checkOtherRestrictions(c, sa, controller);
+        }
+
+        /**
+         * A spell or ability and every sub-ability under it. Forge asks a condition of the player
+         * activating it; a card in hand has none yet, so the chain is asked on a copy its controller
+         * activates (the live one is never touched).
+         */
+        private static boolean chainOn(final SpellAbility root, final forge.game.player.Player controller) {
+            if (root == null) { return false; }
+            SpellAbility asked = null;
+            for (SpellAbility s = root; s != null; s = s.getSubAbility()) {
+                final Recorder r = new Recorder(s.getMapParams());
+                new forge.game.spellability.SpellAbilityCondition().setConditions(r);
+                if (!counts(r.found, s.getMapParams())) { continue; }
+                if (asked == null) { asked = root.getActivatingPlayer() == null ? root.copy(root.getHostCard(), controller, true) : root; }
+                final SpellAbility same = same(asked, root, s);
+                if (same != null && same.getConditions().areMet(same)) { return true; }
+            }
+            return false;
+        }
+
+        /** {@code s}'s place in {@code root}'s chain, in {@code copy}'s chain. */
+        private static SpellAbility same(final SpellAbility copy, final SpellAbility root, final SpellAbility s) {
+            SpellAbility a = copy;
+            for (SpellAbility b = root; b != null && a != null; b = b.getSubAbility(), a = a.getSubAbility()) {
+                if (b == s) { return a; }
+            }
+            return null;
+        }
+
+        /** The card's branching counts that one of its asked traits names as an amount, each asked through that trait. */
+        private static boolean branchOn(final forge.game.card.Card c, final Map<String, forge.game.CardTraitBase> named) {
+            for (final Map.Entry<String, String> svar : c.getSVars().entrySet()) {
+                final forge.game.CardTraitBase asker = named.get(svar.getKey());
+                final String expression = svar.getValue();
+                if (asker == null || !expression.startsWith("Count$") || expression.contains("/")) { continue; }
+                final String[] parts = expression.split("\\.");
+                if (parts.length != 3) { continue; }
+                try {
+                    if (forge.game.ability.AbilityUtils.xCount(c, parts[0] + "." + IF + "." + ELSE, asker) == IF) { return true; }
+                } catch (final RuntimeException notABranch) {
+                    // Not a branching count: Forge could not read it with markers in its branches.
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Whether the condition keys a checker {@code found} make a condition this card lights for: at
+         * least one, not only timing, and written as an affirmation.
+         */
+        private static boolean counts(final Set<String> found, final Map<String, String> params) {
+            return !found.isEmpty() && !timingOnly(found, params) && positive(found, params);
+        }
+
+        /**
+         * Whether every key is a turn or phase — {@code PlayerTurn$}, {@code Phases$},
+         * {@code ConditionPlayerTurn$}, {@code ActivationPhases$}, {@code Condition$ PlayerTurn}: "during
+         * your turn" is when an ability works, not a count the player builds toward, and would light
+         * the card every turn.
+         */
+        private static boolean timingOnly(final Set<String> found, final Map<String, String> params) {
+            for (final String key : found) {
+                final String value = params.get(key);
+                final boolean timing = key.contains("Turn") || key.contains("Phase")
+                        || (key.equals("Condition") && value != null && (value.contains("Turn") || value.contains("Phase")));
+                if (!timing) { return false; }
+            }
+            return true;
+        }
+
+        /**
+         * Whether the condition keys {@code found} are written as an affirmation: none is a
+         * {@code False}/{@code None} flag, a "NotPresent", or compared {@code EQ0}/{@code LT1}/{@code NE}.
+         */
+        private static boolean positive(final Set<String> found, final Map<String, String> params) {
+            for (final String key : found) {
+                final String value = params.get(key);
+                if (key.contains("NotPresent") || "False".equalsIgnoreCase(value) || "None".equalsIgnoreCase(value)) { return false; }
+                if (negation(value) && key.contains("Compare")) { return false; }
+                if (negation(params.get(compareKey(key)))) { return false; }
+            }
+            return true;
+        }
+
+        private static boolean negation(final String compare) {
+            return compare != null && (NEGATIONS.contains(compare) || compare.startsWith("NE"));
+        }
+
+        /** The key Forge reads a check's comparison from: {@code CheckSVar → SVarCompare}, {@code IsPresent → PresentCompare}, {@code ConditionPresent → ConditionCompare}. */
+        private static String compareKey(final String key) {
+            if (key.endsWith("CheckSVar")) { return key.substring(0, key.length() - "CheckSVar".length()) + "SVarCompare"; }
+            if (key.equals("IsPresent")) { return "PresentCompare"; }
+            if (key.equals("IsPresent2")) { return "PresentCompare2"; }
+            if (key.equals("ConditionPresent")) { return "ConditionCompare"; }
+            if (key.equals("ConditionPresent2")) { return "ConditionCompare2"; }
+            return key + "Compare";
+        }
+
+        private static java.lang.reflect.Method commonRequirements() throws NoSuchMethodException {
+            if (commonRequirements == null) {
+                final java.lang.reflect.Method m = forge.game.CardTraitBase.class.getDeclaredMethod("meetsCommonRequirements", Map.class);
+                m.setAccessible(true);
+                commonRequirements = m;
+            }
+            return commonRequirements;
+        }
+
+        private static java.lang.reflect.Field mapParams() throws NoSuchFieldException {
+            if (mapParams == null) {
+                final java.lang.reflect.Field f = forge.game.CardTraitBase.class.getDeclaredField("mapParams");
+                f.setAccessible(true);
+                mapParams = f;
+            }
+            return mapParams;
         }
     }
 

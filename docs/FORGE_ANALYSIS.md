@@ -678,3 +678,40 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   where Forge still checks it against the true maximum. The fork's
   `PlayerControllerHuman.getAnnouncing()` (pin `ed4d9f60`) names the ability so the
   bridge can try its cost at each X with `ComputerUtilMana.canPayManaCost`.
+
+## Where a card's condition is decided — 2026-10-15 (lane CA)
+
+Forge has no "ability word" concept and no single "is this condition on" call.
+A conditional ability is scripted in one of four places, and each has its own
+checker. `PlayBridge.java`'s `ConditionsOn` asks each with Forge's own method.
+
+- **VERIFIED (read)** — a static ability's `Condition$` (`Metalcraft`,
+  `Threshold`, `Hellbent`, `Delirium`, `Ferocious`, `PlayerTurn` …),
+  `CheckSVar$` and `IsPresent$` are decided in `StaticAbility.checkConditions`
+  (`forge-game/.../staticability/StaticAbility.java:362`), which first
+  requires the host to be in one of its active zones (`zonesCheck`, `:337`).
+  Carapace Forger's metalcraft is `Condition$ Metalcraft`.
+- **VERIFIED (read)** — a trigger's or a replacement's intervening "if"
+  (`Delirium$ True`, `Revolt$ True`, `CheckSVar$`, `IsPresent$`, `LifeTotal$`
+  …) is `CardTraitBase.meetsCommonRequirements(Map)` (`CardTraitBase.java:290`,
+  protected), which reads the map it is handed, not the trait's own.
+- **VERIFIED (read)** — a spell's or sub-ability's `Condition*$` params become a
+  `SpellAbilityCondition` (`SpellAbilityCondition.setConditions`, `:73`),
+  checked by `areMet(sa)` (`:255`); with no activating player set (a card in
+  hand) it falls back to the controller and prints a line. An activated
+  ability's `Activation$ Threshold`-style restriction is
+  `SpellAbilityRestriction.checkOtherRestrictions` (`:349`), mixed in with
+  loyalty and activation limits.
+- **VERIFIED (read)** — a branching amount is an SVar, `Count$<Name>.<if>.<else>`
+  (Galvanic Blast's `Count$Metalcraft.4.2`, Brimstone Volley's
+  `Count$Morbid.5.3`) or `Count$Compare <svar> <cmp>.<if>.<else>`, evaluated in
+  `AbilityUtils.xCount` (`:1575`, the branches at `:1614` and `:2251-2283`).
+- **VERIFIED (read)** — an "instead" is scripted as two branches, the default one
+  negated: Arrow Storm's 4 damage carries `ConditionSVarCompare$ EQ0` on the
+  raid count, its 5 damage the default `GE1` (`res/cardsfolder/a/arrow_storm.txt`).
+  The default branch is met whenever the bonus is not, so a negated check is
+  never what lights a card.
+- **VERIFIED (measured, `apps/server/src/play/condition-met.jvm.test.ts` on
+  the claws, run 38860570475)** — a card with only a keyword (Ornithopter's
+  Flying) carries traits with no condition parameter, and a checker that reads
+  none answers `true`: "has a condition" must be asked apart from "is it met".

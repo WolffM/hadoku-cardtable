@@ -2663,6 +2663,33 @@ describe('damage — the bridge’s own hits', () => {
   });
 });
 
+describe('conditionMet — the bridge’s own wire fact', () => {
+  function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload },
+    });
+  }
+
+  it('folds onto LiveMatch.conditionMet and onto the card’s own BoardCard, and a delta without it keeps it', async () => {
+    const { s, m } = await fullGame();
+    expect(m.conditionMet.size, 'empty before any frame carries it').toBe(0);
+    const viewer = m.view!.players.find((p) => p.isViewer)!;
+    const field = viewer.battlefield[0]!.id;
+    const held = viewer.hand![0]!.id;
+    await sendAndApply(s, m, [applyDeltaWith({ conditionMet: [field, held] })]);
+    expect([...m.conditionMet]).toEqual([field, held]);
+    const lit = () => m.view!.players.flatMap((p) => [...p.battlefield, ...(p.hand ?? [])]).filter((c) => c.conditionMet === true).map((c) => c.id);
+    expect(lit()).toEqual([field, held]);
+    await sendAndApply(s, m, [phase('MAIN2', viewer.id)]);
+    expect([...m.conditionMet]).toEqual([field, held]);
+    await sendAndApply(s, m, [applyDeltaWith({ conditionMet: [] })]);
+    expect(lit()).toEqual([]);
+  });
+});
+
 describe('full control, restored after a refresh', () => {
   /*
    * `cursor` is seq 1 with no frames in it, which the contract allows and the

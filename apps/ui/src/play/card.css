@@ -969,6 +969,44 @@
     0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
 }
 
+/* ── condition met: this card's own condition is on ──────────────────── */
+
+/*
+ * The operator, 2026-10-15: *"i would like it if the game told you when things like 'metalcraft'
+ * are active … in hearthstone the card turns orange when its conditional effect is 'active'."*
+ * Forge's own verdict (`adapter.ts`'s `BoardCard.conditionMet`), on the tile itself so a card in
+ * hand, on the battlefield and in the inspector's clone all wear it.
+ *
+ * The frame glows INWARD: a warm rim on the card's edge fading into it. Every other card state
+ * draws OUTSIDE the card — the offered ring and the can-act blur are box-shadows on the tile, the
+ * attack, block and focus rings are outlines on the face — so this one never covers any of them,
+ * and a card that is offered and also met shows both. A layer over the image, never a filter on
+ * it (the cast-forbidden veil's own rule). `isolation` keeps it inside the tile, under the
+ * badges the face draws beside it.
+ */
+.card[data-condition-met] {
+  isolation: isolate;
+}
+
+.card[data-condition-met]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* The art's own level (`styles.css`'s `.card__art`): drawn after it, so over it. */
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--condition),
+    inset 0 0 14px 3px color-mix(in srgb, var(--condition) 55%, transparent);
+  pointer-events: none;
+}
+
+/* The ability word that names the condition, where the tile's own rules text shows. */
+.card[data-condition-met] .card__ability-word {
+  color: var(--condition-ink);
+  font-weight: 700;
+}
+
 /* ── attacking: a committed attacker is marked, whether or not it taps ── */
 
 /*

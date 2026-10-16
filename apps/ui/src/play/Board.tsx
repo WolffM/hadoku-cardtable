@@ -2489,7 +2489,7 @@ function CardOnBoard({
         {entry.hidden === true ? (
           <HiddenCard card={entry.card} />
         ) : (
-          <CardTile card={entry.card} liveText={entry.abilityText} />
+          <CardTile card={entry.card} liveText={entry.abilityText} conditionMet={entry.conditionMet === true} />
         )}
       </button>
       {picked && (

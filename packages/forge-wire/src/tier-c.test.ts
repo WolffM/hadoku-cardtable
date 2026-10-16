@@ -22,6 +22,7 @@ import type { z } from 'zod';
 import {
   ApplyDeltaSchema,
   CantBlockSchema,
+  ConditionMetSchema,
   PrintedTypesSchema,
   LifePayingSchema,
   DamageSchema,
@@ -600,5 +601,24 @@ describe('Tier C — deaths', () => {
   it('is optional on applyDelta and carried when present', () => {
     const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, deaths: [[101, 'SACRIFICED']] } });
     expect(delta.success && delta.data.payload.deaths).toEqual([[101, 'SACRIFICED']]);
+  });
+});
+
+describe('Tier C — conditionMet', () => {
+  it('accepts a list of card ids and rejects anything else', () => {
+    expect(ConditionMetSchema.safeParse([]).success).toBe(true);
+    expect(ConditionMetSchema.safeParse([101, 102]).success).toBe(true);
+    expect(ConditionMetSchema.safeParse(['101']).success).toBe(false);
+  });
+
+  it('is optional on setGameView and applyDelta, and carried when present', () => {
+    const view = SetGameViewSchema.safeParse({
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, conditionMet: [101] },
+    });
+    expect(view.success && view.data.payload.conditionMet).toEqual([101]);
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, conditionMet: [101] } });
+    expect(delta.success && delta.data.payload.conditionMet).toEqual([101]);
   });
 });

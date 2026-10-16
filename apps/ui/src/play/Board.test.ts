@@ -3379,6 +3379,49 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent(?!-)/);
   });
 
+  /*
+   * The operator, 2026-10-15: "in hearthstone the card turns orange when its conditional effect is
+   * 'active'. how can we indicate it?" The tile itself glows inward, in the hand and on the table,
+   * and the ability word that names the condition is tinted in the tile's rules text.
+   */
+  it('a card whose condition is on glows inward on its own tile, in hand and on the table, and its ability word is tinted', () => {
+    const metalcraft = 'Metalcraft — CARDNAME gets +2/+2 as long as you control three or more artifacts.';
+    const lit = withState({ conditionMet: true });
+    const view: BoardView = {
+      ...lit,
+      players: lit.players.map((p) =>
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              battlefield: p.battlefield.map((c) => (c.id === 21 ? { ...c, abilityText: metalcraft, card: { ...c.card, oracleText: metalcraft } } : c)),
+              hand: p.hand!.map((c, i) => (i === 0 ? { ...c, conditionMet: true as const } : c)),
+            },
+      ),
+    };
+    const css = styled();
+    const { container } = renderBoard(view);
+    const tile = card(container).querySelector<HTMLElement>(':scope > .board-card__face > .card')!;
+    expect(tile.hasAttribute('data-condition-met'), 'the battlefield card’s tile').toBe(true);
+    const handId = view.players.find((p) => p.isViewer)!.hand![0]!.id;
+    expect(card(container, handId).querySelector('.card')!.hasAttribute('data-condition-met'), 'the held card’s tile').toBe(true);
+    expect(tile.querySelector('.card__ability-word')?.textContent, 'the clause’s ability word').toBe('Metalcraft');
+    expect(tile.querySelector('.card__rules-line')?.textContent).toBe(metalcraft);
+    expect(css(tile, 'isolation'), 'the glow stays inside the tile, under the face’s badges').toBe('isolate');
+    // Inward, on a layer of its own: every other card state draws OUTSIDE the tile (the offered
+    // ring and the can-act blur are the tile's box-shadow, combat rings the face's outline), so
+    // this rule may set neither, and an offered card that is also met shows both.
+    const rules = withoutComments(CARD_CSS);
+    for (const rule of rules.matchAll(/([^{}]*data-condition-met[^{}]*)\{([^{}]*)\}/g)) {
+      if (rule[1]!.includes('::after')) expect(rule[2], 'drawn inward').toMatch(/box-shadow:[^;]*inset/);
+      else expect(rule[2], `${rule[1]!.trim()} leaves the tile's own rings alone`).not.toMatch(/(^|[^-])(box-shadow|outline)\s*:/);
+    }
+    cleanup();
+    const plain = renderBoard(withState({})).container;
+    expect(plain.querySelectorAll('.card[data-condition-met]'), 'a card whose condition is off glows nowhere').toHaveLength(0);
+    expect(plain.querySelectorAll('.card__ability-word'), 'and no word is singled out').toHaveLength(0);
+  });
+
   it('a creature that can’t block wears its own corner mark — a struck shield, said in words — and keeps it when it turns', () => {
     const { container } = renderBoard(withState({ cantBlock: true, summoningSick: true }));
     const marks = [...card(container).querySelectorAll<HTMLElement>(':scope > .board-card__marks > .board-card__mark')];

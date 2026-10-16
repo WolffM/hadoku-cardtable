@@ -162,6 +162,16 @@ describe('printedTypes', () => {
   });
 });
 
+describe('conditionMet', () => {
+  it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
+    expect(foldPackets([opening!]).conditionMet.size).toBe(0);
+    const first = { ...opening!, conditionMet: [87, 88] };
+    expect([...foldPackets([first, { ...delta!, conditionMet: [91] }]).conditionMet]).toEqual([91]);
+    expect([...foldPackets([first, delta!]).conditionMet]).toEqual([87, 88]);
+    expect(foldPackets([first, { ...delta!, conditionMet: [] }]).conditionMet.size).toBe(0);
+  });
+});
+
 describe('mana costs', () => {
   it('reads ManaCost.serialize output into our pip tokens', () => {
     expect(manaCostTokens('3\u0006BLUE\u0006BLUE\u0006BLACK\u0006BLACK')).toEqual({

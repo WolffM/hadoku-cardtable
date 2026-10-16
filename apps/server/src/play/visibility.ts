@@ -177,6 +177,9 @@ export type PrintedTypes = readonly (readonly [number, unknown])[];
 /** `PlayBridge.java`'s `lifePaying` — `packages/forge-wire/src/tier-c.ts`'s `LifePayingSchema`: `[playerId, life]`. Public: life is. */
 export type LifePaying = readonly (readonly [number, number])[];
 
+/** `PlayBridge.java`'s `conditionMet` — `packages/forge-wire/src/tier-c.ts`'s `ConditionMetSchema`: hand and battlefield card ids. */
+export type ConditionMet = readonly number[];
+
 /** `PlayBridge.java`'s `damage` — `packages/forge-wire/src/tier-c.ts`'s `DamageSchema`: `[targetId, sourceId, amount]`, sourceId -1 for none. */
 export type Damage = readonly (readonly [number, number, number])[];
 
@@ -185,9 +188,9 @@ export type Deaths = readonly (readonly [number, string])[];
 
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; damage?: Damage; deaths?: Deaths } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet; damage?: Damage; deaths?: Deaths } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -818,6 +821,16 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	}
 
 	/**
+	 * The cards whose condition is on, for the faces this seat may read: a card in the other seat's
+	 * hand, or a face-down one, says nothing — whether its condition is on would say what it is.
+	 */
+	function conditionMetSeen(ids: ConditionMet | undefined): { conditionMet?: ConditionMet } {
+		if (ids === undefined) return {};
+		const zones = indexZones(raw);
+		return { conditionMet: ids.filter((id) => cardVisibility(raw, zones, id, who) === 'full') };
+	}
+
+	/**
 	 * The damage dealt, for the cards this seat is sent at all — a battlefield creature is public, so
 	 * in practice every hit — with a source this seat may not see named as none (-1).
 	 */
@@ -887,6 +900,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
+							...conditionMetSeen(frame.payload.conditionMet),
 						},
 					};
 				}
@@ -905,6 +919,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
+							...conditionMetSeen(frame.payload.conditionMet),
 							...damageSeen(frame.payload.damage),
 							...deathsSeen(frame.payload.deaths),
 						},

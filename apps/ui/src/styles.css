@@ -78,6 +78,16 @@
   --on-accent: var(--color-on-primary);
   --warn: var(--color-warning);
   /*
+   * A card whose own condition is on — metalcraft, threshold, delirium (`play/card.css`,
+   * `.card[data-condition-met]`). The theme's warning pulled a quarter toward its danger: the
+   * warm orange the operator asked for (*"in hearthstone the card turns orange"*), and a hue
+   * apart from `--warn`'s can-act glow. As text (the ability word it lights) it is mixed toward
+   * the ink, at the share that clears 4.5:1 on the page and on a card in all 18 themes
+   * (`screens/tokens.test.ts` measures it).
+   */
+  --condition: color-mix(in srgb, var(--warn) 75%, var(--danger));
+  --condition-ink: color-mix(in srgb, var(--condition) 40%, var(--ink));
+  /*
    * The three the play surfaces used to write as literals (the operator,
    * 2026-10-08: "hardcoded colors look bad"): a neutral fill (a card back), a
    * scrim over the board, and the one shadow colour every lifted thing casts —
