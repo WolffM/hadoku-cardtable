@@ -3,11 +3,12 @@ with. Writes selections/selection-<year>.json; report.py turns those into the re
 
   1. one deck per archetype (the one that went furthest, weighted by how big the event was)
   2. no near-duplicates (>= DUP_JACCARD of the same main-deck cards): the better finish stays
-  3. legal in the era's Standard, from the cards (bans and sets from Forge's own format file)
+  3. legal in the era's format, from the cards (bans and sets from Forge's own format file)
   4. colour spread: all five colours played by roughly the same number of decks, with room to
      lean toward what was best
   5. style spread: floors for the rarest styles, a cap on the most common
-  6. the decks already in the library stay: a re-run reads the era's previous selection and
+  6. loadable: every card has a Forge script (a set newer than Forge's own scripts cannot be played)
+  7. the decks already in the library stay: a re-run reads the era's previous selection and
      keeps every deck it chose that is still a legal, distinct candidate, filling around them
 """
 import json, math, os, random, sys
@@ -105,7 +106,7 @@ def run(era, overrides, fmt='ST', keep=frozenset()):
                 rejected.append({'archetype': L, 'deck': r['deck'], 'player': r['player'], 'why': [f'incomplete list: {n_main} main, {n_side} sideboard']})
                 continue
             ill, unk = analyze.legality(main, side, era, set(era['banned']))
-            ill += analyze.over_copy_limit(main, side)
+            ill += analyze.over_copy_limit(main, side) + analyze.unscripted(main, side)
             if ill or unk:
                 rejected.append({'archetype': L, 'deck': r['deck'], 'player': r['player'], 'why': (ill + [f'unknown card: {u}' for u in unk])[:3]})
                 continue

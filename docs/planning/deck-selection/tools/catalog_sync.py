@@ -41,6 +41,8 @@ def comment(sel, fam_name, fmt):
     cols = Counter(c for r in chosen for c in r['f']['colors'])
     st = Counter(r['style'] for r in chosen)
     where = ('the format in force on August 1st, Worlds’ month — Type 2 had no autumn rotation that year'
+             if era.get('no_fall_rotation') and era['format'].startswith('Type 2')
+             else 'the format in force on August 1st — WotC’s three-year rotation dropped no set that autumn'
              if era.get('no_fall_rotation')
              else 'the last Standard snapshot before that fall’s rotation' if fmt == 'ST'
              else f'pinned to Standard {era["year"]}’s own dates')

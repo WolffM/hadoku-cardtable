@@ -64,15 +64,20 @@ def dominance_notes(sel):
             )
     return notes
 
-NO_ROTATION_WINDOW = ('Type 2 had no autumn rotation this year, so the era is the format in force on August 1st, '
-                      'when Worlds was played')
+def no_rotation_window(era):
+    """Why a year with no set-dropping fall rotation is the format in force on August 1st."""
+    if era['format'].startswith('Type 2'):
+        return ('Type 2 had no autumn rotation this year, so the era is the format in force on August 1st, '
+                'when Worlds was played')
+    return ('Standard had no rotation this year — WotC moved it to a three-year rotation and the autumn set '
+            'dropped nothing — so the era is the format in force on August 1st')
 
 def era_doc(sel, fmt='ST'):
     era = sel['era']; out = []
     fam = FAMILY_NAME[fmt]
     out.append(f'# {era["year"]} — {era["format"]}\n')
     window = (
-        NO_ROTATION_WINDOW
+        no_rotation_window(era)
         if era.get('no_fall_rotation')
         else 'the last Standard before the fall rotation'
         if fmt == 'ST'
@@ -155,13 +160,13 @@ def readme(by_fmt):
     o = [f'# Deck selection review — "power summers", Standard {span}, Modern and Legacy\n',
          'One era per year per format: for Standard, the format in force **just before the fall rotation**, when the old '
          'block and the new one are legal together. Type 2 in 1995 and 1996 had no autumn rotation and changed its '
-         'restricted list between Worlds and the autumn set, so those two years take the format in force on August 1st. Modern and Legacy do not rotate, so their eras are pinned to the same '
+         'restricted list between Worlds and the autumn set, so those two years take the format in force on August 1st; so does 2023, when WotC moved Standard to a three-year rotation and Wilds of Eldraine dropped no set. Modern and Legacy do not rotate, so their eras are pinned to the same '
          'year’s Standard era’s own dates (wave 48, Settled) — same season window, snapshot taken from the latest '
          'dated Modern/Legacy format file on or before that date.\n',
          '## How the decks were chosen\n',
          '1. **Candidates:** every deck from a competitive-level event (Pro Tour, Worlds, Grand Prix, Nationals, SCG Opens, PTQs; not online dailies) in the season before that fall rotation, from [mtgtop8](https://www.mtgtop8.com). Events inside the summer window count more than earlier ones. A season whose competitive events cannot fill the era also takes mtgtop8’s **regular** events (local tournaments); they carry the fewest stars, so they only ever fill gaps.',
          '2. **One deck per archetype**, the one that went furthest (a bigger event counts more). **No near-duplicates:** two lists count as the same deck when they share 60% of their cards, or 45% and the same colours, or 30% and the same archetype name.',
-         '3. **Legal in that era**, checked card by card against Forge\'s own format file (legal sets, bans, and Type 2\'s restricted list and one-of-each-legendary rule) — ST\'s own dated Standard file, MO/LE\'s latest dated file on or before the era\'s snapshot date.',
+         '3. **Legal in that era**, checked card by card against Forge\'s own format file (legal sets, bans, and Type 2\'s restricted list and one-of-each-legendary rule) — ST\'s own dated Standard file, MO/LE\'s latest dated file on or before the era\'s snapshot date. **Loadable**, too: every card has a script in Forge at the pinned commit, or the deck could not be played here.',
          f'4. **Colour spread:** the chosen decks are searched so each of the five colours is played by about the same number of them (a colour may sit {S.COLOR_TOLERANCE} deck{"s" if S.COLOR_TOLERANCE != 1 else ""} off the mean for free). Colours are read from mana costs, not from the archetype name.',
          f'5. **Style spread:** at least {S.STYLE_FLOOR} decks of each style when the era has them, at most {S.STYLE_CAP} of any one, and the targets lean toward the rarer styles.',
          f'6. **Strength still counts:** within those limits the search maximises how well the decks actually placed. {S.N_DECKS} decks per era where the season has them — **thin seasons are reported, not padded** (fewer than {S.N_DECKS} legal candidates means a smaller era).',

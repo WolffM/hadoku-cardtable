@@ -265,5 +265,144 @@
   "format": "Standard (EMN)",
   "sets": "DTK, ORI, BFZ, OGW, SOI, W16, EMN",
   "banned": []
+ },
+ {
+  "year": 2017,
+  "season_start": "2016-09-30",
+  "start": "2017-07-14",
+  "end": "2017-09-29",
+  "format": "Standard (HOU)",
+  "sets": "BFZ, OGW, SOI, W16, EMN, KLD, AER, AKH, W17, HOU",
+  "banned": [
+   "Aetherworks Marvel",
+   "Emrakul, the Promised End",
+   "Felidar Guardian",
+   "Reflector Mage",
+   "Smuggler's Copter"
+  ]
+ },
+ {
+  "year": 2018,
+  "season_start": "2017-09-29",
+  "start": "2018-07-13",
+  "end": "2018-10-05",
+  "format": "Standard (M19)",
+  "sets": "KLD, AER, AKH, W17, HOU, XLN, RIX, DOM, M19",
+  "banned": [
+   "Aetherworks Marvel",
+   "Attune with Aether",
+   "Felidar Guardian",
+   "Rampaging Ferocidon",
+   "Ramunap Ruins",
+   "Rogue Refiner",
+   "Smuggler's Copter"
+  ]
+ },
+ {
+  "year": 2019,
+  "season_start": "2018-10-05",
+  "start": "2019-08-30",
+  "end": "2019-10-04",
+  "format": "Standard (2019-08-30)",
+  "sets": "XLN, RIX, DOM, M19, GRN, G18, RNA, WAR, M20",
+  "banned": []
+ },
+ {
+  "year": 2020,
+  "season_start": "2019-10-04",
+  "start": "2020-08-03",
+  "end": "2020-09-25",
+  "format": "Standard (2020-08-03)",
+  "sets": "GRN, RNA, WAR, M20, ELD, THB, IKO, M21",
+  "banned": [
+   "Agent of Treachery",
+   "Cauldron Familiar",
+   "Field of the Dead",
+   "Fires of Invention",
+   "Growth Spiral",
+   "Oko, Thief of Crowns",
+   "Once Upon a Time",
+   "Teferi, Time Raveler",
+   "Veil of Summer",
+   "Wilderness Reclamation"
+  ]
+ },
+ {
+  "year": 2021,
+  "season_start": "2020-09-25",
+  "start": "2021-07-23",
+  "end": "2021-09-24",
+  "format": "Standard (AFR)",
+  "sets": "ELD, THB, IKO, M21, ZNR, KHM, STX, AFR",
+  "banned": [
+   "Cauldron Familiar",
+   "Escape to the Wilds",
+   "Fires of Invention",
+   "Lucky Clover",
+   "Oko, Thief of Crowns",
+   "Omnath, Locus of Creation",
+   "Once Upon a Time",
+   "Uro, Titan of Nature's Wrath"
+  ]
+ },
+ {
+  "year": 2022,
+  "season_start": "2021-09-24",
+  "start": "2022-04-29",
+  "end": "2022-09-09",
+  "format": "Standard (SNC)",
+  "sets": "ZNR, KHM, STX, AFR, MID, VOW, NEO, SNC",
+  "banned": [
+   "Alrund's Epiphany",
+   "Divide by Zero",
+   "Faceless Haven",
+   "Omnath, Locus of Creation"
+  ]
+ },
+ {
+  "year": 2023,
+  "season_start": "2022-09-09",
+  "start": "2023-05-29",
+  "end": "2023-09-08",
+  "format": "Standard (2023-05-29)",
+  "sets": "MID, VOW, NEO, SNC, DMU, BRO, ONE, MOM, MAT",
+  "banned": [
+   "Fable of the Mirror-Breaker",
+   "Invoke Despair",
+   "Reckoner Bankbuster",
+   "The Meathook Massacre"
+  ],
+  "no_fall_rotation": true
+ },
+ {
+  "year": 2024,
+  "season_start": "2023-09-08",
+  "start": "2024-04-19",
+  "end": "2024-08-02",
+  "format": "Standard (OTJ)",
+  "sets": "MID, VOW, NEO, SNC, DMU, BRO, ONE, MOM, MAT, WOE, LCI, MKM, OTJ, BIG",
+  "banned": [
+   "Fable of the Mirror-Breaker",
+   "Invoke Despair",
+   "Reckoner Bankbuster",
+   "The Meathook Massacre"
+  ]
+ },
+ {
+  "year": 2025,
+  "season_start": "2024-08-02",
+  "start": "2025-06-30",
+  "end": "2025-08-01",
+  "format": "Standard (2025-06-30)",
+  "sets": "DMU, BRO, ONE, MOM, MAT, WOE, LCI, MKM, OTJ, BIG, BLB, DSK, FDN, DFT, TDM, FIN",
+  "banned": [
+   "Abuelo's Awakening",
+   "Cori-Steel Cutter",
+   "Heartfire Hero",
+   "Hopeless Nightmare",
+   "Monstrous Rage",
+   "This Town Ain't Big Enough",
+   "Up the Beanstalk"
+  ]
  }
 ]

@@ -32,6 +32,34 @@ def _scryfall_codes():
 
 SCRYFALL_CODE = _scryfall_codes()
 
+CARDSFOLDER = os.environ.get('FORGE_CARDSFOLDER_ROOT', '/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res/cardsfolder')
+
+def _forge_names():
+    """Every face name a Forge card script declares. A card with no script cannot be loaded
+    into a match, however legal it is: the newest sets reach the corpus before Forge has
+    scripted all of them."""
+    out = set()
+    for root, _, files in os.walk(CARDSFOLDER):
+        for f in files:
+            if f.endswith('.txt'):
+                for line in open(os.path.join(root, f), encoding='utf-8', errors='replace'):
+                    if line.startswith('Name:'):
+                        out.add(line[5:].strip())
+    return out
+
+FORGE_NAMES = _forge_names()
+
+def unscripted(main, side):
+    """Names in the list Forge has no script for, by the card's front face."""
+    out = set()
+    for _, _, name in main + side:
+        if name in BASICS:
+            continue
+        e = lookup(name)
+        if e is not None and e['name'].split(' // ')[0] not in FORGE_NAMES:
+            out.add(f'{name} (no Forge script)')
+    return sorted(out)
+
 def era_sets(era):
     return {SCRYFALL_CODE.get(c, c) for c in (s.strip().upper() for s in era['sets'].split(','))}
 

@@ -24,7 +24,7 @@ SUBTYPE = {'ST': 'Standard', 'MO': 'Modern', 'LE': 'Legacy'}
 # Long-form infix used in every file name except Standard's (kept bare for
 # back-compat with wave 34's files). `None` means "no infix".
 INFIX = {'ST': None, 'MO': 'modern', 'LE': 'legacy'}
-DEFAULT_RANGE = {'ST': (1995, 2016), 'MO': (2011, 2016), 'LE': (2005, 2016)}
+DEFAULT_RANGE = {'ST': (1995, 2025), 'MO': (2011, 2025), 'LE': (2005, 2025)}
 
 
 def infix(fmt):
@@ -86,48 +86,58 @@ def _parse(path):
     return out
 
 
-def _fall_rotation(dates, y):
-    """The LAST Standard snapshot dated in the second half of year `y`
-    (July-December). Wave 34's original rule picked the FIRST file matching
-    `{y}-09` or `{y}-10`, which is right for every year it was ever run
-    against (2008-2016, one such file each) but breaks on real data outside
-    that range: 2001 and 2002's fall rotations landed in November
-    (`2001-11-01`, `2002-11-01`, no September/October file exists either
-    year), and 2003 has TWO files in the window — `2003-09-01` (a lone
-    core-set swap, 7ED out/8ED in, same shape as 2005's and 2007's — see
-    AGENTS.md) and `2003-10-20` (the real block rotation, Odyssey block out,
-    Mirrodin in) — where `next()` picked the wrong (earlier) one. The LATEST
-    second-half-of-year snapshot is the real fall rotation in every case
-    checked against the archive (`docs/planning/deck-selection/review/README.md`'s
-    own eras table is the citable proof for 2008-2016; 2003's two-file case
-    is the new one found extending to 2003-2007)."""
-    candidates = [dt for dt in dates if dt.startswith(f'{y}-') and dt[5:7] >= '07']
-    if not candidates:
-        raise ValueError(f'no Standard snapshot found in the second half of {y}')
-    return max(candidates)
-
-
 def _sets(d, date):
     return {x.strip() for x in _parse(d + date + '.txt')['sets'].split(',')}
+
+
+def _drops_a_set(dates, d, date):
+    i = dates.index(date)
+    return i > 0 and bool(_sets(d, dates[i - 1]) - _sets(d, date))
+
+
+def _fall_rotation(dates, d, y):
+    """The LAST Standard snapshot dated in the second half of year `y`
+    (July-December) that drops a set its predecessor had, or None when no
+    snapshot that half-year drops one.
+
+    Wave 34's original rule picked the FIRST file matching `{y}-09` or
+    `{y}-10`, right for 2008-2016 (one such file each) but wrong outside it:
+    2001 and 2002's rotations landed in November, and 2003 has two files in
+    the window — `2003-09-01` (a core-set swap, 7ED out/8ED in) and
+    `2003-10-20` (the block rotation), where the first was the wrong one.
+
+    The rule after that took the LATEST second-half snapshot of any kind,
+    which held while the only files after a rotation were the next year's.
+    From 2018 on Forge records bans and Arena-era set additions in October to
+    December too (`2018-11-16`, `2019-10-25`, `2020-10-12`, ...), and those
+    won, so every year from 2018 read as having no rotation. A rotation is a
+    snapshot that drops a set, so that is what is asked: the set-dropping
+    rotations are 2017-09-29, 2018-10-05, 2019-10-04, 2020-09-25, 2021-09-24,
+    2022-09-09, 2024-08-02 and 2025-08-01. 2023 has none — WotC's move to a
+    three-year rotation meant Wilds of Eldraine (`2023-09-08`) dropped
+    nothing — and 1995 and 1996 have none either."""
+    candidates = [dt for dt in dates if dt.startswith(f'{y}-') and dt[5:7] >= '07' and _drops_a_set(dates, d, dt)]
+    return max(candidates) if candidates else None
 
 
 def _era_bounds(dates, d, y):
     """(start, end, rotated) of year `y`'s Standard era: the snapshot in force
     over the summer, the snapshot that ended it, and whether that was a rotation.
 
-    From 1997 on, the end is `_fall_rotation` and the era is the snapshot just
-    before it. Type 2 in 1995 and 1996 had no fall rotation — no snapshot in the
-    second half of either year drops a set (`1995-11-13` and `1996-11-07` only add
-    Homelands and Mirage) — and both years changed the restricted list between
-    Worlds in August and the autumn set: `1995-11-01` restricted Zuran Orb,
-    `1996-10-01` Hymn to Tourach and Strip Mine. Pinning those years to the file
-    before the autumn set would judge Worlds decks by a list made after Worlds and
-    reject all of them. So a year with no set-dropping rotation takes the format in
-    force on August 1st, the month Worlds was played, and ends at the next snapshot."""
-    fall = _fall_rotation(dates, y)
-    i = dates.index(fall)
-    if _sets(d, dates[i - 1]) - _sets(d, fall):
-        return dates[i - 1], fall, True
+    In a year with a fall rotation (`_fall_rotation`) the end is that rotation
+    and the era is the snapshot just before it. Three years have none. Type 2 in
+    1995 and 1996: no snapshot in the second half of either year drops a set
+    (`1995-11-13` and `1996-11-07` only add Homelands and Mirage), and both years
+    changed the restricted list between Worlds in August and the autumn set:
+    `1995-11-01` restricted Zuran Orb, `1996-10-01` Hymn to Tourach and Strip
+    Mine. Pinning those years to the file before the autumn set would judge
+    Worlds decks by a list made after Worlds and reject all of them. And 2023,
+    when WotC moved Standard to a three-year rotation and Wilds of Eldraine
+    (`2023-09-08`) dropped nothing. So a year with no set-dropping rotation takes
+    the format in force on August 1st and ends at the next snapshot."""
+    fall = _fall_rotation(dates, d, y)
+    if fall is not None:
+        return dates[dates.index(fall) - 1], fall, True
     start = max(dt for dt in dates if dt <= f'{y}-08-01')
     return start, dates[dates.index(start) + 1], False
 
@@ -174,14 +184,14 @@ def _aligned_eras(fmt, first, last, standard_by_year):
 
 
 def eras(fmt='ST', first=None, last=None):
-    """Every era for `fmt`, oldest first. `first`/`last` default to wave 48's
-    ranges (ST 1995-2016, MO 2011-2016, LE 2005-2016 — AF41 took ST and MO back as
-    far as mtgtop8 has decks; LE has none before 2005)."""
+    """Every era for `fmt`, oldest first. `first`/`last` default to
+    `DEFAULT_RANGE`: ST 1995-2025, MO 2011-2025, LE 2005-2025 — back as far as
+    mtgtop8 has decks (no Legacy before 2005), forward to Pro Tour 2025's summer."""
     if fmt == 'ST':
         f, l = (first, last) if first and last else DEFAULT_RANGE['ST']
         return _standard_eras(f, l)
     # MO/LE need a Standard anchor covering their own range AND Standard's,
-    # so the full Standard table (1995-2016) is always derived, then narrowed.
+    # so the full Standard table is always derived, then narrowed.
     std_first, std_last = DEFAULT_RANGE['ST']
     std_by_year = {e['year']: e for e in _standard_eras(std_first, std_last)}
     f, l = (first, last) if first and last else DEFAULT_RANGE[fmt]
