@@ -1730,6 +1730,109 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
   });
 });
 
+/*
+ * The operator, 2026-10-15: "when dragging a card to draw an arrow, if
+ * hovering over the card itself it weirdly draws an arrow to the top of the
+ * card. let's not allow arrows to snap to things that are not valid targets."
+ * The tip snaps only to what the release would send as a target; over the
+ * arrow's own source there is no arrow at all.
+ */
+describe('the arrow snaps only to a target the release would send', () => {
+  /** The tip of the one targeter, off its shaft's `M x1 y1 Q cx cy x2 y2`. */
+  const tipOf = (overlay: HTMLElement): { x: number; y: number } => {
+    const d = overlay.querySelector('[data-testid="targeter"] path')!.getAttribute('d')!;
+    const [x, y] = d.trim().split(/\s+/).slice(-2).map(Number) as [number, number];
+    return { x, y };
+  };
+
+  async function attackers() {
+    const ctx = await declaringAttackersBoard();
+    const { s, m, canvas } = ctx;
+    const [attacker, other] = mineOf(m).battlefield.filter((c) => !c.tapped).map((c) => c.id) as [number, number];
+    for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker, other])])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(other)).toBe(true));
+    const overlay = overlayOf(canvas);
+    boxAt(overlay, 0, 0, 800, 600);
+    boxAt(cardEl(canvas, attacker), 100, 300, 80, 112);
+    boxAt(cardEl(canvas, other), 300, 300, 80, 112);
+    return { ...ctx, overlay, attacker, other };
+  }
+
+  it('an attacker dragged and still over itself draws no arrow — never one into its own top edge', async () => {
+    const { s, canvas, overlay, attacker } = await attackers();
+    fireEvent.pointerDown(cardEl(canvas, attacker), { button: 0, clientX: 140, clientY: 400 });
+    fireEvent.pointerMove(cardEl(canvas, attacker), { clientX: 150, clientY: 330 });
+    await frame();
+    const arrow = overlay.querySelector<SVGElement>('[data-testid="targeter"]');
+    expect(arrow === null ? null : { target: arrow.dataset.target, snapped: arrow.dataset.snapped, tip: tipOf(overlay) }).toBeNull();
+    fireEvent.pointerCancel(window);
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
+  it('another of this seat’s attackers is no target: the tip follows the pointer, and the drop declares the dragged one only', async () => {
+    const { s, canvas, overlay, attacker, other } = await attackers();
+    fireEvent.pointerDown(cardEl(canvas, attacker), { button: 0, clientX: 140, clientY: 400 });
+    fireEvent.pointerMove(cardEl(canvas, other), { clientX: 330, clientY: 350 });
+    const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.target).toBeUndefined();
+    expect(arrow.dataset.snapped).toBeUndefined();
+    expect(tipOf(overlay)).toEqual({ x: 330, y: 350 });
+    fireEvent.pointerUp(cardEl(canvas, other), { clientX: 330, clientY: 350 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', attacker]]);
+  });
+
+  it('inside a selection that offers the source too, the source is never its own target; the other offered card is', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const overlay = overlayOf(canvas);
+    const [source, target] = mineOf(m).battlefield.map((c) => c.id) as [number, number];
+    for (const f of notify([prompt('Choose two'), selectables([source, target], 1, 2)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    boxAt(overlay, 0, 0, 800, 600);
+    boxAt(cardEl(canvas, source), 100, 300, 80, 112);
+    boxAt(cardEl(canvas, target), 300, 300, 80, 112);
+
+    fireEvent.pointerDown(cardEl(canvas, source), { button: 0, clientX: 140, clientY: 400 });
+    fireEvent.pointerMove(cardEl(canvas, source), { clientX: 150, clientY: 330 });
+    await frame();
+    expect(overlay.querySelector('[data-testid="targeter"]'), 'over its own source').toBeNull();
+
+    fireEvent.pointerMove(cardEl(canvas, target), { clientX: 330, clientY: 350 });
+    await waitFor(() => expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')?.dataset.target).toBe(`card:${target}`));
+
+    // Back over the source and let go: the source is used, exactly as before.
+    fireEvent.pointerMove(cardEl(canvas, source), { clientX: 150, clientY: 330 });
+    await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
+    fireEvent.pointerUp(cardEl(canvas, source), { clientX: 150, clientY: 330 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', source]]);
+  });
+
+  it('click targeting: the pointer over the card the arrow leaves from draws no arrow', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const overlay = overlayOf(canvas);
+    const spell = mineOf(m).battlefield[0]!.id;
+    const theirs = theirsOf(m).battlefield[0]!.id;
+    for (const f of notify([prompt('Priority'), actionable([spell])])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(spell)).toBe(true));
+    fireEvent.click(cardEl(canvas, spell).querySelector('button')!);
+    await waitFor(() => expect(m.lastSelectedCard).toBe(spell));
+    // A selection that may take the source itself.
+    for (const f of notify([prompt('Choose a target'), selectables([spell, theirs], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    boxAt(overlay, 0, 0, 800, 600);
+    boxAt(cardEl(canvas, spell), 100, 300, 80, 112);
+    boxAt(cardEl(canvas, theirs), 300, 40, 80, 112);
+
+    fireEvent.pointerMove(cardEl(canvas, theirs), { clientX: 330, clientY: 90 });
+    await waitFor(() => expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')?.dataset.target).toBe(`card:${theirs}`));
+    fireEvent.pointerMove(cardEl(canvas, spell), { clientX: 150, clientY: 330 });
+    await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
+    expect(sent(s)).toEqual([['selectCard', spell]]);
+  });
+});
+
 /* ── §B.4 — the arrow draws for click targeting too ──────────────────── */
 
 describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {

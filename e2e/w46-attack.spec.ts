@@ -143,18 +143,6 @@ async function passUntilPhase(pages: readonly Page[], phase: RegExp, timeoutMs =
   );
 }
 
-/** A single held pointer gesture: down on `fromId`'s card, up on `toId`'s — a battlefield-to-battlefield drag. */
-async function dragCardOnto(page: Page, fromId: number, toId: number): Promise<void> {
-  const fromBox = await page.locator(`[data-board-card="${fromId}"]`).boundingBox();
-  const toBox = await page.locator(`[data-board-card="${toId}"]`).boundingBox();
-  if (fromBox === null) throw new Error(`no box for card ${fromId}`);
-  if (toBox === null) throw new Error(`no box for card ${toId}`);
-  await page.mouse.move(fromBox.x + fromBox.width / 2, fromBox.y + fromBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(toBox.x + toBox.width / 2, toBox.y + toBox.height / 2, { steps: 8 });
-  await page.mouse.up();
-}
-
 /**
  * The lasting attack arrow's own box, the Jace card's box, and the curve's
  * own tail/tip, read together in ONE layout pass. Runs in the page.
@@ -217,7 +205,28 @@ test(
         timeout: 10_000,
       });
 
-      await dragCardOnto(alice.page, memnite, jace);
+      /*
+       * The operator, 2026-10-15: *"when dragging a card to draw an arrow, if
+       * hovering over the card itself it weirdly draws an arrow to the top of
+       * the card. let's not allow arrows to snap to things that are not valid
+       * targets."* The same held drag, first carried past the slop but still
+       * over Memnite itself: no arrow at all. Then over Jace: snapped to Jace.
+       */
+      const selfTargeter = alice.page.locator('[data-testid="targeter"]');
+      const memniteBox = (await alice.page.locator(`[data-board-card="${memnite}"]`).boundingBox())!;
+      const jaceBox = (await alice.page.locator(`[data-board-card="${jace}"]`).boundingBox())!;
+      await alice.page.mouse.move(memniteBox.x + memniteBox.width / 2, memniteBox.y + memniteBox.height * 0.75);
+      await alice.page.mouse.down();
+      await alice.page.mouse.move(memniteBox.x + memniteBox.width / 2, memniteBox.y + memniteBox.height * 0.2, { steps: 6 });
+      await expect(alice.page.locator('[data-gesture-canvas][data-dragging]'), 'the press is a drag now').toHaveCount(1);
+      const overSelf = await selfTargeter.evaluateAll((els) =>
+        els.map((el) => ({ target: el.getAttribute('data-target'), d: el.querySelector('path')?.getAttribute('d') ?? null })),
+      );
+      console.log(`[ar] over-self ${JSON.stringify({ memnite, box: memniteBox, targeters: overSelf })}`);
+      expect(overSelf, 'over the dragged card itself there is no arrow').toEqual([]);
+      await alice.page.mouse.move(jaceBox.x + jaceBox.width / 2, jaceBox.y + jaceBox.height / 2, { steps: 8 });
+      await expect(selfTargeter, 'over Jace the arrow snaps to Jace').toHaveAttribute('data-target', `card:${jace}`);
+      await alice.page.mouse.up();
 
       // Forge declared it: its own `Attacking`, not this client's intent mark.
       await expect(alice.page.locator(`[data-board-card="${memnite}"]`), 'Memnite is declared attacking').toHaveAttribute('data-attacking', 'true', {
