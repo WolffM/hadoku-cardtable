@@ -34,6 +34,8 @@ export interface HandoverFacts {
   /** `Date.now()` when Forge's frame put the spell on the stack, as this screen saw it. */
   readonly stackFrameAt: number | null;
   readonly motion: boolean;
+  /** A landing's shrink into its slot, in px of width (`gestures/cast.ts`'s `Landing`); absent for anything that did not travel there. */
+  readonly shrink?: number;
 }
 
 /** The centre of `el` as drawn this frame, or null when it has no box. */
@@ -109,6 +111,7 @@ export function handoverData(f: HandoverFacts & { readonly to: Point | null }, c
     data.toY = Math.round(f.to.y);
   }
   if (f.from !== null && f.to !== null) data.dist = Math.round(Math.hypot(f.to.x - f.from.x, f.to.y - f.from.y));
+  if (f.shrink !== undefined) data.shrink = Math.round(f.shrink);
   if (f.glideStartedAt !== null) {
     data.glideMs = now - f.glideStartedAt;
     data.glideDone = now - f.glideStartedAt >= GLIDE_MS;

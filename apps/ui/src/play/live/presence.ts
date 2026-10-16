@@ -82,7 +82,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { expectPlacement, pendingPlacementFor, renewPlacement } from '../Board.tsx';
-import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX, landCastGhost } from './gestures/cast.ts';
+import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
@@ -1276,11 +1276,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function flyTile(card: number, from: Point): void {
     const settled = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     const tile = settled?.querySelector('.card');
-    const to = drawnCentreOf(settled);
-    const inPlace = to !== null && Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX;
-    const how = !(settled instanceof HTMLElement) || !tile ? 'no-tile' : host.motion?.() !== true ? 'motion-off' : inPlace ? 'swap' : 'flight';
-    reportHandover(host.report, 'landing', canvas, receiverFacts(card, how, from, to));
-    if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) return;
+    if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) {
+      reportHandover(host.report, 'landing', canvas, receiverFacts(card, !(settled instanceof HTMLElement) || !tile ? 'no-tile' : 'motion-off', from, drawnCentreOf(settled)));
+      return;
+    }
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
     ghost.setAttribute(PRESENCE_CARD_ATTR, String(card));
@@ -1293,7 +1292,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       el.removeAttribute('data-testid');
     }
     ghost.append(copy);
-    landCastGhost(canvas, card, ghost, from, settled);
+    const landing = landCastGhost(canvas, card, ghost, from, settled);
+    reportHandover(host.report, 'landing', canvas, { ...receiverFacts(card, landing.how, landing.from, landing.to), shrink: landing.shrink });
   }
 
   /** Whose release an echo from `seat` is: the seat table's answer (null until it has arrived); the other player only for a host without one. */

@@ -234,7 +234,7 @@ import { GLIDE_MS } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
-import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX,
+import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
   castCardTypeLine,
   castZoneOf,
@@ -1085,12 +1085,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const settled = cardBox(canvas, p.source);
         if (settled !== arrived) arrived.removeAttribute(CAST_LANDING_ATTR);
         if (settled instanceof HTMLElement && settled.closest('[data-zone="battlefield"]') !== null) {
-          // Measured from where the stand-in is DRAWN, not from the release point it was let go at.
-          const from = drawnCentreOf(ghost);
-          const to = drawnCentreOf(settled);
-          const inPlace = to !== null && Math.hypot(to.x - p.at.x, to.y - p.at.y) < IN_PLACE_PX;
-          reportHandover(options.report, 'landing', canvas, casterFacts(p, inPlace ? 'swap' : 'flight', from, to));
-          landCastGhost(canvas, p.source, ghost, p.at, settled);
+          const landing = landCastGhost(canvas, p.source, ghost, p.at, settled);
+          reportHandover(options.report, 'landing', canvas, { ...casterFacts(p, landing.how, landing.from, landing.to), shrink: landing.shrink });
         } else {
           reportHandover(options.report, 'landing', canvas, casterFacts(p, 'gone-before-frame', drawnCentreOf(ghost), null));
           releaseParked(p, false);

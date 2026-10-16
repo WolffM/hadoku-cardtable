@@ -50,12 +50,13 @@ describe('handoverData', () => {
       msSinceStackFrame: 50,
     });
     expect(handoverData(facts, ['placed'], 1_000 + GLIDE_MS).glideDone, 'a glide of GLIDE_MS is done').toBe(true);
+    expect(handoverData({ ...facts, how: 'flight', shrink: 17.4 }, ['ghost'], 1_200).shrink, 'a landing’s shrink into its slot, rounded').toBe(17);
   });
 
   it('leaves out what is not known — no stand-in drawn, no glide, no stack frame — and stays a valid client event', () => {
     const data = handoverData({ ...facts, how: 'motion-off', from: null, glideStartedAt: null, stackFrameAt: null }, ['zone:battlefield'], 1_200);
     expect(data).toEqual({ screen: 'receiver', how: 'motion-off', motion: true, doubled: false, card: 121, toX: 454, toY: 280, msSinceRelease: 300 });
-    expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'landing', data: handoverData(facts, ['zone:battlefield', 'placed', 'back'], 1_200) }).success, 'within the schema’s 16 flat fields').toBe(true);
+    expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'landing', data: handoverData({ ...facts, shrink: 17 }, ['zone:battlefield', 'placed', 'back'], 1_200) }).success, 'within the schema’s 16 flat fields').toBe(true);
     expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'handover', data }).success).toBe(true);
   });
 });

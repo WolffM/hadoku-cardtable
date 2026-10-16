@@ -262,7 +262,20 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
  * drawn there (w67-shaman's Grizzly Bears: 449,280 and 450,282 against 454,280), and a 300 ms trip
  * across that is a flight to nowhere with the real card hidden under it.
  */
-export const IN_PLACE_PX = 8;
+const IN_PLACE_PX = 8;
+
+/**
+ * What `landCastGhost` drew, for the landing's telemetry (`../handover-report.ts`): a `swap` in place
+ * or a `flight`, from the stand-in's centre as drawn when it starts to the card's in its row, and
+ * how much narrower it ends than it starts (the shrink into the slot) — the trip itself, measured
+ * where it starts, never sampled from a later frame.
+ */
+export interface Landing {
+  readonly how: 'swap' | 'flight';
+  readonly from: Point;
+  readonly to: Point;
+  readonly shrink: number;
+}
 
 /** On a card's own battlefield element while its stand-in is still travelling to it. `./gestures.css` hides it; the row keeps its place. */
 export const CAST_LANDING_ATTR = 'data-cast-landing';
@@ -288,7 +301,7 @@ export const CAST_LANDING_ATTR = 'data-cast-landing';
  * 2026-10-09: `dx: 0, dy: 0`). A cast card waits over its gap at a hand card's
  * size, so its landing is the shrink into the slot, in place.
  */
-export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement): void {
+export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement): Landing {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   const turned = arrived.hasAttribute('data-tapped');
@@ -300,15 +313,21 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
   // The start — its point and the size it is drawn at, in px, so the shrink has two lengths to run
   // between — has to be a painted style before the end replaces it, or there is no transition to run.
   const start = ghost.getBoundingClientRect();
-  const sameSize = !(start.width > 0) || (Math.abs(start.width - size.width) < IN_PLACE_PX && Math.abs(start.height - size.height) < IN_PLACE_PX);
+  const drawn = start.width > 0 && start.height > 0;
+  const landing = {
+    from: drawn ? { x: start.left + start.width / 2, y: start.top + start.height / 2 } : from,
+    to,
+    shrink: drawn ? start.width - size.width : 0,
+  };
+  const sameSize = !drawn || (Math.abs(start.width - size.width) < IN_PLACE_PX && Math.abs(start.height - size.height) < IN_PLACE_PX);
   if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX && sameSize) {
     ghost.remove();
     if (id !== null) clearCastLift(root, id);
     arrived.removeAttribute(CAST_LANDING_ATTR);
-    return;
+    return { how: 'swap', ...landing };
   }
   arrived.setAttribute(CAST_LANDING_ATTR, '');
-  if (start.width > 0 && start.height > 0) {
+  if (drawn) {
     ghost.style.width = `${start.width}px`;
     ghost.style.height = `${start.height}px`;
   }
@@ -330,6 +349,7 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
     ghost.style.width = `${size.width}px`;
     ghost.style.height = `${size.height}px`;
   }
+  return { how: 'flight', ...landing };
 }
 
 /** Every lift away, whoever it belonged to — on dispose, so a board left behind carries none, and every pending float-back timer with it. */
