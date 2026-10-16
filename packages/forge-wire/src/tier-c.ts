@@ -754,6 +754,17 @@ export const PrintedTypesSchema = z.array(z.tuple([JavaInt, CardTypeValue]));
 export type PrintedTypes = z.infer<typeof PrintedTypesSchema>;
 
 /**
+ * The bridge's ninth addition beside the packet, for a payment in progress: the life each player has
+ * committed to an open mana payment that Forge has not taken yet (`PlayBridge.java`'s
+ * `lifePaying`, the payment input's own `phyLifeToLose`), as `[playerId, life]`. Forge takes that
+ * life in one go when the whole cost is paid, and none of it when the payment is cancelled. A full
+ * snapshot each time; empty when nobody is paying with life.
+ */
+export const LifePayingSchema = z.array(z.tuple([JavaInt, JavaInt]));
+
+export type LifePaying = z.infer<typeof LifePayingSchema>;
+
+/**
  * The bridge's sixth addition beside the packet: the damage dealt to cards since the seat's last
  * state frame (`PlayBridge.java`'s `DamageJournal`, Forge's own `GameEventCardDamaged`), oldest
  * first, as `[targetId, sourceId, amount]` — `sourceId` -1 when Forge names none. An event list, not
@@ -799,6 +810,7 @@ export const SetGameViewSchema = z.strictObject({
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
     printedTypes: PrintedTypesSchema.optional(),
+    lifePaying: LifePayingSchema.optional(),
   }),
 });
 
@@ -835,6 +847,7 @@ export const ApplyDeltaSchema = z.strictObject({
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
     printedTypes: PrintedTypesSchema.optional(),
+    lifePaying: LifePayingSchema.optional(),
     damage: DamageSchema.optional(),
     deaths: DeathsSchema.optional(),
   }),

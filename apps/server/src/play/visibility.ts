@@ -174,6 +174,8 @@ export type CantBlock = readonly number[];
 
 /** `PlayBridge.java`'s `printedTypes` — `packages/forge-wire/src/tier-c.ts`'s `PrintedTypesSchema`: `[cardId, printedType]`. */
 export type PrintedTypes = readonly (readonly [number, unknown])[];
+/** `PlayBridge.java`'s `lifePaying` — `packages/forge-wire/src/tier-c.ts`'s `LifePayingSchema`: `[playerId, life]`. Public: life is. */
+export type LifePaying = readonly (readonly [number, number])[];
 
 /** `PlayBridge.java`'s `damage` — `packages/forge-wire/src/tier-c.ts`'s `DamageSchema`: `[targetId, sourceId, amount]`, sourceId -1 for none. */
 export type Damage = readonly (readonly [number, number, number])[];
@@ -183,9 +185,9 @@ export type Deaths = readonly (readonly [number, string])[];
 
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; damage?: Damage; deaths?: Deaths } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; damage?: Damage; deaths?: Deaths } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -884,6 +886,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
+							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
 						},
 					};
 				}
@@ -901,6 +904,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
+							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
 							...damageSeen(frame.payload.damage),
 							...deathsSeen(frame.payload.deaths),
 						},

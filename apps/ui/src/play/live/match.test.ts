@@ -2573,6 +2573,51 @@ describe('printedTypes — the bridge’s own wire fact', () => {
   });
 });
 
+describe('lifePaying — life committed to an open payment', () => {
+  function applyDeltaWith(payload: Record<string, unknown>, objectDeltas: Record<string, unknown> = {}): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] }, ...payload },
+    });
+  }
+  const lifeDelta = (pid: number, life: number) => ({ [deltaKey(WireType.Player, pid)]: { _type: WireType.Player, _id: pid, Life: { t: 'int', v: life } } });
+  const lives = (m: LiveMatch) => Object.fromEntries(m.view!.players.map((p) => [p.isViewer ? 'me' : 'them', p.life]));
+
+  it('each press comes off the payer’s life on the board, and the payment’s end draws Forge’s own total without a step back', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const start = lives(m);
+    await sendAndApply(s, m, [applyDeltaWith({ lifePaying: [[me.id, 2]] })]);
+    expect(lives(m)).toEqual({ ...start, me: me.life - 2 });
+    await sendAndApply(s, m, [applyDeltaWith({ lifePaying: [[me.id, 4]] })]);
+    expect(lives(m)).toEqual({ ...start, me: me.life - 4 });
+    // A delta that does not restate it keeps it.
+    await sendAndApply(s, m, [phase('MAIN2', me.id)]);
+    expect(lives(m)).toEqual({ ...start, me: me.life - 4 });
+    // Forge takes the life: the frame with the new total no longer holds the payment.
+    await sendAndApply(s, m, [applyDeltaWith({ lifePaying: [] }, lifeDelta(me.id, me.life - 4))]);
+    expect(lives(m)).toEqual({ ...start, me: me.life - 4 });
+  });
+
+  it('a cancelled payment gives the life back: Forge never took it', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    await sendAndApply(s, m, [applyDeltaWith({ lifePaying: [[me.id, 2]] })]);
+    expect(m.view!.players.find((p) => p.isViewer)!.life).toBe(me.life - 2);
+    await sendAndApply(s, m, [applyDeltaWith({ lifePaying: [] })]);
+    expect(m.view!.players.find((p) => p.isViewer)!.life).toBe(me.life);
+  });
+
+  it('the opponent’s payment shows on the opponent’s total', async () => {
+    const { s, m } = await fullGame();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    await sendAndApply(s, m, [applyDeltaWith({ lifePaying: [[them.id, 2]] })]);
+    expect(lives(m)).toEqual({ me: m.view!.players.find((p) => p.isViewer)!.life, them: them.life - 2 });
+  });
+});
+
 describe('deaths — the bridge’s causes', () => {
   function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
     seq += 1;

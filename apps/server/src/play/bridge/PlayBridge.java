@@ -60,6 +60,7 @@ import forge.game.zone.ZoneType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
+import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.match.NextGameDecision;
 import forge.gamemodes.match.YieldUpdate;
@@ -1213,6 +1214,105 @@ public final class PlayBridge {
         }
 
         /**
+         * The life each player has committed to an open mana payment that Forge has not taken yet,
+         * as this seat was last told it: player id → the payment and its amount.
+         *
+         * <p>A Phyrexian shard paid with life ({@code InputPayManaOfCostPayment.onPlayerSelected})
+         * only adds 2 to the input's {@code phyLifeToLose}; {@code done()} pays all of it once the
+         * whole cost is paid, and a cancelled payment pays none. So while a payment is open the
+         * life total still reads the old value, and this is what the board subtracts from it.
+         *
+         * <p>Held past the payment's end when the payment completed: {@code done()} runs on the
+         * game thread while this seat may still be handed packets built before it, and dropping
+         * the amount then would draw the old total again for a frame. It is dropped with the
+         * packet that carries the player's new {@code Life}, so the two land together. A
+         * cancelled payment (unpaid, and finished or no longer its player's open input) drops it at
+         * once: Forge took nothing.
+         *
+         * <p>Read off the payment itself once it is known, not off the input queue: Auto pays
+         * through {@code InputPayMana.runAsAi}, which swaps the player's controller for an AI one
+         * while it taps, so for those frames the player has no human queue to look in.
+         */
+        private final Map<Integer, Object[]> lifeHeld = new HashMap<>();
+        /** What this seat was last told {@link #lifePaying} is, so a press tells it only on a change. */
+        private String lifeTold = "[]";
+
+        /**
+         * {@code [playerId, life]} for every player paying a cost with life right now, as of a frame
+         * carrying {@code packet}'s objects ({@code null} for no packet); see {@link #lifeHeld}.
+         */
+        synchronized JsonArray lifePaying(final DeltaPacket packet) {
+            final Game game = liveGame();
+            final JsonArray out = new JsonArray();
+            if (game == null) { lifeHeld.clear(); return out; }
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                final boolean human = p.getController() instanceof PlayerControllerHuman;
+                final Object open = human ? ((PlayerControllerHuman) p.getController()).getInputQueue().getInput() : null;
+                final Object[] held = lifeHeld.get(p.getId());
+                final InputPayMana pay = open instanceof InputPayMana o && !o.isPaid() ? o : held == null ? null : (InputPayMana) held[0];
+                if (pay == null) { continue; }
+                try {
+                    if (pay.isPaid()) {
+                        if (carriesLife(packet, p.getId())) { lifeHeld.remove(p.getId()); }
+                    } else if ((Boolean) field(pay, forge.gamemodes.match.input.InputBase.class, "finished") || (human && open != pay)) {
+                        lifeHeld.remove(p.getId());
+                    } else {
+                        final int life = (Integer) field(pay, InputPayMana.class, "phyLifeToLose");
+                        if (life > 0) { lifeHeld.put(p.getId(), new Object[] { pay, life }); } else { lifeHeld.remove(p.getId()); }
+                    }
+                } catch (final ReflectiveOperationException | RuntimeException e) {
+                    System.err.println("[bridge] lifePaying: could not read the open payment (" + e + ")");
+                    lifeHeld.remove(p.getId());
+                }
+                final Object[] now = lifeHeld.get(p.getId());
+                if (now != null) {
+                    final JsonArray pair = new JsonArray();
+                    pair.add(p.getId());
+                    pair.add((Integer) now[1]);
+                    out.add(pair);
+                }
+            }
+            return out;
+        }
+
+        /** Whether {@code packet} carries player {@code id}'s {@code Life}; a full view always does. */
+        private static boolean carriesLife(final DeltaPacket packet, final int id) {
+            if (packet == null) { return false; }
+            final int key = DeltaPacket.makeDeltaKey(DeltaPacket.TYPE_PLAYER_VIEW, id);
+            for (final Map<Integer, Map<TrackableProperty, Object>> objects : List.of(packet.getNewObjects(), packet.getObjectDeltas())) {
+                final Map<TrackableProperty, Object> props = objects.get(key);
+                if (props != null && props.containsKey(TrackableProperty.Life)) { return true; }
+            }
+            return false;
+        }
+
+        /**
+         * Send a state frame with {@link #lifePaying} added to its payload, and remember it as told.
+         * Under this seat's lock, so a press told from another seat's thread
+         * ({@link #tellLifePaying}) can never overtake a frame that carries an older amount.
+         */
+        synchronized void sendState(final JsonObject frame, final JsonObject payload, final DeltaPacket packet) {
+            final JsonArray paying = lifePaying(packet);
+            payload.add("lifePaying", paying);
+            lifeTold = paying.toString();
+            frame.add("payload", payload);
+            frame(frame);
+        }
+
+        /**
+         * Tell this seat a change to {@link #lifePaying} that no state frame carries: a press of
+         * a payment's life button changes nothing on the view, so it is said in an empty packet's
+         * frame, as {@link #broadcastIfWaiting} says waiting triggers.
+         */
+        synchronized void tellLifePaying() {
+            if (lifePaying(null).toString().equals(lifeTold)) { return; }
+            final JsonObject payload = new JsonObject();
+            payload.add("packet", packetJson(new DeltaPacket(-1L, null, null, 0, null)));
+            addStackFacts(payload);
+            sendState(notify("applyDelta"), payload, null);
+        }
+
+        /**
          * Wave 32, Q5 — whether Forge's phase-pacing sleep is OFF for this seat, which is
          * true from an End Turn click until the yield it started is over, and never else.
          *
@@ -1440,8 +1540,7 @@ public final class PlayBridge {
             payload.addProperty("sequenceNumber", sequenceNumber);
             addStackFacts(payload);
             effectsSince(payload, false);
-            f.add("payload", payload);
-            frame(f);
+            sendState(f, payload, full);
         }
 
         @Override
@@ -1475,8 +1574,7 @@ public final class PlayBridge {
                 payload.add("packet", packetJson(packet));
                 addStackFacts(payload);
                 effectsSince(payload, true);
-                f.add("payload", payload);
-                frame(f);
+                sendState(f, payload, packet);
             }
             super.applyDelta(packet);
             // And also here: an ordinary applyDelta is every bit as good a moment as a
@@ -1582,8 +1680,7 @@ public final class PlayBridge {
             final JsonObject payload = new JsonObject();
             payload.add("packet", packetJson(synthetic));
             addStackFacts(payload);
-            f.add("payload", payload);
-            frame(f);
+            sendState(f, payload, synthetic);
             super.applyDelta(synthetic);
             lastToldMulligan = value;
         }
@@ -1641,6 +1738,9 @@ public final class PlayBridge {
             if (target != null) { f.add("targetAbility", target); }
             frame(f);
             broadcastIfWaiting();
+            // A press of a payment's life button re-shows its prompt and changes nothing else, and
+            // a cancelled payment may move nothing either: every seat hears it from here.
+            for (final SeatGui g : SEATS.values()) { g.tellLifePaying(); }
         }
 
         /**

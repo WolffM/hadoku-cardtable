@@ -400,6 +400,7 @@ export interface ManaInPool {
 export interface BoardPlayer {
   id: number;
   name: string;
+  /** Forge's life total, less what the player has committed to an open payment (`AdaptOptions.lifePaying`). */
   life: number;
   isViewer: boolean;
   isActive: boolean;
@@ -754,6 +755,12 @@ export interface AdaptOptions {
   cantBlock?: ReadonlySet<number>;
   /** `PlayBridge.java`'s `printedTypes` (`../fold.ts`): each changed permanent's printed type, read onto its `BoardCard.changedFrom`. */
   printedTypes?: ReadonlyMap<number, Tagged>;
+  /**
+   * `PlayBridge.java`'s `lifePaying` (`../fold.ts`): life a player has committed to an open payment
+   * that Forge takes only when the whole cost is paid. Taken off that player's `BoardPlayer.life`
+   * now, so each press shows, and a cancelled payment gives it back.
+   */
+  lifePaying?: ReadonlyMap<number, number>;
   /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
   hits?: readonly DamageHit[];
   /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
@@ -1537,6 +1544,7 @@ export function toBoardView(
     tokenSources,
     cantBlock,
     printedTypes,
+    lifePaying,
     hits,
     deathCauses,
     promptCard = null,
@@ -1588,7 +1596,7 @@ export function toBoardView(
     return {
       id: pid,
       name: playerName(pid),
-      life: readInt(p, 'Life'),
+      life: readInt(p, 'Life') - (lifePaying?.get(pid) ?? 0),
       isViewer,
       isActive: pid === activePlayerId,
       hasPriority: readBool(p, 'HasPriority'),

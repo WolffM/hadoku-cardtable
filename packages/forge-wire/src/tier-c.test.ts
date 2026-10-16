@@ -23,6 +23,7 @@ import {
   ApplyDeltaSchema,
   CantBlockSchema,
   PrintedTypesSchema,
+  LifePayingSchema,
   DamageSchema,
   DeathsSchema,
   DECLARED_TYPE_SCHEMAS,
@@ -503,6 +504,26 @@ describe('Tier C — stackTargetSpells (wave 49 §A)', () => {
       payload: { packet: DELTA.packet, stackTargetSpells: [[50, 49]] },
     };
     expect(ApplyDeltaSchema.safeParse(deltaWithField).success).toBe(true);
+  });
+});
+
+describe('Tier C — lifePaying', () => {
+  it('accepts [playerId, life] pairs and rejects anything else', () => {
+    expect(LifePayingSchema.safeParse([]).success).toBe(true);
+    expect(LifePayingSchema.safeParse([[1, 4]]).success).toBe(true);
+    expect(LifePayingSchema.safeParse([1, 4]).success).toBe(false);
+    expect(LifePayingSchema.safeParse([[1, '4']]).success).toBe(false);
+  });
+
+  it('is optional on setGameView and applyDelta, and carried when present', () => {
+    const view = SetGameViewSchema.safeParse({
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, lifePaying: [[1, 2]] },
+    });
+    expect(view.success && view.data.payload.lifePaying).toEqual([[1, 2]]);
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, lifePaying: [] } });
+    expect(delta.success && delta.data.payload.lifePaying).toEqual([]);
   });
 });
 
