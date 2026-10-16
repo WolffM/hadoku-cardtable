@@ -111,7 +111,7 @@ import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
 import { forgeAvailability, liveJvmCount, startLiveScenario, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
 import { LiveBoard } from './LiveBoard.tsx';
-import { boardInteraction, currentAsk } from './match.ts';
+import { boardInteraction, currentAsk, liveBar } from './match.ts';
 import { answerOpenPrompt } from './prompt-driver.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
@@ -186,12 +186,6 @@ function drag(from: HTMLElement, onto: HTMLElement): void {
 
 const cardEl = (root: HTMLElement, id: number): HTMLElement | null =>
   root.querySelector<HTMLElement>(`[data-board-card="${id}"]`);
-
-/** The zone element a drop lands in. `[data-zone]` is `Board.tsx`'s own name. */
-function zoneEl(root: HTMLElement, mine: boolean, zone: string): HTMLElement | null {
-  const seat = root.querySelector<HTMLElement>(mine ? '.seat[data-viewer]' : '.seat:not([data-viewer])');
-  return seat?.querySelector<HTMLElement>(`[data-zone="${zone}"]`) ?? null;
-}
 
 /**
  * Forge's button one as the page draws it (wave 51): the control box's Next
@@ -273,12 +267,10 @@ describe.skipIf(!available.ok)(title, () => {
         }
       }
 
-      const seen = [0, 0];
-      const idleSince = [Date.now(), Date.now()];
-      const once = [new Set<string>(), new Set<string>()];
-      /** Cards already offered to a given selection, so a min of 2 is answered with two. */
-      const picked = new Map<string, number[]>();
-      const IDLE_MS = 3000;
+      /** The last line traced per seat, so the log reads as windows and not as every state frame. */
+      const traced = ['', ''];
+      /** `seat:turn` → the card that seat dragged into combat that turn. */
+      const draggedThisTurn = new Map<string, number>();
 
       /**
        * A creature of mine the board is offering right now, by Forge's own set. Creatures only: the
@@ -291,151 +283,135 @@ describe.skipIf(!available.ok)(title, () => {
         return me.battlefield.find((c) => offered.has(c.id) && c.card.typeLine.includes('Creature') && !skip(c)) ?? null;
       }
 
+      /**
+       * One combat window, by drag, read entirely off this seat's own board state.
+       *
+       * Forge shows the declare prompt BEFORE it names the candidates (`InputAttack.updateMessage`:
+       * `showMessage`, then `updatePrompt`, then `pushAttackerCandidates`), and the board folds
+       * frames as they arrive, so the window can stand with nothing offered yet. Done is pressed
+       * only when the state says nothing of mine could act — never because the offer has not
+       * arrived — and, after a drag, only once Forge has put the dragged card in combat.
+       */
+      function combat(
+        s: SeatClient,
+        root: HTMLElement,
+        me: BoardPlayer,
+        turn: number,
+        how: 'attacking' | 'blocking',
+        drop: () => HTMLElement | null,
+        could: (c: BoardCard) => boolean,
+      ): string | null {
+        const key = `${s.seat}:${turn}`;
+        const mine = draggedThisTurn.get(key);
+        if (mine !== undefined) {
+          // Forge's combat as this board has it: the attackers of a band, or its planned blockers,
+          // which ride every frame while `InputBlock` runs (`adapter.ts` `CombatBand`).
+          const bands = s.live.view?.combat ?? [];
+          const declared = bands.some((b) => (how === 'attacking' ? b.attackers : (b.plannedBlockers ?? [])).includes(mine));
+          if (declared && pressOk(root)) return `${how === 'attacking' ? 'attackers' : 'blockers'} done`;
+          return null;
+        }
+        const card = offeredOnMyBattlefield(s, me, (c) => c.tapped || c.attacking || c.blocking);
+        const from = card === null ? null : cardEl(root, card.id);
+        const onto = card === null ? null : drop();
+        if (card !== null && from !== null && onto !== null) {
+          draggedThisTurn.set(key, card.id);
+          drag(from, onto);
+          return `DRAGS ${card.card.name} ${card.id}`;
+        }
+        const waiting = me.battlefield.some((c) => c.card.typeLine.includes('Creature') && !s.live.spent.cards.has(c.id) && could(c));
+        if (!waiting && pressOk(root)) return `${how === 'attacking' ? 'attackers' : 'blockers'} done`;
+        return null;
+      }
+
       function step(): void {
         for (const s of h.seats) {
           const root = roots[s.seat]!;
           if (currentAsk(s.live) !== null) {
             const answered = answerOpenPrompt(root);
             if (answered !== null) driven.log.push(`seat ${s.seat} answered ${answered}`);
-            idleSince[s.seat] = Date.now();
             continue;
           }
           const v: BoardView | null = s.live.view;
-          if (v === null) continue;
+          const bar = liveBar(s.live);
+          if (v === null || !s.live.inputLive || bar === null || !bar.enable1) continue;
           const me = v.players.find((p) => p.isViewer);
           const opp = v.players.find((p) => !p.isViewer);
           if (me === undefined || opp === undefined) continue;
-          const msg = s.notes.prompt?.message ?? '';
-          if (/^Waiting/.test(msg)) continue;
-          if (s.notes.version === seen[s.seat]) {
-            // Nothing new: an act that changed nothing. Press OK rather than hang.
-            if (Date.now() - idleSince[s.seat]! > IDLE_MS && s.notes.buttons?.enable1 === true) {
-              idleSince[s.seat] = Date.now();
-              if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
-              driven.log.push(`seat ${s.seat} idle -> OK`);
-            }
-            continue;
-          }
-          seen[s.seat] = s.notes.version;
-          idleSince[s.seat] = Date.now();
           /*
-           * Forge's own prompt message, not the board's `view.phase`, is what
-           * the decisions below read. Measured: a seat's projected view can lag
-           * its prompt by a whole step (in one run seat 1 was shown "Phase:
-           * Main phase, postcombat" while its view still said COMBAT_END), so a
-           * driver keyed on `view.phase` silently never acted for that seat and
-           * the game went nowhere. The message is the seat's own instruction; it
-           * cannot disagree with itself.
+           * The board's own prompt, bar and view — one client's state, folded in the order its frames
+           * arrived — never the harness's server-side notes, which run ahead of what the board has
+           * drawn: a driver that read the notes' "select creatures to attack" against the board's
+           * not-yet-arrived offer pressed done on the scenario's one combat.
            */
+          const msg = s.live.prompt ?? '';
           const myTurn = new RegExp(`Turn: \\d+ \\(${me.name}\\)`).test(msg);
-          driven.log.push(
-            `seat ${s.seat} t${v.turn} ${v.phase ?? '-'}${myTurn ? ' MINE' : ''} ok=${String(s.notes.buttons?.enable1 === true)} ` +
-              `offered=${boardInteraction(s.live).selectable.size} field=${me.battlefield.length} hand=${me.hand?.length ?? -1} msg=${JSON.stringify(msg.slice(0, 120))}`,
-          );
-          const mine = once[s.seat]!;
-          const first = (key: string): boolean => (mine.has(key) ? false : (mine.add(key), true));
+          const trace =
+            `seat ${s.seat} t${v.turn} ${v.phase ?? '-'}${myTurn ? ' MINE' : ''} ` +
+            `offered=${boardInteraction(s.live).selectable.size} field=${me.battlefield.length} hand=${me.hand?.length ?? -1} msg=${JSON.stringify(msg.slice(0, 120))}`;
+          if (traced[s.seat] !== trace) {
+            traced[s.seat] = trace;
+            driven.log.push(trace);
+          }
 
-          /* ── declare attackers, by drag ── */
-          // `showPromptMessage` is per seat: a seat only sees "select creatures
-          // to attack" when it is the one declaring, so the message is the whole
-          // test — no need to work out whose turn it is. With the bar live: the
-          // input's last refresh stays the latest prompt through the combat steps
-          // the server passes for the seat, with its bar dead.
-          if (/to attack/.test(msg) && s.notes.buttons?.enable1 === true) {
-            const attacker = offeredOnMyBattlefield(s, me, (c) => c.summoningSick || c.tapped || c.attacking);
+          /* ── declare attackers, by drag: onto the defending player's face ── */
+          if (/to attack/.test(msg)) {
             const face = root.querySelector<HTMLElement>(`[data-player-face][data-player-id="${opp.id}"]`);
-            const theirField = zoneEl(root, false, 'battlefield');
-            const el = attacker === null ? null : cardEl(root, attacker.id);
-            if (attacker !== null && el !== null && (face !== null || theirField !== null) && first(`attack-t${v.turn}`)) {
-              if (face !== null) {
-                /*
-                 * X1/W14 (wave 46 §B): the gesture a person reaches for first —
-                 * the creature straight onto the player it is attacking — now
-                 * DECLARES the attack by itself. `match.ts`'s `attackDefenders`
-                 * offers the opponent's own planeswalkers/battles and
-                 * `boardInteraction` offers every opponent player while
-                 * attackers are being declared, so `commitDrag`'s
-                 * `attackAssignment` branch fires: defender first
-                 * (`selectPlayer`), then the attacker (`selectCard`) once Forge
-                 * has marked that player its current defender (`afterMarked`:
-                 * Forge may apply two quick clicks in either order). When the
-                 * player is ALREADY the marked defender — `InputAttack` starts
-                 * on the first one — the attacker's click is the whole gesture.
-                 */
-                const sentBefore = wires[s.seat]!.frames.length;
-                const alreadyCurrent = s.live.highlightedPlayers?.has(opp.id) === true;
-                drag(el, face);
-                driven.faceDrags.push({ seat: s.seat, attacker: attacker.id, defender: opp.id, sentBefore, alreadyCurrent });
-                driven.attacks.push([s.seat, attacker.id]);
-                driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${attacker.card.name} ${attacker.id} onto the defender's face to attack`);
-                continue;
-              }
-              // No face element on screen (should not happen): the zone drop
-              // still works, the same "a card Forge offers, released anywhere
-              // inside a zone, is the card being used" rule blocking uses.
-              drag(el, theirField!);
-              driven.attacks.push([s.seat, attacker.id]);
-              driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${attacker.card.name} ${attacker.id} to attack (zone drop)`);
-              continue;
-            }
-            if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
-            driven.log.push(`seat ${s.seat} t${v.turn} attackers done`);
+            const sentBefore = wires[s.seat]!.frames.length;
+            const alreadyCurrent = s.live.highlightedPlayers?.has(opp.id) === true;
+            const did = combat(s, root, me, v.turn, 'attacking', () => face, (c) => !c.tapped && !c.summoningSick && !c.attacking);
+            if (did === null) continue;
+            if (did.startsWith('DRAGS')) {
+              /*
+               * X1/W14 (wave 46 §B): the gesture a person reaches for first —
+               * the creature straight onto the player it is attacking — now
+               * DECLARES the attack by itself. `match.ts`'s `attackDefenders`
+               * offers the opponent's own planeswalkers/battles and
+               * `boardInteraction` offers every opponent player while
+               * attackers are being declared, so `commitDrag`'s
+               * `attackAssignment` branch fires: defender first
+               * (`selectPlayer`), then the attacker (`selectCard`) once Forge
+               * has marked that player its current defender (`afterMarked`:
+               * Forge may apply two quick clicks in either order). When the
+               * player is ALREADY the marked defender — `InputAttack` starts
+               * on the first one — the attacker's click is the whole gesture.
+               */
+              const attacker = draggedThisTurn.get(`${s.seat}:${v.turn}`)!;
+              driven.faceDrags.push({ seat: s.seat, attacker, defender: opp.id, sentBefore, alreadyCurrent });
+              driven.attacks.push([s.seat, attacker]);
+              driven.log.push(`seat ${s.seat} t${v.turn} ${did} onto the defender's face to attack`);
+            } else driven.log.push(`seat ${s.seat} t${v.turn} ${did}`);
             continue;
           }
 
-          /* ── declare blockers, by drag ── */
-          if (/to block/.test(msg) && s.notes.buttons?.enable1 === true) {
+          /* ── declare blockers, by drag: onto the attacker it means to stop ── */
+          if (/to block/.test(msg)) {
+            // `InputBlock` has already made that attacker the current one, so one frame is the whole
+            // declaration. Until this board has drawn the attacker attacking, there is nothing to
+            // drop onto, and the prompt itself says there is an attacker: wait for it.
             const attacker = opp.battlefield.find((c) => c.attacking);
-            const blocker = offeredOnMyBattlefield(s, me, (c) => c.tapped || c.blocking);
-            const blockerElement = blocker === null ? null : cardEl(root, blocker.id);
             const attackerElement = attacker === undefined ? null : cardEl(root, attacker.id);
-            if (
-              attacker !== undefined &&
-              blocker !== null &&
-              blockerElement !== null &&
-              attackerElement !== null &&
-              first(`block-t${v.turn}`)
-            ) {
-              // Onto the attacker it means to stop. `InputBlock` has already
-              // made that attacker the current one, so one frame is the whole
-              // declaration.
-              drag(blockerElement, attackerElement);
-              driven.blocks.push([s.seat, blocker.id, attacker.id]);
-              driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${blocker.card.name} ${blocker.id} onto attacker ${attacker.id}`);
-              continue;
-            }
-            if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
-            driven.log.push(`seat ${s.seat} t${v.turn} blockers done`);
+            const did = combat(s, root, me, v.turn, 'blocking', () => attackerElement, (c) => attacker === undefined || (!c.tapped && !c.blocking));
+            if (did === null) continue;
+            if (did.startsWith('DRAGS')) {
+              driven.blocks.push([s.seat, draggedThisTurn.get(`${s.seat}:${v.turn}`)!, attacker!.id]);
+              driven.log.push(`seat ${s.seat} t${v.turn} ${did} onto attacker ${attacker!.id}`);
+            } else driven.log.push(`seat ${s.seat} t${v.turn} ${did}`);
             continue;
           }
 
-          /* ── every priority window: pass ── */
-          if (msg.startsWith('Priority')) {
-            if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
-            continue;
-          }
           /*
-           * Anything else Forge wants a set of cards for — the cleanup discard
-           * is the one this game always reaches. Raw acts, like the rest of the
-           * setup: a selection is not what this test is about, and leaving it
-           * unanswered stalls the game with OK disabled.
+           * Every other window, by the board's own first button: the coin toss and the keep/mulligan
+           * yes/no are Forge's bar drawn as their own prompt (`live-play-or-draw-play`,
+           * `prompt-confirm-yes`, as `./board-play.jvm.test.ts` presses them); priority is OK.
            */
-          const sel = s.notes.selectables;
-          if (sel !== null && sel.cards.length > 0 && sel.min > 0) {
-            const key = `${s.seat}:t${v.turn}:${msg}`;
-            const already = picked.get(key) ?? [];
-            const next = sel.cards.find((c) => !already.includes(c.id));
-            if (already.length < sel.min && next !== undefined) {
-              picked.set(key, [...already, next.id]);
-              s.act({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: next.id }, otherCardViewsToSelect: [], triggerEvent: null });
-              driven.log.push(`seat ${s.seat} chooses ${next.id} (${already.length + 1}/${sel.min})`);
-              continue;
-            }
-          }
-          if (s.notes.buttons?.enable1 === true) {
-            if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
-            driven.log.push(`seat ${s.seat} fell through to OK`);
-          }
+          const first = ['live-play-or-draw-play', 'prompt-confirm-yes']
+            .map((id) => root.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`))
+            .find((b) => b !== null && !b.disabled);
+          if (first !== undefined && first !== null) {
+            fireEvent.click(first);
+            driven.log.push(`seat ${s.seat} t${v.turn} presses ${first.textContent ?? ''}`);
+          } else if (pressOk(root)) driven.log.push(`seat ${s.seat} t${v.turn} OK`);
         }
       }
 
