@@ -17,6 +17,38 @@ export const PLACEMENT_WAIT_MS = 15_000;
  */
 export const GLIDE_MS = 300;
 
+/**
+ * Runs `done` once `el`'s glide has come to rest: its running `left`/`top` transitions finished,
+ * timed by the transitions themselves. A clock started when the style was set runs ahead of a
+ * transition that only starts at the next style recalc — a frame or more later on a busy screen —
+ * and a stand-in handed over on that clock was drawn short of its gap (w67-shaman's bears on a
+ * claw: the other seat's back 2 px off at "306 ms, done"). A transition retargeted on the way is
+ * waited for in turn. Nothing running (motion off, already there) is done on the next microtask;
+ * a document that cannot list its animations (jsdom) falls back to `GLIDE_MS`. Returns a cancel.
+ */
+export function afterGlide(el: Element, done: () => void): () => void {
+  let live = true;
+  if (typeof el.getAnimations !== 'function') {
+    const timer = setTimeout(done, GLIDE_MS);
+    return () => clearTimeout(timer);
+  }
+  const wait = (): void => {
+    if (!live) return;
+    const running = el.getAnimations().filter((a) => 'transitionProperty' in a && (a.transitionProperty === 'left' || a.transitionProperty === 'top'));
+    if (running.length > 0) {
+      // Finished or cancelled (retargeted, or the element gone), it is looked at again: a cancel is not an arrival.
+      void Promise.allSettled(running.map((a) => a.finished)).then(wait);
+      return;
+    }
+    live = false;
+    done();
+  };
+  queueMicrotask(wait);
+  return () => {
+    live = false;
+  };
+}
+
 /*
  * A resolution's effects, as beats (the operator, 2026-10-14: Kalitas's Zombie and Sorin, Grim
  * Nemesis's reveal-then-drain were "too instant"). Forge applies a resolution in one frame; the

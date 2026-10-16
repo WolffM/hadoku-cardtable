@@ -86,7 +86,7 @@ import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cas
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
-import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
+import { afterGlide, GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { hitAt, scopeOf } from '../../dom.ts';
 import './presence.css';
@@ -715,12 +715,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
   /**
    * The stand-in's glide into its gap (`onPlacement`): `'seeking'` while the board has yet to draw
-   * the gap, then `Date.now()` when the glide ends; null when it is not gliding.
+   * the gap, then `'gliding'` until it comes to rest there (`afterGlide`); null when it is not gliding.
    */
-  let glide: 'seeking' | number | null = null;
+  let glide: 'seeking' | 'gliding' | null = null;
+  /** Cancels the watch on that glide's end. */
+  let stopGlide: (() => void) | null = null;
   /** A hand-over to the stack layer held until that glide ends — see the stack case in `handoff`. */
-  let handTimer: ReturnType<typeof setTimeout> | null = null;
-  let afterSeek: (() => void) | null = null;
+  let afterGlideEnds: (() => void) | null = null;
   /** The spell (card id) that hand-over is for, kept hidden on the stack layer meanwhile (`holdSpell`). */
   let heldSpell: number | null = null;
   /** Their cards already on the board; a new one right after the back went is the handoff. */
@@ -815,9 +816,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   function stopWaiting(why: string): void {
     lifted = false;
-    if (handTimer !== null) clearTimeout(handTimer);
-    handTimer = null;
-    afterSeek = null;
+    stopGlide?.();
+    stopGlide = null;
+    afterGlideEnds = null;
     glide = null;
     if (heldSpell !== null) releaseSpell(heldSpell);
     heldSpell = null;
@@ -1215,22 +1216,18 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
           play.stackFrameAt ??= Date.now();
           const wait = waiting;
           const settle = (): void => {
-            handTimer = null;
-            afterSeek = null;
+            afterGlideEnds = null;
             if (waiting !== wait || back !== standIn || !onTheirStack(onStack)) return;
-            const left = glide === 'seeking' ? null : (glide ?? 0) - Date.now();
-            if (left === null || left > 0) {
+            if (glide !== null) {
               holdSpell(onStack);
               heldSpell = onStack;
               turnOver(standIn, onStack);
-              if (left === null) afterSeek = settle;
-              else handTimer = setTimeout(settle, left);
+              afterGlideEnds = settle;
               return;
             }
             const at = handToSpell(onStack);
             if (at !== null) flyWhenDrawn(onStack, () => at);
           };
-          if (handTimer !== null) clearTimeout(handTimer);
           settle();
         });
         return;
@@ -1364,7 +1361,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         if (frames > 0) requestAnimationFrame(() => seek(frames - 1));
         else {
           glide = null;
-          afterSeek?.();
+          afterGlideEnds?.();
         }
         return;
       }
@@ -1374,8 +1371,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       standIn.style.left = `${backAt.x - box2.left}px`;
       standIn.style.top = `${backAt.y - box2.top}px`;
       play.glideStartedAt = Date.now();
-      glide = Date.now() + GLIDE_MS;
-      afterSeek?.();
+      glide = 'gliding';
+      stopGlide = afterGlide(standIn, () => {
+        stopGlide = null;
+        glide = null;
+        afterGlideEnds?.();
+      });
     };
     requestAnimationFrame(() => seek(GAP_FRAMES));
   }

@@ -230,7 +230,7 @@ import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '.
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
 import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
-import { GLIDE_MS } from '../../motion.ts';
+import { afterGlide } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
@@ -415,8 +415,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let parked: Parked | null = null;
   /** Running from a park until Forge shows any sign of it — `PARK_UNANSWERED_MS`. */
   let unansweredTimer: ReturnType<typeof setTimeout> | null = null;
-  /** The parked stand-in's glide into its gap, ending at `GLIDE_MS` — see `Parked.gliding`. */
-  let glideTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The parked stand-in's glide into its gap, ending when it comes to rest (`afterGlide`) — see `Parked.gliding`; cancels it. */
+  let stopGlide: (() => void) | null = null;
   /*
    * The placement preview, once per frame. `previewPlayedTo` measures every
    * slot and pile of the viewer's battlefield and then moves the indicator,
@@ -834,7 +834,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         if (options.motion?.() === true && !me.ghostHandedOff) {
           me.gliding = true;
           holdSpell(source);
-          glideTimer = setTimeout(() => endGlide(me), GLIDE_MS);
+          stopGlide = afterGlide(ghost, () => endGlide(me));
         }
       });
     }
@@ -854,7 +854,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * already put it there, the stand-in hands over to it in the same task — where the stand-in stands.
    */
   function endGlide(p: Parked): void {
-    glideTimer = null;
+    stopGlide = null;
     if (!p.gliding) return;
     p.gliding = false;
     releaseSpell(p.source);
@@ -870,8 +870,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const p = parked;
     parked = null;
     if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match) });
-    if (glideTimer !== null) clearTimeout(glideTimer);
-    glideTimer = null;
+    stopGlide?.();
+    stopGlide = null;
     if (p !== null && p.gliding) {
       p.gliding = false;
       releaseSpell(p.source);
