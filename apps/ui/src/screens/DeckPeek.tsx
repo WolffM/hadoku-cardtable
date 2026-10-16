@@ -119,6 +119,8 @@ function Lines({ lines, faceIds }: { lines: readonly PeekLine[]; faceIds: Readon
 export function DeckPeek({
   id,
   label,
+  name,
+  pilot,
   colors,
   deckStyle,
   list,
@@ -129,6 +131,9 @@ export function DeckPeek({
 }: {
   id: string;
   label: string;
+  /** A library deck's own name and its player, drawn on two lines in place of `label`. */
+  name?: string | undefined;
+  pilot?: string | undefined;
   colors: readonly DeckColor[];
   /** The library deck's play style, drawn beside its name; absent for any other deck. */
   deckStyle?: DeckStyle | undefined;
@@ -196,7 +201,10 @@ export function DeckPeek({
         onPointerLeave={onPointerLeave}
       >
         <header className="peek__head">
-          <span className="peek__title">{label}</span>
+          <span className="peek__who">
+            <span className="peek__title">{name ?? label}</span>
+            {pilot !== undefined && <span className="peek__pilot">{pilot}</span>}
+          </span>
           {deckStyle !== undefined && <DeckStyleTag style={deckStyle} />}
           <DeckColors colors={colors} label={`${label}: ${colors.length === 0 ? 'colourless' : colors.join(' ')}`} />
         </header>

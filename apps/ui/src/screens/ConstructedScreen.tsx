@@ -253,7 +253,15 @@ type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
  */
 interface DeckOption {
   value: string;
+  /** The whole name, which the tile's title and every accessible name carry. */
   label: string;
+  /**
+   * A library deck's two halves, from its file's own `Archetype` and `Pilot`:
+   * the tile draws the deck on its first line and who played it on the second.
+   * Absent for any other deck, which draws `label` alone.
+   */
+  name?: string;
+  pilot?: string;
   colors: readonly DeckColor[];
   /** The deck's cards that could stand for it, best first (`deckArt.ts`). */
   art?: readonly DeckArtChoice[];
@@ -900,7 +908,7 @@ function DeckChooser({
         >
           <DeckArt artId={option.artId} />
           <span className="deckpick__name" title={option.label}>
-            {option.label}
+            {option.name ?? option.label}
           </span>
           {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} markOnly />}
           <DeckColors
@@ -909,6 +917,7 @@ function DeckChooser({
               option.colors.length === 0 ? 'colourless' : option.colors.join(' ')
             }`}
           />
+          {option.pilot !== undefined && <span className="deckpick__pilot">{option.pilot}</span>}
           {option.value === value && (
             <span className="deckpick__mark" aria-hidden="true">
               chosen
@@ -926,6 +935,8 @@ function DeckChooser({
         <DeckPeek
           id="deck-peek"
           label={peeked.label}
+          name={peeked.name}
+          pilot={peeked.pilot}
           colors={peeked.colors}
           deckStyle={peeked.deckStyle}
           list={peeked.list}
@@ -1484,6 +1495,8 @@ function RoomTableScreen({
       : byWinRate(offered.map((d) => ({
           value: d.id,
           label: d.name,
+          name: d.archetype,
+          pilot: d.pilot,
           list: libraryPeekList(d.main, d.sideboard),
           deckStyle: LIBRARY_DECK_STYLES[d.id],
           colors: deckColorsByName(
