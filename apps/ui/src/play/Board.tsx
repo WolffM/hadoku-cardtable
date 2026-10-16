@@ -3855,7 +3855,7 @@ export function Board({
   useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
-    const handle = installDepartures(el, { onDone: departed });
+    const handle = installDepartures(el, { onDone: departed, report: (data) => reportEffect.current?.(data) });
     departures.current = handle;
     return () => {
       departures.current = null;

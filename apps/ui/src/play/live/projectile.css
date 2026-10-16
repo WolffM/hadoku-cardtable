@@ -12,7 +12,8 @@
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 5;
+  /* Over the stack's cards (`placed.css`'s `--z-overlay`): a bolt sets off from one and must be seen doing it. */
+  z-index: calc(var(--z-overlay, 20) + 2);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -87,7 +88,7 @@
 /* The impact: a flash that blows outward and sparks that fly off it. */
 .effect-impact {
   position: absolute;
-  z-index: 5;
+  z-index: calc(var(--z-overlay, 20) + 2);
   width: 0;
   height: 0;
   pointer-events: none;
@@ -96,12 +97,12 @@
 .effect-impact::before {
   content: '';
   position: absolute;
-  left: -30px;
-  top: -30px;
-  width: 60px;
-  height: 60px;
+  left: -48px;
+  top: -48px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  animation: effect-impact-flash 380ms ease-out forwards;
+  animation: effect-impact-flash 420ms ease-out forwards;
 }
 
 .effect-impact[data-projectile='bolt']::before {
@@ -137,7 +138,7 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  animation: effect-impact-spark 380ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+  animation: effect-impact-spark 420ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
 }
 
 .effect-impact[data-projectile='bolt'] .effect-impact__spark {
@@ -156,7 +157,7 @@
   }
 
   100% {
-    transform: rotate(var(--angle)) translateX(34px);
+    transform: rotate(var(--angle)) translateX(52px);
     opacity: 0;
   }
 }

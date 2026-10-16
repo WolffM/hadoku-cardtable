@@ -152,6 +152,14 @@ export const DEPARTURE_MAX_MS = 4000;
 export interface DeparturesHost {
   /** The card's exit is over (or there was none to draw): its row may close up. */
   onDone(cardId: number): void;
+  /**
+   * Told once per commit that drew departures how the board held still — the operator, 2026-10-15, of a
+   * Slagstorm: "all the cards drifted down when the card start resolving", which the demo board never
+   * showed: `copyDx`/`copyDy`, the most a copy sits off the card it stands in for; `rowShift`, the most
+   * any card still on a battlefield moved in that commit, and `rowShiftLater` 250 ms on, with the card
+   * that moved most.
+   */
+  report?(data: Record<string, string | number | boolean>): void;
 }
 
 export interface DeparturesHandle {
@@ -172,6 +180,10 @@ const STRIPPED = ['id', 'data-board-card', 'data-card-id', 'data-testid', 'data-
 export function installDepartures(canvas: HTMLElement, host: DeparturesHost): DeparturesHandle {
   /** Each battlefield card's element as of the last commit, by id. */
   let drawn = new Map<number, HTMLElement>();
+  /** Each battlefield card's box as of the last commit, by id. */
+  let boxes = new Map<number, DOMRect>();
+  /** This commit's departures, for its layout report: how many, and the most a copy sat off its card. */
+  let pending: { count: number; copyDx: number; copyDy: number } | null = null;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const standIns = new Set<HTMLElement>();
   let live = true;
@@ -214,11 +226,48 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
 
   return {
     snapshot() {
+      const before = boxes;
       drawn = new Map();
+      boxes = new Map();
       for (const el of canvas.querySelectorAll<HTMLElement>('[data-zone="battlefield"] [data-board-card]')) {
         const id = Number(el.getAttribute('data-board-card'));
-        if (Number.isFinite(id) && !drawn.has(id)) drawn.set(id, el);
+        if (Number.isFinite(id) && !drawn.has(id)) {
+          drawn.set(id, el);
+          boxes.set(id, el.getBoundingClientRect());
+        }
       }
+      if (pending === null) return;
+      const batch = pending;
+      pending = null;
+      const shift = (): { most: number; card: number } => {
+        let most = 0;
+        let card = -1;
+        for (const [id, el] of drawn) {
+          const was = before.get(id);
+          if (was === undefined || !el.isConnected) continue;
+          const now = el.getBoundingClientRect();
+          const moved = Math.max(Math.abs(now.top - was.top), Math.abs(now.left - was.left));
+          if (moved > most) {
+            most = moved;
+            card = id;
+          }
+        }
+        return { most: Math.round(most), card };
+      };
+      const atOnce = shift();
+      schedule(() => {
+        const later = shift();
+        host.report?.({
+          what: 'departure-layout',
+          departures: batch.count,
+          copyDx: Math.round(batch.copyDx),
+          copyDy: Math.round(batch.copyDy),
+          rowShift: atOnce.most,
+          rowShiftCard: atOnce.card,
+          rowShiftLater: later.most,
+          rowShiftLaterCard: later.card,
+        });
+      }, 250);
     },
     leave(departure, delayMs) {
       const done = (): void => host.onDone(departure.cardId);
@@ -230,7 +279,15 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         return;
       }
       const motion = exitMotionFor(departure);
-      const wrap = standIn(from, gap.getBoundingClientRect(), root, motion);
+      const at = gap.getBoundingClientRect();
+      const was = boxes.get(departure.cardId);
+      pending ??= { count: 0, copyDx: 0, copyDy: 0 };
+      pending.count += 1;
+      if (was !== undefined) {
+        pending.copyDx = Math.max(pending.copyDx, Math.abs(at.left - was.left));
+        pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
+      }
+      const wrap = standIn(from, at, root, motion);
       wrap.setAttribute(DEPARTURE_ATTR, String(departure.cardId));
       standIns.add(wrap);
       schedule(() => wrap.setAttribute('data-exit-go', ''), delayMs);

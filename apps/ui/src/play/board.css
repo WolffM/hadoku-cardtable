@@ -1703,6 +1703,15 @@
 }
 
 /*
+ * The place a card leaving the battlefield keeps (`live/departures.ts`) is a card's shape: a row of
+ * them must not collapse and move the rows below while the cards are drawn leaving (the operator,
+ * 2026-10-15, of a Slagstorm: "all the cards drifted down").
+ */
+.zone__gap[data-leaving-gap] {
+  aspect-ratio: 1 / var(--card-tall);
+}
+
+/*
  * The placement scaffold (`Board.tsx` `showPlacementColumns`): while a card the
  * viewer moves could land on their battlefield — a rearrange or a card carried
  * out of the hand — every column of every one of THEIR rows is outlined, a

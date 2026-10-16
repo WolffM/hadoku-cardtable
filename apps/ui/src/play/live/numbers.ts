@@ -90,7 +90,7 @@
 import type { ManaColor } from '@hadoku/shared';
 
 import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
-import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
+import { BEAT_STAGGER_MS, BOLT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { fly, impact } from './projectile.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
@@ -403,8 +403,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   /** The flash a hit leaves on what it reached (a face, a card), once. */
-  function flash(el: Element | null, colour: NumberColour): void {
-    if (el === null) return;
+  function flash(target: Element | null, colour: NumberColour): void {
+    if (target === null) return;
+    // A card leaving is drawn as its copy (`departures.ts`): the copy's piece flashes, not the empty gap
+    // — the piece, so the flash never replaces the copy's own exit animation.
+    const leavingId = target.getAttribute(LEAVING_GAP_ATTR);
+    const el = (leavingId === null ? null : canvas.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"] .board-departure__piece`)) ?? target;
     el.removeAttribute('data-hit-flash');
     void (el as HTMLElement).offsetWidth;
     el.setAttribute('data-hit-flash', colour);
@@ -517,6 +521,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const spellHue = item?.sourceCard?.colors[0] ?? null;
     let beat = 0;
     const nextDelay = (): number => startMs + beat++ * BEAT_STAGGER_MS;
+    /** Bolts go one after another, far enough apart that each one's slam (and the death it causes) reads on its own (the operator, 2026-10-15: "all cards seem to go away at the same time"). */
+    let bolt = 0;
+    const nextBolt = (): number => startMs + bolt++ * BOLT_STAGGER_MS;
     /** When the last beat drawn so far is over. */
     let endMs = 0;
     const leaving = new Map(diff.departures.map((d) => [d.cardId, d]));
@@ -543,7 +550,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // Until the hit lands, the counter still reads what it read before the resolution.
       const span = face.querySelector<HTMLElement>('[data-testid="life"]');
       if (span !== null) span.textContent = String(change.from);
-      const delay = nextDelay();
+      const delay = nextBolt();
       endMs = Math.max(endMs, delay + HIT_MS);
       hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue);
     }
@@ -560,7 +567,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const land = (): void => flash(target, 'danger');
       const key = `card:${h.cardId}:${h.seq}`;
       // A projectile only from what resolved: combat damage is the impact alone, never a ball between two creatures.
-      const delay = origin === null ? 0 : nextDelay();
+      const delay = origin === null ? 0 : nextBolt();
       const landsAt = origin === null ? delay : delay + HIT_MS;
       if (departure !== undefined) fatalLand.set(h.cardId, Math.max(fatalLand.get(h.cardId) ?? 0, landsAt));
       endMs = Math.max(endMs, landsAt);
@@ -591,7 +598,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       host.leave?.(departure, delay);
     }
     if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
-    if (beat > 0 || reveal !== null || diff.departures.length > 0) {
+    if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0) {
       host.report?.({
         what: 'beats',
         resolved: item?.id ?? -1,
@@ -599,7 +606,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         reveal: reveal !== null,
         revealWaitMs: Math.round(startMs),
         from: reveal !== null ? 'reveal' : origin === null ? 'none' : 'source',
-        hits: beat - diff.arrivals.length,
+        hits: bolt,
         forgeHits: diff.hits.length,
         arrivals: diff.arrivals.length,
         fromMaker,

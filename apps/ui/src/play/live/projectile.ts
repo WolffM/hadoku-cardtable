@@ -49,7 +49,7 @@ export const PROJECTILE_EASING = 'cubic-bezier(0.88, 0, 0.96, 0.04)';
 /** How far behind the ball each ember of its trail runs. */
 export const EMBER_LAG_MS = 28;
 /** The impact's burst, after the ball lands. */
-export const IMPACT_MS = 380;
+export const IMPACT_MS = 420;
 /** Samples of the curve the animation runs through. */
 const SAMPLES = 16;
 
@@ -79,10 +79,15 @@ export function along(start: Point, control: Point, end: Point, t: number): Poin
   return { x: u * u * start.x + 2 * u * t * control.x + t * t * end.x, y: u * u * start.y + 2 * u * t * control.y + t * t * end.y };
 }
 
+/** The share of the flight in which the ball forms at its source, growing to full size, before it is under way. */
+const WIND_UP = 0.3;
+
 function keyframes(start: Point, control: Point, end: Point): Keyframe[] {
   return Array.from({ length: SAMPLES + 1 }, (_, i) => {
-    const p = along(start, control, end, i / SAMPLES);
-    return { transform: `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)` };
+    const t = i / SAMPLES;
+    const p = along(start, control, end, t);
+    const scale = 0.35 + 0.65 * Math.min(1, t / WIND_UP);
+    return { transform: `translate(${p.x}px, ${p.y}px) translate(-50%, -50%) scale(${scale.toFixed(3)})` };
   });
 }
 

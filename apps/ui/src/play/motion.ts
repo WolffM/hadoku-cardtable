@@ -28,9 +28,11 @@ export const GLIDE_MS = 300;
 /** A revealed card's beat in the reveal notice, before anything it caused is drawn. */
 export const REVEAL_BEAT_MS = 450;
 /** A hit (damage, life lost or gained) travelling from its source to the player or creature it changes — on its arc, speeding up (`live/projectile.ts`). */
-export const HIT_MS = 700;
-/** Between two hits, or two created permanents, of one resolution. */
+export const HIT_MS = 850;
+/** Between two created permanents of one resolution. */
 export const BEAT_STAGGER_MS = 120;
+/** Between two bolts of one resolution: each slam, and the death it causes, on its own. */
+export const BOLT_STAGGER_MS = 300;
 
 /** The last reveal notice drawn: when, and its first card — the element while it is up, its box once it has gone. */
 export interface RevealBeat {

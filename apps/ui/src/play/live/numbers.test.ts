@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
+import { BOLT_STAGGER_MS, GLIDE_MS, HIT_MS, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import {
   LIFE_COLOUR_MS,
@@ -422,7 +422,7 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(mark!.dataset.projectile, 'drawn as a bolt').toBe('bolt');
     expect(mark!.dataset.colour, 'an ability of a card the fixture gives no colour: colourless').toBe('C');
     // No Web Animations in jsdom: the ball is put where it lands, the face's centre (130, 50).
-    expect(mark!.style.transform, 'aimed at the face').toBe('translate(130px, 50px) translate(-50%, -50%)');
+    expect(mark!.style.transform, 'aimed at the face').toBe('translate(130px, 50px) translate(-50%, -50%) scale(1.000)');
     expect(overlay.querySelectorAll('.board-number'), 'no number before it lands').toHaveLength(0);
     expect(life.textContent, 'the counter still reads the old total').toBe('20');
 
@@ -571,14 +571,14 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     expect(ball?.dataset.colour, 'in Slagstorm’s colour').toBe('R');
     expect(left.map(([d, ms]) => [d.cardId, d.to, d.cause, ms]), 'each goes the moment its own fireball lands, killed by damage').toEqual([
       [7, 'graveyard', 'damage', HIT_MS],
-      [9, 'graveyard', 'damage', BEAT_STAGGER_MS + HIT_MS],
+      [9, 'graveyard', 'damage', BOLT_STAGGER_MS + HIT_MS],
     ]);
-    expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BEAT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.crumple.ms);
+    expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.crumple.ms);
 
     vi.advanceTimersByTime(HIT_MS);
-    expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'where it stands flashes').toBe(true);
+    expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'no copy drawn in this test: its place flashes').toBe(true);
     expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => [n.dataset.impact, n.dataset.colour]), 'it slams in').toEqual([['card:7:1', 'R']]);
-    vi.advanceTimersByTime(BEAT_STAGGER_MS);
+    vi.advanceTimersByTime(BOLT_STAGGER_MS);
     expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => n.dataset.impact)).toEqual(['card:7:1', 'card:9:2']);
     expect(overlay.querySelector('.board-number'), 'no number on a creature: the impact is the hit').toBeNull();
     handle.dispose();

@@ -128,6 +128,21 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('reports how the board held still in a commit that drew departures: the copy off its card, and the most any card moved', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const report = vi.fn();
+    const handle = installDepartures(canvas, { onDone: () => undefined, report });
+    canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect(300, 380, 60, 84);
+    handle.snapshot();
+    keepPlace(canvas); // the gap stands at (300, 400): 20 px lower than the card was
+    handle.leave(departure('graveyard'), 0);
+    handle.snapshot();
+    vi.advanceTimersByTime(250);
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({ what: 'departure-layout', departures: 1, copyDx: 0, copyDy: 20 }));
+    handle.dispose();
+  });
+
   it('dispose takes every copy down', () => {
     const canvas = board();
     const handle = installDepartures(canvas, { onDone: () => undefined });
