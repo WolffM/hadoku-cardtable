@@ -569,6 +569,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				id: d.id,
 				collection: d.collection,
 				name: d.deck.name,
+				// The name's two halves as the library records them, so a screen
+				// never splits a label to find who played the deck.
+				archetype: d.deck.archetype,
+				pilot: d.deck.pilot,
 				format: d.deck.format,
 				date: d.deck.date,
 				provenance: d.deck.provenance,

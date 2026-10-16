@@ -1,5 +1,7 @@
 [metadata]
 Name=Mississippi River (F2104)
+Archetype=Mississippi River
+Pilot=F2104
 Deck Type=Constructed
 Format=Legacy (OTJ)
 Effective=2024-04-19

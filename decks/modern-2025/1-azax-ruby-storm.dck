@@ -1,5 +1,7 @@
 [metadata]
 Name=Ruby Storm (azax)
+Archetype=Ruby Storm
+Pilot=azax
 Deck Type=Constructed
 Format=Modern (FIN)
 Effective=2025-06-30

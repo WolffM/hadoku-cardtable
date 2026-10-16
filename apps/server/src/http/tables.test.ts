@@ -573,6 +573,17 @@ describe('the catalog routes', () => {
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});
 
+	it('names every library deck’s archetype and pilot apart, Goggles Ramp by Aleksa Telaron among them', async () => {
+		const h = await boot();
+		const decks = await call(h, 'GET', '/api/tables/decks');
+		const list = decks.body.decks as { name: string; archetype: string; pilot: string }[];
+		expect(list.find((d) => d.name === 'Goggles Ramp (Aleksa Telaron)')).toMatchObject({
+			archetype: 'Goggles Ramp',
+			pilot: 'Aleksa Telaron',
+		});
+		expect(list.filter((d) => d.archetype === '' || d.pilot === '')).toEqual([]);
+	});
+
 	// Every era against every deck, by the route and one deck at a time: about 21,000 legality
 	// checks. 0.95 s on the host; past vitest's 5 s default on a CI runner under the full check
 	// (CI run 37588858089, 2026-10-07). The budget below is the measurement with room, not a pin.

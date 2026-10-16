@@ -1,5 +1,7 @@
 [metadata]
 Name=UW Control (triosk)
+Archetype=UW Control
+Pilot=triosk
 Deck Type=Constructed
 Format=Modern (AFR)
 Effective=2021-07-23

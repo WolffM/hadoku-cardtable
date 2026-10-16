@@ -1,5 +1,7 @@
 [metadata]
 Name=Scapeshift (stefanocanclini)
+Archetype=Scapeshift
+Pilot=stefanocanclini
 Deck Type=Constructed
 Format=Modern (OTJ)
 Effective=2024-04-19

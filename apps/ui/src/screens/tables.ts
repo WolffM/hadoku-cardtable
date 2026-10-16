@@ -82,6 +82,13 @@ export interface TableDeck {
   id: string;
   collection: string;
   name: string;
+  /**
+   * `name`'s two halves as the library records them (`Archetype` and `Pilot`
+   * in the deck's own file): what the deck is, and who played it. Absent for
+   * nothing — every library deck has both.
+   */
+  archetype: string;
+  pilot: string;
   format: string;
   date: string;
   provenance: string;

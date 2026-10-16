@@ -1,5 +1,7 @@
 [metadata]
 Name=Rack Control (Alexander Blumke)
+Archetype=Rack Control
+Pilot=Alexander Blumke
 Deck Type=Constructed
 Format=Type 2 (CHR)
 Effective=1995-07-01

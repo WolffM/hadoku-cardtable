@@ -132,7 +132,7 @@ describe('every collection: catalog, files and citations agree', () => {
   );
 });
 
-describe('every deck loads, with a citation', () => {
+describe('every deck loads, with a citation, an archetype and a pilot', () => {
   it.each(ALL_DECKS.map(({ collection, entry }) => [collection.id, entry.id] as const))(
     '%s / %s',
     (collectionId, entryId) => {
@@ -142,6 +142,10 @@ describe('every deck loads, with a citation', () => {
       expect(deck.name.length).toBeGreaterThan(0);
       expect(deck.citation).toMatch(CITATION);
       expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
+      expect(deck.archetype.trim().length).toBeGreaterThan(0);
+      expect(deck.pilot.trim().length).toBeGreaterThan(0);
+      // The name is the two, as `build-library.ts` writes it: one source, never parsed back.
+      expect(deck.name).toBe(`${deck.archetype} (${deck.pilot})`);
     },
   );
 });
@@ -331,6 +335,16 @@ describe('a deck that cannot be traced does not load', () => {
       .join('\n');
     expect(() => loadLibraryDeck(stripped)).toThrow(
       /needs a citation \(metadata key `Source URL`\), and a provenance line \(metadata key `Comment`\)/,
+    );
+  });
+
+  it('names the archetype and the pilot when they are gone', () => {
+    const stripped = ORIGINAL()
+      .split('\n')
+      .filter((l) => !l.startsWith('Archetype=') && !l.startsWith('Pilot='))
+      .join('\n');
+    expect(() => loadLibraryDeck(stripped)).toThrow(
+      /needs an archetype \(metadata key `Archetype`\), and a pilot \(metadata key `Pilot`\)/,
     );
   });
 

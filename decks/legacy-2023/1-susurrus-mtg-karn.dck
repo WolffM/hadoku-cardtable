@@ -1,5 +1,7 @@
 [metadata]
 Name=Karn (susurrus_mtg)
+Archetype=Karn
+Pilot=susurrus_mtg
 Deck Type=Constructed
 Format=Legacy (MAT)
 Effective=2023-05-29

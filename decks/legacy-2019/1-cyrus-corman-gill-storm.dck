@@ -1,5 +1,7 @@
 [metadata]
 Name=Storm (Cyrus Corman-gill)
+Archetype=Storm
+Pilot=Cyrus Corman-gill
 Deck Type=Constructed
 Format=Legacy (C19)
 Effective=2019-08-30

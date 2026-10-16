@@ -1,5 +1,7 @@
 [metadata]
 Name=Esper Control (billsive)
+Archetype=Esper Control
+Pilot=billsive
 Deck Type=Constructed
 Format=Standard (OTJ)
 Effective=2024-04-19

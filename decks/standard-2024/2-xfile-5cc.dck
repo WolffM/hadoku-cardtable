@@ -1,5 +1,7 @@
 [metadata]
 Name=5cc (xfile)
+Archetype=5cc
+Pilot=xfile
 Deck Type=Constructed
 Format=Standard (OTJ)
 Effective=2024-04-19

@@ -66,7 +66,7 @@ const MTGTOP8_FORMAT_CODE: Readonly<Record<FormatFamily, string>> = {
   modern: 'MO',
   legacy: 'LE',
 };
-import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
+import { LIBRARY_ARCHETYPE_KEY, LIBRARY_PILOT_KEY, LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 
 /** `packages/deck/src/library` → the repo root. */
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -88,6 +88,8 @@ const LIBRARY_SPELLING: DckSpelling = {
   metadataKeys: new Map([
     [PREBUILT_FORMAT_KEY.toLowerCase(), PREBUILT_FORMAT_KEY],
     [PREBUILT_DATE_KEY.toLowerCase(), PREBUILT_DATE_KEY],
+    [LIBRARY_ARCHETYPE_KEY.toLowerCase(), LIBRARY_ARCHETYPE_KEY],
+    [LIBRARY_PILOT_KEY.toLowerCase(), LIBRARY_PILOT_KEY],
   ]),
   sectionNames: new Map(),
 };
@@ -303,6 +305,8 @@ function buildDeckFile(
   // what the deck is, then what it is legal in, then where it came from.
   const metadata = new Map<string, string>([
     ['name', name],
+    [LIBRARY_ARCHETYPE_KEY.toLowerCase(), source.archetype],
+    [LIBRARY_PILOT_KEY.toLowerCase(), source.player],
     ['deck type', 'Constructed'],
     [PREBUILT_FORMAT_KEY.toLowerCase(), collection.format],
     [PREBUILT_DATE_KEY.toLowerCase(), collection.date],

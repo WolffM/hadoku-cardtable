@@ -1,5 +1,7 @@
 [metadata]
 Name=ManaRamp (Armin Birner)
+Archetype=ManaRamp
+Pilot=Armin Birner
 Deck Type=Constructed
 Format=Standard (EVE)
 Effective=2008-07-25
