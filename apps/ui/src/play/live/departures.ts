@@ -32,8 +32,31 @@
  * Reduced motion: no stand-in; the gap closes at the card's beat.
  */
 
-import type { BoardCard, BoardView } from '../adapter.ts';
+import type { BoardCard, BoardView, DeathCause } from '../adapter.ts';
 import './departures.css';
+
+/**
+ * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
+ * that does, `numbers.ts` marks only `damage` — a hit it drew killed it — and nothing for the rest.
+ */
+export type DepartureCause = 'damage' | 'destroyed' | 'sacrificed' | 'zero-toughness' | 'state-rule';
+
+/** Forge's cause, as a departure's. */
+export function departureCause(cause: DeathCause): DepartureCause {
+  switch (cause) {
+    case 'LETHAL_DAMAGE':
+    case 'DEATHTOUCH':
+      return 'damage';
+    case 'DESTROYED':
+      return 'destroyed';
+    case 'SACRIFICED':
+      return 'sacrificed';
+    case 'ZERO_TOUGHNESS':
+      return 'zero-toughness';
+    case 'STATE_RULE':
+      return 'state-rule';
+  }
+}
 
 /** Where a permanent went when it left the battlefield; `gone` for nowhere this seat is shown (a token ceasing to exist, a library). */
 export type ExitDestination = 'graveyard' | 'exile' | 'hand' | 'gone';
@@ -49,8 +72,8 @@ export interface Departure {
   readonly card: BoardCard;
   /** Its index in that battlefield's list, so an unarranged row keeps it where it was. */
   readonly index: number;
-  /** `damage` when a hit Forge dealt killed it (`numbers.ts` knows, from the hits); absent otherwise. */
-  readonly cause?: 'damage';
+  /** Why it died, when it went to a graveyard: Forge's word (`BoardView.deathCauses`), else `numbers.ts`'s reading of the hits. */
+  readonly cause?: DepartureCause;
 }
 
 /**
@@ -73,13 +96,13 @@ export const EXIT_MOTIONS = {
 export type ExitMotion = keyof typeof EXIT_MOTIONS;
 
 /**
- * Which exit motion a departure plays — the one place it is chosen. To a graveyard (or gone): killed by
- * damage crumples, anything else is destroyed and is sliced. Forge gives no cause beyond the hits, so a
- * sacrifice is sliced too.
+ * Which exit motion a departure plays — the one place it is chosen. To a graveyard (or gone): destroyed
+ * is sliced, any other death crumples. With no cause at all (a Forge from before `GameEventCardDied`),
+ * a death no hit explains is taken for destroyed.
  */
 export function exitMotionFor(departure: Departure): ExitMotion {
   if (departure.to !== 'graveyard' && departure.to !== 'gone') return 'fade';
-  return departure.cause === 'damage' ? 'crumple' : 'slice';
+  return departure.cause === undefined || departure.cause === 'destroyed' ? 'slice' : 'crumple';
 }
 
 /** How long a departure stays drawn once its beat starts. */

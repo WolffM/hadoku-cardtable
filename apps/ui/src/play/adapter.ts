@@ -662,6 +662,9 @@ export interface DamageHit {
   readonly amount: number;
 }
 
+/** Why a permanent went to its graveyard, as Forge says it (`PlayBridge.java`'s `deaths`, the fork's `GameEventCardDied.Cause`). */
+export type DeathCause = 'DESTROYED' | 'LETHAL_DAMAGE' | 'DEATHTOUCH' | 'ZERO_TOUGHNESS' | 'STATE_RULE' | 'SACRIFICED';
+
 export interface BoardView {
   seq: number;
   title: string;
@@ -690,6 +693,8 @@ export interface BoardView {
   missingCardIds: number[];
   /** The latest damage hits (`DamageHit`), oldest first: what `live/numbers.ts` draws as hits. Absent on a view typed out by hand. */
   hits?: readonly DamageHit[];
+  /** Why the permanents that died lately died (`DeathCause`), by card id. Absent on a view typed out by hand, or from a Forge too old to say. */
+  deathCauses?: ReadonlyMap<number, DeathCause>;
 }
 
 /** Who a band attacks: a player, or a planeswalker or battle (a card). */
@@ -766,6 +771,8 @@ export interface AdaptOptions {
   cantBlock?: ReadonlySet<number>;
   /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
   hits?: readonly DamageHit[];
+  /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
+  deathCauses?: ReadonlyMap<number, DeathCause>;
   /**
    * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):
    * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,
@@ -1616,6 +1623,7 @@ export function toBoardView(
     tokenSources,
     cantBlock,
     hits,
+    deathCauses,
     promptCard = null,
   }: AdaptOptions,
 ): BoardView {
@@ -1775,5 +1783,6 @@ export function toBoardView(
     gameOver: readBool(game, 'GameOver'),
     missingCardIds: missing,
     ...(hits === undefined || hits.length === 0 ? {} : { hits }),
+    ...(deathCauses === undefined || deathCauses.size === 0 ? {} : { deathCauses }),
   };
 }

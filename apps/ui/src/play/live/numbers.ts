@@ -91,7 +91,7 @@ import type { ManaColor } from '@hadoku/shared';
 
 import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
 import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
-import { DEPARTURE_ATTR, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { DEPARTURE_ATTR, departureCause, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { fly, impact } from './projectile.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
@@ -582,8 +582,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      * else (destroyed, sacrificed, exiled) as the effects start.
      */
     for (const dep of diff.departures) {
-      // Killed by a hit crumples; destroyed any other way is sliced (`departures.ts`'s `exitMotionFor`).
-      const departure: Departure = fatalLand.has(dep.cardId) ? { ...dep, cause: 'damage' } : dep;
+      // Why it died: Forge's word, else a hit drawn here killed it, else unknown (`departures.ts`'s `exitMotionFor`).
+      const said = prevView?.deathCauses?.get(dep.cardId);
+      const cause = said !== undefined ? departureCause(said) : fatalLand.has(dep.cardId) ? 'damage' : undefined;
+      const departure: Departure = cause === undefined ? dep : { ...dep, cause };
       const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
       endMs = Math.max(endMs, delay + exitMs(departure));
       host.leave?.(departure, delay);

@@ -2548,6 +2548,27 @@ describe('cantBlock — the bridge’s own wire fact', () => {
   });
 });
 
+describe('deaths — the bridge’s causes', () => {
+  function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload },
+    });
+  }
+
+  it('each death’s cause lands on BoardView.deathCauses by card id, the newest kept', async () => {
+    const { s, m } = await fullGame();
+    expect(m.view!.deathCauses).toBeUndefined();
+    await sendAndApply(s, m, [applyDeltaWith({ deaths: [[901, 'LETHAL_DAMAGE'], [902, 'DESTROYED']] }), applyDeltaWith({ deaths: [[901, 'SACRIFICED']] })]);
+    expect([...m.view!.deathCauses!]).toEqual([
+      [902, 'DESTROYED'],
+      [901, 'SACRIFICED'],
+    ]);
+  });
+});
+
 describe('damage — the bridge’s own hits', () => {
   function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
     seq += 1;

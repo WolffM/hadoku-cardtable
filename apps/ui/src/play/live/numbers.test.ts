@@ -599,6 +599,21 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     handle.dispose();
   });
 
+  it('Forge’s cause wins over the reading of the hits: a creature Forge says was sacrificed is not taken for destroyed', () => {
+    vi.useFakeTimers();
+    const { canvas } = sweeperBoard();
+    const left: [number, string | undefined][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d) => left.push([d.cardId, d.cause]) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    handle.notify({ ...after, hits: [], deathCauses: new Map([[7, 'SACRIFICED'], [9, 'DESTROYED']]) });
+    expect(left).toEqual([
+      [7, 'sacrificed'],
+      [9, 'destroyed'],
+    ]);
+    handle.dispose();
+  });
+
   it('Fast Mode: nothing waits to leave', () => {
     vi.useFakeTimers();
     const { canvas, overlay } = sweeperBoard();

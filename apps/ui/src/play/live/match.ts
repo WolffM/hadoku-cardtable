@@ -252,7 +252,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { manaCostTokens, toBoardView, type BoardView, type DamageHit } from '../adapter.ts';
+import { manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { foldPackets, type PendingTriggers, type WaitingEffects, type WireState } from '../fold.ts';
@@ -715,6 +715,8 @@ export interface LiveMatch {
   hits: readonly DamageHit[];
   /** The `seq` the next hit gets. */
   nextHitSeq: number;
+  /** Why each permanent that died lately died (`PlayBridge.java`'s `deaths`), by card id, the last {@link HITS_KEPT}. */
+  deathCauses: ReadonlyMap<number, DeathCause>;
   /**
    * How many identical triggers or copies of one spell still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
@@ -979,6 +981,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     cantBlock: new Set(),
     hits: [],
     nextHitSeq: 1,
+    deathCauses: new Map(),
     promptTargetMore: 0,
     sameTarget: false,
     avatarByPlayerId: null,
@@ -2628,9 +2631,10 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, damage } = frame.payload;
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, damage, deaths } = frame.payload;
       packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock });
       if (damage !== undefined) noteHits(match, damage);
+      if (deaths !== undefined) noteDeaths(match, deaths);
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2665,6 +2669,15 @@ function noteHits(match: LiveMatch, damage: readonly (readonly [number, number, 
   match.hits = [...match.hits, ...added].slice(-HITS_KEPT);
 }
 
+function noteDeaths(match: LiveMatch, deaths: readonly (readonly [number, DeathCause])[]): void {
+  const next = new Map(match.deathCauses);
+  for (const [cardId, cause] of deaths) {
+    next.delete(cardId);
+    next.set(cardId, cause);
+  }
+  match.deathCauses = new Map([...next].slice(-HITS_KEPT));
+}
+
 function redraw(match: LiveMatch): void {
   const viewerPlayerId = viewerPlayerIdOf(match);
   match.view =
@@ -2683,6 +2696,7 @@ function redraw(match: LiveMatch): void {
           tokenSources: match.tokenSources,
           cantBlock: match.cantBlock,
           hits: match.hits,
+          deathCauses: match.deathCauses,
           promptCard: match.promptCard,
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
@@ -3008,6 +3022,7 @@ function discardLocal(match: LiveMatch): void {
   match.tokenSources = new Map();
   match.cantBlock = new Set();
   match.hits = [];
+  match.deathCauses = new Map();
   match.promptTargetMore = 0;
   match.sameTarget = false;
   match.avatarByPlayerId = null;

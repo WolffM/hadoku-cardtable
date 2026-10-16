@@ -23,6 +23,7 @@ import {
   ApplyDeltaSchema,
   CantBlockSchema,
   DamageSchema,
+  DeathsSchema,
   DECLARED_TYPE_SCHEMAS,
   DELTA_OBJECT_TYPES,
   DeltaPacketSchema,
@@ -542,5 +543,18 @@ describe('Tier C — damage', () => {
       payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, damage: [[101, 131, 3]] },
     });
     expect(view.success).toBe(false);
+  });
+});
+
+describe('Tier C — deaths', () => {
+  it('accepts [cardId, cause] with one of the fork’s causes and rejects anything else', () => {
+    expect(DeathsSchema.safeParse([[101, 'DESTROYED'], [102, 'LETHAL_DAMAGE']]).success).toBe(true);
+    expect(DeathsSchema.safeParse([[101, 'EXPLODED']]).success).toBe(false);
+    expect(DeathsSchema.safeParse([[101]]).success).toBe(false);
+  });
+
+  it('is optional on applyDelta and carried when present', () => {
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, deaths: [[101, 'SACRIFICED']] } });
+    expect(delta.success && delta.data.payload.deaths).toEqual([[101, 'SACRIFICED']]);
   });
 });

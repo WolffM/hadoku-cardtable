@@ -417,6 +417,30 @@ describe('cantBlock', () => {
 	});
 });
 
+describe('deaths', () => {
+	it('keeps the deaths of cards this seat is sent, and rides applyDelta', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const seat0 = createProjector(0);
+		seat0.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = seat0.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] },
+				deaths: [
+					[onField, 'DESTROYED'],
+					[inTheirHand, 'SACRIFICED'],
+				],
+			},
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.deaths).toEqual([[onField, 'DESTROYED']]);
+	});
+});
+
 describe('damage', () => {
 	it('keeps the hits on a card this seat is sent, names a source it may not see as none, and rides applyDelta only', () => {
 		const raw = fold(fixtureFrames());

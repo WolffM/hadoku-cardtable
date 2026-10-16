@@ -7,12 +7,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard } from '../adapter.ts';
-import { EXIT_MOTIONS, exitMotionFor, installDepartures, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { departureCause, EXIT_MOTIONS, exitMotionFor, installDepartures, LEAVING_GAP_ATTR, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
 
-function departure(to: Departure['to'], cause?: 'damage'): Departure {
+function departure(to: Departure['to'], cause?: DepartureCause): Departure {
   return { cardId: 7, playerId: 0, to, toPlayerId: 0, card: { id: 7 } as BoardCard, index: 0, ...(cause === undefined ? {} : { cause }) };
 }
 
@@ -42,7 +42,21 @@ afterEach(() => {
 });
 
 describe('exitMotionFor', () => {
-  it('killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced; out of play any other way fades', () => {
+  it('Forge’s causes fold to a departure’s: lethal damage and deathtouch are damage', () => {
+    expect(departureCause('LETHAL_DAMAGE')).toBe('damage');
+    expect(departureCause('DEATHTOUCH')).toBe('damage');
+    expect(departureCause('DESTROYED')).toBe('destroyed');
+    expect(departureCause('SACRIFICED')).toBe('sacrificed');
+    expect(departureCause('ZERO_TOUGHNESS')).toBe('zero-toughness');
+    expect(departureCause('STATE_RULE')).toBe('state-rule');
+  });
+
+  it('destroyed is sliced; every other death crumples', () => {
+    expect(exitMotionFor(departure('graveyard', 'destroyed'))).toBe('slice');
+    for (const cause of ['damage', 'sacrificed', 'zero-toughness', 'state-rule'] as const) expect(exitMotionFor(departure('graveyard', cause)), cause).toBe('crumple');
+  });
+
+  it('with no cause (a Forge too old to say, and no hit): killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced; out of play any other way fades', () => {
     expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('crumple');
     expect(exitMotionFor(departure('graveyard'))).toBe('slice');
     expect(exitMotionFor(departure('gone'))).toBe('slice');

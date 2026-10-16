@@ -753,6 +753,20 @@ export const DamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt]));
 
 export type Damage = z.infer<typeof DamageSchema>;
 
+/** Why a permanent went to its graveyard: the fork's `GameEventCardDied.Cause` names. */
+export const DeathCauseSchema = z.enum(['DESTROYED', 'LETHAL_DAMAGE', 'DEATHTOUCH', 'ZERO_TOUGHNESS', 'STATE_RULE', 'SACRIFICED']);
+
+export type DeathCause = z.infer<typeof DeathCauseSchema>;
+
+/**
+ * The bridge's seventh addition beside the packet: why each permanent that went to its graveyard
+ * since the seat's last state frame went there (`PlayBridge.java`'s `EffectJournal`, the fork's
+ * `GameEventCardDied`), oldest first, as `[cardId, cause]`. An event list, only on `applyDelta`.
+ */
+export const DeathsSchema = z.array(z.tuple([JavaInt, DeathCauseSchema]));
+
+export type Deaths = z.infer<typeof DeathsSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -809,6 +823,7 @@ export const ApplyDeltaSchema = z.strictObject({
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
     damage: DamageSchema.optional(),
+    deaths: DeathsSchema.optional(),
   }),
 });
 

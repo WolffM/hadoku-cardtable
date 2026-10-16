@@ -175,11 +175,14 @@ export type CantBlock = readonly number[];
 /** `PlayBridge.java`'s `damage` — `packages/forge-wire/src/tier-c.ts`'s `DamageSchema`: `[targetId, sourceId, amount]`, sourceId -1 for none. */
 export type Damage = readonly (readonly [number, number, number])[];
 
+/** `PlayBridge.java`'s `deaths` — `packages/forge-wire/src/tier-c.ts`'s `DeathsSchema`: `[cardId, cause]`. */
+export type Deaths = readonly (readonly [number, string])[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
 	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; damage?: Damage } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; damage?: Damage; deaths?: Deaths } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -815,6 +818,14 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			: { damage: seen.map(([target, source, amount]) => [target, source >= 0 && cardVisibility(raw, zones, source, who) !== 'hidden' ? source : -1, amount] as const) };
 	}
 
+	/** Why each permanent died, for the cards this seat is sent at all: a graveyard is public, so in practice every one. */
+	function deathsSeen(deaths: Deaths | undefined): { deaths?: Deaths } {
+		if (deaths === undefined) return {};
+		const zones = indexZones(raw);
+		const seen = deaths.filter(([card]) => cardVisibility(raw, zones, card, who) !== 'hidden');
+		return seen.length === 0 ? {} : { deaths: seen };
+	}
+
 	return {
 		get viewer() {
 			return who;
@@ -879,6 +890,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...damageSeen(frame.payload.damage),
+							...deathsSeen(frame.payload.deaths),
 						},
 					};
 			}

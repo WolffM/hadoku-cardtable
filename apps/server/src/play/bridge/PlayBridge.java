@@ -1128,22 +1128,19 @@ public final class PlayBridge {
          */
         volatile Boolean lastToldMulligan;
 
-        /** The first {@link BridgeGui.DamageJournal} hit this seat has not been sent. */
-        private long damageFrom = BridgeGui.DamageJournal.INSTANCE.head();
+        /** The first {@link BridgeGui.EffectJournal} entry this seat has not been sent. */
+        private long effectsFrom = BridgeGui.EffectJournal.INSTANCE.head();
 
         /**
-         * The damage that landed since this seat's last state frame, added to {@code payload} as
-         * {@code damage} when there is any. A snapshot ({@code setGameView}) passes {@code false}:
-         * it skips past them, since what it draws is the board after.
+         * The damage and deaths since this seat's last state frame, added to {@code payload} as
+         * {@code damage} and {@code deaths} when there are any. A snapshot ({@code setGameView})
+         * passes {@code false}: it skips past them, since what it draws is the board after.
          */
-        void damageSince(final JsonObject payload, final boolean send) {
-            final BridgeGui.DamageJournal journal = BridgeGui.DamageJournal.INSTANCE;
+        void effectsSince(final JsonObject payload, final boolean send) {
+            final BridgeGui.EffectJournal journal = BridgeGui.EffectJournal.INSTANCE;
             final long head = journal.head();
-            if (send && head > damageFrom) {
-                final JsonArray hits = journal.since(damageFrom);
-                if (!hits.isEmpty()) { payload.add("damage", hits); }
-            }
-            damageFrom = head;
+            if (send && head > effectsFrom) { journal.since(effectsFrom, payload); }
+            effectsFrom = head;
         }
 
         /**
@@ -1373,7 +1370,7 @@ public final class PlayBridge {
             payload.add("gameView", objectTable(full.getNewObjects()));
             payload.addProperty("sequenceNumber", sequenceNumber);
             addStackFacts(payload);
-            damageSince(payload, false);
+            effectsSince(payload, false);
             f.add("payload", payload);
             frame(f);
         }
@@ -1408,7 +1405,7 @@ public final class PlayBridge {
                 final JsonObject payload = new JsonObject();
                 payload.add("packet", packetJson(packet));
                 addStackFacts(payload);
-                damageSince(payload, true);
+                effectsSince(payload, true);
                 f.add("payload", payload);
                 frame(f);
             }
@@ -2766,7 +2763,7 @@ public final class PlayBridge {
             }
             hm.setStartGameHook(() -> {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
-                hm.getGame().subscribeToEvents(DamageJournal.INSTANCE.reset());
+                hm.getGame().subscribeToEvents(EffectJournal.INSTANCE.reset());
                 final GameLogForward log = GameLogForward.install(hm.getGame());
                 ModeCounts.install(hm.getGame());
                 if (state == null) {
@@ -2782,53 +2779,83 @@ public final class PlayBridge {
         }
 
         /**
-         * Every point of damage dealt to a card, as Forge fires it ({@code GameEventCardDamaged},
-         * {@code Card.java:6229}): {@code [targetId, sourceId, amount]}, numbered as it lands.
-         * Never on the view: a creature that takes lethal damage is in its graveyard, its damage
-         * wiped, by the time the resolution's delta is built, so the view alone cannot say it was
-         * hit (the operator, 2026-10-15: Slagstorm and five creatures "instantly went to the
-         * graveyard"). Each seat sends what landed since its own last state frame
-         * ({@link SeatGui#damageSince}), so the hits ride the frame that shows what they did.
-         * A bounded window: a seat that has not sent a frame for {@link #KEEP} hits loses the oldest.
+         * What a resolution or a state-based action did that the view cannot say, as Forge fires it,
+         * numbered as it happens. Each seat sends what happened since its own last state frame
+         * ({@link SeatGui#effectsSince}), so it rides the frame that shows the result. A bounded window:
+         * a seat that has not sent a frame for {@link #KEEP} entries loses the oldest.
+         *
+         * <ul>
+         * <li>{@code damage}: every point of damage dealt to a card ({@code GameEventCardDamaged},
+         * {@code Card.java:6229}) as {@code [targetId, sourceId, amount]}. A creature that takes lethal
+         * damage is in its graveyard, its damage wiped, by the time the delta is built (the operator,
+         * 2026-10-15: Slagstorm and five creatures "instantly went to the graveyard").</li>
+         * <li>{@code deaths}: why each permanent went to its graveyard ({@code GameEventCardDied}, the
+         * fork's, pin {@code b6b2deff}) as {@code [cardId, cause]}, cause one of its {@code Cause}
+         * names — the operator: "forge should tell the cause". Read by name and by reflection, so this
+         * file still compiles against a jar from before that event, where none ever comes.</li>
+         * </ul>
          */
-        static final class DamageJournal {
-            static final DamageJournal INSTANCE = new DamageJournal();
+        static final class EffectJournal {
+            static final EffectJournal INSTANCE = new EffectJournal();
             static final int KEEP = 256;
-            private final java.util.ArrayDeque<long[]> hits = new java.util.ArrayDeque<>();
+            private record Entry(long seq, JsonArray damage, JsonArray death) {}
+            private final java.util.ArrayDeque<Entry> entries = new java.util.ArrayDeque<>();
             private long next = 1;
 
-            /** A new game: nothing landed yet. Returns itself, to subscribe. */
-            synchronized DamageJournal reset() {
-                hits.clear();
+            /** A new game: nothing has happened yet. Returns itself, to subscribe. */
+            synchronized EffectJournal reset() {
+                entries.clear();
                 return this;
+            }
+
+            private synchronized void add(final JsonArray damage, final JsonArray death) {
+                entries.addLast(new Entry(next++, damage, death));
+                while (entries.size() > KEEP) { entries.removeFirst(); }
             }
 
             @Subscribe
             public void cardDamaged(final forge.game.event.GameEventCardDamaged ev) {
                 if (ev.card() == null || ev.amount() <= 0) { return; }
-                synchronized (this) {
-                    hits.addLast(new long[] { next++, ev.card().getId(), ev.source() == null ? -1 : ev.source().getId(), ev.amount() });
-                    while (hits.size() > KEEP) { hits.removeFirst(); }
+                final JsonArray hit = new JsonArray();
+                hit.add(ev.card().getId());
+                hit.add(ev.source() == null ? -1 : ev.source().getId());
+                hit.add(ev.amount());
+                add(hit, null);
+            }
+
+            /** Every event, so {@code GameEventCardDied} is heard without naming its class (see above). */
+            @Subscribe
+            public void any(final forge.game.event.GameEvent ev) {
+                if (!"GameEventCardDied".equals(ev.getClass().getSimpleName())) { return; }
+                try {
+                    final Object card = ev.getClass().getMethod("card").invoke(ev);
+                    final Object cause = ev.getClass().getMethod("cause").invoke(ev);
+                    if (!(card instanceof CardView view) || cause == null) { return; }
+                    final JsonArray death = new JsonArray();
+                    death.add(view.getId());
+                    death.add(cause.toString());
+                    add(null, death);
+                } catch (final ReflectiveOperationException e) {
+                    System.err.println("[bridge] GameEventCardDied: could not read it (" + e + ")");
                 }
             }
 
-            /** The number the next hit will get: a cursor past everything landed so far. */
+            /** The number the next entry will get: a cursor past everything so far. */
             synchronized long head() {
                 return next;
             }
 
-            /** Every hit numbered at or after {@code from}, oldest first, as {@code [target, source, amount]}. */
-            synchronized JsonArray since(final long from) {
-                final JsonArray out = new JsonArray();
-                for (final long[] h : hits) {
-                    if (h[0] < from) { continue; }
-                    final JsonArray hit = new JsonArray();
-                    hit.add((int) h[1]);
-                    hit.add((int) h[2]);
-                    hit.add((int) h[3]);
-                    out.add(hit);
+            /** Every entry numbered at or after {@code from}, oldest first, into {@code payload}'s {@code damage} and {@code deaths}. */
+            synchronized void since(final long from, final JsonObject payload) {
+                final JsonArray damage = new JsonArray();
+                final JsonArray deaths = new JsonArray();
+                for (final Entry e : entries) {
+                    if (e.seq() < from) { continue; }
+                    if (e.damage() != null) { damage.add(e.damage()); }
+                    if (e.death() != null) { deaths.add(e.death()); }
                 }
-                return out;
+                if (!damage.isEmpty()) { payload.add("damage", damage); }
+                if (!deaths.isEmpty()) { payload.add("deaths", deaths); }
             }
         }
 
