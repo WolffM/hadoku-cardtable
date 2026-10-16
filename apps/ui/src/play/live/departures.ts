@@ -107,6 +107,9 @@ export function departuresOf(prev: BoardView | null, next: BoardView): Departure
 /** The attribute on the gap `Board.tsx` keeps where a departing card was. */
 export const LEAVING_GAP_ATTR = 'data-leaving-gap';
 
+/** On the copy drawn leaving: the departed card's id, so a hit in flight can aim at it. */
+export const DEPARTURE_ATTR = 'data-departure';
+
 /** How long a departure may keep its place at most, should its beat never come. */
 export const DEPARTURE_MAX_MS = 4000;
 
@@ -186,6 +189,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       }
       const motion = exitMotionFor(departure);
       const wrap = standIn(from, gap.getBoundingClientRect(), root, motion);
+      wrap.setAttribute(DEPARTURE_ATTR, String(departure.cardId));
       standIns.add(wrap);
       schedule(() => wrap.setAttribute('data-exit-go', ''), delayMs);
       schedule(() => {

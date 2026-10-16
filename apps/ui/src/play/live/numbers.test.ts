@@ -514,14 +514,17 @@ describe('installNumbers: a resolution’s hits', () => {
 
     const mark = overlay.querySelector<HTMLElement>('.effect-hit');
     expect(mark?.dataset.hit, 'a hit leaves the source at once').toBe('player:1');
-    expect(mark!.style.left, 'aimed at the face').toBe('130px');
+    expect(mark!.dataset.projectile, 'drawn as a fireball').toBe('fire');
+    // No Web Animations in jsdom: the ball is put where it lands, the face's centre (130, 50).
+    expect(mark!.style.transform, 'aimed at the face').toBe('translate(130px, 50px) translate(-50%, -50%)');
     expect(overlay.querySelectorAll('.board-number'), 'no number before it lands').toHaveLength(0);
     expect(life.textContent, 'the counter still reads the old total').toBe('20');
 
     vi.advanceTimersByTime(HIT_MS);
     expect(overlay.querySelector('.effect-hit'), 'the mark is gone on landing').toBeNull();
     expect(face.hasAttribute('data-hit-flash'), 'the face flashes').toBe(true);
-    expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    expect(overlay.querySelector('.effect-impact'), 'and takes the impact').not.toBeNull();
+    expect(overlay.querySelector('.board-number')?.textContent, 'a life total still shows its number').toBe('-2');
     vi.advanceTimersByTime(2 * TICK_STEP_MS);
     expect(life.textContent).toBe('18');
     handle.dispose();
@@ -542,8 +545,7 @@ describe('installNumbers: a resolution’s hits', () => {
     vi.advanceTimersByTime(REVEAL_BEAT_MS);
     const mark = overlay.querySelector<HTMLElement>('.effect-hit');
     expect(mark, 'then the hit').not.toBeNull();
-    // It was placed at the revealed card's centre (248, 367) before being sent on its way.
-    expect(mark!.dataset.hitTravelling).toBe('');
+    expect(mark!.dataset.hit).toBe('player:1');
     vi.advanceTimersByTime(HIT_MS);
     expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
     handle.dispose();
@@ -648,7 +650,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     ],
   };
 
-  it('the spell blinks, a hit flies to each creature, each takes its -3, then both are destroyed together — and the spell may fade only after', () => {
+  it('the spell blinks, a fireball flies to each creature and slams into it (no number), then both are destroyed together — and the spell may fade only after', () => {
     vi.useFakeTimers();
     const { canvas, overlay } = sweeperBoard();
     const left: [Departure, number][] = [];
@@ -668,12 +670,13 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     expect(takeResolutionEffects(40), 'the spell fades once the creatures are gone').toBe(at + exitAt + EXIT_MOTIONS.crumple.ms);
 
     vi.advanceTimersByTime(RESOLVE_BLINK_MS);
-    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first hit leaves the spell').toBe('card:7');
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first fireball leaves the spell').toBe('card:7:1');
     vi.advanceTimersByTime(HIT_MS);
     expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'where it stands flashes').toBe(true);
-    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-3']);
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => n.dataset.impact), 'it slams in').toEqual(['card:7:1']);
     vi.advanceTimersByTime(BEAT_STAGGER_MS);
-    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-3', '-3']);
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => n.dataset.impact)).toEqual(['card:7:1', 'card:9:2']);
+    expect(overlay.querySelector('.board-number'), 'no number on a creature: the impact is the hit').toBeNull();
     handle.dispose();
   });
 
@@ -700,11 +703,27 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     handle.notify(before);
     keepPlaces(canvas);
     handle.notify(after);
-    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first hit leaves at once').toBe('card:7');
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first hit leaves at once').toBe('card:7:1');
     expect(left).toEqual([
       [7, 0],
       [9, 0],
     ]);
+    handle.dispose();
+  });
+});
+
+describe('installNumbers: combat damage', () => {
+  it('a hit with nothing resolving is the impact alone, at the creature — no projectile, no number', () => {
+    const { canvas } = board();
+    canvas.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
+    canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect({ left: 300, top: 400, width: 60, height: 84 });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(7, 2)] }), player(1, 20)]), hits: [{ seq: 1, cardId: 7, sourceId: 50, amount: 2 }] });
+    expect(overlay.querySelector('.effect-hit'), 'no fireball between creatures').toBeNull();
+    expect(overlay.querySelector<HTMLElement>('.effect-impact')?.dataset.impact).toBe('card:7:1');
+    expect(overlay.querySelector('.board-number')).toBeNull();
     handle.dispose();
   });
 });

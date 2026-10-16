@@ -102,7 +102,8 @@
 
 import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
 import { BEAT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, RESOLVE_BLINK_MS, REVEAL_BEAT_MS } from '../motion.ts';
-import { departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { DEPARTURE_ATTR, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { fly, impact } from './projectile.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
 
@@ -534,26 +535,25 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     atBeat(() => {
       if (!to.isConnected) return land();
       const box = root.getBoundingClientRect();
-      const start = centreIn(from, box);
-      const end = centreIn(to, box);
-      const mark = document.createElement('div');
-      mark.className = 'effect-hit';
-      mark.setAttribute('aria-hidden', 'true');
-      mark.dataset.hit = key;
-      mark.dataset.numberColour = colour;
-      mark.style.left = `${start.x}px`;
-      mark.style.top = `${start.y}px`;
-      root.append(mark);
-      void mark.offsetWidth;
-      mark.style.left = `${end.x}px`;
-      mark.style.top = `${end.y}px`;
-      mark.dataset.hitTravelling = '';
+      // A card leaving is drawn as its copy over the kept gap (`departures.ts`): aim at the card, not the gap.
+      const leavingId = to.getAttribute(LEAVING_GAP_ATTR);
+      const end = centreIn((leavingId === null ? null : root.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"]`)) ?? to, box);
+      const look = colour === 'danger' ? 'fire' : 'heal';
+      const ball = fly(root, centreIn(from, box), end, key, look, HIT_MS);
       schedule(() => {
-        mark.remove();
+        ball.remove();
+        impact(root, end, look, key);
         flash(to, colour);
         land();
       }, HIT_MS);
     }, delayMs);
+  }
+
+  /** The impact alone, where `to` is — a hit with no projectile (combat damage). */
+  function slam(to: Element, key: string): void {
+    const root = overlay();
+    if (root === null || reduced()) return;
+    impact(root, centreIn(to, root.getBoundingClientRect()), 'fire', key);
   }
 
   /** A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in place when there is nowhere to come from. */
@@ -664,16 +664,18 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const target = hitTarget(h.cardId);
       if (target === null) continue;
       const departure = leaving.get(h.cardId);
-      const dying = departure !== undefined && departure.to === 'graveyard' ? { ownerId: departure.toPlayerId } : undefined;
-      const box = 'getBoundingClientRect' in target.at ? target.at.getBoundingClientRect() : target.at;
-      const land = (): void => spawn({ anchorKey: `card:${h.cardId}`, at: box, kind: 'damage', delta: h.amount, dying });
-      const from = origin ?? (h.sourceId === null ? null : (hitTarget(h.sourceId)?.card ?? null));
-      const delay = nextDelay();
-      const landsAt = from === null ? delay : delay + HIT_MS;
+      // No number: the slam is the hit (the operator, 2026-10-15) — what is left of its toughness is the badge's.
+      const land = (): void => flash(target.card, 'danger');
+      const key = `card:${h.cardId}:${h.seq}`;
+      // A projectile only from what resolved: combat damage is the impact alone, never a ball between two creatures.
+      const delay = origin === null ? 0 : nextDelay();
+      const landsAt = origin === null ? delay : delay + HIT_MS;
       if (departure !== undefined) lastFatalLand = Math.max(lastFatalLand, landsAt);
       endMs = Math.max(endMs, landsAt);
-      if (from === null) atBeat(land, delay);
-      else hit(from, target.card, `card:${h.cardId}`, 'danger', delay, land);
+      if (origin === null) {
+        slam(target.card, key);
+        land();
+      } else hit(origin, target.card, key, 'danger', delay, land);
     }
     for (const death of diff.deaths) {
       // "Nothing for 0": destroyed outright, sacrificed, or simply left the
@@ -766,7 +768,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         delete el.dataset.numberLifeColour;
       });
       overlay()
-        ?.querySelectorAll('.effect-hit')
+        ?.querySelectorAll('.effect-hit, .effect-hit-ember, .effect-impact')
         .forEach((el) => el.remove());
       for (const el of marked) {
         el.removeAttribute('data-hit-flash');

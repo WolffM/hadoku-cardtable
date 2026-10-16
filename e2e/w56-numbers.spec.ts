@@ -7,8 +7,8 @@
  * so from a REAL match, on both screens at once, from the two scenarios this
  * directory already has that fit: `bolt-player` (a player losing life to a
  * direct hit) and `w54-b-two-blockers` (a blocked attacker's damage, which
- * survives — the P/T-corner case; the damage that stays is the badge's own,
- * proven in `w70-damage-pt.spec.ts`).
+ * survives: a creature's hit is an impact with no number since 2026-10-15; the damage
+ * that stays is the badge's own, proven in `w70-damage-pt.spec.ts`).
  *
  * A life-GAIN proof (a "Healing Salve spawns +3" case) has no scenario to
  * drive it from: every `.state` file in `scenarios/` was grepped for a hand
@@ -158,7 +158,7 @@ test(
 );
 
 test(
-  titled('a blocked attacker’s damage — surviving — spawns at the P/T corner, in the danger colour'),
+  titled('a blocked attacker’s damage — surviving — slams into the blocker as an impact, with no number on the creature'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -197,16 +197,23 @@ test(
       // Start watching BEFORE passing the held priority, so the window combat damage opens in
       // (a turn-based action, no priority stop of its own) is not missed. `expect.poll` itself
       // resolves to `undefined`, so the value is captured from inside the polled function.
-      type NumberInfo = { text: string; colour: string | null; box: { x: number; y: number } };
-      let captured: NumberInfo | null = null;
+      // A creature's hit is the impact alone, no number (the operator, 2026-10-15: "we dont have to show a
+      // number, just the impact would be fine"); combat damage has no projectile, only the slam.
+      type ImpactInfo = { key: string; box: { x: number; y: number }; numbers: number };
+      let captured: ImpactInfo | null = null;
       const watch = expect
         .poll(
           async () => {
-            const n = await currentNumber(alice.page);
+            const n = await alice.page.evaluate(() => {
+              const el = document.querySelector<HTMLElement>('.effect-impact');
+              if (el === null) return null;
+              const r = el.getBoundingClientRect();
+              return { key: el.dataset.impact ?? '', box: { x: r.x, y: r.y }, numbers: document.querySelectorAll('.board-number').length };
+            });
             if (n !== null) captured = n;
             return n !== null;
           },
-          { timeout: 15_000, intervals: [30], message: 'the damage number appears at the P/T corner' },
+          { timeout: 15_000, intervals: [30], message: 'the impact lands on the blocker' },
         )
         .toBe(true);
       await enabledOk(alice.page).click();
@@ -215,15 +222,15 @@ test(
         .poll(async () => (await phaseOf(alice.page))?.phase ?? '', { timeout: 15_000, message: 'held at Combat Damage Step' })
         .toBe('COMBAT_DAMAGE');
       await watch;
-      const number: NumberInfo | null = captured;
-      console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'blocked-damage', number })}`);
-      expect(number!.text, 'Wall of Stone took 1 from the 1/1 attacker').toBe('-1');
-      expect(number!.colour).toBe('danger');
+      const impact: ImpactInfo | null = captured;
+      console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'blocked-damage', impact })}`);
+      expect(impact!.key, 'Forge’s own hit, on Wall of Stone').toMatch(new RegExp(`^card:${blockerX}:`));
+      expect(impact!.numbers, 'no number on a creature: the impact is the hit').toBe(0);
       await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'the blocker survived — the damage-stays case, not the dying one').toHaveCount(1);
-      const blockerBox = (await alice.page.locator(`[data-board-card="${blockerX}"] .board-card__pt`).boundingBox())!;
+      const blockerBox = (await alice.page.locator(`[data-board-card="${blockerX}"]`).boundingBox())!;
       expect(
-        Math.hypot(number!.box.x - (blockerBox.x + blockerBox.width / 2), number!.box.y - (blockerBox.y + blockerBox.height / 2)),
-        'at the P/T corner, not somewhere else on the card',
+        Math.hypot(impact!.box.x - (blockerBox.x + blockerBox.width / 2), impact!.box.y - (blockerBox.y + blockerBox.height / 2)),
+        'on the blocker, not somewhere else on the board',
       ).toBeLessThan(150);
 
       // The damage stays on the creature, on its own badge: Wall of Stone's 0/8 reads 0/7.

@@ -1,0 +1,123 @@
+/*
+ * Projectiles (`projectile.ts`): the ball, its trail of embers and the impact where it lands. One block
+ * per look, under its name from `PROJECTILES`. The ball is placed by its animation's transform from the
+ * overlay's top left, so it has no `left`/`top` of its own.
+ */
+.effect-hit,
+.effect-hit-ember {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Fire: a white-hot core in an orange-red flame, a glow around it. */
+.effect-hit[data-projectile='fire'] {
+  width: 18px;
+  height: 18px;
+  background: radial-gradient(circle at 40% 40%, #fff8d6 0 18%, #ffcc33 34%, #ff6a1a 62%, #c81e0a 100%);
+  box-shadow:
+    0 0 10px 4px rgb(255 120 30 / 0.85),
+    0 0 26px 10px rgb(255 60 10 / 0.45);
+}
+
+.effect-hit-ember[data-projectile='fire'] {
+  width: calc(14px - var(--ember) * 3px);
+  height: calc(14px - var(--ember) * 3px);
+  background: radial-gradient(circle, #ffd24a 0 30%, #ff5a14 70%, transparent 100%);
+  opacity: calc(0.75 - var(--ember) * 0.18);
+  filter: blur(1px);
+}
+
+/* Heal: a soft green orb. */
+.effect-hit[data-projectile='heal'] {
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle at 40% 40%, #f2fff4 0 20%, var(--success) 75%);
+  box-shadow: 0 0 14px 5px color-mix(in srgb, var(--success) 60%, transparent);
+}
+
+.effect-hit-ember[data-projectile='heal'] {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  opacity: calc(0.6 - var(--ember) * 0.2);
+  filter: blur(1px);
+}
+
+/* The impact: a flash that blows outward and sparks that fly off it. */
+.effect-impact {
+  position: absolute;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.effect-impact::before {
+  content: '';
+  position: absolute;
+  left: -30px;
+  top: -30px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  animation: effect-impact-flash 380ms ease-out forwards;
+}
+
+.effect-impact[data-projectile='fire']::before {
+  background: radial-gradient(circle, #fff3c0 0 15%, rgb(255 150 40 / 0.9) 35%, rgb(230 50 10 / 0.5) 60%, transparent 72%);
+}
+
+.effect-impact[data-projectile='heal']::before {
+  background: radial-gradient(circle, #f2fff4 0 15%, color-mix(in srgb, var(--success) 70%, transparent) 45%, transparent 72%);
+}
+
+@keyframes effect-impact-flash {
+  0% {
+    scale: 0.2;
+    opacity: 1;
+  }
+
+  100% {
+    scale: 1.6;
+    opacity: 0;
+  }
+}
+
+.effect-impact__spark {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffd24a;
+  box-shadow: 0 0 6px 2px rgb(255 110 20 / 0.8);
+  animation: effect-impact-spark 380ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+
+.effect-impact[data-projectile='heal'] .effect-impact__spark {
+  background: var(--success);
+  box-shadow: none;
+}
+
+@keyframes effect-impact-spark {
+  0% {
+    transform: rotate(var(--angle)) translateX(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: rotate(var(--angle)) translateX(34px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .effect-impact__spark {
+    display: none;
+  }
+}
