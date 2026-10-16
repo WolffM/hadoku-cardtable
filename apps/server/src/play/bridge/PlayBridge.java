@@ -2182,6 +2182,9 @@ public final class PlayBridge {
         @Override
         public String showInputDialog(final String message, final String title, final FSkinProp icon,
                                       final String initialInput, final List<String> inputOptions, final boolean isNumeric) {
+            final String number = numberAfterOther;
+            numberAfterOther = null;
+            if (number != null && isNumeric) { return number; }
             final JsonObject f = new JsonObject();
             final PendingAsk ask = open("showInputDialog", f);
             f.addProperty("message", str(message));
@@ -2265,11 +2268,103 @@ public final class PlayBridge {
         @Override
         public <T> List<T> getChoices(final String message, final int min, final int max, final List<T> choices,
                                       final List<T> selected, final FSerializableFunction<T, String> display) {
+            final Integer cutoff = numberCutoff(choices);
+            if (cutoff != null) { return numberAsk(message, choices, cutoff); }
+            // A short X Forge listed whole (an XMax at or under its cutoff) still carries its mark.
+            final boolean numbers = choices != null && !choices.isEmpty() && choices.stream().allMatch(c -> c instanceof Integer);
+            return choiceAsk(message, min, max, choices, selected, display, numbers ? affordableX(announcing()) : null);
+        }
+
+        /** The least an open number ask reaches past its minimum (the operator, 2026-10-15: X "should allow going up to 20"). */
+        static final int OPEN_NUMBER_REACH = 20;
+        /** The highest X {@link #affordableX} tries: Forge's own hundred ({@code AbstractGuiGame.getInteger}). */
+        static final int MOST_NUMBERS = 100;
+
+        /** The number a pick above Forge's own list answers the "Other…" entry's numeric follow-up with; null otherwise. */
+        private volatile String numberAfterOther;
+
+        /**
+         * The last number Forge listed when {@code choices} is {@code AbstractGuiGame.getInteger}'s cut-off
+         * list (an announced X, {@code NumTimes}, a keyword cost's count: the integers {@code min..cutoff},
+         * then {@code lblOtherInteger}, behind which Forge asks for any higher number as free text); null for
+         * any other list.
+         */
+        private static Integer numberCutoff(final List<?> choices) {
+            if (choices == null || choices.size() < 2) { return null; }
+            if (!forge.util.Localizer.getInstance().getMessage("lblOtherInteger").equals(choices.get(choices.size() - 1))) { return null; }
+            for (int i = 0; i < choices.size() - 1; i++) {
+                if (!(choices.get(i) instanceof Integer n) || (i > 0 && n != (Integer) choices.get(i - 1) + 1)) { return null; }
+            }
+            return (Integer) choices.get(choices.size() - 2);
+        }
+
+        /**
+         * Forge's cut-off number list as one list of numbers, past its cutoff: the browser draws it as a
+         * slider, which has no place for a free-text second step. A mana X reaches the most X this seat
+         * can pay ({@link #affordableX}, sent as {@code affordable}), and every list at least
+         * {@link #OPEN_NUMBER_REACH} past its minimum, up to the ability's own {@code XMax}. A number
+         * Forge listed is answered as itself; one above it is answered through Forge's own "Other…"
+         * path ({@link #showInputDialog} gives Forge the number), so Forge still checks it against
+         * the true maximum, which only it knows.
+         */
+        @SuppressWarnings("unchecked")
+        private <T> List<T> numberAsk(final String message, final List<T> choices, final int cutoff) {
+            final int min = (Integer) choices.get(0);
+            final SpellAbility sa = announcing();
+            final Integer affordable = affordableX(sa);
+            int top = Math.max(cutoff, Math.max(min + OPEN_NUMBER_REACH, affordable == null ? min : affordable));
+            if (affordable != null) { top = Math.min(top, forge.game.ability.AbilityUtils.getAnnouncementBounds(sa, "X").getMaximum()); }
+            final List<Integer> numbers = new ArrayList<>();
+            for (int n = min; n <= top; n++) { numbers.add(n); }
+            final List<Integer> picked = choiceAsk(message, 0, 1, numbers, null, null, affordable == null ? null : Math.min(affordable, top));
+            if (picked == null) { return null; }
+            if (picked.isEmpty()) { return new ArrayList<>(); }
+            final int n = picked.get(0);
+            if (n <= cutoff) { return new ArrayList<>(List.of(choices.get(n - min))); }
+            numberAfterOther = String.valueOf(n);
+            return new ArrayList<>(List.of(choices.get(choices.size() - 1)));
+        }
+
+        /** The ability whose number Forge is announcing for this seat right now ({@code PlayerControllerHuman.getAnnouncing}), or null. */
+        private SpellAbility announcing() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            try {
+                return (SpellAbility) PlayerControllerHuman.class.getMethod("getAnnouncing").invoke(human);
+            } catch (final ReflectiveOperationException e) {
+                System.err.println("[bridge] announcing: this Forge cannot name the ability being announced (" + e + "); the number ask goes without its mark");
+                return null;
+            }
+        }
+
+        /**
+         * The most X this seat can pay for {@code sa}, or null when {@code sa} has no X in its mana cost.
+         * Its mana cost is tried at each X the way the actionable highlight tries a play
+         * ({@code AvailableActions.canAfford}: Forge's own payer, {@code ComputerUtilMana.canPayManaCost},
+         * under an AI controller so nothing prompts), so the sources its other costs use (Kessig Wolf
+         * Run's own tap) are left out. Forge's game thread is parked on this ask while it runs.
+         */
+        private Integer affordableX(final SpellAbility sa) {
+            if (sa == null || sa.getPayCosts() == null) { return null; }
+            final forge.game.cost.CostPartMana mana = sa.getPayCosts().getCostMana();
+            if (mana == null || mana.getAmountOfX() == 0) { return null; }
+            final forge.game.player.Player payer = sa.getActivatingPlayer();
+            if (payer == null) { return null; }
+            final int[] most = { 0 };
+            payer.runWithController(() -> {
+                for (int x = 1; x < MOST_NUMBERS && forge.ai.ComputerUtilMana.canPayManaCost(sa, payer, x, false); x++) { most[0] = x; }
+            }, new forge.ai.PlayerControllerAi(payer.getGame(), payer, payer.getOriginalLobbyPlayer()));
+            return most[0];
+        }
+
+        private <T> List<T> choiceAsk(final String message, final int min, final int max, final List<T> choices,
+                                      final List<T> selected, final FSerializableFunction<T, String> display, final Integer affordable) {
             final JsonObject f = new JsonObject();
             final PendingAsk ask = open("getChoices", f);
             f.addProperty("message", str(message));
             f.addProperty("min", min);
             f.addProperty("max", max);
+            if (affordable != null) { f.addProperty("affordable", affordable); }
             final boolean named = choices != null && !choices.isEmpty() && choices.get(0) instanceof CardFaceView;
             if (named) {
                 // A card-name ask (`chooseSingleCardFace`): every face Forge's predicate let

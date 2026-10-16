@@ -88,16 +88,14 @@ describe('getChoices', () => {
    * (wave 34 §G item 1, `docs/planning/wave34-evidence/g1-choose-x-slider.md`)
    * — a fixture with `key === label` tests a shape Forge never actually sends.
    */
-  const announceXAsk = (max: number, withOther = false) => ({
+  const announceXAsk = (max: number, affordable?: number) => ({
     ...askFor('getChoices'),
     message: 'Choose X for Fireball',
     min: 0,
     max: 1,
-    choices: [
-      ...Array.from({ length: max + 1 }, (_, n) => ({ key: `c${n}`, label: String(n), ref: null })),
-      ...(withOther ? [{ key: `c${max + 1}`, label: 'Other…', ref: null }] : []),
-    ],
+    choices: Array.from({ length: max + 1 }, (_, n) => ({ key: `c${n}`, label: String(n), ref: null })),
     selected: [],
+    ...(affordable === undefined ? {} : { affordable }),
   });
 
   describe('"Choose X" (item 13): a slider, not a radio list', () => {
@@ -130,10 +128,17 @@ describe('getChoices', () => {
       expect(slider.max).toBe('2');
     });
 
-    it('an Other… entry is not drawn: the slider alone (the operator, 2026-10-08)', () => {
-      const { queryByTestId, getByTestId } = mountPrompt('getChoices', announceXAsk(9, true));
-      expect(queryByTestId('prompt-slider-other')).toBeNull();
-      expect(getByTestId('prompt-slider')).toBeDefined();
+    it('marks the most X the seat can pay on the track, and still starts at the minimum', () => {
+      const { getByTestId } = mountPrompt('getChoices', announceXAsk(20, 12));
+      const mark = getByTestId('prompt-slider-afford');
+      expect(mark.getAttribute('data-value')).toBe('12');
+      expect(mark.style.getPropertyValue('--at')).toBe('0.6');
+      expect((getByTestId('prompt-slider') as HTMLInputElement).value).toBe('0');
+    });
+
+    it('draws no mark on a number that is not a mana X', () => {
+      const { queryByTestId } = mountPrompt('getChoices', announceXAsk(9));
+      expect(queryByTestId('prompt-slider-afford')).toBeNull();
     });
 
     it('is not offered a mode/colour/reveal choice: the ordinary list still renders for those', () => {

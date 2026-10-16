@@ -1,9 +1,8 @@
 # The Choose X slider (L13, wave 34 §G item 1). Seat 0 (human) holds Fireball
 # ({X}{R}, `forge/forge-gui/res/cardsfolder/f/fireball.txt`) and FIVE untapped
-# Mountains — a known amount of mana, so the claim ("the slider's max equals
-# the mana available, the default is the minimum") has an exact number to
-# check against: paying {R} leaves 4 mana for X, so the slider's maximum is 4
-# and its minimum (and default) is 0. Seat 1 (ai) is the spell's only legal
+# Mountains — a known amount of mana: paying {R} leaves 4 for X, so the most X
+# the slider marks as payable is 4; it still reaches 20, and its minimum (and
+# default) is 0. Seat 1 (ai) is the spell's only legal
 # target (damage's `ValidTgts$ Any` includes players) and holds nothing to
 # respond with.
 turn=1

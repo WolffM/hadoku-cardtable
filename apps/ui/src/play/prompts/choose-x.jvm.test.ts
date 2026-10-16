@@ -9,18 +9,12 @@
  * mounts THIS LANE'S OWN component (`mountPrompt`, the same helper every
  * other prompt test here uses) on it.
  *
- * **Measured here, and the reason this is a jar test and not only a fixture
- * one: `choose-x.state`'s own header claim — "five Mountains minus Fireball's
- * {R} leaves 4, so the slider's max is 4" — is FALSE against the real jar.**
- * `Cost.getMaxForNonManaX` (what `announceRequirements` caps `max` by) only
- * walks cost parts whose amount is the literal string `"X"` — the shape a
- * NON-mana X cost uses (`Sacrifice X creatures`); Fireball's `X` lives in the
- * MANA cost itself (`{X}{R}`), which that method never sees, so it returns
- * `null` and no cap applies at all. The real ask is Forge's plain, unconstrained
- * `getInteger` shape: `0..9` plus `"Other…"` — not `0..4`. See
- * `docs/planning/wave34-evidence/g1-choose-x-slider.md` for the full finding;
- * this test asserts the shape Forge actually sends, not the scenario header's
- * arithmetic (which is wrong about Forge, not about the mana on the board).
+ * Forge asks a mana X with `getInteger(title, 0, Integer.MAX_VALUE, 9)`
+ * (`PlayerControllerHuman.announceRequirements`): left to Forge's own
+ * `AbstractGuiGame`, that is `0..9` plus an "Other…" entry, which the slider
+ * has no place for. The bridge lists on past it instead (`PlayBridge.java`'s
+ * `numberAsk`): an open X reaches 20, and the ask carries the most X the seat
+ * can pay — five Mountains minus Fireball's {R} is 4.
  *
  * Clicking the Fireball card does not go straight to the X announce: Forge
  * first asks `getAbilityToPlay` (the card's one spell ability). `getChoices`'
@@ -130,22 +124,20 @@ describe.skipIf(!available.ok)(title, () => {
         20_000,
       );
 
-      // Forge's real, unconstrained shape — see the file header. Both min and
-      // max as the ACTUAL ask's own `choices` length: min=0 and the
-      // ten-wide-plus-Other cutoff puts max at 9, with an Other… entry (c10)
-      // beyond it — not capped to the board's 4 available mana at all.
+      // See the file header: 0..20, and the most X
+      // five Mountains pay after Fireball's {R}.
       expect(seen!.range).toEqual({
         min: 0,
-        max: 9,
-        keys: ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'],
-        otherKey: 'c10',
+        max: 20,
+        keys: Array.from({ length: 21 }, (_, n) => `c${n}`),
+        affordable: 4,
       });
-      expect(seen!.slider).toEqual({ min: '0', max: '9', value: '0' });
-      expect(seen!.everyValueEnabled, 'OK was never disabled, X=0 through X=9').toBe(true);
+      expect(seen!.slider).toEqual({ min: '0', max: '20', value: '0' });
+      expect(seen!.everyValueEnabled, 'OK was never disabled, X=0 through X=20').toBe(true);
       // The reply round-tripped through match.fromClient without being refused
       // (answerAsks() would have thrown via s.select/the harness otherwise —
-      // asserted structurally here: it is Forge's own key for X=9, never "9").
-      expect(seen!.reply).toEqual(['c9']);
+      // asserted structurally here: it is Forge's own key for X=20, never "20").
+      expect(seen!.reply).toEqual(['c20']);
     },
     60_000,
   );

@@ -22,10 +22,7 @@
  *     checkbox-list fallback — G found the wire key is never the bare
  *     integer), the default is the minimum, and OK is enabled and legible at
  *     every legal value Forge offers, not only the default w33's own
- *     screenshot happened to show. The brief's own "max equals the mana
- *     available" premise does not hold for a mana-X cost (Fireball) and is
- *     not fixable from the client — `wave34-evidence/g1-choose-x-slider.md`,
- *     flagged to the manager rather than re-attempted here.
+ *     screenshot happened to show.
  *  5. **Poison/energy/experience counters are visible AND stay inside their
  *     own column** at 1280×800 and 1366×768 (w33 shipped the counters with a
  *     screenshot only; w34 §B fixed a real clip under the opponent's column).
@@ -437,20 +434,9 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
   const stack = await startPlayStack(forge);
   try {
     // choose-x.state (lane S, §S item 4): Fireball + five untapped Mountains.
-    // NOTE (lane G, `wave34-evidence/g1-choose-x-slider.md`): the brief's own
-    // premise — "the slider's max equals the mana actually available" — is
-    // FALSE for this shape and not fixable from the client. Fireball's X
-    // lives in the MANA cost (`{X}{R}`), which Forge's own
-    // `Cost.getMaxForNonManaX` never inspects, so `announceRequirements`
-    // applies no cap at all: the real ask is the plain, unconstrained
-    // `0..9` (plus "Other…"), not `0..4`, however much mana is on the
-    // battlefield. That cap would need new wire plumbing (a Forge change),
-    // which no lane may install this wave — flagged to the manager, not
-    // re-attempted here. What this spec asserts is what lane G DID fix:
-    // the ask renders as a working slider (the real wire key is `"c" +
-    // index`, never the bare integer — G's bug 1), defaulted to the
-    // minimum, with OK enabled and legibly styled at every value Forge
-    // actually offers, all the way to its own cap.
+    // The slider reaches 20 (the bridge lists on past Forge's ten for an open X,
+    // `PlayBridge.java`'s `numberAsk`), defaults to the minimum, and OK is
+    // enabled and legibly styled at every value up to its cap.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'choose-x');
     void bob;
 
@@ -499,15 +485,10 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
     expect(atMax.bg, 'OK stays styled with the accent fill at the cap').toBe(atMin.bg);
     expect(Number(atMax.opacity), 'OK stays at full opacity at the cap').toBeCloseTo(1, 1);
 
-    // Submitting AT Forge's own offered max (g1-choose-x-slider.md: 9, for a
-    // five-Mountain Fireball paying {R} first) asks for more mana than the
-    // scenario actually has — Forge's ask is genuinely uncapped for a mana-X
-    // cost, so X=9 is a legal SLIDER value but not a payable one, and would
+    // The cap (20) asks for more mana than five Mountains make, so it would
     // leave the cast cancelled rather than proving the round trip. Drag back
-    // to the scenario's own documented, payable cap (`choose-x.state`'s own
-    // header: five Mountains, {R} first, four left for X) to prove the
-    // slider's answer actually reaches Forge and casts, which is the other
-    // half of this item's claim.
+    // to the most X the scenario pays (`choose-x.state`: {R} first, four left
+    // for X) to prove the slider's answer reaches Forge and casts.
     const payableX = Math.min(max, 4);
     await slider.evaluate((el: HTMLInputElement, m) => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;

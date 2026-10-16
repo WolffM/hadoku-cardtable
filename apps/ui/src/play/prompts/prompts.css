@@ -832,10 +832,33 @@
   gap: 10px;
 }
 
+.prompt__slider-track {
+  /* The thumb's width, so the notch below sits under the thumb's centre at its value. */
+  --thumb: 16px;
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .prompt__slider input[type='range'] {
   flex: 1 1 auto;
   min-width: 0;
+  margin: 0;
   accent-color: var(--accent);
+}
+
+/* The most X the seat can pay: a notch through the track at that value. */
+.prompt__slider-afford {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at));
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--ink);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .prompt__slider-value {

@@ -17,7 +17,7 @@
  * path and the live driver see exactly what they saw before.
  */
 
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
@@ -109,12 +109,8 @@ function UnofferedRow({ row, lookup }: { row: SearchRow; lookup: PromptLookup })
  * actually offered for `n` — measured against a real match (wave 34 §G item
  * 1) to never be the integer itself (`NumericChoiceRange.keys`'s own doc).
  *
- * `range.otherKey`, when Forge's own cutoff sat below its true max, is a
- * plain button beside the slider: picking it sends Forge's "Other…" choice
- * exactly as a click would have (it is already a real key, no translation
- * needed), and the free-text follow-up it provokes is `showInputDialog`,
- * already answered by `DialogPrompts.tsx` — nothing here chains the two asks
- * itself.
+ * `range.affordable`, on a mana X, is the most X the seat can pay: a notch
+ * on the track at that value, the thumb's centre when it sits there.
  */
 function NumberChoiceSlider({
   range,
@@ -122,27 +118,37 @@ function NumberChoiceSlider({
   onChange,
 }: {
   range: NumericChoiceRange;
-  /** The chosen key, or null while the "Other…" entry is the current choice. */
   value: number | null;
   onChange: (key: string) => void;
 }) {
+  const span = range.max - range.min;
+  const afford = range.affordable === undefined ? undefined : Math.min(Math.max(range.affordable, range.min), range.max);
   return (
     <div className="prompt__slider">
-      <input
-        type="range"
-        data-testid="prompt-slider"
-        min={range.min}
-        max={range.max}
-        step={1}
-        value={value ?? range.min}
-        aria-label={`between ${range.min} and ${range.max}`}
-        onChange={(e) => onChange(range.keys[Number.parseInt(e.target.value, 10) - range.min]!)}
-      />
+      <span className="prompt__slider-track">
+        <input
+          type="range"
+          data-testid="prompt-slider"
+          min={range.min}
+          max={range.max}
+          step={1}
+          value={value ?? range.min}
+          aria-label={`between ${range.min} and ${range.max}`}
+          onChange={(e) => onChange(range.keys[Number.parseInt(e.target.value, 10) - range.min]!)}
+        />
+        {afford !== undefined && (
+          <span
+            className="prompt__slider-afford"
+            data-testid="prompt-slider-afford"
+            data-value={afford}
+            aria-hidden="true"
+            style={{ '--at': (afford - range.min) / span } as CSSProperties}
+          />
+        )}
+      </span>
       <output className="prompt__slider-value" data-testid="prompt-slider-value">
         {value ?? range.min}
       </output>
-      {/* Forge's own "Other…" entry (its cutoff below the true max) is not drawn: the operator, 2026-10-08,
-          "X cards do not need an 'Other...' button" — the slider alone. */}
     </div>
   );
 }

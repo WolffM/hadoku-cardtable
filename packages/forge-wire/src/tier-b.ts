@@ -638,6 +638,10 @@ export const ConfirmReplySchema = z.boolean();
  * counted them, and `card` is the spell's own card. The server shows the seat
  * one question picking `min`..`max` and answers Forge's later mode questions
  * from that reply (`apps/server/src/play/modes.ts`).
+ *
+ * `affordable` is ours too: on a number ask for a mana X (`PlayBridge.java`'s
+ * `numberAsk`, which lists on past Forge's ten numbers and "Other…" entry),
+ * the most X the seat can pay, by Forge's own payer.
  */
 export const GetChoicesSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -651,6 +655,7 @@ export const GetChoicesSchema = z.strictObject({
   selected: z.array(z.string()),
   names: z.array(z.string()).optional(),
   modes: z.strictObject({ min: z.number().int(), max: z.number().int(), card: CardRefSchema }).optional(),
+  affordable: z.number().int().nonnegative().optional(),
 });
 
 export const GetChoicesReplySchema = z.array(z.string());

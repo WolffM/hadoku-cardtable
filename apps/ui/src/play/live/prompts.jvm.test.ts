@@ -18,10 +18,8 @@
  * - Brainstorm picks two of three cards (`tempShowZones`) and orders them
  *   (`order`).
  * - Fireball announces X (`getAbilityToPlay`, then `getChoices`, drawn as a
- *   slider). Forge's "Other..." entry past the list, and the `showInputDialog`
- *   behind it, is the one way a game reaches that dialog — and the slider
- *   draws no "Other..." (the operator, 2026-10-08), so no player can be asked
- *   it and no row here asks it either.
+ *   slider). The bridge lists on past Forge's "Other..." entry and answers
+ *   the `showInputDialog` behind it itself, so no row here asks it.
  * - Thoughtseize takes a card from a revealed hand
  *   (`chooseSingleEntityForEffect`).
  *

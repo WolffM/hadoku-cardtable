@@ -124,59 +124,36 @@ export interface NumericChoiceRange {
    */
   keys: readonly string[];
   /**
-   * The `key` of Forge's own "Other…" entry, when its cutoff sat below the
-   * true max (`lblOtherInteger` is the entry's L10N key for `one()`'s message,
-   * never the wire key, which is `"c" + index` the same as every other entry).
-   * Picking it answers `getChoices` exactly as a radio would, and the next ask
-   * — `showInputDialog`, numeric — is already answered by `DialogPrompts.tsx`'s
-   * existing component; nothing here chains the two.
+   * The most X the seat can pay, when the ask is a mana X: the bridge tries the
+   * ability's cost at each X with Forge's own payer (`PlayBridge.java`'s
+   * `affordableX`). Absent for any other number.
    */
-  otherKey?: string;
+  affordable?: number;
 }
 
 /**
  * Forge's `chooseNumber`/`getInteger` — `announceRequirements`'s X, `NumTimes`,
  * `chooseNumberForKeywordCost`/`chooseNumberForCostReduction`
- * (`PlayerController.java:117,283-291`) — never opens a numeric-entry dialog of
- * its own kind on the wire. Every one of them is `oneOrNone`
- * (`AbstractGuiGame.java:762-766`), i.e. a `getChoices` with `min=0, max=1`,
- * whose `choices` are the literal integers `min..max`, AS LABELS
- * (`:791-813`) — the KEY is never the integer; see `NumericChoiceRange.keys`'
- * doc — with an "Other…" entry appended when the true max exceeds the
- * ten-wide cutoff Forge offers directly (`:819-834`).
+ * (`PlayerController.java:117,283-291`) — reaches the wire as a `getChoices`
+ * with `min=0, max=1` whose `choices` are the literal integers, AS LABELS —
+ * the KEY is never the integer; see `NumericChoiceRange.keys`' doc. Forge lists
+ * ten numbers and an "Other…" entry; the bridge lists on past them instead
+ * (`PlayBridge.java`'s `numberAsk`): at least 20, and a mana X up to the most
+ * the seat can pay.
  *
  * Nothing on the wire marks an ask as "this is a number" — so this is
- * structural: every choice but a possible trailing "Other…" must have `ref:
- * null` and a `label` that is an integer, one more than the choice before it.
- * A word/card choice list can never match this by accident, because nothing
- * else here labels consecutive options with consecutive integers.
- *
- * **"Forge's own max is already the available mana" — measured FALSE for the
- * common case, a plain mana X.** `announceRequirements` only caps `max` to
- * `Cost.getMaxForNonManaX`, which is `null` — so no cap applies — for a cost
- * whose `X` lives in the MANA cost itself (`{X}{R}`, Fireball's shape): the
- * method only walks `CostPart`s with a literal `"X"` amount, which is how a
- * NON-mana X cost (`Sacrifice X creatures`, …) is written, never how
- * `CostMana`'s own X is. A real match (`choose-x.state`, five untapped
- * Mountains, Fireball) measured the ask as the full, uncapped `getInteger`
- * shape: `0..9` plus `"Other…"` — not `0..4`. This ask alone carries no mana
- * figure at all for this lane to cap it by; see
- * `docs/planning/wave34-evidence/g1-choose-x-slider.md` for the full finding.
+ * structural: every choice must have `ref: null` and a `label` that is an
+ * integer, one more than the choice before it. A word/card choice list can
+ * never match this by accident, because nothing else here labels consecutive
+ * options with consecutive integers.
  */
 export function numericChoiceRange(ask: AskOf<'getChoices'>): NumericChoiceRange | null {
   const choices = ask.choices;
-  if (choices.length < 2 || choices.some((c) => c.ref !== null)) return null;
-  const last = choices[choices.length - 1]!;
-  const otherKey = /^-?\d+$/.test(last.label) ? undefined : last.key;
-  const numeric = otherKey === undefined ? choices : choices.slice(0, -1);
-  if (numeric.length < 2) return null;
-  const values = numeric.map((c) => Number.parseInt(c.label, 10));
-  for (let i = 0; i < numeric.length; i++) {
-    const c = numeric[i]!;
-    if (!/^-?\d+$/.test(c.label)) return null;
-    if (i > 0 && values[i] !== values[i - 1]! + 1) return null;
-  }
-  return { min: values[0]!, max: values[values.length - 1]!, keys: numeric.map((c) => c.key), otherKey };
+  if (choices.length < 2 || choices.some((c) => c.ref !== null || !/^-?\d+$/.test(c.label))) return null;
+  const values = choices.map((c) => Number.parseInt(c.label, 10));
+  for (let i = 1; i < values.length; i++) if (values[i] !== values[i - 1]! + 1) return null;
+  const range: NumericChoiceRange = { min: values[0]!, max: values[values.length - 1]!, keys: choices.map((c) => c.key) };
+  return ask.affordable === undefined ? range : { ...range, affordable: ask.affordable };
 }
 
 /** `null` only when the effect is optional (`CMatchUI.java:1333-1341`: `oneOrNone` vs `one`). */

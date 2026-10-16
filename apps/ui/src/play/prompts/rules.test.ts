@@ -114,17 +114,19 @@ describe('numericChoiceRange', () => {
   });
 
   it('reads a plain 0..N range, and keys it positionally — never the integer', () => {
-    expect(numericChoiceRange(numeric([0, 1, 2, 3]))).toEqual({ min: 0, max: 3, keys: ['c0', 'c1', 'c2', 'c3'], otherKey: undefined });
+    expect(numericChoiceRange(numeric([0, 1, 2, 3]))).toEqual({ min: 0, max: 3, keys: ['c0', 'c1', 'c2', 'c3'] });
   });
 
   it('reads a range that does not start at zero, still keyed from c0', () => {
-    expect(numericChoiceRange(numeric([2, 3, 4]))).toEqual({ min: 2, max: 4, keys: ['c0', 'c1', 'c2'], otherKey: undefined });
+    expect(numericChoiceRange(numeric([2, 3, 4]))).toEqual({ min: 2, max: 4, keys: ['c0', 'c1', 'c2'] });
   });
 
-  it("carries Forge's own Other… entry separately from the range it caps, by its own real key", () => {
-    // Forge's actual wording (`lblOtherInteger`'s resolved text), not the L10N key.
-    const ask = numeric([0, 1, 2, 'Other…']);
-    expect(numericChoiceRange(ask)).toEqual({ min: 0, max: 2, keys: ['c0', 'c1', 'c2'], otherKey: 'c3' });
+  it('carries the most X the seat can pay, when the bridge sent it', () => {
+    expect(numericChoiceRange({ ...numeric([0, 1, 2, 3]), affordable: 2 })).toEqual({ min: 0, max: 3, keys: ['c0', 'c1', 'c2', 'c3'], affordable: 2 });
+  });
+
+  it('is not a number range when a word follows the numbers', () => {
+    expect(numericChoiceRange(numeric([0, 1, 2, 'Other…']))).toBeNull();
   });
 
   it('is not fooled by a word list (colours), even though it is also all getChoices', () => {
