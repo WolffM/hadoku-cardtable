@@ -285,6 +285,7 @@ import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
+import { boardBusyUntil, lifeImpactAt } from '../motion.ts';
 import {
   abortAsk,
   answerAsk,
@@ -1840,6 +1841,43 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * ready at: Rematch and Back to room are
  * disabled and Main menu goes straight to the lobby.
  */
+/**
+ * The sounds a hit is the cause of wait for the hit (`motion.ts`'s beat clock, written by `numbers.ts`
+ * in the same commit): a life total's, until the first hit on a player lands; the game's end, until
+ * everything the board is drawing has played.
+ */
+function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): DelayedSoundEvent[] {
+  const now = Date.now();
+  const life = lifeImpactAt(seq);
+  const busy = boardBusyUntil();
+  return events.map((e) => {
+    const until = e.role === 'g.damage-player' || e.role === 'g.lifegain' ? life : e.role === 'g.win' || e.role === 'g.lose' ? busy : null;
+    return until === null || until <= now ? e : { ...e, delayMs: Math.max(e.delayMs ?? 0, until - now) };
+  });
+}
+
+/**
+ * The result screen once the board has drawn what ended the game — the bolt that took the last life
+ * lands first (the operator, 2026-10-15) — and at once when nothing is playing.
+ */
+function useAfterTheBoard(over: boolean): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!over) {
+      setShown(false);
+      return undefined;
+    }
+    const wait = boardBusyUntil() - Date.now();
+    if (wait <= 0) {
+      setShown(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setShown(true), wait);
+    return () => clearTimeout(timer);
+  }, [over]);
+  return shown;
+}
+
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
   const view = match.view!;
   const outcome = gameOutcome(match)!;
@@ -2071,6 +2109,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     return () => setMatchMusic(false);
   }, []);
   const soundView = match.view;
+  // The result screen waits for the board to finish drawing what ended the game.
+  const resultShown = useAfterTheBoard(match.view !== null && (match.view.gameOver || match.finished));
   const lastSoundView = useRef<BoardView | null>(null);
   // A phase's sound waits for the phase to hold, so a step Forge passes straight through makes none (./phase-sound.ts).
   const phaseSound = useMemo(
@@ -2093,7 +2133,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       const phase = all.find((e) => e.role === 'g.phase');
       if (ending || (prev !== null && soundView.turn !== prev.turn)) phaseSound.drop();
       if (phase !== undefined && !ending) phaseSound.enter(soundView.phase ?? '', phase, openWindows(match));
-      const events = all.filter((e) => e.role !== 'g.phase');
+      const events = afterTheHits(
+        all.filter((e) => e.role !== 'g.phase'),
+        soundView.seq,
+      );
       playSoundEvents(events);
       reportSound(match, 'view', events, { prevSeq: prev?.seq ?? -1 });
     } catch (err) {
@@ -3282,7 +3325,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         />
       )}
       {/* R16: Victory/Defeat/Draw, in place of the toast (`Board`'s old `game over` banner). Over the board, which stays visible behind it. */}
-      {match.view !== null && (match.view.gameOver || match.finished) && <GameResultScreen match={match} roomId={roomId} />}
+      {resultShown && match.view !== null && <GameResultScreen match={match} roomId={roomId} />}
       {/* Cardtable's own settings, opened from the viewer's own face (`../../settings/Settings.tsx`). */}
       {settings.trigger !== null && (
         <SettingsPopover trigger={settings.trigger} onClose={settings.close}>

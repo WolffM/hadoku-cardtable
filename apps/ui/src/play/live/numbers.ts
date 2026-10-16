@@ -90,7 +90,7 @@
 import type { ManaColor } from '@hadoku/shared';
 
 import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
-import { BEAT_STAGGER_MS, BOLT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
+import { BEAT_STAGGER_MS, BOLT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteBoardBusy, noteLifeImpact, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { fly, impact } from './projectile.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
@@ -535,6 +535,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
     /** When the hit on each card that is leaving lands: it goes then (the operator: "die when they get impacted"). */
     const fatalLand = new Map<number, number>();
+    /** When the first hit on a player lands, this view: its life total's sound waits for it. */
+    let firstLifeLand: number | null = null;
 
     for (const change of diff.life) {
       const face = faceEl(change.playerId);
@@ -552,6 +554,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (span !== null) span.textContent = String(change.from);
       const delay = nextBolt();
       endMs = Math.max(endMs, delay + HIT_MS);
+      if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
       hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue);
     }
     /*
@@ -598,6 +601,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       host.leave?.(departure, delay);
     }
     if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
+    if (endMs > 0) noteBoardBusy(Date.now() + endMs);
+    if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0) {
       host.report?.({
         what: 'beats',

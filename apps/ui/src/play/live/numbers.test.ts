@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { BOLT_STAGGER_MS, GLIDE_MS, HIT_MS, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
+import { boardBusyUntil, BOLT_STAGGER_MS, GLIDE_MS, lifeImpactAt, HIT_MS, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import {
   LIFE_COLOUR_MS,
@@ -433,6 +433,19 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(overlay.querySelector('.board-number')?.textContent, 'a life total still shows its number').toBe('-2');
     vi.advanceTimersByTime(2 * TICK_STEP_MS);
     expect(life.textContent).toBe('18');
+    handle.dispose();
+  });
+
+  it('notes when the life hit lands and when the board is still again, for what must wait for the hit (the result screen, a life total’s sound)', () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    const at = Date.now();
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), seq: 7 });
+    expect(lifeImpactAt(7), 'its sound waits for the hit').toBe(at + HIT_MS);
+    expect(lifeImpactAt(6), 'another view drew no hit').toBeNull();
+    expect(boardBusyUntil(), 'and the board is busy at least until then').toBeGreaterThanOrEqual(at + HIT_MS);
     handle.dispose();
   });
 
