@@ -46,9 +46,10 @@ function confirmRows(stack: PlayStack): string {
 
 /**
  * Tap the Vial, then let priority pass — alice's own window over her ability, bob's — pressing only
- * Forge's priority OK, never a confirm, until `done()` holds or a yes/no is put to alice.
+ * Forge's priority OK, never a confirm, until `done()` holds or a yes/no is put to alice. `done` gets
+ * the server log's length from just before the tap, so it can read what came of the tap alone.
  */
-async function tapVial(seated: ScenarioMatch, done: () => Promise<boolean>): Promise<'done' | 'asked'> {
+async function tapVial(seated: ScenarioMatch, stack: PlayStack, done: (from: number) => Promise<boolean>): Promise<'done' | 'asked'> {
   const { alice, bob } = seated;
   const [vial] = await ownNamed(alice.page, 'Aether Vial');
   expect(vial, 'alice controls the Vial').toBeDefined();
@@ -59,6 +60,7 @@ async function tapVial(seated: ScenarioMatch, done: () => Promise<boolean>): Pro
       message: 'the Vial is offered at priority',
     })
     .toBe(true);
+  const from = serverLog(stack).length;
   await card.locator('button').first().click();
   await expect
     .poll(() => isTapped(alice.page, vial!), {
@@ -68,7 +70,7 @@ async function tapVial(seated: ScenarioMatch, done: () => Promise<boolean>): Pro
     .toBe(true);
   const deadline = Date.now() + 45_000;
   while (Date.now() < deadline) {
-    if (await done()) return 'done';
+    if (await done(from)) return 'done';
     if ((await confirmYes(alice.page).count()) > 0) return 'asked';
     for (const page of [alice.page, bob.page]) {
       if ((await stackCount(page)) > 0 && (await enabledOk(page).count()) > 0)
@@ -104,7 +106,7 @@ test(titled('tapping Aether Vial goes straight to the card choice; the creature 
   test.setTimeout(3 * 60_000);
   await playVial(browser, 'av-aether-vial', async (seated, confirms, stack) => {
     const { alice, bob } = seated;
-    const outcome = await tapVial(seated, async () => (await handPick(alice.page).count()) > 0);
+    const outcome = await tapVial(seated, stack, () => choiceOpen(alice.page));
     expect(outcome, `alice was asked a yes/no before the card choice: ${JSON.stringify(await asked(confirms))}; server: ${confirmRows(stack)}`).toBe('done');
     const names = await handPick(alice.page).evaluateAll((els) => els.map((e) => e.querySelector('.card__name')?.textContent?.trim() ?? ''));
     expect(names, 'the choice offers the creature of mana value 2 only').toEqual(['Grizzly Bears']);
@@ -133,7 +135,7 @@ test(titled('tapping Aether Vial and choosing nothing leaves the creature in han
   test.setTimeout(3 * 60_000);
   await playVial(browser, 'av-aether-vial', async (seated, confirms, stack) => {
     const { alice, bob } = seated;
-    const outcome = await tapVial(seated, async () => (await handPick(alice.page).count()) > 0);
+    const outcome = await tapVial(seated, stack, () => choiceOpen(alice.page));
     expect(outcome, `alice was asked a yes/no before the card choice: ${JSON.stringify(await asked(confirms))}; server: ${confirmRows(stack)}`).toBe('done');
     expect(await asked(confirms), 'nothing was asked before the choice').toEqual([]);
 
@@ -166,22 +168,17 @@ test(titled('tapping Aether Vial with no creature of that mana value in hand ask
   test.setTimeout(3 * 60_000);
   await playVial(browser, 'av-aether-vial-none', async (seated, confirms, stack) => {
     const { alice } = seated;
-    let from: number | null = null;
     let picked = false;
-    let sawStack = false;
-    const outcome = await tapVial(seated, async () => {
-      from ??= serverLog(stack).length;
+    // Resolved: Forge hands alice a priority window again after the tap (her window over her own
+    // ability is passed for her), so nothing of the ability is left to ask.
+    const outcome = await tapVial(seated, stack, async (from) => {
       picked ||= /from your hand/i.test(await says(alice.page));
-      const onStack = await stackCount(alice.page);
-      sawStack ||= onStack > 0;
       const priorityAgain = serverLog(stack)
         .slice(from)
         .some((r) => r.seat === 0 && r.evt === 'prompt-forwarded' && r.kind === 'priority');
-      return onStack === 0 && (sawStack || priorityAgain);
+      return priorityAgain && (await stackCount(alice.page)) === 0;
     });
     expect(outcome, `alice was asked: ${JSON.stringify(await asked(confirms))}; server: ${confirmRows(stack)}`).toBe('done');
-    // Anything Forge still had to ask would be up by now.
-    await alice.page.waitForTimeout(1_500);
     expect(picked, 'no empty card choice was drawn').toBe(false);
     expect(await asked(confirms), 'alice was asked nothing').toEqual([]);
     expect((await handNames(alice.page)).sort(), 'both creatures stay in hand').toEqual(['Grizzly Bears', 'Memnite']);
