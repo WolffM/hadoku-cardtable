@@ -41,10 +41,11 @@
  *
  * ## Clicks on the board
  *
- * `Board` gets a `BoardInteraction` built from `boardInteraction(match)` —
- * exactly what Forge named, and nothing else (`./match.ts` says how) — and its
- * callbacks go to `selectCard` / `selectPlayer`, which check the CURRENT state
- * again before sending anything.
+ * `Board` gets a `BoardInteraction` built from `drawnOffer(match)` —
+ * exactly what Forge named, and nothing else (`./match.ts` says how), held
+ * through the silence after a click (`./offer-hold.ts`) — and its callbacks go
+ * to `selectCard` / `selectPlayer`, which check the CURRENT state again before
+ * sending anything.
  *
  * ## The pointer belongs to the gesture layer
  *
@@ -293,11 +294,11 @@ import {
   blockFocusOf,
   damagePreviewOf,
   previewDamage,
-  boardInteraction,
   combatCandidates,
   concede,
   currentAsk,
   declaringAttackers,
+  drawnOffer,
   declaringBlockers,
   declaringCombat,
   dismissReveal,
@@ -2417,7 +2418,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /** R11: the turn counter moved off the rail and into the logbook. */
   const whoseTurnNow = match.view === null ? 'nobody' : whoseTurn(match.view);
   const turnCue = useYourTurnCue(match.view, !spectator, match.matchId);
-  const offered = spectator ? INERT_CLICKABLES : boardInteraction(match);
+  // What is DRAWN offered: Forge's offer, held through the silence after a click (`./offer-hold.ts`).
+  // The callbacks below send through `boardInteraction`, Forge's real state, whatever is drawn.
+  const offered = spectator ? INERT_CLICKABLES : drawnOffer(match);
   const interaction: BoardInteraction = {
     /*
      * `selectionOpen` rides in with the spread: `LiveClickables` already

@@ -27,6 +27,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  drawnOffer,
   blockFocusOf,
   combatCandidates,
   declaringBlockers,
@@ -905,6 +906,93 @@ describe('clicking the board: only what Forge offered', () => {
  * combination is "nothing to decide": no ask, no selection, and Forge's
  * actionable set explicitly empty.
  */
+/**
+ * The operator, 2026-10-16, on activating Nomads en-Kor and choosing its target: *"everything
+ * turns black then things turn green again … can we remove the intermittent flashing to black?"*
+ * Between a click and Forge's next input the board is told "nothing" several times over — the
+ * input stopping, the asks the browser answers itself — and `drawnOffer` keeps the last offer
+ * drawn through that silence. `boardInteraction`, what a click may SEND, never holds.
+ */
+describe('the offer through a click’s turnaround', () => {
+  /** `getAbilityToPlay` with one ability: the browser answers it itself (`selfAnswer`). */
+  const oneAbility = (callId: string, host: number) =>
+    parseServerFrame({ kind: 'ask', callId, method: 'getAbilityToPlay', hostCard: { kind: 'card', id: host }, abilities: [{ kind: 'spellAbility', id: 9001 }], triggerEvent: null });
+  const openZones = (callId: string) =>
+    parseServerFrame({ kind: 'ask', callId, method: 'openZones', controller: { kind: 'player', id: 0 }, zones: ['Battlefield'], players: [{ kind: 'player', id: 0 }], backupLastZones: true });
+
+  it('activate → its own asks → the target selection: the rest of the offer is drawn throughout, and only Forge’s offer takes a click', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    const [nomads, bears, land] = [mine[0]!, mine[1]!, theirs[0]!];
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([nomads, land])]);
+    expect(selectCard(m, nomads)).toBe(true);
+    // The clicked card goes dark at once; the rest stays drawn through each "nothing".
+    expect(drawnOffer(m).selectable).toEqual(new Set([land]));
+    const drawnThrough = (step: string): void => {
+      expect(boardInteraction(m).selectable.size, `Forge offers nothing after ${step}`).toBe(0);
+      expect(drawnOffer(m).selectable, `the board still draws the offer after ${step}`).toEqual(new Set([land]));
+    };
+    await sendAndApply(s, m, [clearActionable()]);
+    drawnThrough('clearWeaklySelectable');
+    await sendAndApply(s, m, [oneAbility('s0-1', nomads)]);
+    drawnThrough('getAbilityToPlay');
+    // A held outline is drawing only: the click is not sent.
+    expect(selectCard(m, land)).toBe(false);
+    expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 9001 })).toBe(true);
+    await sendAndApply(s, m, [openZones('s0-2')]);
+    drawnThrough('openZones');
+    expect(abortAsk(m, 's0-2', 'unsupported', 'answered on mount in the board')).toBe(true);
+    drawnThrough('the asks closing');
+    await sendAndApply(s, m, [selectables([nomads, bears], 1, 1)]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([nomads, bears]));
+    expect(drawnOffer(m).selectionOpen).toBe(true);
+  });
+
+  it('choose the target → Forge stops the selection and the ability resolves: still drawn, until priority names its set', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [nomads, bears] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [prompt('Target'), bar(false), selectables([nomads, bears], 1, 1)]);
+    expect(selectCard(m, bears)).toBe(true);
+    await sendAndApply(s, m, [clear()]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([nomads]));
+    // The caster's own priority, passed by the server: its set shows, then clears — the newest is held.
+    await sendAndApply(s, m, [actionable([nomads, bears]), clearActionable()]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([nomads, bears]));
+    await sendAndApply(s, m, [actionable([nomads])]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([nomads]));
+  });
+
+  it('Forge naming an EMPTY set ends the hold: nothing is drawn', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(drawnOffer(m).selectable.size).toBe(1);
+    await sendAndApply(s, m, [actionable([])]);
+    expect(drawnOffer(m).selectable.size).toBe(0);
+  });
+
+  it('a question this seat answers by hand ends the hold: nothing is drawn under it', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await sendAndApply(s, m, [clearActionable(), optionAsk('s0-9')]);
+    expect(drawnOffer(m).selectable.size).toBe(0);
+  });
+
+  it('a click on a button holds nothing: passing priority clears the board at once', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(drawnOffer(m).selectable.size).toBe(0);
+  });
+});
+
 describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', () => {
   // The fixture is the viewer's own MAIN1 with an untapped Fire Urchin, a state
   // in which attacking is still to come (`attackersLeft`). Every case below

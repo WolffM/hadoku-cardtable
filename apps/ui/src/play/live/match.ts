@@ -236,7 +236,7 @@
  */
 
 import type { Placement, RememberedTrigger } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -255,6 +255,8 @@ import { normalizeAvatarId } from '../../room/avatar.ts';
 import { manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
+import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
+import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import { foldPackets, type PendingTriggers, type WaitingEffects, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type Tagged, type WirePacket } from '../wire.ts';
 import {
@@ -642,6 +644,12 @@ export interface LiveMatch {
   /** Cards and players clicked since Forge last spoke — not clickable again until it does. */
   spent: { cards: Set<number>; players: Set<number> };
   /**
+   * The offer the board keeps DRAWING through the turnaround after a click (`./offer-hold.ts`):
+   * set by {@link selectCard} and {@link selectPlayer}, read only by {@link drawnOffer}. Never a
+   * clickability signal — that is {@link boardInteraction}, always.
+   */
+  offerHold: OfferHold | null;
+  /**
    * The attackers this seat has POINTED AT, and the turn it pointed in.
    *
    * Wave 24 §B.1: the operator wants an attacker marked AT SELECTION rather
@@ -976,6 +984,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     says: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
+    offerHold: null,
     attackIntent: null,
     lastSelectedCard: null,
     actCard: null,
@@ -1499,6 +1508,38 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
 }
 
 /**
+ * What the board DRAWS as offered: {@link boardInteraction}, except through the silence after a
+ * click, when the last offer stays drawn until Forge says what comes next (`./offer-hold.ts`).
+ * Drawing only — every send still asks `boardInteraction`.
+ */
+export function drawnOffer(match: LiveMatch): LiveClickables {
+  const real = boardInteraction(match);
+  const view = match.view;
+  if (match.offerHold === null || view === null || !match.connected) return real;
+  return drawnOfferOf(real, match.offerHold, {
+    now: Date.now(),
+    turn: view.turn,
+    phase: view.phase,
+    forgeNamedASet: match.selectables !== null || match.weaklySelectable !== null,
+    askedByHand: match.asks.some((ask) => !SELF_ANSWERING.has(ask.method) && (match.fullControl || selfAnswer(ask) === null)),
+    waitingOnAnother: [...(match.waitingOn?.keys() ?? [])].some((seat) => seat !== match.seat),
+  });
+}
+
+/** A click is out: hold what is offered now — the clicked card already spent — through Forge's turnaround. */
+function holdOffer(match: LiveMatch): void {
+  const view = match.view;
+  if (view === null) return;
+  const hold: OfferHold = { offer: boardInteraction(match), since: Date.now(), turn: view.turn, phase: view.phase };
+  match.offerHold = hold;
+  setTimeout(() => {
+    if (match.offerHold !== hold) return;
+    match.offerHold = null;
+    notify(match);
+  }, OFFER_HOLD_MAX_MS);
+}
+
+/**
  * Forge's label on button 2 at the live declare-attackers window BEFORE
  * anything has been declared (`InputAttack.updatePrompt` → `lblAlphaStrike`,
  * `en-US.properties`) — {@link CALL_BACK_LABEL} is the same button once at
@@ -1650,6 +1691,7 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
   if (!boardInteraction(match).selectable.has(cardId)) return false;
   if (match.selectables === null && !payingMana(match)) match.actCard = cardId;
   match.spent.cards.add(cardId);
+  holdOffer(match);
   match.lastSelectedCard = cardId;
   noteAttackIntent(match, cardId);
   return sendAct(
@@ -1681,6 +1723,7 @@ export function clickCard(match: LiveMatch, cardId: number): void {
 export function selectPlayer(match: LiveMatch, playerId: number): boolean {
   if (!boardInteraction(match).selectablePlayers.has(playerId)) return false;
   match.spent.players.add(playerId);
+  holdOffer(match);
   return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: playerId }, triggerEvent: null, ...sameTargetOf(match) });
 }
 
@@ -2812,6 +2855,7 @@ export function ingest(match: LiveMatch, raw: unknown): void {
   match.resyncsWithoutProgress = 0;
   if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
   else applyFrame(match, parsed.value);
+  if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match));
   notify(match);
 }
 
@@ -3040,6 +3084,7 @@ function discardLocal(match: LiveMatch): void {
   match.lastSelectedCard = null;
   match.actCard = null;
   match.refused = null;
+  match.offerHold = null;
   match.stackTargetSpells = new Map();
   match.pendingTriggers = [];
   match.waitingEffects = [];
