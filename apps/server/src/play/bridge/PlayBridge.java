@@ -920,10 +920,10 @@ public final class PlayBridge {
                 if (!t.isIntrinsic()) { continue; }
                 name(named, t);
                 for (SpellAbility s = t.getOverridingAbility(); s != null; s = s.getSubAbility()) { name(named, s); }
-                if (commonOn(t) || chainOn(t.getOverridingAbility(), controller)) { return true; }
+                if (commonOn(t, () -> t.copy(c, true)) || chainOn(t.getOverridingAbility(), controller)) { return true; }
             }
             for (final forge.game.replacement.ReplacementEffect r : c.getReplacementEffects()) {
-                if (r.isIntrinsic() && commonOn(r)) { return true; }
+                if (r.isIntrinsic() && commonOn(r, () -> r.copy(c, true))) { return true; }
             }
             for (final SpellAbility sa : c.getSpellAbilities()) {
                 if (!sa.isIntrinsic()) { continue; }
@@ -950,10 +950,18 @@ public final class PlayBridge {
             return on && counts(all.found, copy);
         }
 
-        private static boolean commonOn(final forge.game.CardTraitBase trait) throws ReflectiveOperationException {
-            final Recorder r = new Recorder(trait.getMapParams());
-            final boolean on = (Boolean) commonRequirements().invoke(trait, r);
-            return on && counts(r.found, trait);
+        /**
+         * A trigger's or replacement's intervening "if". Forge reads the condition keys from the map it
+         * is handed, but their comparisons ({@code PresentCompare$}, {@code SVarCompare$}) from the
+         * trait's own; a trait with a condition is asked again on a copy whose own map records too.
+         */
+        private static boolean commonOn(final forge.game.CardTraitBase trait, final java.util.function.Supplier<? extends forge.game.CardTraitBase> copy) throws ReflectiveOperationException {
+            final Recorder conditions = new Recorder(trait.getMapParams());
+            if (!(Boolean) commonRequirements().invoke(trait, conditions) || conditions.found.isEmpty()) { return false; }
+            final forge.game.CardTraitBase asked = copy.get();
+            final Recorder all = new Recorder(asked.getMapParams());
+            mapParams().set(asked, all);
+            return (Boolean) commonRequirements().invoke(asked, all) && counts(all.found, asked);
         }
 
         private static boolean restrictionOn(final SpellAbility sa, final forge.game.card.Card c, final forge.game.player.Player controller) {
