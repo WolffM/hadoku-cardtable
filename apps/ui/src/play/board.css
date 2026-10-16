@@ -1555,8 +1555,8 @@
   position: absolute;
   z-index: var(--z-overlay, 20);
   top: 11.5%;
-  left: var(--live-col-x, 59.4%);
-  width: var(--live-col-w, 24.1%);
+  left: var(--live-col-x, 57%);
+  width: var(--live-col-w, 26.5%);
   height: var(--mid-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1625,8 +1625,8 @@
   position: absolute;
   z-index: var(--z-overlay, 20);
   top: 24%;
-  left: var(--live-col-x, 59.4%);
-  width: var(--live-col-w, 24.1%);
+  left: var(--live-col-x, 57%);
+  width: var(--live-col-w, 26.5%);
   height: 48%;
   display: flex;
   align-items: center;

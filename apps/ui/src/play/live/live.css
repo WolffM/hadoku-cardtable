@@ -158,8 +158,11 @@
  * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
  *
  * The other tokens are the operator's percentages and stay percentages, so the
- * blocking holds at any window size: the question's column starts 59.4% across
- * and is 24.1% wide.
+ * blocking holds at any window size: the question's column starts 57% across
+ * and is 26.5% wide. The drawing had 59.4% and 24.1%; the operator, 2026-10-16,
+ * over a trigger's question whose card and words crowded its head: *"if this
+ * box was slightly wider it would look better"*. It grew leftwards, over the
+ * board, so its right edge (83.5%) still meets the rail's gutter where it did.
  *
  * The rail's is a `max()`, and the floor is the point of it. 8.4% is 108px on the
  * operator's 1280px canvas, which is what makes all thirteen step names fit — but
@@ -173,8 +176,8 @@
   --live-controls-h: 110px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
-  --live-col-x: 59.4%;
-  --live-col-w: 24.1%;
+  --live-col-x: 57%;
+  --live-col-w: 26.5%;
   /* The gutter the three permanent overlays share, measured from the right edge
      of `.live`. The log button sits in it at full width; the rail and the
      controls sit beside it. */
@@ -507,7 +510,7 @@
  * about where: a centred sheet is in a different place for every sheet height, so
  * a question about a Mana Leak and a question about which creature to sacrifice
  * appear in two different parts of the table. The operator drew ONE column for
- * them — 59.4% across, 24.1% wide, the lower two thirds of it — and chose for it
+ * them — 59.4% across, 24.1% wide (widened since: `--live-col-*`), the lower two thirds of it — and chose for it
  * to float: *"float over the board makes sense"*. The board keeps its widths and
  * this covers them while a question is open.
  *
@@ -581,8 +584,8 @@
   /* The host is `pointer-events: none` (see above); the sheet is the part a
      person uses, so it takes them back. */
   pointer-events: auto;
-  /* The column IS the width now — 24.1% of the match, about 305px on the
-     operator's own canvas and 231px on the 960 the table actually gets
+  /* The column IS the width now — 26.5% of the match, about 339px on the
+     operator's own canvas and 254px on the 960 the table actually gets
      (wave 27) — so the sheet fills it rather than choosing a width of its own.
      What does not fit scrolls inside the sheet's body (`prompts.css`). */
   width: 100%;
@@ -601,7 +604,7 @@
  *
  * `prompts.css` sizes a choice's tiles off its own `--card-w: 7rem` (112px),
  * which was chosen against a sheet that could be 720px wide. The column is
- * 24.1% of the table, and the table is 960 at a 1280 viewport — 231px, 207 of
+ * 26.5% of the table, and the table is 960 at a 1280 viewport — 254px, 230 of
  * it inside the sheet's own padding. `repeat(auto-fill, minmax(112px, 1fr))`
  * resolves to ONE column there, so a reveal of ten cards is a ten-row scroll
  * through a window 355px tall: it fits, in the sense that nothing breaches, and

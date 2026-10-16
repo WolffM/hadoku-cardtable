@@ -344,18 +344,19 @@ function cardsById(view: ReturnType<typeof toBoardView>): Map<number, BoardCard>
 describe('a stack item’s ability text and hidden source', () => {
   /*
    * Forge's own strings for one trigger, as the captured game (`tierc-game1-seq1-27.json`) carries
-   * them: `Description` with the stack instance's notes, `Key` (the auto-yield key) with the card's
+   * them less the closing " [Zone Changer: …]" the bridge takes off (`PlayBridge.stackText`):
+   * `Description` with the stack instance's targets note, `Key` (the auto-yield key) with the card's
    * words behind a "<card> (<id>): " prefix.
    */
   const KEY = 'Rubblebelt Boar (11): When Rubblebelt Boar enters, target creature gets +2/+0 until end of turn.';
   const DESCRIPTION =
-    'When Rubblebelt Boar enters, target creature gets +2/+0 until end of turn. (Targeting: [[Fire Urchin (20)]]) [Zone Changer: Rubblebelt Boar (11)]';
+    'When Rubblebelt Boar enters, target creature gets +2/+0 until end of turn. (Targeting: [[Fire Urchin (20)]])';
   const OWN = 'When Rubblebelt Boar enters, target creature gets +2/+0 until end of turn.';
   const TOKEN = 'At the beginning of combat on your turn, create a 1/1 red Goblin creature token with haste.';
 
   it('reads the ability’s own words off Key, past its card prefix — never Description’s notes', () => {
     expect(abilityTextOf(KEY, DESCRIPTION, 'Rubblebelt Boar')).toBe(OWN);
-    expect(abilityTextOf(`Battlefield Goblin Rabblemaster (7): ${TOKEN}`, `${TOKEN} [Phase: Bella]`, 'Goblin Rabblemaster')).toBe(TOKEN);
+    expect(abilityTextOf(`Battlefield Goblin Rabblemaster (7): ${TOKEN}`, TOKEN, 'Goblin Rabblemaster')).toBe(TOKEN);
     // A face-down host's key names it by its hidden id; an activated ability's text keeps its cost.
     expect(abilityTextOf('Face-down card (H3): {T}: Add {G}.', 'Hidden card - Add {G}.', 'Hidden card')).toBe('{T}: Add {G}.');
   });
@@ -365,7 +366,7 @@ describe('a stack item’s ability text and hidden source', () => {
     expect(
       abilityTextOf(
         'Kitchen Finks (4): When CARDNAME enters, choose one — ABILITY',
-        'When Kitchen Finks enters, choose one — • You gain 2 life. (Targeting: [[Bob]]) [Zone Changer: Kitchen Finks (4)]',
+        'When Kitchen Finks enters, choose one — • You gain 2 life. (Targeting: [[Bob]])',
         'Kitchen Finks',
       ),
     ).toBe('When Kitchen Finks enters, choose one — • You gain 2 life.');

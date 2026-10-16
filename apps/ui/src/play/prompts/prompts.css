@@ -626,8 +626,13 @@
   overflow-y: auto;
 }
 
+/*
+ * The head's card is big enough to recognise by its art: the operator, 2026-10-16, on a trigger's
+ * question, *"the little card is a bit too small"* (it was 30px). It still gives way with the rest
+ * of the head when the sheet is crowded.
+ */
 .prompt__head > .prompt__thumb {
-  --card-w: 30px;
+  --card-w: 3rem;
 }
 
 .prompt__head-text {

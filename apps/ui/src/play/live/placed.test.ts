@@ -376,7 +376,7 @@ describe('installPlaced: drawing', () => {
           isAbility: true,
           sourceCardId: 201,
           sourceName: 'Eternal Witness',
-          description: 'When it enters, return target card. (Targeting: [[Lightning Bolt (12)]]) [Zone Changer: Eternal Witness (201)]',
+          description: 'When it enters, return target card. (Targeting: [[Lightning Bolt (12)]])',
           abilityText: 'When it enters, return target card.',
         }),
       ]),

@@ -1191,16 +1191,16 @@ function balancedEnd(text: string, from: number, open: string, close: string): n
   return -1;
 }
 
-/** `description` without Forge's stack-instance notes: its " (Targeting: …)" and a closing " […]". */
-function withoutStackNotes(description: string): string {
-  let out = description.trim();
+/**
+ * `description` without its " (Targeting: …)" note. The bracket of objects Forge closes a trigger's
+ * description with never reaches the wire: the bridge sends every stack item's description without
+ * it (`PlayBridge.stackText`).
+ */
+function withoutTargetsNote(description: string): string {
+  const out = description.trim();
   const targeting = out.indexOf(' (Targeting: ');
   const targetsEnd = targeting < 0 ? -1 : balancedEnd(out, targeting + 1, '(', ')');
-  if (targetsEnd > 0) out = `${out.slice(0, targeting)}${out.slice(targetsEnd + 1)}`.trim();
-  for (let at = out.indexOf(' ['); at >= 0; at = out.indexOf(' [', at + 1)) {
-    if (balancedEnd(out, at + 1, '[', ']') === out.length - 1) return out.slice(0, at).trim();
-  }
-  return out;
+  return targetsEnd > 0 ? `${out.slice(0, targeting)}${out.slice(targetsEnd + 1)}`.trim() : out;
 }
 
 /**
@@ -1208,14 +1208,14 @@ function withoutStackNotes(description: string): string {
  *
  *   - `Description` (`TrackableProperty.Description`, `StackItemView.updateText` ←
  *     `SpellAbilityStackInstance.getStackDescription()`): the stack instance's, which for a trigger
- *     ends in Forge's own notes — `WrappedAbility.getStackDescription` appends
- *     " (Targeting: [[Lightning Bolt (12)]])" and `Trigger.getImportantStackObjects`'s
- *     " [Zone Changer: Eternal Witness (40)]" or " [Phase: Bella]";
+ *     carries Forge's note of its targets — `WrappedAbility.getStackDescription` appends
+ *     " (Targeting: [[Lightning Bolt (12)]])" (its closing " [Zone Changer: …]" the bridge has
+ *     already taken off, `PlayBridge.stackText`);
  *   - `Key` (`TrackableProperty.Key`, `StackItemView.updateKey` ← `SpellAbility.yieldKey()`, the
  *     auto-yield key): "<card> (<id>): <text>", whose text is the trigger's own `TriggerDescription`
  *     (`WrappedAbility.yieldKey`) or the ability's own description, cost included — the card's words.
  *
- * So: `Key` past its card prefix. `Description` with its notes taken off (and its leading
+ * So: `Key` past its card prefix. `Description` with its targets note taken off (and its leading
  * "<card> - ", which the chip's band already names) when there is no `Key`, or when its text was
  * never filled in — a modal trigger's "ABILITY", which also leaves "CARDNAME" in place
  * (`Trigger.toString`).
@@ -1224,7 +1224,7 @@ export function abilityTextOf(key: string | null, description: string, sourceNam
   const own = (key ?? '').replace(/^.*?\(H?\d+\): /, '').trim();
   if (own !== '' && !/\b(?:ABILITY|CARDNAME)\b/.test(own)) return own;
   const named = sourceName !== null && description.startsWith(`${sourceName} - `) ? description.slice(sourceName.length + 3) : description;
-  return withoutStackNotes(named);
+  return withoutTargetsNote(named);
 }
 
 /** What every text that names a card this seat may not see says: never its id, never a blank. */

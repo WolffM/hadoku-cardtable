@@ -562,8 +562,11 @@ public final class PlayBridge {
             final JsonObject props = new JsonObject();
             props.addProperty("_type", DeltaPacket.getTypeFromDeltaKey(deltaKey));
             props.addProperty("_id", DeltaPacket.getIdFromDeltaKey(deltaKey));
+            final boolean stackItem = DeltaPacket.getTypeFromDeltaKey(deltaKey) == DeltaPacket.TYPE_STACK_ITEM_VIEW;
             for (final Map.Entry<TrackableProperty, Object> pe : e.getValue().entrySet()) {
-                props.add(pe.getKey().name(), encode(pe.getValue()));
+                final Object v = stackItem && pe.getKey() == TrackableProperty.Description
+                        ? liveStackText(DeltaPacket.getIdFromDeltaKey(deltaKey), pe.getValue()) : pe.getValue();
+                props.add(pe.getKey().name(), encode(v));
             }
             // DeltaSyncManager never puts a propertyless object in either map (:257, :281).
             if (props.size() > 2) {
@@ -571,6 +574,39 @@ public final class PlayBridge {
             }
         }
         return out;
+    }
+
+    /**
+     * A stack item's description as every seat reads it: Forge's own, without the bracket a
+     * trigger's ends in. {@code WrappedAbility.getStackDescription} appends
+     * {@code " [" + Trigger.getImportantStackObjects + "]"}, the objects Forge's own debug view
+     * tracks for the trigger ("Damage Source: Dragonlord Ojutai, Damaged: Bella, Amount: 6",
+     * "Zone Changer: …", "Phase: …"). The trigger's text, what it remembered and its targets stay.
+     * The bracket is rebuilt from the same trigger and taken off only when the description ends in
+     * exactly it, so any other text reaches the seat as Forge wrote it. The two readers: the
+     * {@code Description} of every stack item a packet carries ({@link #objectTable}) and the
+     * resolving item an ask names as its source ({@code askSource}).
+     */
+    static String stackText(final SpellAbilityStackInstance si) {
+        final String said = si.getStackDescription();
+        if (!(si.getSpellAbility() instanceof WrappedAbility wrapped) || wrapped.getTrigger() == null) { return said; }
+        final String important = wrapped.getTrigger().getImportantStackObjects(wrapped);
+        final String note = " [" + important + "]";
+        return !important.isEmpty() && said.endsWith(note) ? said.substring(0, said.length() - note.length()) : said;
+    }
+
+    /**
+     * {@link #stackText} for the live stack item {@code id}, or Forge's {@code Description} as the
+     * packet has it when the item is no longer on the live stack (it resolved before the packet was
+     * read, and no seat draws it again).
+     */
+    static Object liveStackText(final int id, final Object forge) {
+        final Game game = liveGame();
+        if (game == null) { return forge; }
+        for (final SpellAbilityStackInstance si : game.getStack()) {
+            if (si.getId() == id) { return stackText(si); }
+        }
+        return forge;
     }
 
     /**
@@ -1668,7 +1704,7 @@ public final class PlayBridge {
          *     {@code executeReplacement}): an "As … enters" choice, asked while the card is still in
          *     the zone it is leaving. Its text is the effect's own description.</li>
          * <li>the stack item resolving ({@code MagicStack.isResolving}; the item stays on top until it
-         *     has resolved): its stack description.</li>
+         *     has resolved): its stack description ({@link #stackText}).</li>
          * </ol>
          * A replacement wins: it is the innermost thing happening (a spell resolving puts a Cavern
          * onto the battlefield; the question is Cavern's). Null when neither applies, or when this
@@ -1696,7 +1732,7 @@ public final class PlayBridge {
             if (card == null && game.getStack().isResolving() && !game.getStack().isEmpty()) {
                 final SpellAbilityStackInstance top = game.getStack().peek();
                 card = top.getSourceCard();
-                text = top.getStackDescription();
+                text = stackText(top);
             }
             if (card == null || card.isFaceDown() || !card.getView().canBeShownTo(mine.getView())) { return null; }
             final JsonObject o = new JsonObject();
