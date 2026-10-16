@@ -1012,6 +1012,103 @@
   color: var(--color-text-secondary);
 }
 
+/*
+ * The era's set symbols and the deck grid's filters share one wrapping row
+ * (the operator, 2026-10-16: filters *"next to the set symbols"*); on a narrow
+ * screen the filters drop under the symbols, and their own groups wrap too.
+ */
+.lobby__setsrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 26px;
+}
+
+.lobby__setsrow:empty {
+  display: none;
+}
+
+.deckfilter {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.deckfilter__set {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/*
+ * A chip is the thing it filters on — the tile's style tag, or a colour's pip —
+ * with no frame of its own. Off, it is faded; on, it is full strength and
+ * ringed in the accent, so on and off differ in more than colour.
+ */
+.deckfilter__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--hdk-radius);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.deckfilter__chip:hover {
+  opacity: 0.85;
+}
+
+.deckfilter__chip[aria-pressed='true'] {
+  opacity: 1;
+}
+
+.deckfilter__chip[aria-pressed='true'] .decktag {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.deckfilter__color {
+  padding: 2px;
+  border-radius: 50%;
+}
+
+.deckfilter__color[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.deckfilter__chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.deckfilter__search {
+  /* Takes what is left of its line rather than wrapping onto one of its own. */
+  flex: 1 1 7em;
+  min-width: 5em;
+  max-width: 12em;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--hdk-radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* Nothing passes the filters: one line where the tiles would be. */
+.deckpick__empty {
+  grid-column: 1 / -1;
+  margin: 8px 0;
+  color: var(--ink-dim);
+}
+
 /* ── the deck chooser, which is not a dropdown (wave 28 §C, item 2) ─────── */
 
 /*
@@ -1059,10 +1156,10 @@
  * So the room's `.lobby` is a column: each card is a row at its content height,
  * and the deck card takes the remaining height, its grid scrolling inside it.
  * Everything is `flex: 1 0 0` with the automatic minimum left on, and the grid
- * keeps most of a tile row as its floor — 1024x700, the smallest size
- * `e2e/lobby-fit.spec.ts` measures, leaves it ~150px — so only a window
- * shorter than that falls back to `.shell--fit`'s own scroll instead of
- * crushing the grid.
+ * keeps half a tile row as its floor — 1024x700, the smallest size
+ * `e2e/lobby-fit.spec.ts` measures, leaves it ~100px since the deck filter
+ * row (2026-10-16) took a line — so only a window shorter than that falls
+ * back to `.shell--fit`'s own scroll instead of crushing the grid.
  */
 .lobby--room {
   display: flex;
@@ -1079,7 +1176,7 @@
 
 .lobby--room .deckpick {
   flex: 1 0 0;
-  min-height: 140px;
+  min-height: 95px;
   overflow-y: auto;
   scrollbar-gutter: stable;
   /* Room for a tile's focus ring (2px outline at a 2px offset), which a

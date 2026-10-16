@@ -202,6 +202,8 @@ import {
 import { SettingsGear } from '../settings/Settings.tsx';
 import { DeckPeek, PEEK_DELAY_MS, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
+import { DeckFilterBar } from './DeckFilterBar.tsx';
+import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
@@ -715,11 +717,14 @@ function DeckChooser({
   value,
   disabled,
   onChoose,
+  empty,
 }: {
   options: readonly DeckOption[];
   value: string;
   disabled: boolean;
   onChoose: (value: string) => void;
+  /** Drawn in place of the tiles when there are none, if given. */
+  empty?: string | undefined;
 }) {
   /** Where Tab lands. Null until the reader moves it, so it follows the choice. */
   const [focus, setFocus] = useState<number | null>(null);
@@ -760,8 +765,17 @@ function DeckChooser({
     if (index >= 0 && options[index]?.list !== undefined) openPeekSoon(index);
   };
 
+  // A filter changes which tiles there are, so an index into the old list means
+  // nothing: Tab goes back to following the choice, and an open list closes.
+  useEffect(() => {
+    setFocus(null);
+    clearTimeout(peekTimer.current);
+    peekPending.current = null;
+    setPeek(null);
+  }, [options]);
+
   const chosen = options.findIndex((o) => o.value === value);
-  const stop = focus ?? (chosen >= 0 ? chosen : 0);
+  const stop = focus !== null && focus < options.length ? focus : chosen >= 0 ? chosen : 0;
 
   const goTo = (index: number): void => {
     const next = Math.max(0, Math.min(options.length - 1, index));
@@ -853,6 +867,11 @@ function DeckChooser({
           )}
         </button>
       ))}
+      {options.length === 0 && empty !== undefined && (
+        <p className="deckpick__empty" data-testid="deck-none">
+          {empty}
+        </p>
+      )}
       {peek !== null && peeked?.list !== undefined && (
         <DeckPeek
           id="deck-peek"
@@ -1465,6 +1484,19 @@ function RoomTableScreen({
   }, [deckOptions, freePick, eraOfDeck, browse]);
 
   /**
+   * The filter row's narrowing of the library on show (`deckFilter.ts`). It is
+   * this screen's own view and moves nothing in the room: a chosen deck the
+   * filter hides stays chosen. Kept across an era change, so a search follows
+   * the reader from one year to the next. A drafted pool is one deck and is
+   * never filtered.
+   */
+  const [deckFilter, setDeckFilter] = useState<DeckFilter>(NO_DECK_FILTER);
+  const visibleOptions = useMemo(
+    () => (shownOptions === null || pod !== null ? shownOptions : shownOptions.filter((o) => deckPasses(o, deckFilter))),
+    [shownOptions, pod, deckFilter],
+  );
+
+  /**
    * Every art URL this room has already asked the browser to warm, and the
    * `Image` object doing it — kept for as long as this screen stays mounted,
    * so the warm cannot be garbage-collected mid-load. A ref rather than
@@ -1652,7 +1684,7 @@ function RoomTableScreen({
    * what the dropdown then reads.
    */
   const chooseDeck = (value: string): void => {
-    const chosen = value === RANDOM_DECK ? pickRandom(shownOptions ?? [], rand)?.value : value;
+    const chosen = value === RANDOM_DECK ? pickRandom(visibleOptions ?? [], rand)?.value : value;
     if (chosen === undefined || chosen === '') return;
     const ref = deckRefOf(chosen);
     if (ref === null) return;
@@ -2183,7 +2215,12 @@ function RoomTableScreen({
                       own ask, for a Standard era. A drafted pool has none and draws none; an
                       eternal format's forty-odd sets drew a strip the operator called
                       ridiculous (2026-10-07), so those draw none either. */}
-                  {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
+                  {/* Beside them, the deck grid's filters — the library's only;
+                      a drafted pool is one deck. */}
+                  <div className="lobby__setsrow">
+                    {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
+                    {pod === null && <DeckFilterBar filter={deckFilter} onChange={setDeckFilter} />}
+                  </div>
 
                   {actionError !== null && (
                     <p className="lobby__error" role="alert" data-testid="table-error">
@@ -2199,7 +2236,8 @@ function RoomTableScreen({
                     You play
                   </span>
                   <DeckChooser
-                    options={shownOptions ?? []}
+                    options={visibleOptions ?? []}
+                    empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
                     value={deckId}
                     disabled={deckOptions === null || underway}
                     onChoose={chooseDeck}

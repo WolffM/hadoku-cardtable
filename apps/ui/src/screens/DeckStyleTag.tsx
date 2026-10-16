@@ -7,10 +7,13 @@
  * The style is the one the deck selection gave the deck
  * (`@hadoku/deck/library`'s `LIBRARY_DECK_STYLES`); a deck with none, a
  * drafted pool or a prebuilt, draws no tag rather than a guess. The word is
- * the tag's text, so it is part of the tile's accessible name; the hue beside
+ * the tag's text, so it is part of the tile's accessible name; the mark beside
  * it (`screens.css`, `.decktag`) is for scanning a grid, never the only signal.
  */
 import type { DeckStyle } from '@hadoku/deck/library';
+
+/** The four styles, in the order the filter row offers them. */
+export const DECK_STYLE_ORDER: readonly DeckStyle[] = ['aggro', 'midrange', 'control', 'combo'];
 
 const NAMES: Readonly<Record<DeckStyle, string>> = {
   aggro: 'Aggro',

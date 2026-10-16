@@ -2645,6 +2645,91 @@ describe('the deck chooser tags a library deck with its play style', () => {
   });
 });
 
+/* ── the deck grid's filters (2026-10-16) ─────────────────────────────────── */
+
+/**
+ * *"next to the set symbols it would be great to have filters for decktype,
+ * contained color, and even a text search. for text search if i type 'liliana'
+ * it should filter out all decks that don't have a card with liliana in the
+ * name."* The predicate is `deckFilter.test.ts`'s; this is the screen: the
+ * filters narrow the tiles, never the choice, and Tab still lands on a tile.
+ */
+describe('the deck grid filters', () => {
+  const FOUR = [UW_DELVER, MONO_GREEN, NAYA_POD, SOLAR_FLARE];
+
+  async function mountFour(): Promise<HTMLElement> {
+    await mountRoom({ players: [], matchId: null, decks: FOUR });
+    return deckPicker();
+  }
+
+  const press = async (testId: string): Promise<void> => {
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(testId));
+    });
+  };
+  const search = async (text: string): Promise<void> => {
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('deck-filter-text'), { target: { value: text } });
+    });
+  };
+
+  it('narrows by style: any one of those pressed', async () => {
+    await mountFour();
+    expect(offered()).toHaveLength(4);
+    const combo = FOUR.filter((d) => LIBRARY_DECK_STYLES[d.id] === 'combo').map((d) => d.id);
+    expect(combo).toEqual([NAYA_POD.id]);
+    await press('deck-filter-style-combo');
+    expect(screen.getByTestId('deck-filter-style-combo').getAttribute('aria-pressed')).toBe('true');
+    expect(offered()).toEqual(combo);
+    await press('deck-filter-style-aggro');
+    expect(new Set(offered())).toEqual(
+      new Set(FOUR.filter((d) => ['combo', 'aggro'].includes(LIBRARY_DECK_STYLES[d.id] ?? '')).map((d) => d.id)),
+    );
+    await press('deck-filter-style-combo');
+    await press('deck-filter-style-aggro');
+    expect(offered()).toHaveLength(4);
+  });
+
+  it('narrows by colour: a deck must play every colour pressed', async () => {
+    await mountFour();
+    const colorsOf = new Map(offered().map((id) => [id, deckRow(id).dataset['colors'] ?? '']));
+    await press('deck-filter-color-W');
+    await press('deck-filter-color-U');
+    const want = [...colorsOf].filter(([, c]) => c.includes('W') && c.includes('U')).map(([id]) => id);
+    expect(want).toContain(UW_DELVER.id);
+    expect(want).not.toContain(MONO_GREEN.id);
+    expect(offered()).toEqual(want);
+  });
+
+  it('narrows by a card name, and says so in one line when nothing is left', async () => {
+    await mountFour();
+    await search('GEIST');
+    const want = FOUR.filter((d) => [...d.main, ...d.sideboard].some((l) => l.name.toLowerCase().includes('geist'))).map((d) => d.id);
+    expect(want).toContain(UW_DELVER.id);
+    expect(want).not.toContain(MONO_GREEN.id);
+    expect(offered()).toEqual(want);
+    expect(screen.queryByTestId('deck-none')).toBeNull();
+    await search('no card is called this');
+    expect(offered()).toEqual([]);
+    expect(screen.getByTestId('deck-none').textContent).toBe('No decks');
+  });
+
+  it('never changes the choice, and Tab still lands on a tile shown', async () => {
+    await mountFour();
+    await pick(MONO_GREEN.id);
+    await press('deck-filter-color-U');
+    expect(offered()).not.toContain(MONO_GREEN.id);
+    expect(chosen()).toBe(MONO_GREEN.id);
+    const stops = offered().filter((id) => deckRow(id).tabIndex === 0);
+    expect(stops).toEqual([offered()[0]]);
+    await press('deck-filter-color-U');
+    expect(offered()).toContain(MONO_GREEN.id);
+    expect(chosen()).toBe(MONO_GREEN.id);
+    expect(deckRow(MONO_GREEN.id).getAttribute('aria-checked')).toBe('true');
+    expect(offered().filter((id) => deckRow(id).tabIndex === 0)).toEqual([MONO_GREEN.id]);
+  });
+});
+
 /* ── the deck section's order, and what it no longer says (2026-09-30) ──── */
 
 describe('Ready and Random come before the deck list, and the era note is not printed', () => {
