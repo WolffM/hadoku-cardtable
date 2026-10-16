@@ -12,13 +12,19 @@
  *   threshold   Anurid Barkripper (static `Condition$`)
  *   delirium    Angel of Deliverance (trigger `Delirium$ True`)
  *   hellbent    Gathan Raiders (static `Condition$`) — on for seat 1, off for seat 0
- *   spell mastery  Calculated Dismissal in hand (sub-ability `ConditionPresent$`)
+ *   spell mastery  Calculated Dismissal in hand (sub-ability `ConditionPresent$`), Fiery Impulse in hand
+ *                  (sub-ability `ConditionCheckSVar$ … GE2` beside its default branch's `LT2`)
  *
  * and never: Grizzly Bears and Lightning Bolt (no condition), Tarmogoyf (a count, not a condition),
  * Arrow Storm with no attack (its "otherwise" branch is always met, and must not light it), Voice
  * of Victory on seat 0's own turn ("during your turn" is timing, not a count) and Starting Town
  * (its "enters tapped unless" count is a drawback, not a bonus).
  * Seat 1 must not be told about a card in seat 0's hand.
+ *
+ * The operator, 2026-10-16: "why is the spell mastery condition highlighted here? there are no cards
+ * in my gy" — Fiery Impulse in an opening hand. A second game holds it, with Arrow Storm, at turn 1
+ * with both graveyards empty: an "instead"'s default branch ("LT2", "EQ0") is met there, and must not
+ * light the card.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -45,7 +51,7 @@ const STATE = [
 	'activephase=MAIN1',
 	'humanlife=20',
 	'ailife=20',
-	'humanhand=Galvanic Blast;Calculated Dismissal;Arrow Storm;Lightning Bolt;Voice of Victory;Starting Town',
+	'humanhand=Galvanic Blast;Calculated Dismissal;Fiery Impulse;Arrow Storm;Lightning Bolt;Voice of Victory;Starting Town',
 	`humanbattlefield=Ornithopter;Ornithopter;Ornithopter;${CONDITIONAL};Grizzly Bears;Tarmogoyf;Swamp`,
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=Swamp;Grizzly Bears;Lightning Bolt;Divination;Ornithopter;Swamp;Swamp',
@@ -53,6 +59,22 @@ const STATE = [
 	`aibattlefield=Ornithopter;Ornithopter;${CONDITIONAL};Plains`,
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
 	'aigraveyard=Plains;Plains;Plains;Plains;Plains;Plains',
+].join('\n');
+
+const EMPTY_GRAVEYARDS = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=Fiery Impulse;Arrow Storm;Mountain',
+	'humanbattlefield=',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
 ].join('\n');
 
 /** The latest `conditionMet` snapshot `seat` was sent, or null when none has been. */
@@ -90,6 +112,7 @@ describe.skipIf(!available.ok)(title, () => {
 					named(mine, 'Anurid Barkripper'),
 					named(mine, 'Angel of Deliverance'),
 					named(mine, 'Calculated Dismissal'),
+					named(mine, 'Fiery Impulse'),
 					named(theirs, 'Gathan Raiders'),
 				];
 				const off = [
@@ -121,6 +144,34 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(seat1, 'seat 1 was sent a conditionMet snapshot').not.toBeNull();
 				for (const c of on.filter((x) => !s.zone(0, 'Hand').some((h) => h.id === x.id))) expect(seat1, `seat 1 sees ${c.name}#${c.id} on`).toContain(c.id);
 				for (const c of s.zone(0, 'Hand')) expect(seat1, `seat 1 is told nothing of ${c.name}#${c.id} in seat 0's hand`).not.toContain(c.id);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'an "instead" whose bonus is off does not light from its default branch: Fiery Impulse with an empty graveyard',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 84, decks: DECKS, scenario: EMPTY_GRAVEYARDS });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === 'Fiery Impulse');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const hand = s.zone(0, 'Hand');
+				const seat0 = latestConditionMet(s, 0);
+				const lit = hand.filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[cf-condition-met.jvm] empty graveyards: graveyard=${s.zone(0, 'Graveyard').length} conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(s.zone(0, 'Graveyard'), 'seat 0’s graveyard is empty').toEqual([]);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				for (const name of ['Fiery Impulse', 'Arrow Storm']) {
+					const c = named(hand, name);
+					expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
+				}
 			} finally {
 				await s.stop();
 			}
