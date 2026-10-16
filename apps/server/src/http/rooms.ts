@@ -15,7 +15,7 @@
  *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
  *   POST  /api/rooms/:id/identity { avatarId }                 → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
- *   PATCH /api/rooms/:id        { gameType } | { format }       → 200 RoomView | 403 | 404 | 409
+ *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } → 200 RoomView | 403 | 404 | 409
  *
  * `format` is a frozen Standard era's date or `draft:<podId>` — a room's pool is
  * either a frozen era or a drafted pool (wave 26 §F, `room/lobby.ts`).
@@ -49,8 +49,8 @@
  *
  * ## The PATCH takes one field at a time
  *
- * `{ gameType }` and `{ format }` are two separate lobby mutations with two
- * separate refusals, so a body carrying both is a 400 rather than a write that
+ * `{ gameType }`, `{ format }` and `{ settings }` are separate lobby mutations
+ * with separate refusals, so a body carrying both is a 400 rather than a write that
  * half-lands. That is the same discipline as the allow-list itself: this file
  * refuses what it will not honour whole (see `clientMode` below).
  *
@@ -98,6 +98,7 @@ import {
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
+	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
 	GAME_TYPES,
 	ROOM_ID_RE,
@@ -108,6 +109,7 @@ import {
 	type FormatId,
 	type GameType,
 	type Lobby,
+	type RoomSettings,
 	type RoomView,
 } from '../room/lobby.js';
 
@@ -317,20 +319,40 @@ function parseFormat(v: unknown): Parsed<FormatId> {
 	return { ok: true, value: v };
 }
 
-/** One field, one mutation. `{ gameType }` or `{ format }`, never both and never neither. */
-type PatchBody = { gameType: GameType } | { format: FormatId };
+/**
+ * Some of the room's settings, each a boolean the lobby knows. An empty object
+ * is refused: a PATCH that changes nothing is a client that meant something else.
+ */
+function parseSettings(v: unknown): Parsed<Partial<RoomSettings>> {
+	const o = asObject(v);
+	if (o === null) return { ok: false, error: 'settings must be an object' };
+	const extra = unknownKeys(o, Object.keys(DEFAULT_ROOM_SETTINGS));
+	if (extra.length > 0) return { ok: false, error: `unknown setting(s): ${extra.join(', ')}` };
+	if (Object.keys(o).length === 0) return { ok: false, error: 'settings names no setting' };
+	for (const [k, value] of Object.entries(o)) {
+		if (typeof value !== 'boolean') return { ok: false, error: `settings.${k} must be a boolean` };
+	}
+	return { ok: true, value: o as Partial<RoomSettings> };
+}
+
+/** One field, one mutation. `{ gameType }`, `{ format }` or `{ settings }` — exactly one. */
+type PatchBody = { gameType: GameType } | { format: FormatId } | { settings: Partial<RoomSettings> };
 
 function parsePatch(body: unknown): Parsed<PatchBody> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
 	// The allow-list is the refusal: `clientMode` is not on it, so a PATCH
 	// carrying it is a 400 rather than a write nobody notices. See the header.
-	const extra = unknownKeys(o, ['gameType', 'format']);
+	const extra = unknownKeys(o, ['gameType', 'format', 'settings']);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	// Two fields is refused rather than applied in some order: each has its own
 	// refusal, and a body whose halves disagree must not half-land.
-	if (o.gameType !== undefined && o.format !== undefined) {
-		return { ok: false, error: 'patch one field at a time: gameType or format' };
+	if ([o.gameType, o.format, o.settings].filter((v) => v !== undefined).length > 1) {
+		return { ok: false, error: 'patch one field at a time: gameType, format or settings' };
+	}
+	if (o.settings !== undefined) {
+		const settings = parseSettings(o.settings);
+		return settings.ok ? { ok: true, value: { settings: settings.value } } : settings;
 	}
 	if (o.format !== undefined) {
 		const format = parseFormat(o.format);
@@ -592,11 +614,14 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const me = callerOf(req).id;
 		// Two settings, one leader, one refusal shape. The noun in each sentence is
 		// the setting the caller asked for, because the room screen shows it.
-		const what = 'format' in parsed.value ? 'format' : 'game type';
+		const v = parsed.value;
+		const what = 'format' in v ? 'format' : 'settings' in v ? 'settings' : 'game type';
 		const result =
-			'format' in parsed.value
-				? lobby.setFormat(id, me, parsed.value.format)
-				: lobby.setGameType(id, me, parsed.value.gameType);
+			'format' in v
+				? lobby.setFormat(id, me, v.format)
+				: 'settings' in v
+					? lobby.setSettings(id, me, v.settings)
+					: lobby.setGameType(id, me, v.gameType);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
 			if (result.reason === 'draft-started') {

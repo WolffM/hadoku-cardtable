@@ -113,6 +113,8 @@ export interface RoomView {
    * send one, which the room screen reads as "fall back to the newest pool".
    */
   format: string;
+  /** How the room's matches are dealt; the leader's to change (`setSettings`). */
+  settings: RoomSettings;
   /** Caller-scoped. Both halves default false; see the header. */
   you: RoomYou;
   /** Fixed at create, for the room's whole life. Missing on the wire ⇒ builtin. */
@@ -274,10 +276,24 @@ function parseYou(v: unknown): RoomYou {
   return { leader: o.leader === true, ready: o.ready === true };
 }
 
+/**
+ * The room's match settings, as `room/lobby.ts`'s `RoomSettings` states them.
+ * A setting the body does not carry reads as the server's own default.
+ */
+export interface RoomSettings {
+  /** The opening hand nearer the deck's land ratio, and each mulligan weighted toward it. On by default. */
+  handSmoothing: boolean;
+}
+
+function parseSettings(v: unknown): RoomSettings {
+  const o = isRecord(v) ? v : {};
+  return { handSmoothing: o.handSmoothing !== false };
+}
+
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
   if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, format, you, clientMode, locked, members, matchId, draftStartedAt, createdAt } = v;
+  const { id, name, creator, leader, gameType, format, settings, you, clientMode, locked, members, matchId, draftStartedAt, createdAt } = v;
   if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
   if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
   if (!Array.isArray(members)) return null;
@@ -288,6 +304,7 @@ export function parseRoomView(v: unknown): RoomView | null {
     leader: typeof leader === 'string' ? leader : '',
     gameType,
     format: typeof format === 'string' ? format : '',
+    settings: parseSettings(settings),
     you: parseYou(you),
     clientMode: parseClientMode(clientMode),
     locked,
@@ -364,6 +381,8 @@ export interface RoomsClient {
    * on the list is a 400 rather than a write nobody notices.
    */
   setFormat(roomId: string, format: string): Promise<RoomOutcome>;
+  /** Change some of the room's settings. The LEADER's call, through the same PATCH as `setFormat`. */
+  setSettings(roomId: string, settings: Partial<RoomSettings>): Promise<RoomOutcome>;
   /**
    * Deal the draft. Any member may ask — like constructed, where either browser
    * may start the match and the server answers one start to both — and asking
@@ -572,6 +591,10 @@ export function roomsClient(
 
     setFormat(roomId, format) {
       return write(`/${encodeURIComponent(roomId)}`, { format }, 'Could not change the pool', 'PATCH');
+    },
+
+    setSettings(roomId, settings) {
+      return write(`/${encodeURIComponent(roomId)}`, { settings }, 'Could not change the room settings', 'PATCH');
     },
 
     start(roomId) {

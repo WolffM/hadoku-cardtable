@@ -230,6 +230,15 @@ public final class PlayBridge {
      */
     static String scenario = null;
 
+    /**
+     * The room's hand smoothing setting: Forge's filtered hands
+     * ({@code StaticData.setFilteredHandsEnabled}), which keeps the opening hand closer
+     * to the deck's land ratio and weights each mulligan's redraw toward it
+     * ({@code forge.game.mulligan.HandSmoothing}). Absent is off, Forge's own default;
+     * a room always says which.
+     */
+    static boolean handSmoothing = false;
+
     static synchronized void emit(final JsonObject line) {
         line.addProperty("match", matchId);
         protocol.println(GSON.toJson(line));
@@ -266,6 +275,7 @@ public final class PlayBridge {
         matchId = root.get("matchId").getAsString();
         seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
         scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
+        handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
         final List<SeatConfig> seats = new ArrayList<>();
         for (final JsonElement e : root.getAsJsonArray("seats")) {
             final JsonObject s = e.getAsJsonObject();
@@ -4241,6 +4251,9 @@ public final class PlayBridge {
         if (seed != null) {
             forge.util.MyRandom.setRandom(new Random(seed));
         }
+        // Read when the opening hands are dealt (GameAction.startGame) and on every
+        // mulligan, so it is set here, after FModel.initialize set it from preferences.
+        StaticData.instance().setFilteredHandsEnabled(handSmoothing);
         final List<Deck> decks = new ArrayList<>();
         for (final SeatConfig s : seats) {
             decks.add(s.deck() != null ? parseDeck(s.deck()) : randomPrecon(random));

@@ -35,6 +35,7 @@ const ROOM: RoomView = {
   leader: 'fk:alice',
   gameType: 'constructed-1v1',
   format: 'unavailable',
+  settings: { handSmoothing: true },
   you: { leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,

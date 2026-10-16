@@ -166,6 +166,8 @@ export interface RoomViewLike {
 	gameType: string;
 	/** The room's pool: a `TableFormat.id`, and the rules for BOTH seats. */
 	format: string;
+	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
+	settings: { handSmoothing: boolean };
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
 	/**
@@ -1240,6 +1242,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				avatarIds: [loaded[0]!.member.avatarId, undefined],
 				names: [loaded[0]!.member.name, undefined],
 				format: room.format,
+				handSmoothing: room.settings.handSmoothing,
 			};
 			next();
 			return;
@@ -1253,6 +1256,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			names: loaded.map((p) => p.member.name),
 			// The pool a card-name ask is narrowed to (`play/names.ts`).
 			format: room.format,
+			handSmoothing: room.settings.handSmoothing,
 		};
 		next();
 	}

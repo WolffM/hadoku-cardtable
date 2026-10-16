@@ -1465,6 +1465,21 @@ describe('POST /api/play/matches names (wave 31 §S)', () => {
 	});
 });
 
+describe('parseStartBody: handSmoothing', () => {
+	it("carries the room's setting onto the spec, and leaves it absent when the body has none", () => {
+		const on = parseStartBody({ handSmoothing: true });
+		const off = parseStartBody({ handSmoothing: false });
+		const none = parseStartBody({});
+		expect(on.ok && on.spec.handSmoothing).toBe(true);
+		expect(off.ok && off.spec.handSmoothing).toBe(false);
+		expect(none.ok && 'handSmoothing' in none.spec).toBe(false);
+	});
+
+	it('refuses a value that is not a boolean', () => {
+		expect(parseStartBody({ handSmoothing: 'yes' })).toEqual({ ok: false, error: 'handSmoothing is a boolean' });
+	});
+});
+
 describe('parseStartBody: scenario (wave 33 §S, shape 1)', () => {
 	it('carries the text onto the spec unchanged', () => {
 		const r = parseStartBody({ scenario: 'humanlife=20\nailife=5\n' });

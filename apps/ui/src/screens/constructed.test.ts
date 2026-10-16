@@ -218,6 +218,8 @@ interface Table {
   format?: string;
   /** Whether the CALLER is the leader. Absent ⇒ true: alice made the room. */
   leader?: boolean;
+  /** `RoomView.settings`. Absent ⇒ the server's default, hand smoothing on. */
+  settings?: { handSmoothing: boolean };
   /** `PATCH /api/rooms/:id` refuses with this, as it does for a non-leader. */
   refusePatch?: { status: number; error: string };
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
@@ -300,6 +302,7 @@ function stubServer(table: Table) {
     leader: 'p-alice',
     gameType,
     format: table.format,
+    settings: table.settings ?? { handSmoothing: true },
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
     // this caller, and whether this caller is ready. `p-alice` is us.
     you: { leader: iAmLeader(), ready: membersOf().some((m) => m.id === 'p-alice' && m.ready === true) },
@@ -353,7 +356,12 @@ function stubServer(table: Table) {
        */
       if ((init?.method ?? 'GET') === 'PATCH') {
         if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
-        const asked = body as { format?: unknown };
+        const asked = body as { format?: unknown; settings?: { handSmoothing: boolean } };
+        // A setting is not a deck question: nobody's readiness or verdict moves.
+        if (asked.settings !== undefined) {
+          table.settings = { ...(table.settings ?? { handSmoothing: true }), ...asked.settings };
+          return json(200, roomRecord());
+        }
         if (typeof asked.format !== 'string') return json(400, { error: 'format must be a string' });
         table.format = asked.format;
         table.players = table.players.map((p) =>
@@ -1021,6 +1029,7 @@ describe('a room’s table', () => {
         ready: async () => ({ ok: false as const, message: 'not used' }),
         start: async () => ({ ok: false as const, message: 'not used' }),
         setFormat: async () => ({ ok: false as const, message: 'not used' }),
+        setSettings: async () => ({ ok: false as const, message: 'not used' }),
         leave: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
           joins.push(roomId);
@@ -1037,6 +1046,7 @@ describe('a room’s table', () => {
                   leader: 'p-alice',
                   gameType: 'constructed-1v1',
                   format: '2010-07-16',
+                  settings: { handSmoothing: true },
                   you: { leader: true, ready: false },
                   clientMode: 'builtin' as const,
                   locked: false,
@@ -1540,6 +1550,23 @@ describe('the table’s pool', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(screen.getByTestId('browse-tab-standard'));
     await waitFor(() => expect(chosen()).toBe(SECOND_DECK));
+  });
+
+  it('Hand smoothing: on by default, and the leader’s toggle turns it off on the room', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    const toggle = await screen.findByTestId('hand-smoothing');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('false'));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ settings: { handSmoothing: false } }]);
+  });
+
+  it('Hand smoothing is the leader’s: a non-leader gets no toggle', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, leader: false });
+    await waitFor(() => expect(screen.getByTestId('format-fixed')).toBeTruthy());
+    expect(screen.queryByTestId('hand-smoothing')).toBeNull();
   });
 
   it('Free pick reads as its name to a non-leader, who gets no toggle', async () => {

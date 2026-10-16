@@ -48,6 +48,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   // always on the wire; `parseRoomView`'s defaults for a body that lost them
   // are asserted in "the pool and the caller" below.
   format: '2011-02-13',
+  settings: { handSmoothing: true },
   you: { leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
@@ -403,6 +404,14 @@ describe('the room writes', () => {
     ]);
   });
 
+  it('changes a room setting with the same PATCH, carrying `settings` and nothing else', async () => {
+    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false } });
+    const { calls, client } = writes(() => json(200, moved));
+    const outcome = await client.setSettings('r-open', { handSmoothing: false });
+    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false });
+    expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { settings: { handSmoothing: false } } }]);
+  });
+
   it('hands back the leader refusal in the server’s own words', async () => {
     const refused = writes(() => json(403, { error: 'only the room leader can change the game type' }));
     expect(await refused.client.setFormat('r-open', '2011-07-01')).toEqual({
@@ -413,6 +422,15 @@ describe('the room writes', () => {
 });
 
 /* ── the pool and the caller (w25 §B) ────────────────────────────────── */
+
+describe('the room settings', () => {
+  it('reads hand smoothing off only when the body says so, and on when it is absent', () => {
+    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: false } })?.settings).toEqual({ handSmoothing: false });
+    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: true } })?.settings).toEqual({ handSmoothing: true });
+    const { settings: _gone, ...older } = OPEN;
+    expect(parseRoomView(older)?.settings).toEqual({ handSmoothing: true });
+  });
+});
 
 describe('the pool and the caller', () => {
   it('reads the room’s pool as a string, and an absent one as empty rather than a guess', () => {

@@ -715,3 +715,29 @@ checker. `PlayBridge.java`'s `ConditionsOn` asks each with Forge's own method.
   the claws, run 38860570475)** — a card with only a keyword (Ornithopter's
   Flying) carries traits with no condition parameter, and a checker that reads
   none answers `true`: "has a condition" must be asked apart from "is it met".
+
+## Filtered hands, and the fork's mulligan half — 2026-10-16 (hand smoothing)
+
+The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
+"Filtered Hands" preference plus one fork commit.
+
+- **VERIFIED (read)** — upstream's switch is a process-global boolean,
+  `StaticData.setFilteredHandsEnabled` (`forge-core/.../StaticData.java:867`),
+  set from `FPref.FILTERED_HANDS` (default `false`, `ForgePreferences.java:210`)
+  by `FModel.initialize` (`forge-gui/.../model/FModel.java:255`). Global is safe
+  for us because a match is one JVM; `PlayBridge.startMatch` sets it per match.
+- **VERIFIED (read)** — upstream used it only for the opening hand:
+  `GameAction.drawStartingHand` (pin `ed4d9f6`, `GameAction.java:2299`) took the
+  library's top seven and the top seven of one reshuffle and kept whichever was
+  closer to `landRatio × 7` (a tie kept the first). Mulligans never read it.
+- **Fork `d6901eb` (`cardtable/hand-smoothing`)** — that logic moved to
+  `forge.game.mulligan.HandSmoothing.strict`, and `AbstractMulligan.mulligan`
+  calls `HandSmoothing.weighted` between its shuffle and its draw: the same two
+  candidates, each kept with odds `1 / (1 + distance)`. For a 40-card, 17-land
+  deck the expected distance of a hand is 0.92 lands unsmoothed, 0.77 weighted
+  and 0.51 strict (computed, not measured).
+- **VERIFIED (measured, `apps/server/src/play/hand-smoothing.jvm.test.ts` on the
+  claws, run 38947333469)** — on one seed the smoothed opening hand is never
+  further from the ratio than the unsmoothed deal (seed 7 seat 0: 0 lands → 3),
+  and from an identical opening the smoothed mulligan redraws differ while two
+  unsmoothed runs repeat exactly.

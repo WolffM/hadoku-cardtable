@@ -264,6 +264,7 @@ describe('POST /api/rooms', () => {
 			'matchId',
 			'members',
 			'name',
+			'settings',
 			'you',
 		]);
 		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
@@ -576,6 +577,52 @@ describe('PATCH /api/rooms/:id', () => {
 
 /* ── the room's pool, and who may move it (wave 25 §A) ───────────────── */
 
+describe('PATCH /api/rooms/:id { settings }', () => {
+	type View = import('../room/lobby.ts').RoomView;
+
+	it('lets the leader turn hand smoothing off, refuses anyone else, and keeps it across a restart', async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
+		expect(created.settings).toEqual({ handSmoothing: true });
+		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
+		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
+
+		const byMember = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'bob', body: { settings: { handSmoothing: false } } });
+		expect(byMember.status).toBe(403);
+		expect(byMember.json()).toEqual({ error: 'only the room leader can change the settings' });
+
+		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { handSmoothing: false } } });
+		expect(byLeader.status).toBe(200);
+		const after = byLeader.json() as View;
+		expect(after.settings).toEqual({ handSmoothing: false });
+		// Not a deck question, so bob is still ready.
+		expect(after.members.map((m) => m.ready)).toEqual([false, true]);
+
+		const restored = (await call(await openApp(dir), 'GET', `/api/rooms/${created.id}`)).json() as View;
+		expect(restored.settings).toEqual({ handSmoothing: false });
+	});
+
+	it('refuses a setting it does not know, a value that is not a boolean, and an empty or mixed body', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
+		const cases: Array<[unknown, string]> = [
+			[{ settings: { psychic: true } }, 'unknown setting(s): psychic'],
+			[{ settings: { handSmoothing: 'off' } }, 'settings.handSmoothing must be a boolean'],
+			[{ settings: {} }, 'settings names no setting'],
+			[{ settings: null }, 'settings must be an object'],
+			[{ settings: { handSmoothing: false }, format: OLDEST_POOL }, 'patch one field at a time: gameType, format or settings'],
+		];
+		for (const [body, error] of cases) {
+			const res = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body });
+			expect(res.status, JSON.stringify(body)).toBe(400);
+			expect(res.json()).toEqual({ error });
+		}
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as View;
+		expect([after.settings, after.format]).toEqual([{ handSmoothing: true }, NEWEST_POOL]);
+	});
+});
+
 describe('PATCH /api/rooms/:id { format }', () => {
 	it('refuses a non-leader with not-leader and changes nothing', async () => {
 		const h = await openApp(await tempDir());
@@ -649,7 +696,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
 			.json() as import('../room/lobby.ts').RoomView;
 		const cases: Array<[unknown, string]> = [
-			[{ gameType: 'draft', format: OLDEST_POOL }, 'patch one field at a time: gameType or format'],
+			[{ gameType: 'draft', format: OLDEST_POOL }, 'patch one field at a time: gameType, format or settings'],
 			[{ format: '' }, 'format must be a format id'],
 			[{ format: '   ' }, 'format must be a format id'],
 			[{ format: null }, 'format must be a format id'],

@@ -1047,6 +1047,7 @@ function RoomTableScreen({
   const poolFormat = loaded?.formats.find((f) => f.id === poolId) ?? null;
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
+  const handSmoothing = view?.settings.handSmoothing ?? true;
   /** Which tab the table is actually on — a pod's own tab, or its era's family. */
   const tabOfPool = pod !== null ? 'draft' : poolFormat?.family ?? 'standard';
   /**
@@ -1719,6 +1720,24 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
+  /** The LEADER flipped hand smoothing: a room write, answered like `choosePool`. */
+  const toggleHandSmoothing = (): void => {
+    setBusy(true);
+    setActionError(null);
+    rooms
+      .setSettings(roomId, { handSmoothing: !handSmoothing })
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setActionError(outcome.message);
+          return;
+        }
+        writes.current += 1;
+        setView(outcome.room);
+      })
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+
   /*
    * The pool moved under a deck we are holding, so the hold is re-sent.
    *
@@ -1922,7 +1941,26 @@ function RoomTableScreen({
         {!draftRoom && table !== null && (
           <>
             <section className="lobby__card">
-              <h2>At the table</h2>
+              {/* The table's own rules sit on its heading's line, which has the width
+                  to spare: the format row below is full at 1024 wide, and a line
+                  added anywhere comes off the deck grid. */}
+              <div className="lobby__deckhead">
+                <h2>At the table</h2>
+                {/* The room's first match setting: the opening hand nearer the
+                    deck's land ratio, each mulligan weighted toward it. */}
+                {iAmLeader && (
+                  <button
+                    type="button"
+                    className="lobby__free-pick lobby__setting"
+                    aria-pressed={handSmoothing}
+                    data-testid="hand-smoothing"
+                    disabled={busy || underway}
+                    onClick={toggleHandSmoothing}
+                  >
+                    Hand smoothing
+                  </button>
+                )}
+              </div>
               <ul className="tables__players" data-testid="room-players">
                 {[0, 1].map((seat) => {
                   const player = players[seat];
@@ -2210,6 +2248,7 @@ function RoomTableScreen({
                         Free pick
                       </button>
                     )}
+
                   </div>
                   {/* The sets the chosen era is made of, as symbols — the operator's
                       own ask, for a Standard era. A drafted pool has none and draws none; an

@@ -280,6 +280,7 @@ interface FakeRoom {
 	gameType: string;
 	/** The room's pool: one per table, for both seats. Mutable here, so a test can put a room in a state the leader's setter would never leave it in. */
 	format: string;
+	settings: { handSmoothing: boolean };
 	leader: string;
 	/** `avatarId` optional and never blank, exactly as `RoomViewLike` states it. */
 	members: { id: string; name: string; avatarId?: string }[];
@@ -306,6 +307,7 @@ function fakeLobby(): FakeLobby {
 				name: `room ${id}`,
 				gameType,
 				format,
+				settings: { handSmoothing: true },
 				leader: members[0]?.id ?? '',
 				members,
 				matchId: null,
@@ -989,6 +991,24 @@ describe('a room table', () => {
 		expect(match?.seatOf(ALICE)).toBe(0);
 		expect(match?.seatOf(BOB)).toBe(1);
 		expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+	});
+
+	it("deals a match against a person with the room's hand smoothing, on by default", async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect((await startRoom(h, 'alice')).status).toBe(201);
+		expect(h.specs[0]?.handSmoothing).toBe(true);
+	});
+
+	it("deals a match against the AI with the room's hand smoothing, off when the leader turned it off", async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]).settings.handSmoothing = false;
+		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+		expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
+		expect(h.specs[0]?.handSmoothing).toBe(false);
 	});
 
 	// The operator, 2026-10-11: "let's make it 5 max per person".

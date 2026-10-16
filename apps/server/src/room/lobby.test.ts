@@ -498,6 +498,76 @@ describe('Lobby.setFormat', () => {
 	});
 });
 
+describe('Lobby.setSettings', () => {
+	async function twoReady(lobby: Lobby): Promise<string> {
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		for (const who of [ALICE, BOB]) {
+			expect(lobby.setReady(made.room.id, who.id, true)).toBe(true);
+			expect(lobby.setPlayerState(made.room.id, who.id, { v: 1, ready: true })).toBe(true);
+		}
+		return made.room.id;
+	}
+
+	it('starts a new room with hand smoothing on, in every body that carries the room', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		expect(made.room.settings).toEqual({ handSmoothing: true });
+		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true }]);
+	});
+
+	it('lets only the leader change it, and leaves every readiness flag and deck hold alone', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await twoReady(lobby);
+		expect(lobby.setSettings(id, BOB.id, { handSmoothing: false })).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.setSettings('r-000000000000', ALICE.id, { handSmoothing: false })).toEqual({ ok: false, reason: 'no-room' });
+		expect(lobby.get(id)?.settings.handSmoothing).toBe(true);
+
+		const off = lobby.setSettings(id, ALICE.id, { handSmoothing: false });
+		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false });
+		// A setting is not a deck question: nobody is stood down by it.
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
+		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true });
+	});
+
+	it('refuses a change while a draft is running', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await startedDraft(lobby, [ALICE]);
+		expect(lobby.setSettings(id, ALICE.id, { handSmoothing: false })).toEqual({ ok: false, reason: 'draft-started' });
+	});
+
+	it('survives a restart', async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir });
+		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		expect(first.setSettings(made.room.id, ALICE.id, { handSmoothing: false }).ok).toBe(true);
+		const second = await openLobby({ dir });
+		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false });
+	});
+
+	it('reads a record written before settings existed back on the defaults', async () => {
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'r-presettings01', legacyApp());
+		expect(Object.keys(legacyApp())).not.toContain('settings');
+		const lobby = await openLobby({ dir });
+		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true });
+	});
+
+	it('quarantines a record whose settings hold a value this build does not understand', async () => {
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'r-dddddddddddd', legacyApp({ settings: { handSmoothing: 'yes' } }));
+		writeFixtureRoom(dir, 'r-eeeeeeeeeeee', legacyApp({ settings: { psychic: true } }));
+		const logged: Record<string, unknown>[] = [];
+		const lobby = await openLobby({ dir, log: (e) => void logged.push(e) });
+		expect(lobby.list()).toEqual([]);
+		const quarantined = logged.filter((e) => e.event === 'room-quarantined');
+		expect(quarantined.map((e) => String(e.reason))).toEqual([expect.stringContaining('settings'), expect.stringContaining('settings')]);
+	});
+});
+
 /* ── a room is not immortal ──────────────────────────────────────────── */
 
 describe('Lobby.sweep', () => {

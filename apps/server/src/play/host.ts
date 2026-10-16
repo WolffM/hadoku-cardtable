@@ -299,6 +299,14 @@ export interface MatchSpec {
 	 * kept in `config.json` so a match taken back after a restart still has it.
 	 */
 	format?: string;
+	/**
+	 * The room's hand smoothing setting (`room/lobby.ts`'s `RoomSettings`): the
+	 * opening hand is the closer of two to the deck's land ratio, and each
+	 * mulligan's redraw is weighted toward it. `PlayBridge.java`'s `configFrom`
+	 * turns it into Forge's filtered hands. Absent is off, Forge's default — a
+	 * spec built directly, as the jvm suites build theirs, deals what it always did.
+	 */
+	handSmoothing?: boolean;
 }
 
 type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];

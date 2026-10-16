@@ -246,6 +246,12 @@
   margin-left: auto;
 }
 
+/* A switch on a card's heading line: no taller than the heading it sits beside. */
+.lobby__setting {
+  padding-block: 0.1rem;
+  line-height: 1.2;
+}
+
 .lobby__free-pick[aria-pressed='true'] {
   background: var(--color-primary);
   color: var(--color-on-primary);

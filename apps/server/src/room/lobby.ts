@@ -399,6 +399,8 @@ export interface RoomView {
 	 * the leader changes it (`setFormat`).
 	 */
 	format: FormatId;
+	/** How the room's matches are dealt. Only the leader changes it (`setSettings`). */
+	settings: RoomSettings;
 	/** Fixed at create. Every client sees it before joining, from `list()` as well as `get()`. */
 	clientMode: ClientMode;
 	/** Whether a password is set — never the password, never any hash of it. */
@@ -453,6 +455,25 @@ export type SetGameTypeResult =
 export type SetFormatResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
+
+/**
+ * A room's match settings. Every one is a boolean with a default here, so a room
+ * stored before a setting existed reads back on that default without a migration.
+ *
+ * `handSmoothing` (on by default): the opening hand is the closer of two to the
+ * deck's land ratio, and each mulligan's redraw is weighted toward it —
+ * `MatchSpec.handSmoothing`, and Forge's `HandSmoothing` in our fork.
+ */
+export interface RoomSettings {
+	handSmoothing: boolean;
+}
+
+export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({ handSmoothing: true });
+
+const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
+
+/** The same three refusals as `SetFormatResult`: one leader, one shape. */
+export type SetSettingsResult = SetFormatResult;
 
 export type StartDraftResult =
 	| { ok: true; room: RoomView }
@@ -659,6 +680,13 @@ export interface Lobby {
 	 */
 	setFormat(roomId: string, callerId: string, format: FormatId): SetFormatResult;
 	/**
+	 * The leader changes some of the room's match settings; the rest stay as they
+	 * are. Unlike the pool, a setting says nothing about anybody's deck, so it
+	 * clears no readiness and no deck hold. Refused with `draft-started` like the
+	 * pool.
+	 */
+	setSettings(roomId: string, callerId: string, settings: Partial<RoomSettings>): SetSettingsResult;
+	/**
 	 * Forget every room untouched for longer than `idleMs`, on disk as well as
 	 * in memory. Returns the ids dropped, for the caller's log.
 	 *
@@ -748,6 +776,7 @@ interface RoomRecord {
 	leader: string;
 	gameType: GameType;
 	format: FormatId;
+	settings: RoomSettings;
 	clientMode: ClientMode;
 	matchId: string | null;
 	/** Every match this room started, newest last, at most `ROOM_MATCHES_KEPT`. See `roomOfMatch`. */
@@ -774,6 +803,8 @@ interface StoredApp {
 	 * and does not understand, and the codec quarantines it like any other.
 	 */
 	format: FormatId | null;
+	/** Absent on disk for a room written before the field; `deserialize` fills in the defaults. */
+	settings: RoomSettings;
 	clientMode: ClientMode;
 	matchId: string | null;
 	/** Restored, unlike `matchId`: a match outlives a restart, and its result screen asks which room it was. */
@@ -811,6 +842,11 @@ function isClientMode(v: unknown): v is ClientMode {
 	return typeof v === 'string' && (CLIENT_MODES as readonly string[]).includes(v);
 }
 
+function isStoredSettings(v: unknown): v is Partial<RoomSettings> {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+	return Object.entries(v).every(([k, value]) => (SETTING_KEYS as string[]).includes(k) && typeof value === 'boolean');
+}
+
 function isSecret(v: unknown): v is Secret {
 	if (typeof v !== 'object' || v === null) return false;
 	const s = v as Record<string, unknown>;
@@ -842,6 +878,10 @@ const appCodec: AppCodec<StoredApp> = {
 		// build does not understand — including an explicit `null`, which this
 		// build never writes.
 		if (a.format !== undefined && !isFormatId(a.format)) throw new Error('app.format is not a format id');
+		// Absent is a room written before settings existed, and so is a single
+		// setting that is absent: each reads back on its default. A value of the
+		// wrong type, or a setting this build does not know, quarantines.
+		if (a.settings !== undefined && !isStoredSettings(a.settings)) throw new Error('app.settings is invalid');
 		if (a.matchId !== null && typeof a.matchId !== 'string') throw new Error('app.matchId is invalid');
 		// Absent is a room written before the field, which remembers no match.
 		if (a.matches !== undefined && !(Array.isArray(a.matches) && a.matches.every((m) => typeof m === 'string'))) {
@@ -860,6 +900,7 @@ const appCodec: AppCodec<StoredApp> = {
 			leader: a.leader,
 			gameType: a.gameType,
 			format: a.format === undefined ? null : (a.format as FormatId),
+			settings: { ...DEFAULT_ROOM_SETTINGS, ...(a.settings as Partial<RoomSettings> | undefined) },
 			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
 			matchId: a.matchId as string | null,
 			matches: a.matches === undefined ? [] : [...(a.matches as string[])],
@@ -879,6 +920,7 @@ function viewOf(room: RoomRecord, locked: boolean): RoomView {
 		leader: room.leader,
 		gameType: room.gameType,
 		format: room.format,
+		settings: { ...room.settings },
 		clientMode: room.clientMode,
 		locked,
 		members: room.members.map((m) => ({
@@ -1013,6 +1055,7 @@ class FileLobby implements Lobby {
 			leader: room.leader,
 			gameType: room.gameType,
 			format: room.format,
+			settings: { ...room.settings },
 			clientMode: room.clientMode,
 			matchId: room.matchId,
 			matches: [...room.matches],
@@ -1184,6 +1227,7 @@ class FileLobby implements Lobby {
 			// created on the server's pick and the leader moves it from there, so one
 			// setting has one mutator.
 			format: this.#newRoomFormat(),
+			settings: { ...DEFAULT_ROOM_SETTINGS },
 			clientMode: input.clientMode,
 			matchId: null,
 			matches: [],
@@ -1353,6 +1397,19 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
+	setSettings(roomId: string, callerId: string, settings: Partial<RoomSettings>): SetSettingsResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
+		const next = { ...room.settings, ...settings };
+		if (SETTING_KEYS.every((k) => next[k] === room.settings[k])) return { ok: true, room: this.#view(room) };
+		room.settings = next;
+		this.#persist(room);
+		this.#log({ event: 'room-settings', roomId, settings: next });
+		return { ok: true, room: this.#view(room) };
+	}
+
 	sweep(idleMs: number = ROOM_IDLE_MS): string[] {
 		const cutoff = this.#now() - idleMs;
 		const dropped: string[] = [];
@@ -1453,6 +1510,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// the decks are restored too (the per-member blob), so the pool
 					// they were checked in has to come back with them.
 					format: app.format ?? fixed ?? newestFormat(),
+					settings: app.settings,
 					clientMode: app.clientMode,
 					// **Never restored.** A match is a child JVM this process
 					// owns; nothing survives a restart, and this repo restarts on
