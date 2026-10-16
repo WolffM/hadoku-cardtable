@@ -28,7 +28,8 @@
  * in my gy" — Fiery Impulse in an opening hand. A second game holds it, with Arrow Storm, at turn 1
  * with both graveyards empty: an "instead"'s default branch ("LT2", "EQ0") is met there, and must not
  * light the card; nor must Curious Obsession's "if you didn't attack" (a trigger's `SVarCompare$ EQ0`,
- * which Forge reads from the trigger's own parameters rather than the map it is handed).
+ * which Forge reads from the trigger's own parameters rather than the map it is handed), nor Jeweled
+ * Amulet's "activate only if there are no charge counters" (an activation's `SVarCompare$ EQ0`).
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -71,7 +72,7 @@ const EMPTY_GRAVEYARDS = [
 	'activephase=MAIN1',
 	'humanlife=20',
 	'ailife=20',
-	'humanhand=Fiery Impulse;Arrow Storm;Curious Obsession;Mountain',
+	'humanhand=Fiery Impulse;Arrow Storm;Curious Obsession;Jeweled Amulet;Mountain',
 	'humanbattlefield=',
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=',
@@ -173,7 +174,7 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[cf-condition-met.jvm] empty graveyards: graveyard=${s.zone(0, 'Graveyard').length} conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
 				expect(s.zone(0, 'Graveyard'), 'seat 0’s graveyard is empty').toEqual([]);
 				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
-				for (const name of ['Fiery Impulse', 'Arrow Storm', 'Curious Obsession']) {
+				for (const name of ['Fiery Impulse', 'Arrow Storm', 'Curious Obsession', 'Jeweled Amulet']) {
 					const c = named(hand, name);
 					expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
 				}
