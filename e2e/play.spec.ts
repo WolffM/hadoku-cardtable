@@ -124,7 +124,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
-import { E2E_ERA, createRoom, enabledCancel, enabledOk, serverLog } from './play/board.ts';
+import { E2E_ERA, createRoom, enabledCancel, enabledOk, says, serverLog } from './play/board.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
@@ -1393,9 +1393,19 @@ test(LIVE_TITLE, async ({ browser }) => {
         await pressOk();
         await new Promise((r) => setTimeout(r, 200));
       }
-      if (await inHand(spell.id)) {
-        // It wants something this phase cannot give it (a target to click).
-        // Back out and try another card rather than jamming the game.
+      // A spell is on the stack while its cost is still being paid, so out of
+      // the hand is not yet announced. Forge offers a spell whose cost these
+      // lands cannot finish (Compulsion's {U} from Forest and a Skycloud
+      // Expanse that wants {1} of its own), and that payment never ends.
+      const paidBy = Date.now() + 5_000;
+      while (Date.now() < paidBy && /Pay Mana Cost/i.test(await says(alice.page))) {
+        if ((await enabledOk(alice.page).count()) > 0) await pressOk();
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if ((await inHand(spell.id)) || /Pay Mana Cost/i.test(await says(alice.page))) {
+        // It wants something this phase cannot give it (a target to click, or
+        // mana it does not have). Back out and try another card rather than
+        // jamming the game.
         const cancel = enabledCancel(alice.page);
         if ((await cancel.count()) > 0) await cancel.first().click({ timeout: 2_000 }).catch(() => {});
         wontAnnounce.add(spell.id);
@@ -1490,17 +1500,20 @@ test(LIVE_TITLE, async ({ browser }) => {
     // So the assertion is split by what it can honestly claim:
     //   - a spell WAS cast and did not resolve unattended → a real failure,
     //     and the one worth having;
-    //   - nothing was ever castable → the scenario never happened, reported
-    //     loudly and not failed.
+    //   - nothing was ever castable, or only spells it had to back out of →
+    //     the scenario never happened, reported loudly and not failed.
     //
     // The BEHAVIOUR itself is not left to this test: `apps/server/src/play/
     // auto.test.ts` decides every captured priority window against real Forge
     // frames, deterministically, and the tracker mutation-tested it (removing
     // the guard fails 2 of 76). This test is the end-to-end demonstration,
     // not the proof of record.
-    if (casts.length === 0) {
+    // A cast the loop backed out of (`left: false`: it wanted a target or mana
+    // this phase could not give) was never on its way to resolving, so it is
+    // the second case, not the first.
+    if (!casts.some((c) => c.left)) {
       console.warn(
-        `[play] UNPROVEN: the game never offered a castable spell, so "resolves unattended" was not exercised. ` +
+        `[play] UNPROVEN: the game never offered a spell alice could finish casting, so "resolves unattended" was not exercised. ` +
           `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
       );
     } else {

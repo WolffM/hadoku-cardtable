@@ -170,6 +170,17 @@
   pointer-events: auto;
 }
 
+/*
+ * A card IN the pile is already drawn at its face's width (the rule above), so
+ * nothing inside it may pay the fan a second time. Its own `--pile-fan` stays
+ * set — that width reads it — but its badges read zero: a member's P/T was
+ * drawn the whole fan in from its own corner, which on a crowded board's
+ * 45 px card put it in the card's left half (table-fit, 2026-10-16).
+ */
+.board-card__pile > .board-card > * {
+  --pile-fan: 0px;
+}
+
 .board-card__pile > .board-card[data-pile-depth='1'] {
   --at: 1;
 }
