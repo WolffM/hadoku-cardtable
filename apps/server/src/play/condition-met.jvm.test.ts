@@ -19,6 +19,9 @@
  * Arrow Storm with no attack (its "otherwise" branch is always met, and must not light it), Voice
  * of Victory on seat 0's own turn ("during your turn" is timing, not a count) and Starting Town
  * (its "enters tapped unless" count is a drawback, not a bonus).
+ * Pulse of the Forge's "if that player has more life than you" names its target, which a card in
+ * hand has none of, and Forge's check throws there: that card stays dark and every other card is
+ * still read.
  * Seat 1 must not be told about a card in seat 0's hand.
  *
  * The operator, 2026-10-16: "why is the spell mastery condition highlighted here? there are no cards
@@ -51,7 +54,7 @@ const STATE = [
 	'activephase=MAIN1',
 	'humanlife=20',
 	'ailife=20',
-	'humanhand=Galvanic Blast;Calculated Dismissal;Fiery Impulse;Arrow Storm;Lightning Bolt;Voice of Victory;Starting Town',
+	'humanhand=Galvanic Blast;Calculated Dismissal;Fiery Impulse;Pulse of the Forge;Arrow Storm;Lightning Bolt;Voice of Victory;Starting Town',
 	`humanbattlefield=Ornithopter;Ornithopter;Ornithopter;${CONDITIONAL};Grizzly Bears;Tarmogoyf;Swamp`,
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=Swamp;Grizzly Bears;Lightning Bolt;Divination;Ornithopter;Swamp;Swamp',
@@ -126,6 +129,7 @@ describe.skipIf(!available.ok)(title, () => {
 					named(mine, 'Arrow Storm'),
 					named(mine, 'Voice of Victory'),
 					named(mine, 'Starting Town'),
+					named(mine, 'Pulse of the Forge'),
 					named(mine, 'Ornithopter'),
 				];
 				const stderr = join(s.workDir, s.match.id, 'bridge.stderr.txt');
