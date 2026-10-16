@@ -39,5 +39,15 @@
  *
  * If a spec goes red after a change here, suspect the seed before the code —
  * and the red will be the same red every run, which is the whole point.
+ *
+ * ## Since 2026-10-16 the deal is smoothed too
+ *
+ * A room deals with hand smoothing on by default (`room/lobby.ts`'s
+ * `RoomSettings`), and smoothing reshuffles from the same seed, so the deals
+ * above describe seed 7 before it. The smoothed seed 7 gave the Wake deck
+ * Forest, Skycloud Expanse and Flooded Strand, a Compulsion it could not pay
+ * for, and creature piles deep enough to show the fan — what `play.spec.ts`'s back-out and
+ * `table-fit.spec.ts`'s pile P/T fix were found on. A match started without a
+ * room (the jvm suites' specs) still deals unsmoothed.
  */
 export const PLAY_SEED = 7;
