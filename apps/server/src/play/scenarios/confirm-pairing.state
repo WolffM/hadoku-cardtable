@@ -1,0 +1,17 @@
+# e2e/confirm-pairing.spec.ts — a yes/no pop-up only ever shows its own question. Alice (seat 0), her
+# turn-1 Main Phase 1: Aether Vial with two charge counters, Grizzly Bears (mana value 2) in hand. Its
+# ability resolves into Forge's card choice from the hand, and a choice left empty asks "Cancel
+# Search?": a yes/no straight after a selection, as the first can be straight after priority.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Grizzly Bears;Memnite
+humanbattlefield=Aether Vial|Counters:CHARGE=2;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
