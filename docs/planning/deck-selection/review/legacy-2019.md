@@ -101,8 +101,7 @@ Format in force **2019-08-30 → 2019-10-04** (Legacy does not rotate; this snap
 - Merfolks (Kleiton Lehnen) → kept Merfolk (m-boy)
 - Ub Ominitell (Eric Tortoza) → kept Show and Tell (Justin Miller)
 - Dimir Shadow (Alex Bradbury) → kept Death's Shadow (Liz Lynn)
-- Ant
-Ant (Andrew Eales) → kept Storm (Cyrus Corman-gill)
+- Ant Ant (Andrew Eales) → kept Storm (Cyrus Corman-gill)
 - Monowhite Bomberman (Mauro Aliano) → kept Bomberman (xJCloud)
 - Uw Legends Blade (Petrus Evangelista) → kept Stoneblade (tamir1313)
 - Poison (Marco Goncalves) → kept Infect (Sam Dams)

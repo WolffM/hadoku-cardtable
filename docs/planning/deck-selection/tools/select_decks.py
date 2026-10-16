@@ -82,7 +82,8 @@ def run(era, overrides, fmt='ST', keep=frozenset()):
     import html
     d = json.load(open(cache_path(fmt, era['year'])))['decks']
     for r in d:
-        for k in ('archetype', 'player', 'event_name'): r[k] = html.unescape(r[k]).replace('\xa0', ' ').strip()
+        # Whitespace collapsed too: one Legacy 2019 row's archetype is `Ant\r\nAnt`.
+        for k in ('archetype', 'player', 'event_name'): r[k] = __import__('re').sub(r'\s+', ' ', html.unescape(r[k]).replace('\xa0', ' ')).strip()
         # Older events' rows carry their page's section as a tag (`[Top 8 - T2] Gruul II`)
         # and sometimes no player at all; the list itself is real and cited by its URL.
         r['archetype'] = __import__('re').sub(r'^(?:\[[^\]]*\]\s*)+', '', r['archetype']) or r['archetype']
