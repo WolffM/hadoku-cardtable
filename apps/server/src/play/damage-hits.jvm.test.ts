@@ -10,6 +10,11 @@
  * seats must be told all three hits, from Pyroclasm, for 2, no later than the frame that buries the
  * Bears.
  *
+ * Damage to a player rides beside it as `faceDamage` (Forge's `GameEventPlayerDamaged`): the life
+ * total says how much, never who dealt it, and a creature's attack is drawn as that creature ramming
+ * its player. Flame Rift (4 to each player) must reach both seats as one hit on each player, from
+ * Flame Rift, for 4, not combat.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/damage-hits \
  *   pnpm exec vitest run apps/server/src/play/damage-hits.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -40,7 +45,11 @@ const STATE = [
 	'aigraveyard=',
 ].join('\n');
 
-type Payload = { packet?: { newObjects?: Record<string, { _id?: number; Zone?: { v?: string } }>; objectDeltas?: Record<string, { _id?: number; Zone?: { v?: string } }> }; damage?: [number, number, number][] };
+type Payload = {
+	packet?: { newObjects?: Record<string, { _id?: number; Zone?: { v?: string } }>; objectDeltas?: Record<string, { _id?: number; Zone?: { v?: string } }> };
+	damage?: [number, number, number][];
+	faceDamage?: [number, number, number, boolean][];
+};
 
 /** Each state frame `seat` was sent, in order, as its payload. */
 function payloads(s: Scenario, seat: number): Payload[] {
@@ -81,6 +90,38 @@ describe.skipIf(!available.ok)(title, () => {
 						expect(hits, `seat ${seat}: Pyroclasm hit ${target.name} for 2`).toContainEqual([target.id, pyro.id, 2]);
 					}
 					expect(frames.flatMap((p) => p.damage ?? []), `seat ${seat}: each hit told once`).toHaveLength(3);
+				}
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'Flame Rift’s hit on each player reaches both seats as faceDamage, from Flame Rift, for 4, not combat',
+		async () => {
+			if (!available.ok) return;
+			const state = STATE.replace('humanhand=Pyroclasm', 'humanhand=Flame Rift');
+			const s = await startScenario(available.config, { seed: 83, decks: DECKS, scenario: state });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === 'Flame Rift');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const rift = s.zone(0, 'Hand').find((c) => c.name === 'Flame Rift')!;
+				await castNamed(s, 0, 'Flame Rift');
+				await waitUntil(() => {
+					s.answerAsks();
+					return [0, 1].every((seat) => payloads(s, seat).flatMap((p) => p.faceDamage ?? []).length >= 2);
+				}, 'both seats to be told both hits', 20_000, s);
+				for (const seat of [0, 1]) {
+					const hits = payloads(s, seat).flatMap((p) => p.faceDamage ?? []);
+					console.log(`[damage-hits.jvm] seat ${seat}: faceDamage ${JSON.stringify(hits)}; flame rift #${rift.id}`);
+					expect(hits, `seat ${seat}: one hit on each player, each told once`).toHaveLength(2);
+					expect(new Set(hits.map(([player]) => player)).size, `seat ${seat}: two different players`).toBe(2);
+					for (const h of hits) expect(h.slice(1), `seat ${seat}: from Flame Rift, for 4, not combat`).toEqual([rift.id, 4, false]);
 				}
 			} finally {
 				await s.stop();

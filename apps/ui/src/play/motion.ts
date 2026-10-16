@@ -61,6 +61,51 @@ export function afterGlide(el: Element, done: () => void): () => void {
 export const REVEAL_BEAT_MS = 450;
 /** A hit (damage, life lost or gained) travelling from its source to the player or creature it changes — on its arc, speeding up (`live/projectile.ts`). */
 export const HIT_MS = 850;
+
+/** The damage at which every effect is at its heaviest (the operator, 2026-10-16: "let's allow it to scale up to 20"). */
+export const MAX_DAMAGE = 20;
+
+/**
+ * How much a hit of `amount` damage weighs, 0 to 1: one point is the lightest, `MAX_DAMAGE` and more
+ * the heaviest, on a square-root curve so the first few points each count and the top still climbs
+ * (a log curve flattened out near its cap, and 9 looked no lighter than 10). Every damage effect
+ * scales with it — its size, its pace and its sound (the operator, 2026-10-16: "any animation
+ * involving damage (spell or combat) must scale with how much damage it is").
+ */
+export function damagePower(amount: number): number {
+  return Math.sqrt(Math.min(1, Math.max(0, (amount - 1) / (MAX_DAMAGE - 1))));
+}
+
+/** An effect's size at `power`: four fifths for a point, about one and a half at ten, 1.9 times at twenty. */
+export function powerSize(power: number): number {
+  return 0.8 + 1.1 * power;
+}
+
+/**
+ * The pace of a move at `power`, always the same length: a weak blow sets off quickly and barely speeds
+ * up, a strong one starts slow and accelerates hard, so both arrive together and the strong one lands
+ * harder (the operator, 2026-10-16: "weaker creatures can start faster but have less accelleration.
+ * stronger creatures start slower with more accelleration. that way the time to complete the animation
+ * is still the same"). At full power it is the bolts' own tuned ease.
+ */
+export function powerEase(power: number): string {
+  // A punch (the operator: "a weak punch has more consistent speed and low accelleration. a strong punch
+  // has very fast accelleration … the initial parts of the strong punch to be slower to give it more
+  // weight"): at 0 nearly even (it sets off at half speed and ends at about one and a half), at 1 a
+  // creep that ends at about nine times its average speed — its fastest moment the blow itself.
+  const p = Math.min(1, Math.max(0, power));
+  const x1 = 0.4 + 0.52 * p;
+  const y1 = 0.2 * (1 - p);
+  const x2 = 0.75 + 0.2 * p;
+  const y2 = 0.6 - 0.05 * p;
+  return `cubic-bezier(${x1.toFixed(3)}, ${y1.toFixed(3)}, ${x2.toFixed(3)}, ${y2.toFixed(3)})`;
+}
+
+/** The way home at `power`: the same length, setting off slower the heavier, always settling gently into place. */
+export function homeEase(power: number): string {
+  const p = Math.min(1, Math.max(0, power));
+  return `cubic-bezier(${(0.3 + 0.45 * p).toFixed(3)}, 0, 0.25, 1)`;
+}
 /** Between two created permanents of one resolution. */
 export const BEAT_STAGGER_MS = 120;
 /** Between two bolts of one resolution: each slam, and the death it causes, on its own. */
@@ -122,6 +167,57 @@ export function noteLifeImpact(seq: number, at: number): void {
 /** When the view numbered `seq`'s first hit on a player lands, or null when it drew none. */
 export function lifeImpactAt(seq: number): number | null {
   return lifeImpact !== null && lifeImpact.seq === seq ? lifeImpact.at : null;
+}
+
+/*
+ * The same for the sounds of a creature's damage and of a permanent leaving: a bolt or a ram lands
+ * first, a creature crumples first (the operator, 2026-10-16, of the rams: "be careful with sound
+ * effects here").
+ */
+let cardImpact: { seq: number; at: number } | null = null;
+let exitBeat: { seq: number; at: number } | null = null;
+
+/** The view numbered `seq` drew a hit on a card that lands at `at` (epoch ms), its first. */
+export function noteCardImpact(seq: number, at: number): void {
+  cardImpact = { seq, at };
+}
+
+/** When the view numbered `seq`'s first hit on a card lands, or null when it drew none. */
+export function cardImpactAt(seq: number): number | null {
+  return cardImpact !== null && cardImpact.seq === seq ? cardImpact.at : null;
+}
+
+/** The view numbered `seq` drew a permanent leaving whose exit starts at `at` (epoch ms), its first. */
+export function noteExitBeat(seq: number, at: number): void {
+  exitBeat = { seq, at };
+}
+
+/** When the view numbered `seq`'s first permanent starts leaving, or null when none left. */
+export function exitBeatAt(seq: number): number | null {
+  return exitBeat !== null && exitBeat.seq === seq ? exitBeat.at : null;
+}
+
+/**
+ * A sound only the board's own drawing knows to play: a ram's charge and blow, a creature cracking.
+ * `at` is when (epoch ms), `intensity` how heavy (`damagePower`), `mine` whether the viewer's side did it.
+ */
+export interface BoardSound {
+  readonly role: string;
+  readonly at: number;
+  readonly intensity: number;
+  readonly mine: boolean;
+}
+
+let boardSounds: { seq: number; sounds: readonly BoardSound[] } | null = null;
+
+/** The view numbered `seq` drew these sounds' moments. */
+export function noteBoardSounds(seq: number, sounds: readonly BoardSound[]): void {
+  boardSounds = { seq, sounds };
+}
+
+/** The sounds the view numbered `seq` drew the moments of; none for any other view. */
+export function boardSoundsAt(seq: number): readonly BoardSound[] {
+  return boardSounds !== null && boardSounds.seq === seq ? boardSounds.sounds : [];
 }
 
 /** When each resolved stack item's drawn effects end (epoch ms), so its spell fades after them. */

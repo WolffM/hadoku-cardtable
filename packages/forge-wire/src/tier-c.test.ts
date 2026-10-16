@@ -27,6 +27,7 @@ import {
   LifePayingSchema,
   DamageSchema,
   DeathsSchema,
+  FaceDamageSchema,
   DECLARED_TYPE_SCHEMAS,
   DELTA_OBJECT_TYPES,
   DeltaPacketSchema,
@@ -596,6 +597,11 @@ describe('Tier C — deaths', () => {
     expect(DeathsSchema.safeParse([[101, 'DESTROYED'], [102, 'LETHAL_DAMAGE']]).success).toBe(true);
     expect(DeathsSchema.safeParse([[101, 'EXPLODED']]).success).toBe(false);
     expect(DeathsSchema.safeParse([[101]]).success).toBe(false);
+  });
+
+  it('faceDamage is [playerId, sourceId, amount, combat]', () => {
+    expect(FaceDamageSchema.safeParse([[1, 50, 3, true], [2, -1, 4, false]]).success).toBe(true);
+    expect(FaceDamageSchema.safeParse([[1, 50, 3]]).success).toBe(false);
   });
 
   it('is optional on applyDelta and carried when present', () => {

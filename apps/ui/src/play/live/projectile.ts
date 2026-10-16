@@ -10,7 +10,7 @@
  * 25–55% of the distance and always lifted a little (`arcControl`). Which side and how far come from
  * the hit's own key, so a sweeper's balls fan out instead of flying in a bundle, and a hit is drawn
  * the same way every time it is drawn. The ball runs that curve on an accelerating ease
- * (`PROJECTILE_EASING`): slow off the source, fastest at the end.
+ * (`motion.ts`'s `powerEase`): slow off the source, fastest at the end — more so for a heavier hit, in the same time.
  *
  * ## Looks
  *
@@ -24,6 +24,8 @@
  */
 
 import type { ManaColor } from '@hadoku/shared';
+
+import { powerEase, powerSize } from '../motion.ts';
 
 import './projectile.css';
 
@@ -40,15 +42,6 @@ export const PROJECTILES = {
 
 export type ProjectileLook = keyof typeof PROJECTILES;
 
-/**
- * A slow drift off the source, then a snap into the slam (the operator, 2026-10-15: "the fireball
- * should start slow and then accellerate quicker", then "even slower start and even faster
- * accelleration"), then "the final 1-3 frames are too fast. the impact should be fast but still
- * visible". The curve's end slope caps the last frames: at (0.96, 0.04) it was 24× the mean speed and
- * the final frame covered half the flight; (0.92, 0.45) ends near 7×, so the last three frames still
- * draw the ball on its way in.
- */
-export const PROJECTILE_EASING = 'cubic-bezier(0.9, 0, 0.92, 0.45)';
 /** How far behind the ball each ember of its trail runs. */
 export const EMBER_LAG_MS = 28;
 /** The impact's burst, after the ball lands. */
@@ -85,11 +78,17 @@ export function along(start: Point, control: Point, end: Point, t: number): Poin
 /** The share of the flight in which the ball forms at its source, growing to full size, before it is under way. */
 const WIND_UP = 0.3;
 
-function keyframes(start: Point, control: Point, end: Point): Keyframe[] {
+/**
+ * The flight: each sample a translate to its point on the curve, then the ball's own size. The size
+ * (`size`, bigger for a heavier hit) goes last, inside the transform: a CSS `scale` on the ball is
+ * applied before the transform and would scale the flight with it, so a heavy bolt flew past its
+ * target (the operator: "the higher the damage goes, the more it just competely misses the target").
+ */
+export function keyframes(start: Point, control: Point, end: Point, size = 1): Keyframe[] {
   return Array.from({ length: SAMPLES + 1 }, (_, i) => {
     const t = i / SAMPLES;
     const p = along(start, control, end, t);
-    const scale = 0.35 + 0.65 * Math.min(1, t / WIND_UP);
+    const scale = (0.35 + 0.65 * Math.min(1, t / WIND_UP)) * size;
     return { transform: `translate(${p.x}px, ${p.y}px) translate(-50%, -50%) scale(${scale.toFixed(3)})` };
   });
 }
@@ -99,9 +98,9 @@ function keyframes(start: Point, control: Point, end: Point): Keyframe[] {
  * Returns the ball, marked `data-hit=<key>` while it flies; it and its trail remove themselves when
  * they arrive. Without the Web Animations API (a test's DOM) the ball is placed at the end at once.
  */
-export function fly(root: HTMLElement, start: Point, end: Point, key: string, look: ProjectileLook, ms: number, hue: ManaColor | null = null): HTMLElement {
+export function fly(root: HTMLElement, start: Point, end: Point, key: string, look: ProjectileLook, ms: number, hue: ManaColor | null = null, power: number | null = null): HTMLElement {
   const control = arcControl(start, end, seedOf(key));
-  const frames = keyframes(start, control, end);
+  const frames = keyframes(start, control, end, power === null ? 1 : powerSize(power));
   const make = (ember: number): HTMLElement => {
     const el = document.createElement('div');
     el.className = ember === 0 ? 'effect-hit' : 'effect-hit-ember';
@@ -119,7 +118,7 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
     return ball;
   }
   const run = (el: HTMLElement, delay: number): void => {
-    el.animate(frames, { duration: ms, delay, easing: PROJECTILE_EASING, fill: 'both' }).finished.then(
+    el.animate(frames, { duration: ms, delay, easing: powerEase(power ?? 1), fill: 'both' }).finished.then(
       () => el.remove(),
       () => el.remove(),
     );
@@ -130,7 +129,7 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
 }
 
 /** The slam where a projectile of `look` landed: a burst and sparks at `at`, gone after {@link IMPACT_MS}. */
-export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: string, hue: ManaColor | null = null): HTMLElement {
+export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: string, hue: ManaColor | null = null, power: number | null = null): HTMLElement {
   const burst = document.createElement('div');
   burst.className = 'effect-impact';
   burst.setAttribute('aria-hidden', 'true');
@@ -139,11 +138,14 @@ export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: 
   burst.dataset.impact = key;
   burst.style.left = `${at.x}px`;
   burst.style.top = `${at.y}px`;
+  if (power !== null) burst.style.setProperty('--power-size', powerSize(power).toFixed(2));
   const seed = seedOf(key);
-  for (let i = 0; i < 6; i++) {
+  // More sparks for a heavier hit: six for a point, twelve at ten.
+  const sparks = 6 + Math.round(6 * (power ?? 0));
+  for (let i = 0; i < sparks; i++) {
     const spark = document.createElement('span');
     spark.className = 'effect-impact__spark';
-    spark.style.setProperty('--angle', `${Math.round((i / 6) * 360 + seed * 60)}deg`);
+    spark.style.setProperty('--angle', `${Math.round((i / sparks) * 360 + seed * 60)}deg`);
     burst.append(spark);
   }
   root.append(burst);

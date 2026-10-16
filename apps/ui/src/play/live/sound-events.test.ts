@@ -6,6 +6,7 @@ import { toBoardView, type BoardCard, type BoardPlayer, type BoardView, type Sta
 import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
 import { cardStateKey, deltaKey, WireType, type WireObject } from '../wire.ts';
+import { damagePower } from '../motion.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
 import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
 
@@ -355,13 +356,13 @@ describe('deriveSoundEvents', () => {
     ]);
   });
 
-  it('draws, damage to a player and life gain read off the player', () => {
+  it('draws, damage to a player and life gain read off the player; the damage as heavy as the life it took', () => {
     const before = view(1, { handCount: 5, libraryCount: 30, life: 20 }, { life: 20 });
     const after = view(2, { handCount: 6, libraryCount: 29, life: 23 }, { life: 17 });
     expect(deriveSoundEvents(before, after)).toEqual([
       { role: 'g.draw', seat: 'me' },
       { role: 'g.lifegain', seat: 'me' },
-      { role: 'g.damage-player', seat: 'me' },
+      { role: 'g.damage-player', seat: 'me', intensity: damagePower(3) },
     ]);
   });
 

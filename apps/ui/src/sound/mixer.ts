@@ -156,7 +156,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     p.linearRampToValueAtTime(1, now + Math.min(seconds, 1.2) + 0.4);
   };
 
-  const start = (file: string, gain: number, ducks: boolean, reverse = false): void => {
+  const start = (file: string, gain: number, ducks: boolean, reverse = false, rate = 1): void => {
     const ac = context();
     if (ac === null) return;
     const asked = performance.now();
@@ -168,6 +168,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
       if (buf === null || master === null || duckNode === null || live >= VOICE_CAP) return;
       const src = ac.createBufferSource();
       src.buffer = buf;
+      if (rate !== 1) src.playbackRate.value = rate;
       const env = ac.createGain();
       env.gain.value = Math.max(gain, 0);
       src.connect(env);
@@ -203,7 +204,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     settings: DEFAULT_MIX,
     play(event, nowMs = performance.now()) {
       const plan = planner.plan(event, nowMs, mixer.settings);
-      for (const v of plan.voices) start(v.file, v.gain, v.duck, v.reverse === true);
+      for (const v of plan.voices) start(v.file, v.gain, v.duck, v.reverse === true, v.rate ?? 1);
       return plan;
     },
     playFile(file, gain = 1) {

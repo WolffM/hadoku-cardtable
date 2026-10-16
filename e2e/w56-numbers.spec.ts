@@ -197,15 +197,17 @@ test(
       // Start watching BEFORE passing the held priority, so the window combat damage opens in
       // (a turn-based action, no priority stop of its own) is not missed. `expect.poll` itself
       // resolves to `undefined`, so the value is captured from inside the polled function.
-      // A creature's hit is the impact alone, no number (the operator, 2026-10-15: "we dont have to show a
-      // number, just the impact would be fine"); combat damage has no projectile, only the slam.
+      // A creature's hit is the blow alone, no number (the operator, 2026-10-15: "we dont have to show a
+      // number, just the impact would be fine"): since 2026-10-16 the blow is a crash (`live/crash.ts`).
+      // Paced, the attacker rams its blocker and the crash is its ram's (`crash:<attacker>`); e2e runs in
+      // Fast Mode, where nothing rams and the crash lands on the blocker as Forge's hit (`card:<blocker>:…`).
       type ImpactInfo = { key: string; box: { x: number; y: number }; numbers: { text: string; x: number; y: number }[] };
       let captured: ImpactInfo | null = null;
       const watch = expect
         .poll(
           async () => {
-            const n = await alice.page.evaluate(() => {
-              const el = document.querySelector<HTMLElement>('.effect-impact');
+            const n = await alice.page.evaluate(([attacker, blocker]) => {
+              const el = document.querySelector<HTMLElement>(`.effect-crash[data-crash="crash:${attacker}"], .effect-crash[data-crash^="card:${blocker}:"]`);
               if (el === null) return null;
               const r = el.getBoundingClientRect();
               // Every floating number on the board: the unblocked attacker's hit on alice's life is one of them, rightly.
@@ -213,12 +215,12 @@ test(
                 const b = n.getBoundingClientRect();
                 return { text: n.textContent ?? '', x: b.x + b.width / 2, y: b.y + b.height / 2 };
               });
-              return { key: el.dataset.impact ?? '', box: { x: r.x, y: r.y }, numbers };
-            });
+              return { key: el.dataset.crash ?? '', box: { x: r.x, y: r.y }, numbers };
+            }, [attackerA, blockerX] as const);
             if (n !== null) captured = n;
             return n !== null;
           },
-          { timeout: 15_000, intervals: [30], message: 'the impact lands on the blocker' },
+          { timeout: 15_000, intervals: [30], message: 'the attacker’s blow crashes into the blocker' },
         )
         .toBe(true);
       await enabledOk(alice.page).click();
@@ -229,7 +231,7 @@ test(
       await watch;
       const impact: ImpactInfo | null = captured;
       console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'blocked-damage', impact })}`);
-      expect(impact!.key, 'Forge’s own hit, on Wall of Stone').toMatch(new RegExp(`^card:${blockerX}:`));
+      expect(impact!.key, 'the blow on Wall of Stone: A’s ram, or Forge’s own hit in Fast Mode').toMatch(new RegExp(`^(crash:${attackerA}|card:${blockerX}:)`));
       await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'the blocker survived — the damage-stays case, not the dying one').toHaveCount(1);
       const blockerBox = (await alice.page.locator(`[data-board-card="${blockerX}"]`).boundingBox())!;
       const onBlocker = impact!.numbers.filter(

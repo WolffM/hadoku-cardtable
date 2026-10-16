@@ -1,0 +1,47 @@
+{
+ "note": "Round 9 (2026-10-16): candidates for the three combat sounds the rams need (the operator: \"generate sound candidates for the crash, crumble and charge\"). One literal real-world source per prompt (round 6's finding: field recordings and foley get placed, templates and bells do not). Each plays louder and lower for a heavier hit (play/motion.ts's damagePower), so a take should be a clean, mid-weight hit that still reads when pitched down.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+ "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, chime, chimes, gong, bell, glockenspiel, music, melody, song, speech, voice, vocals, harsh, shrill, explosion, fire, laser, sci-fi",
+ "seconds": 2.0,
+ "sounds": {
+  "g.crash": {
+   "group": "Round 9",
+   "name": "Creatures collide",
+   "section": "Moments",
+   "seconds": 1.5,
+   "prompts": [
+    "A heavy wooden shield slammed hard against another shield, one deep wooden crash",
+    "A large rock dropped onto packed dirt, a deep heavy thud with a little gravel scattering",
+    "A sledgehammer hitting a thick wooden post once, a deep solid impact",
+    "Two heavy armoured bodies colliding in a tackle, a dull thump with a rattle of armour",
+    "A heavy sandbag dropped onto a stone floor, a deep dusty thud"
+   ]
+  },
+  "g.crumble": {
+   "group": "Round 9",
+   "name": "Cracks and crumbles",
+   "section": "Moments",
+   "seconds": 2.5,
+   "prompts": [
+    "A clay pot cracking and then crumbling apart, a sharp crack followed by pieces and sand trickling down",
+    "A plaster wall cracking and crumbling, a short crack then small chips and dust falling",
+    "A small stone statue cracking and collapsing into rubble, a crack then gravel tumbling",
+    "A dry brick snapping in two and crumbling, a crisp crack then a short trickle of dust",
+    "Dry earth cracking and caving in, a crack then dirt and pebbles pouring down briefly"
+   ]
+  },
+  "g.charge": {
+   "group": "Round 9",
+   "name": "Charge at a player",
+   "section": "Moments",
+   "seconds": 1.5,
+   "prompts": [
+    "A heavy wooden staff swung fast through the air, one deep whoosh",
+    "A horse breaking into a short gallop on dirt, a few quick heavy hoofbeats rushing forward",
+    "A heavy cloak whipping through the air in one fast swing",
+    "A large body lunging forward, a fast rush of air and the scrape of a boot on stone",
+    "A heavy chain swung once through the air, a quick deep whoosh"
+   ]
+  }
+ }
+}

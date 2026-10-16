@@ -1639,7 +1639,7 @@ public final class PlayBridge {
 
         /**
          * The damage and deaths since this seat's last state frame, added to {@code payload} as
-         * {@code damage} and {@code deaths} when there are any. A snapshot ({@code setGameView})
+         * {@code damage}, {@code deaths} and {@code faceDamage} when there are any. A snapshot ({@code setGameView})
          * passes {@code false}: it skips past them, since what it draws is the board after.
          */
         void effectsSince(final JsonObject payload, final boolean send) {
@@ -3660,12 +3660,16 @@ public final class PlayBridge {
          * fork's, pin {@code b6b2deff}) as {@code [cardId, cause]}, cause one of its {@code Cause}
          * names — the operator: "forge should tell the cause". Read by name and by reflection, so this
          * file still compiles against a jar from before that event, where none ever comes.</li>
+         * <li>{@code faceDamage}: every point of damage dealt to a player ({@code GameEventPlayerDamaged},
+         * {@code Player.java:703}) as {@code [playerId, sourceId, amount, combat]} — the life total says
+         * how much was lost, never who dealt it, and a creature's attack is drawn as that creature
+         * ramming its player (the operator, 2026-10-16).</li>
          * </ul>
          */
         static final class EffectJournal {
             static final EffectJournal INSTANCE = new EffectJournal();
             static final int KEEP = 256;
-            private record Entry(long seq, JsonArray damage, JsonArray death) {}
+            private record Entry(long seq, JsonArray damage, JsonArray death, JsonArray face) {}
             private final java.util.ArrayDeque<Entry> entries = new java.util.ArrayDeque<>();
             private long next = 1;
 
@@ -3675,8 +3679,8 @@ public final class PlayBridge {
                 return this;
             }
 
-            private synchronized void add(final JsonArray damage, final JsonArray death) {
-                entries.addLast(new Entry(next++, damage, death));
+            private synchronized void add(final JsonArray damage, final JsonArray death, final JsonArray face) {
+                entries.addLast(new Entry(next++, damage, death, face));
                 while (entries.size() > KEEP) { entries.removeFirst(); }
             }
 
@@ -3687,7 +3691,18 @@ public final class PlayBridge {
                 hit.add(ev.card().getId());
                 hit.add(ev.source() == null ? -1 : ev.source().getId());
                 hit.add(ev.amount());
-                add(hit, null);
+                add(hit, null, null);
+            }
+
+            @Subscribe
+            public void playerDamaged(final forge.game.event.GameEventPlayerDamaged ev) {
+                if (ev.target() == null || ev.amount() <= 0) { return; }
+                final JsonArray hit = new JsonArray();
+                hit.add(ev.target().getId());
+                hit.add(ev.source() == null ? -1 : ev.source().getId());
+                hit.add(ev.amount());
+                hit.add(ev.combat());
+                add(null, null, hit);
             }
 
             /** Every event, so {@code GameEventCardDied} is heard without naming its class (see above). */
@@ -3701,7 +3716,7 @@ public final class PlayBridge {
                     final JsonArray death = new JsonArray();
                     death.add(view.getId());
                     death.add(cause.toString());
-                    add(null, death);
+                    add(null, death, null);
                 } catch (final ReflectiveOperationException e) {
                     System.err.println("[bridge] GameEventCardDied: could not read it (" + e + ")");
                 }
@@ -3712,17 +3727,20 @@ public final class PlayBridge {
                 return next;
             }
 
-            /** Every entry numbered at or after {@code from}, oldest first, into {@code payload}'s {@code damage} and {@code deaths}. */
+            /** Every entry numbered at or after {@code from}, oldest first, into {@code payload}'s {@code damage}, {@code deaths} and {@code faceDamage}. */
             synchronized void since(final long from, final JsonObject payload) {
                 final JsonArray damage = new JsonArray();
                 final JsonArray deaths = new JsonArray();
+                final JsonArray faces = new JsonArray();
                 for (final Entry e : entries) {
                     if (e.seq() < from) { continue; }
                     if (e.damage() != null) { damage.add(e.damage()); }
                     if (e.death() != null) { deaths.add(e.death()); }
+                    if (e.face() != null) { faces.add(e.face()); }
                 }
                 if (!damage.isEmpty()) { payload.add("damage", damage); }
                 if (!deaths.isEmpty()) { payload.add("deaths", deaths); }
+                if (!faces.isEmpty()) { payload.add("faceDamage", faces); }
             }
         }
 

@@ -286,7 +286,7 @@ import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { hoverControl, isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
-import { boardBusyUntil, lifeImpactAt } from '../motion.ts';
+import { boardBusyUntil, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt } from '../motion.ts';
 import {
   abortAsk,
   answerAsk,
@@ -1842,19 +1842,40 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * ready at: Rematch and Back to room are
  * disabled and Main menu goes straight to the lobby.
  */
+/** The sounds of a permanent leaving the battlefield: each waits for the first exit drawn. */
+const EXIT_ROLES: ReadonlySet<string> = new Set(['g.dies', 'g.destroy', 'g.exile', 'g.bounce']);
+
 /**
  * The sounds a hit is the cause of wait for the hit (`motion.ts`'s beat clock, written by `numbers.ts`
- * in the same commit): a life total's, until the first hit on a player lands; the game's end, until
- * everything the board is drawing has played.
+ * in the same commit): a life total's, until the first hit on a player lands; a creature's damage,
+ * until the first hit on a card lands; a permanent leaving, until the first exit starts; the game's
+ * end, until everything the board is drawing has played.
  */
 function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): DelayedSoundEvent[] {
   const now = Date.now();
   const life = lifeImpactAt(seq);
+  const card = cardImpactAt(seq);
+  const exit = exitBeatAt(seq);
   const busy = boardBusyUntil();
   return events.map((e) => {
-    const until = e.role === 'g.damage-player' || e.role === 'g.lifegain' ? life : e.role === 'g.win' || e.role === 'g.lose' ? busy : null;
+    const until =
+      e.role === 'g.damage-player' || e.role === 'g.lifegain'
+        ? life
+        : e.role === 'g.damage'
+          ? card
+          : EXIT_ROLES.has(e.role)
+            ? exit
+            : e.role === 'g.win' || e.role === 'g.lose'
+              ? busy
+              : null;
     return until === null || until <= now ? e : { ...e, delayMs: Math.max(e.delayMs ?? 0, until - now) };
   });
+}
+
+/** The sounds only the board's drawing knows the moment of (a ram's charge and blow, a creature cracking), each on its beat. */
+function fromTheBoard(seq: number): DelayedSoundEvent[] {
+  const now = Date.now();
+  return boardSoundsAt(seq).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, delayMs: Math.max(0, s.at - now) }));
 }
 
 /**
@@ -2134,10 +2155,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       const phase = all.find((e) => e.role === 'g.phase');
       if (ending || (prev !== null && soundView.turn !== prev.turn)) phaseSound.drop();
       if (phase !== undefined && !ending) phaseSound.enter(soundView.phase ?? '', phase, openWindows(match));
-      const events = afterTheHits(
-        all.filter((e) => e.role !== 'g.phase'),
-        soundView.seq,
-      );
+      const events = [
+        ...afterTheHits(
+          all.filter((e) => e.role !== 'g.phase'),
+          soundView.seq,
+        ),
+        ...fromTheBoard(soundView.seq),
+      ];
       playSoundEvents(events);
       reportSound(match, 'view', events, { prevSeq: prev?.seq ?? -1 });
     } catch (err) {

@@ -186,11 +186,14 @@ export type Damage = readonly (readonly [number, number, number])[];
 /** `PlayBridge.java`'s `deaths` — `packages/forge-wire/src/tier-c.ts`'s `DeathsSchema`: `[cardId, cause]`. */
 export type Deaths = readonly (readonly [number, string])[];
 
+/** `PlayBridge.java`'s `faceDamage` — `packages/forge-wire/src/tier-c.ts`'s `FaceDamageSchema`: `[playerId, sourceId, amount, combat]`, sourceId -1 for none. */
+export type FaceDamage = readonly (readonly [number, number, number, boolean])[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
 	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet; damage?: Damage; deaths?: Deaths } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -843,6 +846,13 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			: { damage: seen.map(([target, source, amount]) => [target, source >= 0 && cardVisibility(raw, zones, source, who) !== 'hidden' ? source : -1, amount] as const) };
 	}
 
+	/** The damage dealt to players — every player is public — with a source this seat may not see named as none (-1). */
+	function faceDamageSeen(hits: FaceDamage | undefined): { faceDamage?: FaceDamage } {
+		if (hits === undefined || hits.length === 0) return {};
+		const zones = indexZones(raw);
+		return { faceDamage: hits.map(([player, source, amount, combat]) => [player, source >= 0 && cardVisibility(raw, zones, source, who) !== 'hidden' ? source : -1, amount, combat] as const) };
+	}
+
 	/** Why each permanent died, for the cards this seat is sent at all: a graveyard is public, so in practice every one. */
 	function deathsSeen(deaths: Deaths | undefined): { deaths?: Deaths } {
 		if (deaths === undefined) return {};
@@ -922,6 +932,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...conditionMetSeen(frame.payload.conditionMet),
 							...damageSeen(frame.payload.damage),
 							...deathsSeen(frame.payload.deaths),
+							...faceDamageSeen(frame.payload.faceDamage),
 						},
 					};
 			}

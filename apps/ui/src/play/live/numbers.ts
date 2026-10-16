@@ -89,9 +89,25 @@
 
 import type { ManaColor } from '@hadoku/shared';
 
-import type { BoardView, DamageHit, StackEntry } from '../adapter.ts';
-import { BEAT_STAGGER_MS, BOLT_STAGGER_MS, GLIDE_MS, HIT_MS, lastRevealBeat, noteBoardBusy, noteLifeImpact, noteResolutionEffects, REVEAL_BEAT_MS } from '../motion.ts';
-import { DEPARTURE_ATTR, departureCause, departuresOf, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import type { BoardView, DamageHit, FaceHit, StackEntry } from '../adapter.ts';
+import {
+  BEAT_STAGGER_MS,
+  BOLT_STAGGER_MS,
+  damagePower,
+  GLIDE_MS,
+  HIT_MS,
+  lastRevealBeat,
+  noteBoardBusy,
+  noteBoardSounds,
+  noteCardImpact,
+  noteExitBeat,
+  noteLifeImpact,
+  noteResolutionEffects,
+  REVEAL_BEAT_MS,
+} from '../motion.ts';
+import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
+import { crash, shake } from './crash.ts';
 import { fly, impact } from './projectile.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
@@ -146,11 +162,87 @@ export interface ViewDiff {
   readonly arrivals: readonly Arrival[];
   /** The damage Forge dealt since the last view (`BoardView.hits` above the last `seq` seen), to a card that was or is on a battlefield. */
   readonly hits: readonly DamageHit[];
+  /** The damage Forge dealt to players since the last view (`BoardView.faceHits` above the last `seq` seen). */
+  readonly faceHits: readonly FaceHit[];
   /** The permanents that left every battlefield in this view (`departures.ts`). */
   readonly departures: readonly Departure[];
 }
 
-const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], departures: [] };
+const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] };
+
+/**
+ * How a creature's ram ends, from who dies of the fight (`ram.ts`'s `RamEnd`): both, it crumples into
+ * the other; only it, it is blasted away; only the other, it wins and holds the blow; neither, a bounce.
+ */
+export function ramEnd(kind: RamKind, dies: boolean, struckDies: boolean): RamEnd {
+  if (kind === 'charge') return 'charge';
+  if (dies) return struckDies ? 'crumple' : 'blasted';
+  return struckDies ? 'win' : 'bounce';
+}
+
+/** One creature ramming what it hit (`ram.ts`): a card, or a player's avatar. */
+export interface RamPlan {
+  readonly sourceId: number;
+  readonly kind: RamKind;
+  readonly target: { readonly cardId: number } | { readonly playerId: number };
+  readonly delayMs: number;
+  /** The most damage it dealt to any one thing, and how hard that hits (`damagePower`). */
+  readonly amount: number;
+  readonly power: number;
+}
+
+/**
+ * Who rams what, and when each blow lands (the operator, 2026-10-16: creatures "'ram' eachother and
+ * the player avatar"). Every hit whose source is a creature drawn on a battlefield (`canRam`) — on a
+ * card, or on a player in combat — is that creature's ram; a creature that hit several things (a
+ * trampler, its blocker and the player) rams the first card it hit, else the player, and every one of
+ * its hits lands as it strikes. Two creatures that hit each other first meet halfway, at one time.
+ * Rams go one after another, `RAM_STAGGER_MS` apart, in the order Forge dealt the damage; each as hard
+ * as its heaviest hit, and two that meet as hard as the heavier of them, so they arrive together. `hitAt`: when
+ * each hit (by `seq`) lands; a hit not in it has no ram and lands at once.
+ */
+export function planRams(hits: readonly DamageHit[], faceHits: readonly FaceHit[], canRam: (cardId: number) => boolean): { rams: RamPlan[]; hitAt: Map<number, number> } {
+  const groups = new Map<number, { cards: DamageHit[]; faces: FaceHit[] }>();
+  const group = (sourceId: number): { cards: DamageHit[]; faces: FaceHit[] } => {
+    let g = groups.get(sourceId);
+    if (g === undefined) groups.set(sourceId, (g = { cards: [], faces: [] }));
+    return g;
+  };
+  const all = [...hits.map((h) => ({ seq: h.seq, card: h })), ...faceHits.filter((h) => h.combat).map((h) => ({ seq: h.seq, face: h }))].sort((a, b) => a.seq - b.seq);
+  for (const h of all) {
+    const sourceId = 'card' in h ? h.card.sourceId : h.face!.sourceId;
+    if (sourceId === null || !canRam(sourceId)) continue;
+    if ('card' in h) group(sourceId).cards.push(h.card);
+    else group(sourceId).faces.push(h.face!);
+  }
+  const rams: RamPlan[] = [];
+  const hitAt = new Map<number, number>();
+  const planned = new Set<number>();
+  let slot = 0;
+  const most = (sourceId: number): number => Math.max(...[...groups.get(sourceId)!.cards, ...groups.get(sourceId)!.faces].map((h) => h.amount));
+  const heaviest = (sourceId: number): number => damagePower(most(sourceId));
+  const strikes = (sourceId: number, kind: RamKind, delayMs: number, power = heaviest(sourceId)): void => {
+    const g = groups.get(sourceId)!;
+    const first = g.cards[0];
+    const amount = most(sourceId);
+    rams.push({ sourceId, kind, target: first !== undefined ? { cardId: first.cardId } : { playerId: g.faces[0]!.playerId }, delayMs, amount, power });
+    for (const h of [...g.cards, ...g.faces]) hitAt.set(h.seq, delayMs + contactMs(kind));
+    planned.add(sourceId);
+  };
+  for (const [sourceId, g] of groups) {
+    if (planned.has(sourceId)) continue;
+    const delayMs = slot++ * RAM_STAGGER_MS;
+    const target = g.cards[0]?.cardId;
+    const back = target === undefined ? undefined : groups.get(target)?.cards[0]?.cardId;
+    if (target !== undefined && back === sourceId && !planned.has(target)) {
+      // Two that meet arrive together: both at the pace of the heavier blow.
+      const power = Math.max(heaviest(sourceId), heaviest(target));
+      strikes(sourceId, 'meet', delayMs, power);
+      strikes(target, 'meet', delayMs, power);
+    } else strikes(sourceId, target === undefined ? 'charge' : 'strike', delayMs);
+  }
+  return { rams, hitAt };
+}
 
 function battlefieldDamage(view: BoardView): Map<number, { damage: number; ownerId: number }> {
   const out = new Map<number, { damage: number; ownerId: number }>();
@@ -211,7 +303,9 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
   const lastHit = Math.max(0, ...(prev.hits ?? []).map((h) => h.seq));
   const nowOnField = new Set(nextDamage.keys());
   const hits = (next.hits ?? []).filter((h) => h.seq > lastHit && (prevDamage.has(h.cardId) || nowOnField.has(h.cardId)));
-  return { life, damage, resolved, arrivals, hits, departures: departuresOf(prev, next) };
+  const lastFaceHit = Math.max(0, ...(prev.faceHits ?? []).map((h) => h.seq));
+  const faceHits = (next.faceHits ?? []).filter((h) => h.seq > lastFaceHit);
+  return { life, damage, resolved, arrivals, hits, faceHits, departures: departuresOf(prev, next) };
 }
 
 /* ── pure: stacking (simultaneous numbers at one anchor) ─────────────── */
@@ -307,6 +401,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
   const fast = (): boolean => host.fastMode?.() ?? false;
+  /** Each ram drawn, to put back at once on dispose. */
+  const rams = new Set<() => void>();
+  /** Each shake of the table, likewise. */
+  const shakes = new Set<() => void>();
 
   function overlay(): HTMLElement | null {
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
@@ -435,7 +533,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   /** One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn. */
-  function hit(from: Boxed, to: Element, key: string, colour: NumberColour, delayMs: number, land: () => void, hue: ManaColor | null = null): void {
+  function hit(from: Boxed, to: Element, key: string, colour: NumberColour, delayMs: number, land: () => void, hue: ManaColor | null, amount: number): void {
+    const power = damagePower(amount);
+    const ms = HIT_MS;
     const root = overlay();
     if (root === null || reduced()) {
       atBeat(() => {
@@ -451,21 +551,28 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const leavingId = to.getAttribute(LEAVING_GAP_ATTR);
       const end = centreIn((leavingId === null ? null : root.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"]`)) ?? to, box);
       const look = colour === 'danger' ? 'bolt' : 'heal';
-      const ball = fly(root, centreIn(from, box), end, key, look, HIT_MS, hue);
+      const ball = fly(root, centreIn(from, box), end, key, look, ms, hue, power);
       schedule(() => {
         ball.remove();
-        impact(root, end, look, key, hue);
+        impact(root, end, look, key, hue, power);
+        // A bolt shakes the table as a blow of its damage does: barely until it is heavy (`crash.ts`).
+        if (look === 'bolt') shakes.add(shake(canvas, amount, key));
         flash(to, colour);
         land();
-      }, HIT_MS);
+      }, ms);
     }, delayMs);
   }
 
-  /** The impact alone, where `to` is — a hit with no projectile (combat damage). */
-  function slam(to: Element, key: string, hue: ManaColor | null): void {
+  /**
+   * A blow with no projectile (combat damage): a crash where it lands — dust and rocks, not fire — and
+   * the table shaking, both as heavy as the damage (`crash.ts`). At `at` when given (where two cards
+   * meet), else on `to`.
+   */
+  function bang(to: Element, key: string, amount: number, at: Point | null = null): void {
     const root = overlay();
     if (root === null || reduced()) return;
-    impact(root, centreIn(to, root.getBoundingClientRect()), 'bolt', key, hue);
+    crash(root, at ?? centreIn(to, root.getBoundingClientRect()), damagePower(amount), key);
+    shakes.add(shake(canvas, amount, key));
   }
 
   /** A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in place when there is nowhere to come from. */
@@ -527,16 +634,32 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     /** When the last beat drawn so far is over. */
     let endMs = 0;
     const leaving = new Map(diff.departures.map((d) => [d.cardId, d]));
-    /** Each permanent's first colour — on a battlefield now, or just gone from one — for a hit with no spell behind it (combat). */
-    const hueOn = new Map<number, ManaColor>();
-    for (const card of [...(prevView?.players.flatMap((p) => p.battlefield) ?? []), ...diff.departures.map((d) => d.card)]) {
-      const first = card.card.colors[0];
-      if (first !== undefined) hueOn.set(card.id, first);
-    }
     /** When the hit on each card that is leaving lands: it goes then (the operator: "die when they get impacted"). */
     const fatalLand = new Map<number, number>();
     /** When the first hit on a player lands, this view: its life total's sound waits for it. */
     let firstLifeLand: number | null = null;
+    /** When the first hit on a card lands, and when the first permanent starts leaving: the damage and death sounds wait for them. */
+    let firstCardImpact: number | null = null;
+    let firstExit: number | null = null;
+    /** The sounds only this drawing knows the moment of (a charge, a blow, a crack), in ms from now. */
+    const sounds: { role: string; ms: number; intensity: number; mine: boolean }[] = [];
+    /** Whether `cardId` stood on the viewer's side of the table: whose sound it is. */
+    const viewers = (cardId: number): boolean =>
+      prevView?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === cardId)) === true ||
+      diff.departures.some((d) => d.cardId === cardId && prevView?.players.find((p) => p.id === d.playerId)?.isViewer === true);
+
+    /*
+     * Combat: each creature rams what it hit (`ram.ts`, `planRams`), and what it hit is hit — the
+     * impact, a death, a player's life — as it strikes. Outside a resolution only: what resolved draws
+     * its bolts instead. Fast Mode and reduced motion draw no ram, and every hit lands at once.
+     */
+    const combat = origin === null && !fast() && !reduced() && overlay() !== null ? planRams(diff.hits, diff.faceHits, (id) => leaving.has(id) || battlefieldCard(id) !== null) : null;
+    /** When the first ram at each player strikes, this view. */
+    const charged = new Map<number, number>();
+    for (const h of diff.faceHits) {
+      const at = combat?.hitAt.get(h.seq);
+      if (at !== undefined) charged.set(h.playerId, Math.min(charged.get(h.playerId) ?? at, at));
+    }
 
     for (const change of diff.life) {
       const face = faceEl(change.playerId);
@@ -545,17 +668,24 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         animateLifeCounter(change.playerId, change.from, change.to);
         spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: change.to - change.from });
       };
+      // Until the hit lands, the counter still reads what it read before the resolution (or the ram).
+      const span = face.querySelector<HTMLElement>('[data-testid="life"]');
+      const rammedAt = charged.get(change.playerId);
+      if (rammedAt !== undefined) {
+        if (span !== null) span.textContent = String(change.from);
+        if (firstLifeLand === null || rammedAt < firstLifeLand) firstLifeLand = rammedAt;
+        atBeat(land, rammedAt);
+        continue;
+      }
       if (origin === null || item === undefined) {
         land();
         continue;
       }
-      // Until the hit lands, the counter still reads what it read before the resolution.
-      const span = face.querySelector<HTMLElement>('[data-testid="life"]');
       if (span !== null) span.textContent = String(change.from);
       const delay = nextBolt();
       endMs = Math.max(endMs, delay + HIT_MS);
       if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
-      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue);
+      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue, Math.abs(change.to - change.from));
     }
     /*
      * Forge's own hits (`PlayBridge.java`'s `damage`): a creature that took lethal damage is already in
@@ -569,15 +699,19 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // No number: the slam is the hit (the operator, 2026-10-15) — what is left of its toughness is the badge's.
       const land = (): void => flash(target, 'danger');
       const key = `card:${h.cardId}:${h.seq}`;
-      // A projectile only from what resolved: combat damage is the impact alone, never a ball between two creatures.
-      const delay = origin === null ? 0 : nextBolt();
+      // A projectile only from what resolved: combat damage is a crash, as its rammer strikes.
+      const delay = origin === null ? (combat?.hitAt.get(h.seq) ?? 0) : nextBolt();
       const landsAt = origin === null ? delay : delay + HIT_MS;
       if (departure !== undefined) fatalLand.set(h.cardId, Math.max(fatalLand.get(h.cardId) ?? 0, landsAt));
+      if (firstCardImpact === null || landsAt < firstCardImpact) firstCardImpact = landsAt;
       endMs = Math.max(endMs, landsAt);
       if (origin === null) {
-        slam(target, key, h.sourceId === null ? null : (hueOn.get(h.sourceId) ?? null));
-        land();
-      } else hit(origin, target, key, 'danger', delay, land, spellHue);
+        atBeat(() => {
+          // A rammed hit's crash is its ram's (below): one per blow, where the two cards meet.
+          if (!combat?.hitAt.has(h.seq)) bang(target, key, h.amount);
+          land();
+        }, delay);
+      } else hit(origin, target, key, 'danger', delay, land, spellHue, h.amount);
     }
     let fromMaker = 0;
     for (const arrival of diff.arrivals) {
@@ -597,13 +731,76 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const cause = said !== undefined ? departureCause(said) : fatalLand.has(dep.cardId) ? 'damage' : undefined;
       const departure: Departure = { ...dep, ...(cause === undefined ? {} : { cause }), ...(spellHue === null ? {} : { hue: spellHue }) };
       const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
+      if (firstExit === null || delay < firstExit) firstExit = delay;
       endMs = Math.max(endMs, delay + exitMs(departure));
       host.leave?.(departure, delay);
+      if (exitMotionFor(departure) === 'shatter') {
+        const killedBy = Math.max(0, ...diff.hits.filter((h) => h.cardId === departure.cardId).map((h) => h.amount));
+        sounds.push({ role: 'g.crumble', ms: delay, intensity: damagePower(killedBy), mine: viewers(departure.cardId) });
+      }
     }
+    // After the departures: a creature that died in the fight rams as its departure's stand-in.
+    const root = overlay();
+    const rammers = new Set((combat?.rams ?? []).map((r) => r.sourceId));
+    // The chargers form up together, at the first one's start, in a fan around the player each attacks.
+    const chargers = (combat?.rams ?? []).filter((r) => r.kind === 'charge');
+    const chargeStart = chargers.length === 0 ? 0 : Math.min(...chargers.map((r) => r.delayMs));
+    const fanned = new Map<number, Point>();
+    if (root !== null) {
+      for (const playerId of new Set(chargers.map((r) => (r.target as { playerId: number }).playerId))) {
+        const face = faceEl(playerId);
+        const pack = chargers.filter((r) => (r.target as { playerId: number }).playerId === playerId);
+        const boxes = pack.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(r.sourceId));
+        if (face === null || boxes.some((b) => b === null)) continue;
+        const at = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(face, root), `fan:${playerId}`);
+        pack.forEach((r, i) => fanned.set(r.sourceId, at[i]!));
+      }
+    }
+    const keep = (cancel: () => void, untilMs: number): void => {
+      rams.add(cancel);
+      schedule(() => rams.delete(cancel), untilMs);
+      endMs = Math.max(endMs, untilMs);
+    };
+    for (const plan of combat?.rams ?? []) {
+      const source = root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${plan.sourceId}"]`) ?? battlefieldCard(plan.sourceId);
+      const struck = 'cardId' in plan.target ? plan.target.cardId : null;
+      const target =
+        struck === null
+          ? faceEl((plan.target as { playerId: number }).playerId)
+          : (root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${struck}"]`) ?? hitTarget(struck));
+      if (root === null || source === null || target === null) continue;
+      const end = ramEnd(plan.kind, leaving.has(plan.sourceId), struck !== null && leaving.has(struck));
+      const from = boxIn(source, root);
+      const to = boxIn(target, root);
+      // The blow: one crash per ram (a pair that meets is one blow), where the cards meet, or on the avatar.
+      const partnerFirst = plan.kind === 'meet' && (combat?.rams ?? []).indexOf(plan) > (combat?.rams ?? []).findIndex((r) => r.sourceId === struck);
+      if (!partnerFirst) {
+        const strike = strikeOffset(from, to, plan.kind);
+        const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
+        const at = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
+        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at), plan.delayMs + contactMs(plan.kind));
+        sounds.push({ role: 'g.crash', ms: plan.delayMs + contactMs(plan.kind), intensity: plan.power, mine: viewers(plan.sourceId) });
+      }
+      if (plan.kind === 'charge') sounds.push({ role: 'g.charge', ms: plan.delayMs + ALIGN_MS, intensity: plan.power, mine: viewers(plan.sourceId) });
+      // Blasted as hard as what struck it hit: its partner's power when they met.
+      const struckBy = (combat?.rams ?? []).find((r) => 'cardId' in r.target && r.target.cardId === plan.sourceId)?.power ?? plan.power;
+      keep(
+        ram(root, source, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null }),
+        plan.delayMs + ramMs(plan.kind, end),
+      );
+      // A creature killed by a blow it did not ram back into is blasted away from the one that struck it.
+      if (struck !== null && !rammers.has(struck) && leaving.has(struck)) {
+        const contact = plan.delayMs + contactMs(plan.kind);
+        keep(blast(root, target, from, `blast:${struck}`, contact, plan.power), contact + BLAST_MS);
+      }
+    }
+    if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, Date.now() + firstCardImpact);
+    if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine })));
+    if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
     if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
     if (endMs > 0) noteBoardBusy(Date.now() + endMs);
     if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
-    if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0) {
+    if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
       host.report?.({
         what: 'beats',
         resolved: item?.id ?? -1,
@@ -613,6 +810,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         from: reveal !== null ? 'reveal' : origin === null ? 'none' : 'source',
         hits: bolt,
         forgeHits: diff.hits.length,
+        rams: combat?.rams.length ?? 0,
         arrivals: diff.arrivals.length,
         fromMaker,
         departures: diff.departures.length,
@@ -650,6 +848,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       live = false;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      for (const cancel of rams) cancel();
+      rams.clear();
+      for (const cancel of shakes) cancel();
+      shakes.clear();
       overlay()
         ?.querySelectorAll('.board-number')
         .forEach((el) => el.remove());

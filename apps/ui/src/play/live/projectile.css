@@ -85,8 +85,9 @@
   filter: blur(1px);
 }
 
-/* The impact: a flash that blows outward and sparks that fly off it. */
+/* The impact: a flash that blows outward and sparks that fly off it, bigger for a heavier hit. */
 .effect-impact {
+  scale: var(--power-size, 1);
   position: absolute;
   z-index: calc(var(--z-overlay, 20) + 2);
   width: 0;

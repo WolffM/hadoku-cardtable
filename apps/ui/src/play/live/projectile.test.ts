@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { along, arcControl, seedOf } from './projectile.ts';
+import { along, arcControl, keyframes, seedOf } from './projectile.ts';
 
 describe('projectile path', () => {
   const start = { x: 500, y: 300 };
@@ -32,5 +32,19 @@ describe('projectile path', () => {
     const seeds = ['card:7:1', 'card:9:2', 'card:11:3', 'card:12:4'].map(seedOf);
     expect(new Set(seeds.map((s) => s.toFixed(3))).size).toBe(4);
     for (const s of seeds) expect(s >= 0 && s < 1).toBe(true);
+  });
+});
+
+describe('keyframes', () => {
+  it('a heavier bolt is bigger, never further: its size scales the ball after the move, so every bolt ends on the target’s centre', () => {
+    const start = { x: 700, y: 120 };
+    const end = { x: 138, y: 334 };
+    const control = arcControl(start, end, 0.3);
+    const last = (size: number): string => keyframes(start, control, end, size).at(-1)!.transform as string;
+    for (const size of [0.8, 1.2, 1.6]) {
+      expect(last(size), `size ${size}`).toMatch(/^translate\(138px, 334px\) translate\(-50%, -50%\) scale\(/);
+    }
+    expect(last(1.6)).toContain('scale(1.600)');
+    expect(last(0.8)).toContain('scale(0.800)');
   });
 });

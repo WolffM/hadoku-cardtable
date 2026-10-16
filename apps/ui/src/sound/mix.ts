@@ -32,6 +32,18 @@ export interface SoundEvent {
   /** A `<ColourId>|<ParadigmId>` cell layered on top of the role. */
   colourCell?: string | null;
   seat?: Seat;
+  /**
+   * How heavy it is, 0 to 1: a hit's `damagePower` (`play/motion.ts`). Louder and lower the heavier
+   * (the operator, 2026-10-16: damage must "scale the speed, sound, and size"); absent, as recorded.
+   */
+  intensity?: number;
+}
+
+/** A voice's level and playback rate for an event of `intensity`: four fifths and a touch high at 0, a quarter louder and lower at 1. */
+export function intensityVoice(intensity: number | undefined): { gain: number; rate: number } {
+  if (intensity === undefined) return { gain: 1, rate: 1 };
+  const i = Math.min(1, Math.max(0, intensity));
+  return { gain: 0.8 + 0.45 * i, rate: 1.06 - 0.16 * i };
 }
 
 export interface MixSettings {
@@ -60,6 +72,8 @@ export interface PlannedVoice {
   duck: boolean;
   /** Played backwards: the event was a `REVERSED_ROLES` one. */
   reverse?: true;
+  /** Its playback rate when not 1: a heavier event's voice is lower (`intensityVoice`). */
+  rate?: number;
 }
 
 export type SkipReason = 'empty' | 'collapsed' | 'opponent-ui' | 'unknown-role';
@@ -123,13 +137,15 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
         lastAt.set(key, nowMs);
         lastPick.set(layer.cell, file);
         const seatLevel = seat === 'opp' ? settings.opponent : 1;
+        const weight = intensityVoice(event.intensity);
         result.voices.push({
           cell: layer.cell,
           file,
           bus: layer.bus,
-          gain: gainOf(layer.cell) * settings.bus[layer.bus] * seatLevel,
+          gain: gainOf(layer.cell) * settings.bus[layer.bus] * seatLevel * weight.gain,
           duck: layer.duck,
           ...(reversedFrom !== undefined && layer.cell === roleCell ? { reverse: true as const } : {}),
+          ...(weight.rate === 1 ? {} : { rate: weight.rate }),
         });
       }
       return result;

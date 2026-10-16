@@ -1,0 +1,17 @@
+/*
+ * A creature ramming what it hit (`ram.ts`): its copy in the board's overlay, over every card and
+ * every departure's stand-in, while its own element keeps its place in its row undrawn.
+ */
+.board-ram {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.board-ram > .board-card {
+  list-style: none;
+}
+
+[data-ramming] {
+  visibility: hidden;
+}

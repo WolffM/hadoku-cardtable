@@ -10,8 +10,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { boardBusyUntil, BOLT_STAGGER_MS, GLIDE_MS, lifeImpactAt, HIT_MS, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
+import { boardBusyUntil, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { ALIGN_MS, contactMs, RAM_STAGGER_MS } from './ram.ts';
 import {
   LIFE_COLOUR_MS,
   POP_MS,
@@ -24,6 +25,8 @@ import {
   formatDelta,
   installNumbers,
   lifeColour,
+  planRams,
+  ramEnd,
   stackLayout,
   tickSteps,
 } from './numbers.ts';
@@ -97,31 +100,31 @@ function view(players: BoardPlayer[]): BoardView {
 describe('diffViews', () => {
   it('the first view ever seen diffs to nothing — there is no "before" to compare it against', () => {
     const v = view([player(0, 20), player(1, 20)]);
-    expect(diffViews(null, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(null, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
   });
 
   it('a life change is reported for the player it happened to, and nobody else', () => {
     const before = view([player(0, 20), player(1, 20)]);
     const after = view([player(0, 17), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
   });
 
   it('a damage change on a creature still on a battlefield is reported, keyed by card id and owner', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [card(7, 1)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
   });
 
   it('a creature that leaves the battlefield for a graveyard is a departure', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 3)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [],
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [],
       departures: [{ cardId: 7, playerId: 0, to: 'graveyard', toPlayerId: 0, card: card(7, 3), index: 0 }] });
   });
 
   it('nothing moving at all diffs to nothing', () => {
     const v = view([player(0, 20, { battlefield: [card(7, 2)] }), player(1, 20)]);
-    expect(diffViews(v, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], departures: [] });
+    expect(diffViews(v, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
   });
 });
 
@@ -422,7 +425,7 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(mark!.dataset.projectile, 'drawn as a bolt').toBe('bolt');
     expect(mark!.dataset.colour, 'an ability of a card the fixture gives no colour: colourless').toBe('C');
     // No Web Animations in jsdom: the ball is put where it lands, the face's centre (130, 50).
-    expect(mark!.style.transform, 'aimed at the face').toBe('translate(130px, 50px) translate(-50%, -50%) scale(1.000)');
+    expect(mark!.style.transform, 'aimed at the face, as big as a hit of 2').toBe(`translate(130px, 50px) translate(-50%, -50%) scale(${powerSize(damagePower(2)).toFixed(3)})`);
     expect(overlay.querySelectorAll('.board-number'), 'no number before it lands').toHaveLength(0);
     expect(life.textContent, 'the counter still reads the old total').toBe('20');
 
@@ -586,7 +589,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
       [7, 'graveyard', 'damage', HIT_MS],
       [9, 'graveyard', 'damage', BOLT_STAGGER_MS + HIT_MS],
     ]);
-    expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.crumple.ms);
+    expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.shatter.ms);
 
     vi.advanceTimersByTime(HIT_MS);
     expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'no copy drawn in this test: its place flashes').toBe(true);
@@ -645,7 +648,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
 });
 
 describe('installNumbers: combat damage', () => {
-  it('a hit with nothing resolving is the impact alone, at the creature — no projectile, no number', () => {
+  it('a hit with nothing resolving and no ram to draw is a crash at the creature — dust and rocks, no fireball, no number', () => {
     const { canvas } = board();
     canvas.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
     canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect({ left: 300, top: 400, width: 60, height: 84 });
@@ -658,9 +661,121 @@ describe('installNumbers: combat damage', () => {
       hits: [{ seq: 1, cardId: 7, sourceId: 50, amount: 2 }],
     });
     expect(overlay.querySelector('.effect-hit'), 'no fireball between creatures').toBeNull();
-    expect(overlay.querySelector<HTMLElement>('.effect-impact')?.dataset.impact).toBe('card:7:1');
-    expect(overlay.querySelector<HTMLElement>('.effect-impact')?.dataset.colour, 'in the attacker’s colour').toBe('G');
+    expect(overlay.querySelector('.effect-impact'), 'no fire').toBeNull();
+    expect(overlay.querySelector<HTMLElement>('.effect-crash')?.dataset.crash).toBe('card:7:1');
+    expect(overlay.querySelectorAll('.effect-crash__rock').length, 'rocks thrown').toBeGreaterThan(0);
     expect(overlay.querySelector('.board-number')).toBeNull();
+    handle.dispose();
+  });
+});
+
+describe('planRams', () => {
+  const hit = (seq: number, cardId: number, sourceId: number | null) => ({ seq, cardId, sourceId, amount: 2 });
+  const face = (seq: number, playerId: number, sourceId: number | null, combat = true) => ({ seq, playerId, sourceId, amount: 3, combat });
+  const anyone = (): boolean => true;
+
+  it('an attacker and its blocker that hit each other meet, at one time, and both hits land as they strike', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 10), hit(2, 10, 20)], [], anyone);
+    expect(rams).toEqual([
+      { sourceId: 10, kind: 'meet', target: { cardId: 20 }, delayMs: 0, amount: 2, power: damagePower(2) },
+      { sourceId: 20, kind: 'meet', target: { cardId: 10 }, delayMs: 0, amount: 2, power: damagePower(2) },
+    ]);
+    expect([hitAt.get(1), hitAt.get(2)]).toEqual([contactMs('meet'), contactMs('meet')]);
+  });
+
+  it('a pair that meets arrives together, at the pace of the heavier blow', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 10), { seq: 2, cardId: 10, sourceId: 20, amount: 5 }], [], anyone);
+    expect(rams.map((r) => r.power)).toEqual([damagePower(5), damagePower(5)]);
+    expect(hitAt.get(1)).toBe(hitAt.get(2));
+  });
+
+  it('an unblocked attacker charges its player; a creature hit by one that is not hit back is struck; each next ram a stagger later', () => {
+    const { rams, hitAt } = planRams([hit(2, 20, 11)], [face(1, 1, 10)], anyone);
+    expect(rams.map((r) => [r.sourceId, r.kind, r.target, r.delayMs])).toEqual([
+      [10, 'charge', { playerId: 1 }, 0],
+      [11, 'strike', { cardId: 20 }, RAM_STAGGER_MS],
+    ]);
+    expect(hitAt.get(1)).toBe(contactMs('charge'));
+    expect(hitAt.get(2)).toBe(RAM_STAGGER_MS + contactMs('strike'));
+  });
+
+  it('a trampler rams its blocker, and its damage to the player lands as it strikes', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 10)], [face(2, 1, 10)], anyone);
+    expect(rams, 'as hard as its heaviest hit: the 3 to the player').toEqual([{ sourceId: 10, kind: 'strike', target: { cardId: 20 }, delayMs: 0, amount: 3, power: damagePower(3) }]);
+    expect(hitAt.get(2)).toBe(contactMs('strike'));
+  });
+
+  it('no ram for a hit with no source, a source not drawn on a battlefield, or damage to a player outside combat', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, null), hit(2, 21, 99)], [face(3, 1, 10, false)], (id) => id !== 99);
+    expect(rams).toEqual([]);
+    expect(hitAt.size).toBe(0);
+  });
+});
+
+describe('ramEnd', () => {
+  it('both die: they crumple into each other; only it: blasted away; only the other: it wins; neither: a bounce; a player: a charge', () => {
+    expect(ramEnd('meet', true, true)).toBe('crumple');
+    expect(ramEnd('meet', true, false)).toBe('blasted');
+    expect(ramEnd('meet', false, true)).toBe('win');
+    expect(ramEnd('meet', false, false)).toBe('bounce');
+    expect(ramEnd('strike', false, true)).toBe('win');
+    expect(ramEnd('charge', false, false)).toBe('charge');
+  });
+});
+
+describe('installNumbers: a ram', () => {
+  it('a player charged by an attacker loses the life as the attacker strikes — the counter holds until then', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    canvas.querySelector<HTMLElement>('[data-board-card="50"]')!.getBoundingClientRect = () => rect({ left: 300, top: 100, width: 60, height: 84 });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 17, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
+    });
+    const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    expect(life.textContent, 'still what it was while the attacker is on its way').toBe('20');
+    expect(lifeImpactAt(1), "the life sound waits for the blow").toBe(Date.now() + contactMs('charge'));
+    vi.advanceTimersByTime(contactMs('charge'));
+    expect(canvas.querySelector<HTMLElement>('.effect-crash')?.dataset.crash, 'the blow crashes on the avatar').toBe('crash:50');
+    vi.advanceTimersByTime(TICK_STEP_MS * 4);
+    expect(life.textContent).toBe('17');
+    handle.dispose();
+  });
+
+  it('a charge plays its whoosh as it launches, once turned to face the player, and its crash on the blow, as heavy as the damage, on the attacker’s side', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    const now = Date.now();
+    handle.notify({
+      ...view([player(0, 17, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
+    });
+    expect(boardSoundsAt(1).map((s) => [s.role, s.at - now, s.intensity, s.mine])).toEqual([
+      ['g.crash', contactMs('charge'), damagePower(3), false],
+      ['g.charge', ALIGN_MS, damagePower(3), false],
+    ]);
+    handle.dispose();
+  });
+
+  it('Fast Mode: no ram, the life is lost at once', () => {
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 17, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
+    });
+    expect(canvas.querySelector('.effect-impact')).toBeNull();
     handle.dispose();
   });
 });

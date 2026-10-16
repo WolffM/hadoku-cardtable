@@ -24,6 +24,17 @@ describe('plan', () => {
     ]);
   });
 
+  it('a heavier hit is louder and lower: a point is quieter and a touch high, ten points a quarter louder and lower; no intensity, as recorded', () => {
+    const p = planner({ 'g.damage|play': ['a/take-1.ogg'] });
+    const light = p.plan({ role: 'g.damage', intensity: 0 }, 0, MIX).voices[0]!;
+    const heavy = p.plan({ role: 'g.damage', intensity: 1 }, 1000, MIX).voices[0]!;
+    const plain = p.plan({ role: 'g.damage' }, 2000, MIX).voices[0]!;
+    expect([light.gain, light.rate]).toEqual([0.8, 1.06]);
+    expect(heavy.gain).toBeCloseTo(1.25);
+    expect(heavy.rate).toBeCloseTo(0.9);
+    expect([plain.gain, plain.rate]).toEqual([1, undefined]);
+  });
+
   it('an empty layer is reported and the other still plays', () => {
     const p = planner({ 'RG|creature': ['b/take-1.ogg'] });
     const r = p.plan({ role: 'g.creature', colourCell: 'RG|creature' }, 0, MIX);

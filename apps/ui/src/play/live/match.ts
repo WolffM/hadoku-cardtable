@@ -252,7 +252,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause } from '../adapter.ts';
+import { manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause, type FaceHit } from '../adapter.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
@@ -736,6 +736,8 @@ export interface LiveMatch {
    * so a view drawn after several frames at once still holds every one of their hits.
    */
   hits: readonly DamageHit[];
+  /** The same for the damage dealt to players (`PlayBridge.java`'s `faceDamage`), numbered with `hits`. */
+  faceHits: readonly FaceHit[];
   /** The `seq` the next hit gets. */
   nextHitSeq: number;
   /** Why each permanent that died lately died (`PlayBridge.java`'s `deaths`), by card id, the last {@link HITS_KEPT}. */
@@ -1008,6 +1010,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     lifePaying: new Map(),
     conditionMet: new Set(),
     hits: [],
+    faceHits: [],
     nextHitSeq: 1,
     deathCauses: new Map(),
     promptTargetMore: 0,
@@ -2707,10 +2710,11 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet, damage, deaths } = frame.payload;
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet, damage, deaths, faceDamage } = frame.payload;
       packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet });
       if (damage !== undefined) noteHits(match, damage);
       if (deaths !== undefined) noteDeaths(match, deaths);
+      if (faceDamage !== undefined) noteFaceHits(match, faceDamage);
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2748,6 +2752,11 @@ function noteHits(match: LiveMatch, damage: readonly (readonly [number, number, 
   match.hits = [...match.hits, ...added].slice(-HITS_KEPT);
 }
 
+function noteFaceHits(match: LiveMatch, damage: readonly (readonly [number, number, number, boolean])[]): void {
+  const added = damage.map(([playerId, sourceId, amount, combat]) => ({ seq: match.nextHitSeq++, playerId, sourceId: sourceId >= 0 ? sourceId : null, amount, combat }));
+  match.faceHits = [...match.faceHits, ...added].slice(-HITS_KEPT);
+}
+
 function noteDeaths(match: LiveMatch, deaths: readonly (readonly [number, DeathCause])[]): void {
   const next = new Map(match.deathCauses);
   for (const [cardId, cause] of deaths) {
@@ -2778,6 +2787,7 @@ function redraw(match: LiveMatch): void {
           lifePaying: match.lifePaying,
           conditionMet: match.conditionMet,
           hits: match.hits,
+          faceHits: match.faceHits,
           deathCauses: match.deathCauses,
           promptCard: match.promptCard,
         });
@@ -3114,6 +3124,7 @@ function discardLocal(match: LiveMatch): void {
   match.lifePaying = new Map();
   match.conditionMet = new Set();
   match.hits = [];
+  match.faceHits = [];
   match.deathCauses = new Map();
   match.promptTargetMore = 0;
   match.sameTarget = false;

@@ -656,6 +656,19 @@ export interface DamageHit {
   readonly amount: number;
 }
 
+/**
+ * One hit of damage on a player, as Forge dealt it (`PlayBridge.java`'s `faceDamage`): numbered with
+ * the hits on cards (`DamageHit.seq`), so the two read in the order Forge dealt them. `combat` is
+ * Forge's own word that it was combat damage.
+ */
+export interface FaceHit {
+  readonly seq: number;
+  readonly playerId: number;
+  readonly sourceId: number | null;
+  readonly amount: number;
+  readonly combat: boolean;
+}
+
 /** Why a permanent went to its graveyard, as Forge says it (`PlayBridge.java`'s `deaths`, the fork's `GameEventCardDied.Cause`). */
 export type DeathCause = 'DESTROYED' | 'LETHAL_DAMAGE' | 'DEATHTOUCH' | 'ZERO_TOUGHNESS' | 'STATE_RULE' | 'SACRIFICED';
 
@@ -687,6 +700,8 @@ export interface BoardView {
   missingCardIds: number[];
   /** The latest damage hits (`DamageHit`), oldest first: what `live/numbers.ts` draws as hits. Absent on a view typed out by hand. */
   hits?: readonly DamageHit[];
+  /** The latest damage hits on players (`FaceHit`), oldest first. Absent on a view typed out by hand. */
+  faceHits?: readonly FaceHit[];
   /** Why the permanents that died lately died (`DeathCause`), by card id. Absent on a view typed out by hand, or from a Forge too old to say. */
   deathCauses?: ReadonlyMap<number, DeathCause>;
 }
@@ -773,6 +788,8 @@ export interface AdaptOptions {
   conditionMet?: ReadonlySet<number>;
   /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
   hits?: readonly DamageHit[];
+  /** The latest damage hits on players (`live/match.ts`'s `faceHits`), carried onto `BoardView.faceHits` as they are. */
+  faceHits?: readonly FaceHit[];
   /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
   deathCauses?: ReadonlyMap<number, DeathCause>;
   /**
@@ -1557,6 +1574,7 @@ export function toBoardView(
     lifePaying,
     conditionMet,
     hits,
+    faceHits,
     deathCauses,
     promptCard = null,
   }: AdaptOptions,
@@ -1719,6 +1737,7 @@ export function toBoardView(
     gameOver: readBool(game, 'GameOver'),
     missingCardIds: missing,
     ...(hits === undefined || hits.length === 0 ? {} : { hits }),
+    ...(faceHits === undefined || faceHits.length === 0 ? {} : { faceHits }),
     ...(deathCauses === undefined || deathCauses.size === 0 ? {} : { deathCauses }),
   };
 }

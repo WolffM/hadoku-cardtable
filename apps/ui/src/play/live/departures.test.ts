@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
-import { departureCause, departuresOf, DISSOLVE_SWEEP, EXIT_MOTIONS, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
+import { departureCause, departuresOf, DISSOLVE_SWEEP, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -51,16 +51,17 @@ describe('exitMotionFor', () => {
     expect(departureCause('STATE_RULE')).toBe('state-rule');
   });
 
-  it('destroyed is sliced; every other death crumples', () => {
+  it('killed by damage it cracks and crumbles; destroyed is sliced; every other death crumples', () => {
+    expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('shatter');
     expect(exitMotionFor(departure('graveyard', 'destroyed'))).toBe('slice');
-    for (const cause of ['damage', 'sacrificed', 'zero-toughness', 'state-rule'] as const) expect(exitMotionFor(departure('graveyard', cause)), cause).toBe('crumple');
+    for (const cause of ['sacrificed', 'zero-toughness', 'state-rule'] as const) expect(exitMotionFor(departure('graveyard', cause)), cause).toBe('crumple');
   });
 
-  it('with no cause (a Forge too old to say, and no hit): killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced', () => {
-    expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('crumple');
+  it('with no cause (a Forge too old to say, and no hit): killed by damage it shatters; destroyed any other way (a graveyard, or gone) is sliced', () => {
+    expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('shatter');
     expect(exitMotionFor(departure('graveyard'))).toBe('slice');
     expect(exitMotionFor(departure('gone'))).toBe('slice');
-    expect(exitMotionFor(departure('gone', 'damage'))).toBe('crumple');
+    expect(exitMotionFor(departure('gone', 'damage'))).toBe('shatter');
   });
 
   it('exiled dissolves', () => {
@@ -108,7 +109,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('graveyard', 'damage'), 100);
+    handle.leave(departure('graveyard', 'sacrificed'), 100);
 
     const standIn = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('crumple');
@@ -266,6 +267,23 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('killed by damage: seven pieces, each clipped to its shard and sent its own way, the cracks drawn over them, and falling dust', () => {
+    const canvas = board();
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    keepPlace(canvas);
+    handle.leave(departure('graveyard', 'damage'), 0);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(standIn.getAttribute('data-exit')).toBe('shatter');
+    const pieces = [...standIn.querySelectorAll<HTMLElement>('.board-departure__piece')];
+    expect(pieces).toHaveLength(EXIT_MOTIONS.shatter.pieces);
+    expect(pieces.every((p) => p.style.clipPath.startsWith('polygon(')), 'each a shard').toBe(true);
+    expect(new Set(pieces.map((p) => p.style.getPropertyValue('--dx'))).size, 'each its own way').toBe(pieces.length);
+    expect(standIn.querySelectorAll('.board-departure__cracks polyline')).toHaveLength(EXIT_MOTIONS.shatter.pieces);
+    expect(standIn.querySelectorAll('.board-departure__speck')).toHaveLength(EXIT_MOTIONS.shatter.specks);
+    handle.dispose();
+  });
+
   it('dispose takes every copy down', () => {
     const canvas = board();
     const handle = installDepartures(canvas, { onDone: () => undefined });
@@ -288,5 +306,20 @@ describe('specks', () => {
       expect(s.at).toBeCloseTo(((s.x + 1 - s.y) / 2) * DISSOLVE_SWEEP);
       expect(s.dy, 'up and away').toBeLessThan(0);
     }
+  });
+});
+
+describe('shards', () => {
+  it('a card always breaks the same way: cracks from one point out to its edges, one shard between each two, every shard falling', () => {
+    expect(shards(7, 7)).toEqual(shards(7, 7));
+    const { clips, cracks, parts } = shards(7, 7);
+    expect([clips.length, cracks.length, parts.length]).toEqual([7, 7, 7]);
+    const start = cracks.map((c) => c.split(' ')[0]);
+    expect(new Set(start).size, 'every crack runs from one point').toBe(1);
+    for (const c of cracks) {
+      const [x, y] = c.split(' ').at(-1)!.split(',').map(Number);
+      expect(x === 0 || x === 100 || y === 0 || y === 100 || Math.abs(x! - 100) < 0.05 || Math.abs(y! - 100) < 0.05 || x! < 0.05 || y! < 0.05, `${c} ends on an edge`).toBe(true);
+    }
+    for (const p of parts) expect(p.dy, 'it falls').toBeGreaterThan(0);
   });
 });

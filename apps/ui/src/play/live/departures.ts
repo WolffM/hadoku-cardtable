@@ -101,8 +101,14 @@ export interface Departure {
  * `.board-departure[data-exit="<name>"][data-exit-go]` in `departures.css`.
  */
 export const EXIT_MOTIONS = {
-  /** Killed by damage: the countered spell's shudder, then it crumples away (`placed.css`'s `placed-countered`). */
+  /** Died some other way — sacrificed, no toughness left: the countered spell's shudder, then it crumples away (`placed.css`'s `placed-countered`). */
   crumple: { ms: 400, pieces: 1 },
+  /**
+   * Killed by damage: it cracks, then crumbles to dust (the operator, 2026-10-16: "i also like how cards
+   * 'crack' and then crumble to dust when they die"). Cracks run out from a point near its middle
+   * (`shards`), then the pieces they cut part, turn and fall, and dust drifts down.
+   */
+  shatter: { ms: 950, pieces: 7, shards: true, specks: 34 },
   /**
    * Destroyed: a slash crosses it and it falls apart in two halves that drift off and fade (the operator,
    * 2026-10-15: "a 'slice in half' effect where the card is cut in half and then fades away").
@@ -119,7 +125,63 @@ export const EXIT_MOTIONS = {
    * grains together read as crumbling rather than as a pattern.
    */
   dissolve: { ms: 1600, pieces: 2, specks: 46 },
-} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly travels?: true; readonly specks?: number }>;
+} as const satisfies Record<string, { readonly ms: number; readonly pieces: number; readonly travels?: true; readonly specks?: number; readonly shards?: true }>;
+
+const shattered = (motion: ExitMotion): boolean => 'shards' in EXIT_MOTIONS[motion];
+
+/** The share of a shatter in which the cracks run and nothing has moved yet. */
+export const CRACK_SHARE = 0.3;
+
+const pct = (v: number): string => `${v.toFixed(1)}%`;
+
+/** Where a ray from `c` (in %) at `angle` leaves the card's box, 0–100 on each axis. */
+function edgeOf(c: { x: number; y: number }, angle: number): { x: number; y: number } {
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const ts = [dx > 0 ? (100 - c.x) / dx : dx < 0 ? -c.x / dx : Infinity, dy > 0 ? (100 - c.y) / dy : dy < 0 ? -c.y / dy : Infinity];
+  const t = Math.min(...ts);
+  return { x: c.x + dx * t, y: c.y + dy * t };
+}
+
+/**
+ * How a card killed by damage breaks: `count` cracks from a point near its middle out to its edges,
+ * each with a kink, cutting it into `count` pieces. `clips` are the pieces as `clip-path` polygons
+ * (in %), `cracks` the lines as SVG polyline points (in a 100×100 box), and `parts` how each piece
+ * falls away: off its centre, down, turning, a beat after the others. Seeded by the card.
+ */
+export function shards(cardId: number, count: number): { clips: string[]; cracks: string[]; parts: { dx: number; dy: number; rot: number; lag: number }[] } {
+  const r = (k: string): number => seedOf(`${cardId}:shard:${k}`);
+  const c = { x: 38 + 24 * r('cx'), y: 34 + 28 * r('cy') };
+  const step = (Math.PI * 2) / count;
+  const angles = Array.from({ length: count }, (_, i) => r('a0') * Math.PI * 2 + i * step + (r(`j${i}`) - 0.5) * step * 0.5);
+  const rays = angles.map((a, i) => {
+    const p = edgeOf(c, a);
+    const kink = (r(`k${i}`) - 0.5) * 9;
+    const m = { x: (c.x + p.x) / 2 - Math.sin(a) * kink, y: (c.y + p.y) / 2 + Math.cos(a) * kink };
+    return { a, p, m };
+  });
+  const corners = [
+    { x: 100, y: 100 },
+    { x: 0, y: 100 },
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+  ].map((p) => ({ p, a: Math.atan2(p.y - c.y, p.x - c.x) }));
+  const norm = (a: number): number => ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const clips = rays.map((ray, i) => {
+    const next = rays[(i + 1) % count]!;
+    const span = norm(next.a - ray.a);
+    const between = corners.filter((k) => norm(k.a - ray.a) < span).sort((x, y) => norm(x.a - ray.a) - norm(y.a - ray.a));
+    const pts = [c, ray.m, ray.p, ...between.map((k) => k.p), next.p, next.m];
+    return `polygon(${pts.map((p) => `${pct(p.x)} ${pct(p.y)}`).join(', ')})`;
+  });
+  const cracks = rays.map((ray) => [c, ray.m, ray.p].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+  const parts = rays.map((ray, i) => {
+    const mid = norm(ray.a + norm(rays[(i + 1) % count]!.a - ray.a) / 2);
+    const out = 6 + 12 * r(`o${i}`);
+    return { dx: Math.cos(mid) * out, dy: Math.sin(mid) * out + 26 + 30 * r(`f${i}`), rot: (r(`r${i}`) - 0.5) * 50, lag: Math.round(70 * r(`l${i}`)) };
+  });
+  return { clips, cracks, parts };
+}
 
 const travels = (motion: ExitMotion): boolean => 'travels' in EXIT_MOTIONS[motion];
 const specksOf = (motion: ExitMotion): number => {
@@ -136,14 +198,16 @@ export const DISSOLVE_SWEEP = 0.7;
 
 /**
  * The motes a card sheds: each at a point across it (`x`, `y`, shares of its width and height), sent off
- * up and away by `dx`/`dy` (px), `size` px across, starting as the edge passes it (`at`, a share of the motion). Seeded by
- * the card, so a card always comes apart the same way.
+ * by `dx`/`dy` (px), `size` px across, starting at `at` (a share of the motion). A dissolve's rise up and
+ * away as its edge passes them; a shatter's are dust, falling once the cracks have run. Seeded by the
+ * card, so a card always comes apart the same way.
  */
-export function specks(cardId: number, count: number): { x: number; y: number; dx: number; dy: number; size: number; at: number }[] {
+export function specks(cardId: number, count: number, motion: ExitMotion = 'dissolve'): { x: number; y: number; dx: number; dy: number; size: number; at: number }[] {
   return Array.from({ length: count }, (_, n) => {
     const r = (k: string): number => seedOf(`${cardId}:${n}:${k}`);
     const x = r('x');
     const y = r('y');
+    if (shattered(motion)) return { x, y, dx: (r('dx') - 0.5) * 50, dy: 18 + r('dy') * 46, size: 1.5 + r('size') * 3, at: CRACK_SHARE + r('at') * 0.35 };
     // The edge goes from the bottom left corner to the top right one.
     const along = (x + (1 - y)) / 2;
     return { x, y, dx: 18 + r('dx') * 60, dy: -(28 + r('dy') * 70), size: 2 + r('size') * 4, at: along * DISSOLVE_SWEEP };
@@ -153,13 +217,14 @@ export function specks(cardId: number, count: number): { x: number; y: number; d
 export type ExitMotion = keyof typeof EXIT_MOTIONS;
 
 /**
- * Which exit motion a departure plays — the one place it is chosen. To a graveyard (or gone): destroyed
- * is sliced, any other death crumples. With no cause at all (a Forge from before `GameEventCardDied`),
- * a death no hit explains is taken for destroyed.
+ * Which exit motion a departure plays — the one place it is chosen. To a graveyard (or gone): killed by
+ * damage, it cracks and crumbles; destroyed, it is sliced; any other death crumples. With no cause at
+ * all (a Forge from before `GameEventCardDied`), a death no hit explains is taken for destroyed.
  */
 export function exitMotionFor(departure: Departure): ExitMotion {
   if (departure.to === 'hand') return 'return';
   if (departure.to === 'exile') return 'dissolve';
+  if (departure.cause === 'damage') return 'shatter';
   return departure.cause === undefined || departure.cause === 'destroyed' ? 'slice' : 'crumple';
 }
 
@@ -271,6 +336,34 @@ function handLanding(canvas: HTMLElement, departure: Departure): HTMLElement | n
 /** Ids, test ids and every hook another lane finds a card by: a stand-in is no card of the board's. */
 const STRIPPED = ['id', 'data-board-card', 'data-card-id', 'data-testid', 'data-arrange-card', 'data-selectable', 'tabindex'];
 
+/** A copy of a card as it is drawn, for a stand-in: nothing finds it as one of the board's cards. */
+export function copyOfCard(from: HTMLElement): HTMLElement {
+  const copy = from.cloneNode(true) as HTMLElement;
+  for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
+  return copy;
+}
+
+/**
+ * A turned card is centred in its upright place by margins above and below (`card.css`). A copy keeps
+ * none: drops them, and returns how far down they had put the card.
+ */
+export function dropTurnedMargins(copies: readonly HTMLElement[]): number {
+  const step = copies.length === 0 ? 0 : parseFloat(getComputedStyle(copies[0]!).marginTop) || 0;
+  if (step > 0) for (const copy of copies) copy.style.marginBlock = '0';
+  return Math.max(0, step);
+}
+
+/**
+ * A stand-in placed at `top` over a turned card's upright place (a departure's kept gap) is made the
+ * turned card's own box: its copies' margins dropped, itself moved down by them, so whatever it draws
+ * is the card's shape, not an upright card's. A copy placed over the card's own box (a ram's) only
+ * drops the margins: that box is the turned card already.
+ */
+export function fitTurned(wrap: HTMLElement, copies: readonly HTMLElement[], top: number): void {
+  const step = dropTurnedMargins(copies);
+  if (step > 0) wrap.style.top = `${top + step}px`;
+}
+
 export function installDepartures(canvas: HTMLElement, host: DeparturesHost): DeparturesHandle {
   /** Each battlefield card's element as of the last commit, by id. */
   let drawn = new Map<number, HTMLElement>();
@@ -306,17 +399,39 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     // The copy is sized by the zone's own `--card-w`, which the overlay is outside of.
     wrap.style.setProperty('--card-w', `${at.width}px`);
     const pieces = EXIT_MOTIONS[motion].pieces;
+    wrap.style.setProperty('--exit-ms', `${EXIT_MOTIONS[motion].ms}ms`);
     if (departure.hue !== undefined) wrap.setAttribute('data-colour', departure.hue);
+    const broken = shattered(motion) ? shards(departure.cardId, pieces) : null;
     for (let n = 1; n <= pieces; n++) {
-      const copy = from.cloneNode(true) as HTMLElement;
-      for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
+      const copy = copyOfCard(from);
       const piece = document.createElement('div');
       piece.className = 'board-departure__piece';
       piece.setAttribute('data-piece', String(n));
+      const part = broken?.parts[n - 1];
+      if (broken !== null && part !== undefined) {
+        piece.style.clipPath = broken.clips[n - 1]!;
+        piece.style.setProperty('--dx', `${part.dx.toFixed(1)}px`);
+        piece.style.setProperty('--dy', `${part.dy.toFixed(1)}px`);
+        piece.style.setProperty('--rot', `${part.rot.toFixed(0)}deg`);
+        piece.style.setProperty('--lag', `${part.lag}ms`);
+      }
       piece.append(copy);
       wrap.append(piece);
     }
-    for (const speck of specks(departure.cardId, specksOf(motion))) {
+    if (broken !== null) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'board-departure__cracks');
+      svg.setAttribute('viewBox', '0 0 100 100');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      for (const points of broken.cracks) {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        line.setAttribute('points', points);
+        line.setAttribute('pathLength', '1');
+        svg.append(line);
+      }
+      wrap.append(svg);
+    }
+    for (const speck of specks(departure.cardId, specksOf(motion), motion)) {
       const el = document.createElement('i');
       el.className = 'board-departure__speck';
       el.style.setProperty('--x', `${(speck.x * 100).toFixed(1)}%`);
@@ -328,15 +443,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       wrap.append(el);
     }
     root.append(wrap);
-    // A turned card is centred in its upright place by margins above and below (`card.css`): the
-    // stand-in is the turned card's own box instead, moved down by that margin, so every piece, its
-    // tint and its motes are the card's shape and not an upright card's.
-    const copies = [...wrap.querySelectorAll<HTMLElement>(':scope > .board-departure__piece > .board-card')];
-    const step = copies.length === 0 ? 0 : parseFloat(getComputedStyle(copies[0]!).marginTop) || 0;
-    if (step > 0) {
-      for (const copy of copies) copy.style.marginBlock = '0';
-      wrap.style.top = `${at.top - box.top + step}px`;
-    }
+    fitTurned(wrap, [...wrap.querySelectorAll<HTMLElement>(':scope > .board-departure__piece > .board-card')], at.top - box.top);
     return wrap;
   }
 

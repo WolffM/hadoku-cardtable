@@ -29,6 +29,7 @@
 import { COLOUR_IDS, type ColourId, type ParadigmId } from '@hadoku/shared';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
+import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
 
@@ -186,6 +187,9 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
   };
 
   const active = seatOf(next.players.find((p) => p.id === next.activePlayerId));
+  // A creature's damage is heard as heavy as the heaviest new hit Forge dealt this view (`BoardView.hits`).
+  const lastHit = Math.max(0, ...(prev.hits ?? []).map((h) => h.seq));
+  const heaviestHit = Math.max(0, ...(next.hits ?? []).filter((h) => h.seq > lastHit).map((h) => h.amount));
   const seatByName = new Map(next.players.map((p) => [p.name, seatOf(p)] as const));
 
   // ── the game and the turn ─────────────────────────────────────────────
@@ -289,7 +293,7 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
       if (was.tapped && !c.tapped) untappedHere += 1;
       if (!was.attacking && c.attacking) push('g.attack', seat);
       if (!was.blocking && c.blocking) push('g.block', seat);
-      if (c.damage > was.damage) push('g.damage', active);
+      if (c.damage > was.damage) push('g.damage', active, { intensity: damagePower(Math.max(heaviestHit, c.damage - was.damage)) });
       const dc = counterTotal(c) - counterTotal(was);
       if (dc > 0) push('g.counter-on', seat);
       if (dc < 0) push('g.counter-off', seat);
@@ -317,7 +321,7 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
     if (mulligan) push('g.mulligan', seat);
     else if (drew > 0) push('g.draw', seat);
     if (shuffled) push('g.shuffle', seat, mulligan ? { delayMs: 250 } : {});
-    if (p.life < prevP.life) push('g.damage-player', active);
+    if (p.life < prevP.life) push('g.damage-player', active, { intensity: damagePower(prevP.life - p.life) });
     if (p.life > prevP.life) push('g.lifegain', seat);
   }
 

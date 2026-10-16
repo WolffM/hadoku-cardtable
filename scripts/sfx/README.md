@@ -236,3 +236,17 @@ python3 scripts/sfx/make-round8.py apps/server/data/sounds played.json
 ~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 11000 --out finished-r8
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r8 --to apps/server/data/sounds --add
 ```
+
+## Round 9: the combat rams (2026-10-16)
+
+The operator: *"generate sound candidates for the crash, crumble and charge"* — three new roles for the rams
+(`g.crash` on each blow, `g.crumble` as a creature killed by damage cracks, `g.charge` as an attacker launches at a
+player). `round9.json` writes five literal-source prompts per role, three takes each. Each plays louder and lower for
+a heavier hit (`play/motion.ts`'s `damagePower` through `sound/mix.ts`'s `intensityVoice`), so a take should be a
+clean mid-weight hit that still reads pitched down.
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round9.json --takes 3 --seed 12000 --offload model
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 12000 --only g.crash,g.crumble,g.charge --out finished-r9
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r9 --to apps/server/data/sounds --add
+```

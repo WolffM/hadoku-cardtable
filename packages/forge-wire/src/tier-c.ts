@@ -799,6 +799,16 @@ export const DeathsSchema = z.array(z.tuple([JavaInt, DeathCauseSchema]));
 
 export type Deaths = z.infer<typeof DeathsSchema>;
 
+/**
+ * The bridge's eighth addition beside the packet: the damage dealt to players since the seat's last
+ * state frame (`PlayBridge.java`'s `EffectJournal`, Forge's own `GameEventPlayerDamaged`), oldest
+ * first, as `[playerId, sourceId, amount, combat]` — `sourceId` -1 when Forge names none. The life
+ * total says how much was lost; this says who dealt it. An event list, only on `applyDelta`.
+ */
+export const FaceDamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt, z.boolean()]));
+
+export type FaceDamage = z.infer<typeof FaceDamageSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -862,6 +872,7 @@ export const ApplyDeltaSchema = z.strictObject({
     conditionMet: ConditionMetSchema.optional(),
     damage: DamageSchema.optional(),
     deaths: DeathsSchema.optional(),
+    faceDamage: FaceDamageSchema.optional(),
   }),
 });
 
