@@ -52,7 +52,9 @@ describe('the picker offers exactly the catalogued eras', () => {
 		tempDir = null;
 	});
 
-	it('a fixture pool under an UNCATALOGUED date never reaches the picker', () => {
+	// Copies the whole decks/ tree (46 MB of pools since the library ran to 2025) and loads
+	// the library twice, so it gets 20 s rather than the default 5.
+	it('a fixture pool under an UNCATALOGUED date never reaches the picker', { timeout: 20_000 }, () => {
 		// A temp copy of the real decks/ tree — real data, never the repo's own files.
 		tempDir = mkdtempSync(join(tmpdir(), 'cardtable-w34-eras-'));
 		cpSync(resolve(REPO_ROOT, 'decks'), join(tempDir, 'decks'), { recursive: true });

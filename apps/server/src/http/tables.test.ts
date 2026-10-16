@@ -389,6 +389,9 @@ async function boot(): Promise<Harness> {
 	let attached: ReturnType<typeof playMod.attachPlay> | null = null;
 	routesMod.attachTables(api, {
 		repoRoot: REPO_ROOT,
+		// The library loaded once above, as production loads it once at boot: re-reading
+		// 67 eras' pools for every booted stack ran a 2 GB worker out of heap.
+		library,
 		draftRooms: rooms,
 		log: () => {},
 		rooms: lobby,
