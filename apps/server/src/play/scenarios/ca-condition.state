@@ -1,0 +1,20 @@
+# A card whose condition is on, lit as the count reaches it. Alice (`human…`,
+# seat 0) controls two Ornithopters and holds a third, with Galvanic Blast
+# (metalcraft: 4 damage instead of 2 with three artifacts) beside it; Carapace
+# Forger (metalcraft: +2/+2) is on her battlefield. Her graveyard holds six
+# cards, so Anurid Barkripper (threshold: +2/+2 with seven) is one short. An
+# uncontested turn-1 Main Phase 1 with one Mountain: the Ornithopter costs
+# nothing, the Blast {R}. Bob's Grizzly Bears is the Blast's target.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Ornithopter;Galvanic Blast
+humanbattlefield=Ornithopter;Ornithopter;Carapace Forger;Anurid Barkripper;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=Island
+aibattlefield=Grizzly Bears
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
