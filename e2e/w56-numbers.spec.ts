@@ -199,7 +199,7 @@ test(
       // resolves to `undefined`, so the value is captured from inside the polled function.
       // A creature's hit is the impact alone, no number (the operator, 2026-10-15: "we dont have to show a
       // number, just the impact would be fine"); combat damage has no projectile, only the slam.
-      type ImpactInfo = { key: string; box: { x: number; y: number }; numbers: number };
+      type ImpactInfo = { key: string; box: { x: number; y: number }; numbers: { text: string; x: number; y: number }[] };
       let captured: ImpactInfo | null = null;
       const watch = expect
         .poll(
@@ -208,7 +208,12 @@ test(
               const el = document.querySelector<HTMLElement>('.effect-impact');
               if (el === null) return null;
               const r = el.getBoundingClientRect();
-              return { key: el.dataset.impact ?? '', box: { x: r.x, y: r.y }, numbers: document.querySelectorAll('.board-number').length };
+              // Every floating number on the board: the unblocked attacker's hit on alice's life is one of them, rightly.
+              const numbers = Array.from(document.querySelectorAll('.board-number')).map((n) => {
+                const b = n.getBoundingClientRect();
+                return { text: n.textContent ?? '', x: b.x + b.width / 2, y: b.y + b.height / 2 };
+              });
+              return { key: el.dataset.impact ?? '', box: { x: r.x, y: r.y }, numbers };
             });
             if (n !== null) captured = n;
             return n !== null;
@@ -225,9 +230,12 @@ test(
       const impact: ImpactInfo | null = captured;
       console.log(`W56-N-EVIDENCE ${JSON.stringify({ step: 'blocked-damage', impact })}`);
       expect(impact!.key, 'Forge’s own hit, on Wall of Stone').toMatch(new RegExp(`^card:${blockerX}:`));
-      expect(impact!.numbers, 'no number on a creature: the impact is the hit').toBe(0);
       await expect(alice.page.locator(`[data-board-card="${blockerX}"]`), 'the blocker survived — the damage-stays case, not the dying one').toHaveCount(1);
       const blockerBox = (await alice.page.locator(`[data-board-card="${blockerX}"]`).boundingBox())!;
+      const onBlocker = impact!.numbers.filter(
+        (n) => n.x >= blockerBox.x && n.x <= blockerBox.x + blockerBox.width && n.y >= blockerBox.y && n.y <= blockerBox.y + blockerBox.height,
+      );
+      expect(onBlocker, 'no number on the creature: the impact is the hit').toEqual([]);
       expect(
         Math.hypot(impact!.box.x - (blockerBox.x + blockerBox.width / 2), impact!.box.y - (blockerBox.y + blockerBox.height / 2)),
         'on the blocker, not somewhere else on the board',
