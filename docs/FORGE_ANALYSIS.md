@@ -741,3 +741,25 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   further from the ratio than the unsmoothed deal (seed 7 seat 0: 0 lands → 3),
   and from an identical opening the smoothed mulligan redraws differ while two
   unsmoothed runs repeat exactly.
+
+## An order's caption does not say where the cards go — 2026-10-16 (lane OL)
+
+- **VERIFIED (read)** — `PlayerControllerHuman.orderMoveToZoneList`
+  (`forge-gui/.../player/PlayerControllerHuman.java:1119-1180`) captions a library
+  order "Closest to top" or "Closest to bottom" from
+  `PlayerController.orderedMoveToTopOfLibrary` (`forge-game/.../player/PlayerController.java:205`),
+  which reads only `LibraryPosition`/`RevealedLibraryPosition` and otherwise says
+  "top". It reverses the answer exactly when it captions "Closest to top". A `Dig`
+  moves its rest with `LibraryPosition2`, -1 by default (`DigEffect.java:125,455`),
+  so Tezzeret, Agent of Bolas's +1 ("put the rest on the bottom") is captioned
+  "Closest to top" and goes to the bottom.
+- **VERIFIED (read)** — every caller moves the ordered cards one at a time
+  (`GameAction.moveToLibrary` puts -1 at the end, `GameAction.java:887`), so the
+  card moved first ends next to the rest of the library: the answer's first card
+  when Forge does not reverse it, its last when it does. A scry's bottom group
+  (`GameAction.scry`, `GameAction.java:2668-2672`) and a London mulligan's tuck
+  are not reversed, so the first card is the highest of them; a scry's or
+  surveil's top group is reversed and put on top, so the first is the top card.
+- The bridge (`PlayBridge.java`'s `orderDestination`) sends the real zone, end and
+  first-card direction on the `order` ask; `apps/server/src/play/order-destination.jvm.test.ts`
+  checks it against real Forge.
