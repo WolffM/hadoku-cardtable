@@ -399,8 +399,8 @@ test(
       await expect(prompt, 'the exile question').toContainText('exile');
       const offered = [...(await rowsIds(page.getByTestId('order-dest'))), ...(await rowsIds(page.getByTestId('order-source')))];
       expect(offered, 'the three graveyard cards are ordered').toHaveLength(3);
-      // Somebody fiddles first: Auto still sends Forge's own order.
-      await page.getByTestId('order-source').locator(':scope > li').last().click();
+      // Somebody fiddles first — places the card in front of the pile — and Auto still sends Forge's own order.
+      await page.getByTestId('order-source').locator(':scope > li').first().click();
       await prompt.getByTestId('prompt-auto').click();
       await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'one press of Auto answered the order' }).not.toBe('order');
       const exiled = page.locator('.seat[data-viewer] [data-zone="exile"] [data-board-card]');
