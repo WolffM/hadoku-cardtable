@@ -116,6 +116,73 @@
   overflow-y: auto;
 }
 
+/* ── a room before it has answered (`RoomSkeleton`) ─────────────────── */
+
+/* Each placeholder takes the box of the thing it stands for, so the loaded
+   room lands on the same lines; a slow sheen says it is coming. */
+.skeleton {
+  display: block;
+  border-radius: var(--hdk-radius);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-alt) 0%,
+    var(--color-bg-hover) 50%,
+    var(--color-bg-alt) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sheen 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* The title's line box: 28px type at the UA's normal line height. */
+.skeleton--title {
+  width: min(16rem, 70%);
+  height: 34px;
+}
+
+.skeleton--sub {
+  width: 8rem;
+  height: 1.2em;
+}
+
+.skeleton--heading {
+  width: 8rem;
+  height: 22px;
+}
+
+.skeleton--seat {
+  height: 2.4rem;
+}
+
+.skeleton--row {
+  width: min(28rem, 100%);
+  height: 30px;
+}
+
+/* The era's set symbols over the deck filters. */
+.skeleton--sets {
+  width: min(38rem, 100%);
+  height: 66px;
+}
+
+.skeleton--tile {
+  height: 100%;
+}
+
 /* ── lobby ─────────────────────────────────────────────────────────── */
 
 .lobby {

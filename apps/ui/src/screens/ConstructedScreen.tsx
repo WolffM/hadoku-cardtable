@@ -725,11 +725,14 @@ function DeckChooser({
   disabled,
   onChoose,
   empty,
+  pending = false,
 }: {
   options: readonly DeckOption[];
   value: string;
   disabled: boolean;
   onChoose: (value: string) => void;
+  /** The pool has not said which decks it offers: tiles' outlines where they will be. */
+  pending?: boolean;
   /** Drawn in place of the tiles when there are none, if given. */
   empty?: string | undefined;
 }) {
@@ -913,6 +916,7 @@ function DeckChooser({
           )}
         </button>
       ))}
+      {pending && options.length === 0 && <SkeletonTiles />}
       {options.length === 0 && empty !== undefined && (
         <p className="deckpick__empty" data-testid="deck-none">
           {empty}
@@ -1333,6 +1337,12 @@ function RoomTableScreen({
   /** A start asked for or a match running: the table is no longer anyone's to change. */
   const underway = starting || matchId !== null;
   const streamed = modeRef.current === 'streamed';
+  /** The room's name as soon as either read has it; the id is never a title. */
+  const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
+  /** The room answered with a refusal rather than a table: there is nothing more to wait for. */
+  const settled = locked !== null || tableError !== null;
+  /** Nothing of the room's own to draw yet: its skeleton instead. */
+  const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
   const picking =
     !streamed && !draftRoom && resolved && locked === null && table !== null && !spectating && loaded !== null;
@@ -1897,24 +1907,37 @@ function RoomTableScreen({
   return (
     <div className="shell shell--fit" data-testid="constructed" data-members={view?.members.length ?? undefined}>
       <header className="shell__head">
-        <h1 className="shell__title" data-testid="room-name">
-          {streamed ? (view?.name ?? roomId) : (table?.room.name ?? roomId)}
-        </h1>
+        {/* The room's own name, never its id: until the room has answered, a
+            skeleton line where the name will be. */}
+        {roomTitle !== undefined ? (
+          <h1 className="shell__title" data-testid="room-name">
+            {roomTitle}
+          </h1>
+        ) : settled ? (
+          <h1 className="shell__title">Room</h1>
+        ) : (
+          <span className="skeleton skeleton--title" />
+        )}
         {/* The header states what this room is, so nobody who followed a link
             has to work it out from what is drawn below. A builtin constructed
             room says exactly what it has always said — that sentence already
             names our table. */}
-        <p className="shell__sub" data-testid="room-client-mode">
-          {streamed
-            ? 'Forge’s full client'
-            : draftRoom
-              ? 'Draft'
-              : 'Constructed 1v1'}
-        </p>
+        {resolved ? (
+          <p className="shell__sub" data-testid="room-client-mode">
+            {streamed
+              ? 'Forge’s full client'
+              : draftRoom
+                ? 'Draft'
+                : 'Constructed 1v1'}
+          </p>
+        ) : (
+          <span className="skeleton skeleton--sub" />
+        )}
         <SettingsGear />
       </header>
 
-      <main className="lobby lobby--room">
+      <main className="lobby lobby--room" aria-busy={pending ? 'true' : undefined}>
+        {pending && <RoomSkeleton />}
         {streamed && <StreamedSeats roomId={roomId} members={view?.members ?? []} streamFetch={streamFetch} />}
         {/* Everything below is the builtin room, unchanged. It waits for the
             room record as well as the table so a streamed room never flashes
@@ -2053,8 +2076,9 @@ function RoomTableScreen({
                   Table full &mdash; watching.
                 </p>
               </section>
+            ) : loaded === null ? (
+              loadError === null && <DeckCardSkeleton />
             ) : (
-              loaded !== null && (
                 <section className="lobby__card lobby__decks">
                   <div className="lobby__deckhead">
                     <h2>Your deck</h2>
@@ -2327,6 +2351,7 @@ function RoomTableScreen({
                     empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
                     value={deckId}
                     disabled={deckOptions === null || underway}
+                    pending={deckOptions === null}
                     onChoose={chooseDeck}
                   />
                   {/* Why the dropdown has nothing in it, when it has nothing in it.
@@ -2346,7 +2371,6 @@ function RoomTableScreen({
                     </p>
                   )}
                 </section>
-              )
             )}
           </>
         )}
@@ -2719,6 +2743,51 @@ function PlayerRow({
       />
     </li>
   );
+}
+
+/*
+ * The room before it has answered: its own layout in outline, the same cards at
+ * the same sizes, so the loaded room replaces it without anything moving (the
+ * operator, 2026-10-16: *"can we show a loading skeleton before the room is
+ * loaded? that would look better than an incremental rename of the page"*).
+ * No words: `aria-busy` on the room says it is still coming.
+ */
+function RoomSkeleton() {
+  return (
+    <>
+      <section className="lobby__card" data-testid="room-skeleton">
+        <div className="lobby__deckhead">
+          <span className="skeleton skeleton--heading" />
+        </div>
+        <ul className="tables__players">
+          <li className="skeleton skeleton--seat" />
+          <li className="skeleton skeleton--seat" />
+        </ul>
+      </section>
+      <DeckCardSkeleton />
+    </>
+  );
+}
+
+/** The deck card before the catalogue has answered: heading, the format row, the sets and filters, and tiles. */
+function DeckCardSkeleton() {
+  return (
+    <section className="lobby__card lobby__decks" data-testid="deck-skeleton">
+      <div className="lobby__deckhead">
+        <span className="skeleton skeleton--heading" />
+      </div>
+      <span className="skeleton skeleton--row" />
+      <span className="skeleton skeleton--sets" />
+      <div className="deckpick">
+        <SkeletonTiles />
+      </div>
+    </section>
+  );
+}
+
+/** A row's worth of deck tiles at any width the grid draws, each the size a tile is. */
+function SkeletonTiles() {
+  return Array.from({ length: 8 }, (_, i) => <span key={i} className="skeleton skeleton--tile" />);
 }
 
 /** `#/play` with no room: the room list is where a match starts now. */
