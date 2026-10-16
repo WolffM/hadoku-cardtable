@@ -24,8 +24,9 @@
  *  - nothing else moves while the drag is under way; a bar shows where the card
  *    will land (the board's `[data-arrange-indicator]`), worked out from where the
  *    pointer is among the rows — not only from which row it is over;
- *  - held near the top or bottom of the box the rows scroll in, the box scrolls,
- *    so a card can be carried to a row the box does not show yet;
+ *  - carried to the top or bottom of the box the rows scroll in, the box scrolls,
+ *    so a card can be carried to a row the box does not show yet — never toward
+ *    an edge the card is being carried away from;
  *  - on release the rows that moved slide into their new places (`flip`, the
  *    hand's slide), the dropped one from where it was let go; a release that
  *    changes nothing glides the phantom back to its row.
@@ -92,10 +93,16 @@ function scrollerOf(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** How far to scroll `box` this frame for a pointer at `y`: toward whichever edge it holds near, faster the nearer. */
-function edgeSpeed(box: DOMRect, y: number): number {
-  if (y < box.top + EDGE) return -Math.ceil((EDGE_SPEED * (box.top + EDGE - y)) / EDGE);
-  if (y > box.bottom - EDGE) return Math.ceil((EDGE_SPEED * (y - (box.bottom - EDGE))) / EDGE);
+/**
+ * How far to scroll `box` this frame for a pointer at `y`, pressed at `from`: toward whichever edge
+ * it holds near, faster the nearer — and only an edge the pointer has been carried toward. A card
+ * grabbed near the bottom and carried up is going up: the box holds still under it, rather than
+ * scrolling the row it is aimed at up out of reach (a scry's "above the first card", measured
+ * landing after it when the press sat in the bottom band).
+ */
+function edgeSpeed(box: DOMRect, y: number, from: number): number {
+  if (y < box.top + EDGE && y < from) return -Math.ceil((EDGE_SPEED * (box.top + EDGE - y)) / EDGE);
+  if (y > box.bottom - EDGE && y > from) return Math.ceil((EDGE_SPEED * (y - (box.bottom - EDGE))) / EDGE);
   return 0;
 }
 
@@ -259,7 +266,7 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
     const step = (): void => {
       p.frame = null;
       if (pressRef.current !== p || p.scroller === null || p.last === null) return;
-      const by = edgeSpeed(p.scroller.getBoundingClientRect(), p.last.at.y);
+      const by = edgeSpeed(p.scroller.getBoundingClientRect(), p.last.at.y, p.press.y);
       const was = p.scroller.scrollTop;
       if (by !== 0) p.scroller.scrollTop = was + by;
       if (p.scroller.scrollTop === was) return;
