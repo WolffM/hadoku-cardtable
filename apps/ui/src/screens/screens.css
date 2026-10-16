@@ -308,8 +308,12 @@
   border-color: var(--color-primary);
 }
 
-/* Free pick and the room's settings are switches, not formats: the row's far end. */
-.lobby__deckformat > :not(.lobby__free-pick) + .lobby__free-pick {
+/* Free pick and the room's settings are switches, not formats: together at
+   the row's far end, and they wrap together. */
+.lobby__switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-left: auto;
 }
 
@@ -573,6 +577,13 @@
   stroke-linejoin: round;
 }
 
+/* An empty seat's two ways to fill it: sit in it, or give it to Forge's AI. */
+.tables__actions {
+  display: flex;
+  flex: none;
+  gap: 0.4rem;
+}
+
 .tables__sit,
 .tables__stand {
   flex: none;
@@ -685,6 +696,36 @@
   color: var(--color-text-secondary);
   background: var(--color-bg-hover);
   border-style: dotted;
+}
+
+/*
+ * My own seat's ready state is the button that sets it (the operator,
+ * 2026-10-16: *"just replace the 'not ready' pill with a button instead"*): the
+ * same pill, its two states and marks, with a button's border weight and
+ * cursor, and the primary colour on hover.
+ */
+.pill--button {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Not ready yet: the action, in the primary colour the old Ready button had. */
+.pill--button[data-state='no'] {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  border-style: solid;
+}
+
+.pill--button:hover:not(:disabled),
+.pill--button:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.pill--button:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .pill__mark {
@@ -1267,9 +1308,8 @@
   align-items: stretch;
 }
 
-/* The deck card's controls are two rows above the grid, not six: the heading
-   with Ready and Random on its right, and the pool's controls on one wrapping
-   line. Each line here was height the grid did not get. */
+/* A card's heading shares its line: "At the table" with where the table
+   stands, "Your deck" with the pool's controls, on one wrapping line. */
 .lobby__deckhead,
 .lobby__deckformat {
   display: flex;
@@ -1523,18 +1563,6 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-}
-
-/*
- * Ready and Random, above the deck list rather than after it (operator,
- * 2026-09-30). One row, Ready first because it is the thing the screen exists to
- * reach; they wrap on a narrow viewport rather than squeezing.
- */
-.deckpick__bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
 }
 
 /*
