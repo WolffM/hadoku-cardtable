@@ -495,8 +495,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * **They go FIRST, not last.** `newestFormat` — on both sides — picks the
 	 * newest era whose `family` is `'standard'` (wave 48; `family` is sent as
 	 * `'standard'` on a pod's own row too, unread, since a pod is told apart by
-	 * `source`), and that is the default a new room opens on and the fallback a
-	 * browser uses before the room has answered. A pod appended to the end would
+	 * `source`), and that is the fallback a browser uses before the room has
+	 * answered. (A new room's own era is drawn from the library catalog, which
+	 * holds no pod: `room/lobby.ts`'s `randomFormat`.) A pod appended to the end would
 	 * silently become eligible for that pick if it were not excluded by
 	 * `source` first. `effective` is empty for a pod, so first is also where the
 	 * documented "oldest first" ordering puts something with no date.

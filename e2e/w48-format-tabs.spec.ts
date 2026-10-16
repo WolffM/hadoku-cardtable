@@ -61,8 +61,9 @@ test('the leader switches Standard → Modern → Legacy and picking a Legacy er
   const tabs = alice.page.getByTestId('format-tabs');
   await expect(tabs).toBeVisible();
 
-  // The tab opens on the room's own era's format — a fresh room defaults to the
-  // newest STANDARD era (`room/lobby.ts`'s `newestFormat`), so Standard is the
+  // The tab opens on the room's own era's format. In production a fresh room draws
+  // a random era (`room/lobby.ts`'s `randomFormat`); this harness pins it to the
+  // newest STANDARD era (`CARDTABLE_NEW_ROOM_FORMAT=newest`), so Standard is the
   // one open on arrival.
   await expect(alice.page.getByTestId('format-tab-standard')).toHaveAttribute('aria-selected', 'true');
   await expect(alice.page.getByTestId('format-tab-modern')).toHaveAttribute('aria-selected', 'false');

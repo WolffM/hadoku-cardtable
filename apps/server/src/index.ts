@@ -87,7 +87,7 @@ import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
 import { attachSounds } from './http/sounds.js';
 import { serveCover } from './cover.js';
-import { openLobby } from './room/lobby.js';
+import { newestFormat, openLobby } from './room/lobby.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
 
@@ -334,8 +334,17 @@ app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 // a lobby read: a `join` deals a pod only for a room whose draft the lobby says
 // has started (wave 23, `room/socket.ts`), so `attachDraftSocket` takes the
 // lobby as a required dep and cannot be wired before it exists.
+//
+// A new room opens on a random era (`randomFormat`). `CARDTABLE_NEW_ROOM_FORMAT=newest` pins
+// every new room to the newest Standard era instead: the e2e harnesses set it, because their
+// specs read a fresh room's pool and a run must not depend on a draw.
+const newRoomFormat = process.env.CARDTABLE_NEW_ROOM_FORMAT;
+if (newRoomFormat !== undefined && newRoomFormat !== 'newest') {
+	throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(newRoomFormat)}`);
+}
 const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
+	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat() } : {}),
 	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
 });
 attachRooms(api, { lobby });

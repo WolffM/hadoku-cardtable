@@ -81,12 +81,22 @@ interface Harness {
 
 async function openApp(
 	dir: string,
-	opts: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number }; now?: () => number } = {},
+	opts: {
+		joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number };
+		now?: () => number;
+		/** A new room's format is drawn with this; without it every new room opens on `NEWEST_POOL`. */
+		random?: () => number;
+	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
 		logged.push(entry);
 	};
-	const lobby = await lobbyMod.openLobby({ dir, log, ...(opts.now === undefined ? {} : { now: opts.now }) });
+	const lobby = await lobbyMod.openLobby({
+		dir,
+		log,
+		...(opts.now === undefined ? {} : { now: opts.now }),
+		...(opts.random === undefined ? { defaultFormat: NEWEST_POOL } : { random: opts.random }),
+	});
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
@@ -211,7 +221,7 @@ describe('a member is named by their display name, never their id', () => {
 
 describe('POST /api/rooms', () => {
 	it('creates a room whose creator is its leader and its only member', async () => {
-		const h = await openApp(await tempDir());
+		const h = await openApp(await tempDir(), { random: () => 0.999999 });
 		const res = await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } });
 		expect(res.status).toBe(201);
 		const room = res.json() as import('../room/lobby.ts').RoomView;
@@ -227,11 +237,10 @@ describe('POST /api/rooms', () => {
 		expect(room.draftStartedAt).toBeNull();
 		expect(room.members.map((m) => m.ready)).toEqual([false]);
 		expect(room.leader).toBe(room.creator);
-		// The NEWEST frozen pool, which is the operator's choice and the opposite of
-		// what this defaulted to before: `formats[0]` is the oldest power-summer era
-		// (2008-07-25), so every room used to start eight years behind the newest
-		// pool the server has.
-		expect(room.format).toBe(NEWEST_POOL);
+		// A drawn era (`room/lobby.ts`'s `randomFormat`): the top of [0, 1) is the
+		// newest era of the catalog's last family, never the oldest pool.
+		const lastFamily = [...new Set(LIBRARY_FORMATS.map((f) => f.family))].at(-1);
+		expect(room.format).toBe(LIBRARY_FORMATS.filter((f) => f.family === lastFamily).at(-1)!.id);
 		expect(room.format).not.toBe(OLDEST_POOL);
 		expect(POOLS.length).toBeGreaterThan(1);
 		// And the creator is told, in their own row, that the room is theirs to set.

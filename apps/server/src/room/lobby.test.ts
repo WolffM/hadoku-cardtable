@@ -34,6 +34,7 @@ import {
 	newestFormat,
 	NO_FORMAT,
 	openLobby,
+	randomFormat,
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
 	ROOM_STALE_MS,
@@ -49,7 +50,9 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'
  * Modern and Legacy eras in the same catalog, and `newestFormat()`'s own
  * contract is the newest STANDARD era, never just the catalog's last entry.
  */
-const POOLS = loadTablesLibrary(REPO_ROOT).formats.filter((f) => f.family === 'standard').map((f) => f.id);
+/** Every catalogued era, in catalog order — what a new room's format is drawn from. */
+const CATALOG = loadTablesLibrary(REPO_ROOT).formats.map(({ id, family }) => ({ id, family }));
+const POOLS = CATALOG.filter((f) => f.family === 'standard').map((f) => f.id);
 
 const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
 
@@ -251,35 +254,73 @@ describe('clientMode is immutable once a room exists', () => {
 /* ── the room's pool (wave 25 §A) ────────────────────────────────────── */
 
 describe('a room’s format', () => {
-	it('starts on the NEWEST frozen pool, not the oldest', async () => {
-		// The fact under test is the operator's: newest, not `formats[0]`. Both ends
-		// are read off the real pool directory, so a new frozen pool moves this test
-		// instead of failing it.
+	it('newestFormat() is the newest Standard era of the real catalog, not the oldest', () => {
+		// Both ends are read off the real pool directory, so a new frozen pool moves
+		// this test instead of failing it.
 		expect(POOLS.length).toBeGreaterThan(1);
 		expect(newestFormat()).toBe(POOLS[POOLS.length - 1]);
 		expect(newestFormat()).not.toBe(POOLS[0]);
-		// AF41 put Type 2's 1995 summer at the front of the catalog and the library now runs
-		// forward to Pro Tour 2025's summer; a new room opens on that newest Standard era,
-		// never the oldest year offered.
+		// AF41 put Type 2's 1995 summer at the front of the catalog.
 		expect(POOLS[0]).toBe('1995-07-01');
-		expect(newestFormat()).toBe('2025-06-30');
+	});
 
-		const lobby = await openLobby({ dir: await tempDir() });
-		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
-		expect(made.ok).toBe(true);
-		if (!made.ok) return;
-		expect(made.room.format).toBe(POOLS[POOLS.length - 1]);
+	/*
+	 * The operator, 2026-10-16: "when the room opens, pick a random format from
+	 * (standard/modern/legacy) and pick a random year to open to on default".
+	 */
+	it('a new room opens on a family drawn uniformly, then an era of it drawn uniformly', async () => {
+		const families = [...new Set(CATALOG.map((f) => f.family))];
+		expect(families.sort()).toEqual(['legacy', 'modern', 'standard']);
+		/** Each room makes two draws, family then era: the ends of [0, 1) reach the first and the last of each. */
+		const draws = [0, 0, 0.999999, 0.999999];
+		const lobby = await openLobby({ dir: await tempDir(), random: () => draws.shift()! });
+		const first = lobby.create(ALICE, { name: 'Low', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		const last = lobby.create(ALICE, { name: 'High', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!first.ok || !last.ok) throw new Error('create refused');
+		const familyOf = (family: string): string[] => CATALOG.filter((f) => f.family === family).map((f) => f.id);
+		const order = [...new Set(CATALOG.map((f) => f.family))];
+		expect(first.room.format).toBe(familyOf(order[0]!)[0]);
+		expect(last.room.format).toBe(familyOf(order.at(-1)!).at(-1));
+		expect(draws).toEqual([]);
 		// Every body that carries a room carries it, list as well as get.
-		expect(lobby.list().map((r) => r.format)).toEqual([POOLS[POOLS.length - 1]]);
-		expect(lobby.get(made.room.id)?.format).toBe(POOLS[POOLS.length - 1]);
+		expect(lobby.list().map((r) => r.format)).toEqual([first.room.format, last.room.format]);
+		expect(lobby.get(first.room.id)?.format).toBe(first.room.format);
+	});
+
+	it('draws the family before the era, so the family with the most eras is no likelier', () => {
+		const catalog = [
+			{ id: '2012-07-13', family: 'standard' as const },
+			{ id: '2013-07-19', family: 'standard' as const },
+			{ id: '2014-07-18', family: 'standard' as const },
+			{ id: 'modern-2012-07-13', family: 'modern' as const },
+			{ id: 'legacy-2016-07-22', family: 'legacy' as const },
+		];
+		const at = (...draws: number[]) => randomFormat(() => draws.shift()!, catalog);
+		// A family is a third of [0, 1) whatever its era count.
+		expect(at(0, 0)).toBe('2012-07-13');
+		expect(at(0.33, 0.99)).toBe('2014-07-18');
+		expect(at(0.34, 0.99)).toBe('modern-2012-07-13');
+		expect(at(0.67, 0)).toBe('legacy-2016-07-22');
+		// Within a family, an era is a share of [0, 1) by its count.
+		expect(at(0, 0.34)).toBe('2013-07-19');
+		expect(randomFormat(() => 0, [])).toBe(NO_FORMAT);
+	});
+
+	it('a fixed defaultFormat wins over the draw, for every new room', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[0], random: () => 0.999999 });
+		for (const name of ['One', 'Two']) {
+			const made = lobby.create(ALICE, { name, gameType: 'constructed-1v1', clientMode: 'builtin' });
+			if (!made.ok) throw new Error(made.reason);
+			expect(made.room.format).toBe(POOLS[0]);
+		}
 	});
 
 	/*
 	 * Wave 48 §U: *"can we go backwards another 5yrs for standard decks? and
 	 * then also backfill modern & legacy as well?"* Modern and Legacy eras now
-	 * sit in the same catalog as Standard's, so a new room's default must stay
-	 * pinned to the newest STANDARD era even when the catalog's last entry, by
-	 * insertion order, is a Legacy or Modern one. Built against a FIXTURE
+	 * sit in the same catalog as Standard's, so `newestFormat` must stay the
+	 * newest STANDARD era even when the catalog's last entry, by insertion
+	 * order, is a Legacy or Modern one. Built against a FIXTURE
 	 * `formats` list, never the real catalog, so this is true regardless of
 	 * what order T's `LIBRARY` ends up declaring eras in.
 	 */

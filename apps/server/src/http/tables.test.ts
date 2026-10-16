@@ -2172,8 +2172,8 @@ describe('a room on a drafted pool', () => {
 		const seen = await call(h, 'GET', '/api/tables/formats', undefined, edgeHeaders('alice'));
 		const formats = seen.body.formats as { id: string; source: string; cardCount: number; sets: string[] }[];
 		expect(formats[0]).toMatchObject({ id: draftPoolId(POD), source: 'draft', cardCount: 45, sets: [] });
-		// `newestFormat` on both sides is `formats.at(-1)`: a pod must never become
-		// the pool a new room opens on.
+		// The browser's `newestFormat` fallback reads `formats.at(-1)`: a pod must never
+		// become the pool a room falls back to.
 		expect(formats.at(-1)?.source).not.toBe('draft');
 		expect(formats.at(-1)?.id).toBe(library.formats.at(-1)?.id);
 

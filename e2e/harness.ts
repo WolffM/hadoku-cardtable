@@ -111,6 +111,8 @@ const server = spawn(process.execPath, [SERVER_JS], {
     NODE_ENV: 'production',
     CARDTABLE_PORT: String(SERVER_PORT),
     CARDTABLE_HOST: '127.0.0.1',
+    // A new room opens on the newest Standard era, not a random one: specs read a fresh room's pool.
+    CARDTABLE_NEW_ROOM_FORMAT: 'newest',
     CARDTABLE_WEB_DIR: WEB_DIR,
     CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'logs'),
     EDGE_AUTH_SECRET: secret,

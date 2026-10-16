@@ -31,7 +31,7 @@
  * and scrypt hash. A room written before `clientMode` existed has no such key
  * and reads back `builtin`; one written before `ready`/`draftStartedAt` existed
  * reads back `false` and `null`; one written before `format` existed reads back
- * on the newest frozen pool.
+ * on the newest Standard era. A new room opens on a random era (`randomFormat`).
  *
  * ## The password is privacy between friends, not authentication
  *
@@ -73,7 +73,7 @@ import {
 } from '@hadoku/room-store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 // A data loader, not a route: `http/library.ts` is what reads `decks/pools`, and
-// the newest frozen pool is a room's default format. Importing it here rather
+// its catalog is what a new room's format is drawn from. Importing it here rather
 // than restating the pool-file convention keeps one reader for that fact; it
 // pulls in no HTTP and closes no cycle (`library.ts` imports only `node:fs`,
 // `node:path` and `@hadoku/deck`).
@@ -217,8 +217,25 @@ function repoRootWithPools(from: string): string | null {
 	return null;
 }
 
+/** A catalogued era, as far as picking a room's format needs one. */
+type CatalogFormat = Pick<TableFormat, 'id' | 'family'>;
+
 /** Resolved at most once per process: it reads the pool fixtures off disk. */
-let newestFrozen: FormatId | null = null;
+let catalogued: readonly CatalogFormat[] | null = null;
+
+/**
+ * Every era the library catalogues, read off `decks/pools` once, lazily — a
+ * lobby that never mints a room and restores no pre-format record never reads
+ * it. Derived from the catalog on every boot, so an era added to the library
+ * is a candidate for a new room after the next deploy, with nothing here to
+ * update.
+ */
+function catalogFormats(): readonly CatalogFormat[] {
+	if (catalogued !== null) return catalogued;
+	const root = repoRootWithPools(import.meta.url);
+	catalogued = root === null ? [] : loadTablesLibrary(root).formats.map(({ id, family }) => ({ id, family }));
+	return catalogued;
+}
 
 /**
  * The newest era whose `family` is `'standard'`, by comparing `id` as a
@@ -226,10 +243,20 @@ let newestFrozen: FormatId | null = null;
  * bare `YYYY-MM-DD` date (`http/library.ts`'s `formatIdOf`), so lexicographic
  * order on `id` is chronological order.
  *
- * `NO_FORMAT` when `formats` has no Standard era at all (an empty library, or
- * a catalog that is Modern/Legacy only).
+ * **The newest STANDARD era — never just "last".** Wave 48 added Modern and
+ * Legacy eras to the same catalog (`http/library.ts`'s `TableFormat.family`),
+ * so `library.formats.at(-1)` is no longer necessarily a Standard era.
+ *
+ * What a room written before `format` existed reads back as, and the fixed
+ * default a server started with `CARDTABLE_ROOM_FORMAT=newest` opens every new
+ * room on. `NO_FORMAT` when the catalog has no Standard era at all (an empty
+ * library, or a catalog that is Modern/Legacy only).
+ *
+ * `formats` is injectable so a test can pin this against a fixture catalog
+ * without reading `decks/pools` off disk; with no argument it reads the real
+ * catalog (`catalogFormats`).
  */
-function newestStandardOf(formats: readonly Pick<TableFormat, 'id' | 'family'>[]): FormatId {
+export function newestFormat(formats: readonly CatalogFormat[] = catalogFormats()): FormatId {
 	let newest: string | null = null;
 	for (const f of formats) {
 		if (f.family === 'standard' && (newest === null || f.id > newest)) newest = f.id;
@@ -238,28 +265,27 @@ function newestStandardOf(formats: readonly Pick<TableFormat, 'id' | 'family'>[]
 }
 
 /**
- * The NEWEST frozen pool, which is what a new room starts on.
+ * What a NEW room opens on (operator, 2026-10-16: *"when the room opens, pick a
+ * random format from (standard/modern/legacy) and pick a random year to open
+ * to on default"*): a family drawn uniformly from the families the catalog
+ * holds any era of, then an era drawn uniformly from that family's. Two draws
+ * rather than one over every era, so Standard's many years do not crowd out
+ * Modern and Legacy.
  *
- * **The newest STANDARD era — never just "last".** Wave 48 added Modern and
- * Legacy eras to the same catalog (`http/library.ts`'s `TableFormat.family`),
- * so `library.formats.at(-1)` is no longer necessarily a Standard era, and a
- * new room must never silently open on, say, Legacy 2016 because that
- * happened to be the catalog's last entry. `newestStandardOf` filters on
- * `family` before picking a newest.
- *
- * `formats` is injectable so a test can pin this against a fixture catalog
- * (Legacy and Modern present, in any order) without reading `decks/pools` off
- * disk at all; production calls it with no argument, which is lazy and
- * memoised — a lobby that never mints a room and restores no pre-format
- * record should not read `decks/pools` at all.
+ * `random` answers in [0, 1), as `Math.random` does; tests inject one.
+ * `NO_FORMAT` for an empty catalog.
  */
-export function newestFormat(formats?: readonly Pick<TableFormat, 'id' | 'family'>[]): FormatId {
-	if (formats !== undefined) return newestStandardOf(formats);
-	if (newestFrozen !== null) return newestFrozen;
-	const root = repoRootWithPools(import.meta.url);
-	const loaded = root === null ? [] : loadTablesLibrary(root).formats;
-	newestFrozen = newestStandardOf(loaded);
-	return newestFrozen;
+export function randomFormat(random: () => number, formats: readonly CatalogFormat[] = catalogFormats()): FormatId {
+	const byFamily = new Map<string, FormatId[]>();
+	for (const f of formats) {
+		const eras = byFamily.get(f.family);
+		if (eras === undefined) byFamily.set(f.family, [f.id]);
+		else eras.push(f.id);
+	}
+	const families = [...byFamily.values()];
+	if (families.length === 0) return NO_FORMAT;
+	const eras = families[Math.floor(random() * families.length)]!;
+	return eras[Math.floor(random() * eras.length)]!;
 }
 
 /**
@@ -655,14 +681,14 @@ export interface OpenLobbyOptions {
 	/** Injected for tests. */
 	now?: () => number;
 	/**
-	 * The pool a room starts on, and what a record written before the field reads
-	 * back as. Defaults to `newestFormat()` — the newest STANDARD era, read off
-	 * disk. A caller that already holds a `TablesLibrary` may pass
-	 * `newestFormat(library.formats)` instead and save the second read — never
-	 * `library.formats.at(-1)?.id`, which is no longer necessarily Standard once
-	 * Modern or Legacy eras are in the catalog (wave 48).
+	 * One era every new room starts on, in place of a random one, and what a
+	 * record written before the field reads back as. Absent, a new room draws its
+	 * own (`randomFormat`) and such a record reads back on `newestFormat()`.
+	 * For tests and the e2e harnesses, whose specs read a fresh room's pool.
 	 */
 	defaultFormat?: FormatId;
+	/** Injected for tests: the draw behind a new room's random format. `Math.random` otherwise. */
+	random?: () => number;
 }
 
 // ── the password ─────────────────────────────────────────────────────────────
@@ -933,14 +959,14 @@ class FileLobby implements Lobby {
 	/** Kept apart from the records so no dump of a record can carry them. */
 	#secrets = new Map<string, Secret>();
 
-	/** The pool a room minted here starts on. Resolved by `openLobby`, never read off a room. */
-	#defaultFormat: FormatId;
+	/** The pool a room minted here starts on, asked once per room. Resolved by `openLobby`. */
+	#newRoomFormat: () => FormatId;
 
-	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, defaultFormat: FormatId) {
+	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId) {
 		this.#store = store;
 		this.#now = now;
 		this.#log = log;
-		this.#defaultFormat = defaultFormat;
+		this.#newRoomFormat = newRoomFormat;
 	}
 
 	/** Boot only: install a room decoded from disk. */
@@ -1153,10 +1179,11 @@ class FileLobby implements Lobby {
 			creator: caller.id,
 			leader: caller.id,
 			gameType: input.gameType,
-			// The NEWEST frozen pool, not `formats[0]`. There is no field for it in
-			// `CreateRoomInput` on purpose: a room is created on the current pool and
-			// the leader moves it from there, so one setting has one mutator.
-			format: this.#defaultFormat,
+			// A random era (`randomFormat`) unless the lobby was opened on a fixed one.
+			// There is no field for it in `CreateRoomInput` on purpose: a room is
+			// created on the server's pick and the leader moves it from there, so one
+			// setting has one mutator.
+			format: this.#newRoomFormat(),
 			clientMode: input.clientMode,
 			matchId: null,
 			matches: [],
@@ -1365,8 +1392,9 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const store = new FileRoomStore(opts.dir);
 	const now = opts.now ?? Date.now;
 	const log = opts.log ?? (() => {});
-	const defaultFormat = opts.defaultFormat ?? newestFormat();
-	const lobby = new FileLobby(store, now, log, defaultFormat);
+	const fixed = opts.defaultFormat;
+	const random = opts.random ?? Math.random;
+	const lobby = new FileLobby(store, now, log, fixed === undefined ? () => randomFormat(random) : () => fixed);
 
 	for (const roomId of await store.list()) {
 		const quarantine = async (reason: string): Promise<void> => {
@@ -1424,7 +1452,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// decks against is exactly the bug this field exists to prevent:
 					// the decks are restored too (the per-member blob), so the pool
 					// they were checked in has to come back with them.
-					format: app.format ?? defaultFormat,
+					format: app.format ?? fixed ?? newestFormat(),
 					clientMode: app.clientMode,
 					// **Never restored.** A match is a child JVM this process
 					// owns; nothing survives a restart, and this repo restarts on
@@ -1456,6 +1484,6 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			throw err;
 		}
 	}
-	log({ event: 'lobby-open', rooms: lobby.list().length, defaultFormat });
+	log({ event: 'lobby-open', rooms: lobby.list().length, newRoomFormat: fixed ?? 'random' });
 	return lobby;
 }
