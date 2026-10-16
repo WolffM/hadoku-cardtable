@@ -1,0 +1,16 @@
+# e2e/nf-offer-gap.spec.ts — nf-nomads.state with a reason for bob to hold priority: an Island and
+# an Opt. Alice activates Nomads en-Kor and chooses its target; with the ability on the stack the
+# next decision is bob's, and alice's board must show nothing on offer while he holds it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Nomads en-Kor;Grizzly Bears;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=Opt
+aibattlefield=Island;Grizzly Bears
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
