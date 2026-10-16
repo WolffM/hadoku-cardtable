@@ -24,11 +24,41 @@ import { cardBox, cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 import { playRole } from '../../../sound/index.ts';
 
+/**
+ * What a release of `source` over `node` sends as its TARGET, or null — and so
+ * the one thing the targeter's tip may snap to (`./install.ts`'s `targetAt`):
+ * the arrow and the drop answer from this same function, so an arrow never
+ * claims a target the release would not send.
+ *
+ * Something Forge offered is under the pointer (`targetUnder`), and it is a
+ * target of THIS drag:
+ *
+ *  - never the dragged card itself — a release on its own card uses it
+ *    (`commitDrag`'s target-less branch), it does not aim it at itself. The
+ *    operator, 2026-10-15: *"if hovering over the card itself it weirdly
+ *    draws an arrow to the top of the card. let's not allow arrows to snap
+ *    to things that are not valid targets"*;
+ *  - a blocker's, only an attacker it may block (`isBlockAssignment`);
+ *  - while Forge has a selection open, whatever else it offered;
+ *  - with no selection open (declaring attackers, paying mana), only a
+ *    defender the dragged attacker may attack (`attackAssignment`). Forge's
+ *    actionable set there names this seat's OTHER attackers and mana
+ *    sources, and none of those is something the dragged card points at.
+ */
+export function aimedTarget(match: LiveMatch, source: number | null, node: EventTarget | null): DropTarget | null {
+  const target = targetUnder(node, boardInteraction(match));
+  if (target === null || (target.kind === 'card' && target.id === source)) return null;
+  if (source !== null && ownBlocker(match, source)) {
+    return target.kind === 'card' && isBlockAssignment(match, source, target.id) ? target : null;
+  }
+  if (match.selectables !== null) return target;
+  return source !== null && target.kind !== 'stack' && attackAssignment(match, source, target) !== null ? target : null;
+}
+
 /** Everything a release can mean. */
 export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget | null): void {
-  const offered = boardInteraction(match);
-  const source = drag.source !== null && offered.selectable.has(drag.source) ? drag.source : null;
-  const target = targetUnder(node, offered);
+  const source = drag.source !== null && boardInteraction(match).selectable.has(drag.source) ? drag.source : null;
+  const target = aimedTarget(match, source, node);
 
   /*
    * Blocking is a drag and only a drag. Dropped on an attacker, the creature
@@ -36,7 +66,7 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
    * anywhere else, its own spot included, it is out of combat (`removeBlock`).
    */
   if (source !== null && ownBlocker(match, source)) {
-    if (target !== null && target.kind === 'card' && isBlockAssignment(match, source, target.id)) {
+    if (target !== null && target.kind === 'card') {
       playRole('ui.target');
       assignBlock(match, source, target.id);
     } else {
@@ -54,10 +84,6 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
     // outside every zone does nothing and says nothing.
     if (source === null) return;
     if (!(node instanceof Element) || node.closest('[data-zone]') === null) return;
-    selectCard(match, source);
-    return;
-  }
-  if (target.kind === 'card' && target.id === source) {
     selectCard(match, source);
     return;
   }

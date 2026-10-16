@@ -253,7 +253,7 @@ import { CAST_LANDING_ATTR, expectedGapBox, IN_PLACE_PX,
   type CastZone,
 } from './cast.ts';
 import { closePileView } from '../../PileView.tsx';
-import { clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
+import { aimedTarget, clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
   commitHandReorder,
@@ -550,7 +550,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * element that is always there for a stack-resident source, so it is the
    * fallback — never a fallback POINT.
    */
-  function clickOrigin(): { at: Point; source: number | null } | null {
+  function clickOrigin(): { at: Point; source: number | null; box: Element | null } | null {
     // A parked card is where the player let go of it, whether or not the
     // board still renders its element — EXCEPT once `live/placed.ts` has
     // taken over drawing its spell (§S: the moment a matching item appears
@@ -567,9 +567,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // entry (never an ability) takes over.
       const onStack = (match.view?.stack ?? []).find((item) => !item.isAbility && item.sourceCardId === parked!.source);
       const stackBox = onStack === undefined ? null : stackItemBox(canvas, onStack.id);
-      if (stackBox !== null) return { at: centreOf(stackBox), source: parked.source };
+      if (stackBox !== null) return { at: centreOf(stackBox), source: parked.source, box: stackBox };
       const box = cardBox(canvas, parked.source);
-      return { at: box === null ? parked.at : centreOf(box), source: parked.source };
+      return { at: box === null ? parked.at : centreOf(box), source: parked.source, box };
     }
     // The card Forge says the question is ABOUT, when it names one, before the
     // card this seat happened to click last: a selection an opponent's spell
@@ -580,22 +580,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const asked = match.promptCard;
     if (asked !== null) {
       const box = cardBox(canvas, asked);
-      if (box !== null) return { at: centreOf(box), source: asked };
+      if (box !== null) return { at: centreOf(box), source: asked, box };
       const item = (match.view?.stack ?? []).find((i) => i.sourceCardId === asked);
       const stackBox = item === undefined ? null : stackItemBox(canvas, item.id);
-      if (stackBox !== null) return { at: centreOf(stackBox), source: asked };
+      if (stackBox !== null) return { at: centreOf(stackBox), source: asked, box: stackBox };
     }
     const held = match.lastSelectedCard;
     if (held !== null) {
       const box = cardBox(canvas, held);
-      if (box !== null) return { at: centreOf(box), source: originId(box) };
+      if (box !== null) return { at: centreOf(box), source: originId(box), box };
     }
     for (const item of match.view?.stack ?? []) {
       if (item.sourceCardId === null) continue;
       const box = cardBox(canvas, item.sourceCardId);
-      if (box !== null) return { at: centreOf(box), source: originId(box) };
+      if (box !== null) return { at: centreOf(box), source: originId(box), box };
       const stackBox = stackItemBox(canvas, item.id);
-      if (stackBox !== null) return { at: centreOf(stackBox), source: item.sourceCardId };
+      if (stackBox !== null) return { at: centreOf(stackBox), source: item.sourceCardId, box: stackBox };
     }
     return null;
   }
@@ -613,18 +613,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
-   * What is under `node` that the pointer may aim at. While a question is up
-   * that Forge asked about the STACK (a counterspell's "select target
-   * spell"), the stack items it names are the targets; otherwise it is what
-   * Forge offered on the board.
+   * What is under `node` that a gesture from `source` may aim at. While a
+   * question is up that Forge asked about the STACK (a counterspell's "select
+   * target spell"), the stack items it names are the targets; otherwise it is
+   * what the release would send as one (`./commit.ts`'s `aimedTarget`).
    */
-  function targetAt(node: EventTarget | null): DropTarget | null {
+  function targetAt(node: EventTarget | null, source: number | null): DropTarget | null {
     const asked = stackAsk(match);
     if (asked !== null) {
       const id = stackItemUnder(node, asked);
       return id === null ? null : { kind: 'stack', id };
     }
-    return targetUnder(node, boardInteraction(match));
+    return aimedTarget(match, source, node);
   }
 
   /** Draw whatever the current state means, into lane A's overlay. Absent overlay: nothing. */
@@ -649,7 +649,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       next = `lift:${drag.source ?? ''}`;
     } else if (drag !== null && drag.moved) {
       const snap = drag.target === null ? null : boxOf(canvas, drag.target);
-      drawArrow(overlay, { from: drag.from, to: drag.at, source: drag.source, target: drag.target, snap, mode: 'drag' });
+      const tail = drag.source === null ? (clickOrigin()?.box ?? null) : cardBox(canvas, drag.source);
+      drawArrow(overlay, { from: drag.from, to: drag.at, source: drag.source, target: drag.target, snap, tail, mode: 'drag' });
       clearMarquee(overlay);
       next = `drag:${drag.source ?? ''}:${drag.target === null ? '' : `${drag.target.kind}:${drag.target.id}`}`;
     } else if (marquee !== null && marquee.moved) {
@@ -669,10 +670,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
         clearArrow(overlay);
         clearMarquee(overlay);
       } else {
-        const target = targetAt(hover.node);
+        const target = targetAt(hover.node, null);
         const snap = target === null ? null : boxOf(canvas, target);
         const source = origin.source;
-        drawArrow(overlay, { from: origin.at, to: hover.at, source, target, snap, mode: 'click' });
+        drawArrow(overlay, { from: origin.at, to: hover.at, source, target, snap, tail: origin.box, mode: 'click' });
         clearMarquee(overlay);
         next = `click:${source ?? ''}:${target === null ? '' : `${target.kind}:${target.id}`}`;
       }
@@ -1192,7 +1193,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * same as any other click-cast — so only a stray press inside the
      * table/board area, naming nothing, is claimed here.
      */
-    if (parked !== null && event.button === 0 && match.selectables !== null && inside(eventTarget(event)) && targetAt(eventTarget(event)) === null) {
+    if (parked !== null && event.button === 0 && match.selectables !== null && inside(eventTarget(event)) && targetAt(eventTarget(event), null) === null) {
       claim(event);
       cancelLive();
       return;
@@ -1316,7 +1317,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         press: at,
         from: origin === null ? at : origin.at,
         at,
-        target: targetAt(eventTarget(event)),
+        target: targetAt(eventTarget(event), null),
         moved: false,
         lifted: null,
         held: true,
@@ -1370,7 +1371,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         press: at,
         from,
         at,
-        target: under,
+        target: null,
         moved: false,
         lifted: castZone,
         held: true,
@@ -1414,7 +1415,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const moved = drag.moved || pastSlop(drag.press, at);
       // The card is in hand from the moment the press clears the slop, not at the press itself.
       if (drag.lifted && moved && !drag.moved) playRole('ui.lift');
-      const next: DragState = { ...drag, at, moved, target: targetAt(eventTarget(event)) };
+      const next: DragState = { ...drag, at, moved, target: targetAt(eventTarget(event), drag.source) };
       drag = next;
       if (next.lifted !== null && next.source !== null) {
         const overZone = overHome(eventTarget(event), next.lifted);

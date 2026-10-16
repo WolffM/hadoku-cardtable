@@ -27,6 +27,12 @@ export interface ArrowSpec {
   target: DropTarget | null;
   /** The element the tip snaps to, or null. */
   snap: Element | null;
+  /**
+   * The element the arrow leaves from, or null when it leaves from a bare
+   * point. While the pointer is over it there is no arrow: one aimed into its
+   * own tail points at nothing.
+   */
+  tail: Element | null;
   mode: 'drag' | 'click';
 }
 
@@ -120,6 +126,10 @@ export function positionArrow(svg: SVGSVGElement, from: Point, tip: Point, box: 
  * own coordinates, so it is correct wherever lane A puts the overlay.
  */
 export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
+  if (spec.tail !== null && within(spec.tail.getBoundingClientRect(), spec.to)) {
+    clearArrow(overlay);
+    return;
+  }
   const aimed = spec.snap === null ? { from: spec.from, tip: spec.to } : aimOn(spec.snap, spec.from, spec.target?.kind === 'player' ? 'player' : 'card');
   let svg = overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]');
   if (svg === null) {
@@ -169,12 +179,16 @@ export function aimAt(
   opts: { neighbours?: boolean } = {},
 ): { from: Point; tip: Point } {
   const centre = { x: (to.left + to.right) / 2, y: (to.top + to.bottom) / 2 };
-  const inside = from.x >= to.left && from.x <= to.right && from.y >= to.top && from.y <= to.bottom;
-  if (inside) return { from: { x: centre.x, y: to.bottom - 4 }, tip: { x: centre.x, y: to.top + 4 } };
+  if (within(to, from)) return { from: { x: centre.x, y: to.bottom - 4 }, tip: { x: centre.x, y: to.top + 4 } };
   const dx = Math.max(to.left - from.x, 0, from.x - to.right);
   const dy = Math.max(to.top - from.y, 0, from.y - to.bottom);
   if (opts.neighbours !== false && Math.hypot(dx, dy) < ADJACENT_PX) return { from, tip: centre };
   return { from, tip: edgeNearest(to, from) };
+}
+
+/** `p` lies on or inside the box. */
+function within(r: { left: number; top: number; right: number; bottom: number }, p: Point): boolean {
+  return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
 }
 
 /** `edgePointNearest` on a box rather than an element. */
@@ -206,7 +220,7 @@ function edgeNearest(r: { left: number; top: number; right: number; bottom: numb
 function aimOn(snap: Element, from: Point, kind: 'player' | 'card'): { from: Point; tip: Point } {
   if (kind === 'player') return { from, tip: centreOf(snap) };
   const seat = snap.closest('.seat')?.getBoundingClientRect();
-  const neighbours = seat === undefined || (from.x >= seat.left && from.x <= seat.right && from.y >= seat.top && from.y <= seat.bottom);
+  const neighbours = seat === undefined || within(seat, from);
   return aimAt(from, snap.getBoundingClientRect(), { neighbours });
 }
 
