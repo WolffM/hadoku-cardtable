@@ -1,0 +1,19 @@
+# The operator, 2026-10-15, over Tezzeret, Agent of Bolas's +1 ("Look at the top five cards of your
+# library. You may reveal an artifact card from among them and put it into your hand. Put the rest
+# on the bottom of your library in any order."): "this UI is really awkward. it's not clear what
+# card is on top … why not just visually stack the cards like how we stack cards on the board?"
+# Alice (seat 0) holds her main phase with Tezzeret in play; her top five cards are five different
+# non-artifacts, so all five go to the bottom and Forge asks their order. `e2e/od-order-pile.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Tezzeret, Agent of Bolas|Counters:LOYALTY=3;Island;Swamp
+humanlibrary=Forbidden Alchemy;Mountain;Island;Lightning Bolt;Counterspell;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
