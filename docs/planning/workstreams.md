@@ -714,7 +714,7 @@ is not happening again. All three land in `apps/ui/src/play/`, which w28's §A
 owns, so none of them could have been added safely once that wave was running.
 
 **15. A card's state is drawn, not written.** Operator, 2026-09-28: *"+1/+1 looks
-really ugly, we need a better way to show that. actually all the shitty text you
+really ugly, we need a better way to show that. actually all the text you
 have written on the card looks ugly, we need to find a way to handle all of that
 with effects."*
 
