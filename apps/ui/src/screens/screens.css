@@ -1252,6 +1252,73 @@
   padding: 6px 8px 0 6px;
 }
 
+/*
+ * A library deck's play style (`DeckStyleTag.tsx`): the word, in the `chosen`
+ * chip's small caps, on a raised plate so it reads over any art. Each style
+ * leads with its own mark — a forward wedge for aggro, a disc for midrange, a
+ * shield for control, a spark for combo — so the four tell apart at a glance
+ * across a grid in any theme. The mark's hue is the theme's danger, success,
+ * accent or warning; two of those can be near one another in a theme, which is
+ * why the shape, and the word beside it, carry the difference.
+ */
+.decktag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--hdk-radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.decktag::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--decktag-hue);
+  clip-path: var(--decktag-mark);
+}
+
+.decktag[data-style='aggro'] {
+  --decktag-hue: var(--danger);
+  --decktag-mark: polygon(0 0, 100% 50%, 0 100%, 30% 50%);
+}
+
+.decktag[data-style='midrange'] {
+  --decktag-hue: var(--success);
+  --decktag-mark: circle(42%);
+}
+
+.decktag[data-style='control'] {
+  --decktag-hue: var(--accent);
+  --decktag-mark: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+}
+
+.decktag[data-style='combo'] {
+  --decktag-hue: var(--warn);
+  --decktag-mark: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
+}
+
+/* Top-left of the art band; the `chosen` chip has the top-right. */
+.deckpick__option .decktag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+}
+
+/* Beside the colours, which the title pushes to the right. */
+.peek__head .decktag {
+  margin-left: auto;
+}
+
 .deckpick__mark {
   position: absolute;
   top: 6px;

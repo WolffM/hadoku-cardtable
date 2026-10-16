@@ -41,6 +41,7 @@ import { BASIC_LAND_NAMES, deckColorsByName, deckFromDeckFile, mainDeckSize } fr
 import {
   LIBRARY,
   LIBRARY_CARD_COSTS,
+  LIBRARY_DECK_STYLES,
   deckPath,
   poolFixturePath,
   type LibraryCollection,
@@ -61,6 +62,7 @@ import ART_IDS from '../draft/art-ids.json';
 import DECK_ART_TRAITS from '../draft/deck-art-traits.json';
 import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckArt.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
+import { PEEK_DELAY_MS } from './DeckPeek.tsx';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf } from '../draft/deckFromPool.ts';
@@ -2530,10 +2532,11 @@ describe('the deck dropdown shows its colours', () => {
 
     const two = deckRow(UW_DELVER.id);
     expect(two.dataset['colors']).toBe('WU');
-    // The row's own visible text is the deck's NAME and nothing else: the ` · WU`
-    // suffix the `<option>` needed is gone, because the row draws real pips.
+    // The row's own visible text is the deck's play style and NAME and nothing
+    // else: the ` · WU` suffix the `<option>` needed is gone, because the row
+    // draws real pips.
     expect(rowName(two)).toBe(UW_DELVER.name);
-    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(UW_DELVER.name);
+    expect(two.textContent?.replace(/^Illus\. .*? · ™ & © WotC/, '')).toBe(`Aggro${UW_DELVER.name}`);
     expect(within(two).getByTestId('deck-colors').dataset['colors']).toBe('WU');
 
     const one = deckRow(MONO_GREEN.id);
@@ -2597,6 +2600,48 @@ describe('the deck dropdown shows its colours', () => {
     await pick(UG_POLYMORPH);
     expect(pips()).toEqual([]);
     expect(within(chosenRow()).getByTestId('deck-colors').textContent).toBe('colourless');
+  });
+});
+
+/* ── a library deck's play style (2026-10-16) ───────────────────────────── */
+
+/**
+ * *"would be cool if we had a little indicator on the decks in the deck
+ * selector that told us whether it was combo, midrange, control, or aggro"* —
+ * the style the deck selection gave each library deck, on its tile and in its
+ * peek, as a word (so a reader hears it) beside a hue. A deck the selection
+ * never saw draws no tag rather than a guess.
+ */
+describe('the deck chooser tags a library deck with its play style', () => {
+  it('tags the library deck with its selection style, and the deck with none not at all', async () => {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, LONG_NAME_DECK] });
+    const group = await deckPicker();
+
+    expect(LIBRARY_DECK_STYLES[UW_DELVER.id]).toBe('aggro');
+    const uw = deckRow(UW_DELVER.id);
+    expect(uw.dataset['style']).toBe('aggro');
+    expect(within(uw).getByTestId('deck-style').textContent).toBe('Aggro');
+    // In the tile's accessible name, not only painted on it.
+    expect(within(group).getByRole('radio', { name: /Aggro/ })).toBe(uw);
+
+    const unknown = deckRow(LONG_NAME_DECK.id);
+    expect(unknown.hasAttribute('data-style')).toBe(false);
+    expect(within(unknown).queryByTestId('deck-style')).toBeNull();
+  });
+
+  it('names the style in the deck’s peek too', async () => {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    await deckPicker();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    fireEvent.pointerEnter(deckRow(MONO_GREEN.id), { pointerType: 'mouse' });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEEK_DELAY_MS + 50);
+    });
+    const peek = screen.getByTestId('deck-peek');
+    expect(within(peek).getByTestId('deck-style').dataset['style']).toBe(LIBRARY_DECK_STYLES[MONO_GREEN.id]);
   });
 });
 

@@ -18,6 +18,9 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { DeckColors } from '../components/DeckView.tsx';
 import { ManaCost } from '../components/ManaPip.tsx';
 import type { DeckColor } from '@hadoku/deck';
+import type { DeckStyle } from '@hadoku/deck/library';
+
+import { DeckStyleTag } from './DeckStyleTag.tsx';
 
 /** One line of a list, with what the peek sorts and draws it by. */
 export interface PeekLine {
@@ -70,6 +73,7 @@ export function DeckPeek({
   id,
   label,
   colors,
+  deckStyle,
   list,
   anchor,
   bounds,
@@ -77,6 +81,8 @@ export function DeckPeek({
   id: string;
   label: string;
   colors: readonly DeckColor[];
+  /** The library deck's play style, drawn beside its name; absent for any other deck. */
+  deckStyle?: DeckStyle | undefined;
   list: PeekList;
   /** The tile's box, and the screen's: the peek sits beside one, inside the other. */
   anchor: DOMRect;
@@ -115,6 +121,7 @@ export function DeckPeek({
     <div ref={ref} id={id} role="tooltip" className="peek" data-testid="deck-peek" style={place}>
       <header className="peek__head">
         <span className="peek__title">{label}</span>
+        {deckStyle !== undefined && <DeckStyleTag style={deckStyle} />}
         <DeckColors colors={colors} label={`${label}: ${colors.length === 0 ? 'colourless' : colors.join(' ')}`} />
       </header>
       <div className="peek__body">

@@ -154,7 +154,7 @@ import {
   type Deck,
   type DeckColor,
 } from '@hadoku/deck';
-import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
+import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku/deck/library';
 
 import { navigate } from './route.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
@@ -201,6 +201,7 @@ import {
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { DeckPeek, PEEK_DELAY_MS, type PeekLine, type PeekList } from './DeckPeek.tsx';
+import { DeckStyleTag } from './DeckStyleTag.tsx';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
@@ -262,6 +263,8 @@ interface DeckOption {
   artId?: string | undefined;
   /** The list a hover shows beside the tile (`DeckPeek.tsx`). */
   list?: PeekList;
+  /** The selection's play style for a library deck; none for anything else. */
+  deckStyle?: DeckStyle;
 }
 
 /** A library deck's lines, costed from the same committed slice the colours fold. */
@@ -817,6 +820,7 @@ function DeckChooser({
           data-testid="deck-option"
           data-deck-id={option.value}
           data-colors={option.colors.join('')}
+          data-style={option.deckStyle}
           aria-checked={option.value === value}
           tabIndex={stop === index ? 0 : -1}
           disabled={disabled}
@@ -832,6 +836,7 @@ function DeckChooser({
           aria-describedby={peek?.index === index ? 'deck-peek' : undefined}
         >
           <DeckArt artId={option.artId} />
+          {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} />}
           <span className="deckpick__name" title={option.label}>
             {option.label}
           </span>
@@ -853,6 +858,7 @@ function DeckChooser({
           id="deck-peek"
           label={peeked.label}
           colors={peeked.colors}
+          deckStyle={peeked.deckStyle}
           list={peeked.list}
           anchor={peek.anchor}
           bounds={peek.bounds}
@@ -1398,6 +1404,7 @@ function RoomTableScreen({
           value: d.id,
           label: d.name,
           list: libraryPeekList(d.main, d.sideboard),
+          deckStyle: LIBRARY_DECK_STYLES[d.id],
           colors: deckColorsByName(
             d.main.map((line) => line.name),
             LIBRARY_CARD_COSTS,
