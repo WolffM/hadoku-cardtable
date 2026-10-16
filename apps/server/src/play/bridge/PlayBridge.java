@@ -2889,19 +2889,23 @@ public final class PlayBridge {
          * from the rest of the zone, so the card moved FIRST ends next to the rest of the library: the
          * lowest of them on top, the highest of them at the bottom.
          *
-         * <p>The question's own method in {@code PlayerControllerHuman} says which question this is,
-         * read off this thread's stack (the game thread is parked in it); for a library order the end
-         * is read off the ability doing the moving ({@link #libraryEndIsTop}).
+         * <p>This seat is a network client: the question arrives here off the wire, while the server's
+         * game thread that asked it is parked in {@code RemoteClientGuiGame}'s send-and-wait inside
+         * the asking method of {@code PlayerControllerHuman}. That thread's stack says which question
+         * this is ({@link #askingStack}); for a library order the end is read off the ability doing
+         * the moving ({@link #libraryEndIsTop}).
          */
         private JsonObject orderDestination(final String title, final String top) {
             final forge.util.Localizer l = forge.util.Localizer.getInstance();
-            final List<StackWalker.StackFrame> frames = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-                    .walk(s -> s.limit(64).collect(java.util.stream.Collectors.toList()));
+            final StackTraceElement[] frames = askingStack();
             String asker = null;
-            for (final StackWalker.StackFrame frame : frames) {
-                if (frame.getDeclaringClass() == PlayerControllerHuman.class) { asker = frame.getMethodName(); break; }
+            for (final StackTraceElement frame : frames) {
+                if (PlayerControllerHuman.class.getName().equals(frame.getClassName())) { asker = frame.getMethodName(); break; }
             }
-            if (asker == null) { return null; }
+            if (asker == null) {
+                System.err.println("[bridge] orderDestination: no game thread parked in an order (" + title + " / " + top + ")");
+                return null;
+            }
             final boolean libraryTop = l.getMessage("lblTopOfLibrary").equals(top);
             switch (asker) {
                 case "tuckCardsViaMulligan":
@@ -2926,6 +2930,16 @@ public final class PlayBridge {
             }
         }
 
+        /** The stack of the server thread parked in {@code RemoteClientGuiGame.order}, or empty. */
+        private static StackTraceElement[] askingStack() {
+            for (final StackTraceElement[] stack : Thread.getAllStackTraces().values()) {
+                for (final StackTraceElement frame : stack) {
+                    if (RemoteClientGuiGame.class.getName().equals(frame.getClassName()) && "order".equals(frame.getMethodName())) { return stack; }
+                }
+            }
+            return new StackTraceElement[0];
+        }
+
         private static JsonObject destination(final String zone, final boolean onTop, final boolean firstHighest) {
             final JsonObject o = new JsonObject();
             o.addProperty("zone", zone);
@@ -2946,12 +2960,13 @@ public final class PlayBridge {
          * ability is found, Forge's own reading stands: it reverses exactly when it takes the cards to
          * go on top.
          */
-        private static boolean libraryEndIsTop(final List<StackWalker.StackFrame> frames, final boolean reversed) {
+        private static boolean libraryEndIsTop(final StackTraceElement[] frames, final boolean reversed) {
             Class<?> effect = null;
             boolean byOwners = false;
-            for (final StackWalker.StackFrame frame : frames) {
-                if (frame.getDeclaringClass() == forge.game.GameActionUtil.class && "orderCardsByTheirOwners".equals(frame.getMethodName())) { byOwners = true; }
-                if (forge.game.ability.SpellAbilityEffect.class.isAssignableFrom(frame.getDeclaringClass())) { effect = frame.getDeclaringClass(); break; }
+            for (final StackTraceElement frame : frames) {
+                if (forge.game.GameActionUtil.class.getName().equals(frame.getClassName()) && "orderCardsByTheirOwners".equals(frame.getMethodName())) { byOwners = true; }
+                final Class<?> c = loaded(frame.getClassName());
+                if (c != null && forge.game.ability.SpellAbilityEffect.class.isAssignableFrom(c)) { effect = c; break; }
             }
             final Game game = liveGame();
             if (effect == null || game == null || !game.getStack().isResolving() || game.getStack().isEmpty()) { return reversed; }
@@ -2969,6 +2984,15 @@ public final class PlayBridge {
             final int position = sa.hasParam(param)
                     ? forge.game.ability.AbilityUtils.calculateAmount(sa.getHostCard(), sa.getParam(param), sa) : otherwise;
             return position >= 0;
+        }
+
+        private static Class<?> loaded(final String name) {
+            if (!name.startsWith("forge.game.ability.effects.")) { return null; }
+            try {
+                return Class.forName(name, false, PlayBridge.class.getClassLoader());
+            } catch (final ClassNotFoundException e) {
+                return null;
+            }
         }
 
         @Override
