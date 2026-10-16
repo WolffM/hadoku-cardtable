@@ -581,7 +581,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
      * else (destroyed, sacrificed, exiled) as the effects start.
      */
-    for (const departure of diff.departures) {
+    for (const dep of diff.departures) {
+      // Killed by a hit crumples; destroyed any other way is sliced (`departures.ts`'s `exitMotionFor`).
+      const departure: Departure = fatalLand.has(dep.cardId) ? { ...dep, cause: 'damage' } : dep;
       const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
       endMs = Math.max(endMs, delay + exitMs(departure));
       host.leave?.(departure, delay);

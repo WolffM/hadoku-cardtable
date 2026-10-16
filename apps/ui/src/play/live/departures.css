@@ -1,8 +1,8 @@
 /*
- * A permanent leaving the battlefield (`departures.ts`): a copy of the card, stood in the board's
- * overlay over the gap its row keeps, holding still until its beat (`data-exit-go`) and then playing
- * its exit motion. Each motion is one rule below, under its name from `EXIT_MOTIONS`; its length
- * there and its keyframe here must agree.
+ * A permanent leaving the battlefield (`departures.ts`): copies of the card (`.board-departure__piece`,
+ * as many as its motion's `pieces`), stood in the board's overlay over the gap its row keeps, holding
+ * still until its beat (`data-exit-go`) and then playing its exit motion. Each motion is its rules
+ * below, under its name from `EXIT_MOTIONS`; its length there and its keyframes here must agree.
  */
 .board-departure {
   position: absolute;
@@ -10,12 +10,18 @@
   pointer-events: none;
 }
 
-.board-departure > .board-card {
+/* The first piece sizes the stand-in; any others lie exactly over it. */
+.board-departure__piece:not(:first-child) {
+  position: absolute;
+  inset: 0;
+}
+
+.board-departure__piece > .board-card {
   margin: 0;
   list-style: none;
 }
 
-/* Destroyed: the countered spell's own motion (`placed.css`'s `placed-countered`) — a shudder, then it crumples away. */
+/* Killed by damage: the countered spell's own motion (`placed.css`'s `placed-countered`) — a shudder, then it crumples away. */
 .board-departure[data-exit='crumple'][data-exit-go] {
   animation: board-exit-crumple 400ms ease-in forwards;
 }
@@ -54,6 +60,95 @@
 @keyframes board-exit-fade {
   100% {
     translate: 0 -8px;
+    opacity: 0;
+  }
+}
+
+/*
+ * Destroyed: cut in half. A slash crosses the card on a slant (the first quarter), then the two halves
+ * part along the cut — the top one lifting away, the bottom one dropping — and fade.
+ */
+.board-departure[data-exit='slice'] > .board-departure__piece[data-piece='1'] {
+  clip-path: polygon(0 0, 100% 0, 100% 40%, 0 62%);
+}
+
+.board-departure[data-exit='slice'] > .board-departure__piece[data-piece='2'] {
+  clip-path: polygon(0 62%, 100% 40%, 100% 100%, 0 100%);
+}
+
+.board-departure[data-exit='slice']::after {
+  content: '';
+  position: absolute;
+  left: -12%;
+  top: 51%;
+  width: 124%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--c-white);
+  box-shadow:
+    0 0 6px 2px color-mix(in srgb, var(--c-white) 80%, transparent),
+    0 0 16px 4px color-mix(in srgb, var(--accent) 60%, transparent);
+  transform: rotate(-17deg) scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+}
+
+.board-departure[data-exit='slice'][data-exit-go]::after {
+  animation: board-exit-slash 620ms ease-out forwards;
+}
+
+@keyframes board-exit-slash {
+  0% {
+    transform: rotate(-17deg) scaleX(0);
+    opacity: 1;
+  }
+
+  22% {
+    transform: rotate(-17deg) scaleX(1);
+    opacity: 1;
+  }
+
+  45%,
+  100% {
+    transform: rotate(-17deg) scaleX(1);
+    opacity: 0;
+  }
+}
+
+.board-departure[data-exit='slice'][data-exit-go] > .board-departure__piece[data-piece='1'] {
+  animation: board-exit-slice-top 620ms cubic-bezier(0.3, 0, 0.6, 1) forwards;
+}
+
+.board-departure[data-exit='slice'][data-exit-go] > .board-departure__piece[data-piece='2'] {
+  animation: board-exit-slice-bottom 620ms cubic-bezier(0.4, 0, 0.8, 0.6) forwards;
+}
+
+@keyframes board-exit-slice-top {
+  0%,
+  25% {
+    translate: 0 0;
+    rotate: 0deg;
+    opacity: 1;
+  }
+
+  100% {
+    translate: -14px -18px;
+    rotate: -8deg;
+    opacity: 0;
+  }
+}
+
+@keyframes board-exit-slice-bottom {
+  0%,
+  25% {
+    translate: 0 0;
+    rotate: 0deg;
+    opacity: 1;
+  }
+
+  100% {
+    translate: 12px 26px;
+    rotate: 6deg;
     opacity: 0;
   }
 }

@@ -23,7 +23,7 @@
  *
  * The operator, 2026-10-15: *"we'll probably incorporate different death animations in the future so
  * just make sure this is built in a good way where we can plug in a different animations"*. An exit
- * motion is a name in {@link EXIT_MOTIONS} — its length, here — and a keyframe in `departures.css`
+ * motion is a name in {@link EXIT_MOTIONS} — its length and how many copies of the card it cuts the card into, here — and keyframes in `departures.css`
  * under `[data-exit="<name>"][data-exit-go]`. {@link exitMotionFor} is the one place a departure's
  * motion is chosen; it sees the card and where it went, so a motion per destination, per card type or
  * per card is a line there, and a new animation is an entry in the table plus its keyframe. Nothing
@@ -49,24 +49,37 @@ export interface Departure {
   readonly card: BoardCard;
   /** Its index in that battlefield's list, so an unarranged row keeps it where it was. */
   readonly index: number;
+  /** `damage` when a hit Forge dealt killed it (`numbers.ts` knows, from the hits); absent otherwise. */
+  readonly cause?: 'damage';
 }
 
 /**
- * Every exit motion, by name, and how long it plays. The CSS for each is
+ * Every exit motion, by name: how long it plays, and how many copies of the card it is drawn with
+ * (each `.board-departure__piece`, numbered `data-piece="1"`…). The CSS for each is
  * `.board-departure[data-exit="<name>"][data-exit-go]` in `departures.css`.
  */
 export const EXIT_MOTIONS = {
-  /** Destroyed: the countered spell's shudder, then it crumples away (`placed.css`'s `placed-countered`). */
-  crumple: { ms: 400 },
+  /** Killed by damage: the countered spell's shudder, then it crumples away (`placed.css`'s `placed-countered`). */
+  crumple: { ms: 400, pieces: 1 },
+  /**
+   * Destroyed: a slash crosses it and it falls apart in two halves that drift off and fade (the operator,
+   * 2026-10-15: "a 'slice in half' effect where the card is cut in half and then fades away").
+   */
+  slice: { ms: 620, pieces: 2 },
   /** Out of play some other way — exiled, returned to a hand: it lifts and fades. */
-  fade: { ms: 300 },
-} as const satisfies Record<string, { readonly ms: number }>;
+  fade: { ms: 300, pieces: 1 },
+} as const satisfies Record<string, { readonly ms: number; readonly pieces: number }>;
 
 export type ExitMotion = keyof typeof EXIT_MOTIONS;
 
-/** Which exit motion a departure plays — the one place it is chosen. */
+/**
+ * Which exit motion a departure plays — the one place it is chosen. To a graveyard (or gone): killed by
+ * damage crumples, anything else is destroyed and is sliced. Forge gives no cause beyond the hits, so a
+ * sacrifice is sliced too.
+ */
 export function exitMotionFor(departure: Departure): ExitMotion {
-  return departure.to === 'graveyard' || departure.to === 'gone' ? 'crumple' : 'fade';
+  if (departure.to !== 'graveyard' && departure.to !== 'gone') return 'fade';
+  return departure.cause === 'damage' ? 'crumple' : 'slice';
 }
 
 /** How long a departure stays drawn once its beat starts. */
@@ -153,8 +166,6 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   }
 
   function standIn(from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion): HTMLElement {
-    const copy = from.cloneNode(true) as HTMLElement;
-    for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
     const box = root.getBoundingClientRect();
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
@@ -165,7 +176,15 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     wrap.style.width = `${at.width}px`;
     // The copy is sized by the zone's own `--card-w`, which the overlay is outside of.
     wrap.style.setProperty('--card-w', `${at.width}px`);
-    wrap.append(copy);
+    for (let n = 1; n <= EXIT_MOTIONS[motion].pieces; n++) {
+      const copy = from.cloneNode(true) as HTMLElement;
+      for (const el of [copy, ...copy.querySelectorAll<HTMLElement>('*')]) for (const attr of STRIPPED) el.removeAttribute(attr);
+      const piece = document.createElement('div');
+      piece.className = 'board-departure__piece';
+      piece.setAttribute('data-piece', String(n));
+      piece.append(copy);
+      wrap.append(piece);
+    }
     root.append(wrap);
     return wrap;
   }

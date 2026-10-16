@@ -569,9 +569,9 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     const ball = overlay.querySelector<HTMLElement>('.effect-hit');
     expect(ball?.dataset.hit, 'the first fireball leaves the spell at once: no blink first').toBe('card:7:1');
     expect(ball?.dataset.colour, 'in Slagstorm’s colour').toBe('R');
-    expect(left.map(([d, ms]) => [d.cardId, d.to, ms]), 'each goes the moment its own fireball lands').toEqual([
-      [7, 'graveyard', HIT_MS],
-      [9, 'graveyard', BEAT_STAGGER_MS + HIT_MS],
+    expect(left.map(([d, ms]) => [d.cardId, d.to, d.cause, ms]), 'each goes the moment its own fireball lands, killed by damage').toEqual([
+      [7, 'graveyard', 'damage', HIT_MS],
+      [9, 'graveyard', 'damage', BEAT_STAGGER_MS + HIT_MS],
     ]);
     expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BEAT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.crumple.ms);
 
@@ -587,14 +587,14 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
   it('destroyed with no damage (no hits): the creatures go at once, while the spell waits on the stack', () => {
     vi.useFakeTimers();
     const { canvas } = sweeperBoard();
-    const left: [number, number][] = [];
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d, ms) => left.push([d.cardId, ms]) });
+    const left: [number, number, string | undefined][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d, ms) => left.push([d.cardId, ms, d.cause]) });
     handle.notify(before);
     keepPlaces(canvas);
     handle.notify({ ...after, hits: [] });
-    expect(left).toEqual([
-      [7, 0],
-      [9, 0],
+    expect(left, 'no cause: destroyed, so sliced').toEqual([
+      [7, 0, undefined],
+      [9, 0, undefined],
     ]);
     handle.dispose();
   });

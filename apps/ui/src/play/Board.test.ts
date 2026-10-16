@@ -4464,7 +4464,7 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       rerender(createElement(Board, { view: without, boardLayout: 'single' }));
       expect(tier(container, 'back'), 'its place is kept while it leaves').toEqual([8, 24, null, null, null, null, 25]);
       expect(container.querySelector(`.seat[data-viewer] [data-tier="back"] > li:nth-child(3)`)?.getAttribute(LEAVING_GAP_ATTR)).toBe('6');
-      act(() => void vi.advanceTimersByTime(EXIT_MOTIONS.crumple.ms));
+      act(() => void vi.advanceTimersByTime(EXIT_MOTIONS.slice.ms));
       expect(tier(container, 'back'), 'its column closed; the player’s own gaps stay').toEqual([8, 24, null, null, null, 25]);
     });
 

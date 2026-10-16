@@ -12,8 +12,8 @@ import { EXIT_MOTIONS, exitMotionFor, installDepartures, LEAVING_GAP_ATTR, type 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
 
-function departure(to: Departure['to']): Departure {
-  return { cardId: 7, playerId: 0, to, toPlayerId: 0, card: { id: 7 } as BoardCard, index: 0 };
+function departure(to: Departure['to'], cause?: 'damage'): Departure {
+  return { cardId: 7, playerId: 0, to, toPlayerId: 0, card: { id: 7 } as BoardCard, index: 0, ...(cause === undefined ? {} : { cause }) };
 }
 
 function board(): HTMLElement {
@@ -42,9 +42,11 @@ afterEach(() => {
 });
 
 describe('exitMotionFor', () => {
-  it('destroyed (a graveyard, or gone) crumples; out of play any other way fades', () => {
-    expect(exitMotionFor(departure('graveyard'))).toBe('crumple');
-    expect(exitMotionFor(departure('gone'))).toBe('crumple');
+  it('killed by damage crumples; destroyed any other way (a graveyard, or gone) is sliced; out of play any other way fades', () => {
+    expect(exitMotionFor(departure('graveyard', 'damage'))).toBe('crumple');
+    expect(exitMotionFor(departure('graveyard'))).toBe('slice');
+    expect(exitMotionFor(departure('gone'))).toBe('slice');
+    expect(exitMotionFor(departure('gone', 'damage'))).toBe('crumple');
     expect(exitMotionFor(departure('exile'))).toBe('fade');
     expect(exitMotionFor(departure('hand'))).toBe('fade');
   });
@@ -58,10 +60,11 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('graveyard'), 100);
+    handle.leave(departure('graveyard', 'damage'), 100);
 
     const standIn = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('crumple');
+    expect(standIn.querySelectorAll('.board-departure__piece'), 'one copy').toHaveLength(1);
     expect(standIn.hasAttribute('data-exit-go'), 'still, until its beat').toBe(false);
     expect([standIn.style.left, standIn.style.top, standIn.style.width]).toEqual(['300px', '400px', '60px']);
     expect(standIn.textContent, 'the card as it was drawn').toBe('Thalia');
@@ -87,6 +90,26 @@ describe('installDepartures', () => {
     handle.leave(departure('graveyard'), 100);
     expect(canvas.querySelector('.board-departure')).toBeNull();
     vi.advanceTimersByTime(100);
+    expect(onDone).toHaveBeenCalledWith(7);
+    handle.dispose();
+  });
+
+  it('a slice is drawn as two copies of the card, the two halves, and goes once its motion is over', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const onDone = vi.fn();
+    const handle = installDepartures(canvas, { onDone });
+    handle.snapshot();
+    keepPlace(canvas);
+    handle.leave(departure('graveyard'), 0);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(standIn.getAttribute('data-exit')).toBe('slice');
+    expect([...standIn.querySelectorAll<HTMLElement>('.board-departure__piece')].map((p) => [p.dataset.piece, p.textContent])).toEqual([
+      ['1', 'Thalia'],
+      ['2', 'Thalia'],
+    ]);
+    vi.advanceTimersByTime(EXIT_MOTIONS.slice.ms);
+    expect(canvas.querySelector('.board-departure')).toBeNull();
     expect(onDone).toHaveBeenCalledWith(7);
     handle.dispose();
   });
