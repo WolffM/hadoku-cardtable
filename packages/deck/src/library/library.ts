@@ -57,6 +57,13 @@ import {
 export const LIBRARY_SOURCE_KEY = 'Source URL';
 /** Forge's own free-text key (DeckFileHeader.java:52). We use it for provenance. */
 export const LIBRARY_PROVENANCE_KEY = 'Comment';
+/**
+ * The archetype and the player, each its own key, as the selection names them
+ * (`build-library.ts`). Ours, not Forge's: Forge's `Player` key means "a deck
+ * for the AI" (DeckFileHeader.java), so the player is the `Pilot`.
+ */
+export const LIBRARY_ARCHETYPE_KEY = 'Archetype';
+export const LIBRARY_PILOT_KEY = 'Pilot';
 
 /** A prebuilt deck that can be traced back to the record it was copied from. */
 export interface LibraryDeck extends PrebuiltDeck {
@@ -64,6 +71,10 @@ export interface LibraryDeck extends PrebuiltDeck {
   readonly citation: string;
   /** Event, player and finish in one line. Forge's `Comment`. */
   readonly provenance: string;
+  /** What the deck is, without who played it: `Goggles Ramp`. */
+  readonly archetype: string;
+  /** Who played it: `Aleksa Telaron`. */
+  readonly pilot: string;
 }
 
 /** Thrown when a `.dck` is not a usable library deck. */
@@ -78,12 +89,15 @@ export class LibraryDeckError extends Error {
 export interface LibraryDeckOverrides extends PrebuiltDeckOverrides {
   readonly citation?: string;
   readonly provenance?: string;
+  readonly archetype?: string;
+  readonly pilot?: string;
 }
 
 /**
  * Read a library deck out of `.dck` text.
  *
- * Everything `loadPrebuiltDeck` requires, plus a citation. Both missing fields
+ * Everything `loadPrebuiltDeck` requires, plus a citation, a provenance line,
+ * an archetype and a pilot. Every missing field
  * are named in one message rather than the first, for the same reason
  * `loadPrebuiltDeck` does it: the fix is an edit to the file and the message
  * should say which lines to add.
@@ -105,6 +119,9 @@ export function loadLibraryDeck(text: string, overrides: LibraryDeckOverrides = 
     overrides.citation ?? prebuilt.file.metadata.get(LIBRARY_SOURCE_KEY.toLowerCase()) ?? '';
   const provenance =
     overrides.provenance ?? prebuilt.file.metadata.get(LIBRARY_PROVENANCE_KEY.toLowerCase()) ?? '';
+  const archetype =
+    overrides.archetype ?? prebuilt.file.metadata.get(LIBRARY_ARCHETYPE_KEY.toLowerCase()) ?? '';
+  const pilot = overrides.pilot ?? prebuilt.file.metadata.get(LIBRARY_PILOT_KEY.toLowerCase()) ?? '';
 
   const missing: string[] = [];
   if (citation.trim().length === 0) {
@@ -113,13 +130,19 @@ export function loadLibraryDeck(text: string, overrides: LibraryDeckOverrides = 
   if (provenance.trim().length === 0) {
     missing.push(`a provenance line (metadata key \`${LIBRARY_PROVENANCE_KEY}\`)`);
   }
+  if (archetype.trim().length === 0) {
+    missing.push(`an archetype (metadata key \`${LIBRARY_ARCHETYPE_KEY}\`)`);
+  }
+  if (pilot.trim().length === 0) {
+    missing.push(`a pilot (metadata key \`${LIBRARY_PILOT_KEY}\`)`);
+  }
   if (missing.length > 0) {
     throw new LibraryDeckError(
       `library deck ${JSON.stringify(prebuilt.name)} needs ${missing.join(', and ')}`,
     );
   }
 
-  return { ...prebuilt, citation, provenance };
+  return { ...prebuilt, citation, provenance, archetype, pilot };
 }
 
 /**

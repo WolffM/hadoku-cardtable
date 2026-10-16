@@ -40,8 +40,10 @@ import { parseDck } from '@hadoku/carddata/dck';
 import { BASIC_LAND_NAMES, deckColorsByName, deckFromDeckFile, mainDeckSize } from '@hadoku/deck';
 import {
   LIBRARY,
+  LIBRARY_ARCHETYPE_KEY,
   LIBRARY_CARD_COSTS,
   LIBRARY_DECK_STYLES,
+  LIBRARY_PILOT_KEY,
   deckPath,
   poolFixturePath,
   type LibraryCollection,
@@ -144,13 +146,15 @@ const FREE = { id: 'free', name: 'Free pick', effective: '', sets: [], banned: [
 const MODERN = { id: 'modern-2014-07-18', name: 'Modern (M15)', effective: '2014-07-18', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1477, source: 'x', family: 'modern' as const };
 
 
-const deck = (id: string, name: string) => ({
+const deck = (id: string, archetype: string, pilot: string) => ({
   id,
   collection: 'power-summer-2010',
-  name,
+  name: `${archetype} (${pilot})`,
+  archetype,
+  pilot,
   format: 'Standard (M11)',
   date: '2010-07-16',
-  provenance: `Championnat de France 2010: ${name}`,
+  provenance: `Championnat de France 2010: ${pilot}, ${archetype}`,
   citation: 'https://www.mtgtop8.com/event?e=459&f=ST',
   main: [{ count: 60, name: 'Island' }],
   sideboard: [{ count: 15, name: 'Plains' }],
@@ -158,7 +162,7 @@ const deck = (id: string, name: string) => ({
 
 const UG_POLYMORPH = 'power-2010-3-antoine-ruel-ug-polymorph';
 const SECOND_DECK = 'power-2010-1-emanuele-giusti-jund';
-const DECKS = [deck(UG_POLYMORPH, 'UG Polymorph (Antoine Ruel)'), deck(SECOND_DECK, 'Jund (Emanuele Giusti)')];
+const DECKS = [deck(UG_POLYMORPH, 'UG Polymorph', 'Antoine Ruel'), deck(SECOND_DECK, 'Jund', 'Emanuele Giusti')];
 
 const LEGAL = (deckName: string, rulesName: string): Verdict => ({ deckName, rulesName, legal: true, issues: [], note: null });
 
@@ -2633,6 +2637,8 @@ function realDeck(collectionId: string, file: string): TableDeck {
     id: entry.id,
     collection: collection.id,
     name: parsed.name,
+    archetype: parsed.metadata.get(LIBRARY_ARCHETYPE_KEY.toLowerCase()) ?? '',
+    pilot: parsed.metadata.get(LIBRARY_PILOT_KEY.toLowerCase()) ?? '',
     format: collection.format,
     date: collection.date,
     provenance: 'Transcribed from mtgtop8.',
@@ -2655,6 +2661,7 @@ const SOLAR_FLARE = realDeck('power-summer-2012', '1-jeremy-dombek-solar-flare.d
 const LONG_NAME_DECK = deck(
   'deck-with-an-unreasonably-long-name',
   'The Collected Works of a Pilot Who Could Not Settle on a Shorter Title for This Deck',
+  'Somebody With a Long Name',
 );
 
 describe('the deck dropdown shows its colours', () => {

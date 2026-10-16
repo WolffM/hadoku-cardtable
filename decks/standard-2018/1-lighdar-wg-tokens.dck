@@ -1,5 +1,7 @@
 [metadata]
 Name=WG Tokens (lighdar)
+Archetype=WG Tokens
+Pilot=lighdar
 Deck Type=Constructed
 Format=Standard (M19)
 Effective=2018-07-13

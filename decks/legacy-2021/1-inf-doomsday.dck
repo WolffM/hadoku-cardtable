@@ -1,5 +1,7 @@
 [metadata]
 Name=Doomsday (_INF_)
+Archetype=Doomsday
+Pilot=_INF_
 Deck Type=Constructed
 Format=Legacy (AFR)
 Effective=2021-07-23

@@ -93,6 +93,8 @@ const DECKS = [
     id: 'power-2016-1-finespoo-collected-bant',
     collection: 'power-summer-2016',
     name: 'Collected Bant (finespoo)',
+    archetype: 'Collected Bant',
+    pilot: 'finespoo',
     format: 'Standard (EMN)',
     date: '2016-07-22',
     provenance: 'WMCQ: Collected Bant (finespoo)',

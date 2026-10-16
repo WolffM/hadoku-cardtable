@@ -1,5 +1,7 @@
 [metadata]
 Name=Bant Control (MM_17)
+Archetype=Bant Control
+Pilot=MM_17
 Deck Type=Constructed
 Format=Legacy (JMP)
 Effective=2020-08-03

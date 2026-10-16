@@ -1,5 +1,7 @@
 [metadata]
 Name=Hammer Time (CrusherBotBG)
+Archetype=Hammer Time
+Pilot=CrusherBotBG
 Deck Type=Constructed
 Format=Legacy (MAT)
 Effective=2023-05-29

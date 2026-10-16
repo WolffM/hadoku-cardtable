@@ -1,5 +1,7 @@
 [metadata]
 Name=UWx Control (ScreenwriterNY)
+Archetype=UWx Control
+Pilot=ScreenwriterNY
 Deck Type=Constructed
 Format=Legacy (FIN)
 Effective=2025-06-30

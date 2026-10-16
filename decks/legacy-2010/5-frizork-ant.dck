@@ -1,5 +1,7 @@
 [metadata]
 Name=ANT (Frizork)
+Archetype=ANT
+Pilot=Frizork
 Deck Type=Constructed
 Format=Legacy (M11)
 Effective=2010-07-16

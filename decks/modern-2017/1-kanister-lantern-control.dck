@@ -1,5 +1,7 @@
 [metadata]
 Name=Lantern Control (kanister)
+Archetype=Lantern Control
+Pilot=kanister
 Deck Type=Constructed
 Format=Modern (HOU)
 Effective=2017-07-14

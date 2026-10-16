@@ -1,5 +1,7 @@
 [metadata]
 Name=UW Control (Avignon)
+Archetype=UW Control
+Pilot=Avignon
 Deck Type=Constructed
 Format=Modern (EMN)
 Effective=2016-07-22

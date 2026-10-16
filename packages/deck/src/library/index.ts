@@ -72,6 +72,8 @@ export { LIBRARY_CARD_COSTS } from './deck-costs.generated.ts';
 export { LIBRARY_DECK_STYLES, type DeckStyle } from './deck-styles.generated.ts';
 
 export {
+  LIBRARY_ARCHETYPE_KEY,
+  LIBRARY_PILOT_KEY,
   LIBRARY_PROVENANCE_KEY,
   LIBRARY_SOURCE_KEY,
   LibraryDeckError,

@@ -1,5 +1,7 @@
 [metadata]
 Name=Storm (Robert Swiecki)
+Archetype=Storm
+Pilot=Robert Swiecki
 Deck Type=Constructed
 Format=Legacy (HOU)
 Effective=2017-07-14
