@@ -257,12 +257,17 @@ export const ShowPromptMessageSchema = z.strictObject({
    * of the wrapper's `yieldKey()`, per ability as Forge's default
    * `UI_AUTO_DECISION_MODE` keeps it), `name` the trigger's host card, `abilityId` the ability it
    * wraps (the one `targetAbility.abilityId` names while its targets are chosen).
+   *
+   * `search` is present on the "Search {player's} {zones}?" an optional hidden-zone ChangeZone asks
+   * before its card choice (`PlayBridge.java`'s `optionalSearch`): the zones searched, whose they
+   * are, and whether the card choice after a Yes lets the decider pick nothing.
    */
   confirmAbility: z
     .strictObject({
       hostCard: CardRefSchema,
       abilityId: z.number().int(),
       trigger: z.strictObject({ key: z.string().min(1), name: z.string(), abilityId: z.number().int().optional() }).optional(),
+      search: z.strictObject({ origin: z.array(ZoneTypeSchema).min(1), player: PlayerRefSchema, mayChooseNothing: z.boolean() }).optional(),
     })
     .optional(),
   /**

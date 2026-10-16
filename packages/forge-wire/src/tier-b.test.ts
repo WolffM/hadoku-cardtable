@@ -404,6 +404,15 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
 
+  it("an optional search's confirm names the zones, whose they are, and whether the choice may be none", () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Search your hand?', card: null };
+    const search = { origin: ['Hand'], player: { kind: 'player', id: 1 }, mayChooseNothing: true };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, search } }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, search: { ...search, origin: [] } } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, search: { ...search, origin: ['Pocket'] } } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, search: { origin: ['Hand'], player: { kind: 'player', id: 1 } } } }).success).toBe(false);
+  });
+
   it("an optional trigger's confirm names the trigger's storage key and host card", () => {
     const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: "Use triggered ability of Soul's Attendant?", card: null };
     const trigger = { key: 'Whenever another creature enters, you may gain 1 life.', name: "Soul's Attendant" };

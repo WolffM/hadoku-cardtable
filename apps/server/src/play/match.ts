@@ -116,6 +116,7 @@ import {
 	decideCancel,
 	decidePay,
 	DEFAULT_STOP_POLICY,
+	freeSearchConfirm,
 	judgeStop,
 	onlyAnswer,
 	PAY_MANA,
@@ -2377,7 +2378,7 @@ export class Match {
 					? 'same-target'
 					: this.maybeAutoPass(s)
 						? 'auto-pass'
-						: this.maybeConfirmChosenCost(s)
+						: this.maybeConfirmChosenCost(s) || this.maybeConfirmFreeSearch(s)
 							? 'auto-confirm'
 							: this.maybeConfirmChosenTarget(s)
 								? 'target-chosen'
@@ -3040,6 +3041,21 @@ export class Match {
 		const question = gate.notes.prompt?.method === 'showPromptMessage' ? gate.notes.prompt.message : null;
 		if (why === null || question === null || s.confirmedCosts.has(question)) return false;
 		s.confirmedCosts.add(question);
+		this.deps.log({ evt: 'auto-confirmed', matchId: this.id, seat: s.seat, why });
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+		return true;
+	}
+
+	/**
+	 * Yes to an optional search of the seat's own hand ({@link freeSearchConfirm}): the card
+	 * choice that follows is where the seat says yes or no. Returns whether it answered, so the
+	 * caller withholds the prompt.
+	 */
+	private maybeConfirmFreeSearch(s: SeatState): boolean {
+		const gate = this.autoGateFacts(s);
+		if (gate === null) return false;
+		const why = freeSearchConfirm(gate.notes);
+		if (why === null) return false;
 		this.deps.log({ evt: 'auto-confirmed', matchId: this.id, seat: s.seat, why });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;

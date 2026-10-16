@@ -2128,6 +2128,9 @@ public final class PlayBridge {
          * ability ({@code UI_AUTO_DECISION_MODE} = {@code AUTO_DECISION_PER_ABILITY},
          * {@code ForgePreferences.java:147}), so {@code AutoYieldStore.abilitySuffix} of the
          * wrapper's {@code yieldKey()}. {@link #act} stores a decision under it.
+         *
+         * <p>An optional search's "Search your hand?" also names the search ({@code search},
+         * {@link #optionalSearch}), so the server can answer the one a No gains nothing on.
          */
         private JsonObject confirmAbility() {
             final forge.game.player.Player mine = liveSelf(liveGame());
@@ -2147,11 +2150,52 @@ public final class PlayBridge {
                     trigger.addProperty("abilityId", w.getWrappedAbility().getId());
                     o.add("trigger", trigger);
                 }
+                final JsonObject search = optionalSearch(sa, (String) field(input, forge.gamemodes.match.input.InputConfirm.class, "message"), mine);
+                if (search != null) { o.add("search", search); }
                 return o;
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] confirmAbility: could not read the open confirm (" + e + "); it stays a question");
                 return null;
             }
+        }
+
+        /**
+         * The search a Yes/No confirm asks permission for, or null when the confirm is anything else.
+         *
+         * A ChangeZone from a hidden zone with {@code Optional$} asks "Search {player's} {zones}?"
+         * before its card choice ({@code ChangeZoneEffect.changeHiddenOriginResolve}, the
+         * {@code ChangeZoneGeneral} confirm built from {@code lblSearchPlayerZoneConfirm}). Forge does
+         * not hand the confirm mode to {@code InputConfirm}, so the question is recognised as that
+         * one by rebuilding Forge's own sentence for this ability and each player, exactly as the
+         * effect does, and comparing it with the open input's message: the same ability's later
+         * "Cancel Search?" ({@code lblCancelSearchUpToSelectNumCards}) never matches. Abilities whose
+         * question is worded otherwise ({@code OptionalPrompt}, {@code Defined},
+         * {@code OriginAlternative}) are not reported.
+         *
+         * {@code player} is whose zones are searched; {@code mayChooseNothing} is whether the card
+         * choice after a Yes lets the decider pick nothing ({@code !mandatory} there, and
+         * {@code AtRandom} picks for them).
+         */
+        private JsonObject optionalSearch(final SpellAbility sa, final String message, final forge.game.player.Player decider) {
+            if (message == null || sa.getApi() != forge.game.ability.ApiType.ChangeZone || !sa.isHidden()) { return null; }
+            if (!sa.hasParam("Optional") || !sa.hasParam("Origin")) { return null; }
+            for (final String worded : new String[] {"OptionalPrompt", "Defined", "ChooseFromDefined", "OriginAlternative"}) {
+                if (sa.hasParam(worded)) { return null; }
+            }
+            final List<ZoneType> origin = ZoneType.listValueOf(sa.getParam("Origin"));
+            final String prompt = forge.util.Localizer.getInstance().getMessage("lblSearchPlayerZoneConfirm", "{player's}",
+                    forge.util.Lang.joinHomogenous(origin, ZoneType::getTranslatedName).toLowerCase());
+            for (final forge.game.player.Player searched : decider.getGame().getPlayers()) {
+                if (!forge.util.MessageUtil.formatMessage(prompt, decider, searched).equals(message)) { continue; }
+                final JsonObject o = new JsonObject();
+                final JsonArray zones = new JsonArray();
+                for (final ZoneType z : origin) { zones.add(z.name()); }
+                o.add("origin", zones);
+                o.add("player", ref("player", searched.getId()));
+                o.addProperty("mayChooseNothing", !sa.hasParam("Mandatory") && !sa.hasParam("AtRandom"));
+                return o;
+            }
+            return null;
         }
 
         /** This seat's own live {@code Player}, or null when the game or the seat is not readable. */

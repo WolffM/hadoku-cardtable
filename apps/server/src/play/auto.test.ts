@@ -26,6 +26,7 @@ import {
 	PHASE_BY_UI_NAME,
 	namedStopPolicy,
 	chosenCostConfirm,
+	freeSearchConfirm,
 	decideCancel,
 	decidePay,
 	decideStop,
@@ -2580,5 +2581,88 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(chosenCostConfirm(notes, null)).toBeNull();
 		expect(chosenCostConfirm({ ...notes, openAsks: 1 }, { hostCard: 70, abilityId: 9002 })).toBeNull();
 		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 }, FULL_CONTROL_POLICY)).toBeNull();
+	});
+});
+
+describe("an optional search's \"Search your hand?\" — answered when No gains the seat nothing", () => {
+	const card = (id: number) => ({ kind: 'card' as const, id });
+	type Search = { origin: ('Hand' | 'Library' | 'Graveyard')[]; player: { kind: 'player'; id: number }; mayChooseNothing: boolean };
+	/** Forge's question before an optional search's card choice, as the bridge names it (Aether Vial's). */
+	function searchConfirm(h: Harness, search: (me: number) => Search, message = 'Search your hand?'): void {
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		push(h, 0, {
+			kind: 'notify',
+			method: 'showPromptMessage',
+			player: { kind: 'player', id: me },
+			message,
+			card: null,
+			confirmAbility: { hostCard: card(70), abilityId: 9003, search: search(me) },
+		});
+	}
+	const own =
+		(origin: Search['origin'], mayChooseNothing = true) =>
+		(me: number): Search => ({ origin, player: { kind: 'player', id: me }, mayChooseNothing });
+	const presses = (h: Harness) => h.host.commands.filter((c) => c.t === 'act');
+	const shown = (h: Harness) => frames(h, 0).filter((f) => f.kind === 'notify' && f.method === 'showPromptMessage' && f.message.startsWith('Search'));
+
+	it('a search of its own hand, with a choice that may be none, is answered Yes and never shown', () => {
+		const h = harness();
+		searchConfirm(h, own(['Hand']));
+		expect(presses(h)).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
+		expect(h.logs.filter((l) => l.evt === 'auto-confirmed').map((l) => l.why)).toEqual(['searching its own hand costs nothing, and the choice after may be none']);
+		expect(h.logs.filter((l) => l.evt === 'prompt-withheld').map((l) => l.why)).toEqual(['auto-confirm']);
+		expect(shown(h)).toEqual([]);
+	});
+
+	it('a library search is the seat’s: No spares it the shuffle', () => {
+		const h = harness();
+		searchConfirm(h, own(['Library']), 'Search your library?');
+		expect(presses(h)).toEqual([]);
+		expect(shown(h)).toHaveLength(1);
+		const both = harness();
+		searchConfirm(both, own(['Hand', 'Library']), 'Search your hand and library?');
+		expect(presses(both)).toEqual([]);
+	});
+
+	it('a search whose choice must take a card is the seat’s: No is the only way to take none', () => {
+		const h = harness();
+		searchConfirm(h, own(['Hand'], false));
+		expect(presses(h)).toEqual([]);
+		expect(shown(h)).toHaveLength(1);
+	});
+
+	it('another player’s hand is the seat’s question, and so is any search under full control', () => {
+		const theirs = harness();
+		searchConfirm(theirs, (me) => ({ origin: ['Hand'], player: { kind: 'player', id: me + 1 }, mayChooseNothing: true }), "Search Bob's hand?");
+		expect(presses(theirs)).toEqual([]);
+		const full = harness();
+		full.match.setFullControl(0, true);
+		searchConfirm(full, own(['Hand']));
+		expect(presses(full)).toEqual([]);
+	});
+
+	it('a confirm the bridge names no search for is never answered by this rule', () => {
+		const me = 1;
+		const notes: SeatNotes = {
+			playerId: me,
+			prompt: {
+				kind: 'notify',
+				method: 'showPromptMessage',
+				player: { kind: 'player', id: me },
+				message: 'Cancel Search? Up to 1 more card(s) can be selected.',
+				card: null,
+				confirmAbility: { hostCard: card(70), abilityId: 9003 },
+			},
+			buttons: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true },
+			actionable: null,
+			openAsks: 0,
+		};
+		expect(freeSearchConfirm(notes)).toBeNull();
+		const search = { origin: ['Hand' as const], player: { kind: 'player' as const, id: me }, mayChooseNothing: true };
+		const asked = { ...notes, prompt: { ...notes.prompt, confirmAbility: { hostCard: card(70), abilityId: 9003, search } } } as SeatNotes;
+		expect(freeSearchConfirm(asked)).not.toBeNull();
+		expect(freeSearchConfirm({ ...asked, openAsks: 1 })).toBeNull();
+		expect(freeSearchConfirm({ ...asked, buttons: { ...notes.buttons, enable1: false } as SeatNotes['buttons'] })).toBeNull();
 	});
 });

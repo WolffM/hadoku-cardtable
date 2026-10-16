@@ -148,7 +148,7 @@
  *   and 41 required, and that file is not this lane's.
  */
 
-import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
+import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame, type ZoneType } from '@hadoku/forge-wire';
 
 /** An ask that admits exactly one answer, and why. */
 export interface AutoAnswer {
@@ -1400,6 +1400,37 @@ export function chosenCostConfirm(
 	const { hostCard, abilityId } = prompt.confirmAbility;
 	if (hostCard.id !== chosen.hostCard || abilityId !== chosen.abilityId) return null;
 	return 'the seat chose this ability just before';
+}
+
+/**
+ * The zones a seat can search with no consequence beyond the card it takes: its own hand.
+ * Searching a library is not one — it shuffles, and "searched a library" triggers fire — so a
+ * No there is a real choice. Only zones proven against the real engine belong here.
+ */
+const FREE_TO_SEARCH: ReadonlySet<ZoneType> = new Set<ZoneType>(['Hand']);
+
+/**
+ * Yes to Forge's "Search your hand?" before an optional search's card choice, or null when
+ * that question is the seat's. The operator, 2026-10-16: *"why does aether vial say 'Search
+ * your hand? Yes/No' when i tap it? obviously i want to activate it if i tapped it."*
+ *
+ * Forge asks it before every optional hidden-zone ChangeZone
+ * (`ChangeZoneEffect.changeHiddenOriginResolve`); the bridge names it (`confirmAbility.search`).
+ * A No gains the seat nothing exactly when the card choice after a Yes lets it pick nothing
+ * (`mayChooseNothing`) and searching has no effect of its own: every zone is one of
+ * {@link FREE_TO_SEARCH} and it is the seat's own. With nothing that matches, Forge's choice
+ * after the Yes is empty and asks nothing at all.
+ */
+export function freeSearchConfirm(notes: SeatNotes): string | null {
+	if (notes.openAsks > 0) return null;
+	const { prompt, buttons } = notes;
+	if (prompt === null || prompt.method !== 'showPromptMessage') return null;
+	const search = prompt.confirmAbility?.search;
+	if (search === undefined || !search.mayChooseNothing) return null;
+	if (buttons === null || buttons.method !== 'updateButtons' || buttons.enable1 !== true) return null;
+	if (notes.playerId === null || prompt.player.id !== notes.playerId || buttons.owner.id !== notes.playerId) return null;
+	if (search.player.id !== notes.playerId || !search.origin.every((z) => FREE_TO_SEARCH.has(z))) return null;
+	return `searching its own ${search.origin.join(', ').toLowerCase()} costs nothing, and the choice after may be none`;
 }
 
 /**
