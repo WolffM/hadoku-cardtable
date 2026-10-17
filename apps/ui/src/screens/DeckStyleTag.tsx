@@ -12,7 +12,13 @@
  * between the deck name and the mana symbols … remove the words from the
  * grid"*), and names it with `aria-label`, so the word is still part of the
  * tile's accessible name.
+ *
+ * The marks are one ink, never a hue (operator, 2026-10-16: *"we cannot color
+ * them, it's too confusing with the mana symbols next to it"*), and are the
+ * "Motion" set they picked: fast-forward for aggro, a balanced beam for
+ * midrange, a stop sign for control, an infinite loop for combo.
  */
+import type { ReactNode } from 'react';
 import type { DeckStyle } from '@hadoku/deck/library';
 
 /** The four styles, in the order the filter row offers them. */
@@ -25,6 +31,42 @@ const NAMES: Readonly<Record<DeckStyle, string>> = {
   combo: 'Combo',
 };
 
+const MARKS: Readonly<Record<DeckStyle, ReactNode>> = {
+  aggro: (
+    <path
+      d="M4 5l7 7-7 7M12 5l7 7-7 7"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  midrange: (
+    <>
+      <rect x="2.5" y="6" width="19" height="3.6" rx="1.8" fill="currentColor" />
+      <path d="M12 9.6l5.5 10.4h-11z" fill="currentColor" />
+    </>
+  ),
+  control: <path fillRule="evenodd" d="M8 2h8l6 6v8l-6 6H8l-6-6V8zM6.5 10.4v3.2h11v-3.2z" fill="currentColor" />,
+  combo: (
+    <path
+      d="M12 12c-2.2-3.1-4-4.6-6-4.6a4.6 4.6 0 0 0 0 9.2c2 0 3.8-1.5 6-4.6s4-4.6 6-4.6a4.6 4.6 0 0 1 0 9.2c-2 0-3.8-1.5-6-4.6z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.8"
+    />
+  ),
+};
+
+function StyleMark({ style }: { style: DeckStyle }) {
+  return (
+    <svg className="decktag__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {MARKS[style]}
+    </svg>
+  );
+}
+
 export function DeckStyleTag({ style, markOnly = false }: { style: DeckStyle; markOnly?: boolean }) {
   return markOnly ? (
     <span
@@ -34,9 +76,12 @@ export function DeckStyleTag({ style, markOnly = false }: { style: DeckStyle; ma
       role="img"
       aria-label={NAMES[style]}
       title={NAMES[style]}
-    />
+    >
+      <StyleMark style={style} />
+    </span>
   ) : (
     <span className="decktag" data-testid="deck-style" data-style={style}>
+      <StyleMark style={style} />
       {NAMES[style]}
     </span>
   );
