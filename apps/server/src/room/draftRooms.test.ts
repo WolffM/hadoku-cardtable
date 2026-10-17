@@ -91,6 +91,12 @@ function rooms(
 		},
 		now: () => 1_700_000_000_000,
 		onDeferredChange: overrides.onDeferredChange,
+		// Every test here is pure in-memory. Persistence has its own suite in
+		// `http/drafts.test.ts`, against an explicit temp directory — the
+		// default (`CARDTABLE_DRAFTS_DIR`, or `<logDir>/../data/drafts`) is for
+		// production, and letting it apply here would make an ordinary unit
+		// test touch real disk under this repo's own `logs/` directory.
+		storeDir: null,
 	});
 }
 

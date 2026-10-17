@@ -28,6 +28,10 @@ export {
   ViewerViewSchema,
   PassDirectionSchema,
   DraftViewSchema,
+  DraftMineSchema,
+  SaveDraftDeckBodySchema,
+  SaveDraftDeckResponseSchema,
+  SaveDraftDeckRefusalSchema,
   viewerSeat,
   seatLabel,
   isWaiting,
@@ -44,6 +48,10 @@ export {
   type ViewerView,
   type PassDirection,
   type DraftView,
+  type DraftMine,
+  type SaveDraftDeckBody,
+  type SaveDraftDeckResponse,
+  type SaveDraftDeckRefusal,
   type ValidationFailure,
 } from './draft.ts';
 

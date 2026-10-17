@@ -84,6 +84,7 @@ import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables, loadTablesLibrary } from './http/index.js';
+import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachSounds } from './http/sounds.js';
 import { serveCover } from './cover.js';
@@ -399,6 +400,11 @@ const draftRooms = poolLoad.ok
 			// The grace ran out: the seat was vacated on a timer, with no socket
 			// event to answer, so the broadcast is made here.
 			onDeferredChange: (room) => emitDraftUpdate(io, room, draftPolicy),
+			// Same convention as CARDTABLE_ROOMS_DIR/CARDTABLE_SOUNDS_DIR below: a
+			// 45-minute draft must survive this process restarting on every push
+			// to main. `storeDir`'s own doc on why the default is OFF rather than
+			// computing this inline.
+			storeDir: process.env.CARDTABLE_DRAFTS_DIR ?? resolve(CONFIG.logDir, '../data/drafts'),
 		})
 	: null;
 attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier });
@@ -435,6 +441,11 @@ const tables = attachTables(api, {
 	rooms: lobby,
 	matches: () => play?.matches ?? null,
 });
+
+// GET/PUT /api/drafts/:podId/{mine,deck} — a drafter's own pool and the
+// build saved against it. Friend-gated like every other `/api` route, by
+// the same `requireMinTier` above `api`.
+attachDrafts(api, { draftRooms });
 
 // ── Match stats ──────────────────────────────────────────────────────────────
 // A finished room match is reported with this server's service key; without

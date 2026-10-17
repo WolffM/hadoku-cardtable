@@ -236,4 +236,42 @@ export function safeParseDraftView(
   return { ok: true, value: (structural as { data: DraftView }).data };
 }
 
+/*
+ * ── The deck HTTP contract ────────────────────────────────────────────────
+ *
+ * `GET /api/drafts/:podId/mine` and `PUT /api/drafts/:podId/deck` — the ONE
+ * place a drafter's pool and built deck cross the wire outside the draft
+ * socket itself. Stated here, matched by the server route
+ * (`apps/server/src/http/drafts.ts`), so the UI and the server never drift on
+ * the shape.
+ *
+ *   GET  …/mine   → 200 { pool, deck }            404 — caller drafted no seat
+ *   PUT  …/deck   { dck }  → 200 { deck }          400 { issues } — gate refused
+ *
+ * `issues` is a flat `string[]` — refusal MESSAGES, not `WireIssue` objects.
+ * The editor has nothing to do with a card-shaped issue object beyond
+ * displaying its sentence, and `WireIssue` is `apps/server/src/http/gate.ts`'s
+ * own type, not this package's to mirror.
+ */
+
+/** `GET /api/drafts/:podId/mine`. */
+export const DraftMineSchema = z.object({
+  pool: z.array(DraftCardSchema),
+  /** The caller's last saved build, `.dck` text — or null before the first save. */
+  deck: z.string().nullable(),
+});
+export type DraftMine = z.infer<typeof DraftMineSchema>;
+
+/** `PUT /api/drafts/:podId/deck` body. */
+export const SaveDraftDeckBodySchema = z.object({ dck: z.string().min(1) });
+export type SaveDraftDeckBody = z.infer<typeof SaveDraftDeckBodySchema>;
+
+/** `PUT /api/drafts/:podId/deck`, 200: the `.dck` that was saved, byte for byte. */
+export const SaveDraftDeckResponseSchema = z.object({ deck: z.string() });
+export type SaveDraftDeckResponse = z.infer<typeof SaveDraftDeckResponseSchema>;
+
+/** `PUT /api/drafts/:podId/deck`, 400: the gate's draft rule refused it. */
+export const SaveDraftDeckRefusalSchema = z.object({ issues: z.array(z.string()) });
+export type SaveDraftDeckRefusal = z.infer<typeof SaveDraftDeckRefusalSchema>;
+
 export type { ValidationFailure } from './semantics.ts';

@@ -108,6 +108,8 @@
  * over here.
  */
 
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
 	clientByParticipant,
 	joinRoom,
@@ -123,9 +125,19 @@ import {
 	unseatParticipant,
 	type ParticipantId,
 	type SeatId,
+	type SeatTable,
 } from '@wolffm/rooms-protocol';
 import { createDraft, spectatorView, viewFor, type DraftState } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
+import {
+	applySnapshot,
+	decodeSnapshot,
+	snapshotRoom,
+	SnapshotUnreadableError,
+	type RestoreContext,
+	type RoomCodec,
+	type RoomSnapshot,
+} from '@hadoku/room-store';
 
 import { participantHandle } from './identity.js';
 
@@ -144,6 +156,22 @@ export interface DraftApp {
 	onDeferredChange: (room: DraftRoom) => void;
 	/** Pending deferred vacates, by participant. */
 	vacating: Map<ParticipantId, ReturnType<typeof setTimeout>>;
+	/**
+	 * Each drafter's last saved build, `.dck` text. A participant absent from
+	 * this map has never saved one — `GET …/mine` then answers `deck: null` and
+	 * the deck editor falls back to the drafted pool as-is. Keyed by
+	 * `ParticipantId`, same as `builtDecks`'s only reader, `drafts.ts`.
+	 */
+	builtDecks: Record<ParticipantId, string>;
+	/**
+	 * Write this pod to disk now. A no-op when persistence is off (`storeDir:
+	 * null`) or before `open()` has filled in `state`. Stashed on the app
+	 * rather than threaded as a parameter because every mutator that needs it
+	 * — `joinDraftRoom`, `releaseSeat`, `leaveDraftRoom`, `saveBuiltDeck` — is a
+	 * bare function taking a `DraftRoom`, the same shape `onDeferredChange`
+	 * already uses for the same reason.
+	 */
+	persist: (room: DraftRoom) => void;
 }
 
 /** The hosting app's per-connection state. */
@@ -196,6 +224,19 @@ export interface DraftRoomsOptions {
 	 * it the change still advances `seq` and rides the room's next broadcast.
 	 */
 	onDeferredChange?: (room: DraftRoom) => void;
+	/**
+	 * Where pods are persisted (P6, `@hadoku/room-store`'s snapshot format).
+	 * `undefined` or `null` — the default — disables persistence outright: pure
+	 * in-memory, today's behaviour. `index.ts` opts in explicitly, the same way
+	 * it does for `CARDTABLE_ROOMS_DIR`/`CARDTABLE_SOUNDS_DIR`
+	 * (`process.env.CARDTABLE_DRAFTS_DIR ?? resolve(CONFIG.logDir,
+	 * '../data/drafts')`). Defaulting to a real directory instead would make
+	 * every OTHER test that builds a `DraftRooms` and does not know this option
+	 * exists — `http/tables.test.ts`, `room/socket.test.ts` — start touching
+	 * real disk, and possibly colliding on the same `draftId`s this file's own
+	 * tests use.
+	 */
+	storeDir?: string | null;
 }
 
 export interface DraftRooms {
@@ -226,16 +267,173 @@ export interface DraftRooms {
 	delete(draftId: string): void;
 }
 
+/*
+ * ## Persistence, hand-rolled rather than `@hadoku/room-store`'s own classes
+ *
+ * `FileRoomStore`/`RoomPersistence` are both ASYNC (`fs/promises`), because
+ * they are built for a host whose room creation can afford to await a load.
+ * This one cannot: `open`/`find` are called synchronously from `room/socket.ts`
+ * on every `join`, and making them `async` would ripple into a file this
+ * module does not own. So the snapshot FORMAT and the pure codec functions
+ * (`snapshotRoom`/`decodeSnapshot`/`applySnapshot`) come from
+ * `@hadoku/room-store`, but the bytes move over `node:fs`'s synchronous calls,
+ * mirroring `FileRoomStore`'s own safety properties (base64url filenames so a
+ * `draftId` cannot escape the directory; a temp-file-and-rename write so a
+ * reader never sees a half-written snapshot) without being able to reuse that
+ * class, which has no synchronous `load`.
+ *
+ * Restoring is therefore EAGER, at the end of this function, not lazy on first
+ * `open`/`find`: a pod nobody has touched since the restart still has to answer
+ * `GET …/mine` and show up in `draftedPoolsFor`'s `all()` sweep, and both are
+ * synchronous reads with nothing to trigger a load on. Picking up every
+ * snapshot in `storeDir` before this function returns is what makes that true
+ * without an `await` anywhere in this file.
+ *
+ * Write-through happens on every mutation this file can see: the end of every
+ * mutator it owns (`open`'s initial deal, `joinDraftRoom`, `releaseSeat`,
+ * `leaveDraftRoom`, the deferred vacate, `saveBuiltDeck`, via `room.app.persist`),
+ * PLUS every assignment to `room.app.state` — including the one this file does
+ * not make itself: `room/socket.ts` advances a pick with `room.app.state =
+ * advanced.state` directly (its own header explains why — one envelope per
+ * pick, bots included). `makeDraftApp` makes `state` an accessor rather than a
+ * plain field so that assignment persists too, without `socket.ts` having to
+ * know persistence exists. Without it, the pick that COMPLETES a pod — often
+ * the last state change before nothing else ever touches the room again — was
+ * exactly the one mutation never written to disk.
+ */
+
+/** Resolve a safe, reversible filename for a draft id. Same approach `FileRoomStore` uses, and for the same reason: a `draftId` is a join payload, not a trusted path segment. */
+function snapshotKey(draftId: string): string {
+	return Buffer.from(draftId, 'utf8').toString('base64url');
+}
+
+const SNAPSHOT_SUFFIX = '.json';
+
+function snapshotPath(dir: string, draftId: string): string {
+	return join(dir, `${snapshotKey(draftId)}${SNAPSHOT_SUFFIX}`);
+}
+
+/** Atomic: temp file, then rename over the target. See `fileStore.ts`'s header for why. */
+function writeSnapshotSync(dir: string, snapshot: RoomSnapshot): void {
+	mkdirSync(dir, { recursive: true });
+	const target = snapshotPath(dir, snapshot.roomId);
+	const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+	writeFileSync(tmp, JSON.stringify(snapshot));
+	renameSync(tmp, target);
+}
+
+function readSnapshotSync(dir: string, draftId: string): RoomSnapshot | null {
+	const path = snapshotPath(dir, draftId);
+	if (!existsSync(path)) return null;
+	return JSON.parse(readFileSync(path, 'utf8')) as RoomSnapshot;
+}
+
+/** Every draft id this directory holds a snapshot for, for the eager restore. */
+function listSnapshotIdsSync(dir: string): string[] {
+	if (!existsSync(dir)) return [];
+	return readdirSync(dir)
+		.filter((name) => name.endsWith(SNAPSHOT_SUFFIX) && !name.includes('.tmp'))
+		.map((name) => Buffer.from(name.slice(0, -SNAPSHOT_SUFFIX.length), 'base64url').toString('utf8'));
+}
+
+function rmSnapshotSync(dir: string, draftId: string): void {
+	rmSync(snapshotPath(dir, draftId), { force: true });
+}
+
+/** Set a record this build could not decode aside, intact — §4.5, by hand. */
+function quarantineSnapshotSync(dir: string, draftId: string, reason: string): void {
+	const source = snapshotPath(dir, draftId);
+	if (!existsSync(source)) return;
+	const quarantineDir = join(dir, 'quarantine');
+	mkdirSync(quarantineDir, { recursive: true });
+	const name = `${snapshotKey(draftId)}.${Date.now()}${SNAPSHOT_SUFFIX}`;
+	renameSync(source, join(quarantineDir, name));
+	writeFileSync(join(quarantineDir, `${name}.reason.txt`), `${reason}\n`, 'utf8');
+}
+
+function logDraft(entry: Record<string, unknown>): void {
+	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...entry }));
+}
+
+/** What persists for one pod. Everything else on `DraftApp` is config echoed back in (`disconnectGraceMs`) or reconstructed fresh (`onDeferredChange`, `vacating`, `persist`) — never read off disk. */
+interface PersistedDraftApp {
+	state: DraftState | null;
+	builtDecks: Record<ParticipantId, string>;
+}
+
 export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const params: DraftParams = { ...DEFAULT_PARAMS, ...options.params };
 	const now = options.now ?? Date.now;
 	const onDeferredChange = options.onDeferredChange ?? (() => undefined);
-	const registry = new RoomRegistry<DraftApp, DraftClient>(() => ({
-		state: null,
-		disconnectGraceMs: params.disconnectGraceMs,
-		onDeferredChange,
-		vacating: new Map(),
-	}));
+	const storeDir = options.storeDir ?? null;
+
+	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
+	function persistRoom(room: DraftRoom): void {
+		if (storeDir === null || room.app.state === null) return;
+		writeSnapshotSync(storeDir, snapshotRoom(room, codec));
+	}
+
+	/**
+	 * Which room a `DraftApp` belongs to — needed only by `state`'s SETTER
+	 * below, which `room/socket.ts` reaches through an assignment
+	 * (`room.app.state = advanced.state`), not through any function this file
+	 * owns. Bound once, right after the app is attached to its room (`open`,
+	 * and the restore loop after `applySnapshot` replaces `room.app`
+	 * entirely) — never read before then, since nothing assigns `state`
+	 * before that point either.
+	 */
+	const roomOf = new WeakMap<DraftApp, DraftRoom>();
+
+	/**
+	 * Build a `DraftApp`. `state` is an ACCESSOR, not a plain field: picking a
+	 * card is `room.app.state = advanced.state` in `room/socket.ts` (that
+	 * file's own header explains why — one envelope per pick, bots included),
+	 * a file this module does not edit. A plain field would make that
+	 * assignment invisible to persistence, and a pick that completes the pod
+	 * — the LAST state change before nothing else may ever touch this room
+	 * again — would be the one mutation never written to disk. Routing the
+	 * assignment itself through `persistRoom` fixes that without `socket.ts`
+	 * having to know persistence exists.
+	 */
+	function makeDraftApp(initial: { state: DraftState | null; builtDecks: Record<ParticipantId, string> }): DraftApp {
+		let current = initial.state;
+		const app: DraftApp = {
+			disconnectGraceMs: params.disconnectGraceMs,
+			onDeferredChange,
+			vacating: new Map(),
+			builtDecks: initial.builtDecks,
+			persist: persistRoom,
+			get state() {
+				return current;
+			},
+			set state(next) {
+				current = next;
+				const room = roomOf.get(app);
+				if (room !== undefined) persistRoom(room);
+			},
+		};
+		return app;
+	}
+
+	const codec: RoomCodec<DraftApp, DraftClient> = {
+		app: {
+			version: 1,
+			serialize: (app): PersistedDraftApp => ({ state: app.state, builtDecks: app.builtDecks }),
+			deserialize: (raw, _version, ctx): DraftApp => {
+				const persisted = raw as PersistedDraftApp;
+				return makeDraftApp({
+					// A restore is a rebuild: the epoch is stamped fresh so a client
+					// holding a pre-restart cursor gets `epoch-change` rather than
+					// reading the restored seq as a flood of duplicates. See this
+					// module's header and `draftRestore.test.ts`.
+					state: persisted.state === null ? null : { ...persisted.state, epoch: ctx.restoreId },
+					builtDecks: persisted.builtDecks ?? {},
+				});
+			},
+		},
+	};
+
+	const registry = new RoomRegistry<DraftApp, DraftClient>(() => makeDraftApp({ state: null, builtDecks: {} }));
 
 	// Anything a room owns that outlives the map entry. Today that is the
 	// deferred vacates; GC is OFF (see the header), so nothing calls this yet
@@ -247,6 +445,41 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		for (const timer of room.app.vacating.values()) clearTimeout(timer);
 		room.app.vacating.clear();
 	});
+
+	// The eager restore. Synchronous and run to completion before this function
+	// returns, so a pod nobody has `open`ed or `find`-ed since the restart is
+	// already live in the registry — see this section's header.
+	if (storeDir !== null) {
+		for (const draftId of listSnapshotIdsSync(storeDir)) {
+			if (registry.get(draftId) !== undefined) continue;
+			const snapshot = readSnapshotSync(storeDir, draftId);
+			if (snapshot === null) continue;
+			const restoredAt = now();
+			const ctx: RestoreContext = { roomId: draftId, restoreId: `restore:${draftId}:${restoredAt}`, restoredAt };
+			try {
+				const decoded = decodeSnapshot(snapshot, codec, ctx);
+				const room = registry.seed(draftId, draftId);
+				applySnapshot(room, decoded, restoredAt);
+				// AFTER `applySnapshot`, which just replaced `room.app` with the
+				// object `codec.app.deserialize` built — binding the room BEFORE
+				// that swap would point `state`'s setter at the stub `createApp`
+				// built and discarded.
+				roomOf.set(room.app, room);
+				// `applySnapshot` wrote `room.seats` from its OWN decode of the
+				// snapshot's `seats` field — a different object than the seat table
+				// inside the `DraftState` the same decode just put in `room.app`.
+				// `open()` keeps the two aliased from birth (this module's header,
+				// "One seat table, not two"); a restore has to restore THAT
+				// invariant, not just the data it carries.
+				if (room.app.state !== null) room.seats = room.app.state.table;
+				logDraft({ evt: 'draft-restored', draftId, seq: room.app.state?.seq ?? 0 });
+			} catch (err) {
+				const reason = err instanceof SnapshotUnreadableError ? `${err.reason}: ${err.message}` : String(err);
+				quarantineSnapshotSync(storeDir, draftId, reason);
+				logDraft({ evt: 'draft-snapshot-quarantined', draftId, reason });
+			}
+		}
+	}
 
 	const build = (draftId: string): DraftState =>
 		createDraft({
@@ -288,6 +521,10 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// moment the room exists; nothing ever assigns to the field. See
 			// this module's header.
 			const room = registry.seed(draftId, draftId, () => state.table);
+			roomOf.set(room.app, room);
+			// Triggers `state`'s setter, which persists — so a pod that is dealt
+			// and then crashes before anyone picks still comes back with the
+			// right seats and the right packs, not a re-deal.
 			room.app.state = state;
 			return room;
 		},
@@ -296,7 +533,13 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			return room?.app.state === null ? undefined : room;
 		},
 		all: () => registry.all().filter((r) => r.app.state !== null),
-		delete: (draftId) => registry.delete(draftId),
+		delete: (draftId) => {
+			registry.delete(draftId);
+			// `delete` is unreachable in production today (this module's header,
+			// "No GC") — this exists so the on-disk half is not left behind the
+			// one time something does call it. §4.6: both halves, always together.
+			if (storeDir !== null) rmSnapshotSync(storeDir, draftId);
+		},
 	};
 }
 
@@ -317,14 +560,41 @@ export function cursorFor(room: DraftRoom): WireCursor {
 /**
  * The payload for one participant, and nothing else.
  *
- * Seated → their own pack and pool. Unseated → the spectator arm, which has no
- * card fields at all. This is the function `emitPerRecipient` is handed; there
- * is deliberately no variant that returns "the view" without a recipient.
+ * Seated → their own pack and pool. Unseated but a finished pod's drafter →
+ * the seat they drafted, still (see `completedSeatOf`). Neither → the
+ * spectator arm, which has no card fields at all. This is the function
+ * `emitPerRecipient` is handed; there is deliberately no variant that returns
+ * "the view" without a recipient.
  */
 export function viewForParticipant(room: DraftRoom, participantId: ParticipantId): DraftView {
 	const state = stateOf(room);
-	const seat = seatOf(room.seats, participantId);
+	const seat = seatOf(room.seats, participantId) ?? completedSeatOf(state, room.seats, participantId);
 	return seat === null ? spectatorView(state) : viewFor(state, seat);
+}
+
+/**
+ * The seat this participant drafted, once the pod is DONE — even though they
+ * may no longer hold it: left, the 120 s hold ran out, or the process
+ * restarted since. Once a pod's draft is complete, each drafter owns their
+ * seat's pool for good.
+ *
+ * Before completion this returns null and nothing above changes — mid-draft,
+ * an unseated participant is still a spectator, exactly as before this
+ * function existed.
+ *
+ * `table.remembered` is `@wolffm/rooms-protocol`'s own durable record of "the
+ * seat this participant last held" (`seats.ts`'s header: "Outlives their
+ * departure so a returning participant reclaims their old place"). Nothing in
+ * this file ever clears it, so it already survives a leave, the hold expiring,
+ * AND a restart (it travels inside `room.seats`, which `@hadoku/room-store`'s
+ * generic snapshot already carries verbatim) — this function is the one place
+ * that reads it for a participant who is NOT currently seated. A seat nobody
+ * ever sat in — a bot's — has no participant pointing at it here, so it stays
+ * unowned by construction rather than by a check.
+ */
+function completedSeatOf(state: DraftState, table: SeatTable, participantId: ParticipantId): SeatId | null {
+	if (state.status !== 'complete') return null;
+	return table.remembered[participantId] ?? null;
 }
 
 /** Advance the stream. Called when something changed that a payload shows. */
@@ -374,6 +644,7 @@ export function joinDraftRoom(
 	if (seat !== null && changed) {
 		nameSeat(state, seat, participantId);
 		bumpSeq(state);
+		room.app.persist(room);
 	}
 	return { client, seat, changed };
 }
@@ -391,6 +662,7 @@ export function releaseSeat(room: DraftRoom, participantId: ParticipantId): bool
 	const vacated = unseatParticipant(room.seats, participantId, { hold: true });
 	if (vacated === null) return false;
 	bumpSeq(state);
+	room.app.persist(room);
 	return true;
 }
 
@@ -452,7 +724,10 @@ export function leaveDraftRoom(room: DraftRoom, clientId: string): LeaveOutcome 
 
 	const after = participantId === null ? null : seatOf(room.seats, participantId);
 	const changed = before !== after;
-	if (changed) bumpSeq(state);
+	if (changed) {
+		bumpSeq(state);
+		room.app.persist(room);
+	}
 	return { participantId, guarded, held, changed };
 }
 
@@ -466,6 +741,7 @@ function vacateAfterGrace(room: DraftRoom, participantId: ParticipantId): void {
 		// Exactly what `leaveRoom` would have done on the close, only later.
 		if (unseatParticipant(room.seats, participantId, { hold: true }) === null) return;
 		bumpSeq(stateOf(room));
+		room.app.persist(room);
 		room.app.onDeferredChange(room);
 	}, room.app.disconnectGraceMs);
 	// A pending vacate is not a reason for the process to stay alive.
@@ -483,4 +759,24 @@ function cancelVacate(room: DraftRoom, participantId: ParticipantId): void {
 /** Whether this participant currently holds a seat. Derived, never stored. */
 export function isSeated(room: DraftRoom, participantId: ParticipantId): boolean {
 	return roleOf(room.seats, participantId) === 'player';
+}
+
+/**
+ * The drafter's last saved build, `.dck` text — or null before the first save.
+ * `drafts.ts`'s `GET …/mine` sends this back verbatim; it is never checked
+ * here, because `PUT …/deck` already checked it with `gate.ts`'s draft rule
+ * before calling `saveBuiltDeck`.
+ */
+export function builtDeckOf(room: DraftRoom, participantId: ParticipantId): string | null {
+	return room.app.builtDecks[participantId] ?? null;
+}
+
+/**
+ * Save it. Write-through: persisted to disk before this returns, same as every
+ * seat transition in this file — a build is lost on a crash only if it was
+ * never saved at all.
+ */
+export function saveBuiltDeck(room: DraftRoom, participantId: ParticipantId, dck: string): void {
+	room.app.builtDecks[participantId] = dck;
+	room.app.persist(room);
 }
