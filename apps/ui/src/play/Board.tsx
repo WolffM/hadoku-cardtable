@@ -53,8 +53,8 @@
  *
  * Wave 24's placement model is not replaced either way, only un-bucketed by
  * default: a drop on a card's top or bottom third still stacks it, the middle
- * still reorders, a new permanent still joins the end — of the one lane by
- * default, of its type row in the alternate. The two layouts keep independent
+ * still reorders, a permanent nobody placed takes the first free column of
+ * its row, else the row's end (`group`). The two layouts keep independent
  * arrangements (different `Arrangement` store keys), so switching the setting
  * back and forth does not throw either one away.
  *
@@ -610,8 +610,8 @@ type PileZone = 'graveyard' | 'exile';
  * type-separated lanes below survive as the `type-separated` alternate,
  * behind the settings panel's own choice. Nothing about wave 24's placement
  * model changes either way: a drop on a card's top or bottom third still
- * stacks it, the middle still reorders, a new permanent still joins the end —
- * of its ROW in the alternate, of the one lane in the default.
+ * stacks it, the middle still reorders, a permanent nobody placed takes the
+ * first free column of its row, else the row's end (`group`).
  */
 export type BoardLayout = 'single' | 'type-separated';
 
@@ -970,7 +970,13 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
     }
   }
   for (const card of cards) {
-    if (!placed.has(card.id)) rows[visualRow(card, layout)].push([card]);
+    if (placed.has(card.id)) continue;
+    // A card nobody placed — a token, a card an effect put onto the battlefield, any arrival with no
+    // placement of its own — takes the first free column of its row from the left, else the row's end.
+    const row = rows[visualRow(card, layout)];
+    const gap = row.findIndex((pile) => pile.length === 0);
+    if (gap === -1) row.push([card]);
+    else row[gap] = [card];
   }
   return withAttachments(rows, cards, layout);
 }
@@ -1390,15 +1396,15 @@ function subscribeCarriedCast(listener: () => void): () => void {
  */
 /**
  * Where a card about to arrive on a player's battlefield goes — reserved from
- * the moment it was let go, for EITHER side. The viewer's own names the card
- * (`notePlayedTo`); the other seat's (`expectPlacement`, from presence) names
- * none: the next card of theirs to arrive takes it. While one waits, the row
+ * the moment it was let go, for EITHER side, and always for the card let go:
+ * the viewer's own from `notePlayedTo`, the other seat's from the act's own
+ * `forge:placement` (`expectPlacement`). While one waits, the row
  * draws a real gap at that column (`data-expected`), the stand-in — the face
  * for its owner, the back for the opponent — glides into it, and the arrival
  * is drawn in that gap: the same on both screens, by construction.
  */
 interface PendingPlacement {
-  readonly cardId: number | null;
+  readonly cardId: number;
   /** Never `'hand'` — a cast lands on the battlefield by definition; see `notePlayedTo`. */
   readonly slot: BoardRow;
   readonly target: DropTarget;
@@ -1509,11 +1515,11 @@ export function placementAt(point: { x: number; y: number }): { slot: BoardRow; 
 }
 
 /**
- * The OTHER seat let a card go at this column of their battlefield (presence
- * carries the column, never the card): the next card of theirs to arrive is
- * placed there, and the row shows the gap until it does.
+ * The OTHER seat let `cardId` go at this column of their battlefield (the act's
+ * `forge:placement`): that card is placed there when it arrives, and the row
+ * shows the gap until it does.
  */
-export function expectPlacement(playerId: number, slot: string, target: DropTarget, cardId: number | null = null): void {
+export function expectPlacement(playerId: number, slot: string, target: DropTarget, cardId: number): void {
   if (!([...BOARD_ROWS, ...SINGLE_ROWS] as readonly string[]).includes(slot)) return;
   PENDING_PLACEMENTS.set(playerId, { cardId, slot: slot as BoardRow, target, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
   for (const wake of MOUNTED_BOARDS) wake();
@@ -1526,7 +1532,7 @@ export function renewPlacement(playerId: number, cardId: number): void {
 }
 
 /** The placement waiting for a player, if one is (tests, and the stand-ins' clean-up). */
-export function pendingPlacementFor(playerId: number): { cardId: number | null; slot: BoardRow; target: DropTarget } | null {
+export function pendingPlacementFor(playerId: number): { cardId: number; slot: BoardRow; target: DropTarget } | null {
   const p = PENDING_PLACEMENTS.get(playerId);
   return p === undefined || p.expiresAt < Date.now() ? null : { cardId: p.cardId, slot: p.slot, target: p.target };
 }
@@ -4003,36 +4009,25 @@ export function Board({
    * change to `viewer` (that very reply) is already what re-runs this
    * effect — no separate wake-up needed. A card with no pending placement,
    * or a stale (TTL-expired) one, is left alone — `group()`'s own default
-   * for an arrival (appended to the end of its type row).
+   * for an arrival (the first free column of its row, else the row's end).
    */
   LIVE_VIEWER_ID = viewer?.id ?? null;
   LIVE_MATCH_KEY = key;
-  const seenOnBattlefield = useRef(new Map<number, ReadonlySet<number>>());
   useLayoutEffect(() => {
     const now = Date.now();
     let next = arranged;
     let ownChanged = false;
     let changed = false;
     for (const player of view.players) {
-      const before = seenOnBattlefield.current.get(player.id);
-      const ids = new Set(player.battlefield.map((c) => c.id));
-      seenOnBattlefield.current.set(player.id, ids);
       const pending = PENDING_PLACEMENTS.get(player.id);
       if (pending === undefined) continue;
       if (pending.expiresAt < now) {
         PENDING_PLACEMENTS.delete(player.id);
         continue;
       }
-      // A placement that names its card (the act's own, from the server, or the viewer's) takes
-      // that card whenever it is on the battlefield — already there, or arriving later: the message
-      // is the authority, whichever came first. One that names none (presence alone) takes the
-      // first card of theirs that was not there at the last look (never on this board's first).
-      const card =
-        pending.cardId !== null
-          ? player.battlefield.find((c) => c.id === pending.cardId)
-          : before === undefined
-            ? undefined
-            : player.battlefield.find((c) => !before.has(c.id));
+      // A placement takes its card whenever it is on the battlefield — already there, or arriving
+      // later: the message is the authority, whichever came first.
+      const card = player.battlefield.find((c) => c.id === pending.cardId);
       if (card === undefined) continue;
       PENDING_PLACEMENTS.delete(player.id);
       next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);

@@ -37,6 +37,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   copiesIn,
   forgetArrangements,
   forgetPendingPlacements,
+  group,
   handOrder,
   notePlayedTo,
   previewPlayedTo,
@@ -1892,7 +1893,7 @@ describe('drag to arrange (#10)', () => {
     // Their side, in their order: the view's lands reversed, as they placed them.
   });
 
-  it('`expectPlacement` reserves a real gap in the OTHER side’s row at once, and the next card of theirs to arrive is drawn in it — never at the row’s end first', () => {
+  it('`expectPlacement` reserves a real gap in the OTHER side’s row at once, and the card it names is drawn in it when it arrives — never at the row’s end first', () => {
     // The operator, 2026-10-08, watching from the opponent's seat: "i first briefly see it flash to the
     // default position, then correct itself to where it was actually placed."
     const first = renderBoard(undefined, undefined, 'single');
@@ -1900,9 +1901,9 @@ describe('drag to arrange (#10)', () => {
     const tierIds = (c: HTMLElement, tier: string) => [...c.querySelectorAll<HTMLElement>(`[data-testid="player"][data-player-id="${them.id}"] [data-zone="battlefield"] [data-tier="${tier}"] > li`)].map((li) => (li.classList.contains('zone__gap') ? (li.hasAttribute('data-expected') ? 'GAP*' : 'gap') : String(li.dataset.cardId)));
     const before = tierIds(first.container, 'back');
     expect(before.length).toBeGreaterThan(1);
-    act(() => expectPlacement(them.id, 'back', { kind: 'before', id: Number(before[1]) }));
+    act(() => expectPlacement(them.id, 'back', { kind: 'before', id: Number(before[1]) }, 9901));
     expect(tierIds(first.container, 'back'), 'a reserved gap, before the second card, the moment it is expected').toEqual([before[0], 'GAP*', ...before.slice(1)]);
-    // Their card arrives (a new id on their battlefield): it is drawn where the gap was, in the same render.
+    // Their card arrives: it is drawn where the gap was, in the same render.
     const arrived = { ...them.battlefield[0]!, id: 9901, name: 'Arrival' };
     const next = { ...first.view, players: first.view.players.map((p) => (p.id === them.id ? { ...p, battlefield: [...p.battlefield, arrived] } : p)) } as typeof first.view;
     first.rerender(createElement(Board, { view: next, boardLayout: 'single' }));
@@ -4227,6 +4228,30 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     // A reorder is still a reorder: the card takes a column, so the one it left closes up.
     expect(back(withMove(rowOf([[1], [2], [3]]), 0, {}, 1, 'back', { kind: 'before', id: 3 }, 'single'))).toEqual([[2], [1], [3]]);
     expect(back(withMove(rowOf([[1], [2], [3]]), 0, {}, 1, 'back', { kind: 'end' }, 'single'))).toEqual([[2], [3], [1]]);
+  });
+
+  it('group: a card nobody placed takes the first free column of its row from the left, else the row’s end', () => {
+    // The operator, 2026-10-17: "ideally it's the first avaliable slot from top left onward" — not past the furthest card placed.
+    const creature = (id: number) => ({ id, card: { typeLine: 'Creature — Soldier' } }) as BoardCard;
+    const land = (id: number) => ({ id, card: { typeLine: 'Land — Plains' } }) as BoardCard;
+    const ids = (g: Grouped, row: 'front' | 'back' | 'creatures' | 'lands') => g[row].map((pile) => pile.map((c) => c.id));
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [[], [1, 2], [3], [], [4]], [slotKey(0, 'back')]: [[10], [11]] };
+    const board = [creature(1), creature(2), creature(3), creature(4), land(10), land(11)];
+    // The first gap, then the next one, then the end — in the order the cards are on the battlefield.
+    const one = group([...board, creature(50)], 0, arranged, 'single');
+    expect(ids(one, 'front'), 'the gap at column 0').toEqual([[50], [1, 2], [3], [], [4]]);
+    const two = group([...board, creature(50), creature(51)], 0, arranged, 'single');
+    expect(ids(two, 'front'), 'then the gap at column 3').toEqual([[50], [1, 2], [3], [51], [4]]);
+    const three = group([...board, creature(50), creature(51), creature(52)], 0, arranged, 'single');
+    expect(ids(three, 'front'), 'no gap left: the end').toEqual([[50], [1, 2], [3], [51], [4], [52]]);
+    // Its own row only: a land goes to the back row, which has no gap — its end.
+    expect(ids(group([...board, land(12)], 0, arranged, 'single'), 'back'), 'a land: the back row’s end').toEqual([[10], [11], [12]]);
+    expect(ids(group([...board, land(12)], 0, arranged, 'single'), 'front'), 'and the front row’s gaps stay open').toEqual([[], [1, 2], [3], [], [4]]);
+    // The type-separated rows follow the same rule.
+    const lanes: Arrangement = { [slotKey(0, 'creatures')]: [[1], [], [2]] };
+    expect(ids(group([creature(1), creature(2), creature(60)], 0, lanes, 'type-separated'), 'creatures'), 'a lane’s gap').toEqual([[1], [60], [2]]);
+    // A card the player placed keeps its column: it is never moved into a gap left of it.
+    expect(ids(group(board, 0, arranged, 'single'), 'front'), 'nothing new: the arrangement as placed').toEqual([[], [1, 2], [3], [], [4]]);
   });
 
   it('snapTo: an EMPTY slot snaps, the nearest slot wins, and far from every slot is nowhere', () => {
