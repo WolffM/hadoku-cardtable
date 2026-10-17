@@ -392,7 +392,11 @@ function expectCleanBridge(h: LiveHarness): void {
 function status(h: LiveHarness): string {
   const asks = h.asks.map((a) => [a.seat, a.method, a.callId, a.outcome, a.framesAfter]);
   const log = h.serverLog.filter((e) => /ask|probe|bridge/.test(String(e.evt)));
-  return `${JSON.stringify(asks)}\nserver: ${JSON.stringify(log.slice(0, 20))}\nbridge: ${JSON.stringify(h.raw.filter((l) => l.t !== 'frame').slice(0, 20))}`;
+  // How many times each ask reached its seat's wire: more than once is a re-send (a snapshot's).
+  const sends = new Map<string, number>();
+  for (const e of h.emitted) if (e.envelope.frame.kind === 'ask') sends.set(`${e.seat}:${e.envelope.frame.callId}`, (sends.get(`${e.seat}:${e.envelope.frame.callId}`) ?? 0) + 1);
+  const clients = h.seats.map((s) => ({ seat: s.seat, ...s.live.stats }));
+  return `${JSON.stringify(asks)}\nask sends: ${JSON.stringify([...sends])}\nclients: ${JSON.stringify(clients)}\nserver:${JSON.stringify(log.slice(0, 20))}\nbridge: ${JSON.stringify(h.raw.filter((l) => l.t !== 'frame').slice(0, 20))}`;
 }
 
 function summary(label: string, h: LiveHarness): void {
