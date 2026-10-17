@@ -13,7 +13,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, says, serverLog } from './play/board.ts';
+import { clickOnce, enabledOk, makeTitled, pressOffered, says, serverLog } from './play/board.ts';
 import { railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -50,9 +50,7 @@ test(titled('priority handed back sounds for each window the seat is given, neve
         await clickOnce(alice.page, await says(alice.page), 'ok');
       }
       const line = await says(bob.page);
-      if (!declared && ATTACK.test(line) && (await giant.getAttribute('data-selectable')) === 'true') {
-        const g = (await giant.boundingBox())!;
-        await bob.page.mouse.click(g.x + g.width / 2, g.y + g.height / 2);
+      if (!declared && ATTACK.test(line) && (await pressOffered(giant))) {
         await expect(giant, 'Forge declared the Giant attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
         declared = true;
         await clickOnce(bob.page, await says(bob.page), 'ok');

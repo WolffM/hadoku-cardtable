@@ -46,7 +46,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages } from './play/browser.ts';
-import { cancelCast, clickHandCard, dragHandCard, enabledOk, handCardNamed, livePrompt, offered, says, stackCount } from './play/board.ts';
+import { cancelCast, clickHandCard, dragHandCard, enabledOk, handCardNamed, livePrompt, offered, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -163,7 +163,7 @@ test(
       await expect(theirs, "Forge's ask offers bob's creature").toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
 
       // A SEPARATE click on the only legal target resolves it.
-      await theirs.first().locator('button').first().click();
+      expect(await pressOffered(theirs.first()), "bob's creature pressed as the target").toBe(true);
 
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Doom Blade reached the stack' }).toBeGreaterThanOrEqual(0);
       for (let i = 0; i < 100 && (await theirs.count()) > 0; i++) {

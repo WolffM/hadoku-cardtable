@@ -12,7 +12,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, clickPermanent, isOffered, makeTitled, ownNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { boardCard, clickPermanent, makeTitled, ownNamed, pressOffered, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -83,10 +83,7 @@ test(titled('Kessig Wolf Run: the X slider reaches 20, marks the most mana alice
     await expect
       .poll(
         async () => {
-          if (!targeted && (await isOffered(page, bears).catch(() => false))) {
-            await boardCard(page, bears).locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
-            targeted = true;
-          }
+          if (!targeted && (await pressOffered(boardCard(page, bears)))) targeted = true;
           await pressPaymentAuto(page);
           return powerOf(page, bears);
         },

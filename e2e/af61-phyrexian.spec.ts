@@ -12,7 +12,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, offered, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -45,7 +45,7 @@ test(titled('the payment window’s life button pays a Phyrexian cost with 2 lif
         async () => {
           if ((await payment.count()) > 0) return true;
           await answerPrompt(page);
-          if ((await bobFace.getAttribute('data-selectable')) === 'true') await bobFace.locator('.face__hit').click({ timeout: 1_000 }).catch(() => undefined);
+          await pressOffered(bobFace);
           return false;
         },
         { timeout: 20_000, intervals: [50], message: `the payment window opened — says: "${await says(page)}"` },

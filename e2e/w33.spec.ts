@@ -18,7 +18,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, stackCount, turnMarks } from './play/board.ts';
+import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, pressOffered, stackCount, turnMarks } from './play/board.ts';
 import { assignBlock, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -248,7 +248,7 @@ test(titled('Q14 — clicking a declared attacker undeclares it; a box over it p
     await expect(alice.page.locator(`[data-board-card="${id}"]`), 'it is offered, so a click (or a box) can act on it').toHaveAttribute('data-selectable', 'true');
 
     // Click it: declares it as an attacker.
-    await alice.page.locator(`[data-board-card="${id}"] button`).first().click();
+    expect(await pressOffered(alice.page.locator(`[data-board-card="${id}"]`)), 'the attacker pressed').toBe(true);
     await expect(alice.page.locator(`[data-board-card="${id}"]`), 'the click declared it').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await expect.poll(() => says(alice.page), { timeout: 5_000, message: 'declaring an attacker left the live window entirely' }).toMatch(/^Select creatures to attack/i);
 
@@ -259,7 +259,7 @@ test(titled('Q14 — clicking a declared attacker undeclares it; a box over it p
     // 1. A box drawn over the declared attacker pulls it back too (Q14, w32 commit.ts) —
     // re-declare first, by a plain click (it is still offered — able to attack).
     await expect(alice.page.locator(`[data-board-card="${id}"]`), 'it is offered again, to re-declare').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    await alice.page.locator(`[data-board-card="${id}"] button`).first().click();
+    expect(await pressOffered(alice.page.locator(`[data-board-card="${id}"]`)), 'the attacker pressed again').toBe(true);
     await expect(alice.page.locator(`[data-board-card="${id}"]`), 'the click re-declared it').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     const canvas = alice.page.locator('[data-gesture-canvas]');
     const box = await alice.page.locator(`[data-board-card="${id}"]`).boundingBox();
@@ -281,7 +281,7 @@ test(titled('Q14 — clicking a declared attacker undeclares it; a box over it p
 
     // Re-declare it by a plain click (it is still offered — able to attack).
     await expect(alice.page.locator(`[data-board-card="${id}"]`), 'it is offered again, to re-declare').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    await alice.page.locator(`[data-board-card="${id}"] button`).first().click();
+    expect(await pressOffered(alice.page.locator(`[data-board-card="${id}"]`)), 'the attacker pressed again').toBe(true);
     await expect(alice.page.locator(`[data-board-card="${id}"]`), 'the click re-declared it').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
 
     // 2. A plain click on the now-declared attacker undeclares it.

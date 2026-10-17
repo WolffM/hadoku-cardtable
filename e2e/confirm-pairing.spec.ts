@@ -13,7 +13,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { enabledCancel, enabledOk, makeTitled, ownNamed, says, stackCount } from './play/board.ts';
+import { enabledCancel, enabledOk, makeTitled, ownNamed, pressOffered, says, stackCount } from './play/board.ts';
 import { confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -48,7 +48,7 @@ test(titled('a yes/no window never shows another input’s line under its Yes/No
     expect(vial, 'alice controls the Vial').toBeDefined();
     const card = alice.page.locator(`[data-board-card="${vial!}"]`);
     await expect.poll(() => card.evaluate((e) => e.hasAttribute('data-selectable')), { timeout: 45_000, message: 'the Vial is offered' }).toBe(true);
-    await card.locator('button').first().click();
+    expect(await pressOffered(card), 'the Vial pressed').toBe(true);
     await expect.poll(() => card.evaluate((e) => e.hasAttribute('data-tapped')), { timeout: 15_000, message: 'tapping the Vial activates it' }).toBe(true);
 
     // Pass priority over the ability on both screens; say yes to the search if Forge asks it.

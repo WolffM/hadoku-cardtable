@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, handCardNamed, makeTitled, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, enabledOk, handCardNamed, makeTitled, pressOffered, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -36,11 +36,6 @@ async function namedAll(page: Page, zone: string, name: string): Promise<number[
     .evaluateAll((els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))), name);
 }
 
-/** Click the face of a card on the board with a real mouse. */
-async function clickFace(page: Page, id: number): Promise<void> {
-  const box = (await card(page, id).boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
 
 /** The open "which ability?" pop-up's options, by their plain words; [] when none is open. */
 async function abilityChoices(page: Page): Promise<string[]> {
@@ -98,14 +93,14 @@ test(titled('an untapped Ghost Quarter holds its owner\'s window on the opponent
 
     // The operator's response: Ghost Quarter, on alice's Mountain.
     const mountains = await namedAll(b, THEIR_BATTLEFIELD, 'Mountain');
-    await clickFace(b, quarter);
+    await expect.poll(() => pressOffered(card(b, quarter)), { timeout: 15_000, message: 'Ghost Quarter is offered at bob’s window, and pressed' }).toBe(true);
     await expect.poll(() => abilityChoices(b), { timeout: 15_000, message: 'a click on Ghost Quarter asks which ability' }).toContainEqual(expect.stringMatching(DESTROY_TARGET_LAND));
     const choices = await abilityChoices(b);
     const options = b.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
     await options.nth(choices.findIndex((l) => DESTROY_TARGET_LAND.test(l))).click();
     const target = mountains[0]!;
     await expect.poll(() => isOffered(b, target), { timeout: 15_000, message: 'alice\'s Mountain is offered as the target' }).toBe(true);
-    await clickFace(b, target);
+    expect(await pressOffered(card(b, target)), 'alice’s Mountain pressed as the target').toBe(true);
 
     // Ghost Quarter resolves first; alice is asked whether to search for a basic land, and declines.
     const deadline = Date.now() + 60_000;

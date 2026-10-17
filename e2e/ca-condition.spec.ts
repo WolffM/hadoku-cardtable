@@ -16,7 +16,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, castCard, clickHandCard, handCardNamed, isOffered, makeTitled, offered, ownNamed, says, stackCount } from './play/board.ts';
+import { boardCard, castCard, clickHandCard, handCardNamed, makeTitled, offered, ownNamed, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -103,7 +103,7 @@ test(titled('metalcraft lights Galvanic Blast in hand and Carapace Forger on the
         async () => {
           if ((await graveyard.getAttribute('data-count')) === '7' || (await stackCount(a)) > 0) return true;
           await answerPrompt(a);
-          if (await isOffered(a, bear!).catch(() => false)) await boardCard(a, bear!).locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
+          await pressOffered(boardCard(a, bear!));
           return false;
         },
         { timeout: 20_000, intervals: [50], message: `Galvanic Blast was cast at the Bears — says: "${await says(a)}"` },

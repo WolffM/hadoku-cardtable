@@ -16,7 +16,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, makeTitled, pressPaymentAuto, says, serverLog } from './play/board.ts';
+import { clickHandCard, clickOnce, makeTitled, pressOffered, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -55,11 +55,6 @@ async function chooseAbility(page: Page, want: RegExp): Promise<void> {
   await options.nth(i >= 0 ? i : 0).click();
 }
 
-/** Click the face of a card on the board with a real mouse. */
-async function clickFace(page: Page, id: number): Promise<void> {
-  const box = (await card(page, id).boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
 
 const autoCancelled = (stack: { serverLogFile: string }, from: number) => serverLog(stack).slice(from).filter((l) => l.evt === 'auto-cancelled');
 
@@ -77,7 +72,7 @@ test(titled('Rishadan Port with no other mana: "{1},{T}: Tap target land" is nev
 
     // The operator's click, and whatever Forge asks after it — taking "Tap target land" wherever it is offered, as they did.
     const logFrom = serverLog(stack).length;
-    await clickFace(a, port);
+    expect(await pressOffered(card(a, port)), 'the click on the Port').toBe(true);
     const offeredAbilities: string[] = [];
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
@@ -88,7 +83,7 @@ test(titled('Rishadan Port with no other mana: "{1},{T}: Tap target land" is nev
         continue;
       }
       const mountain = await named(a, THEIR_BATTLEFIELD, 'Mountain');
-      if (mountain !== undefined && (await isOffered(a, mountain))) await clickFace(a, mountain);
+      if (mountain !== undefined) await pressOffered(card(a, mountain));
       if (autoCancelled(stack, logFrom).length > 0) break;
       if ((await isTapped(a, port)) && (await poolTotal(a)) === 1) break;
       await a.waitForTimeout(200);
@@ -126,7 +121,7 @@ test(titled('Rishadan Port beside a Forest: "{1},{T}: Tap target land" is offere
     await expect.poll(() => isOffered(a, port), { timeout: 45_000, message: 'the Port is offered at priority' }).toBe(true);
 
     const logFrom = serverLog(stack).length;
-    await clickFace(a, port);
+    expect(await pressOffered(card(a, port)), 'the click on the Port').toBe(true);
     await expect.poll(() => abilityChoices(a), { timeout: 15_000, message: 'a click on the Port asks which ability' }).toContainEqual(expect.stringMatching(TAP_TARGET_LAND));
     const choices = await abilityChoices(a);
     await chooseAbility(a, TAP_TARGET_LAND);
@@ -134,13 +129,11 @@ test(titled('Rishadan Port beside a Forest: "{1},{T}: Tap target land" is offere
     const steps: string[] = [];
     const deadline = Date.now() + 30_000;
     while (!(await isTapped(a, mountain)) && Date.now() < deadline) {
-      if (!steps.includes('target') && (await isOffered(a, mountain))) {
-        await clickFace(a, mountain);
+      if (!steps.includes('target') && (await pressOffered(card(a, mountain)))) {
         steps.push('target');
       } else if (await pressPaymentAuto(a)) {
         steps.push('auto');
-      } else if (!(await isTapped(a, forest)) && (await isOffered(a, forest)) && steps.includes('target')) {
-        await clickFace(a, forest);
+      } else if (!(await isTapped(a, forest)) && steps.includes('target') && (await pressOffered(card(a, forest)))) {
         steps.push('forest');
       }
       await a.waitForTimeout(300);

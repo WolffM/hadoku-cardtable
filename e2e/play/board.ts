@@ -672,8 +672,7 @@ export async function clickPermanent(page: Page, id: number, timeout = 45_000): 
     () => true,
     () => false,
   );
-  if (live) await boardCard(page, id).locator('button').first().click();
-  return live;
+  return live && pressOffered(boardCard(page, id));
 }
 
 /** The server's `click` records for `card` (`match.ts`'s `endClick`): what came of each click on it, for a failure message. */

@@ -24,7 +24,7 @@
  * — rebuild before running.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { clickHandCard, makeTitled, says } from './play/board.ts';
+import { clickHandCard, makeTitled, pressOffered, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -103,10 +103,6 @@ async function answerAndSubmit(page: Page, where: string): Promise<boolean> {
   return true;
 }
 
-/** Click a board card's own button — the same element every Forge-offered card draws. */
-function cardButton(page: Page, cardId: number): Locator {
-  return page.locator(`[data-board-card="${cardId}"] button`).first();
-}
 
 /**
  * Drive whatever prompt is open to completion (measuring each one as
@@ -141,7 +137,7 @@ test(titled('measuring: tapping Underground River directly prints every prompt s
       .poll(() => card(alice.page, river).evaluate((e) => e.hasAttribute('data-selectable')), { timeout: 45_000, message: 'the River is offered at priority' })
       .toBe(true);
 
-    await cardButton(alice.page, river).click();
+    expect(await pressOffered(card(alice.page, river)), 'the River pressed').toBe(true);
     wordRows.length = 0;
     await drainPrompts(alice.page, 'direct-tap');
     expect(wordRows, 'every colour on a prompt row is drawn as a pip while the prompt shows').toEqual([]);
@@ -190,7 +186,7 @@ test(titled('measuring: tapping Underground River to PAY for Dark Ritual prints 
 
     if (next === 'payment') {
       // Tap the River itself to pay — the same board button, mid-payment.
-      await cardButton(alice.page, river).click();
+      expect(await pressOffered(card(alice.page, river)), 'the River pressed to pay').toBe(true);
     }
     wordRows.length = 0;
     await drainPrompts(alice.page, 'pay-tap');

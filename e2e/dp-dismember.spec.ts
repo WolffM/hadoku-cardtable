@@ -18,7 +18,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, clickHandCard, handCardNamed, isOffered, isTapped, makeTitled, offered, ownNamed, says, serverLog, stackCount } from './play/board.ts';
+import { boardCard, clickHandCard, handCardNamed, isTapped, makeTitled, offered, ownNamed, pressOffered, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -73,7 +73,7 @@ async function openPayment(seated: ScenarioMatch): Promise<{ bears: () => Promis
       async () => {
         if ((await payment.count()) > 0) return true;
         await answerPrompt(page);
-        if (await isOffered(page, bear).catch(() => false)) await boardCard(page, bear).locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
+        await pressOffered(boardCard(page, bear));
         return false;
       },
       { timeout: 20_000, intervals: [50], message: `the payment window opened — says: "${await says(page)}"` },

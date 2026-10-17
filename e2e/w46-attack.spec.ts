@@ -46,7 +46,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, grindPriority, makeTitled, says } from './play/board.ts';
+import { clickOnce, enabledOk, grindPriority, makeTitled, pressOffered, says } from './play/board.ts';
 import { phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -338,7 +338,7 @@ test(
       await expect(attacker, 'not yet declared').not.toHaveAttribute('data-attacking');
 
       // A plain click: no drop target other than the defending player exists here.
-      await attacker.locator('button').first().click();
+      expect(await pressOffered(attacker), 'Serra Angel pressed').toBe(true);
       await expect(attacker, 'Forge declared it — its own `Attacking`').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       await expect(attacker, 'and its own `Vigilance`').toHaveAttribute('data-vigilant', 'true');
 
@@ -416,7 +416,7 @@ test(titled('a selected attacker wears the crossed-swords mark on both screens, 
     for (const page of pages) await expect(swords(page), 'no mark before it is selected').toHaveCount(0);
 
     // Selected: Forge's own `Attacking`, and the mark, on both screens.
-    await attacker.locator('button').first().click();
+    expect(await pressOffered(attacker), 'Memnite pressed').toBe(true);
     for (const page of pages) await expect(swords(page), 'the click that selects it marks it, on both screens').toHaveCount(1, { timeout: 10_000 });
     await log('selected');
     for (const page of pages) {
@@ -439,7 +439,7 @@ test(titled('a selected attacker wears the crossed-swords mark on both screens, 
 
     // Selected again, then combat runs out: the mark stays through combat and is gone by Main 2.
     await expect(attacker, 'it is offered again').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    await attacker.locator('button').first().click();
+    expect(await pressOffered(attacker), 'Memnite pressed again').toBe(true);
     for (const page of pages) await expect(swords(page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
     await passUntilPhase(pages, /^MAIN2$/, 30_000);
     for (const page of pages) await expect(swords(page), 'combat has ended: the mark is gone').toHaveCount(0, { timeout: 10_000 });

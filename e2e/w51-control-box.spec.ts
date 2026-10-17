@@ -29,7 +29,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, resizeWindow, says, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, pressOffered, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -206,7 +206,7 @@ test(titled('attackers declared → the pop-up’s OK confirms them; the box kee
     await expectFour(page, 'declaring attackers');
 
     await expect(page.locator(`[data-board-card="${memnite}"]`), 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    await page.locator(`[data-board-card="${memnite}"] button`).first().click();
+    expect(await pressOffered(page.locator(`[data-board-card="${memnite}"]`)), 'Memnite pressed').toBe(true);
     await expect(page.locator(`[data-board-card="${memnite}"]`), 'Memnite is declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: resolve(SHOTS, 'attackers-declared.png') });

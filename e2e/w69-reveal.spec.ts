@@ -13,7 +13,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledOk, makeTitled, resizeWindow, says, serverLog } from './play/board.ts';
+import { enabledOk, makeTitled, pressOffered, resizeWindow, says, serverLog } from './play/board.ts';
 import { confirmOpen, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -59,7 +59,7 @@ test(titled("Ghost Quarter's fail to find: bob's library reveal fits the window,
     await expect.poll(() => isOffered(alice.page, quarter), { timeout: 45_000, message: 'Ghost Quarter is offered at alice’s priority' }).toBe(true);
 
     // The click offers its two abilities; she picks the destroy one, then clicks bob's land as its target.
-    await card(alice.page, quarter).locator('button').first().click();
+    expect(await pressOffered(card(alice.page, quarter)), 'Ghost Quarter pressed').toBe(true);
     const ability = alice.page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]');
     await expect(ability.first(), 'Ghost Quarter offers its abilities').toBeVisible({ timeout: 15_000 });
     const labels = await ability.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
@@ -68,7 +68,7 @@ test(titled("Ghost Quarter's fail to find: bob's library reveal fits the window,
     expect(destroy, 'the destroy ability is offered').toBeGreaterThanOrEqual(0);
     await ability.nth(destroy).click();
     await expect.poll(() => isOffered(alice.page, river), { timeout: 15_000, message: 'bob’s Underground River is offered as the target' }).toBe(true);
-    await card(alice.page, river).locator('button').first().click();
+    expect(await pressOffered(card(alice.page, river)), 'Underground River pressed as the target').toBe(true);
     console.log(`[w69-reveal] alice targeted Underground River; she says: "${await says(alice.page)}"`);
 
     // Both pass priority until the ability resolves; bob searches, and the search shows him his library.

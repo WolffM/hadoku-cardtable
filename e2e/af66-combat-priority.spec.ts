@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, makeTitled, ownNamed, says, serverLog } from './play/board.ts';
+import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, makeTitled, ownNamed, pressOffered, says, serverLog } from './play/board.ts';
 import { passToDeclareAttackers, railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -57,9 +57,7 @@ async function bobsCombat({ alice, bob }: ScenarioMatch, attack: boolean, until:
       await enabledOk(bob.page).first().click();
     }
     if (!declared && ATTACK.test(line)) {
-      if (attack && (await giant.getAttribute('data-selectable')) === 'true') {
-        const g = (await giant.boundingBox())!;
-        await bob.page.mouse.click(g.x + g.width / 2, g.y + g.height / 2);
+      if (attack && (await pressOffered(giant))) {
         await expect(bob.page.locator(`[data-board-card="${giantId}"]`), 'Forge declared the Giant attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
       if (attack || (await enabledOk(bob.page).count()) > 0) {

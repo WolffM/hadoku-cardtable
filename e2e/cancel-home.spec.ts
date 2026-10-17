@@ -27,7 +27,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { eventsIn } from './frames.ts';
-import { cancelCast, dragHandCard, handCardNamed, makeTitled, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
+import { cancelCast, dragHandCard, handCardNamed, makeTitled, pressOffered, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -220,7 +220,7 @@ test(titled('a cast she confirms turns over on the opponent’s screen with its 
     await expect.poll(() => says(alice.page), { timeout: 15_000, message: 'Forge asks for the Hammer’s target' }).toMatch(/Volcanic Hammer.*target/is);
     const theirs = alice.page.locator('[data-zone="battlefield"][data-owner="them"] [data-board-card]');
     await expect(theirs, 'Forge offers bob’s Bears').toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
-    await theirs.first().locator('button').first().click();
+    expect(await pressOffered(theirs.first()), 'bob’s Bears pressed as the target').toBe(true);
     for (let i = 0; i < 120 && (await bearsOnBob.count()) > 0; i++) {
       await pressPaymentAuto(alice.page);
       await answerPrompt(alice.page);

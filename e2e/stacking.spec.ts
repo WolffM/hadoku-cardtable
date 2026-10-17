@@ -21,7 +21,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { makeTitled, resizeWindow } from './play/board.ts';
+import { makeTitled, pressOffered, resizeWindow } from './play/board.ts';
 import { messages } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -370,7 +370,7 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
      */
     for (const id of lands.slice(0, 4)) await expect(card(id), `land ${id}, tapped, takes a click`).toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
     for (const id of [lands[0]!, lands[2]!]) {
-      await card(id).locator(':scope > .board-card__face').click();
+      expect(await pressOffered(card(id)), `land ${id} pressed`).toBe(true);
       await expect(card(id), `the click untapped land ${id}`).not.toHaveAttribute('data-tapped', { timeout: 15_000 });
     }
     for (const id of [lands[1]!, lands[3]!]) await expect(card(id), `land ${id} is still tapped`).toHaveAttribute('data-tapped', 'true');

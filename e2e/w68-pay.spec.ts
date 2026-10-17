@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled } from './play/board.ts';
+import { clickHandCard, makeTitled, pressOffered } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -61,15 +61,13 @@ test(titled('Izzet Signet tapped inside Divination’s payment: the cast resolve
     const clicked: string[] = [];
     const deadline = Date.now() + 30_000;
     while (!(await inGraveyard(a, 'you', divination)) && Date.now() < deadline) {
-      if (!(await isTapped(a, signet)) && (await isOffered(a, signet))) {
-        await card(a, signet).locator('button').first().click();
+      if (!(await isTapped(a, signet)) && (await pressOffered(card(a, signet)))) {
         clicked.push('Izzet Signet');
       } else {
         const islands = await a
           .locator(`${BATTLEFIELD} [data-board-card][data-selectable]:not([data-tapped])`)
           .evaluateAll((els) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === 'Island').map((e) => Number(e.getAttribute('data-board-card'))));
-        if (islands[0] !== undefined) {
-          await card(a, islands[0]).locator('button').first().click();
+        if (islands[0] !== undefined && (await pressOffered(card(a, islands[0])))) {
           clicked.push(`Island#${islands[0]}`);
         }
       }
