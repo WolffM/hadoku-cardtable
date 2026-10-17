@@ -19,8 +19,8 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
 import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
-import { MAX_CONCURRENT_MATCHES, type BridgeLine } from './host.js';
-import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
+import { MAX_CONCURRENT_MATCHES, type BridgeLine, type HostEvents, type JvmRecord, type MatchHostFactory, type MatchSpec } from './host.js';
+import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secretsFor } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import { WATCHER_SEAT } from './match.js';
 import { identityFromHeaders } from '../room/identity.js';
@@ -75,9 +75,11 @@ async function boot(
 		rejoinGraceMs?: number;
 		/** Each seat holder's avatar, by user name — what the room answers in production. */
 		faces?: Map<string, string>;
+		/** The JVM pool, when the test needs the re-attach seam; its hosts are listed in `hosts`. */
+		host?: { factory: MatchHostFactory; hosts: ReplayHost[] };
 	} = {},
 ): Promise<Harness> {
-	const { factory, hosts } = replayFactory();
+	const { factory, hosts } = options.host ?? replayFactory();
 	const logs: Record<string, unknown>[] = [];
 	const app = express();
 	// The same order index.ts uses: provenance, the floor, then /api.
@@ -1307,6 +1309,56 @@ describe('a match that is gone says so, in words', () => {
 	}
 });
 
+/** The game-over notice a seat's result screen is drawn from. */
+const isFinishGame = (f: unknown): boolean => (f as { frame?: { method?: string } }).frame?.method === 'finishGame';
+
+/**
+ * A JVM pool whose matches outlive the process that started them, the way the
+ * real one's do: a host handed over on shutdown is offered to the next process
+ * (`orphans`), which takes it back by replaying everything it ever said
+ * (`attach`, as the real host replays `<run>/stream.jsonl`). A host that was
+ * not handed over died with its process and is offered to nobody.
+ */
+function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
+	const hosts: ReplayHost[] = [];
+	const handed: { host: DurableHost; record: JvmRecord }[] = [];
+	const offered = new Set<string>();
+	class DurableHost extends ReplayHost {
+		readonly said: BridgeLine[] = [];
+		epoch: string | null = null;
+		owners: (string | null)[] = [];
+		override push(...lines: BridgeLine[]): void {
+			this.said.push(...lines);
+			super.push(...lines);
+		}
+		remember(state: { epoch: string; owners: (string | null)[] }): void {
+			this.epoch = state.epoch;
+			this.owners = state.owners;
+		}
+		handOver(): boolean {
+			const at = new Date().toISOString();
+			handed.push({ host: this, record: { matchId: this.matchId, pid: process.pid, run: `/nonexistent/${this.matchId}`, startedAt: at, epoch: this.epoch, owners: this.owners, spec: this.spec, orphanedAt: at } });
+			return true;
+		}
+	}
+	const make = (id: string, spec: MatchSpec, events: HostEvents): DurableHost => {
+		const host = new DurableHost(id, spec, events);
+		hosts.push(host);
+		return host;
+	};
+	return {
+		hosts,
+		factory: Object.assign(make, {
+			orphans: () => handed.filter((h) => !offered.has(h.record.matchId)).map((h) => (offered.add(h.record.matchId), h.record)),
+			attach: (record: JvmRecord, events: HostEvents) => {
+				const back = make(record.matchId, record.spec!, events);
+				back.push(...handed.find((h) => h.record.matchId === record.matchId)!.host.said);
+				return back;
+			},
+		}),
+	};
+}
+
 describe('shutdown', () => {
 	it('refuses a new match in a sentence, and tells the seats of one that cannot outlive the server', async () => {
 		const h = await boot();
@@ -1355,6 +1407,47 @@ describe('shutdown', () => {
 	 * why the record lane S found carried no `orphanedAt`: the server had neither
 	 * handed it over nor asked it to stop.
 	 */
+	/**
+	 * The operator, 2026-10-17 ~09:50Z: a deploy landed while both players were
+	 * on a finished game's result screen (prod m-e055472e0d6e, `status:"over"` at
+	 * shutdown, `handed:[]`). A finished match was never handed over, so its JVM
+	 * was reaped with this process and the next one answered the join `match-gone`
+	 * — "no longer running … the server restarted" over a game that had ended
+	 * properly. A finished match still being looked at is a match like any other:
+	 * it outlives a deploy with its board and its ending.
+	 */
+	it('hands a FINISHED match over like a running one, so both seats get its board and its ending back after a deploy', async () => {
+		const pool = jvmPool();
+		const before = await boot({ host: pool });
+		const { body } = await startMatch(before);
+		const matchId = body.matchId as string;
+		const alice = await connect(before.port, edgeHeaders('alice'));
+		const bob = await connect(before.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		pool.hosts[0]!.push({ t: 'gameover', winner: 'Seat 1' });
+		await waitUntil(() => [alice, bob].every((p) => p.frames.some(isFinishGame)), 'both seats to see the game end');
+
+		const outcome = before.handle.shutdown('The server is restarting for a deploy.');
+		await before.close();
+		harness = null;
+
+		const after = await boot({ host: pool });
+		for (const [user, seat] of [
+			['alice', 0],
+			['bob', 1],
+		] as const) {
+			const peer = await connect(after.port, edgeHeaders(user));
+			const ack = (await peer.request('forge:join', { matchId })) as Record<string, unknown>;
+			expect(ack.outcome, `${user} is not told the match is gone`).toBeUndefined();
+			expect(ack).toMatchObject({ matchId, seat });
+			await waitUntil(() => peer.frames.some(isFinishGame), `${user} to be told the game ended`);
+		}
+		expect(after.logs.filter((l) => l.evt === 'match-gone')).toEqual([]);
+		expect(outcome).toMatchObject({ handed: [matchId], ended: [] });
+		expect(after.handle.matches.get(matchId)?.status).toBe('over');
+	});
+
 	it("stops a match that had already FINISHED, which handOver() does not even consider — it was the leak's first half", async () => {
 		const h = await boot();
 		const { body } = await startMatch(h);
