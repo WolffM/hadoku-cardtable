@@ -6,8 +6,9 @@
  * `bs-batterskull.state`: alice casts Batterskull with eight Plains out, a creature and an artifact
  * already in her front tier. It lands as an artifact; its living-weapon trigger makes a 0/0 Phyrexian Germ,
  * which arrives from Batterskull, and attaches Batterskull to it, so Batterskull joins the Germ's
- * pile. The Plains are the busiest tier before and after, so nothing about the final board asks for
- * a different card size.
+ * pile. Batterskull is let go in a column the board already draws (over the sixth Plains), so the
+ * Plains are the busiest tier before and after and nothing about the final board asks for a different
+ * card size — and Batterskull stays where it was let go, the Germ arriving under it there.
  *
  * A sampler in alice's page records, on every animation frame from the cast until the Germ has
  * settled, each box whose size is the board's: the canvas, both battlefields, every battlefield
@@ -120,8 +121,18 @@ test(titled('Batterskull: the Germ arrives and Batterskull joins its pile withou
     const batterskull = await handCardNamed(page, 'Batterskull');
     expect(batterskull, 'Batterskull is in alice’s hand').not.toBeUndefined();
 
-    const field = (await page.locator('[data-zone="battlefield"][data-owner="you"]').boundingBox())!;
-    const at = { x: Math.round(field.x + field.width * 0.6), y: Math.round(field.y + field.height * 0.3) };
+    // Let go in the front tier, over the sixth Plains: a column the board already draws, whatever the
+    // window's width leaves the battlefield. A release past the busiest tier's last column adds a column
+    // (the player's own gap), which is not what this case is about.
+    const at = await page.evaluate(() => {
+      const zone = document.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+      const front = zone.querySelector<HTMLElement>('.zone__cards[data-tier="front"]')!.getBoundingClientRect();
+      const plains = Array.from(zone.querySelectorAll<HTMLElement>('.zone__cards[data-tier="back"] > li.board-card'))
+        .map((el) => el.getBoundingClientRect())
+        .sort((a, b) => a.left - b.left);
+      const column = plains[5]!;
+      return { x: Math.round(column.left + column.width / 2), y: Math.round(front.top + front.height / 2) };
+    });
     await startSampler(page);
     // Cast by a real drag. Nobody holds priority over it, so it can reach the stack and resolve
     // between two polls: the proof it was cast is that it left the hand.
@@ -177,6 +188,15 @@ test(titled('Batterskull: the Germ arrives and Batterskull joins its pile withou
       'no frame has a scrolling page or battlefield',
     ).toEqual([]);
     expect(changed, 'every board size holds its first value in every frame').toEqual([]);
+    // Batterskull stays in the column it was let go at, and the Germ that carries it arrives there.
+    const left = (state: string, name: string): number | null => {
+      const m = new RegExp(`${name} (-?\\d+),`).exec(state);
+      return m === null ? null : Number(m[1]);
+    };
+    const landed = frames.find((f) => /batterskull \d+,\d+ \S+ front cast-landing=/.test(f.state));
+    expect(landed, 'Batterskull was drawn landing').not.toBeUndefined();
+    console.log(`[bs] let go at x=${at.x}; landed ${left(landed!.state, 'batterskull')}; germ ${left(frames.at(-1)!.state, 'germ')}`);
+    expect(left(frames.at(-1)!.state, 'germ'), 'the Germ is in the column Batterskull landed in').toBe(left(landed!.state, 'batterskull'));
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();
