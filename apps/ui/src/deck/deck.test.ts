@@ -1,125 +1,74 @@
 // @vitest-environment jsdom
 /*
- * `#/deck/<draftId>`, driven: a finished pool arrives over the draft socket,
- * the drafter builds 40 cards out of it with basics, and Start posts the gate's
- * draft arm — the deck's own `.dck` text, checked against the caller's pool.
+ * `DeckEditor` (both modes) and `#/deck/<podId>`, driven.
  *
- * The socket is the stub `lobby.test.ts` uses and the API is a stub `fetch`
- * that answers the way the real gate does, so this proves the browser half:
- * what the drafter built is what reaches the gate, byte for byte, and what the
- * gate says reaches the drafter, card named. The gate itself — that the server
- * refuses a drafted deck no matter what a client sends — is proven against the
- * real route in `apps/server/src/http/tables.test.ts`.
+ * `DeckEditor` is tested directly for its two modes — a fresh limited build
+ * against a stub `TablesClient`, and a sideboard swap against a fixed 75 — and
+ * `DeckScreen` is tested over a stub `deck/deckStore.ts` client, which is the
+ * one thing that changed shape this wave: the screen used to open a live pod
+ * SOCKET and build the deck itself; it now reads `GET …/mine` once and hands
+ * both the pool and the last saved build to the editor, which is what makes
+ * the pool still reachable after the drafter has left the pod (C's contract).
  *
- * The pool is 45 cards off the committed cube (`draft/pool.json`), not an
- * invented one. `.test.ts` + `createElement` and the jsdom pragma on line 1 for
- * the reasons `screens/lobby.test.ts` gives.
+ * The pool is 45 (limited) or 75 (sideboard) cards off the committed cube
+ * (`draft/pool.json`), not invented ones.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { DRAFT_CHANNEL, stateMessage, type DraftCard, type DraftView } from '@hadoku/shared';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { DraftCard } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { basicLand, cardKey, deckFromDeckFile, moveToMain, setBasicLand } from '@hadoku/deck';
+import { basicLand, type Deck, deckFromDeckFile, moveToMain, setBasicLand } from '@hadoku/deck';
 
 import poolData from '../draft/pool.json';
-import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
-import { loadFixtures } from '../draft/fixtures.ts';
-import type { DraftTransport } from '../draft/socket.ts';
+import { cardRequestOf, deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
+import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
+import { peekCreatePreset } from '../rooms/api.ts';
 import { parseRoute } from '../screens/route.ts';
 import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
-import { draftedSeat, librarySeat, mainSummary, cardIndex, poolReadiness, sortPile } from './build.ts';
+import type { DeckStoreClient, Mine } from './deckStore.ts';
+import { draftedSeat, cardIndex, mainSummary, splitBasics } from './build.ts';
 
 afterEach(() => {
   cleanup();
   globalThis.location.hash = '';
+  try {
+    globalThis.sessionStorage?.clear();
+  } catch {
+    // Some test environments have no sessionStorage at all.
+  }
 });
 
 const DRAFT_ID = 'amber-lantern-k7q4';
 
-/** 45 cube cards, as a seat's finished pool: pack 1's first 15 of three colours and so on. */
+/** 45 cube cards, as a finished pool. The cube is sectioned by colour, and this slice is white. */
 const POOL: DraftCard[] = (poolData as { cards: DraftCard[] }).cards
   .slice(0, 45)
   .map((card, i) => ({ ...card, cardId: `draft:${DRAFT_ID}/p${i}` }));
 
-const OPENING = loadFixtures()[0] as DraftView;
+/** A deliberately two-colour pool (white and blue sections), for the colour filter alone. */
+const POOL_MIXED: DraftCard[] = [
+  ...(poolData as { cards: DraftCard[] }).cards.slice(0, 10),
+  ...(poolData as { cards: DraftCard[] }).cards.slice(90, 100),
+].map((card, i) => ({ ...card, cardId: `mix:${i}` }));
 
-function seatView(pool: DraftCard[]): DraftView {
-  const viewer = OPENING.viewer;
-  if (viewer.kind !== 'seat') throw new Error('the opening fixture is a seat view');
-  return {
-    ...OPENING,
-    draftId: DRAFT_ID,
-    seq: OPENING.seq + 100,
-    // The schema holds a seat's pool to its public pick count.
-    seats: OPENING.seats.map((s) => (s.id === viewer.seatId ? { ...s, pickedCount: pool.length } : s)),
-    viewer: { ...viewer, pack: [], pool },
-  };
-}
-
-/* ── the stub socket ─────────────────────────────────────────────────── */
-
-function makeSocket() {
-  const handlers = new Map<string, ((payload: unknown) => void)[]>();
-  const sent: unknown[] = [];
-  return {
-    sent,
-    fire(event: string, payload?: unknown) {
-      act(() => {
-        for (const h of handlers.get(event) ?? []) h(payload);
-      });
-    },
-    make: (): DraftTransport => ({
-      on(event, handler) {
-        handlers.set(event, [...(handlers.get(event) ?? []), handler]);
-      },
-      emit(_event, message) {
-        sent.push(message);
-      },
-      disconnect() {},
-    }),
-  };
-}
-
-/* ── the stub API ────────────────────────────────────────────────────── */
-
-const FORMATS = [
-  { id: '2016-07-22', name: 'Standard (EMN)', effective: '2016-07-22', sets: ['DTK', 'EMN'], banned: [], cardCount: 1441, source: 'x', family: 'standard' as const },
-];
-const DECKS = [
-  {
-    id: 'power-2016-1-finespoo-collected-bant',
-    collection: 'power-summer-2016',
-    name: 'Collected Bant (finespoo)',
-    archetype: 'Collected Bant',
-    pilot: 'finespoo',
-    format: 'Standard (EMN)',
-    date: '2016-07-22',
-    provenance: 'WMCQ: Collected Bant (finespoo)',
-    citation: 'https://www.mtgtop8.com/event?e=12896&f=ST',
-    main: [{ count: 60, name: 'Mountain' }],
-    sideboard: [],
-  },
-];
+/* ── the stub `/tables` API, for `limited`'s live check ─────────────────── */
 
 interface Call {
   url: string;
   body: unknown;
 }
 
-function stubApi(answers: { check: (body: { deck: { dck: string } }) => Verdict; start: { status: number; body: unknown } }) {
+function stubApi(answers: { check: (body: { deck: { dck: string } }) => Verdict }) {
   const calls: Call[] = [];
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const fetchImpl: Fetch = async (url, init) => {
     const body: unknown = init?.body === undefined ? undefined : JSON.parse(String(init.body));
     calls.push({ url, body });
-    if (url.endsWith('/tables/formats')) return json(200, { formats: FORMATS });
-    if (url.endsWith('/tables/decks')) return json(200, { decks: DECKS });
     if (url.endsWith('/tables/check')) return json(200, answers.check(body as { deck: { dck: string } }));
-    if (url.endsWith('/play/matches')) return json(answers.start.status, answers.start.body);
     return json(404, { error: 'not found' });
   };
   return { calls, client: tablesClient(fetchImpl, '/cardtable/api/') };
@@ -127,7 +76,6 @@ function stubApi(answers: { check: (body: { deck: { dck: string } }) => Verdict;
 
 const RULES = `your pool from ${DRAFT_ID}`;
 const legal: Verdict = { deckName: `Cube draft ${DRAFT_ID}`, rulesName: RULES, legal: true, issues: [], note: null };
-/** What the real gate says about a short deck: the size, with no card to name. */
 function shortVerdict(size: number): Verdict {
   return {
     ...legal,
@@ -136,32 +84,17 @@ function shortVerdict(size: number): Verdict {
   };
 }
 
-async function mount(api: ReturnType<typeof stubApi>) {
-  const socket = makeSocket();
-  render(createElement(DeckScreen, { draftId: DRAFT_ID, makeTransport: socket.make, client: api.client, checkDelayMs: 0 }));
-  return socket;
-}
-
-async function mountReady(api: ReturnType<typeof stubApi>) {
-  const socket = await mount(api);
-  socket.fire(DRAFT_CHANNEL.serverToClient, stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
-  await screen.findByTestId('deck-builder');
-  await screen.findByTestId('opponent-deck');
-  return socket;
-}
-
-function rowsIn(testId: string): HTMLElement[] {
-  return within(screen.getByTestId(testId)).queryAllByTestId('deck-row');
-}
-
-/** Promote `n` cards, one click each, the way a person does. */
-function promote(n: number): void {
-  for (let i = 0; i < n; i += 1) fireEvent.click(rowsIn('side-list')[0] as HTMLElement);
-}
-
 const lastPost = (calls: Call[], path: string) => [...calls].reverse().find((c) => c.url === `/cardtable/api/${path}`);
 
-/* ── the pure half ───────────────────────────────────────────────────── */
+/** Every `CardTile` button inside a pile, in current DOM order. Re-query after every click. */
+const cardsIn = (testId: string): HTMLElement[] => within(screen.getByTestId(testId)).getAllByTestId('card');
+
+/** Click `n` cards out of the side grid, one at a time (each click changes the DOM). */
+function promote(n: number): void {
+  for (let i = 0; i < n; i += 1) fireEvent.click(cardsIn('side-grid')[0]!);
+}
+
+/* ── the pure half: unchanged by this wave, `librarySeat`/`sortPile`/`poolReadiness` are gone with it ── */
 
 describe('build.ts', () => {
   it('a drafted seat is the gate’s draft arm, carrying the deck’s own .dck text', () => {
@@ -170,91 +103,83 @@ describe('build.ts', () => {
     deck = setBasicLand(deck, basicLand('Island'), 17);
     const seat = draftedSeat(DRAFT_ID, deck);
     expect(seat).toEqual({ deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId: DRAFT_ID } });
-    // The text is what the server parses: 18 cards in its main, basics included.
     const back = deckFromDeckFile(parseDck(dckTextOf(deck)));
     expect(back.main.reduce((n, e) => n + e.count, 0)).toBe(18);
     expect(back.main.find((e) => e.card.name === 'Island')?.count).toBe(17);
   });
 
-  it('seats a library opponent in the Standard it was played in', () => {
-    const d = DECKS[0]!;
-    expect(librarySeat(d, FORMATS)).toEqual({ deck: { library: d.id }, rules: { kind: 'standard', format: '2016-07-22' } });
-    const later = [...FORMATS, { ...FORMATS[0]!, id: '2017-10-05' }];
-    expect(librarySeat({ ...d, date: '1999-01-01' }, later).rules).toEqual({ kind: 'standard', format: '2017-10-05' });
-  });
-
-  it('knows a finished pool from an unfinished one and from a spectator', () => {
-    expect(poolReadiness(null)).toEqual({ kind: 'joining' });
-    expect(poolReadiness({ ...seatView(POOL), viewer: { kind: 'spectator' } })).toEqual({ kind: 'spectator' });
-    expect(poolReadiness(seatView(POOL.slice(0, 20)))).toEqual({ kind: 'unfinished', picked: 20, total: 45 });
-    expect(poolReadiness(seatView(POOL))).toEqual({ kind: 'ready', pool: POOL });
-  });
-
-  it('orders a pile by mana value with lands last, and counts what the maindeck asks for', () => {
+  it('folds the maindeck into creatures/spells/lands and the colours it asks for', () => {
     const index = cardIndex(POOL);
     let deck = deckFromPool(DRAFT_ID, POOL);
-    const sorted = sortPile(deck.sideboard, index);
-    const cards = sorted.map((e) => index.get(cardKey(e.card)));
-    expect(cards.every((c) => c !== undefined)).toBe(true);
-    const isLand = (c: DraftCard | undefined) => /\bLand\b/.test(c?.typeLine ?? '');
-    const firstLand = cards.findIndex(isLand);
-    const spells = firstLand === -1 ? cards : cards.slice(0, firstLand);
-    expect(cards.slice(spells.length).every(isLand)).toBe(true);
-    const values = spells.map((c) => c?.manaValue ?? 0);
-    expect(values).toEqual([...values].sort((a, b) => a - b));
-
     deck = moveToMain(deck, deck.sideboard[0]!.card);
     deck = setBasicLand(deck, basicLand('Plains'), 3);
     const summary = mainSummary(deck, index);
     expect(summary.lands).toBeGreaterThanOrEqual(3);
     expect(summary.creatures + summary.spells + summary.lands).toBe(4);
   });
+
+  it('splitBasics pulls basics back out of a round-tripped .dck’s one merged main section', () => {
+    let deck = deckFromPool(DRAFT_ID, POOL);
+    deck = moveToMain(deck, deck.sideboard[0]!.card);
+    deck = setBasicLand(deck, basicLand('Island'), 9);
+    // The round trip every saved build goes through: `toDeckFile` merges
+    // basics into `main`, and `deckFromDeckFile` reads that section as one pile.
+    const roundTripped = deckFromDeckFile(parseDck(dckTextOf(deck)));
+    expect(roundTripped.basics).toEqual([]);
+    expect(roundTripped.main.reduce((n, e) => n + e.count, 0)).toBe(10);
+
+    const restored = splitBasics(roundTripped);
+    expect(restored.basics.find((e) => e.card.name === 'Island')?.count).toBe(9);
+    expect(restored.main.reduce((n, e) => n + e.count, 0)).toBe(1);
+    expect(restored.main.some((e) => e.card.name === 'Island')).toBe(false);
+  });
 });
 
-/* ── the screen ──────────────────────────────────────────────────────── */
+/* ── `DeckEditor` — `limited` ────────────────────────────────────────────── */
 
-describe('DeckScreen', () => {
-  it('joins the pod for the pool, and says so while the draft is unfinished', async () => {
-    const api = stubApi({ check: () => legal, start: { status: 500, body: {} } });
-    const socket = await mount(api);
-    expect(screen.getByTestId('deck-joining')).toBeTruthy();
-    expect(socket.sent).toEqual([{ type: 'join', draftId: DRAFT_ID }]);
-
-    socket.fire(DRAFT_CHANNEL.serverToClient, stateMessage(seatView(POOL.slice(0, 30)), { name: 'Test Cube', size: 540 }));
-    expect((await screen.findByTestId('deck-unfinished')).textContent).toContain('30 of 45');
-    fireEvent.click(screen.getByTestId('back-to-pod'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'draft', draftId: DRAFT_ID });
-  });
-
-  it('opens with the whole pool in the sideboard and nothing played', async () => {
-    const api = stubApi({ check: (b) => shortVerdict(deckFromDeckFile(parseDck(b.deck.dck)).main.length), start: { status: 500, body: {} } });
-    await mountReady(api);
+describe('DeckEditor — limited', () => {
+  it('opens with the whole pool in the sideboard and nothing played', () => {
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
     expect(screen.getByTestId('main-count').textContent).toBe('0');
     expect(screen.getByTestId('side-count').textContent).toBe('45');
-    expect(rowsIn('main-list')).toHaveLength(0);
-    // The server was asked, and its answer is on screen.
-    expect((await screen.findByTestId('deck-verdict')).textContent).toContain('maindeck has 0 cards, needs at least 40');
+    expect(cardsIn('side-grid')).toHaveLength(45);
+  });
+
+  it('opens from a saved build instead of a fresh one', () => {
+    let saved = deckFromPool(DRAFT_ID, POOL);
+    saved = moveToMain(saved, saved.sideboard[0]!.card);
+    saved = moveToMain(saved, saved.sideboard[0]!.card);
+    saved = setBasicLand(saved, basicLand('Forest'), 5);
+    const api = stubApi({ check: () => legal });
+    render(
+      createElement(DeckEditor, {
+        mode: 'limited',
+        draftId: DRAFT_ID,
+        pool: POOL,
+        savedDeck: dckTextOf(saved),
+        client: api.client,
+        checkDelayMs: 0,
+      }),
+    );
+    expect(screen.getByTestId('main-count').textContent).toBe('7');
+    expect(screen.getByTestId('side-count').textContent).toBe('43');
+    expect(screen.getByTestId('basic-Forest-count').textContent).toBe('5');
   });
 
   // 20_000, not the 5 s default: this builds a 40-card deck out of the real
-  // 534-card pool and re-renders the builder for every promotion. It runs in
-  // ~0.4 s here and timed out at 5 s on a contended CI CI runner (run 36032980118),
-  // reddening main on a change that could not touch it. The budget is the
-  // machine's, not the test's.
+  // 534-card pool and re-renders the grid for every promotion — see
+  // `deck.test.ts`'s pre-wave-70 history for the measured cost.
   it('builds 23 drafted cards and 17 basics into a 40-card deck, and checks exactly that text', { timeout: 20_000 }, async () => {
-    const api = stubApi({ check: () => legal, start: { status: 500, body: {} } });
-    await mountReady(api);
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
 
     promote(23);
     for (let i = 0; i < 9; i += 1) fireEvent.click(screen.getByTestId('basic-Island-more'));
     for (let i = 0; i < 8; i += 1) fireEvent.click(screen.getByTestId('basic-Mountain-more'));
-    fireEvent.click(screen.getByTestId('basic-Mountain-less'));
-    fireEvent.click(screen.getByTestId('basic-Mountain-more'));
 
     expect(screen.getByTestId('main-count').textContent).toBe('40');
     expect(screen.getByTestId('side-count').textContent).toBe('22');
-    expect(screen.getByTestId('basic-Island-count').textContent).toBe('9');
-    expect(screen.getByTestId('basic-Mountain-count').textContent).toBe('8');
 
     await waitFor(() => expect(screen.getByTestId('deck-verdict').textContent).toContain('legal against'));
     const check = lastPost(api.calls, 'tables/check')?.body as { deck: { dck: string }; rules: unknown };
@@ -265,69 +190,195 @@ describe('DeckScreen', () => {
     expect(deck.sideboard.reduce((n, e) => n + e.count, 0)).toBe(22);
   });
 
-  // Same shape, same reason: a full build plus the gate round-trip.
-  it('starts the match through the gate with the text it checked, and goes to it', { timeout: 20_000 }, async () => {
-    const api = stubApi({ check: () => legal, start: { status: 201, body: { matchId: 'm-0123456789ab', epoch: 'e', seats: [] } } });
-    await mountReady(api);
-    promote(40);
-    await waitFor(() => expect(screen.getByTestId('deck-verdict').textContent).toContain('legal against'));
-    const checked = (lastPost(api.calls, 'tables/check')?.body as { deck: { dck: string } }).deck.dck;
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('start-match'));
-    });
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: 'm-0123456789ab' }));
-    expect(lastPost(api.calls, 'play/matches')?.body).toEqual({
-      opponent: 'ai',
-      seats: [
-        { deck: { dck: checked }, rules: { kind: 'draft', draftId: DRAFT_ID } },
-        { deck: { library: 'power-2016-1-finespoo-collected-bant' }, rules: { kind: 'standard', format: '2016-07-22' } },
-      ],
-    });
-  });
-
-  it('does not stop a short deck itself: it sends it, and shows the server’s refusal with the card named', async () => {
-    // The server's 422, in the gate's words (`gate.ts` `refusalLine`): a card
-    // the pool does not hold, named, leads over the size.
-    const refusal = {
-      error: `Seat 1's deck "Cube draft ${DRAFT_ID}" is not legal in ${RULES}: plays 1x Black Lotus but drafted 0 (and 1 more)`,
-      seats: [
-        {
-          ...legal,
-          legal: false,
-          issues: [
-            { kind: 'under-minimum-size', message: 'maindeck has 11 cards, needs at least 40', cardName: null, count: 11, limit: 40 },
-            { kind: 'more-copies-than-drafted', message: 'plays 1x Black Lotus but drafted 0', cardName: 'Black Lotus', count: 1, limit: 0 },
-          ],
-        },
-        { deckName: 'Collected Bant (finespoo)', rulesName: 'Standard (EMN)', legal: true, issues: [], note: null },
-      ],
-    };
-    const api = stubApi({ check: () => shortVerdict(10), start: { status: 422, body: refusal } });
-    await mountReady(api);
+  it('does not stop a short deck itself: it shows the server’s verdict either way', async () => {
+    const api = stubApi({ check: (b) => shortVerdict(deckFromDeckFile(parseDck(b.deck.dck)).main.length) });
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
     promote(10);
     await waitFor(() => expect(screen.getByTestId('deck-verdict').textContent).toContain('maindeck has 10 cards'));
-
-    const button = screen.getByTestId('start-match') as HTMLButtonElement;
-    expect(button.disabled).toBe(false);
-    await act(async () => {
-      fireEvent.click(button);
-    });
-
-    const refused = await screen.findByTestId('start-refused');
-    expect(refused.textContent).toContain(refusal.error);
-    expect(screen.getByTestId('refused-0').textContent).toContain('Black Lotus');
-    // The short deck went to the gate: the client did not decide for it.
-    const post = lastPost(api.calls, 'play/matches')?.body as { seats: { deck: { dck: string } }[] };
-    expect(deckFromDeckFile(parseDck(post.seats[0]!.deck.dck)).main.reduce((n, e) => n + e.count, 0)).toBe(10);
-    // Still here, not on a match.
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    // Play is never gated on the count — the room's own gate is the control.
+    expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('a spectator is told there is no pool to build from', async () => {
-    const api = stubApi({ check: () => legal, start: { status: 500, body: {} } });
-    const socket = await mount(api);
-    socket.fire(DRAFT_CHANNEL.serverToClient, stateMessage({ ...seatView(POOL), viewer: { kind: 'spectator' } }, { name: 'Test Cube', size: 540 }));
-    expect((await screen.findByTestId('deck-spectator')).textContent).toContain('no seat');
+  it('groups the maindeck by mana value, with a curve count per bucket', () => {
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
+    promote(10);
+    const buckets = within(screen.getByTestId('main-grid')).getAllByTestId('curve-bucket');
+    expect(buckets.length).toBeGreaterThan(0);
+    const totalInBuckets = buckets.reduce((n, b) => n + within(b).getAllByTestId('card').length, 0);
+    expect(totalInBuckets).toBe(10);
+    for (const bucket of buckets) {
+      const mv = bucket.dataset['mv'];
+      const n = within(bucket).getAllByTestId('card').length;
+      expect(bucket.textContent).toContain(`(${n})`);
+      expect(mv).not.toBeUndefined();
+    }
+  });
+
+  it('gives every tile a distinct synthetic id when both piles are on screen, so the inspector never finds the wrong one', () => {
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
+    promote(10);
+    const ids = screen.getAllByTestId('card').map((el) => el.getAttribute('data-card-id'));
+    expect(ids).toHaveLength(45);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('filters the pool by colour', () => {
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED, client: api.client, checkDelayMs: 0 }));
+    const before = cardsIn('side-grid').length;
+    fireEvent.click(screen.getByTestId('filter-W'));
+    const afterWhite = cardsIn('side-grid');
+    expect(afterWhite.length).toBeGreaterThan(0);
+    expect(afterWhite.length).toBeLessThan(before);
+    for (const tile of afterWhite) {
+      const identity = tile.querySelector('.card__stripe')?.getAttribute('data-identity') ?? '';
+      expect(identity).toContain('w');
+    }
+    // Toggling it back off restores the whole pool.
+    fireEvent.click(screen.getByTestId('filter-W'));
+    expect(cardsIn('side-grid')).toHaveLength(before);
+  });
+
+  it('calls onPlay from the Play button, ungated by legality', () => {
+    const api = stubApi({ check: () => legal });
+    const onPlay = vi.fn();
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, onPlay }));
+    fireEvent.click(screen.getByTestId('play-deck'));
+    expect(onPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('debounces a save through onSave as cards move — reverting the wiring is what the mutation check catches', async () => {
+    const api = stubApi({ check: () => legal });
+    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: true }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, saveDelayMs: 0, onSave }));
+    expect(onSave).not.toHaveBeenCalled();
+    promote(1);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [sentText] = onSave.mock.calls[0]!;
+    const sent = deckFromDeckFile(parseDck(sentText));
+    expect(sent.main.reduce((n, e) => n + e.count, 0)).toBe(1);
+  });
+});
+
+/* ── `DeckEditor` — `sideboard` (wave 72 mounts it; this wave unit-tests it) ── */
+
+describe('DeckEditor — sideboard', () => {
+  const POD = 'amber-lantern-k7q4';
+  const POOL75: DraftCard[] = (poolData as { cards: DraftCard[] }).cards.slice(0, 75).map((card, i) => ({ ...card, cardId: `sb-${i}` }));
+
+  /** 60 main / 15 side — Magic's own split, built out of the fixed 75. */
+  function split60(): Deck {
+    let deck = deckFromPool(POD, POOL75);
+    for (const card of POOL75.slice(0, 60)) deck = moveToMain(deck, cardRequestOf(card));
+    return deck;
+  }
+
+  it('keeps the 75-card multiset when a swap moves a card main ⇄ side', () => {
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()) }));
+    const mainBefore = Number(screen.getByTestId('main-count').textContent);
+    const sideBefore = Number(screen.getByTestId('side-count').textContent);
+    expect(mainBefore).toBe(60);
+    expect(sideBefore).toBe(15);
+    expect(mainBefore + sideBefore).toBe(75);
+
+    fireEvent.click(cardsIn('side-grid')[0]!);
+    expect(Number(screen.getByTestId('main-count').textContent)).toBe(61);
+    expect(Number(screen.getByTestId('side-count').textContent)).toBe(14);
+
+    fireEvent.click(cardsIn('main-grid')[0]!);
+    expect(Number(screen.getByTestId('main-count').textContent)).toBe(60);
+    expect(Number(screen.getByTestId('side-count').textContent)).toBe(15);
+  });
+
+  it('says every card is in the 75 when nothing has been added', () => {
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()) }));
+    expect(screen.getByTestId('sideboard-problems-ok')).toBeTruthy();
+    expect(screen.queryByTestId('sideboard-problems')).toBeNull();
+  });
+
+  it('refuses a card from outside the 75', () => {
+    const outsider = (poolData as { cards: DraftCard[] }).cards[400]!;
+    expect(POOL75.some((c) => c.name === outsider.name)).toBe(false);
+    const base = split60();
+    const withOutsider: Deck = { ...base, main: [...base.main, { count: 1, card: cardRequestOf(outsider) }] };
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(withOutsider) }));
+    const problems = screen.getByTestId('sideboard-problems');
+    expect(problems.textContent).toContain(outsider.name);
+    expect(problems.textContent).toContain('drafted 0');
+  });
+
+  it('has no Play button and no basics widget by default', () => {
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()) }));
+    expect(screen.queryByTestId('play-deck')).toBeNull();
+    expect(screen.queryByTestId('basics')).toBeNull();
+  });
+
+  it('shows the basics widget when the deck came from a drafted pool', () => {
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()), allowBasics: true }));
+    expect(screen.getByTestId('basics')).toBeTruthy();
+  });
+});
+
+/* ── `DeckScreen`: `GET …/mine`, `PUT …/deck`, and Play ─────────────────── */
+
+function stubStore(mine: Mine | null): { calls: { podId: string; dck: string }[]; store: DeckStoreClient } {
+  const calls: { podId: string; dck: string }[] = [];
+  const store: DeckStoreClient = {
+    mine: async (podId) => {
+      void podId;
+      return mine;
+    },
+    save: async (podId, dck) => {
+      calls.push({ podId, dck });
+      return { ok: true, deck: dck };
+    },
+  };
+  return { calls, store };
+}
+
+describe('DeckScreen', () => {
+  it('shows "no seat" on the server’s 404', async () => {
+    const { store } = stubStore(null);
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client }));
+    expect((await screen.findByTestId('deck-no-seat')).textContent).toContain('no seat');
+    fireEvent.click(screen.getByTestId('back-to-pod'));
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'draft', draftId: DRAFT_ID });
+  });
+
+  it('opens a fresh build when GET …/mine has no save, and saves as cards move', async () => {
+    const { store, calls } = stubStore({ pool: POOL, deck: null });
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0, saveDelayMs: 0 }));
+    await screen.findByTestId('deck-editor');
+    expect(screen.getByTestId('main-count').textContent).toBe('0');
+
+    promote(1);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]!.podId).toBe(DRAFT_ID);
+    const sent = deckFromDeckFile(parseDck(calls[0]!.dck));
+    expect(sent.main.reduce((n, e) => n + e.count, 0)).toBe(1);
+  });
+
+  it('opens from the saved build when GET …/mine has one', async () => {
+    let saved = deckFromPool(DRAFT_ID, POOL);
+    saved = moveToMain(saved, saved.sideboard[0]!.card);
+    const { store } = stubStore({ pool: POOL, deck: dckTextOf(saved) });
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
+    await screen.findByTestId('deck-editor');
+    expect(screen.getByTestId('main-count').textContent).toBe('1');
+  });
+
+  it('Play remembers the create preset, format `draft:<podId>`, and returns to the lobby', async () => {
+    const { store } = stubStore({ pool: POOL, deck: null });
+    const api = stubApi({ check: () => legal });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
+    await screen.findByTestId('deck-editor');
+    fireEvent.click(screen.getByTestId('play-deck'));
+    expect(peekCreatePreset()).toBe(`draft:${DRAFT_ID}`);
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
   });
 });

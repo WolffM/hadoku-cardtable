@@ -9,7 +9,7 @@
  * ## Why this exists at all
  *
  * Wave 26 §D put `manaCost` into the frozen pools and exported ONE fold
- * (`DeckView.tsx`'s `deckColorsByName`). `DeckView` and `DeckBuilder` can call
+ * (`DeckView.tsx`'s `deckColorsByName`). `DeckView` and `DeckEditor` can call
  * it because a test and a server can read a file; the room screen's deck
  * dropdown could not, because the only place a browser learns about a library
  * deck is `GET /api/tables/decks`, which sends card NAMES and no costs.

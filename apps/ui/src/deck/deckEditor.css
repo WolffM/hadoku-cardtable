@@ -1,0 +1,142 @@
+/*
+ * `DeckEditor.tsx` — both modes, one stylesheet. Replaces the `.builder*`
+ * rules `screens.css` carried for the deleted limited-only builder this
+ * component replaces (`screens.css` is not this lane's to edit; see the
+ * wave's note on it).
+ */
+
+.deck-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.deck-editor__bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deck-editor__counts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.deck-editor__n {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.deck-editor__n--short {
+  color: var(--danger);
+}
+
+.deck-editor__n--quiet {
+  opacity: 0.7;
+}
+
+.deck-editor__of {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.deck-editor__h2 {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.deck-editor__pile-n {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+.deck-editor__basics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.deck-editor__basic {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.deck-editor__basic-n {
+  min-width: 1.4em;
+  text-align: center;
+}
+
+.deck-editor__problems {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.deck-editor__piles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .deck-editor__piles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deck-editor__pile {
+  min-width: 0;
+}
+
+.deck-editor__curve {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.deck-editor__bucket-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.deck-editor__bucket-n {
+  opacity: 0.7;
+}
+
+.deck-editor__bucket-cards,
+.deck-editor__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.deck-editor__filters {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.4rem;
+}
+
+.deck-editor__filter {
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  line-height: 1;
+}
+
+.deck-editor__filter[aria-pressed='true'] {
+  outline: 2px solid currentColor;
+}
+
+.deck-editor__zoom {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-zoom, 60);
+}

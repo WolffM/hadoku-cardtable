@@ -37,7 +37,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 
 import { DRAFT_CHANNEL, stateMessage, type DraftCard, type DraftView } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { BASIC_LAND_NAMES, deckColorsByName, deckFromDeckFile, mainDeckSize } from '@hadoku/deck';
+import { BASIC_LAND_NAMES, deckColorsByName, deckFromDeckFile, mainDeckSize, moveToMain } from '@hadoku/deck';
 import {
   LIBRARY,
   LIBRARY_ARCHETYPE_KEY,
@@ -67,7 +67,8 @@ import { cardImageUrl } from '../draft/cardImage.ts';
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
-import { dckTextOf } from '../draft/deckFromPool.ts';
+import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
+import { deckStoreClient } from '../deck/deckStore.ts';
 import { loadFixtures } from '../draft/fixtures.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
@@ -267,6 +268,14 @@ interface Table {
   decks?: TableDeck[];
   /** `GET /tables/decks` answers only once a room read has, as on a reload where the room is quicker. */
   catalogueAfterRoom?: boolean;
+  /**
+   * What `GET /api/drafts/:podId/mine` answers for `deck` (wave 70, C's
+   * contract) — the caller's last saved build, or `null` before the first
+   * save. Also written by a `PUT …/deck` this test drives. 404s when `pods` is
+   * empty, the same "you have no seat" case the pod socket answers elsewhere
+   * in this stub.
+   */
+  savedDeck?: string | null;
 }
 
 /**
@@ -534,6 +543,25 @@ function stubServer(table: Table) {
       table.matchId = MATCH;
       return json(201, { matchId: MATCH });
     }
+    /*
+     * C's pod-store contract (wave 70): the caller's own pool and last saved
+     * build, 404 when they drafted no seat in the pod — the same fact `pods`
+     * being empty already means for the socket above. `mine` sends an empty
+     * pool: nothing in this screen reads it, only `deck`, since the pod SOCKET
+     * is still this stub's (and the real server's) answer for the pool itself.
+     */
+    const mineMatch = /\/api\/drafts\/([^/]+)\/mine$/.exec(url);
+    if (mineMatch !== null) {
+      if ((table.pods ?? []).length === 0) return json(404, { error: 'you have no seat in this pod' });
+      return json(200, { pool: [], deck: table.savedDeck ?? null });
+    }
+    const deckMatch = /\/api\/drafts\/([^/]+)\/deck$/.exec(url);
+    if (deckMatch !== null) {
+      const sent = body as { dck?: unknown };
+      if (typeof sent.dck !== 'string') return json(400, { issues: ['dck must be a string'] });
+      table.savedDeck = sent.dck;
+      return json(200, { deck: sent.dck });
+    }
     return json(404, { error: 'not found' });
   };
   return {
@@ -541,8 +569,10 @@ function stubServer(table: Table) {
     table,
     holdNextRoomRead,
     draftedText: () => draftedText,
+    draftSaved: () => table.savedDeck ?? null,
     client: tablesClient(fetchImpl, '/cardtable/api/'),
     rooms: roomsClient(fetchImpl, '/cardtable/api/'),
+    deckStore: deckStoreClient(fetchImpl, '/cardtable/api/'),
     /** Everyone's record per deck; empty unless a test sets one. Never the real stats service. */
     records,
     deckRecords: () => Promise.resolve(records),
@@ -2450,6 +2480,7 @@ describe('a room on a drafted pool', () => {
         roomId: ROOM,
         feed: everyMs(10),
         makeTransport: pod.make,
+        deckStore: server.deckStore,
       }),
     );
     await screen.findByTestId('room-players');
@@ -2508,6 +2539,12 @@ describe('a room on a drafted pool', () => {
     // And the library sweep never ran: a drafted pool asks the gate nothing.
     expect(sweeps(server)).toEqual([]);
 
+    // No saved build yet (`GET /api/drafts/:podId/mine` answered `deck: null`):
+    // a link to the real editor sits beside the auto-built row (wave 70 §A.3).
+    const link = await screen.findByTestId('drafted-build-link');
+    fireEvent.click(within(link).getByText('Build your deck'));
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'deck', draftId: POD });
+
     await pick(DRAFTED_DECK);
 
     // What went to the server is a `.dck`, and it is the deck this screen built
@@ -2525,6 +2562,32 @@ describe('a room on a drafted pool', () => {
     // The verdict the server took is in YOUR pool, and it says so.
     await waitFor(() => expect(screen.getByTestId('room-seat-0-rules').textContent).toBe(`your pool from ${POD}`));
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  /**
+   * `GET /api/drafts/:podId/mine` is the other half of C's contract (wave 70
+   * §A.3): once the drafter has a SAVED build, the dropdown offers that one —
+   * byte for byte, over the pod's own pool and nothing `draftedDeckOf` touches
+   * — not the auto-built forty-five-plus-basics, and the link to the editor
+   * is gone (there is nothing left to build that is not already saved).
+   */
+  it('offers the SAVED build once there is one, instead of the auto-built deck', async () => {
+    let built = deckFromPool(POD, POOL);
+    built = moveToMain(built, built.sideboard[0]!.card);
+    const savedText = dckTextOf(built);
+
+    const { server, pod } = await mountPod({ savedDeck: savedText });
+    pod.serve(stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
+    await deckPicker();
+
+    const drafted = deckRow(DRAFTED_DECK);
+    // One card, not the auto-built 45 + 17 basics.
+    await waitFor(() => expect(rowName(drafted)).toBe('Your drafted pool — 1 cards'));
+    expect(screen.queryByTestId('drafted-build-link')).toBeNull();
+
+    await pick(DRAFTED_DECK);
+    const sent = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body as { deck: { dck: string } };
+    expect(sent.deck.dck).toBe(savedText);
   });
 
   /**

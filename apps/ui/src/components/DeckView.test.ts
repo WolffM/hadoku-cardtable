@@ -27,7 +27,7 @@
  *
  * `deckColorsByName` is exercised against the decklists directly — that is the
  * arm the room screen needs (§F), where a deck is a list of names. Then
- * `DeckView` and `DeckBuilder` are rendered and cards are clicked INTO the
+ * `DeckView` and `DeckEditor` are rendered and cards are clicked INTO the
  * maindeck, which is the only way to prove the pips on screen follow the deck
  * rather than the pool: both components open with the whole pool in the
  * sideboard.
@@ -41,13 +41,13 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { parseDck, type DeckFile } from '@hadoku/carddata/dck';
 import { LIBRARY, deckPath, poolFixturePath, type FormatFamily, type LibraryCollection } from '@hadoku/deck/library';
 
 import type { DraftCard } from '../draft/types.ts';
-import { DeckBuilder } from '../deck/DeckBuilder.tsx';
+import { DeckEditor } from '../deck/DeckEditor.tsx';
 import type { SeatChoice, TableDeck, TableFormat, TablesClient, Verdict } from '../screens/tables.ts';
 import { deckColorsByName, foldDeckColors, manaTokensOf, type DeckColor } from '@hadoku/deck';
 import { DeckColors, DeckView } from './DeckView.tsx';
@@ -395,7 +395,7 @@ describe('DeckView follows the maindeck, not the pool', () => {
   });
 });
 
-describe('DeckBuilder shows the same colours over the same model', () => {
+describe('DeckEditor shows the same colours over the same model', () => {
   const FORMATS: TableFormat[] = [
     {
       id: '2012-07-13',
@@ -434,10 +434,18 @@ describe('DeckBuilder shows the same colours over the same model', () => {
     } as unknown as TablesClient;
   }
 
+  /** The editor draws every card as a `CardTile`; a click on one moves it. */
+  function pickCard(name: string): void {
+    const tile = screen.getAllByTestId('card').find((el) => el.querySelector('.card__name')?.textContent === name);
+    if (tile === undefined) throw new Error(`no card tile for ${name}`);
+    fireEvent.click(tile);
+  }
+
   it("draws the maindeck's colours as cards are clicked into it", async () => {
     const { deck, fixture } = libraryDeck(UW_DELVER.collection, UW_DELVER.file);
     render(
-      createElement(DeckBuilder, {
+      createElement(DeckEditor, {
+        mode: 'limited',
         draftId: 'uw-delver-as-a-pool',
         pool: poolOfLibraryDeck(deck, fixture),
         client: client(),
@@ -445,16 +453,12 @@ describe('DeckBuilder shows the same colours over the same model', () => {
         checkDelayMs: 1_000_000,
       }),
     );
-    await waitFor(() => expect(screen.getByTestId('opponent-deck')).toBeTruthy());
+    expect(screen.getByTestId('deck-editor')).toBeTruthy();
 
     expect(pipsOnScreen()).toEqual([]);
-    playCard('Delver of Secrets', (row) => {
-      fireEvent.click(row);
-    });
+    pickCard('Delver of Secrets');
     expect(pipsOnScreen()).toEqual(['U']);
-    playCard('Geist of Saint Traft', (row) => {
-      fireEvent.click(row);
-    });
+    pickCard('Geist of Saint Traft');
     expect(pipsOnScreen()).toEqual(['W', 'U']);
   });
 });

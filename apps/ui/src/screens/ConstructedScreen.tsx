@@ -144,9 +144,11 @@ import {
   type ArtIdIndex,
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
+import { parseDck } from '@hadoku/carddata/dck';
 import {
   basicLand,
   deckColorsByName,
+  deckFromDeckFile,
   mainDeckSize,
   manaTokensOf,
   moveToMain,
@@ -157,6 +159,7 @@ import {
 import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku/deck/library';
 
 import { navigate } from './route.ts';
+import { deckStoreClient, type DeckStoreClient } from '../deck/deckStore.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
@@ -165,7 +168,7 @@ import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
 import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
-import { cardIndex, mainSummary } from '../deck/build.ts';
+import { cardIndex, mainSummary, splitBasics } from '../deck/build.ts';
 import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
@@ -173,6 +176,7 @@ import {
   roomsClient,
   streamPath,
   streamReachable,
+  takeCreatePreset,
   type ClientMode,
   type Fetch,
   type RoomMember,
@@ -229,6 +233,8 @@ export interface ConstructedScreenProps {
   makeTransport?: () => DraftTransport;
   /** Everyone's record per deck, for the picker's order. Tests pass a stub; production passes nothing and asks the stats service. */
   deckRecords?: () => Promise<DeckRecords>;
+  /** The pod's saved-deck store (C's contract). Tests pass a stub; production passes nothing. */
+  deckStore?: DeckStoreClient;
 }
 
 /** How often a seat that has no stream yet asks again. */
@@ -959,6 +965,7 @@ export function ConstructedScreen({
   rand = secureRandom,
   makeTransport,
   deckRecords = fetchDeckRecords,
+  deckStore,
 }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
   return roomId === undefined ? (
@@ -973,6 +980,7 @@ export function ConstructedScreen({
       rand={rand}
       makeTransport={makeTransport}
       deckRecords={deckRecords}
+      deckStore={deckStore}
     />
   );
 }
@@ -986,6 +994,7 @@ function RoomTableScreen({
   rand,
   makeTransport,
   deckRecords: readDeckRecords,
+  deckStore: givenDeckStore,
 }: {
   client: TablesClient;
   roomId: string;
@@ -995,8 +1004,10 @@ function RoomTableScreen({
   rand: () => number;
   makeTransport?: () => DraftTransport;
   deckRecords: () => Promise<DeckRecords>;
+  deckStore?: DeckStoreClient;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
+  const deckStore = useMemo(() => givenDeckStore ?? deckStoreClient(), [givenDeckStore]);
   // What the room list read before navigating here (`rooms/warm.ts`): the first
   // render is then the finished page. Every read below still runs as before.
   const [warm] = useState(() => takeWarmRoom(roomId));
@@ -1329,11 +1340,55 @@ function RoomTableScreen({
   const podAnswered = draft !== null && draft.view !== null;
   /** The cards YOU drafted, as the pod answered them. Null until it has. */
   const myPool = draft?.view?.viewer.kind === 'seat' ? draft.view.viewer.pool : null;
-  /** Your drafted pool as a deck Forge can play. Rebuilt only when the pool changes. */
-  const draftedDeck = useMemo(
-    () => (pod === null || myPool === null || myPool.length === 0 ? null : draftedDeckOf(pod, myPool)),
-    [pod, myPool],
-  );
+
+  /*
+   * Your own saved build (wave 70): `GET /api/drafts/:podId/mine`, asked once
+   * per pod over the one HTTP route C's contract adds — the pod SOCKET above is
+   * still what this screen reads for the pool, the seat state and the "no seat
+   * in this pod" / "still asking" sentences; this adds only the one new fact
+   * the socket has no field for. `undefined` is "not asked yet" and reads as
+   * "no save" below, so the auto-built deck is what shows while this is in
+   * flight; `null` is the server's own answer, "asked, nothing saved".
+   */
+  const [mySavedDeck, setMySavedDeck] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (pod === null) {
+      setMySavedDeck(undefined);
+      return;
+    }
+    let live = true;
+    deckStore
+      .mine(pod)
+      .then((mine) => {
+        if (live) setMySavedDeck(mine?.deck ?? null);
+      })
+      .catch(() => {
+        // A failed read is not a "no seat" answer — it just leaves the
+        // auto-built deck on screen, same as "not asked yet" does.
+        if (live) setMySavedDeck(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [pod, deckStore]);
+
+  /**
+   * Your drafted pool as a deck Forge can play — YOUR saved build when
+   * `GET …/mine` has one, the auto-built forty-five-plus-basics otherwise
+   * (`draftedDeckOf`, unchanged). Rebuilt only when the pool or the save
+   * changes.
+   */
+  const draftedDeck = useMemo(() => {
+    if (pod === null || myPool === null || myPool.length === 0) return null;
+    if (typeof mySavedDeck === 'string') {
+      try {
+        return splitBasics(deckFromDeckFile(parseDck(mySavedDeck)));
+      } catch {
+        // A corrupt save falls back to the auto-built deck rather than a crash.
+      }
+    }
+    return draftedDeckOf(pod, myPool);
+  }, [pod, myPool, mySavedDeck]);
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
@@ -1431,8 +1486,9 @@ function RoomTableScreen({
    * ## The colours, and the ONE fold they come from
    *
    * Operator, wave 26: *"decks should have their corresponding mana symbols."*
-   * Wave 26 §D drew them in `DeckView` and `DeckBuilder` and exported the fold
-   * so a third screen could not invent a second one — which is what this is.
+   * Wave 26 §D drew them in `DeckView` and the deck screen's own builder and
+   * exported the fold so a third screen could not invent a second one — which
+   * is what this is.
    * Both arms call into `DeckView.tsx`:
    *
    *   - a LIBRARY deck is a list of names (`TableDeck.main`), so it folds
@@ -1793,6 +1849,26 @@ function RoomTableScreen({
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
   };
+
+  /*
+   * The deck editor's "Play" seam (the wave 70 manager decision): its Play
+   * button remembers a pending create preset (`rooms/api.ts`'s `presetCreate`,
+   * format `draft:<podId>`) and sends the drafter to the room list, which opens
+   * its create form on it. Once the room this screen is now showing exists and
+   * the caller is its leader, `takeCreatePreset()` consumes that preset — once,
+   * ever, for this mount — and sets it as the room's pool through the exact
+   * path the leader's own format control uses. A non-leader never reaches this:
+   * the preset was theirs to spend by creating the room, and `choosePool` would
+   * refuse a non-leader's write anyway.
+   */
+  const appliedCreatePreset = useRef(false);
+  useEffect(() => {
+    if (appliedCreatePreset.current || draftRoom || !iAmLeader) return;
+    const preset = takeCreatePreset();
+    if (preset === null) return;
+    appliedCreatePreset.current = true;
+    choosePool(preset);
+  }, [draftRoom, iAmLeader]);
 
   /** The LEADER flipped hand smoothing: a room write, answered like `choosePool`. */
   const toggleHandSmoothing = (): void => {
@@ -2368,6 +2444,23 @@ function RoomTableScreen({
                   {pod !== null && !podAnswered && (
                     <p className="lobby__note" data-testid="drafted-waiting">
                       Asking pod <strong>{pod}</strong> for the cards you drafted.
+                    </p>
+                  )}
+                  {/* No saved build yet: the auto-built deck above is what gets sent,
+                      and this is the way to a real one — `#/deck/<podId>`, which is
+                      the only place a pool is refined into forty cards (wave 70). */}
+                  {pod !== null && podAnswered && draftedDeck !== null && mySavedDeck === null && (
+                    <p className="lobby__note" data-testid="drafted-build-link">
+                      <a
+                        className="shell__link"
+                        href="#/"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate({ kind: 'deck', draftId: pod });
+                        }}
+                      >
+                        Build your deck
+                      </a>
                     </p>
                   )}
                 </section>

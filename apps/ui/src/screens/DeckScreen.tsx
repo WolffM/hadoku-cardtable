@@ -1,34 +1,51 @@
 /*
- * `#/deck/<draftId>` — build a deck out of the pool you drafted, and play it.
+ * `#/deck/<podId>` — build a deck out of the pool you drafted, and play it.
  *
- * ## Where the pool comes from
+ * ## Where the pool and the build come from
  *
- * The server, over the same socket the pod used. Joining a draft you already
- * sit in answers with your seat's view (`apps/server/src/room/socket.ts`, the
- * `join` case), and that view carries your pool — the same one the gate's draft
- * arm reads when it checks your deck (`apps/server/src/http/routes.ts`,
- * `draftPoolFor`: the caller's derived identity, never a seat number). So the
- * pool on this screen and the pool the server checks against are one pool, read
- * twice, not two copies that could drift.
+ * `GET /api/drafts/:podId/mine` (C's contract, `docs/planning/wave70-2026-10-17.md`):
+ * the caller's own drafted pool and their last saved `.dck`, resolved by the
+ * same participant id the gate's draft arm uses — and it answers whether or
+ * not the caller still holds a seat in the pod, through the 120 s hold and
+ * past a server restart. That is new this wave, and it is what replaces the
+ * live pod socket this screen used to open: a socket answers only while it is
+ * connected, and the whole point of this route surviving a visit to the room
+ * list and back is that it must not need one. `404` is the one refusal the
+ * contract defines — the caller drafted no seat in this pod — and this screen
+ * reads it as "you have no seat", the same sentence a spectator used to get
+ * from the socket.
  *
- * The socket stays open while you build. Leaving it would start the seat's
- * release hold, and the gate finds your pool through your seat.
+ * Every move is saved back with `PUT …/deck`, debounced by `DeckEditor` itself
+ * (`deck/deckStore.ts`'s `save`), so the build a reload finds is the build you
+ * left, and so is the build the room screen's own picker offers
+ * (`ConstructedScreen.tsx`'s `DRAFTED_DECK`) — both read the one `.dck` text C
+ * stores.
  *
  * ## What is not here
  *
- * The builder and the start button are `deck/DeckBuilder.tsx`; the wire shape
- * of a drafted seat is `deck/build.ts`. This file only decides whether there is
- * a finished pool to build from, and says so in words when there is not.
+ * The grid, the basics, the legality panel and the Play button are
+ * `deck/DeckEditor.tsx`; the pool→deck model is `deck/build.ts`. This file only
+ * decides whether there is a pool to build from, and says so in words when
+ * there is not.
  *
- * `makeTransport` and `client` exist for tests. `App.tsx` passes neither, so
- * production gets a same-origin socket.io connection and the real API.
+ * ## Play
+ *
+ * The old builder's Start button used to launch Forge's AI with a library deck
+ * in the other seat. That seam is gone: Play remembers a create-room preset
+ * (`rooms/api.ts`'s `presetCreate`, format `draft:<podId>`) and sends the
+ * drafter to the room list, which opens its create form on that preset
+ * (`RoomList.tsx`, lane B) — a friend room on this pod is where the deck is
+ * actually played.
+ *
+ * `store` and `client` exist for tests. `App.tsx` passes neither, so
+ * production gets the real API.
  */
 
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { DeckBuilder } from '../deck/DeckBuilder.tsx';
-import { poolReadiness } from '../deck/build.ts';
-import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
+import { DeckEditor } from '../deck/DeckEditor.tsx';
+import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
+import { presetCreate } from '../rooms/api.ts';
 import { navigate } from './route.ts';
 import { tablesClient, type TablesClient } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
@@ -36,29 +53,45 @@ import { Disclaimer } from '../components/Disclaimer.tsx';
 
 export interface DeckScreenProps {
   draftId: string;
-  /** Tests pass a stub socket. Production leaves it undefined and gets socket.io. */
-  makeTransport?: () => DraftTransport;
+  /** Tests pass a stub store over a stub fetch. Production leaves it undefined and gets the real API. */
+  store?: DeckStoreClient;
   /** Tests pass a client over a stub fetch. Production passes nothing. */
   client?: TablesClient;
-  /** Passed through to the builder; tests set 0. */
+  /** Passed through to the editor; tests set 0. */
   checkDelayMs?: number;
+  saveDelayMs?: number;
 }
 
-export function DeckScreen({ draftId, makeTransport, client: given, checkDelayMs }: DeckScreenProps) {
-  const client = useMemo(() => given ?? tablesClient(), [given]);
-  const [draft, setDraft] = useState<SocketDraft | null>(null);
-  const [, changed] = useReducer((n: number) => n + 1, 0);
+type Loaded = { kind: 'no-seat' } | { kind: 'ready'; mine: Mine };
+
+export function DeckScreen({ draftId, store: givenStore, client: givenClient, checkDelayMs, saveDelayMs }: DeckScreenProps) {
+  const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
+  const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    const live = startDraft({ draftId, transport: makeTransport?.(), onChange: () => changed() });
-    setDraft(live);
+    let live = true;
+    setLoaded(null);
+    setLoadError(null);
+    store
+      .mine(draftId)
+      .then((mine) => {
+        if (!live) return;
+        setLoaded(mine === null ? { kind: 'no-seat' } : { kind: 'ready', mine });
+      })
+      .catch((err: unknown) => {
+        if (live) setLoadError(err instanceof Error ? err.message : String(err));
+      });
     return () => {
-      closeDraft(live);
-      setDraft(null);
+      live = false;
     };
-  }, [draftId, makeTransport]);
+  }, [draftId, store]);
 
-  const readiness = poolReadiness(draft?.view ?? null);
+  const play = (): void => {
+    presetCreate(`draft:${draftId}`);
+    navigate({ kind: 'lobby' });
+  };
 
   return (
     <div className="shell" data-testid="deck">
@@ -70,47 +103,48 @@ export function DeckScreen({ draftId, makeTransport, client: given, checkDelayMs
         <SettingsGear />
       </header>
 
-      {draft !== null && draft.lastError !== null && (
-        <p className="lobby__error" role="alert" data-testid="deck-socket-error">
-          The server refused that: <strong>{draft.lastError.code}</strong>
-          {draft.lastError.detail === undefined ? null : ` — ${draft.lastError.detail}`}
+      {loadError !== null && (
+        <p className="lobby__error" role="alert" data-testid="deck-load-error">
+          Could not load your pool: {loadError}
         </p>
       )}
 
-      {readiness.kind === 'ready' ? (
-        <DeckBuilder draftId={draftId} pool={readiness.pool} client={client} checkDelayMs={checkDelayMs} />
+      {loadError === null && loaded !== null && loaded.kind === 'ready' ? (
+        <DeckEditor
+          mode="limited"
+          draftId={draftId}
+          pool={loaded.mine.pool}
+          savedDeck={loaded.mine.deck}
+          client={client}
+          checkDelayMs={checkDelayMs}
+          saveDelayMs={saveDelayMs}
+          onSave={(dck) =>
+            store.save(draftId, dck).then((outcome) => (outcome.ok ? { ok: true } : { ok: false, issues: outcome.issues }))
+          }
+          onPlay={play}
+        />
       ) : (
-        <main className="lobby">
-          <section className="lobby__card" data-testid={`deck-${readiness.kind}`}>
-            {readiness.kind === 'joining' && (
-              <>
-                <h2>Fetching your pool</h2>
-                <p className="lobby__note">Asking the pod for the cards you drafted.</p>
-              </>
-            )}
-            {readiness.kind === 'spectator' && (
-              <>
-                <h2>You have no seat in this pod</h2>
-              </>
-            )}
-            {readiness.kind === 'unfinished' && (
-              <>
-                <h2>The draft is not over</h2>
-                <p className="lobby__note">
-                  Drafted {readiness.picked} of {readiness.total}.
-                </p>
-              </>
-            )}
-            <button
-              type="button"
-              className="lobby__go"
-              data-testid="back-to-pod"
-              onClick={() => navigate({ kind: 'draft', draftId })}
-            >
-              Back to the pod
-            </button>
-          </section>
-        </main>
+        loadError === null && (
+          <main className="lobby">
+            <section className="lobby__card" data-testid={loaded === null ? 'deck-joining' : 'deck-no-seat'}>
+              {loaded === null && (
+                <>
+                  <h2>Fetching your pool</h2>
+                  <p className="lobby__note">Asking pod {draftId} for the cards you drafted.</p>
+                </>
+              )}
+              {loaded !== null && loaded.kind === 'no-seat' && <h2>You have no seat in this pod</h2>}
+              <button
+                type="button"
+                className="lobby__go"
+                data-testid="back-to-pod"
+                onClick={() => navigate({ kind: 'draft', draftId })}
+              >
+                Back to the pod
+              </button>
+            </section>
+          </main>
+        )
       )}
 
       <footer className="shell__foot">

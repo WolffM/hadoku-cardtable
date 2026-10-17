@@ -1,6 +1,5 @@
 /*
- * The pure half of `#/deck/<draftId>`: what a drafted deck is on the wire, and
- * how its piles are ordered on screen.
+ * The pure half of `#/deck/<draftId>`: what a drafted deck is on the wire.
  *
  * ## No rules here
  *
@@ -20,58 +19,43 @@
  * Forge — and the text is `dckTextOf`, the writer `tables.test.ts` already
  * proves the gate accepts. Nothing else in the UI writes a drafted `.dck` for
  * play, so there is no second reader to disagree with.
+ *
+ * ## `splitBasics` — the one thing a `.dck` round trip loses
+ *
+ * A `.dck` file has no separate basics section: `toDeckFile` merges the
+ * basics pile into `main` on export, and `deckFromDeckFile` reads a main
+ * section back as ONE pile (see that function's own header in
+ * `@hadoku/deck`). Both this wave's readers of a SAVED build —
+ * `DeckEditor.tsx`'s own load, and `ConstructedScreen.tsx`'s `DRAFTED_DECK`
+ * — parse exactly that file, so both need the inverse: pull the basics back
+ * out before anything downstream asks `cardIndex`/`mainDeckColors` about them,
+ * because neither fold can find a basic land's colour in a drafted pool's own
+ * index (basics are not drafted) and a basic left in `main` therefore drops
+ * out of the deck's own colour — the same fact `setBasicLand`'s counters need
+ * it split for, one level up.
  */
 
-import { cardKey, type Deck } from '@hadoku/deck';
-// The `/dck` subpath, never the barrel — see `draft/deckFromPool.ts`.
+import { cardKey, isBasicLand, type Deck } from '@hadoku/deck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
 
 import { cardRequestOf, dckTextOf } from '../draft/deckFromPool.ts';
-import type { DraftCard, DraftView } from '../draft/types.ts';
-import type { SeatChoice, TableDeck, TableFormat } from '../screens/tables.ts';
+import type { DraftCard } from '../draft/types.ts';
+import type { SeatChoice } from '../screens/tables.ts';
 
 /** The drafted seat, in the gate's shape: this deck's text, checked against your own pool. */
 export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
   return { deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId } };
 }
 
-/**
- * The opponent's seat: a library deck, checked against the Standard it was
- * played in.
- *
- * The draft arm checks only the caller's own pool (`gate.ts`, "Why the draft arm
- * checks only your own pool"), so the other seat cannot be a friend's drafted
- * deck — Forge reads both decks at launch. A library deck is what can sit
- * there. Its own date is the format when the server has that frozen pool,
- * which is the one it was validated legal in; otherwise the newest format,
- * and the server's verdict says what that costs.
- */
-export function librarySeat(deck: TableDeck, formats: readonly TableFormat[]): SeatChoice {
-  const own = formats.find((f) => f.id === deck.date);
-  const format = own ?? formats[formats.length - 1];
-  return { deck: { library: deck.id }, rules: { kind: 'standard', format: format?.id ?? deck.date } };
-}
-
-/** Where a draft stands, as far as building a deck from it goes. */
-export type PoolReadiness =
-  | { kind: 'joining' }
-  | { kind: 'spectator' }
-  | { kind: 'unfinished'; picked: number; total: number }
-  | { kind: 'ready'; pool: DraftCard[] };
-
-/**
- * Whether there is a finished pool to build from.
- *
- * The same arithmetic `socket.ts`'s `isComplete` uses — a seat that holds
- * `packCount × packSize` cards has taken every pick — spelled out here because
- * the screen needs the numbers, not only the boolean.
- */
-export function poolReadiness(view: DraftView | null): PoolReadiness {
-  if (view === null) return { kind: 'joining' };
-  if (view.viewer.kind !== 'seat') return { kind: 'spectator' };
-  const total = view.packCount * view.packSize;
-  const picked = view.viewer.pool.length;
-  return picked >= total ? { kind: 'ready', pool: view.viewer.pool } : { kind: 'unfinished', picked, total };
+/** The inverse of `toDeckFile` merging basics into `main` — see the header. */
+export function splitBasics(deck: Deck): Deck {
+  const main: DeckEntry[] = [];
+  const basics: DeckEntry[] = [...deck.basics];
+  for (const entry of deck.main) {
+    if (isBasicLand(entry.card)) basics.push(entry);
+    else main.push(entry);
+  }
+  return { ...deck, main, basics };
 }
 
 /** Pool cards by the key a deck entry carries, so a row can show cost and type. */
@@ -79,20 +63,6 @@ export function cardIndex(pool: readonly DraftCard[]): Map<string, DraftCard> {
   const index = new Map<string, DraftCard>();
   for (const card of pool) index.set(cardKey(cardRequestOf(card)), card);
   return index;
-}
-
-/** Lands last, then by mana value, then by name: the order a limited player reads a pile in. */
-export function sortPile(entries: readonly DeckEntry[], index: ReadonlyMap<string, DraftCard>): DeckEntry[] {
-  const rank = (entry: DeckEntry): [number, number, string] => {
-    const card = index.get(cardKey(entry.card));
-    const land = card !== undefined && /\bLand\b/.test(card.typeLine) ? 1 : 0;
-    return [land, card?.manaValue ?? 0, entry.card.name];
-  };
-  return [...entries].sort((a, b) => {
-    const [la, ma, na] = rank(a);
-    const [lb, mb, nb] = rank(b);
-    return la - lb || ma - mb || na.localeCompare(nb);
-  });
 }
 
 export interface MainSummary {

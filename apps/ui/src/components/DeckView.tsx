@@ -31,7 +31,7 @@
  * remembered its colours could disagree with the cards in it.
  *
  * The fold is `@hadoku/deck`'s (`colors.ts`), shared with the room screen and
- * the server's match stats; the pips are exported, and `deck/DeckBuilder.tsx`
+ * the server's match stats; the pips are exported, and `deck/DeckEditor.tsx`
  * draws the same ones over the same model.
  *
  * ## No frames, and no images at all
