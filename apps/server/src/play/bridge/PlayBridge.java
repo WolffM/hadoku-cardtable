@@ -3127,9 +3127,84 @@ public final class PlayBridge {
             return null;
         }
 
+        /**
+         * Forge's {@code Player.assignCompanion} (Player.java:3105) asks for a companion as an optional
+         * choice and then moves whatever comes back without checking for none: a "None" threw inside
+         * {@code moveTo} and the game thread died, the game frozen at its first frame (the operator,
+         * 2026-10-17: "Choose a companion, None. Completely deadlocked the game"). And "None" was all a
+         * seat could pick: the companions are sideboard cards, which Forge's net client never tracked
+         * ({@code TrackableSerializer.resolve}: "Could not resolve IdRef"), so the list arrived here as
+         * nulls. Known by Forge's own message, the one thing this GUI call is given that says what is
+         * being chosen.
+         */
+        static boolean isCompanionChoice(final String title) {
+            return title != null && title.equals(forge.util.Localizer.getInstance().getMessage("lblChooseACompanion"));
+        }
+
+        /**
+         * The companions {@code Player.assignCompanion} offers this seat, read off the live game by
+         * Forge's own rules there (Player.java:3105-3163), in its order. Empty when the game cannot be
+         * read.
+         */
+        private List<forge.game.card.Card> companionsOffered() {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            final List<forge.game.card.Card> out = new ArrayList<>();
+            if (mine == null) { return out; }
+            boolean uniqueNames = true;
+            final Set<String> names = new java.util.HashSet<>();
+            final Set<forge.card.CardType.CoreType> types = java.util.EnumSet.allOf(forge.card.CardType.CoreType.class);
+            for (final forge.game.card.Card c : forge.game.card.CardLists.getNotType(mine.getCardsIn(ZoneType.Library), "Land")) {
+                if (uniqueNames && !names.add(c.getName())) { uniqueNames = false; }
+                types.retainAll(c.getPaperCard().getRules().getType().getCoreTypes());
+            }
+            final int deckSize = mine.getCardsIn(ZoneType.Library).size();
+            final int minSize = game.getMatch().getRules().getGameType().getDeckFormat().getMainRange().getMinimum();
+            for (final forge.game.card.Card c : mine.getCardsIn(ZoneType.Sideboard)) {
+                for (final forge.game.keyword.KeywordInterface inst : c.getKeywords(forge.game.keyword.Keyword.COMPANION)) {
+                    if (!(inst instanceof forge.game.keyword.Companion k)) { continue; }
+                    final boolean legal = !k.hasSpecialRestriction()
+                            ? mine.deckMatchesDeckRestriction(c, k.getDeckRestriction())
+                            : switch (k.getSpecialRules()) {
+                                case "UniqueNames" -> uniqueNames;
+                                case "UniqueManaSymbols" -> mine.allCardsUniqueManaSymbols();
+                                case "DeckSizePlus20" -> deckSize >= minSize + 20;
+                                case "SharesCardType" -> !types.isEmpty();
+                                default -> false;
+                            };
+                    if (legal) { out.add(c); }
+                }
+            }
+            return out;
+        }
+
+        /**
+         * The companion question, as the seat can answer it: a required {@code getChoices} naming each
+         * companion offered. Required, because Forge cannot take none; and choosing one obliges
+         * nothing, since it waits in the command zone until its owner pays to take it. The reply is the
+         * engine's own card view, which Forge's server matches by id ({@code TrackableObject.equals}).
+         * Null when the offer read off the game is not the one Forge made, so the caller asks as before.
+         */
+        private GameEntityView chooseCompanion(final String title, final int offeredCount) {
+            final List<forge.game.card.Card> offered = companionsOffered();
+            if (offered.size() != offeredCount) {
+                System.err.println("[bridge] companion: Forge offered " + offeredCount + ", the game reads " + offered.size());
+                return null;
+            }
+            final List<String> labels = new ArrayList<>();
+            for (final forge.game.card.Card c : offered) { labels.add(c.getName()); }
+            final List<String> picked = choiceAsk(title, 1, 1, labels, null, null, null);
+            final int at = picked == null || picked.isEmpty() ? 0 : Math.max(0, labels.indexOf(picked.get(0)));
+            return offered.get(at).getView();
+        }
+
         @Override
         public GameEntityView chooseSingleEntityForEffect(final String title, final List<? extends GameEntityView> optionList,
                                                          final DelayedReveal delayedReveal, final boolean isOptional) {
+            if (isCompanionChoice(title) && !optionList.isEmpty()) {
+                final GameEntityView companion = chooseCompanion(title, optionList.size());
+                if (companion != null) { return companion; }
+            }
             final JsonObject f = new JsonObject();
             final PendingAsk ask = open("chooseSingleEntityForEffect", f);
             offer(ask, optionList);

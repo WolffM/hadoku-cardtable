@@ -270,7 +270,7 @@ export interface Scenario {
 	prompt(seat: number): string;
 	buttons(seat: number): Buttons | null;
 	state(seat: number): Map<string, WireObj>;
-	zone(seat: number, name: 'Hand' | 'Battlefield' | 'Graveyard'): Card[];
+	zone(seat: number, name: 'Hand' | 'Battlefield' | 'Graveyard' | 'Command'): Card[];
 	/** `Turn: N (Owner)` off this seat's last prompt. */
 	turn(seat: number): { n: number; owner: string } | null;
 	phase(seat: number): string | null;
