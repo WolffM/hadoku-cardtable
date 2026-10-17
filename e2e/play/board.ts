@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
+import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
 import { createStreamedRoomByApi, openCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
@@ -31,6 +32,39 @@ export { E2E_ERA, enterMatch, twoLegalDecks };
  */
 export function makeTitled(forge: ForgeAvailability): (t: string) => string {
   return (t: string) => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
+}
+
+/* ── sizing the window ───────────────────────────────────────────────── */
+
+/**
+ * Resize a page's window and wait until the board has measured the new one. A card's size comes from
+ * its zone's `--zone-w`/`--zone-h`, which `zone-box.ts` writes from the window's `resize` event at the
+ * page's next frame — so a read straight after `setViewportSize` lays the board out at the new window
+ * with the old window's card size (bob's empty hand read 73.5 px, its 1280×720 size, while his screen
+ * drew 84.8 at 900×800). Returns once every measured box's written size is its content box again.
+ */
+export async function resizeWindow(page: Page, size: { width: number; height: number }): Promise<void> {
+  await page.setViewportSize(size);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ boxes, width, height }) => {
+            if (window.innerWidth !== width || window.innerHeight !== height) return [`window ${window.innerWidth}x${window.innerHeight}`];
+            return Array.from(document.querySelectorAll<HTMLElement>(boxes)).flatMap((el) => {
+              const written = { w: Number.parseFloat(el.style.getPropertyValue('--zone-w')), h: Number.parseFloat(el.style.getPropertyValue('--zone-h')) };
+              if (!Number.isFinite(written.w) || !Number.isFinite(written.h)) return [];
+              const s = getComputedStyle(el);
+              const w = el.clientWidth - Number.parseFloat(s.paddingLeft) - Number.parseFloat(s.paddingRight);
+              const h = el.clientHeight - Number.parseFloat(s.paddingTop) - Number.parseFloat(s.paddingBottom);
+              return Math.abs(written.w - w) > 1 || Math.abs(written.h - h) > 1 ? [`${el.className} ${written.w}x${written.h} drawn ${w}x${h}`] : [];
+            });
+          },
+          { boxes: ZONE_BOXES, ...size },
+        ),
+      { timeout: 5_000, message: `the board has measured its ${size.width}×${size.height} window` },
+    )
+    .toEqual([]);
 }
 
 /* ── what a page shows ───────────────────────────────────────────────── */

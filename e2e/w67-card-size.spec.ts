@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, offeredNamed, says } from './play/board.ts';
+import { makeTitled, offeredNamed, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { installSizeOf, type SizeOfWindow } from './play/w32.ts';
@@ -62,7 +62,7 @@ test(titled('on a squeezed window a released spell is drawn at a hand card’s s
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'bolt-player');
     // Squeezed horizontally: the operator's window.
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 900, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 900, height: 800 });
     let bolt: number | undefined;
     await expect.poll(async () => (bolt = await offeredNamed(alice.page, 'Lightning Bolt')), { timeout: 60_000, message: 'alice is offered the Bolt' }).not.toBeUndefined();
     const cardW = await handCard(alice.page);

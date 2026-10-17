@@ -9,8 +9,9 @@
     "erasableSyntaxOnly": true,
     "declaration": false,
     "sourceMap": false,
-    // DOM for the callbacks the spec runs inside the page.
-    "lib": ["ES2023", "DOM"],
+    // DOM for the callbacks the spec runs inside the page; DOM.Iterable as the app's own
+    // sources have it, which the specs import from.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
   "include": ["*.ts"]
