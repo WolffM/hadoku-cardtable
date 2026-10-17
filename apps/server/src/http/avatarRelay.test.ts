@@ -62,7 +62,7 @@ function fixture(opts: { matchId?: string | null; owners?: string[]; status?: st
 describe('an avatar change reaches the running match (Q6)', () => {
 	it('tells the match the seat the member holds, and no other', () => {
 		const f = fixture();
-		relayAvatarToMatch(f.rooms, f.matches, { roomId: 'r-1', memberId: 'bob', avatarId: 'rogue' });
+		relayAvatarToMatch(f.rooms, f.matches, { roomId: 'r-1', memberId: 'bob' });
 		expect(f.matches.calls).toEqual([['m-1', 1]]);
 	});
 
@@ -72,7 +72,7 @@ describe('an avatar change reaches the running match (Q6)', () => {
 		['a member with no seat', { owners: ['x', 'y'] }],
 	])('does nothing for %s', (_label, opts) => {
 		const f = fixture(opts);
-		relayAvatarToMatch(f.rooms, f.matches, { roomId: 'r-1', memberId: 'alice', avatarId: 'mage' });
+		relayAvatarToMatch(f.rooms, f.matches, { roomId: 'r-1', memberId: 'alice' });
 		expect(f.matches.calls).toEqual([]);
 	});
 

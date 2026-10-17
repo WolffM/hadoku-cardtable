@@ -204,37 +204,36 @@ describe('participants → seats → Forge players', () => {
 
 /*
  * Item 4, wave 29 §B: the server half of *"i noticed you're still not
- * pulling in the watchparty selected avatars. why not?"* — the last hop,
- * `MatchSpec.seats[i].avatarId` → `Match`'s seat table → `seatIdentities()`,
+ * pulling in the watchparty selected avatars. why not?"* — a seat's face is its
+ * holder's avatar, asked of `deps.seatAvatar` on every `seatIdentities()`,
  * which `socket.ts` sends as its own `forge:seats` event (never folded into
  * `MatchSnapshot`; see that method's own header for why).
  */
 describe("item 4: a seat's identity", () => {
-	function avatarHarness(avatarIds: readonly [string | undefined, string | undefined]): Harness {
+	function avatarHarness(faces: Map<string, string>): Harness & { told: SeatIdentity[][] } {
 		const { factory, hosts } = replayFactory();
 		const sent: Harness['sent'] = [];
 		const logs: Record<string, unknown>[] = [];
+		const told: SeatIdentity[][] = [];
 		const registry = createMatchRegistry({
 			host: factory,
 			log: (e) => logs.push(e),
 			overGraceMs: 60_000,
 			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
+			seatsChanged: (_match, seats) => told.push(seats),
+			seatAvatar: (_matchId, owner) => faces.get(owner),
 		});
-		const spec: MatchSpecWithIdentity = {
-			seats: [
-				{ name: 'Seat 1', ai: false, deck: null, avatarId: avatarIds[0] },
-				{ name: 'Seat 2', ai: false, deck: null, avatarId: avatarIds[1] },
-			],
-		};
-		const match = registry.create(spec);
-		return { match, host: hosts[0] as ReplayHost, sent, logs };
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		return { match, host: hosts[0] as ReplayHost, sent, logs, told };
 	}
 
-	it('carries avatarId beside claimed and playerId, absent — not null, not undefined-as-a-key — for a seat with none', () => {
-		const { match } = avatarHarness(['wanderer', undefined]);
+	it("carries the holder's avatarId beside claimed and playerId, absent — not null, not undefined-as-a-key — for a holder with none", () => {
+		const { match } = avatarHarness(new Map([[ALICE, 'wanderer']]));
+		match.claim(ALICE);
+		match.claim(BOB);
 		expect(match.seatIdentities()).toEqual([
-			{ seat: 0, claimed: false, playerId: null, avatarId: 'wanderer' },
-			{ seat: 1, claimed: false, playerId: null },
+			{ seat: 0, claimed: true, playerId: null, avatarId: 'wanderer' },
+			{ seat: 1, claimed: true, playerId: null },
 		]);
 		// `toEqual` above would pass just as well for `avatarId: undefined`; the
 		// key itself has to be checked to catch that regression (D-avatar-field.md
@@ -245,71 +244,47 @@ describe("item 4: a seat's identity", () => {
 		expect(wire).not.toContain('"avatarId":null');
 	});
 
-	it('holds once claimed and once Forge has opened the seat, unaffected by either', () => {
-		const { match, host } = avatarHarness(['wanderer', 'herald']);
+	it('has no face for a seat nobody holds yet', () => {
+		const { match } = avatarHarness(new Map([[ALICE, 'wanderer']]));
+		for (const identity of match.seatIdentities()) expect(identity).not.toHaveProperty('avatarId');
+	});
+
+	it('holds once Forge has opened the seat, unaffected by it', () => {
+		const { match, host } = avatarHarness(new Map([[ALICE, 'wanderer']]));
 		match.claim(ALICE);
 		host.push(...OPENING);
 		// Seat 1's own coin-toss Play/Draw bar is the last thing `OPENING` sent
 		// it — genuinely still open, since nothing in this replay presses it —
-		// so `waitingOn` correctly carries that, unaffected by either claim.
+		// so `waitingOn` correctly carries that, unaffected by the claim.
 		// …and the coin toss that bar IS (AE17) rides on both rows, the same object.
 		const coinToss = { winner: 1, at: expect.any(Number) as number };
 		expect(match.seatIdentities()).toEqual([
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer', coinToss },
-			{ seat: 1, claimed: false, playerId: 1, avatarId: 'herald', waitingOn: { method: 'confirm', hostCard: null }, coinToss },
+			{ seat: 1, claimed: false, playerId: 1, waitingOn: { method: 'confirm', hostCard: null }, coinToss },
 		]);
 	});
 
-	it('is absent for a seat built with none, even once that seat is open and claimed', () => {
-		const { match, host } = avatarHarness([undefined, undefined]);
+	/* Q6 (wave 32): an avatar changed mid-match. */
+
+	it("re-reads the holder's face and tells everyone the whole roster when a seat's avatar changes", () => {
+		const faces = new Map([[ALICE, 'sage']]);
+		const { match, told, logs } = avatarHarness(faces);
 		match.claim(ALICE);
 		match.claim(BOB);
-		host.push(...OPENING);
-		for (const identity of match.seatIdentities()) expect(identity).not.toHaveProperty('avatarId');
-	});
-});
-
-describe('Q6: an avatar changed mid-match (wave 32)', () => {
-	function liveAvatarHarness(): { match: Match; told: { seat: number; avatarId?: string }[][] } {
-		const { factory } = replayFactory();
-		const told: { seat: number; avatarId?: string }[][] = [];
-		const registry = createMatchRegistry({
-			host: factory,
-			log: () => undefined,
-			overGraceMs: 60_000,
-			emit: () => undefined,
-			seatsChanged: (_match, seats) => told.push(seats),
-		});
-		const spec: MatchSpecWithIdentity = {
-			seats: [
-				{ name: 'Seat 1', ai: false, deck: null, avatarId: 'sage' },
-				{ name: 'Seat 2', ai: false, deck: null },
+		faces.set(BOB, 'herald');
+		match.seatAvatarChanged(1);
+		expect(told).toEqual([
+			[
+				{ seat: 0, claimed: true, playerId: null, avatarId: 'sage' },
+				{ seat: 1, claimed: true, playerId: null, avatarId: 'herald' },
 			],
-		};
-		return { match: registry.create(spec), told };
-	}
-
-	it('tells everyone the whole roster, with the changed face and nothing else moved', () => {
-		const { match, told } = liveAvatarHarness();
-		match.setSeatAvatar(1, 'herald');
-		expect(told).toHaveLength(1);
-		expect(told[0]).toEqual([
-			{ seat: 0, claimed: false, playerId: null, avatarId: 'sage' },
-			{ seat: 1, claimed: false, playerId: null, avatarId: 'herald' },
 		]);
-		expect(match.seatIdentities()[1]).toMatchObject({ avatarId: 'herald' });
-	});
-
-	it('clears a face with null — the key is ABSENT again — and does not re-send a change that changes nothing', () => {
-		const { match, told } = liveAvatarHarness();
-		match.setSeatAvatar(0, null);
-		expect(match.seatIdentities()[0]).not.toHaveProperty('avatarId');
-		expect(told).toHaveLength(1);
-		match.setSeatAvatar(0, null);
-		match.setSeatAvatar(1, null);
-		expect(told).toHaveLength(1);
-		match.setSeatAvatar(7, 'nobody');
-		expect(told).toHaveLength(1);
+		expect(logs).toContainEqual({ evt: 'seat-avatar', matchId: match.id, seat: 1, avatarId: 'herald' });
+		faces.delete(ALICE);
+		match.seatAvatarChanged(0);
+		expect(told.at(-1)?.[0]).not.toHaveProperty('avatarId');
+		match.seatAvatarChanged(7);
+		expect(told).toHaveLength(2);
 	});
 });
 
@@ -1589,19 +1564,17 @@ describe('a match that outlives its server', () => {
 			[BOB, 'herald'],
 		]);
 		const deps = { host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, seatAvatar: (_matchId: string, owner: string) => faces.get(owner) };
-		const first = createMatchRegistry(deps).create({
-			seats: [
-				{ ...TWO_HUMANS.seats[0], avatarId: 'stale' },
-				{ ...TWO_HUMANS.seats[1], avatarId: 'stale' },
-			],
-		} as MatchSpecWithIdentity);
+		const first = createMatchRegistry(deps).create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
 		first.claim(ALICE);
 		first.claim(BOB);
 		state.push(...OPENING);
 		first.handOver();
 		faces.set(BOB, 'rogue');
 
-		const resumed = createMatchRegistry(deps).adopt({ ...recordFor(first, state), spec: { seats: [{ ...TWO_HUMANS.seats[0], avatarId: 'stale' }, { ...TWO_HUMANS.seats[1], avatarId: 'stale' }] } as JvmRecord['spec'] });
+		// A record written by a build that copied the start's avatars onto the spec.
+		const written = JSON.parse(JSON.stringify(recordFor(first, state))) as JvmRecord;
+		for (const seat of written.spec?.seats ?? []) Object.assign(seat, { avatarId: 'stale' });
+		const resumed = createMatchRegistry(deps).adopt(written);
 		expect(resumed?.seatIdentities().map((s) => s.avatarId)).toEqual(['sage', 'rogue']);
 	});
 

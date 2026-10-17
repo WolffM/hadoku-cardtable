@@ -413,10 +413,10 @@ describe('GET /api/rooms', () => {
 		expect(rooms[0].name).toBe('Survivor');
 		expect(rooms[0].gameType).toBe('draft');
 		expect(rooms[0].locked).toBe(true);
-		// The match does NOT come back, and must not: it was a child JVM of the
-		// process that died. A room that kept its match id sat on the front page
-		// advertising "playing" about a game that no longer existed.
-		expect(rooms[0].matchId).toBeNull();
+		// The room's match comes back with it: play adopts the JVM, and a match that
+		// did not come back is let go of by `releaseGoneMatches` once adoption is
+		// done (`avatarRelay.test.ts`, "a room and its match across a restart").
+		expect(rooms[0].matchId).toBe('match-42');
 		expect(rooms[0].leader).toBe(created.creator);
 		expect(rooms[0].members.map((m) => m.name).sort()).toEqual(['user-alice', 'user-bob']);
 		expect(second.lobby.playerState(created.id, created.creator)).toEqual({

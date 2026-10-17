@@ -1314,7 +1314,7 @@ function adoptFullControl(match: LiveMatch, payload: unknown): void {
  * `forge:seats` arriving FROM the server — item 4, wave 29 §B's own event
  * (see `MATCH_EVENTS.seats`'s note). Sent on every join and every resync, and —
  * since wave 32 (Q6) — to every socket in the match whenever a seat's avatar
- * changes mid-game (`Match.setSeatAvatar`), so this is the one place
+ * changes mid-game (`Match.seatAvatarChanged`), so this is the one place
  * `avatarByPlayerId` is ever written and a later event simply replaces the map.
  *
  * A malformed payload or one for another match is recorded and changes

@@ -23,6 +23,7 @@ import { MAX_CONCURRENT_MATCHES, type BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import { WATCHER_SEAT } from './match.js';
+import { identityFromHeaders } from '../room/identity.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -66,7 +67,15 @@ afterEach(async () => {
 });
 
 async function boot(
-	options: { devIdentity?: boolean; disconnectGraceMs?: number; probe?: boolean; maxMatches?: number; rejoinGraceMs?: number } = {},
+	options: {
+		devIdentity?: boolean;
+		disconnectGraceMs?: number;
+		probe?: boolean;
+		maxMatches?: number;
+		rejoinGraceMs?: number;
+		/** Each seat holder's avatar, by user name — what the room answers in production. */
+		faces?: Map<string, string>;
+	} = {},
 ): Promise<Harness> {
 	const { factory, hosts } = replayFactory();
 	const logs: Record<string, unknown>[] = [];
@@ -89,6 +98,7 @@ async function boot(
 		probe: options.probe,
 		maxMatches: options.maxMatches,
 		rejoinGraceMs: options.rejoinGraceMs,
+		seatAvatar: (_matchId, owner) => [...(options.faces ?? [])].find(([user]) => identityFromHeaders(edgeHeaders(user), 'test') === owner)?.[1],
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -677,10 +687,10 @@ describe('two seats over the socket', () => {
 
 /*
  * Item 4's server half (wave 29 §B): *"i noticed you're still not pulling in
- * the watchparty selected avatars. why not?"* — `routes.ts`'s `startFromRoom`
- * carries `avatarIds` in seat order, `parseStartBody` normalizes them onto the
- * spec, and `Match.seatIdentities` sends them on `forge:seats`, beside
- * `playerId`, to every socket that joins or resyncs.
+ * the watchparty selected avatars. why not?"* — `Match.seatIdentities` asks
+ * `deps.seatAvatar` for each seat holder's face (the room's, in production) and
+ * sends it on `forge:seats`, beside `playerId`, to every socket that joins or
+ * resyncs.
  *
  * These cases start a match DIRECTLY against `POST /api/play/matches` (not
  * through the room gate, which is `http/tables.test.ts`'s route) — the two
@@ -690,8 +700,8 @@ describe('two seats over the socket', () => {
  */
 describe('forge:seats: item 4’s server half', () => {
 	it("carries the avatar beside playerId, and a seat with none carries the absent state — never null, never ''", async () => {
-		const h = await boot();
-		const { body } = await startMatch(h, 'alice', { opponent: 'human', avatarIds: ['wanderer', undefined] });
+		const h = await boot({ faces: new Map([['alice', 'wanderer']]) });
+		const { body } = await startMatch(h, 'alice', { opponent: 'human' });
 		const matchId = body.matchId as string;
 		const alice = await connect(h.port, edgeHeaders('alice'));
 		const bob = await connect(h.port, edgeHeaders('bob'));
@@ -734,8 +744,8 @@ describe('forge:seats: item 4’s server half', () => {
 	});
 
 	it('is told again, the same way, on a resync', async () => {
-		const h = await boot();
-		const { body } = await startMatch(h, 'alice', { opponent: 'human', avatarIds: ['sage', 'herald'] });
+		const h = await boot({ faces: new Map([['alice', 'sage']]) });
+		const { body } = await startMatch(h, 'alice', { opponent: 'human' });
 		const matchId = body.matchId as string;
 		const alice = await connect(h.port, edgeHeaders('alice'));
 		await alice.request('forge:join', { matchId });
@@ -748,13 +758,17 @@ describe('forge:seats: item 4’s server half', () => {
 
 	/*
 	 * Wave 32, Q6 — *"watchparty chat and the game are desynced when i change
-	 * avatars"*. The match was told each avatar once, at its start; `Match.setSeatAvatar`
-	 * is what `routes.ts` calls when the identity route changes a member who holds a
-	 * seat, and EVERY socket in the match must hear the new roster.
+	 * avatars"*. `Match.seatAvatarChanged` is what `routes.ts` calls when the identity
+	 * route changes a member who holds a seat, and EVERY socket in the match must
+	 * hear the new roster.
 	 */
 	it('Q6: an avatar changed mid-match reaches every socket in the match, on forge:seats', async () => {
-		const h = await boot();
-		const { body } = await startMatch(h, 'alice', { opponent: 'human', avatarIds: ['sage', 'herald'] });
+		const faces = new Map([
+			['alice', 'sage'],
+			['bob', 'herald'],
+		]);
+		const h = await boot({ faces });
+		const { body } = await startMatch(h, 'alice', { opponent: 'human' });
 		const matchId = body.matchId as string;
 		const alice = await connect(h.port, edgeHeaders('alice'));
 		const bob = await connect(h.port, edgeHeaders('bob'));
@@ -763,7 +777,8 @@ describe('forge:seats: item 4’s server half', () => {
 		await waitUntil(() => alice.seatsEvents.length > 0 && bob.seatsEvents.length > 0, 'both seats to have been told once');
 		const before = { alice: alice.seatsEvents.length, bob: bob.seatsEvents.length };
 
-		(h.handle.matches.get(matchId) as import('./match.ts').Match).setSeatAvatar(0, 'wanderer');
+		faces.set('alice', 'wanderer');
+		(h.handle.matches.get(matchId) as import('./match.ts').Match).seatAvatarChanged(0);
 
 		await waitUntil(() => alice.seatsEvents.length > before.alice && bob.seatsEvents.length > before.bob, 'every socket to hear the change');
 		for (const peer of [alice, bob]) {

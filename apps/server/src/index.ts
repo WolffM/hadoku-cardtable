@@ -451,7 +451,12 @@ play = attachPlay(io, api, {
 	onGameOver: matchStats.gameOver,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
 	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
+	// A seat's face is its holder's avatar in the room that started the match.
+	seatAvatar: tables.seatAvatar,
 });
+// `attachPlay` has adopted every match an earlier server left running, so a
+// room still pointing at one that did not come back can let go of it now.
+tables.releaseGoneMatches();
 
 // ── The browser bridge ───────────────────────────────────────────────────────
 // `GET /play/ws`: the SECOND client type for the same matches — a plain

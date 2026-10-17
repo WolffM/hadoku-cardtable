@@ -183,6 +183,10 @@ export interface RoomViewLike {
 /** The subset of lane A's `Lobby` a table uses. */
 export interface TablesRooms {
 	get(roomId: string): RoomViewLike | undefined;
+	/** Every room. Read once, at boot, by `releaseGoneMatches`. */
+	list(): RoomViewLike[];
+	/** The room that started `matchId` (its current or a recent match), or undefined. */
+	roomOfMatch(matchId: string): RoomViewLike | undefined;
 	/** Per-member state this file owns. `undefined` when unset, or no such room or member. */
 	playerState(roomId: string, memberId: string): unknown;
 	/** False when there is no such room, or `memberId` is not a member. */
@@ -221,8 +225,8 @@ export interface TablesMatches {
 				status: string;
 				claim(participantId: string): { ok: true; seat: number } | { ok: false; error: string };
 				seatOf(participantId: string): number | null;
-				/** Wave 32 shape 1: updates the seat and re-sends `forge:seats` to every socket. */
-				setSeatAvatar(seat: number, avatarId: string | null): void;
+				/** The seat's holder changed their avatar: re-sends `forge:seats` to every socket. */
+				seatAvatarChanged(seat: number): void;
 				stop(): void;
 		  }
 		| undefined;
@@ -257,6 +261,21 @@ export interface TablesDeps {
 
 export interface TablesHandle {
 	library: TablesLibrary;
+	/**
+	 * The avatar a match seat's holder wears: the room member's own, read from
+	 * the room that started the match. The room is the ONE place an avatar is
+	 * stored — play asks here (`MatchDeps.seatAvatar`) on every roster it sends
+	 * rather than keeping a copy, so a seat's face cannot drift from its
+	 * holder's across a change or a restart. Undefined for a member with none,
+	 * a holder who is not in that room, and a match no room started.
+	 */
+	seatAvatar(matchId: string, memberId: string): string | undefined;
+	/**
+	 * Run once play has adopted the matches an earlier server left running: every
+	 * room whose match did not come back lets go of it (`liveMatchId`), so no room
+	 * advertises "playing" a game that died with the old process.
+	 */
+	releaseGoneMatches(): void;
 }
 
 function defaultLog(entry: Record<string, unknown>): void {
@@ -438,23 +457,20 @@ function nextSeatedAt(players: TablePlayer[]): number {
 }
 
 /**
- * Carry a member's changed avatar to the seat they hold in their room's running
- * match. A member with no seat there (not claimed, no match, match gone) is a
- * no-op: the avatar is already in the room and the next match reads it from there.
+ * Tell the room's running match that the seat a member holds has a new face. The
+ * avatar itself stays in the room (`TablesHandle.seatAvatar` is how the match
+ * reads it); this only says when to re-send the roster. A member with no seat
+ * there (not claimed, no match, match gone) is a no-op.
  */
-export function relayAvatarToMatch(
-	rooms: TablesRooms,
-	registry: TablesMatches | null,
-	change: { roomId: string; memberId: string; avatarId: string | null },
-): void {
+export function relayAvatarToMatch(rooms: TablesRooms, registry: TablesMatches | null, change: { roomId: string; memberId: string }): void {
 	if (registry === null) return;
 	const matchId = rooms.get(change.roomId)?.matchId ?? null;
 	if (matchId === null) return;
 	const match = registry.get(matchId);
-	if (match === undefined || match.status !== 'starting' && match.status !== 'running') return;
+	if (match === undefined || (match.status !== 'starting' && match.status !== 'running')) return;
 	const seat = match.seatOf(change.memberId);
 	if (seat === null) return;
-	match.setSeatAvatar(seat, change.avatarId);
+	match.seatAvatarChanged(seat);
 }
 
 export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
@@ -619,10 +635,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	const rooms = deps.rooms ?? null;
 
-	// Q6: a match is told a seat's avatar once, at its start. A member who changes
-	// theirs afterwards reaches the board through the room, which is the only
-	// place that hears it. Subscribed here because this is the one file that holds
-	// both the room registry and play's match registry.
+	// Q6: a seat's avatar is its holder's, read from the room. A member who changes
+	// theirs mid-match is heard by the room alone, so the match is told to re-send
+	// its roster. Subscribed here because this is the one file that holds both the
+	// room registry and play's match registry.
 	rooms?.onAvatarChange?.((change) => {
 		relayAvatarToMatch(rooms, deps.matches?.() ?? null, change);
 	});
@@ -644,9 +660,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/**
 	 * The room's match if it is still one you could play, and null otherwise —
 	 * releasing a match id the registry has forgotten OR has marked finished.
-	 * Rooms persist across a restart and matches do not, so after a deploy
-	 * every room that was playing holds the id of a match that no longer
-	 * exists; without this, that room could never start another one.
+	 * Rooms persist across a restart and so do matches, but only the ones play
+	 * could adopt: a room whose match did not come back holds the id of a match
+	 * that no longer exists, and without this could never start another one.
+	 * `releaseGoneMatches` runs this over every room at boot.
 	 *
 	 * **`over` releases too, not only `stopped`/`failed` (R16).** A finished
 	 * match sits in `over` for `overGraceMs` (ten minutes) before its host
@@ -1219,8 +1236,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				rooms.setMatch(room.id, matchId);
 				// The start spends both Readys: neither carries into the match, so
 				// nothing is left ready for a later read to start again — not when
-				// the match ends, and not when a restart restores the room without
-				// it. The decks stay held: they are what a Rematch plays.
+				// the match ends, and not when a restart releases a match that did
+				// not come back (`releaseGoneMatches`). The decks stay held: they are what a Rematch plays.
 				for (const p of players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
 				deps.matchStarted?.(matchId, matchStartOf(room, loaded, botDeck));
 				log({ evt: 'room-match-started', room: room.id, matchId, decks: loaded.map((p) => p.deck.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
@@ -1231,19 +1248,15 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return answer(payload);
 		}) as typeof res.json;
 
-		// Play's own body. Each deck is the text its own player's rule checked, and
-		// `avatarIds` is item 4's server half (wave 29 §B): the same seat order as
-		// `decks`, each the room member's own `avatarId` — already the lobby's
-		// two-state shape (a non-blank string, or absent; see `RoomViewLike.members`
-		// above and `D-avatar-field.md` §3), never Forge's own view of the seat.
+		// Play's own body. Each deck is the text its own player's rule checked. No
+		// avatars: a seat's face is read from this room for as long as the match
+		// runs (`seatAvatar`), so the match never holds a copy that could go stale.
 		if (vsBot) {
-			// Seat 1 is Forge's AI. `avatarIds` and `names` stay pairs (play
-			// refuses anything else); the AI seat's entries are absent, so play
-			// names it itself.
+			// Seat 1 is Forge's AI. `names` stays a pair (play refuses anything
+			// else); the AI seat's entry is absent, so play names it itself.
 			req.body = {
 				opponent: 'ai',
 				decks: [loaded[0]!.deck.text, botDeck!.text],
-				avatarIds: [loaded[0]!.member.avatarId, undefined],
 				names: [loaded[0]!.member.name, undefined],
 				format: room.format,
 				handSmoothing: room.settings.handSmoothing,
@@ -1254,7 +1267,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		req.body = {
 			opponent: 'human',
 			decks: loaded.map((p) => p.deck.text),
-			avatarIds: loaded.map((p) => p.member.avatarId),
 			// Seat names (wave 31 shape 1): the same order, each the member's display
 			// name, so Forge's own prompts and the board say who is who.
 			names: loaded.map((p) => p.member.name),
@@ -1358,5 +1370,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	api.use('/play', gate);
 
-	return { library };
+	return {
+		library,
+		seatAvatar(matchId, memberId) {
+			return rooms?.roomOfMatch(matchId)?.members.find((m) => m.id === memberId)?.avatarId;
+		},
+		releaseGoneMatches() {
+			for (const room of rooms?.list() ?? []) liveMatchId(room);
+		},
+	};
 }

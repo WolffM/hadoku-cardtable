@@ -96,7 +96,6 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
-import { AVATAR_ID_MAX } from '../room/lobby.js';
 import { artOf } from './art.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
@@ -161,6 +160,8 @@ export interface PlayDeps {
 	onGameOver?(match: Match): void;
 	/** See {@link MatchDeps.formatNames}. */
 	formatNames?(format: string): ReadonlySet<string> | null;
+	/** See {@link MatchDeps.seatAvatar}. */
+	seatAvatar?(matchId: string, owner: string): string | undefined;
 }
 
 export interface PlayHandle {
@@ -244,26 +245,6 @@ function playEmitPolicy(log: PlayLog): EmitPolicy {
 	};
 }
 
-/**
- * The per-seat identity's own two-state rule, item 4 (wave 29 §B —
- * `D-avatar-field.md` §3): a non-blank string of at most `AVATAR_ID_MAX`
- * characters, or absent — never `null`, never `''`.
- *
- * Re-implemented here rather than imported: the lobby's own normalizer
- * (`avatarIdOf` in `room/lobby.ts`) is not exported and `lobby.ts` is not this
- * lane's file to change, so only its exported limit is reused. By the time an
- * `avatarId` reaches this function it has usually already been through that
- * one (`routes.ts`'s `startFromRoom` reads it off a `RoomViewLike` member,
- * which the lobby already normalized) — this is the defensive copy for the
- * one request path (`POST /play/matches` itself) that reaches `parseStartBody`
- * without going through the lobby at all.
- */
-function normalizeAvatarId(v: unknown): string | undefined {
-	if (typeof v !== 'string') return undefined;
-	const trimmed = v.trim();
-	return trimmed === '' || trimmed.length > AVATAR_ID_MAX ? undefined : trimmed;
-}
-
 /** The longest seat name Forge is shown (wave 31 §S). */
 export const SEAT_NAME_MAX = 24;
 
@@ -295,20 +276,15 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 }
 
 /**
- * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?], names?: [string?, string?], scenario?: string, format?: string, handSmoothing?: boolean }`.
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], names?: [string?, string?], scenario?: string, format?: string, handSmoothing?: boolean }`.
  * `format` is the room's format id, which a card-name ask is narrowed to (`names.ts`),
  * and `handSmoothing` is the room's setting of that name (`MatchSpec.handSmoothing`).
  *
  * `names` (wave 31 §S) is what Forge shows for each seat, in seat order — see
- * {@link sanitizeSeatName}. Unlike `avatarIds` it IS the Forge player's name,
- * so Forge's own prompt text says it too; absent, the seat is `Seat N`.
- *
- * `avatarIds` is item 4's server half (wave 29 §B): the per-seat identity
- * `routes.ts`'s `startFromRoom` carries in the same seat order as `decks`,
- * when a match starts from a room. Carried on the spec beside `deck` and
- * `ai` — never on `seats[].name`, which is what Forge renders to both seats —
- * via {@link MatchSpecWithIdentity} (`match.ts`'s header has the argument for
- * why that type lives there and not on `host.ts`'s `SeatSpec`).
+ * {@link sanitizeSeatName}. It IS the Forge player's name, so Forge's own
+ * prompt text says it too; absent, the seat is `Seat N`. There is no avatar
+ * field: a seat's avatar is read from its holder's room on every roster
+ * (`MatchDeps.seatAvatar`), never carried on the spec.
  *
  * `scenario` (wave 33 §S, shape 1) is the text of a Forge puzzle file's
  * `[state]` section — `human…` keys for seat 0, `ai…` keys for seat 1 — carried
@@ -322,7 +298,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
-		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds' && key !== 'names' && key !== 'scenario' && key !== 'format' && key !== 'handSmoothing') {
+		if (key !== 'opponent' && key !== 'decks' && key !== 'names' && key !== 'scenario' && key !== 'format' && key !== 'handSmoothing') {
 			return { ok: false, error: `unknown field ${key}` };
 		}
 	}
@@ -334,12 +310,6 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		if (d !== null && (typeof d !== 'string' || d.length === 0 || d.length > 64 * 1024)) {
 			return { ok: false, error: 'each deck is .dck text (at most 64 KiB) or null' };
 		}
-	}
-	let avatarIds: [string | undefined, string | undefined] = [undefined, undefined];
-	if (b.avatarIds !== undefined) {
-		const raw = b.avatarIds;
-		if (!Array.isArray(raw) || raw.length !== 2) return { ok: false, error: 'avatarIds is a two-element array' };
-		avatarIds = [normalizeAvatarId(raw[0]), normalizeAvatarId(raw[1])];
 	}
 	let names: [string | undefined, string | undefined] = [undefined, undefined];
 	if (b.names !== undefined) {
@@ -381,7 +351,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	// and an unseeded match is what it falls back to.
 	const seedRaw = process.env.CARDTABLE_PLAY_SEED;
 	const seed = seedRaw === undefined || seedRaw === '' ? Number.NaN : Number(seedRaw);
-	// `MatchSpecWithIdentity`, not `MatchSpec`, so `avatarId` can sit on each
+	// `MatchSpecWithIdentity`, not `MatchSpec`, so `displayName` can sit on each
 	// seat beside `deck` and `ai` without the excess-property check a literal
 	// typed directly as `MatchSpec` would fail. Returned as `spec: MatchSpec`
 	// below anyway (it satisfies that narrower type structurally), because
@@ -391,21 +361,16 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		seats: [
 			// Forge shows these names to both seats. Wave 31 §S: they are the room's
 			// display names when the caller sent `names`, and `Seat N` otherwise.
-			// `avatarId` is spread rather than assigned, so a seat with none has the
-			// key ABSENT on the spec too — the same discipline `Match.seatIdentities`
-			// keeps on the way out (D-avatar-field.md §3).
 			{
 				name: names[0] ?? 'Seat 1',
 				ai: false,
 				deck: decks[0] as string | null,
-				...(avatarIds[0] === undefined ? {} : { avatarId: avatarIds[0] }),
 				...(names[0] === undefined ? {} : { displayName: names[0] }),
 			},
 			{
 				name: names[1] ?? (opponent === 'ai' ? 'Forge AI' : 'Seat 2'),
 				ai: opponent === 'ai',
 				deck: decks[1] as string | null,
-				...(avatarIds[1] === undefined ? {} : { avatarId: avatarIds[1] }),
 				...(names[1] === undefined ? {} : { displayName: names[1] }),
 			},
 		],
@@ -525,6 +490,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
+		...(deps.seatAvatar === undefined ? {} : { seatAvatar: deps.seatAvatar }),
 		seatsChanged: (match, seats) => {
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
 			// — both seats, and spectators — gets the new roster on the event a join

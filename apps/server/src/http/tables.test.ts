@@ -285,6 +285,8 @@ interface FakeRoom {
 	/** `avatarId` optional and never blank, exactly as `RoomViewLike` states it. */
 	members: { id: string; name: string; avatarId?: string }[];
 	matchId: string | null;
+	/** Every match this room started, as `Lobby.roomOfMatch` remembers them. */
+	matches: string[];
 	state: Map<string, unknown>;
 }
 
@@ -311,6 +313,7 @@ function fakeLobby(): FakeLobby {
 				leader: members[0]?.id ?? '',
 				members,
 				matchId: null,
+				matches: [],
 				state: new Map(),
 			};
 			held.set(id, room);
@@ -318,6 +321,8 @@ function fakeLobby(): FakeLobby {
 		},
 		room: (id) => held.get(id),
 		get: (id) => held.get(id),
+		list: () => [...held.values()],
+		roomOfMatch: (matchId) => [...held.values()].find((r) => r.matches.includes(matchId)),
 		playerState: (roomId, memberId) => member(roomId, memberId)?.state.get(memberId),
 		setPlayerState(roomId, memberId, state) {
 			const room = member(roomId, memberId);
@@ -333,6 +338,7 @@ function fakeLobby(): FakeLobby {
 			const room = held.get(roomId);
 			if (room === undefined) return false;
 			room.matchId = matchId;
+			if (matchId !== null) room.matches.push(matchId);
 			return true;
 		},
 		releaseMatch(roomId) {
@@ -389,7 +395,7 @@ async function boot(): Promise<Harness> {
 	// is attached after, so the gate reads its registry lazily — the same wiring
 	// index.ts will have.
 	let attached: ReturnType<typeof playMod.attachPlay> | null = null;
-	routesMod.attachTables(api, {
+	const tables = routesMod.attachTables(api, {
 		repoRoot: REPO_ROOT,
 		// The library loaded once above, as production loads it once at boot: re-reading
 		// 67 eras' pools for every booted stack ran a 2 GB worker out of heap.
@@ -407,6 +413,7 @@ async function boot(): Promise<Harness> {
 		},
 		log: () => {},
 		startTimeoutMs: 5000,
+		seatAvatar: tables.seatAvatar,
 	});
 	attached = play;
 
@@ -1102,10 +1109,12 @@ describe('a room table', () => {
 			const res = await startBot(h, 'alice');
 			expect(res.status).toBe(201);
 			expect(h.specs).toHaveLength(1);
-			const seats = h.specs[0]!.seats as { deck: string | null; ai: boolean; name?: string; avatarId?: string }[];
+			const seats = h.specs[0]!.seats as { deck: string | null; ai: boolean; name?: string }[];
 			expect(seats[0]?.deck).toBe(library.deck(UG_POLYMORPH)?.text);
 			expect(seats[0]?.ai).toBe(false);
-			expect(seats[0]?.avatarId).toBe('wanderer');
+			const identities = h.matches.get(res.body.matchId as string)?.seatIdentities();
+			expect(identities?.[0]?.avatarId).toBe('wanderer');
+			expect(identities?.[1], "Forge's AI holds no room member's face").not.toHaveProperty('avatarId');
 			expect(seats[1]?.ai).toBe(true);
 			// The bot plays a real library deck, and one that is legal in this room's pool.
 			const botDeck = library.decks.find((d) => d.text === seats[1]?.deck);
@@ -1189,16 +1198,15 @@ describe('a room table', () => {
 
 	/*
 	 * Item 4's server half (wave 29 §B), one hop further than the table-view
-	 * test below: `startFromRoom` puts each player's `avatarId` on the SPEC
-	 * Forge is launched with, in the same seat order as `decks` — never on
-	 * `seats[].name` (`socket.ts`'s own note: "Forge shows these names to both
-	 * seats; they are never an identity"). `play/socket.test.ts`'s
-	 * `forge:seats` suite is where the CLIENT-facing shape of this is proved;
-	 * this is where the ROOM member lands in the right seat.
+	 * test below: each seat of the started match wears the avatar of the room
+	 * member who holds it, in the same seat order as `decks`. Read from the room,
+	 * never copied onto the spec Forge is launched with — so it is never on
+	 * `seats[].name` either (`socket.ts`'s own note: "Forge shows these names to
+	 * both seats; they are never an identity"), and never goes stale.
 	 */
-	it("puts the right player's avatarId on the right seat of the spec Forge is launched with", async () => {
+	it("gives each seat of the started match its holder's avatar from the room, and puts none on the spec", async () => {
 		const h = await boot();
-		h.lobby.open(ROOM, [
+		const room = h.lobby.open(ROOM, [
 			{ id: ALICE, name: 'user-alice', avatarId: 'wanderer' },
 			{ id: BOB, name: 'user-bob' },
 		]);
@@ -1209,15 +1217,17 @@ describe('a room table', () => {
 		const res = await startRoom(h, 'alice');
 		expect(res.status).toBe(201);
 		expect(h.specs).toHaveLength(1);
-		const seats = h.specs[0]?.seats as ({ avatarId?: string } | undefined)[];
+		expect(JSON.stringify(h.specs[0]?.seats)).not.toContain('avatarId');
+		const match = h.matches.get(res.body.matchId as string);
 		// Alice's deck (`UG_POLYMORPH`) is seat 0 and bob's (`SECOND_DECK`) is seat 1
-		// (`bothLoaded`), so this is also an assertion that the identity travels
-		// in the SAME order as the deck it rides beside.
-		expect(seats[0]?.avatarId).toBe('wanderer');
-		// ABSENT, not `undefined`-as-a-value and not `''` — `avatarId` in seats[1]
-		// is never set at all (`D-avatar-field.md` §3).
-		expect(seats[1]).not.toHaveProperty('avatarId');
-		expect(JSON.stringify(seats)).not.toContain('"avatarId":""');
+		// (`bothLoaded`), so this is also an assertion that the face travels with
+		// the seat its holder's deck is in.
+		expect(match?.seatIdentities()[0]?.avatarId).toBe('wanderer');
+		// ABSENT, not `undefined`-as-a-value and not `''` (`D-avatar-field.md` §3).
+		expect(match?.seatIdentities()[1]).not.toHaveProperty('avatarId');
+		// A change in the room is what the seat wears from then on.
+		room.members[1]!.avatarId = 'herald';
+		expect(match?.seatIdentities()[1]?.avatarId).toBe('herald');
 	});
 
 	/*

@@ -141,10 +141,9 @@ import { faceNames, namesForFormat } from './names.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 
 /**
- * `host.ts`'s `SeatSpec`, widened with the per-seat identity item 4 (wave 29
- * §B) carries beside `deck` and `ai` — never on `name`, which is what Forge
- * renders to both seats (`socket.ts`'s `parseStartBody`, "Forge shows these
- * names to both seats; they are never an identity").
+ * `host.ts`'s `SeatSpec`, widened with the name the caller gave the seat. The
+ * seat's avatar is not here: it is its holder's, asked on every roster
+ * ({@link MatchDeps.seatAvatar}).
  *
  * Declared here rather than on `SeatSpec` itself: `host.ts` is owned by
  * neither wave-29 lane, and it does not need to change to carry this. Read
@@ -155,7 +154,6 @@ import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
  * shows it.
  */
 export type SeatSpecWithIdentity = MatchSpec['seats'][number] & {
-	avatarId?: string;
 	/**
 	 * The name the caller GAVE this seat (wave 31 §S, `socket.ts`'s `names`),
 	 * sanitised and unique within the match — and the same string as `name`,
@@ -279,16 +277,6 @@ export interface SeatState {
 	owner: ParticipantId | null;
 	/** From this seat's `openView`. Null until Forge has opened the game. */
 	playerId: number | null;
-	/**
-	 * The per-seat identity item 4 (wave 29 §B) carries — from
-	 * `MatchSpec.seats[i].avatarId` (via {@link SeatSpecWithIdentity}), never
-	 * from Forge's own state. Absent for a seat with none: two states, not
-	 * three, matching `D-avatar-field.md` §3 — a room member who never picked
-	 * one and a room member whose choice was explicitly cleared both mean the
-	 * same thing to whatever draws a face, so both collapse before they reach
-	 * here (`socket.ts`'s `normalizeAvatarId`).
-	 */
-	avatarId?: string;
 	/** See {@link SeatSpecWithIdentity.displayName}. */
 	displayName?: string;
 	readonly projector: SeatProjector;
@@ -641,7 +629,16 @@ export interface MatchDeps {
 	 */
 	stopPolicy?: StopPolicy;
 	/**
-	 * Every seat's identity changed — `Match.setSeatAvatar` (wave 32, Q6). The
+	 * The avatar the holder of a seat wears, asked on every roster
+	 * ({@link Match.seatIdentities}) — never copied into the match, so a face
+	 * cannot go stale across an avatar change or a restart. `index.ts` answers it
+	 * from the room that started the match (`http/routes.ts`'s `seatAvatar`).
+	 * Undefined for a holder with none; absent (a unit suite, a match no room
+	 * started) means no seat has one.
+	 */
+	seatAvatar?(matchId: string, owner: ParticipantId): string | undefined;
+	/**
+	 * Every seat's identity changed — `Match.seatAvatarChanged` (wave 32, Q6). The
 	 * socket layer re-sends `forge:seats` to every socket in the match; a deps
 	 * with none (a unit suite) simply never tells anyone.
 	 */
@@ -1037,8 +1034,8 @@ export class Match {
 	 * told, so {@link Match.checkWaitingOn} — called from every place
 	 * {@link SeatState.asks} or {@link SeatState.payment} can change — sends a
 	 * fresh roster only when the fact it carries actually moved, the same
-	 * "a change that changes nothing is not re-sent" rule {@link
-	 * Match.setSeatAvatar} already follows.
+	 * "a change that changes nothing is not re-sent" rule the lobby's
+	 * `setAvatar` already follows for {@link Match.seatAvatarChanged}.
 	 */
 	private lastWaitingOnKey = '';
 	/**
@@ -1087,10 +1084,6 @@ export class Match {
 			ai: s.ai,
 			owner: null,
 			playerId: null,
-			// Present at runtime whenever the caller built the spec through
-			// `SeatSpecWithIdentity` (`socket.ts`'s `parseStartBody`); absent
-			// otherwise, including for the AI seat, which has no room member.
-			avatarId: (s as SeatSpecWithIdentity).avatarId,
 			displayName: (s as SeatSpecWithIdentity).displayName,
 			projector: createProjector(),
 			seq: 0,
@@ -1436,7 +1429,10 @@ export class Match {
 			seat: s.seat,
 			claimed: s.owner !== null,
 			playerId: s.playerId,
-			...(s.avatarId === undefined ? {} : { avatarId: s.avatarId }),
+			...(() => {
+				const avatarId = s.owner === null ? undefined : this.deps.seatAvatar?.(this.id, s.owner);
+				return avatarId === undefined ? {} : { avatarId };
+			})(),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),
 			...(() => {
 				const waitingOn = this.waitingOnFor(s);
@@ -1611,28 +1607,18 @@ export class Match {
 	}
 
 	/**
-	 * Change one seat's avatar while the match runs — wave 32, Q6, the server half of
-	 * *"watchparty chat and the game are desynced when i change avatars"*.
-	 *
-	 * The match was told each avatar once, at its start (`SeatSpecWithIdentity`), so a
-	 * member who changed theirs afterwards kept the old face on the board for the rest
-	 * of the game. `routes.ts` calls this when the room's identity route changes a
-	 * member who holds a seat. `null` clears it: the key is ABSENT again, the same two
-	 * states {@link Match.seatIdentities} documents.
-	 *
-	 * The new roster goes to EVERY socket in the match through `deps.seatsChanged`
-	 * (both seats' avatars, always — a face is not hidden information), not just the
-	 * changed seat's: the opponent is watching the same board. A change that changes
-	 * nothing is not re-sent.
+	 * The holder of `seat` changed their avatar — wave 32, Q6, the server half of
+	 * *"watchparty chat and the game are desynced when i change avatars"*. The
+	 * avatar lives with its holder ({@link MatchDeps.seatAvatar}), so all there is
+	 * to do is re-send the roster: to EVERY socket in the match through
+	 * `deps.seatsChanged` (both seats' avatars, always — a face is not hidden
+	 * information), not just the changed seat's, since the opponent is watching
+	 * the same board. `routes.ts` calls this from the room's identity route.
 	 */
-	setSeatAvatar(seat: number, avatarId: string | null): void {
-		const s = this.seats[seat];
-		if (s === undefined) return;
-		const next = avatarId === null || avatarId === '' ? undefined : avatarId;
-		if (s.avatarId === next) return;
-		if (next === undefined) delete s.avatarId;
-		else s.avatarId = next;
-		this.deps.log({ evt: 'seat-avatar', matchId: this.id, seat, avatarId: next ?? null });
+	seatAvatarChanged(seat: number): void {
+		const identity = this.seatIdentities()[seat];
+		if (identity === undefined) return;
+		this.deps.log({ evt: 'seat-avatar', matchId: this.id, seat, avatarId: identity.avatarId ?? null });
 		this.deps.seatsChanged?.(this.seatIdentities());
 	}
 

@@ -410,8 +410,8 @@ export interface RoomView {
 	/**
 	 * ISO string once the draft has been dealt; null in the lobby phase.
 	 *
-	 * Never restored across a restart, for the same reason `matchId` is not: the
-	 * draft itself is in this process's memory (`room/draftRooms.ts` keeps no
+	 * Never restored across a restart, unlike `matchId` (whose match play adopts
+	 * from disk): the draft itself is in this process's memory (`room/draftRooms.ts` keeps no
 	 * disk state), so a room that came back claiming to be mid-draft would show
 	 * an empty table. A restart puts the room back in its lobby with its ready
 	 * flags intact instead, and the UI says so in words.
@@ -548,10 +548,9 @@ export interface Lobby {
 	 * The room that started `matchId`, or undefined. A match id is never a room id.
 	 *
 	 * Not only the room's CURRENT match: a finished match is let go of
-	 * (`releaseMatch`) as soon as anybody reads the room, and a restart does not
-	 * restore `matchId` at all — while the match itself carries on across that
-	 * restart and its result screen still needs its room for a Rematch. So the
-	 * room remembers its last `ROOM_MATCHES_KEPT` matches, on disk.
+	 * (`releaseMatch`) as soon as anybody reads the room, while its result screen
+	 * still needs its room for a Rematch. So the room remembers its last
+	 * `ROOM_MATCHES_KEPT` matches, on disk.
 	 */
 	roomOfMatch(matchId: string): RoomView | undefined;
 	get(roomId: string): RoomView | undefined;
@@ -807,7 +806,7 @@ interface StoredApp {
 	settings: RoomSettings;
 	clientMode: ClientMode;
 	matchId: string | null;
-	/** Restored, unlike `matchId`: a match outlives a restart, and its result screen asks which room it was. */
+	/** A finished match's result screen still asks which room it was. */
 	matches: string[];
 	/**
 	 * Written, and deliberately read back as null (see `openLobby`). It is here
@@ -1504,7 +1503,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					creator: app.creator,
 					leader: app.leader,
 					gameType: app.gameType,
-					// **Restored, unlike the match and the draft.** A room that came
+					// **Restored, like the match and unlike the draft.** A room that came
 					// back on a different pool from the one its players loaded their
 					// decks against is exactly the bug this field exists to prevent:
 					// the decks are restored too (the per-member blob), so the pool
@@ -1512,15 +1511,15 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					format: app.format ?? fixed ?? newestFormat(),
 					settings: app.settings,
 					clientMode: app.clientMode,
-					// **Never restored.** A match is a child JVM this process
-					// owns; nothing survives a restart, and this repo restarts on
-					// every deploy and again at 08:00 UTC. A room that kept its
-					// `matchId` advertised "playing" for ever, pointing at a game
-					// that died days earlier — which is what the operator found.
-					matchId: null,
+					// **Restored.** A match's JVM outlives the process that started
+					// it and play adopts it at boot, so the room is still playing
+					// it. Whether it came back is play's registry's answer: once
+					// adoption is done, `http/routes.ts`'s `releaseGoneMatches`
+					// lets go of every match that did not — a room must never
+					// advertise "playing" a game that died with the old process.
+					matchId: app.matchId,
 					matches: app.matches,
-					// **Never restored either, and for the same reason.** A draft
-					// lives in `room/draftRooms.ts`'s in-memory registry, which
+					// **Never restored.** A draft lives in `room/draftRooms.ts`'s in-memory registry, which
 					// this process did not inherit — `open` would deal a brand new
 					// draft over the top of whatever was played. So a restart puts
 					// the room back in its lobby phase; the UI says a draft does
