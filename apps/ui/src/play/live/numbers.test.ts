@@ -431,7 +431,7 @@ describe('installNumbers: a resolution’s hits', () => {
 
     vi.advanceTimersByTime(HIT_MS);
     expect(overlay.querySelector('.effect-hit'), 'the mark is gone on landing').toBeNull();
-    expect(face.hasAttribute('data-hit-flash'), 'the face flashes').toBe(true);
+    expect(face.hasAttribute('data-hit-flash'), 'no flash on an avatar: its ring drew as a box around it').toBe(false);
     expect(overlay.querySelector('.effect-impact'), 'and takes the impact').not.toBeNull();
     expect(overlay.querySelector('.board-number')?.textContent, 'a life total still shows its number').toBe('-2');
     vi.advanceTimersByTime(2 * TICK_STEP_MS);
@@ -510,14 +510,31 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.dispose();
   });
 
-  it('reduced motion: nothing travels — the face flashes and the number appears in place', () => {
+  it('a land’s ability hits in the colour its mana is: Valakut’s damage is red', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const valakut = {
+      ...card(8, 0).card,
+      name: 'Valakut, the Molten Pinnacle',
+      typeLine: 'Land',
+      colors: [],
+      oracleText: 'Valakut, the Molten Pinnacle enters tapped.\nWhenever a Mountain you control enters, if you control at least five other Mountains, you may have Valakut, the Molten Pinnacle deal 3 damage to any target.\n{T}: Add {R}.',
+    };
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [{ ...item(40, 8), sourceCard: valakut }]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 17)]));
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.colour).toBe('R');
+    handle.dispose();
+  });
+
+  it('reduced motion: nothing travels — the number appears in place, with no flash on the face', () => {
     vi.useFakeTimers();
     const { canvas, overlay, face } = sorinBoard();
     const handle = installNumbers(canvas, { reducedMotion: () => true, fastMode: () => false });
     handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
     expect(overlay.querySelector('.effect-hit')).toBeNull();
-    expect(face.hasAttribute('data-hit-flash')).toBe(true);
+    expect(face.hasAttribute('data-hit-flash')).toBe(false);
     expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
     handle.dispose();
   });
@@ -715,6 +732,16 @@ describe('planRams', () => {
     ]);
     expect(hitAt.get(1)).toBe(contactMs('charge'));
     expect(hitAt.get(2)).toBe(RAM_STAGGER_MS + contactMs('strike'));
+  });
+
+  it('an attacker that hits a planeswalker or a battle charges it, as it would a player', () => {
+    const walker = 30;
+    const { rams, hitAt } = planRams([hit(1, walker, 10), hit(2, 20, 11)], [], anyone, (id) => id !== walker);
+    expect(rams.map((r) => [r.sourceId, r.kind, r.target])).toEqual([
+      [10, 'charge', { cardId: walker }],
+      [11, 'strike', { cardId: 20 }],
+    ]);
+    expect(hitAt.get(1)).toBe(contactMs('charge'));
   });
 
   it('a trampler rams its blocker, and its damage to the player lands as it strikes', () => {

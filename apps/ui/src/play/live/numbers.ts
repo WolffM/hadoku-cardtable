@@ -69,8 +69,8 @@
  *  2. each hit — a player's life or a creature's damage moving — travels from
  *     that card (else the resolving item's source on the battlefield, else
  *     where the item was drawn on the stack) to its target as a
- *     `[data-hit]` mark over `HIT_MS`, staggered `BEAT_STAGGER_MS`; the target
- *     flashes (`data-hit-flash`) and only then does its number rise and its
+ *     `[data-hit]` mark over `HIT_MS`, staggered `BEAT_STAGGER_MS`; a card it
+ *     hits flashes (`data-hit-flash`) and only then does its number rise and a
  *     life counter tick;
  *  3. each permanent that entered from nowhere the viewer could see
  *     (`ViewDiff.arrivals`: a token, or a card out of a library) travels from
@@ -110,6 +110,7 @@ import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LE
 import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
 import { crash, shake } from './crash.ts';
 import { fly, impact } from './projectile.ts';
+import { cardColours } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
 
@@ -198,11 +199,18 @@ export interface RamPlan {
  * card, or on a player in combat — is that creature's ram; a creature that hit several things (a
  * trampler, its blocker and the player) rams the first card it hit, else the player, and every one of
  * its hits lands as it strikes. Two creatures that hit each other first meet halfway, at one time.
+ * A hit on a card that is no creature — a planeswalker, a battle — is a charge at it, as at a player:
+ * nothing can fight back (the operator, 2026-10-17: "make sure that works when attacking planeswalkers also").
  * Rams go one after another, `RAM_STAGGER_MS` apart, in the order Forge dealt the damage; each as hard
  * as its heaviest hit, and two that meet as hard as the heavier of them, so they arrive together. `hitAt`: when
  * each hit (by `seq`) lands; a hit not in it has no ram and lands at once.
  */
-export function planRams(hits: readonly DamageHit[], faceHits: readonly FaceHit[], canRam: (cardId: number) => boolean): { rams: RamPlan[]; hitAt: Map<number, number> } {
+export function planRams(
+  hits: readonly DamageHit[],
+  faceHits: readonly FaceHit[],
+  canRam: (cardId: number) => boolean,
+  isCreature: (cardId: number) => boolean = () => true,
+): { rams: RamPlan[]; hitAt: Map<number, number> } {
   const groups = new Map<number, { cards: DamageHit[]; faces: FaceHit[] }>();
   const group = (sourceId: number): { cards: DamageHit[]; faces: FaceHit[] } => {
     let g = groups.get(sourceId);
@@ -240,7 +248,7 @@ export function planRams(hits: readonly DamageHit[], faceHits: readonly FaceHit[
       const power = Math.max(heaviest(sourceId), heaviest(target));
       strikes(sourceId, 'meet', delayMs, power);
       strikes(target, 'meet', delayMs, power);
-    } else strikes(sourceId, target === undefined ? 'charge' : 'strike', delayMs);
+    } else strikes(sourceId, target === undefined || !isCreature(target) ? 'charge' : 'strike', delayMs);
   }
   return { rams, hitAt };
 }
@@ -520,9 +528,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     });
   }
 
-  /** The flash a hit leaves on what it reached (a face, a card), once. */
+  /**
+   * The flash a hit leaves on the card it reached, once. Never on a player's avatar: its ring drew as a box,
+   * clipped to bars by the seat, around the avatar (the operator, 2026-10-17: "an awkward red box or red
+   * bars above/below the avatar when i get hit. can we just get rid of those?") — the impact, the number and
+   * the ticking life total are the hit there.
+   */
   function flash(target: Element | null, colour: NumberColour): void {
-    if (target === null) return;
+    if (target === null || target.hasAttribute('data-player-face')) return;
     // A card leaving is drawn as its copy (`departures.ts`): the copy's piece flashes, not the empty gap
     // — the piece, so the flash never replaces the copy's own exit animation.
     const leavingId = target.getAttribute(LEAVING_GAP_ATTR);
@@ -636,7 +649,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return battlefieldCard(cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
-  function apply(diff: ViewDiff): void {
+  function apply(diff: ViewDiff, before: BoardView | null): void {
     const item = diff.resolved[0];
     const reveal = revealOf(item);
     const origin = reveal?.at ?? sourceOf(item);
@@ -644,8 +657,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
     // What it does starts at once (a reveal's beat aside); the spell waits on the stack meanwhile and goes last (`placed.ts`).
     const startMs = reveal?.waitMs ?? 0;
-    /** A hit is drawn in its spell's colour (the operator, 2026-10-15): the resolving card's first colour, colourless for none. */
-    const spellHue = item?.sourceCard?.colors[0] ?? null;
+    /**
+     * A hit is drawn in its spell's colour (the operator, 2026-10-15): the resolving card's first colour,
+     * colourless for none — a land's as its sounds take it, from what it makes (2026-10-17: "the source
+     * damage for valakut should be red, not colorless"; `sound-events.ts`'s `cardColours`).
+     */
+    const sourceOnBoard = before?.players.flatMap((pl) => pl.battlefield).find((c) => c.id === item?.sourceCardId);
+    const spellHue = item?.sourceCard == null ? null : ((cardColours(item.sourceCard, sourceOnBoard?.choices)[0] as ManaColor | undefined) ?? null);
     let beat = 0;
     const nextDelay = (): number => startMs + beat++ * BEAT_STAGGER_MS;
     /** Bolts go one after another, far enough apart that each one's slam (and the death it causes) reads on its own (the operator, 2026-10-15: "all cards seem to go away at the same time"). */
@@ -673,7 +691,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      * impact, a death, a player's life — as it strikes. Outside a resolution only: what resolved draws
      * its bolts instead. Fast Mode and reduced motion draw no ram, and every hit lands at once.
      */
-    const combat = origin === null && !fast() && !reduced() && overlay() !== null ? planRams(diff.hits, diff.faceHits, (id) => leaving.has(id) || battlefieldCard(id) !== null) : null;
+    // A card struck is a creature if it was one before the blow or still is after (one that died of it is gone after).
+    const creatures = new Set([before, prevView].flatMap((v) => v?.players.flatMap((pl) => pl.battlefield.filter((c) => c.card.typeLine.includes('Creature')).map((c) => c.id)) ?? []));
+    const combat =
+      origin === null && !fast() && !reduced() && overlay() !== null
+        ? planRams(diff.hits, diff.faceHits, (id) => leaving.has(id) || battlefieldCard(id) !== null, (id) => creatures.has(id))
+        : null;
     /** When the first ram at each player strikes, this view. */
     const charged = new Map<number, number>();
     for (const h of diff.faceHits) {
@@ -762,18 +785,22 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     // After the departures: a creature that died in the fight rams as its departure's stand-in.
     const root = overlay();
     const rammers = new Set((combat?.rams ?? []).map((r) => r.sourceId));
-    // The chargers form up together, at the first one's start, in a fan around the player each attacks.
+    // The chargers form up together, at the first one's start, in a fan around the player or the card each attacks.
     const chargers = (combat?.rams ?? []).filter((r) => r.kind === 'charge');
     const chargeStart = chargers.length === 0 ? 0 : Math.min(...chargers.map((r) => r.delayMs));
     const fanned = new Map<number, Point>();
+    const struckEl = (target: RamPlan['target']): HTMLElement | null =>
+      'playerId' in target ? faceEl(target.playerId) : (root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${target.cardId}"]`) ?? hitTarget(target.cardId));
+    const packOf = (target: RamPlan['target']): string => ('playerId' in target ? `fan:${target.playerId}` : `fan:card:${target.cardId}`);
     if (root !== null) {
-      for (const playerId of new Set(chargers.map((r) => (r.target as { playerId: number }).playerId))) {
-        const face = faceEl(playerId);
-        const pack = chargers.filter((r) => (r.target as { playerId: number }).playerId === playerId);
-        const boxes = pack.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(r.sourceId));
-        if (face === null || boxes.some((b) => b === null)) continue;
-        const at = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(face, root), `fan:${playerId}`);
-        pack.forEach((r, i) => fanned.set(r.sourceId, at[i]!));
+      const packs = new Map<string, RamPlan[]>();
+      for (const r of chargers) packs.set(packOf(r.target), [...(packs.get(packOf(r.target)) ?? []), r]);
+      for (const [key, members] of packs) {
+        const at = struckEl(members[0]!.target);
+        const boxes = members.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(r.sourceId));
+        if (at === null || boxes.some((b) => b === null)) continue;
+        const spots = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(at, root), key);
+        members.forEach((r, i) => fanned.set(r.sourceId, spots[i]!));
       }
     }
     const keep = (cancel: () => void, untilMs: number): void => {
@@ -784,10 +811,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     for (const plan of combat?.rams ?? []) {
       const source = root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${plan.sourceId}"]`) ?? battlefieldCard(plan.sourceId);
       const struck = 'cardId' in plan.target ? plan.target.cardId : null;
-      const target =
-        struck === null
-          ? faceEl((plan.target as { playerId: number }).playerId)
-          : (root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${struck}"]`) ?? hitTarget(struck));
+      const target = struckEl(plan.target);
       if (root === null || source === null || target === null) continue;
       const end = ramEnd(plan.kind, leaving.has(plan.sourceId), struck !== null && leaving.has(struck));
       const from = boxIn(source, root);
@@ -856,9 +880,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   return {
     notify(view: BoardView) {
       if (!live) return;
-      const diff = diffViews(prevView, view);
+      const before = prevView;
+      const diff = diffViews(before, view);
       prevView = view;
-      apply(diff);
+      apply(diff, before);
       noteStack(view);
     },
     noteStack(view: BoardView) {

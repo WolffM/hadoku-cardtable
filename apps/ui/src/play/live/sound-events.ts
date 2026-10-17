@@ -26,9 +26,9 @@
  * so they carry `delayMs` to stay in that order.
  */
 
-import { COLOUR_IDS, type ColourId, type ParadigmId } from '@hadoku/shared';
+import { COLOUR_IDS, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
 
-import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
+import type { BoardCard, BoardCardChoice, BoardPlayer, BoardView } from '../adapter.ts';
 import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
@@ -105,8 +105,8 @@ const basicTypeColours = (text: string): string[] => [...text.matchAll(BASIC_TYP
  * - the basic land type it chose (Multiversal Passage's `ChosenType`).
  * A type it only checks for ("unless you control a Mountain") is no colour.
  */
-function landColours(entry: BoardCard): string[] {
-  const { typeLine, oracleText: text } = entry.card;
+function landColours(card: DraftCard, choices: readonly BoardCardChoice[]): string[] {
+  const { typeLine, oracleText: text } = card;
   if (/\bany (?:one )?colou?r\b/i.test(text)) return ALL_COLOURS;
   const found = new Set(basicTypeColours(typeLine));
   for (const clause of text.matchAll(/\bAdd\b[^.]*/g)) for (const m of clause[0].matchAll(/\{([WUBRG])\}/g)) found.add(m[1]!);
@@ -116,8 +116,16 @@ function landColours(entry: BoardCard): string[] {
     for (const c of fetched) found.add(c);
   }
   for (const clause of text.matchAll(/\bis an? (?:Plains|Island|Swamp|Mountain|Forest)\b/g)) for (const c of basicTypeColours(clause[0])) found.add(c);
-  for (const choice of entry.choices ?? []) if (choice.kind === 'type') for (const v of choice.values) for (const c of basicTypeColours(v)) found.add(c);
+  for (const choice of choices) if (choice.kind === 'type') for (const v of choice.values) for (const c of basicTypeColours(v)) found.add(c);
   return [...found];
+}
+
+/**
+ * A card's colours as its sounds and its effects take them: a land's from what it makes and is
+ * (`landColours`), anything else's its own. Valakut's damage is red, as its mana is.
+ */
+export function cardColours(card: DraftCard, choices: readonly BoardCardChoice[] = []): string[] {
+  return /\bLand\b/.test(card.typeLine.split('—')[0] ?? '') ? landColours(card, choices) : card.colors;
 }
 
 /** The colour cell a card's arrival is layered with, or null for a card that has none. */
@@ -125,7 +133,7 @@ export function colourCell(entry: BoardCard): string | null {
   const paradigm = paradigmOf(entry);
   if (paradigm === null) return null;
   if (paradigm === 'land') {
-    const colours = landColours(entry);
+    const colours = landColours(entry.card, entry.choices ?? []);
     const row = colourRow(colours);
     // A basic land of one colour has its own cell on the mono rows (2026-10-10); every
     // other land — a mono-coloured nonbasic, a dual, Wastes — is its colour's `land`.

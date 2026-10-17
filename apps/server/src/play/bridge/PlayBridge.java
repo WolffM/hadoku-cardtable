@@ -3837,6 +3837,8 @@ public final class PlayBridge {
          * {@code Player.java:703}) as {@code [playerId, sourceId, amount, combat]} — the life total says
          * how much was lost, never who dealt it, and a creature's attack is drawn as that creature
          * ramming its player (the operator, 2026-10-16).</li>
+         * <li>Damage to a planeswalker or a battle, combat or not, goes into {@code damage} too, though
+         * Forge fires no {@code GameEventCardDamaged} for it (see {@link #countersLost}).</li>
          * </ul>
          */
         static final class EffectJournal {
@@ -3846,9 +3848,16 @@ public final class PlayBridge {
             private final java.util.ArrayDeque<Entry> entries = new java.util.ArrayDeque<>();
             private long next = 1;
 
+            /**
+             * Each planeswalker or battle that lost loyalty or defense this turn, with how many of the damage
+             * instances it received this turn are journaled already: the ones after that are hits still to journal.
+             */
+            private final java.util.Map<forge.game.card.Card, Integer> watched = new java.util.IdentityHashMap<>();
+
             /** A new game: nothing has happened yet. Returns itself, to subscribe. */
             synchronized EffectJournal reset() {
                 entries.clear();
+                watched.clear();
                 return this;
             }
 
@@ -3878,9 +3887,57 @@ public final class PlayBridge {
                 add(null, null, hit);
             }
 
+            /**
+             * Damage to a planeswalker or a battle, from an attacker or a spell (the operator, 2026-10-17: "make
+             * sure that works when attacking planeswalkers also"; "cover spells too"). Forge fires
+             * {@code GameEventCardDamaged} for a creature only ({@code Card.java:6207-6229}): on anything else the
+             * damage just takes loyalty or defense counters off, before Forge records the hit on the card itself
+             * ({@code GameEntity.receiveDamage}, from {@code CardDamageHistory.registerDamage}, with its source in
+             * {@code Game.getDamageLKI}). So a counter lost marks the card watched for the rest of the turn, and
+             * every event after journals each damage instance it has received since ({@link #journalWatched}). A
+             * counter lost to a cost or an effect is no damage instance and journals nothing; a card that is a
+             * creature too has its hit already.
+             */
+            @Subscribe
+            public synchronized void countersLost(final forge.game.event.GameEventCardCounters ev) {
+                journalWatched();
+                if (ev.card() == null || ev.newValue() >= ev.oldValue()) { return; }
+                if (!ev.type().is(forge.game.card.CounterEnumType.LOYALTY) && !ev.type().is(forge.game.card.CounterEnumType.DEFENSE)) { return; }
+                final Game game = liveGame();
+                final forge.game.card.Card card = game == null ? null : game.findById(ev.card().getId());
+                if (card == null || card.isCreature()) { return; }
+                watched.putIfAbsent(card, card.getDamageReceivedThisTurn().size());
+            }
+
+            /** Every damage instance a watched card has received since it was last journaled, as a hit from its source. */
+            private void journalWatched() {
+                if (watched.isEmpty()) { return; }
+                final Game game = liveGame();
+                if (game == null) { return; }
+                for (final java.util.Map.Entry<forge.game.card.Card, Integer> w : watched.entrySet()) {
+                    final java.util.List<org.apache.commons.lang3.tuple.Pair<Integer, Boolean>> got = w.getKey().getDamageReceivedThisTurn();
+                    // Nothing new; or the record was cleared at cleanup, and counts from empty.
+                    if (got.size() <= w.getValue()) {
+                        w.setValue(got.size());
+                        continue;
+                    }
+                    for (final org.apache.commons.lang3.tuple.Pair<Integer, Boolean> dmg : got.subList(w.getValue(), got.size())) {
+                        final org.apache.commons.lang3.tuple.Pair<forge.game.card.Card, forge.game.GameEntity> lki = game.getDamageLKI(dmg);
+                        final JsonArray hit = new JsonArray();
+                        hit.add(w.getKey().getId());
+                        hit.add(lki == null || lki.getLeft() == null ? -1 : lki.getLeft().getId());
+                        hit.add(dmg.getLeft());
+                        add(hit, null, null);
+                    }
+                    w.setValue(got.size());
+                }
+            }
+
             /** Every event, so {@code GameEventCardDied} is heard without naming its class (see above). */
             @Subscribe
-            public void any(final forge.game.event.GameEvent ev) {
+            public synchronized void any(final forge.game.event.GameEvent ev) {
+                if (ev instanceof forge.game.event.GameEventTurnBegan) { watched.clear(); }
+                else if (!(ev instanceof forge.game.event.GameEventCardCounters)) { journalWatched(); }
                 if (!"GameEventCardDied".equals(ev.getClass().getSimpleName())) { return; }
                 try {
                     final Object card = ev.getClass().getMethod("card").invoke(ev);

@@ -15,13 +15,19 @@
  * its player. Flame Rift (4 to each player) must reach both seats as one hit on each player, from
  * Flame Rift, for 4, not combat.
  *
+ * Combat damage to a planeswalker is a hit on a card too, though Forge fires no `GameEventCardDamaged`
+ * for it (the bridge's `countersLost`): the operator, 2026-10-17, "make sure that works when attacking
+ * planeswalkers also"; "cover spells too". Seat 0's Grizzly Bears attacks the AI's Jace Beleren, and
+ * apart, seat 0's Lightning Bolt targets Jace: both seats must be told one hit on Jace, from the Bears for 2,
+ * from the Bolt for 3.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/damage-hits \
  *   pnpm exec vitest run apps/server/src/play/damage-hits.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { available, castNamed, deck, finishMulligan, inOwnMain, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, castNamed, deck, finishMulligan, inOwnMain, landPayer, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'damage-hits: a sweeper’s hits reach both seats, killed creatures included, against real Forge'
@@ -122,6 +128,98 @@ describe.skipIf(!available.ok)(title, () => {
 					expect(hits, `seat ${seat}: one hit on each player, each told once`).toHaveLength(2);
 					expect(new Set(hits.map(([player]) => player)).size, `seat ${seat}: two different players`).toBe(2);
 					for (const h of hits) expect(h.slice(1), `seat ${seat}: from Flame Rift, for 4, not combat`).toEqual([rift.id, 4, false]);
+				}
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'Grizzly Bears attacking Jace Beleren: the hit on Jace reaches both seats, from the Bears, for 2, once',
+		async () => {
+			if (!available.ok) return;
+			const state = STATE.replace('humanhand=Pyroclasm', 'humanhand=')
+				.replace('humanbattlefield=Grizzly Bears;Hill Giant;Mountain;Mountain', 'humanbattlefield=Grizzly Bears;Mountain')
+				.replace('aibattlefield=Llanowar Elves;Forest', 'aibattlefield=Jace Beleren|Counters:LOYALTY=5;Forest');
+			const s = await startScenario(available.config, { seed: 84, decks: DECKS, scenario: state });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return s.zone(0, 'Battlefield').some((c) => c.name === 'Grizzly Bears' && !c.tapped && !c.sick) && s.zone(1, 'Battlefield').some((c) => c.name === 'Jace Beleren');
+				}, 'the scenario’s Bears and Jace on the battlefield', 30_000, s);
+				const bears = s.zone(0, 'Battlefield').find((c) => c.name === 'Grizzly Bears')!;
+				const jace = s.zone(1, 'Battlefield').find((c) => c.name === 'Jace Beleren')!;
+				let pressedMain1 = false;
+				await waitUntil(() => {
+					s.answerAsks();
+					if (/^Select creatures to attack/.test(s.prompt(0))) return true;
+					const msg = s.prompt(0);
+					if (!pressedMain1 && /^Priority:/.test(msg) && /Main phase, precombat/.test(msg) && s.buttons(0)?.enable1 === true) {
+						pressedMain1 = true;
+						s.ok(0);
+					}
+					return false;
+				}, 'Forge’s declare-attackers window to open', 20_000, s);
+				// Jace first, as the defender (`InputAttack.java:225-230`), then the Bears at it.
+				s.select(0, jace.id);
+				s.select(0, bears.id);
+				await waitUntil(() => {
+					s.answerAsks();
+					return s.buttons(0)?.label2 === 'Call Back';
+				}, 'the Bears to be declared', 10_000, s);
+				s.ok(0);
+				await waitUntil(() => {
+					s.answerAsks();
+					return [0, 1].every((seat) => payloads(s, seat).some((p) => (p.damage ?? []).some(([target]) => target === jace.id)));
+				}, 'both seats to be told the hit on Jace', 30_000, s);
+				for (const seat of [0, 1]) {
+					const hits = payloads(s, seat).flatMap((p) => p.damage ?? []);
+					console.log(`[damage-hits.jvm] seat ${seat}: damage ${JSON.stringify(hits)}; bears #${bears.id}, jace #${jace.id}`);
+					expect(hits, `seat ${seat}: one hit, on Jace, from the Bears, for 2`).toEqual([[jace.id, bears.id, 2]]);
+				}
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'Lightning Bolt at Jace Beleren: the hit on Jace reaches both seats, from the Bolt, for 3, once',
+		async () => {
+			if (!available.ok) return;
+			const state = STATE.replace('humanhand=Pyroclasm', 'humanhand=Lightning Bolt')
+				.replace('humanbattlefield=Grizzly Bears;Hill Giant;Mountain;Mountain', 'humanbattlefield=Mountain')
+				.replace('aibattlefield=Llanowar Elves;Forest', 'aibattlefield=Jace Beleren|Counters:LOYALTY=5;Forest');
+			const s = await startScenario(available.config, { seed: 85, decks: DECKS, scenario: state });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === 'Lightning Bolt') && s.zone(1, 'Battlefield').some((c) => c.name === 'Jace Beleren');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const bolt = s.zone(0, 'Hand').find((c) => c.name === 'Lightning Bolt')!;
+				const jace = s.zone(1, 'Battlefield').find((c) => c.name === 'Jace Beleren')!;
+				const pay = landPayer(s, 0);
+				let targeted = false;
+				s.select(0, bolt.id);
+				await waitUntil(() => {
+					s.answerAsks();
+					// Forge asks "Select any target" for Lightning Bolt.
+					if (!targeted && /Select (?:any )?target/.test(s.prompt(0))) {
+						targeted = true;
+						s.select(0, jace.id);
+					}
+					pay();
+					return [0, 1].every((seat) => payloads(s, seat).some((p) => (p.damage ?? []).some(([target]) => target === jace.id)));
+				}, 'both seats to be told the Bolt’s hit on Jace', 30_000, s);
+				for (const seat of [0, 1]) {
+					const hits = payloads(s, seat).flatMap((p) => p.damage ?? []);
+					console.log(`[damage-hits.jvm] seat ${seat}: damage ${JSON.stringify(hits)}; bolt #${bolt.id}, jace #${jace.id}`);
+					expect(hits, `seat ${seat}: one hit, on Jace, from the Bolt, for 3`).toEqual([[jace.id, bolt.id, 3]]);
 				}
 			} finally {
 				await s.stop();

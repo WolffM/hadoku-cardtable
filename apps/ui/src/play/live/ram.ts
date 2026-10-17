@@ -21,6 +21,7 @@
  * one starts slow and accelerates hard; its rear back and its way home take the same pace (the
  * operator: "creatures with greater attack must have a greater impact feeling but should arrive at the
  * location in the same time"). `motion.ts`'s `powerEase` and `homeEase`.
+ * A charge at a player is a punch instead (`punchAt`): it draws back to rest, creeps, then bursts into the blow.
  *
  * Every lunge at a creature runs on a slight curve and tilts into the blow, its side and lean seeded by
  * the creature ("can we add a slight arc and rotation for how they ram into eachother? it looks boring
@@ -42,7 +43,7 @@
 
 import { homeEase, powerEase } from '../motion.ts';
 import { copyOfCard, dropTurnedMargins } from './departures.ts';
-import { along, arcControl, seedOf } from './projectile.ts';
+import { along, seedOf } from './projectile.ts';
 import './ram.css';
 
 export interface Point {
@@ -145,8 +146,10 @@ function turned(p: Point, deg: number): Point {
   const a = (deg * Math.PI) / 180;
   return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
 }
-/** Samples of a charge's curve. */
-const SAMPLES = 16;
+/** Samples of a charge's curve: enough that the burst at its end stays smooth. */
+const SAMPLES = 32;
+/** A charger's draw back: it comes to rest just as its punch sets off, so the two read as one move. */
+const WIND_UP_EASE = 'cubic-bezier(0.2, 0.6, 0.3, 1)';
 /** How far a charger draws back as it turns to face the player. */
 const ALIGN_BACK_PX = 18;
 
@@ -237,10 +240,47 @@ export function bounceFrames(strike: Point, toward: Point, tilt: number, key: st
   return { frames: [{ translate: px(strike), rotate: `${tilt.toFixed(1)}deg` }, { translate: px(at), rotate: `${rot.toFixed(1)}deg` }], at, rot };
 }
 
-/** A charge's flight: from its aligned pose up a lifted curve onto the avatar, still facing it. Sampled evenly. */
-export function chargeFrames(align: { at: Point; rot: number }, strike: Point, key: string): Keyframe[] {
-  const control = arcControl(align.at, strike, seedOf(key));
-  return Array.from({ length: SAMPLES + 1 }, (_, i) => ({ offset: i / SAMPLES, translate: px(along(align.at, control, strike, i / SAMPLES)), rotate: `${align.rot.toFixed(1)}deg` }));
+/**
+ * How far along its flight a punch at `power` is at `t` (both 0 to 1): it sets off from rest and creeps,
+ * then bursts, accelerating hard right into the blow (the operator, 2026-10-17: "the start should be
+ * slower and then burst into motion with intense acceleration until impact"; "even small creatures
+ * should punch harder than this"). The heavier, the longer the creep and the harder the burst ("larger
+ * creature should start slower and then accelerate to faster speeds"): a point is a tenth of the way
+ * at half time and lands at five times its average speed; seven, under a twentieth and ten times; twenty,
+ * barely off the mark at half time and fifteen times. An exponential, since a cubic bezier ease could not
+ * start slow enough and still burst.
+ */
+export function punchAt(t: number, power: number): number {
+  const p = Math.min(1, Math.max(0, power));
+  const k = 6 + 10 * p;
+  const creep = 0.25 - 0.2 * p;
+  return creep * t * t + ((1 - creep) * (Math.exp(k * t) - 1)) / (Math.exp(k) - 1);
+}
+
+/**
+ * A charge's curve: its control point off the straight line to either side, from barely to well over a
+ * third of its length, and anywhere from early to late along it — so one swings wide at once and the next
+ * hooks in at the end (the operator, 2026-10-17: "add a bit of variance for the direction and curvature of
+ * the arc? a bit of randomness would be nice here"). `random` gives 0 to 1; each charge draws its own.
+ */
+export function chargeControl(start: Point, end: Point, random: () => number): Point {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const side = random() < 0.5 ? -1 : 1;
+  const bend = (0.06 + 0.4 * random()) * length * side;
+  const at = 0.3 + 0.4 * random();
+  return { x: start.x + dx * at + (-dy / length) * bend, y: start.y + dy * at + (dx / length) * bend };
+}
+
+/**
+ * A charge's flight: from its aligned pose along its curve (`chargeControl`) onto what it strikes, still
+ * facing it. Sampled evenly in time, each sample at the punch's distance (`punchAt`), so the pace is in the
+ * frames: run it linear.
+ */
+export function chargeFrames(align: { at: Point; rot: number }, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
+  const control = chargeControl(align.at, strike, random);
+  return Array.from({ length: SAMPLES + 1 }, (_, i) => ({ offset: i / SAMPLES, translate: px(along(align.at, control, strike, punchAt(i / SAMPLES, power))), rotate: `${align.rot.toFixed(1)}deg` }));
 }
 
 /** Slowly back to its place from `at`, turned `rot` degrees, straightening as it goes. */
@@ -330,11 +370,15 @@ export function ram(
   // How it is turned when it lands the blow: for the way home.
   let tilt: number;
   if (kind === 'charge') {
-    // Every charger turns to face the player at once, in its place in the cone; each flies in its turn.
+    // Every charger starts turning to face the player at once, to its place in the cone, and keeps
+    // drawing back until its own turn to fly — never standing still in between (the operator,
+    // 2026-10-17: "once a card has reached it's starting position for the 'punch' it should transition
+    // to that right away").
     const align = alignOf(from, to, formation.at ?? fanOf([from], to, key)[0]!);
     tilt = align.rot;
-    parts.push({ frames: [{ translate: '0px 0px', rotate: '0deg' }, { translate: px(align.at), rotate: `${align.rot.toFixed(1)}deg` }], delay: formation.start, duration: ALIGN_MS, easing: pace });
-    parts.push({ frames: chargeFrames(align, strike, key), delay: delayMs + ALIGN_MS, duration: CHARGE_MS, easing: pace });
+    const launch = delayMs + ALIGN_MS;
+    parts.push({ frames: [{ translate: '0px 0px', rotate: '0deg' }, { translate: px(align.at), rotate: `${align.rot.toFixed(1)}deg` }], delay: formation.start, duration: launch - formation.start, easing: WIND_UP_EASE });
+    parts.push({ frames: chargeFrames(align, strike, power), delay: launch, duration: CHARGE_MS });
   } else {
     tilt = tiltOf(key);
     const rear = rearOf(strike, tilt);

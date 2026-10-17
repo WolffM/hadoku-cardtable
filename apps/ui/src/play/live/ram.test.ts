@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { powerEase } from '../motion.ts';
-import { alignOf, BLAST_MS, fanOf, contactMs, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
+import { alignOf, BLAST_MS, chargeControl, fanOf, contactMs, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -109,3 +109,43 @@ describe('fanOf', () => {
     row.forEach((b, i) => expect(Math.hypot(spots[i]!.x - player.x, spots[i]!.y - player.y), `${i} drawn back from the player`).toBeGreaterThan(Math.hypot(b.x - player.x, b.y - player.y)));
   });
 });
+
+describe('punchAt', () => {
+  const speed = (t: number, power: number): number => (punchAt(Math.min(1, t + 0.001), power) - punchAt(Math.max(0, t - 0.001), power)) / (Math.min(1, t + 0.001) - Math.max(0, t - 0.001));
+  it('runs from rest at the start to the blow at the end', () => {
+    expect(punchAt(0, 0)).toBe(0);
+    expect(punchAt(1, 0)).toBeCloseTo(1);
+    expect(punchAt(1, 1)).toBeCloseTo(1);
+    expect(speed(0, 0)).toBeLessThan(0.05);
+  });
+  it('creeps, then bursts — the heavier, the slower off the mark and the faster at the blow', () => {
+    expect(punchAt(0.5, 0)).toBeLessThan(0.15);
+    expect(punchAt(0.5, 1)).toBeLessThan(punchAt(0.5, 0.5));
+    expect(punchAt(0.5, 0.5)).toBeLessThan(punchAt(0.5, 0));
+    expect(speed(1, 0)).toBeGreaterThan(4.5);
+    expect(speed(1, 0.5)).toBeGreaterThan(speed(1, 0) * 1.8);
+    expect(speed(1, 1)).toBeGreaterThan(14);
+  });
+  it('only ever speeds up', () => {
+    for (const power of [0, 0.5, 1]) for (let t = 0.05; t <= 1; t += 0.05) expect(speed(t, power)).toBeGreaterThan(speed(t - 0.05, power));
+  });
+});
+
+describe('chargeControl', () => {
+  const start = { x: 0, y: 0 };
+  const end = { x: 0, y: -200 };
+  const draws = (...xs: number[]) => {
+    let i = 0;
+    return () => xs[i++ % xs.length]!;
+  };
+  it('bends to either side, from barely to a lot, and peaks early or late along the way', () => {
+    const left = chargeControl(start, end, draws(0.2, 0, 0.5));
+    const right = chargeControl(start, end, draws(0.8, 1, 0.5));
+    expect(Math.sign(left.x)).toBe(-Math.sign(right.x));
+    expect(Math.abs(left.x)).toBeLessThan(15);
+    expect(Math.abs(right.x)).toBeGreaterThan(80);
+    expect(chargeControl(start, end, draws(0.2, 0.5, 0)).y).toBeCloseTo(-60);
+    expect(chargeControl(start, end, draws(0.2, 0.5, 1)).y).toBeCloseTo(-140);
+  });
+});
+
