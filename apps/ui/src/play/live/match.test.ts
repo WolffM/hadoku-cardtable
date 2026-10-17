@@ -936,8 +936,10 @@ describe('the offer through a click’s turnaround', () => {
     drawnThrough('clearWeaklySelectable');
     await sendAndApply(s, m, [oneAbility('s0-1', nomads)]);
     drawnThrough('getAbilityToPlay');
-    // A held outline is drawing only: the click is not sent.
-    expect(selectCard(m, land)).toBe(false);
+    // A held outline is not refused, and not sent either: the press waits for Forge's word.
+    expect(selectCard(m, land)).toBe(true);
+    const selects = () => s.clientFrames().filter((f) => f.ok && 'method' in f.value && f.value.method === 'selectCard').length;
+    expect(selects(), 'only the Nomads went out').toBe(1);
     expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 9001 })).toBe(true);
     await sendAndApply(s, m, [openZones('s0-2')]);
     drawnThrough('openZones');
@@ -946,6 +948,45 @@ describe('the offer through a click’s turnaround', () => {
     await sendAndApply(s, m, [selectables([nomads, bears], 1, 1)]);
     expect(drawnOffer(m).selectable).toEqual(new Set([nomads, bears]));
     expect(drawnOffer(m).selectionOpen).toBe(true);
+    // The press waiting on the held land is a play, never an answer to the target question: dropped.
+    expect(selects(), 'the kept press never answers a selection').toBe(1);
+    await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), actionable([land])]);
+    expect(selects(), 'nor goes out later, once dropped').toBe(1);
+  });
+
+  /*
+   * e2e/w59-stack.spec.ts's chain reaction, red three times on 2026-10-17: alice cast, her outlines
+   * were held through the turnaround, bob responded inside the server's 150 ms grace on telling her
+   * she was waiting, and her press on the still-drawn Quicken was refused — the card floated home and
+   * nothing was sent, though Forge offered it a moment later.
+   */
+  it('a press on a held outline is sent the moment Forge offers that card again', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [first, second] = [mine[0]!, mine[1]!];
+    const selected = () => s.clientFrames().flatMap((f) => (f.ok && 'method' in f.value && f.value.method === 'selectCard' ? [f.value.card.id] : []));
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([first, second])]);
+    expect(selectCard(m, first)).toBe(true);
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([second]));
+    expect(selectCard(m, second), 'the held outline takes the press').toBe(true);
+    expect(selected(), 'not sent while Forge has not offered it').toEqual([first]);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([second])]);
+    expect(selected(), 'sent once Forge offers it').toEqual([first, second]);
+  });
+
+  it('a press on a held outline is dropped when the hold ends without that card', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [first, second] = [mine[0]!, mine[1]!];
+    const selected = () => s.clientFrames().flatMap((f) => (f.ok && 'method' in f.value && f.value.method === 'selectCard' ? [f.value.card.id] : []));
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([first, second])]);
+    expect(selectCard(m, first)).toBe(true);
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(selectCard(m, second)).toBe(true);
+    await sendAndApply(s, m, [actionable([])]);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([second])]);
+    expect(selected(), 'Forge named a set without it: the press was dropped there').toEqual([first]);
   });
 
   it('choose the target → Forge stops the selection and the ability resolves: still drawn, until priority names its set', async () => {

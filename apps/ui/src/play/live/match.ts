@@ -665,6 +665,12 @@ export interface LiveMatch {
    */
   offerHold: OfferHold | null;
   /**
+   * A press on a card only the held offer draws ({@link drawnOffer}): the outline said it could be
+   * played, so the press is not refused — it is sent the moment Forge offers that card again
+   * ({@link sendDeferredSelect}), and dropped if the hold ends without it or a selection opens.
+   */
+  deferredSelect: { cardId: number; placement: Placement | undefined } | null;
+  /**
    * The attackers this seat has POINTED AT, and the turn it pointed in.
    *
    * Wave 24 §B.1: the operator wants an attacker marked AT SELECTION rather
@@ -1006,6 +1012,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
     offerHold: null,
+    deferredSelect: null,
     attackIntent: null,
     lastSelectedCard: null,
     actCard: null,
@@ -1565,6 +1572,7 @@ function holdOffer(match: LiveMatch): void {
   setTimeout(() => {
     if (match.offerHold !== hold) return;
     match.offerHold = null;
+    match.deferredSelect = null;
     notify(match);
   }, OFFER_HOLD_MAX_MS);
 }
@@ -1718,7 +1726,15 @@ function cardIdsInView(view: BoardView): Set<number> {
  * (`CMatchUI.getAbilityToPlay`), which `../prompts/` answers.
  */
 export function selectCard(match: LiveMatch, cardId: number, placement?: Placement): boolean {
-  if (!boardInteraction(match).selectable.has(cardId)) return false;
+  if (!boardInteraction(match).selectable.has(cardId)) {
+    // A held outline (`./offer-hold.ts`) is a promise the card is playable: keep the press for
+    // Forge's word instead of refusing it — but only a play, never a choice a selection asks for.
+    const drawn = drawnOffer(match);
+    if (match.offerHold === null || drawn.selectionOpen || !drawn.selectable.has(cardId)) return false;
+    match.deferredSelect = { cardId, placement };
+    return true;
+  }
+  match.deferredSelect = null;
   if (match.selectables === null && !payingMana(match)) match.actCard = cardId;
   match.spent.cards.add(cardId);
   holdOffer(match);
@@ -2907,7 +2923,24 @@ export function ingest(match: LiveMatch, raw: unknown): void {
   else if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
   else applyFrame(match, parsed.value);
   if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match));
+  sendDeferredSelect(match);
   notify(match);
+}
+
+/**
+ * The press {@link selectCard} kept through a held offer: sent once Forge offers the card again as
+ * a play, dropped once Forge's word is anything else — a selection, a set without it, or the hold
+ * running out. A dropped press is a park Forge never takes, and floats home like any other.
+ */
+function sendDeferredSelect(match: LiveMatch): void {
+  const kept = match.deferredSelect;
+  if (kept === null) return;
+  const real = boardInteraction(match);
+  if (!real.selectionOpen && real.selectable.has(kept.cardId)) {
+    selectCard(match, kept.cardId, kept.placement);
+    return;
+  }
+  if (real.selectionOpen || !drawnOffer(match).selectable.has(kept.cardId)) match.deferredSelect = null;
 }
 
 /**
@@ -3137,6 +3170,7 @@ function discardLocal(match: LiveMatch): void {
   match.actCard = null;
   match.refused = null;
   match.offerHold = null;
+  match.deferredSelect = null;
   match.stackTargetSpells = new Map();
   match.pendingTriggers = [];
   match.waitingEffects = [];
