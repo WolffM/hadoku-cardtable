@@ -628,23 +628,43 @@ export function specText(repo: Repo, spec: string): string {
   return parts.join('\n');
 }
 
-/** Which of `keys` a spec's text touches, as printable names; empty if none. */
-export function touched(text: string, keys: Keys): string[] {
+/** What `touched` reads off a spec's text whatever the keys, so a spec is scanned once and not once per key. */
+interface SpecScan {
+  text: string;
+  /** Every short quoted string in it. */
+  quoted: string[];
+  /** A selector's `[data-testid^="live-button"]` names every id it is a prefix of. */
+  prefixSelectors: string[];
+}
+
+function scanSpec(text: string): SpecScan {
+  return {
+    text,
+    quoted: [...new Set([...text.matchAll(/(['"`])([^'"`\n]{2,80}?)\1/g)].map((m) => m[2]))],
+    prefixSelectors: [...text.matchAll(/data-testid[\^*]=\\?["']([^"'\\]+)/g)].map((m) => m[1]),
+  };
+}
+
+/** Each pattern `touched` builds, compiled once: the same key is tried against every spec. */
+const patterns = new Map<string, RegExp>();
+const pattern = (source: string): RegExp => {
+  let re = patterns.get(source);
+  if (re === undefined) patterns.set(source, (re = new RegExp(source)));
+  return re;
+};
+
+/** Which of `keys` a spec touches, as printable names; empty if none. */
+export function touched({ text, quoted, prefixSelectors }: SpecScan, keys: Keys): string[] {
   const hits: string[] = [];
-  const quoted = new Set<string>();
-  for (const m of text.matchAll(/(['"`])([^'"`\n]{2,80}?)\1/g)) quoted.add(m[2]);
-  // A selector's `[data-testid^="live-button"]` names every id it is a prefix of.
-  const prefixSelectors = [...text.matchAll(/data-testid[\^*]=\\?["']([^"'\\]+)/g)].map((m) => m[1]);
   for (const id of keys.testids) {
-    const re = new RegExp(`(?<![\\w-])${escape(id)}(?![\\w-])`);
-    if (re.test(text) || prefixSelectors.some((p) => id.startsWith(p))) hits.push(`testid ${id}`);
+    if (pattern(`(?<![\\w-])${escape(id)}(?![\\w-])`).test(text) || prefixSelectors.some((p) => id.startsWith(p))) hits.push(`testid ${id}`);
   }
   for (const p of keys.prefixes) {
-    if ([...quoted].some((q) => q.startsWith(p)) || text.includes(p)) hits.push(`testid ${p}*`);
+    if (quoted.some((q) => q.startsWith(p)) || text.includes(p)) hits.push(`testid ${p}*`);
   }
-  for (const a of keys.attrs) if (new RegExp(`(?<![\\w-])${escape(a)}(?![\\w-])`).test(text)) hits.push(`attr ${a}`);
+  for (const a of keys.attrs) if (pattern(`(?<![\\w-])${escape(a)}(?![\\w-])`).test(text)) hits.push(`attr ${a}`);
   // A selector's `.name`, never a file name's extension.
-  for (const c of keys.classes) if (new RegExp(`(?<=^|[\\s'"\`>,(+~:])\\.${escape(c)}(?![\\w-])`).test(text)) hits.push(`class .${c}`);
+  for (const c of keys.classes) if (pattern(`(?<=^|[\\s'"\`>,(+~:])\\.${escape(c)}(?![\\w-])`).test(text)) hits.push(`class .${c}`);
   return hits;
 }
 
@@ -848,10 +868,10 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       if (s !== f && d !== undefined) addJvm(s, 2, `imports ${f}${d > 1 ? ` (${d} deep)` : ''}`, 1 / d);
     }
   };
-  const specTexts = new Map<string, string>();
-  const textOf = (s: string): string => {
-    if (!specTexts.has(s)) specTexts.set(s, specText(repo, `e2e/${s}`));
-    return specTexts.get(s)!;
+  const specScans = new Map<string, SpecScan>();
+  const scanOf = (s: string): SpecScan => {
+    if (!specScans.has(s)) specScans.set(s, scanSpec(specText(repo, `e2e/${s}`)));
+    return specScans.get(s)!;
   };
   let specClosures: Map<string, Map<string, number>> | null = null;
   const specsImporting = (f: string): string[] => {
@@ -862,7 +882,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
   /** Score the specs touching each key by how few do; a key most specs touch is left to the smoke set. */
   const byKeys = (label: string, keys: Keys, weight: number): void => {
     for (const [name, one] of singleKeys(keys)) {
-      const users = all.specs.filter((s) => touched(textOf(s), one).length > 0);
+      const users = all.specs.filter((s) => touched(scanOf(s), one).length > 0);
       if (users.length === 0) continue;
       if (users.length > UBIQUITOUS * all.specs.length) {
         reasons.push(`${label}: ${name} is in ${users.length} specs — the smoke set covers it`);
@@ -970,7 +990,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       const routes = new Set<string>();
       for (const m of (repo.read(f) ?? '').matchAll(/['"`](\/[a-z][\w/-]*)/g)) if (m[1].length >= 4) routes.add(m[1].replace(/\/$/, ''));
       const callers = all.specs.flatMap((s) => {
-        const hit = [...routes].find((r) => textOf(s).includes(r));
+        const hit = [...routes].find((r) => scanOf(s).text.includes(r));
         return hit ? [[s, hit]] : [];
       });
       for (const [s, hit] of callers) addSpec(s, 2, `${f}: route ${hit}`, W.importer);
