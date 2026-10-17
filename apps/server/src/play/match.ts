@@ -970,6 +970,12 @@ export class Match {
 	winner: string | null = null;
 	/** The seat whose concede Forge was sent, or null — the one end reason the board cannot show. */
 	concededBy: number | null = null;
+	/**
+	 * When the match was started, in ms. A match taken back after a restart
+	 * keeps the start its JVM's record has (`JvmRecord.startedAt`), so this is
+	 * the same instant whichever process ends it.
+	 */
+	readonly startedAt: number;
 	/** When Forge said the game was over; null until then. */
 	endedAt: number | null = null;
 	readonly seats: SeatState[];
@@ -1070,15 +1076,17 @@ export class Match {
 		 * earlier server. The epoch and the seats' owners are exactly the two
 		 * things a replay cannot reproduce and that must not change: a new epoch
 		 * would make every client's cursor a stranger, and a re-seated player
-		 * would be handed the other player's hand.
+		 * would be handed the other player's hand. The start time is the third:
+		 * a replay would stamp it with the restart.
 		 */
-		restore?: { epoch: string | null; owners: (string | null)[] },
+		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number },
 	) {
 		this.id = id;
 		this.spec = spec;
 		this.deps = deps;
 		this.now = deps.now ?? Date.now;
-		this.epoch = restore?.epoch ?? `${id}:${this.now()}`;
+		this.startedAt = restore?.startedAt ?? this.now();
+		this.epoch = restore?.epoch ?? `${id}:${this.startedAt}`;
 		this.seats = spec.seats.map((s, seat) => ({
 			seat,
 			ai: s.ai,
@@ -3515,7 +3523,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 					phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
 					onGameOver: () => deps.onGameOver?.(match),
 				},
-				{ epoch: record.epoch, owners: record.owners },
+				{ epoch: record.epoch, owners: record.owners, startedAt: Date.parse(record.startedAt) },
 			);
 			matches.set(record.matchId, match);
 			match.resume((events) => attach(record, events));

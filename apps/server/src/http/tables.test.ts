@@ -34,7 +34,7 @@ import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../ro
 import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
-import { createKeyBook, createMatchStats, createStatsReporter, type MatchStats } from '../stats/index.js';
+import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
 import type { DraftCard } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
@@ -402,7 +402,6 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 	api.use(keys.remember);
 	const reports: MatchReport[] = [];
 	const statsLogs: Record<string, unknown>[] = [];
-	let stats: MatchStats | null = null;
 	const http: HttpServer = createServer(app);
 	const io = new SocketIOServer(http, { serveClient: false });
 
@@ -419,14 +418,13 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 		log: () => {},
 		rooms: lobby,
 		matches: () => attached?.matches ?? null,
-		matchStarted: (id: string, start: unknown) => (stats as unknown as { started(id: string, s: unknown): void }).started(id, start),
 	});
-	stats = createMatchStats({
+	const stats = createMatchStats({
 		keys,
 		log: (e) => statsLogs.push(e),
 		reporter: createStatsReporter({ record: async (r) => (reports.push(r), { duplicate: false }), log: (e) => statsLogs.push(e) }),
-		startOf: (tables as unknown as { matchStart: unknown }).matchStart,
-	} as Parameters<typeof createMatchStats>[0]);
+		startOf: tables.matchStart,
+	});
 	const play = playMod.attachPlay(io, api, {
 		minTier: 'friend',
 		host:
@@ -438,7 +436,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 		log: () => {},
 		startTimeoutMs: 5000,
 		seatAvatar: tables.seatAvatar,
-		onGameOver: (m) => stats?.gameOver(m),
+		onGameOver: stats.gameOver,
 	});
 	attached = play;
 

@@ -1,11 +1,16 @@
 /**
- * Match stats: what a room's match is captured as when it starts, and what is
- * reported when Forge says it is over. `index.ts` builds one and hands its two
- * halves to the table routes (`started`) and to play (`gameOver`).
+ * Match stats: what is reported when Forge says a room's match is over.
+ * `index.ts` builds one and hands `gameOver` to play.
  *
- * A match this never saw start — one started outside a room (the deck
- * builder's AI game, the dev tooling), or one taken back after a restart —
- * has no players' keys to report with, and is skipped with a log line.
+ * The start half of a report is read at the end, from where each of its facts
+ * already lives — the room that started the match and the match's own spec
+ * (`deps.startOf`, the table routes' `matchStart`), and each player's key from
+ * the key book — never from a copy taken at the start. Both survive a restart
+ * (the room on disk, the spec in the JVM's record), so a match taken back by a
+ * later process is recorded like any other.
+ *
+ * A match no room started — the deck builder's AI game, the dev tooling — has
+ * no players to report, and is skipped with a log line.
  */
 
 import type { Match } from '../play/match.js';
@@ -18,39 +23,36 @@ export { createKeyBook, type KeyBook } from './keys.js';
 export { createStatsReporter, type RecordFn, type StatsReporter } from './reporter.js';
 export { summarizeDeck, type DeckSummary, type MatchStart } from './report.js';
 
-/** A seat as the room knows it: a member (whose key the book holds), or Forge's AI. */
-export type SeatStartInput = Omit<SeatStart, 'kind' | 'userKey'> & { memberId: string | null };
+/** A seat as the room knows it: Forge's AI, or the member holding it (whose key the book holds). */
+export type SeatStartInput = Omit<SeatStart, 'kind' | 'userKey'> & { ai: boolean; memberId: string | null };
 
 export type MatchStartInput = Omit<MatchStart, 'seats'> & { seats: SeatStartInput[] };
 
 export interface MatchStats {
-	started(matchId: string, start: MatchStartInput): void;
 	gameOver(match: Match): void;
 }
 
-/** Matches started but not yet over. A match that fails never reaches `gameOver`, so this is bounded. */
-const MAX_PENDING = 64;
-
-export function createMatchStats(deps: { keys: KeyBook; reporter: StatsReporter; log(entry: Record<string, unknown>): void }): MatchStats {
-	const pending = new Map<string, MatchStart>();
+export function createMatchStats(deps: {
+	keys: KeyBook;
+	reporter: StatsReporter;
+	/** The match's start as the room that started it sees it, or null for a match no room started. */
+	startOf(match: Match): MatchStartInput | null;
+	log(entry: Record<string, unknown>): void;
+}): MatchStats {
 	return {
-		started(matchId, start) {
-			const seats = start.seats.map(({ memberId, ...rest }): SeatStart => {
-				if (memberId === null) return { ...rest, kind: 'bot' };
-				const userKey = deps.keys.keyOf(memberId);
-				return userKey === null ? { ...rest, kind: 'guest' } : { ...rest, kind: 'user', userKey };
-			});
-			pending.set(matchId, { ...start, seats });
-			if (pending.size > MAX_PENDING) pending.delete(pending.keys().next().value as string);
-		},
 		gameOver(match) {
-			const start = pending.get(match.id);
-			pending.delete(match.id);
-			if (start === undefined) {
-				deps.log({ evt: 'stats-skipped', matchId: match.id, reason: 'no start was captured for this match' });
-				return;
-			}
 			try {
+				const input = deps.startOf(match);
+				if (input === null) {
+					deps.log({ evt: 'stats-skipped', matchId: match.id, reason: 'no room started this match' });
+					return;
+				}
+				const seats = input.seats.map(({ ai, memberId, ...rest }): SeatStart => {
+					if (ai) return { ...rest, kind: 'bot' };
+					const userKey = memberId === null ? null : deps.keys.keyOf(memberId);
+					return userKey === null ? { ...rest, kind: 'guest' } : { ...rest, kind: 'user', userKey };
+				});
+				const start: MatchStart = { ...input, seats };
 				const facts = matchFacts(match);
 				const report = facts === null ? null : buildMatchReport(facts, start);
 				if (report === null) {

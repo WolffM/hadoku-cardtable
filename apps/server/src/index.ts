@@ -180,26 +180,13 @@ app.use(requireMinTier);
 const api = express.Router();
 api.use(express.json({ limit: '1mb' }));
 
-// ── Match stats ──────────────────────────────────────────────────────────────
-// Every api request leaves its player's key in an in-memory book, so a room's
-// start can name BOTH players to the game-stats store by their own keys (the
-// store resolves and discards them). Finished games are reported with this
-// server's service key; without one, nothing is recorded. See src/stats/.
-const statsLog = (entry: Record<string, unknown>): void =>
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stats', ...entry }));
+// ── Match stats' keys ────────────────────────────────────────────────────────
+// Every api request leaves its player's key in an in-memory book, so a finished
+// room match can name BOTH players to the game-stats store by their own keys
+// (the store resolves and discards them). The stats themselves are built once
+// the table routes exist, below. See src/stats/.
 const statsKeys = createKeyBook();
 api.use(statsKeys.remember);
-const matchStats = createMatchStats({
-	keys: statsKeys,
-	log: statsLog,
-	reporter: createStatsReporter({
-		log: statsLog,
-		record:
-			CONFIG.statsServiceKey === ''
-				? null
-				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.statsServiceKey }, report),
-	}),
-});
 
 api.get('/whoami', (req: Request, res: Response) => {
 	// Handed straight through from the edge, post-sanitize. Useful as the first
@@ -434,7 +421,26 @@ const tables = attachTables(api, {
 	draftRooms,
 	rooms: lobby,
 	matches: () => play?.matches ?? null,
-	matchStarted: matchStats.started,
+});
+
+// ── Match stats ──────────────────────────────────────────────────────────────
+// A finished room match is reported with this server's service key; without
+// one, nothing is recorded. Its start is read from the room and the match at
+// game over (`tables.matchStart`), so a match taken back after a restart is
+// reported too.
+const statsLog = (entry: Record<string, unknown>): void =>
+	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stats', ...entry }));
+const matchStats = createMatchStats({
+	keys: statsKeys,
+	log: statsLog,
+	startOf: tables.matchStart,
+	reporter: createStatsReporter({
+		log: statsLog,
+		record:
+			CONFIG.statsServiceKey === ''
+				? null
+				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.statsServiceKey }, report),
+	}),
 });
 
 // ── Matches ──────────────────────────────────────────────────────────────────

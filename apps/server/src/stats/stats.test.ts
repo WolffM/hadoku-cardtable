@@ -217,7 +217,8 @@ describe("a deck's summary", () => {
 	it('folds a real library deck into its size, basics and colours', () => {
 		const library = loadTablesLibrary(REPO_ROOT);
 		const deck = library.decks.find((d) => d.deck.name === 'Mono Green Infect') ?? library.decks[0]!;
-		const summary = summarizeDeck(deck.text, deck.deck.name, {}, deck.id);
+		const summary = summarizeDeck(deck.text, {}, deck.id);
+		expect(summary.name).toBe(deck.deck.name);
 		expect(summary.id).toBe(deck.id);
 		expect(summary.cards).toBeGreaterThanOrEqual(40);
 		expect(summary.basicLands).toBeGreaterThan(0);
@@ -226,7 +227,7 @@ describe("a deck's summary", () => {
 
 	it('reads colours from the cost map, Phyrexian adding none', () => {
 		const text = '[metadata]\nName=Test\n[Main]\n4 Gut Shot\n4 Llanowar Elves\n12 Forest\n';
-		const summary = summarizeDeck(text, 'Test', { 'Gut Shot': '{R/P}', 'Llanowar Elves': '{G}' });
+		const summary = summarizeDeck(text, { 'Gut Shot': '{R/P}', 'Llanowar Elves': '{G}' });
 		expect(summary).toEqual({ name: 'Test', colors: ['G'], cards: 20, basicLands: 12 });
 	});
 });
@@ -293,20 +294,23 @@ describe('who a report names', () => {
 		book.remember(requestWith('k-alice'), {} as Response, () => undefined);
 		const sent: MatchReport[] = [];
 		const logs: Record<string, unknown>[] = [];
+		const h = harness();
 		const stats = createMatchStats({
 			keys: book,
 			log: (e) => logs.push(e),
 			reporter: createStatsReporter({ record: async (r) => (sent.push(r), { duplicate: false }), log: (e) => logs.push(e) }),
-		});
-		const h = harness();
-		stats.started(h.match.id, {
-			mode: 'constructed',
-			startedAt: 0,
-			attrs: {},
-			seats: [
-				{ memberId: identityFromHeaders({ 'x-user-key': 'k-alice' }, 'unused'), displayName: 'Alice', deck: null },
-				{ memberId: 'fk:nobodyknowsme0', displayName: 'Bob', deck: null },
-			],
+			startOf: (m) =>
+				m.id !== h.match.id
+					? null
+					: {
+							mode: 'constructed',
+							startedAt: 0,
+							attrs: {},
+							seats: [
+								{ ai: false, memberId: identityFromHeaders({ 'x-user-key': 'k-alice' }, 'unused'), displayName: 'Alice', deck: null },
+								{ ai: false, memberId: 'fk:nobodyknowsme0', displayName: 'Bob', deck: null },
+							],
+						},
 		});
 		playOut(h);
 		h.host.push({ t: 'gameover', winner: 'Seat 1' });
@@ -317,9 +321,22 @@ describe('who a report names', () => {
 			['guest', undefined],
 		]);
 		expect(JSON.stringify(logs)).not.toContain('k-alice');
+	});
 
+	it('skips a match no room started, and says so', () => {
+		const logs: Record<string, unknown>[] = [];
+		const record = vi.fn();
+		const stats = createMatchStats({
+			keys: createKeyBook(),
+			log: (e) => logs.push(e),
+			reporter: createStatsReporter({ record, log: (e) => logs.push(e) }),
+			startOf: () => null,
+		});
+		const h = harness();
+		playOut(h);
+		h.host.push({ t: 'gameover', winner: 'Seat 1' });
 		stats.gameOver(h.match);
-		expect(logs.at(-1)).toMatchObject({ evt: 'stats-skipped', matchId: h.match.id });
-		expect(sent).toHaveLength(1);
+		expect(logs).toEqual([{ evt: 'stats-skipped', matchId: h.match.id, reason: 'no room started this match' }]);
+		expect(record).not.toHaveBeenCalled();
 	});
 });

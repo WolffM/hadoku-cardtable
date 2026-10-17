@@ -131,6 +131,7 @@ import type { DraftRooms } from '../room/draftRooms.js';
 import { viewForParticipant } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId } from '../room/lobby.js';
+import type { MatchSpec } from '../play/host.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
 	checkSeat,
@@ -252,11 +253,14 @@ export interface TablesDeps {
 	 * the two seats their decks are in.
 	 */
 	matches?: () => TablesMatches | null;
-	/**
-	 * A room's match has its players seated. The match stats keep this until the
-	 * game is over; absent, nothing is recorded.
-	 */
-	matchStarted?(matchId: string, start: MatchStartInput): void;
+}
+
+/** What `matchStart` reads off a match: all of it in `jvm.json`, so a restart keeps it. */
+export interface StartedMatch {
+	id: string;
+	spec: MatchSpec;
+	startedAt: number;
+	seats: readonly { owner: string | null; displayName?: string }[];
 }
 
 export interface TablesHandle {
@@ -270,6 +274,15 @@ export interface TablesHandle {
 	 * a holder who is not in that room, and a match no room started.
 	 */
 	seatAvatar(matchId: string, memberId: string): string | undefined;
+	/**
+	 * A room's match as the match stats report it, read when they ask (at game
+	 * over) from where each fact lives: the room that started it (`roomOfMatch`)
+	 * for its id and each holder's name and face, the match's own spec for its
+	 * pool and decks, and the match for who holds each seat and when it began.
+	 * Nothing is captured at the start, so a match taken back after a restart
+	 * reads the same as one that never left. Null for a match no room started.
+	 */
+	matchStart(match: StartedMatch): MatchStartInput | null;
 	/**
 	 * Run once play has adopted the matches an earlier server left running: every
 	 * room whose match did not come back lets go of it (`liveMatchId`), so no room
@@ -1181,7 +1194,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
 		// checked by the same gate as the player's. A drafted pool offers no library
 		// deck, so a drafted room cannot have a bot.
-		let botDeck: { id: string; text: string; name: string } | null = null;
+		let botDeck: string | null = null;
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
 			const swept = draftIdOfPool(room.format) === null ? legalLibraryDecks(room.format, contextFor(owner)) : { ids: [] };
@@ -1190,8 +1203,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
 				return;
 			}
-			const picked = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!;
-			botDeck = { id: picked.id, text: picked.text, name: picked.deck.name || 'Unnamed deck' };
+			botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
 		}
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {
@@ -1239,7 +1251,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// the match ends, and not when a restart releases a match that did
 				// not come back (`releaseGoneMatches`). The decks stay held: they are what a Rematch plays.
 				for (const p of players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
-				deps.matchStarted?.(matchId, matchStartOf(room, loaded, botDeck));
 				log({ evt: 'room-match-started', room: room.id, matchId, decks: loaded.map((p) => p.deck.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
 				settle(200, { matchId });
 				return answer(payload);
@@ -1256,7 +1267,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// else); the AI seat's entry is absent, so play names it itself.
 			req.body = {
 				opponent: 'ai',
-				decks: [loaded[0]!.deck.text, botDeck!.text],
+				decks: [loaded[0]!.deck.text, botDeck!],
 				names: [loaded[0]!.member.name, undefined],
 				format: room.format,
 				handSmoothing: room.settings.handSmoothing,
@@ -1277,34 +1288,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		next();
 	}
 
-	/**
-	 * What the match stats keep from a room's start: who sat where, with which
-	 * deck, in which pool. `memberId` is how the stats find each player's key;
-	 * the AI seat has none. The cost map is the room's era's own plus the
-	 * library's, so a deck's colours fold the same as the room screen's pips.
-	 */
-	function matchStartOf(room: RoomViewLike, players: LoadedPlayer[], botDeck: { id: string; text: string; name: string } | null): MatchStartInput {
-		const format = library.format(room.format);
-		const costs = format === undefined ? LIBRARY_CARD_COSTS : { ...LIBRARY_CARD_COSTS, ...format.fixture.manaCost };
-		const family = draftIdOfPool(room.format) !== null ? 'draft' : room.format === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
-		const seats: MatchStartInput['seats'] = players.map((p) => {
-			const ref = p.deck.choice.deck;
-			return {
-				memberId: p.member.id,
-				displayName: p.member.name,
-				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
-				deck: summarizeDeck(p.deck.text, p.deck.verdict.deckName, costs, 'library' in ref ? ref.library : undefined),
-			};
-		});
-		if (botDeck !== null) seats.push({ memberId: null, deck: summarizeDeck(botDeck.text, botDeck.name, costs, botDeck.id) });
-		return {
-			mode: 'constructed',
-			roomId: room.id,
-			startedAt: Date.now(),
-			attrs: { format: family, pool: room.format, opponent: botDeck === null ? 'human' : 'bot' },
-			seats,
-		};
-	}
+	/** A library deck's id by its exact text — what a seat's deck was picked as, read back off the spec. */
+	const libraryIdByText = new Map(library.decks.map((d) => [d.text, d.id]));
 
 	gate.post('/matches', (req: Request, res: Response, next: NextFunction) => {
 		const body = (req.body ?? {}) as Record<string, unknown>;
@@ -1374,6 +1359,37 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		library,
 		seatAvatar(matchId, memberId) {
 			return rooms?.roomOfMatch(matchId)?.members.find((m) => m.id === memberId)?.avatarId;
+		},
+		matchStart(match) {
+			const room = rooms?.roomOfMatch(match.id);
+			if (room === undefined) return null;
+			// The pool the match was dealt in, from its own spec: the room's can move on after it.
+			const pool = match.spec.format ?? 'unknown';
+			const format = library.format(pool);
+			const costs = format === undefined ? LIBRARY_CARD_COSTS : { ...LIBRARY_CARD_COSTS, ...format.fixture.manaCost };
+			const family = draftIdOfPool(pool) !== null ? 'draft' : pool === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
+			const deckOf = (text: string | null) => (text === null ? null : summarizeDeck(text, costs, libraryIdByText.get(text)));
+			const seats: MatchStartInput['seats'] = match.spec.seats.map((s, i) => {
+				if (s.ai) return { ai: true, memberId: null, deck: deckOf(s.deck) };
+				const owner = match.seats[i]?.owner ?? null;
+				const member = owner === null ? undefined : room.members.find((m) => m.id === owner);
+				// The member's own name; the seat's, for a holder who has since left the room.
+				const displayName = member?.name ?? match.seats[i]?.displayName;
+				return {
+					ai: false,
+					memberId: owner,
+					...(displayName === undefined ? {} : { displayName }),
+					...(member?.avatarId === undefined ? {} : { avatarId: member.avatarId }),
+					deck: deckOf(s.deck),
+				};
+			});
+			return {
+				mode: 'constructed',
+				roomId: room.id,
+				startedAt: match.startedAt,
+				attrs: { format: family, pool, opponent: match.spec.seats.some((s) => s.ai) ? 'bot' : 'human' },
+				seats,
+			};
 		},
 		releaseGoneMatches() {
 			for (const room of rooms?.list() ?? []) liveMatchId(room);

@@ -1,7 +1,7 @@
 /**
  * A finished match, as the game-stats store takes it (`@wolffm/prefs-client/games`'s
- * `MatchReport`): the start half captured when the room seated its players, the
- * end half read off the match (`facts.ts`). Pure — no clock, no I/O — so every
+ * `MatchReport`): the start half read from the room that started the match and
+ * the match's own spec, the end half read off the match (`facts.ts`). Pure — no clock, no I/O — so every
  * stat this server records is a unit test.
  *
  * Every key here is a stat name in the store and stays stable: the store
@@ -15,7 +15,7 @@ import { MATCH_ID_PATTERN, STAT_LIMITS, type MatchReport, type MatchSeatReport, 
 
 import type { MatchFacts, SeatFacts } from './facts.js';
 
-/** What a seat's deck is, folded once at the start from the `.dck` Forge was handed. */
+/** What a seat's deck is, folded from the `.dck` Forge was handed. */
 export interface DeckSummary {
 	name: string;
 	/** The library deck's catalog id; absent for a pasted or drafted list. */
@@ -44,17 +44,15 @@ export interface MatchStart {
 }
 
 /**
- * The main deck's size, basics and colours. Colours fold the spells' costs
- * (`@hadoku/deck`'s `deckColorsByName` — the room screen's own pips), so a name
- * the cost map has no entry for, which every land is, adds no colour.
+ * The deck's name, and its main deck's size, basics and colours — all read off
+ * the `.dck` text Forge was handed. The name is its `Name=`, as the gate names
+ * a deck. Colours fold the spells' costs (`@hadoku/deck`'s `deckColorsByName`
+ * — the room screen's own pips), so a name the cost map has no entry for,
+ * which every land is, adds no colour.
  */
-export function summarizeDeck(
-	text: string,
-	name: string,
-	costs: Readonly<Record<string, string>>,
-	id?: string,
-): DeckSummary {
-	const main = parseDck(text).sections.get('main') ?? [];
+export function summarizeDeck(text: string, costs: Readonly<Record<string, string>>, id?: string): DeckSummary {
+	const file = parseDck(text);
+	const main = file.sections.get('main') ?? [];
 	let cards = 0;
 	let basicLands = 0;
 	for (const entry of main) {
@@ -62,7 +60,7 @@ export function summarizeDeck(
 		if (isBasicLand(entry.card)) basicLands += entry.count;
 	}
 	return {
-		name,
+		name: file.name === null || file.name === '' ? 'Unnamed deck' : file.name,
 		...(id === undefined ? {} : { id }),
 		colors: deckColorsByName(
 			main.map((e) => e.card.name),
