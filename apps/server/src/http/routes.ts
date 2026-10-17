@@ -41,6 +41,13 @@
  * that is not live any more (`stopped`/`failed`, or the registry has simply
  * lost the match) just releases the table with no outcome recorded.
  *
+ * **Eager, since wave 72 §P.** `TablesHandle.gameOver` does the same `over`
+ * work the moment play says a match ended (`index.ts` composes it onto the
+ * one `onGameOver` line, beside `matchStats.gameOver`), so every reader of
+ * `GET /api/rooms/:id` sees the result at once rather than only after some
+ * request happens to hit a `/api/tables` route first. `liveMatchId`'s own
+ * `over` arm stays, as the boot sweep's path only (`releaseGoneMatches`).
+ *
  * During `sideboarding`, `PUT …/deck` additionally checks the resubmission
  * against the seat's OWN deck at the start of the series (`sideboardIssue`):
  * the same cards, only re-split between main and board — basics excepted on
@@ -380,6 +387,32 @@ export interface TablesHandle {
 	 * advertises "playing" a game that died with the old process.
 	 */
 	releaseGoneMatches(): void;
+	/**
+	 * A table's match ACTUALLY ended, from play's OWN end event
+	 * (`play/match.ts:3497`'s `onGameOver`) — called at once, so a table's
+	 * series ledger (`RoomTable.series`) and `matchId` are current for EVERY
+	 * reader of `GET /api/rooms/:id`, not only one whose request happens to
+	 * hit a `/api/tables` route first (wave 72 §P step 1). `index.ts` composes
+	 * this with `matchStats.gameOver` on the one `onGameOver` line, so both
+	 * run from the same event; `play/**` is not otherwise touched.
+	 *
+	 * `liveMatchId`'s own `over` arm (above) is UNCHANGED and stays reachable
+	 * — it is now only the boot sweep's path, for a match that ended while no
+	 * process was listening (`releaseGoneMatches`, run once play has adopted
+	 * an earlier server's orphans). Running both for the same game is
+	 * harmless: by the time either second call could happen,
+	 * `recordGameResult` has already cleared the table's `matchId`, and
+	 * neither finds a table still pointing at this match to record again.
+	 */
+	gameOver(match: GameOverMatch): void;
+}
+
+/** The part of play's `Match` that deciding and recording its outcome needs — see `winnerSeatOf`. */
+export interface GameOverMatch {
+	id: string;
+	winner: string | null;
+	concededBy: number | null;
+	seats: readonly { displayName?: string }[];
 }
 
 function defaultLog(entry: Record<string, unknown>): void {
@@ -1806,6 +1839,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		},
 		releaseGoneMatches() {
 			for (const room of rooms?.list() ?? []) for (const table of room.tables) liveMatchId(room, table);
+		},
+		gameOver(match) {
+			if (rooms === null) return;
+			const room = rooms.roomOfMatch(match.id);
+			if (room === undefined) return;
+			const table = room.tables.find((t) => t.matchId === match.id);
+			if (table === undefined) return;
+			const winner = winnerSeatOf(match);
+			rooms.recordGameResult(room.id, table.id, { matchId: match.id, winner });
+			log({ evt: 'table-game-over', room: room.id, table: table.id, matchId: match.id, winner });
 		},
 	};
 }

@@ -511,7 +511,14 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 		log: () => {},
 		startTimeoutMs: 5000,
 		seatAvatar: tables.seatAvatar,
-		onGameOver: stats.gameOver,
+		// The composition `index.ts` wires on its one `onGameOver` line (wave 72
+		// §P step 1): the stats report, and the table's own series ledger,
+		// recorded from the SAME event rather than waiting for a `/api/tables`
+		// read to notice the match ended.
+		onGameOver: (match) => {
+			stats.gameOver(match);
+			tables.gameOver(match);
+		},
 		keys,
 	});
 	attached = play;
@@ -1960,6 +1967,48 @@ describe('a room table', () => {
 		const again = await pending;
 		expect(again.status).toBe(201);
 		expect(again.body.matchId).not.toBe(matchId);
+	});
+
+	/**
+	 * Wave 72 §P step 1: the eager series. `GET /api/rooms/:id` is lane A's
+	 * own route (`http/rooms.ts`) and calls `lobby.get` directly — it never
+	 * touches this file's `tableView`/`liveMatchId`, so before this wave
+	 * nothing told the room a match had ended until some request happened to
+	 * hit a `/api/tables` route first. `h.lobby.get` stands in for that read
+	 * here: it is the exact method `http/rooms.ts` calls, and `FakeLobby`'s
+	 * header says it is lane A's stand-in. No `/api/tables` route — in
+	 * particular `view()` — is called anywhere in this test.
+	 */
+	it("records a table's finished game at once, from play's own end event, with no /api/tables read in between", async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const started = await startRoom(h, 'alice');
+		expect(started.status).toBe(201);
+		const matchId = started.body.matchId as string;
+		expect(h.matches.get(matchId)?.status).toBe('running');
+
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: null });
+		expect(h.matches.get(matchId)?.status).toBe('over');
+
+		// No `view()` and no other `/api/tables` call anywhere in this test:
+		// `onGameOver`'s own composition (`tables.gameOver`, wired in `boot()`
+		// exactly as `index.ts` wires it) is what has to have already recorded
+		// the game and cleared the table's match id, from the `gameover` push
+		// above alone.
+		const table = h.lobby.get(ROOM)?.tables[0];
+		expect(table?.matchId).toBeNull();
+		expect(table?.series.games).toEqual([{ matchId, winner: null }]);
+		expect(table?.series.phase).toBe('done');
+
+		// Reverted (comment out `tables.gameOver(match)` from `boot()`'s
+		// composed `onGameOver`, or empty out `TablesHandle.gameOver`'s body in
+		// `routes.ts`): both assertions above fail — `table?.matchId` is
+		// still the finished match's id and `series.games` is empty, because
+		// nothing but a `/api/tables` read would have cleared it. 2 failed.
+		// Restored: 2 passed.
 	});
 
 	/**

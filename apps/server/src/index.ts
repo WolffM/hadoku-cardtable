@@ -478,7 +478,15 @@ play = attachPlay(io, api, {
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
-	onGameOver: matchStats.gameOver,
+	// Two listeners on one event: the stats report (`matchStats.gameOver`) and
+	// the room's own series ledger, recorded AT ONCE rather than waiting for a
+	// `/api/tables` read to notice the match is over (wave 72 §P step 1,
+	// `http/routes.ts`'s `TablesHandle.gameOver`). `play/**` itself is
+	// untouched — this is still the one hook it already exposed.
+	onGameOver: (match) => {
+		matchStats.gameOver(match);
+		tables.gameOver(match);
+	},
 	keys: statsKeys,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
 	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
