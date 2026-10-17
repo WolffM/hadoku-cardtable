@@ -290,9 +290,14 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 }
 
 /**
- * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], names?: [string?, string?], scenario?: string, format?: string, handSmoothing?: boolean }`.
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], names?: [string?, string?], scenario?: string, format?: string, handSmoothing?: boolean, chooser?: 0 | 1 }`.
  * `format` is the room's format id, which a card-name ask is narrowed to (`names.ts`),
  * and `handSmoothing` is the room's setting of that name (`MatchSpec.handSmoothing`).
+ *
+ * `chooser` (wave 71 §E) names the seat Forge asks to choose play or draw —
+ * see `MatchSpec.chooser`'s own doc (`host.ts`) for why a fresh match needs
+ * this named rather than left to Forge's own coin toss. Absent: untouched,
+ * exactly today's unrigged toss.
  *
  * `names` (wave 31 §S) is what Forge shows for each seat, in seat order — see
  * {@link sanitizeSeatName}. It IS the Forge player's name, so Forge's own
@@ -312,7 +317,15 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
-		if (key !== 'opponent' && key !== 'decks' && key !== 'names' && key !== 'scenario' && key !== 'format' && key !== 'handSmoothing') {
+		if (
+			key !== 'opponent' &&
+			key !== 'decks' &&
+			key !== 'names' &&
+			key !== 'scenario' &&
+			key !== 'format' &&
+			key !== 'handSmoothing' &&
+			key !== 'chooser'
+		) {
 			return { ok: false, error: `unknown field ${key}` };
 		}
 	}
@@ -344,6 +357,8 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	const format = b.format as string | undefined;
 	if (b.handSmoothing !== undefined && typeof b.handSmoothing !== 'boolean') return { ok: false, error: 'handSmoothing is a boolean' };
 	const handSmoothing = b.handSmoothing as boolean | undefined;
+	if (b.chooser !== undefined && b.chooser !== 0 && b.chooser !== 1) return { ok: false, error: 'chooser is 0 or 1' };
+	const chooser = b.chooser as 0 | 1 | undefined;
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
 	// whole spec to the JVM. `jvm.test.ts` has always used it by building a spec
@@ -392,6 +407,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		...(scenario === undefined ? {} : { scenario }),
 		...(format === undefined ? {} : { format }),
 		...(handSmoothing === undefined ? {} : { handSmoothing }),
+		...(chooser === undefined ? {} : { chooser }),
 	};
 	return { ok: true, spec };
 }

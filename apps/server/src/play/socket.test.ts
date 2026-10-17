@@ -1548,6 +1548,23 @@ describe('parseStartBody: handSmoothing', () => {
 	});
 });
 
+describe('parseStartBody: chooser (wave 71 §E)', () => {
+	it('carries the named seat onto the spec, and leaves it absent when the body has none', () => {
+		const zero = parseStartBody({ chooser: 0 });
+		const one = parseStartBody({ chooser: 1 });
+		const none = parseStartBody({});
+		expect(zero.ok && zero.spec.chooser).toBe(0);
+		expect(one.ok && one.spec.chooser).toBe(1);
+		expect(none.ok && 'chooser' in none.spec).toBe(false);
+	});
+
+	it('refuses anything that is not literally 0 or 1', () => {
+		expect(parseStartBody({ chooser: 2 })).toEqual({ ok: false, error: 'chooser is 0 or 1' });
+		expect(parseStartBody({ chooser: '0' })).toEqual({ ok: false, error: 'chooser is 0 or 1' });
+		expect(parseStartBody({ chooser: true })).toEqual({ ok: false, error: 'chooser is 0 or 1' });
+	});
+});
+
 describe('parseStartBody: scenario (wave 33 §S, shape 1)', () => {
 	it('carries the text onto the spec unchanged', () => {
 		const r = parseStartBody({ scenario: 'humanlife=20\nailife=5\n' });
