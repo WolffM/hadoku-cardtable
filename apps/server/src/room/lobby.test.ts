@@ -18,11 +18,13 @@
 
 import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-store';
 import { createSeatTable } from '@wolffm/rooms-protocol';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import {
 	AVATAR_ID_MAX,
@@ -258,8 +260,8 @@ describe('a room’s format', () => {
 		// Both ends are read off the real pool directory, so a new frozen pool moves
 		// this test instead of failing it.
 		expect(POOLS.length).toBeGreaterThan(1);
-		expect(newestFormat()).toBe(POOLS[POOLS.length - 1]);
-		expect(newestFormat()).not.toBe(POOLS[0]);
+		expect(newestFormat(CATALOG)).toBe(POOLS[POOLS.length - 1]);
+		expect(newestFormat(CATALOG)).not.toBe(POOLS[0]);
 		// AF41 put Type 2's 1995 summer at the front of the catalog.
 		expect(POOLS[0]).toBe('1995-07-01');
 	});
@@ -273,7 +275,7 @@ describe('a room’s format', () => {
 		expect(families.sort()).toEqual(['legacy', 'modern', 'standard']);
 		/** Each room makes two draws, family then era: the ends of [0, 1) reach the first and the last of each. */
 		const draws = [0, 0, 0.999999, 0.999999];
-		const lobby = await openLobby({ dir: await tempDir(), random: () => draws.shift()! });
+		const lobby = await openLobby({ dir: await tempDir(), random: () => draws.shift()!, formats: CATALOG });
 		const first = lobby.create(ALICE, { name: 'Low', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		const last = lobby.create(ALICE, { name: 'High', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!first.ok || !last.ok) throw new Error('create refused');
@@ -336,6 +338,32 @@ describe('a room’s format', () => {
 		// Legacy era, so a reverted implementation (`formats.at(-1)?.id`) would
 		// answer that instead of the newest Standard one.
 		expect(newestFormat(mixed)).not.toBe(mixed.at(-1)!.id);
+	});
+
+	/*
+	 * A pool fixture that will not parse is a `fault` of the server's library, not
+	 * one of its `formats` — and the lobby draws from those same `formats`, so no
+	 * room ever opens on, or restores onto, an era the tables routes cannot serve.
+	 */
+	it('never opens or restores a room on an era whose pool fixture failed to parse', async () => {
+		const root = await tempDir();
+		mkdirSync(join(root, 'decks', 'pools'), { recursive: true });
+		const fixture = (date: string) => ({ date, name: `Test (${date})`, effective: date, source: 'test', sets: ['AAA'], banned: [], cards: ['Test Card'], manaCost: {}, colors: {} });
+		writeFileSync(join(root, poolFixturePath('2012-07-13', 'standard')), JSON.stringify(fixture('2012-07-13')));
+		writeFileSync(join(root, poolFixturePath('2014-07-18', 'standard')), '{ not json');
+		const collection = (date: string): LibraryCollection => ({ id: `fx-${date}`, directory: `decks/fx-${date}`, event: date, format: date, date, source: 'test', decks: [], family: 'standard' });
+		const library = loadTablesLibrary(root, [collection('2012-07-13'), collection('2014-07-18')]);
+		expect(library.faults).toHaveLength(1);
+		expect(library.faults[0]).toContain('2014-07-18');
+
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'before-format', legacyApp());
+		// The top of [0, 1) is the catalog's last era — the broken one, were it offered.
+		const lobby = await openLobby({ dir, random: () => 0.999999, formats: library.formats });
+		const made = lobby.create(ALICE, { name: 'Fresh', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		expect(made.room.format).toBe('2012-07-13');
+		expect(lobby.get('before-format')?.format).toBe('2012-07-13');
 	});
 
 	it('answers NO_FORMAT for a catalog with no Standard era at all', () => {

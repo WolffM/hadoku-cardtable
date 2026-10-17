@@ -83,7 +83,7 @@ import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNam
 import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
-import { attachTables } from './http/index.js';
+import { attachTables, loadTablesLibrary } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
 import { attachSounds } from './http/sounds.js';
 import { serveCover } from './cover.js';
@@ -312,6 +312,22 @@ app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 });
 
 // ── Rooms ───────────────────────────────────────────────────────────────────
+// ── The library ──────────────────────────────────────────────────────────────
+// Every catalogued era's frozen pool and every library deck, read once, here,
+// before the server listens: ~16 MB of JSON parsed synchronously, which on a
+// request path blocks every room, match and socket for most of a second. Both
+// readers share this one copy — the lobby draws a new room's era from its
+// `formats` (so a pool fixture that failed to parse, which lands in `faults`,
+// is never a room's era), and `attachTables` serves it.
+//
+// `PKG_ROOT` is computed the way `config.ts` computes it, and it has to be:
+// `dist/index.js` and `src/index.ts` are both exactly one directory below the
+// package root, which is what makes one expression right for both the bundle
+// and `tsx`. A module one level deeper could not do this.
+const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const REPO_ROOT = resolve(PKG_ROOT, '../..');
+const library = loadTablesLibrary(REPO_ROOT);
+
 // The room list the front page shows, and the per-player state a table reads.
 // Persisted, because this repo redeploys several times a day and an in-memory
 // room would take its members and its password with it every time. `data/` is
@@ -332,7 +348,8 @@ if (newRoomFormat !== undefined && newRoomFormat !== 'newest') {
 }
 const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
-	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat() } : {}),
+	formats: library.formats,
+	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
 	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
 });
 attachRooms(api, { lobby });
@@ -350,12 +367,6 @@ attachSounds(api, {
 // The cube the pod is dealt from. Read once at boot, like the base-path check
 // and for the same reason: a synchronous read of a 280 kB file does not belong
 // on a request path, and a rebuild is a redeploy.
-//
-// `PKG_ROOT` is computed the way `config.ts` computes it, and it has to be:
-// `dist/index.js` and `src/index.ts` are both exactly one directory below the
-// package root, which is what makes one expression right for both the bundle
-// and `tsx`. A module one level deeper could not do this.
-const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const POOL_FILE = process.env.CARDTABLE_POOL_FILE
 	? resolve(process.env.CARDTABLE_POOL_FILE)
 	: resolve(PKG_ROOT, '../ui/src/draft/pool.json');
@@ -418,7 +429,8 @@ setInterval(sweepRooms, ROOM_SWEEP_MS).unref();
 // must stay after this call for the gate to answer first at all.
 let play: PlayHandle | null = null;
 const tables = attachTables(api, {
-	repoRoot: resolve(PKG_ROOT, '../..'),
+	repoRoot: REPO_ROOT,
+	library,
 	draftRooms,
 	rooms: lobby,
 	matches: () => play?.matches ?? null,

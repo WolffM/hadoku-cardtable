@@ -95,7 +95,7 @@ async function openApp(
 		dir,
 		log,
 		...(opts.now === undefined ? {} : { now: opts.now }),
-		...(opts.random === undefined ? { defaultFormat: NEWEST_POOL } : { random: opts.random }),
+		...(opts.random === undefined ? { defaultFormat: NEWEST_POOL } : { random: opts.random, formats: LIBRARY_FORMATS }),
 	});
 	const app = express();
 	app.use(edgeMod.edgeProvenance);

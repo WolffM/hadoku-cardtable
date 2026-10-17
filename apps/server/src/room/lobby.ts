@@ -58,9 +58,6 @@
  */
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
 	FileRoomStore,
 	STORE_VERSION,
@@ -72,12 +69,9 @@ import {
 	type SerializedMember,
 } from '@hadoku/room-store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
-// A data loader, not a route: `http/library.ts` is what reads `decks/pools`, and
-// its catalog is what a new room's format is drawn from. Importing it here rather
-// than restating the pool-file convention keeps one reader for that fact; it
-// pulls in no HTTP and closes no cycle (`library.ts` imports only `node:fs`,
-// `node:path` and `@hadoku/deck`).
-import { loadTablesLibrary, type TableFormat } from '../http/library.js';
+// A type only: the catalog itself is loaded once, at boot, by `index.ts`
+// (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
+import type { TableFormat } from '../http/library.js';
 
 export type GameType = 'constructed-1v1' | 'draft';
 /**
@@ -194,48 +188,8 @@ export function draftIdOfPool(pool: FormatId): string | null {
 	return ROOM_ID_RE.test(draftId) ? draftId : null;
 }
 
-/**
- * The repo root, found by walking up from this module to the first ancestor that
- * holds `decks/pools`.
- *
- * NOT `dirname(dirname(import.meta.url))`. That expression is right for
- * `src/index.ts` and `dist/index.js` — each exactly one directory below the
- * package root — and wrong for this file, which sits two directories down in
- * `src` and is bundled INTO `dist/index.js` (`esbuild --bundle`, see
- * `package.json`). The two layouts differ by a level, so a fixed number of
- * `..`s cannot be right for both; the search is what makes one function right
- * for dev, for the bundle and for the deploy tree.
- */
-function repoRootWithPools(from: string): string | null {
-	let dir = dirname(fileURLToPath(from));
-	for (let up = 0; up < 8; up++) {
-		if (existsSync(join(dir, 'decks', 'pools'))) return dir;
-		const parent = dirname(dir);
-		if (parent === dir) break;
-		dir = parent;
-	}
-	return null;
-}
-
 /** A catalogued era, as far as picking a room's format needs one. */
-type CatalogFormat = Pick<TableFormat, 'id' | 'family'>;
-
-/** Resolved at most once per process: it reads the pool fixtures off disk. */
-let catalogued: readonly CatalogFormat[] | null = null;
-
-/**
- * Every era the library catalogues, read off `decks/pools` once, lazily — a
- * lobby that never mints a room and restores no pre-format record never reads
- * it. Derived from the catalog on every boot, so an era added to the library
- * is a candidate for a new room after the next deploy, with nothing here to
- * update.
- */
-function catalogFormats(): readonly CatalogFormat[] {
-	if (catalogued !== null) return catalogued;
-	const root = repoRootWithPools(import.meta.url);
-	catalogued = root === null ? [] : loadTablesLibrary(root).formats.map(({ id, family }) => ({ id, family }));
-	return catalogued;
-}
+export type CatalogFormat = Pick<TableFormat, 'id' | 'family'>;
 
 /**
  * The newest era whose `family` is `'standard'`, by comparing `id` as a
@@ -252,11 +206,10 @@ function catalogFormats(): readonly CatalogFormat[] {
  * room on. `NO_FORMAT` when the catalog has no Standard era at all (an empty
  * library, or a catalog that is Modern/Legacy only).
  *
- * `formats` is injectable so a test can pin this against a fixture catalog
- * without reading `decks/pools` off disk; with no argument it reads the real
- * catalog (`catalogFormats`).
+ * `formats` is the server's own library (`http/library.ts`'s
+ * `TablesLibrary.formats`), or a fixture catalog in a test.
  */
-export function newestFormat(formats: readonly CatalogFormat[] = catalogFormats()): FormatId {
+export function newestFormat(formats: readonly CatalogFormat[]): FormatId {
 	let newest: string | null = null;
 	for (const f of formats) {
 		if (f.family === 'standard' && (newest === null || f.id > newest)) newest = f.id;
@@ -275,7 +228,7 @@ export function newestFormat(formats: readonly CatalogFormat[] = catalogFormats(
  * `random` answers in [0, 1), as `Math.random` does; tests inject one.
  * `NO_FORMAT` for an empty catalog.
  */
-export function randomFormat(random: () => number, formats: readonly CatalogFormat[] = catalogFormats()): FormatId {
+export function randomFormat(random: () => number, formats: readonly CatalogFormat[]): FormatId {
 	const byFamily = new Map<string, FormatId[]>();
 	for (const f of formats) {
 		const eras = byFamily.get(f.family);
@@ -710,12 +663,20 @@ export interface OpenLobbyOptions {
 	/**
 	 * One era every new room starts on, in place of a random one, and what a
 	 * record written before the field reads back as. Absent, a new room draws its
-	 * own (`randomFormat`) and such a record reads back on `newestFormat()`.
+	 * own (`randomFormat`) and such a record reads back on `newestFormat(formats)`.
 	 * For tests and the e2e harnesses, whose specs read a fresh room's pool.
 	 */
 	defaultFormat?: FormatId;
 	/** Injected for tests: the draw behind a new room's random format. `Math.random` otherwise. */
 	random?: () => number;
+	/**
+	 * The eras a new room's format is drawn from: the `formats` of the library the
+	 * server loaded at boot (`index.ts`), so a room only ever opens on an era the
+	 * same server will serve — a pool fixture that failed to parse is in that
+	 * library's `faults`, not its `formats`, and so never reaches a room. Absent,
+	 * the catalog is empty and a new room opens on `NO_FORMAT`.
+	 */
+	formats?: readonly CatalogFormat[];
 }
 
 // ── the password ─────────────────────────────────────────────────────────────
@@ -1450,7 +1411,8 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const log = opts.log ?? (() => {});
 	const fixed = opts.defaultFormat;
 	const random = opts.random ?? Math.random;
-	const lobby = new FileLobby(store, now, log, fixed === undefined ? () => randomFormat(random) : () => fixed);
+	const formats = opts.formats ?? [];
+	const lobby = new FileLobby(store, now, log, fixed === undefined ? () => randomFormat(random, formats) : () => fixed);
 
 	for (const roomId of await store.list()) {
 		const quarantine = async (reason: string): Promise<void> => {
@@ -1508,7 +1470,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// decks against is exactly the bug this field exists to prevent:
 					// the decks are restored too (the per-member blob), so the pool
 					// they were checked in has to come back with them.
-					format: app.format ?? fixed ?? newestFormat(),
+					format: app.format ?? fixed ?? newestFormat(formats),
 					settings: app.settings,
 					clientMode: app.clientMode,
 					// **Restored.** A match's JVM outlives the process that started
