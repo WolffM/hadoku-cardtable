@@ -22,7 +22,8 @@
  *     when we try to change avatars it doesn't work in the game."* Alice changes her
  *     avatar, the server restarts and adopts the match, her face must still be the
  *     one she picked, and a change after the restart must reach both boards
- *     (`[w32 restart]` lines).
+ *     (`[w32 restart]` lines). When the game then ends it is reported to the
+ *     match stats like any other, not skipped for a start the old process held.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`) like
  * `play.spec.ts`; without one each test SKIPS and its title says why. Serves the
@@ -329,6 +330,17 @@ test(titled("after a deploy mid-match, a seat keeps the avatar its player picked
 
     await saveSprite(alice.page, 'e2e-sprite-two');
     await aliceWears(alice, bob, 'e2e-sprite-two', 'changed after the deploy');
+
+    // And the game that carried on through the deploy is reported when it ends,
+    // not skipped for want of a start the old process held. This stack has no
+    // service key, so the report stops at the reporter, which says so.
+    await bob.page.getByTestId('live-concede').click();
+    await bob.page.getByTestId('live-concede-yes').click();
+    const statsRows = () => serverLog(stack).filter((r) => r.svc === 'cardtable-stats');
+    await expect.poll(() => statsRows().length, { message: 'the ended match reached the stats', timeout: 45_000 }).toBeGreaterThan(0);
+    console.log(`[w32 restart] stats after the game: ${JSON.stringify(statsRows())}`);
+    expect(statsRows().filter((r) => r.evt === 'stats-skipped'), `${matchId} is not skipped`).toEqual([]);
+    expect(statsRows().map((r) => r.evt)).toContain('stats-disabled');
   } finally {
     await stack.stop();
   }

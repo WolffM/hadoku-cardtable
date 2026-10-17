@@ -26,13 +26,15 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { moveToMain } from '@hadoku/deck';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
-import type { MatchSpec } from '../play/host.js';
+import type { MatchReport } from '@wolffm/prefs-client/games';
+import type { JvmRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
 import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
 import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
+import { createKeyBook, createMatchStats, createStatsReporter, type MatchStats } from '../stats/index.js';
 import type { DraftCard } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
@@ -364,6 +366,9 @@ interface Harness {
 	rooms: DraftRooms;
 	lobby: FakeLobby;
 	matches: MatchRegistry;
+	/** What the match stats sent to the game-stats store, wired as `index.ts` wires them. */
+	reports: MatchReport[];
+	statsLogs: Record<string, unknown>[];
 	close: () => Promise<void>;
 }
 
@@ -374,20 +379,30 @@ afterEach(async () => {
 	harness = null;
 });
 
-async function boot(): Promise<Harness> {
+/**
+ * One server process. `lobby` is what a restart restores from disk (the same
+ * rooms), and `host` stands in for the JVM pool — a restart's re-attaches
+ * through its `orphans`/`attach`.
+ */
+async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): Promise<Harness> {
 	const cube = loadPool(CUBE_FILE);
 	if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 	const rooms = createDraftRooms({ pool: cube.pool.cards, cube: cube.pool.meta, now: () => 1_700_000_000_000 });
 
 	const { factory, hosts } = replayFactory();
 	const specs: MatchSpec[] = [];
-	const lobby = fakeLobby();
+	const lobby = opts.lobby ?? fakeLobby();
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
 	app.use('/api', api);
+	const keys = createKeyBook();
+	api.use(keys.remember);
+	const reports: MatchReport[] = [];
+	const statsLogs: Record<string, unknown>[] = [];
+	let stats: MatchStats | null = null;
 	const http: HttpServer = createServer(app);
 	const io = new SocketIOServer(http, { serveClient: false });
 
@@ -404,16 +419,26 @@ async function boot(): Promise<Harness> {
 		log: () => {},
 		rooms: lobby,
 		matches: () => attached?.matches ?? null,
+		matchStarted: (id: string, start: unknown) => (stats as unknown as { started(id: string, s: unknown): void }).started(id, start),
 	});
+	stats = createMatchStats({
+		keys,
+		log: (e) => statsLogs.push(e),
+		reporter: createStatsReporter({ record: async (r) => (reports.push(r), { duplicate: false }), log: (e) => statsLogs.push(e) }),
+		startOf: (tables as unknown as { matchStart: unknown }).matchStart,
+	} as Parameters<typeof createMatchStats>[0]);
 	const play = playMod.attachPlay(io, api, {
 		minTier: 'friend',
-		host: (id, spec, events) => {
-			specs.push(spec);
-			return factory(id, spec, events);
-		},
+		host:
+			opts.host ??
+			((id, spec, events) => {
+				specs.push(spec);
+				return factory(id, spec, events);
+			}),
 		log: () => {},
 		startTimeoutMs: 5000,
 		seatAvatar: tables.seatAvatar,
+		onGameOver: (m) => stats?.gameOver(m),
 	});
 	attached = play;
 
@@ -426,6 +451,8 @@ async function boot(): Promise<Harness> {
 		rooms,
 		lobby,
 		matches: play.matches,
+		reports,
+		statsLogs,
 		close: async () => {
 			play.close();
 			io.close();
@@ -1695,6 +1722,97 @@ describe('a room table', () => {
 	 * `gameover` line on its host, not a fake registry: the fact under test is
 	 * `match.ts`'s own status transition reaching `liveMatchId`.
 	 */
+	/**
+	 * Every room match that ended after a deploy (seven in the logs, 2026-10-10
+	 * to 10-17) was logged `stats-skipped: no start was captured for this
+	 * match` and never reached the leaderboard: the start lived in the old
+	 * process's memory, and the match did not. A restart here is the real one's
+	 * shape: the old process goes, the rooms come back from disk (the same
+	 * lobby), and the new process's play takes the JVM back from its record —
+	 * `jvm.json`'s spec, owners, epoch and start time.
+	 */
+	describe('a match taken back after a restart', () => {
+		async function restarted(): Promise<{ h: Harness; matchId: string; startedAt: string; jvm: () => ReplayHost }> {
+			const before = await boot();
+			openRoom(before);
+			await bothLoaded(before);
+			await setReady(before, 'alice');
+			await setReady(before, 'bob');
+			const started = await startRoom(before, 'alice');
+			expect(started.status).toBe(201);
+			const matchId = started.body.matchId as string;
+			const old = before.matches.get(matchId)!;
+			const startedAt = new Date().toISOString();
+			const record: JvmRecord = {
+				matchId,
+				pid: process.pid,
+				run: `/nonexistent/${matchId}`,
+				startedAt,
+				epoch: old.epoch,
+				owners: [old.seats[0]!.owner, old.seats[1]!.owner],
+				spec: before.specs[0]!,
+				orphanedAt: startedAt,
+			};
+			const lobby = before.lobby;
+			await before.close();
+			harness = null;
+
+			const { factory, hosts } = replayFactory();
+			const host: MatchHostFactory = Object.assign(factory, {
+				orphans: () => [record],
+				attach: (r: JvmRecord, events: Parameters<MatchHostFactory>[2]) => {
+					const back = factory(r.matchId, r.spec!, events) as ReplayHost;
+					back.push(...OPENING);
+					return back;
+				},
+			});
+			const h = await boot({ lobby, host });
+			expect(h.matches.get(matchId)?.status).toBe('running');
+			return { h, matchId, startedAt, jvm: () => hosts.at(-1)! };
+		}
+
+		it('is recorded when it ends, with who sat where, their decks and the room it was played in', async () => {
+			const { h, matchId, startedAt, jvm } = await restarted();
+			// Each player's page reads the room again once its socket is back.
+			await view(h, 'alice');
+			await view(h, 'bob');
+			const match = h.matches.get(matchId)!;
+			jvm().push({ t: 'gameover', winner: match.spec.seats[0].name });
+
+			await vi.waitFor(() => expect(h.reports).toHaveLength(1));
+			expect(h.statsLogs.filter((e) => e.evt === 'stats-skipped')).toEqual([]);
+			const report = h.reports[0]!;
+			expect(report).toMatchObject({
+				matchId,
+				mode: 'constructed',
+				roomId: ROOM,
+				rated: true,
+				startedAt: Date.parse(startedAt),
+				attrs: { format: library.format(h.lobby.room(ROOM)!.format)!.family, pool: h.lobby.room(ROOM)!.format, opponent: 'human' },
+			});
+			expect(report.seats.map((s) => [s.seat, s.kind, s.userKey, s.displayName, s.placement, s.attrs?.deck, s.attrs?.deckId])).toEqual([
+				[0, 'user', 'friend-key-alice', 'user-alice', 1, 'UG Polymorph (Antoine Ruel)', UG_POLYMORPH],
+				[1, 'user', 'friend-key-bob', 'user-bob', 2, 'Jund (Emanuele Giusti)', SECOND_DECK],
+			]);
+			expect(report.seats[0]!.counters?.cardsInDeck).toBe(60);
+		});
+
+		it('names a player it has not heard from since the restart as a guest, and so ranks nothing', async () => {
+			const { h, matchId, jvm } = await restarted();
+			// Only alice's page has read anything from the new process.
+			await view(h, 'alice');
+			const match = h.matches.get(matchId)!;
+			jvm().push({ t: 'gameover', winner: match.spec.seats[1].name });
+
+			await vi.waitFor(() => expect(h.reports).toHaveLength(1));
+			expect(h.reports[0]!.rated).toBe(false);
+			expect(h.reports[0]!.seats.map((s) => [s.kind, s.userKey, s.displayName])).toEqual([
+				['user', 'friend-key-alice', 'user-alice'],
+				['guest', undefined, 'user-bob'],
+			]);
+		});
+	});
+
 	it('releases the room once its match is OVER, not only once it is stopped or failed', async () => {
 		const h = await boot();
 		openRoom(h);
