@@ -16,11 +16,26 @@
  *
  * Colour comes from `@wolffm/themes` only — semantic tokens, no hex literals,
  * same discipline as every other stylesheet in `apps/ui/src/screens/`.
+ *
+ * ## Clear of the watcher's line (wave 72 §R)
+ *
+ * `play/live/live.css`'s `.live__spectator` (plain status banner) and
+ * `.live__spectator--watcher` (the watcher's own line, with its flip button —
+ * `pointer-events: auto`) both sit at `top: 6px; left: 50%`, the exact spot
+ * this strip used to claim too. Same z-index, same centring, so whichever one
+ * painted last in the DOM won every click at that point — a watcher picking a
+ * board from the strip could hit the flip button's line instead
+ * (`e2e/w71-boards.spec.ts`'s watcher case). This file is the one lane R owns
+ * of the two, so the strip moves: far enough BELOW `top: 6px`'s box (height
+ * ~24px there) that the two never touch at any viewport width — they are
+ * both horizontally centred, so only a vertical gap keeps them apart for
+ * every width, not just the ones measured. `play/live/live.css` is not
+ * edited; R moves the strip, not the watcher line.
  */
 
 .board-strip {
   position: absolute;
-  top: 6px;
+  top: 40px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;

@@ -213,6 +213,23 @@ test('a room with two live tables shows the strip, switching boards never drops 
     await expect(carol.page.getByTestId('board-strip-entry')).toHaveCount(2);
     const entryFor = (table: string) => carol.page.locator(`[data-testid="board-strip-entry"][data-table-id="${table}"]`);
 
+    // The strip and the watcher's own line (`live.css`'s `.live__spectator--watcher`,
+    // `pointer-events: auto`) used to sit at the exact same spot — wave 71 §G's
+    // regression, fixed in wave 72 §R by moving the strip (`BoardStrip.css`),
+    // not the watcher's line. Carol is unseated at this table, so her own
+    // watcher line is up; `elementFromPoint` at a strip entry's centre must
+    // land on the entry, not whatever the watcher's banner draws on top of
+    // it at the same point. Red on main before the §R fix ("watcher-status …
+    // intercepts pointer events").
+    await expect(carol.page.getByTestId('watcher-status'), 'carol is a watcher, so her own line is up too').toBeVisible();
+    const entryBox = await entryFor(table1).boundingBox();
+    if (entryBox === null) throw new Error('table 1’s strip entry has no box');
+    const hitTestId = await carol.page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-testid]')?.getAttribute('data-testid') ?? null,
+      { x: entryBox.x + entryBox.width / 2, y: entryBox.y + entryBox.height / 2 },
+    );
+    expect(hitTestId, 'the strip entry is on top at its own centre, not the watcher’s line').toBe('board-strip-entry');
+
     // Switch to table 2 — timed, picking to the new board's first frame.
     const toTable2 = Date.now();
     await entryFor(table2).click();

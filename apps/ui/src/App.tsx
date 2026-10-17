@@ -56,20 +56,50 @@ export type AppProps = ScreenProps;
  * (`roomOfMatch`), asked again here because the chat has to know it BEFORE
  * `MatchScreen` ever mounts.
  *
- * Kept across matches rather than reset to `null` while a new one resolves
- * (wave 71 §G): `RoomShell` tears down and rebuilds watchparty's chrome
- * whenever the room id it is given changes, so a board switch that bounced
- * through `null` on every click would rejoin the chat twice for nothing — and
- * a player who switches to another table and back would watch their chat
- * column vanish and reappear both times. The two tables Carol moves between
- * in `e2e/w71-boards.spec.ts` are one room, so holding the last answer here
- * makes that switch a no-op render instead. The very first match a tab opens
- * still renders with no chrome for one tick, because there is no earlier
- * answer to hold on to — see the comment on `RoomShell`'s own `who === 'pending'`
- * guard for why that single bounce does not repeat.
+ * Returns `pending: true` until the FIRST fetch this hook instance has ever
+ * made (for any match id) has answered, and `pending: false` forever after —
+ * never flipped back, even while a LATER match's own fetch is still in
+ * flight.
+ *
+ * **`roomId` is kept across matches rather than reset to `null` while a new
+ * one resolves** (wave 71 §G): `RoomShell` tears down and rebuilds
+ * watchparty's chrome whenever the room id it is given changes, so a board
+ * switch that bounced through `null` on every click would rejoin the chat
+ * twice for nothing — and a player who switches to another table and back
+ * would watch their chat column vanish and reappear both times. The two
+ * tables Carol moves between in `e2e/w71-boards.spec.ts` are one room, so
+ * holding the last answer here makes that switch a no-op render instead.
+ * `pending` follows the same rule for the same reason: once ANY match has
+ * ever resolved, it stays `false`, so a later match id's own fetch being
+ * still in flight never re-opens the "nothing known yet" window — it rides
+ * on the HELD `roomId` above (correct, because the held room id came from a
+ * DIFFERENT match in the SAME room) rather than falling back to its own key
+ * for no reason.
+ *
+ * ## Why `pending` has to be tracked explicitly (wave 72 §R)
+ *
+ * This used to answer a bare `roomId: string | null`, and `roomIdFor` passed
+ * that straight to `RoomShell` whether it meant "not answered yet" or
+ * "answered: no room" — the SAME value either way. That let the board's
+ * first frame or two draw with no chrome and widen the canvas, then narrow
+ * once the real room answered — `.shell--match` measured at 1216px wide for
+ * several frames, then 896px once the fetch landed (a scratch harness
+ * confirmed it: see the wave file). The tempting one-line fix —
+ * `roomIdFor`'s `match` case falling back to the route's own `matchId`
+ * whenever `roomId` is falsy, so there is ALWAYS a truthy key from the first
+ * render — fixes that, but breaks something `e2e/w71-boards.spec.ts` already
+ * covers: a watcher's chat briefly joins the match's OWN key before the real
+ * room answers, a SECOND, DIFFERENT room from the one every other board in
+ * the room uses, if only for one frame. `App` (below) holds the board itself
+ * back while `pending`, so the chrome's presence, AND which room it is in,
+ * are decided together, before either is drawn — never flipped after the
+ * fact, and never a guess that gets corrected. A single boolean DERIVED from
+ * `roomId === null` cannot tell "not answered yet" apart from "answered: no
+ * room" by itself — which is why this is its own piece of state, set
+ * alongside `roomId` in the very same update, rather than computed from it.
  */
-function useMatchRoomId(matchId: string | null): string | null {
-  const [roomId, setRoomId] = useState<string | null>(null);
+function useMatchRoomId(matchId: string | null): { roomId: string | null; pending: boolean } {
+  const [state, setState] = useState<{ roomId: string | null; everAnswered: boolean }>({ roomId: null, everAnswered: false });
   useEffect(() => {
     if (matchId === null) return;
     let live = true;
@@ -77,17 +107,17 @@ function useMatchRoomId(matchId: string | null): string | null {
       .roomOfMatch(matchId)
       .then(
         (room) => {
-          if (live) setRoomId(room?.id ?? null);
+          if (live) setState({ roomId: room?.id ?? null, everAnswered: true });
         },
         () => {
-          if (live) setRoomId(null);
+          if (live) setState({ roomId: null, everAnswered: true });
         },
       );
     return () => {
       live = false;
     };
   }, [matchId]);
-  return roomId;
+  return { roomId: state.roomId, pending: matchId !== null && !state.everAnswered };
 }
 
 /**
@@ -107,8 +137,15 @@ function useMatchRoomId(matchId: string | null): string | null {
  * conversation stopped the moment anyone opened a board and could not be
  * resumed by opening another board of the same room (the board strip this
  * wave adds is exactly that second board). `matchRoomId` is the answer this
- * function now returns for a `match` route; it is `null` until the room is
- * known, same as a route this function always answered `null` for.
+ * function returns for a `match` route, but **falls back to the match's own
+ * id when `matchRoomId` is `null`** (wave 72 §R) — a SETTLED answer: the
+ * fetch came back with no room for this match (a scenario, a direct vs-AI
+ * game), which before wave 71 §G kept its own `cardtable-m-<id>` chat and
+ * without this fallback had none. `App` (below) never calls this with
+ * `'pending'` — it holds the board back until `useMatchRoomId` settles one
+ * way or the other, which is what keeps the chrome's presence (and, for a
+ * roomless match, which key it joins) decided BEFORE the board's first
+ * paint rather than flipped after it. `RoomShell.test.ts` pins the fallback.
  */
 export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoomId: string | null): string | null {
   switch (route.kind) {
@@ -116,7 +153,7 @@ export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoomId: strin
     case 'deck':
       return route.draftId;
     case 'match':
-      return matchRoomId;
+      return matchRoomId ?? route.matchId;
     case 'room':
       return route.roomId;
     default:
@@ -126,7 +163,12 @@ export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoomId: strin
 
 export function App({ transport }: AppProps) {
   const route = useRoute();
-  const matchRoomId = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
+  const { roomId: matchRoomId, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
+  // `pending` is only ever true for a `match` route (see the hook's own
+  // comment); read here as a single flag because it gates TWO things below
+  // together — the board itself, and the room id handed to `RoomShell` —
+  // rather than letting each reach its own, possibly different, conclusion
+  // about whether the room is known yet.
 
   // The lobby's music everywhere a player is, silence on the tools. A match
   // swaps in its own (`LiveBoard` → `setMatchMusic`).
@@ -187,13 +229,21 @@ export function App({ transport }: AppProps) {
   // `AppChrome` is the hadoku frame (theme root + the header's slot) and goes
   // OUTSIDE the room: the header belongs to the app, the room is one thing the
   // app renders. It mounts no room of its own.
+  //
+  // `matchPending` holds BOTH the room id (forced to `null` rather than
+  // `roomIdFor`'s usual fallback — see `useMatchRoomId`'s comment) AND the
+  // screen itself back until the room is known. Rendering `Screen` early
+  // with no chrome decided yet is exactly the wave 71 §G regression this
+  // wave fixes (wave 72 §R): the board would draw once at its un-chromed
+  // width and again at its chromed one once `matchRoomId` settles.
+  const roomId = matchPending ? null : roomIdFor(route, matchRoomId);
   return (
     <AppChrome header={header}>
       {/* The operator, 2026-10-10: *"theres really no reason to close the chat
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
-      <RoomShell roomId={roomIdFor(route, matchRoomId)} collapsible={route.kind !== 'room'}>
-        <Screen transport={transport} />
+      <RoomShell roomId={roomId} collapsible={route.kind !== 'room'}>
+        {matchPending ? null : <Screen transport={transport} />}
       </RoomShell>
     </AppChrome>
   );

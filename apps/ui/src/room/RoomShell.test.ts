@@ -285,6 +285,16 @@ describe('the avatar the viewer picked in watchparty', () => {
  * (`useMatchRoomId`, built on `roomsClient().roomOfMatch`) — the second
  * argument stands in for it, exactly as `App` would pass it once that fetch
  * answers.
+ *
+ * Wave 72 §R: `useMatchRoomId` answers `null` for two different reasons (not
+ * yet answered, and answered "no room"), and `roomIdFor` used to pass that
+ * bare `null` straight to `RoomShell` either way. That let a match's chrome
+ * flip on AFTER the board's first layout once the real room resolved — the
+ * board drawn once at full width, then again narrowed — and left a
+ * genuinely roomless match (a scenario, a direct vs-AI game) with no chat at
+ * all, where before §G it kept its own. Falling back to the route's own
+ * `matchId` fixes both: the chrome's presence is decided on the first
+ * render, and a roomless match still gets a chat, its own.
  */
 describe('the room a match route puts the chat in', () => {
   it('is the match’s OWN room, not a room keyed by the match id', () => {
@@ -299,9 +309,16 @@ describe('the room a match route puts the chat in', () => {
     expect(roomIdFor(route, 'r-cube-night')).not.toBe('m-090bf01ba811');
   });
 
-  it('is null while the match’s room has not resolved yet, same as before the room existed to ask for', () => {
+  it('falls back to the match’s OWN key while unresolved, and permanently for a match with no room — never a bare null (wave 72 §R)', () => {
     const route = parseRoute('#/match/m-090bf01ba811');
-    expect(roomIdFor(route, null)).toBeNull();
+    // `null` stands for BOTH "not answered yet" and "answered: no room" —
+    // `useMatchRoomId` never tells them apart — and both fall back the same
+    // way: to the match's own id, which `roomKeyFor` turns into the match's
+    // own `cardtable-m-<id>` chat, exactly as it did before wave 71 §G.
+    // Reverting this fallback (`return matchRoomId;`) makes this fail: the
+    // function would answer `null` instead.
+    expect(roomIdFor(route, null)).toBe('m-090bf01ba811');
+    expect(roomKeyFor(roomIdFor(route, null)!)).toBe('cardtable-m-090bf01ba811');
   });
 
   it('every other route is unchanged by the new parameter', () => {
