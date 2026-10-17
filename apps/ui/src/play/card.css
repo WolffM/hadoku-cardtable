@@ -735,7 +735,7 @@
  * not a live measurement of an element nobody can see).
  *
  * `--accent-ink` is the same token wave 35's corner mark used for the same
- * fact — an existing informational flag's own ink (`.seat__flag`), never the
+ * fact — an informational mark's own ink, never the
  * gestures lane's raw `--accent` (an offer) or `--warn` (a danger), so it
  * cannot be misread as either.
  *

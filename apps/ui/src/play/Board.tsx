@@ -3394,7 +3394,6 @@ function PlayerArea({
               </span>
             )}
             <PlayerCounters player={player} />
-            {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
           </div>
         </div>
         {player.libraryTop !== undefined && (

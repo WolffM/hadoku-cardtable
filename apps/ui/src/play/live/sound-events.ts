@@ -201,10 +201,11 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
   const seatByName = new Map(next.players.map((p) => [p.name, seatOf(p)] as const));
 
   // ── the game and the turn ─────────────────────────────────────────────
+  // The view that ends the game is heard like any other — the blow that took the last life is its
+  // damage — and its end besides, which the result screen holds for itself (`LiveBoard`'s END_ROLES).
   if (!prev.gameOver && next.gameOver) {
     const viewer = next.players.find((p) => p.isViewer);
     push(viewer?.hasLost === true ? 'g.lose' : 'g.win', 'me');
-    return events;
   }
   // The opponent's turn starting is silent (the operator, 2026-10-16: "i dont need a sound for their turn nor for mana").
   if (next.turn > prev.turn && next.activePlayerId !== null) {

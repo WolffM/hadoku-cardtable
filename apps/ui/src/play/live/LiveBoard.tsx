@@ -1874,6 +1874,35 @@ function fromTheBoard(seq: number): DelayedSoundEvent[] {
 }
 
 /**
+ * How long the result screen waits for the frame that shows the end (`GameOver`) after the server's notice
+ * (`finishGame`) before it goes up without it. The bridge sends the notice first; measured on a busy claw,
+ * that frame came 0 to 480 ms behind it (`e2e/cp-lethal-blow.spec.ts`). An end no frame shows at all (a
+ * concede during the deal, whose winner Forge never flushes to) is shown this late instead of never.
+ */
+export const END_UNSHOWN_MS = 2_000;
+
+/**
+ * Whether the game has ended on this screen: the view shows it — the frame that carries the killing
+ * blow — or the server's notice came and no frame showed it within `END_UNSHOWN_MS`. Never the notice
+ * alone: it arrives ahead of the blow it announces, and the frames reach the board in the server's order
+ * (`pace.ts`'s "The game's end keeps its place").
+ */
+function useGameEnded(match: LiveMatch): boolean {
+  const shown = match.view?.gameOver === true;
+  const finished = match.finished;
+  const [unshown, setUnshown] = useState(false);
+  useEffect(() => {
+    if (!finished || shown) {
+      setUnshown(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setUnshown(true), END_UNSHOWN_MS);
+    return () => clearTimeout(timer);
+  }, [finished, shown]);
+  return match.view !== null && (shown || unshown);
+}
+
+/**
  * The game's end is the board's last beat: the result screen comes once the board has drawn what ended
  * the game — the bolt that took the last life lands (the operator, 2026-10-15), the last attacker's
  * charge lands and comes home (2026-10-17) — and at once when nothing is playing.
@@ -2124,7 +2153,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => () => setMatchMusic(null), []);
   const soundView = match.view;
   // The result screen waits for the board to finish drawing what ended the game.
-  const resultShown = useAfterTheBoard(match.view !== null && (match.view.gameOver || match.finished));
+  const resultShown = useAfterTheBoard(useGameEnded(match));
   const lastSoundView = useRef<BoardView | null>(null);
   /** The game's end sound, from the view that ended it, held for the result screen. */
   const endSound = useRef<{ events: DelayedSoundEvent[]; prevSeq: number } | null>(null);

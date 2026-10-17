@@ -438,8 +438,8 @@
    */
   --mana-h: 1.9rem;
   /*
-   * The counts' track: the two marks on one line and, under them, the flags the
-   * game raises ("priority", "lost"). Fixed, so a flag arriving mid-game cannot
+   * The counts' track: the two marks on one line and, under them, the player's
+   * counters. Fixed, so a counter arriving mid-game cannot
    * move the graveyard that starts under it — and that is a stronger claim than
    * "this many rem": `e2e/table-fit.spec.ts`'s Q9/Q2 column check reads the
    * graveyard's own top edge straight off the hand/library marks' rendered box,
@@ -721,14 +721,6 @@
   width: 14px;
   height: 14px;
   fill: var(--ink-dim);
-}
-
-.seat__flag {
-  color: var(--accent-ink);
-}
-
-.seat__flag--lost {
-  color: var(--warn);
 }
 
 /*

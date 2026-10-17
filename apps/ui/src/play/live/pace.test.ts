@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
-import { classify, END_UNSHOWN_MS, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
+import { classify, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -78,7 +78,6 @@ describe('classify', () => {
     expect(classify(ON_STACK)).toBe('cast');
     expect(classify(deltaOf({ g: stackOf([3]) }))).toBe('resolve');
   });
-  it('the end notice is end', () => expect(classify(FINISH)).toBe('end'));
   it('a message notify — a game log line — is log, and waits on nothing', () => {
     expect(classify(MESSAGE)).toBe('log');
     expect(PACE_DELAYS_MS.log).toBe(0);
@@ -294,55 +293,14 @@ describe('pacedMatchTransport', () => {
     expect(received).toEqual([RESOLVE, PHASE]);
   });
 
-  it('the game’s end goes last: it waits for the frame that shows it, a few ms behind it, and goes its own gap after', () => {
-    const inner = fakeInner();
-    const { received } = paced(inner);
-    inner.deliver(FINISH); // the table was quiet: held, for the frame that shows the end
-    expect(received).toEqual([]);
-    vi.advanceTimersByTime(170);
-    inner.deliver(LETHAL);
-    expect(received).toEqual([LETHAL]);
-    vi.advanceTimersByTime(PACE_DELAYS_MS.end - 1);
-    expect(received, 'its gap runs from the frame that showed it').toEqual([LETHAL]);
-    vi.advanceTimersByTime(1);
-    expect(received).toEqual([LETHAL, FINISH]);
-  });
-
-  it('frames that arrive behind an end notice go out ahead of it, whatever their class', () => {
+  it('the end notice keeps its place: the frame that shows the end goes out behind it, in the order the server sent them', () => {
     const inner = fakeInner();
     const { received } = paced(inner);
     inner.deliver(RESOLVE);
     inner.deliver(FINISH);
-    inner.deliver(DEFAULT_DELTA);
     inner.deliver(LETHAL);
     vi.runAllTimers();
-    expect(received).toEqual([RESOLVE, DEFAULT_DELTA, LETHAL, FINISH]);
-  });
-
-  it('an end the board already shows goes its own gap after the frame before it', () => {
-    const inner = fakeInner();
-    const { received } = paced(inner);
-    inner.deliver(LETHAL);
-    inner.deliver(FINISH);
-    vi.advanceTimersByTime(PACE_DELAYS_MS.end);
-    expect(received).toEqual([LETHAL, FINISH]);
-  });
-
-  it('an end no frame ever shows still goes, END_UNSHOWN_MS after it arrived', () => {
-    const inner = fakeInner();
-    const { received } = paced(inner);
-    inner.deliver(FINISH);
-    vi.advanceTimersByTime(END_UNSHOWN_MS - 1);
-    expect(received).toEqual([]);
-    vi.advanceTimersByTime(1);
-    expect(received).toEqual([FINISH]);
-  });
-
-  it('in Fast Mode an end notice is not held', () => {
-    const inner = fakeInner();
-    const { received } = paced(inner, { initialFast: true });
-    inner.deliver(FINISH);
-    expect(received).toEqual([FINISH]);
+    expect(received).toEqual([RESOLVE, FINISH, LETHAL]);
   });
 
   it('fast mode from the start holds nothing', () => {
@@ -430,7 +388,7 @@ describe('pacedMatchTransport', () => {
 /** Every class the delay table promises, so a renamed or dropped entry fails loudly. */
 describe('PACE_DELAYS_MS', () => {
   it('has a non-negative delay for every PaceClass, and zero for input, a cast and an unseen change', () => {
-    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'draw', 'end', 'default'];
+    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'draw', 'default'];
     for (const c of classes) expect(PACE_DELAYS_MS[c]).toBeGreaterThanOrEqual(0);
     expect(PACE_DELAYS_MS.input).toBe(0);
     expect(PACE_DELAYS_MS.cast).toBe(0);

@@ -68,18 +68,16 @@
  * ({@link PaceMemory}), in arrival order. Before it has seen one (a snapshot
  * never passes through here), a frame that brings a new stack item is a cast.
  *
- * ## The game's end goes last
+ * ## The game's end keeps its place
  *
  * The server tells every seat the game is over (`finishGame`) the moment the bridge says so, and the
  * bridge says so BEFORE the frame that shows it — the last attacker's damage, the bolt that took the
- * last life — so no seat can act on a board that already ended (`PlayBridge.maybeEmitGameOverFirst`).
- * Measured on a claw (`e2e/cp-lethal-blow.spec.ts`): the notice reached each seat up to 480 ms ahead
- * of that frame. Applied in that order, the result screen covered the board before the blow was drawn (the
- * operator, 2026-10-17: "the final creature doesn't even get to attack because the game ends
- * immediately"). So an end notice (`end`) is the last thing out: whatever arrives after it goes out
- * ahead of it, and it waits for the frame that shows the end — the game's `GameOver` (remembered in
- * {@link PaceMemory}) — and its own gap after it. What that frame ends is drawn on the board's beats,
- * and the result screen waits for those in turn (`../motion.ts`'s `whenBoardStill`).
+ * last life (`PlayBridge.maybeEmitGameOverFirst`). Every frame here carries the server's cursor, and
+ * `match.ts` reads one out of order as a gap and resyncs: the view is rebuilt, and the board draws the
+ * killing blow a second time beside the first (`e2e/cp-lethal-blow.spec.ts`, the operator, 2026-10-17:
+ * "a duplicate copy of the tapped attacking creatures"). So the end goes out in its place like any
+ * frame, and it is the result screen that waits for the frame that shows the end
+ * (`LiveBoard.tsx`'s `useGameEnded`), and then for the board to draw it (`../motion.ts`'s `whenBoardStill`).
  *
  * ## What a resync needs from the pacer: nothing
  *
@@ -101,7 +99,7 @@ import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
 
-export type PaceClass = 'input' | 'cast' | 'unseen' | 'log' | 'resolve' | 'phase' | 'draw' | 'end' | 'default';
+export type PaceClass = 'input' | 'cast' | 'unseen' | 'log' | 'resolve' | 'phase' | 'draw' | 'default';
 
 /**
  * Starting values (wave file §P step 2) — the operator's to tune by feel
@@ -126,19 +124,9 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
   phase: 250,
   /** A card arrived in a hand (its `Zone` is `Hand`) — a draw, most often. */
   draw: 200,
-  /** The game is over (`finishGame`): last out, this long after the frame that shows it (module header). */
-  end: 150,
   /** Everything else on the state channel. */
   default: 150,
 };
-
-/**
- * How long an end notice waits for the frame that shows the end (`GameOver`) before it goes out without
- * it. Measured on a busy claw, that frame came 0 to 480 ms behind the notice (`e2e/cp-lethal-blow.spec.ts`);
- * an end no frame shows at all (a concede during the deal, whose winner Forge never flushes to) is drawn
- * this late instead of never.
- */
-export const END_UNSHOWN_MS = 2_000;
 
 /** `match.ts`'s own `INPUT_FRAMES` — see this module's header for why it is copied, not imported. */
 const INPUT_NOTIFY_METHODS: ReadonlySet<string> = new Set([
@@ -164,13 +152,9 @@ const WIRE_TYPE_GAME = 3;
  */
 const UNDRAWN_PROPERTIES: ReadonlySet<string> = new Set(['MindSlaveMaster']);
 
-/**
- * What {@link classify} remembers between frames: the stack's depth after the last frame that carried it, or
- * null before one has; and whether the last frame that carried the game's `GameOver` said it is over.
- */
+/** What {@link classify} remembers between frames: the stack's depth after the last frame that carried it, or null before one has. */
 export interface PaceMemory {
   stackDepth: number | null;
-  gameOver?: boolean;
 }
 
 /** A tagged value's `v`, when it is the shape asked for. */
@@ -214,7 +198,6 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   const method = f.method;
   if (typeof method === 'string' && INPUT_NOTIFY_METHODS.has(method)) return 'input';
   if (method === 'message') return 'log';
-  if (method === 'finishGame') return 'end';
   if (method !== 'applyDelta') return 'default';
   const packetPayload = f.payload;
   const packet =
@@ -236,7 +219,6 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
       if (Array.isArray(list)) stack = list.length;
       else if ('Stack' in obj) stack = 0;
       if ('Phase' in obj) sawPhase = true;
-      if ('GameOver' in obj) memory.gameOver = tagged(obj, 'GameOver') === true;
     } else if (type === WIRE_TYPE_STACK_ITEM) {
       if (isNew) newStackItem = true;
     } else if (type === WIRE_TYPE_PLAYER) {
@@ -301,9 +283,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
-  /** Each payload with its class and arrival time, read on arrival — in arrival order, which is what `memory` needs, an end aside (last out). */
-  let queue: { payload: unknown; pace: PaceClass; at: number }[] = [];
-  const memory: PaceMemory = { stackDepth: null, gameOver: false };
+  /** Each payload with its class, read on arrival — in arrival order, which is what `memory` needs and the cursor `match.ts` checks. */
+  let queue: { payload: unknown; pace: PaceClass }[] = [];
+  const memory: PaceMemory = { stackDepth: null };
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
   /** The handler `startMatch` registered for `MATCH_EVENTS.serverToClient` — null until `on` is called for it, which `startMatch` always does before anything can arrive. */
@@ -331,10 +313,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** Deliver whatever is due, and schedule a timer for whatever is not — never more than one timer live at once. */
   function pump(): void {
     if (timer !== null || queue.length === 0) return;
-    const head = queue[0]!;
-    const due = lastDeliveredAt + delayFor(head.pace, queue.length > 1);
-    // An end notice whose frame has not come yet waits for it — up to `END_UNSHOWN_MS`, for an end no frame ever shows.
-    const waitMs = Math.max(0, (head.pace === 'end' && !memory.gameOver && !fast ? Math.max(due, head.at + END_UNSHOWN_MS) : due) - now());
+    const waitMs = Math.max(0, lastDeliveredAt + delayFor(queue[0]!.pace, queue.length > 1) - now());
     if (waitMs <= 0) {
       deliverNext();
       pump();
@@ -364,17 +343,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       }
       deliverTo = handler;
       inner.on(event, (payload) => {
-        const entry = { payload, pace: classify(payload, memory), at: now() };
-        // The game's end goes out last: what arrives behind it is what it ends (module header).
-        const end = entry.pace === 'end' ? -1 : queue.findIndex((q) => q.pace === 'end');
-        if (end === -1) queue.push(entry);
-        else {
-          queue.splice(end, 0, entry);
-          if (end === 0 && timer !== null) {
-            cancel(timer);
-            timer = null;
-          }
-        }
+        queue.push({ payload, pace: classify(payload, memory) });
         // A phase frame waiting on its gap has just been superseded: let it go now.
         if (timer !== null && queue.length === 2 && queue[0]!.pace === 'phase' && !fast) {
           cancel(timer);

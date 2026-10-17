@@ -1636,22 +1636,16 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(board.querySelector<HTMLElement>('[data-player-face]:not([data-viewer])')!.dataset.playerId).toBe(String(them.id));
   });
 
-  it('keeps the flags out of the avatar’s track, so one arriving mid-game cannot move a face', () => {
+  it('draws no word for whose turn it is, who holds priority or who lost', () => {
     const flagged: BoardView = {
       ...view,
       players: view.players.map((p) => ({ ...p, isActive: true, hasPriority: true, hasLost: true })),
     };
     const { seat } = renderBoard(flagged);
+    // The name's mark and the avatar's ring say the first two; the result screen says the last (the operator, 2026-10-17: "weird [lost] text appears, we dont need that").
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
-      const flags = [...bar.querySelectorAll('.seat__flag')].map((f) => f.textContent);
-      // Neither whose turn it is nor who holds priority is a word: the name's mark and the avatar's ring say those.
-      expect(flags, `seat ${p.id}'s flags`).toEqual(['lost']);
-      // Every one of them is in the counts block, never the avatar block.
-      for (const f of bar.querySelectorAll('.seat__flag')) {
-        expect(f.closest('.seat__counts'), 'a flag is in the counts track').not.toBeNull();
-        expect(f.closest('.seat__ident'), 'and not in the avatar track').toBeNull();
-      }
+      expect(bar.textContent, `seat ${p.id}'s bar`).not.toMatch(/\b(lost|priority)\b/i);
     }
   });
 });

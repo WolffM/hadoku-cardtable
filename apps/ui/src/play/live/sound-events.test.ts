@@ -382,10 +382,13 @@ describe('deriveSoundEvents', () => {
     ]);
   });
 
-  it('the end of the game is a win or a loss and nothing else', () => {
-    const before = view(1, {});
-    expect(deriveSoundEvents(before, view(2, { life: 0, hasLost: true }, {}, { gameOver: true }))).toEqual([{ role: 'g.lose', seat: 'me' }]);
-    expect(deriveSoundEvents(before, view(2, {}, { hasLost: true }, { gameOver: true }))).toEqual([{ role: 'g.win', seat: 'me' }]);
+  it('the view that ends the game is a win or a loss, and the blow that ended it besides', () => {
+    const before = view(1, {}, { life: 3 });
+    expect(deriveSoundEvents(before, view(2, { hasLost: true }, { life: 3 }, { gameOver: true }))).toEqual([{ role: 'g.lose', seat: 'me' }]);
+    expect(deriveSoundEvents(before, view(2, {}, { life: 0, hasLost: true }, { gameOver: true }))).toEqual([
+      { role: 'g.win', seat: 'me' },
+      { role: 'g.damage-player', seat: 'me', intensity: damagePower(3) },
+    ]);
   });
 
   it('a mulligan sends the hand back and shuffles', () => {
