@@ -443,10 +443,12 @@ export interface PlacedHost {
   /** Defaults to the real `prefers-reduced-motion` media query. */
   readonly reducedMotion?: () => boolean;
   /**
-   * Told the card ids of the resolved items still drawn here on their way out, whenever that set
-   * changes: `Board.tsx` keeps each out of the pile it went to until it is gone from here (the
+   * Told the card ids of the spells drawn here, whenever that set changes — arriving, on the stack or
+   * on their way out: `Board.tsx` keeps each out of the pile it went to until it is gone from here (the
    * operator, 2026-10-16: "make sure all these animations can finish before the card show up in the
-   * gy/exile zones").
+   * gy/exile zones"). A spell still flying in when Forge has already resolved it was drawn twice, once
+   * on the stack and once in its graveyard (w33's hand-over check, 2026-10-17). An ability is never
+   * held: its card may be in a pile using its own ability (flashback, unearth).
    */
   readonly onHolding?: (cardIds: ReadonlySet<number>) => void;
 }
@@ -752,6 +754,9 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (pending) schedule(render, PLACED_PENDING_MS + 1);
       d.root = mount(hover, item, wantBack);
       drawn.set(item.id, d);
+      // A spell drawn here is in no pile, even when Forge has already put it in one: on the other
+      // screen its flight in can still be under way when its resolution's frame arrives.
+      if (!item.isAbility) hold(item.id, item.sourceCardId);
       // Synchronous, now that the element (and, for a face, its CardTile — a
       // fresh root's first render commits without a scheduling hop) is
       // actually in the DOM. See `drawnListeners`'s own note.
@@ -827,7 +832,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     return at === null ? null : { at, reserved: null };
   }
 
-  /** The resolved items drawn on their way out, by item id: their card ids, for `PlacedHost.onHolding`. */
+  /** The spells drawn here — arriving, waiting or on their way out — by item id: their card ids, for `PlacedHost.onHolding`. */
   const holding = new Map<number, number>();
   function hold(id: number, cardId: number | null): void {
     if (cardId === null) return;

@@ -697,14 +697,14 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     handle.dispose();
   });
 
-  it('a card on its way to a pile is held out of it until it is gone from the stack (`onHolding`)', () => {
+  it('a spell is held out of every pile from the moment it is drawn until it is gone from the stack (`onHolding`); an ability never is', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     placeSpell(301, { x: 400, y: 300 }, 'you');
     const onHolding = vi.fn();
     const handle = installPlaced(canvas, { reducedMotion: () => false, onHolding });
-    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
-    expect(onHolding).not.toHaveBeenCalled();
+    handle.notify(view([stackItem(9, { sourceCardId: 301 }), stackItem(10, { sourceCardId: 302, isAbility: true })]));
+    expect(onHolding, 'drawn: a spell still flying in on the other screen may already be in its graveyard').toHaveBeenLastCalledWith(new Set([301]));
     handle.notify(view([])); // resolved to the graveyard
     expect(onHolding).toHaveBeenLastCalledWith(new Set([301]));
     canvas.querySelector('[data-placed-spell="9"]')!.dispatchEvent(Object.assign(new Event('transitionend'), { propertyName: 'opacity' }));
