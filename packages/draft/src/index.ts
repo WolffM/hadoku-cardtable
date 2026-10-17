@@ -47,3 +47,14 @@ export {
 } from './bot.ts';
 
 export { viewFor, spectatorView, viewsForAllSeats } from './view.ts';
+
+export {
+  pairRound,
+  roundsFor,
+  standings,
+  type PodPlayer,
+  type MatchResult,
+  type PairRoundInput,
+  type PairRoundResult,
+  type StandingsRow,
+} from './pairing.ts';
