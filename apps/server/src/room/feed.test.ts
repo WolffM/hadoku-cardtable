@@ -125,7 +125,7 @@ describe('the room feed', () => {
 		const id = room(lobby, ALICE);
 		const alice = await connect(port, ALICE);
 		await watch(alice, [id]);
-		lobby.setMatch(id, 'm-000000000001');
+		lobby.setTableMatch(id, lobby.get(id)!.tables[0]!.id, 'm-000000000001');
 		lobby.setPlayerState(id, ALICE.id, { ready: false });
 		lobby.setReady(id, ALICE.id, false);
 		await settle();

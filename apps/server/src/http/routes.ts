@@ -11,15 +11,59 @@
  *   GET  /api/tables/formats               the frozen pools (Standard, Modern, Legacy), each carrying its `family`
  *   GET  /api/tables/decks                 the deck library, with each list
  *   POST /api/tables/check                 `{ deck, rules }` → the verdict, without starting anything
- *   GET  /api/tables/rooms/:roomId         both players' state at a room's table
- *   PUT  /api/tables/rooms/:roomId/deck    `{ deck }` → check MY deck in the ROOM's pool and hold it
- *   POST /api/tables/rooms/:roomId/ready   `{ ready }` → I am (not) ready
- *   POST /api/tables/rooms/:roomId/sit     `{}` → take a free seat (a deck may come later)
- *   POST /api/tables/rooms/:roomId/stand   `{}` → give my seat back; refused once the table is locked
- *   POST /api/play/matches                 GATED: see below
+ *   GET  /api/tables/rooms/:roomId         both players' state at ONE of a room's tables (`?table=`, default `tables[0]`)
+ *   PUT  /api/tables/rooms/:roomId/deck    `{ deck, table? }` → check MY deck in the TABLE's pool and hold it
+ *   POST /api/tables/rooms/:roomId/ready   `{ ready, table? }` → I am (not) ready
+ *   POST /api/tables/rooms/:roomId/sit     `{ table? }` → take a free seat (a deck may come later)
+ *   POST /api/tables/rooms/:roomId/stand   `{ table? }` → give my seat back; refused once the table is locked
+ *   POST   /api/tables/rooms/:roomId/tables              leader only: add an empty table, answers its `RoomTable`
+ *   DELETE /api/tables/rooms/:roomId/tables/:tableId     leader only: remove an empty, idle table other than the first
+ *   POST /api/play/matches                 GATED: see below (`{ room, bot?, table? }`)
  *
  * `/check` still takes `{ deck, rules }`: it starts nothing and belongs to no
  * room, and it is what the deck builder and the screen's legality sweep ask.
+ *
+ * ## A room holds several tables, and a table plays a SERIES (wave 71 §D)
+ *
+ * Every table-scoped route above takes an optional `table` (a body field, or
+ * `?table=` on the GET); absent means `tables[0]`, so every call a pre-wave-71
+ * caller ever made keeps meaning exactly what it always did. `resolveTable`
+ * is the one place a request's `table` becomes a `RoomTable`, and `tableView`
+ * builds this file's own table-view body for whichever one that is — the
+ * shape is unchanged, just now PER TABLE rather than per room.
+ *
+ * A series (`RoomTable.series`) is a room concept, never Forge's: each game
+ * is its own fresh Forge match, and `lobby.ts`'s `setTableMatch` /
+ * `recordGameResult` / `releaseTableMatch` keep the ledger — length, wins,
+ * games, phase. `liveMatchId` below is where a finished or vanished match
+ * reaches that ledger: `over` records the game and may move the phase to
+ * `sideboarding` or `done` (`winnerSeatOf` decides the seat); anything else
+ * that is not live any more (`stopped`/`failed`, or the registry has simply
+ * lost the match) just releases the table with no outcome recorded.
+ *
+ * During `sideboarding`, `PUT …/deck` additionally checks the resubmission
+ * against the seat's OWN deck at the start of the series (`sideboardIssue`):
+ * the same cards, only re-split between main and board — basics excepted on
+ * a DRAFTED pool, where they are free at every other step too.
+ *
+ * **A `done` table's own Rematch** — bo1 with sideboarding on, and both
+ * players press it — is the ONE OTHER door into `sideboarding`
+ * (`lobby.ts`'s `beginSideboarding`, called from `POST …/ready` on every
+ * `ready: true`, unconditionally; the lobby decides whether anything
+ * happens). It is a NEW series from the moment it begins: `wins`/`games`
+ * reset there, not later. A `done` bo3 table's Rematch, and a `done`
+ * bo1-without-sideboarding table's, both skip it and start a new series
+ * directly — bo3's own sideboarding happens BETWEEN a series' games, never
+ * between two series.
+ *
+ * The next game of a series is asked play-or-draw by the LOSER of the one
+ * before it (`startFromRoom`'s `chooser`, computed from `series.games.at(-1)`
+ * and carried on the start body for lane E's bridge rig,
+ * `MatchSpec.chooser?: 0 | 1`) — but ONLY when `!newSeries`: a `done` table's
+ * `games` still holds its OLD series' last game until `setTableMatch` resets
+ * it, so reading `games.at(-1)` unguarded would rig a brand-new series'
+ * first game to the previous series' loser. The first game of a series
+ * always leaves `chooser` unset.
  *
  * ## The POOL belongs to the room, and the leader sets it
  *
@@ -125,7 +169,11 @@
 
 import { randomUUID } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
+import { cardKey, deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
+import { parseDck } from '@hadoku/carddata/dck';
+import type { DeckEntry } from '@hadoku/carddata/dck';
+import type { RoomTable } from '@hadoku/shared';
 
 import type { DraftRooms } from '../room/draftRooms.js';
 import { viewForParticipant } from '../room/draftRooms.js';
@@ -178,7 +226,14 @@ export interface RoomViewLike {
 	 * not four. Structural here like the rest of this interface.
 	 */
 	members: { id: string; name: string; avatarId?: string }[];
-	matchId: string | null;
+	/**
+	 * Wave 71: always at least one. Every request without a `table` field means
+	 * `tables[0]` — see `resolveTable`. The real `@hadoku/shared` `RoomTable`
+	 * shape, imported rather than restated, because by this hop the series
+	 * fields (`length`/`wins`/`phase`) are not optional extras — the sideboard
+	 * gate and the start route's `chooser` wiring both read them.
+	 */
+	tables: RoomTable[];
 }
 
 /** The subset of lane A's `Lobby` a table uses. */
@@ -186,20 +241,50 @@ export interface TablesRooms {
 	get(roomId: string): RoomViewLike | undefined;
 	/** Every room. Read once, at boot, by `releaseGoneMatches`. */
 	list(): RoomViewLike[];
-	/** The room that started `matchId` (its current or a recent match), or undefined. */
+	/** The room that started `matchId` (its current or a recent match, on any table), or undefined. */
 	roomOfMatch(matchId: string): RoomViewLike | undefined;
 	/** Per-member state this file owns. `undefined` when unset, or no such room or member. */
 	playerState(roomId: string, memberId: string): unknown;
 	/** False when there is no such room, or `memberId` is not a member. */
 	setPlayerState(roomId: string, memberId: string, state: unknown): boolean;
-	/** False when there is no such room. */
-	setMatch(roomId: string, matchId: string | null): boolean;
 	/**
-	 * Clears `matchId` and un-readies every member (R16): what `liveMatchId`
-	 * calls instead of `setMatch(id, null)` once it finds the match is finished
-	 * or gone. Each member's table state — the deck they hold — is kept.
+	 * The mirror `viewOf` builds `RoomTable.players` from — see
+	 * `room/lobby.ts`'s `Lobby.setTableSeats` for why it exists at all. Pushed
+	 * after every sit, stand and seating deck-load. False when there is no such
+	 * room or table.
 	 */
-	releaseMatch(roomId: string): boolean;
+	setTableSeats(roomId: string, tableId: string, seats: readonly (string | null)[]): boolean;
+	/** False when there is no such room or table, or the table already has a live match. */
+	setTableMatch(roomId: string, tableId: string, matchId: string): boolean;
+	/**
+	 * The match simply VANISHED (the registry has no record at all) — clears
+	 * `matchId` and un-readies only this table's own seated members (R16,
+	 * scoped). No outcome to record, so the series' phase is untouched.
+	 */
+	releaseTableMatch(roomId: string, tableId: string): boolean;
+	/**
+	 * The match ACTUALLY ended: records the game, advances the series
+	 * (`sideboarding` or `done`), clears `matchId`, un-readies the table's own
+	 * seated members. False only when there is no such room or table.
+	 */
+	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): { ok: boolean };
+	/**
+	 * The operator's "both players press Rematch" (§D bullet 3): called
+	 * UNCONDITIONALLY from `POST …/ready` every time a `ready: true` leaves a
+	 * table's two seats both ready — the lobby decides whether that is bo1
+	 * with sideboarding on and a just-finished series (the only case this
+	 * does anything) and answers whether it moved the table into
+	 * `sideboarding`. A no-op `false` is not a failure.
+	 */
+	beginSideboarding(roomId: string, tableId: string): boolean;
+	/** Leader only. Appends an empty table and answers its `RoomTable`. */
+	addTable(roomId: string, callerId: string): { ok: true; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
+	/** Leader only. Removes a table other than the first, when it is empty and idle. */
+	removeTable(
+		roomId: string,
+		callerId: string,
+		tableId: string,
+	): { ok: true } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'first-table' | 'not-idle' };
 	/**
 	 * Told when a member's avatar changes (Q6). Optional like the rest of the
 	 * room's surface: a registry that cannot say simply never updates a live seat.
@@ -229,6 +314,12 @@ export interface TablesMatches {
 				/** The seat's holder changed their avatar: re-sends `forge:seats` to every socket. */
 				seatAvatarChanged(seat: number): void;
 				stop(): void;
+				/** Forge's own winning player's NAME (`PlayBridge.java`'s `getWinningLobbyPlayer().getName()`) — see `winnerSeatOf`. */
+				winner: string | null;
+				/** The seat whose concede Forge was sent, or null. */
+				concededBy: number | null;
+				/** Each seat's own display name, as sent to Forge — `winnerSeatOf` matches `winner` against these. */
+				seats: readonly { displayName?: string }[];
 		  }
 		| undefined;
 }
@@ -373,10 +464,23 @@ interface TableDeck {
  */
 interface TablePlayerState {
 	v: 1;
+	/**
+	 * Which table this seat belongs to (wave 71). Absent for a row written
+	 * before multi-table rooms existed — `playersOf` reads that as the room's
+	 * FIRST table, which is what every such row actually was.
+	 */
+	table?: string;
 	deck: TableDeck | null;
 	ready: boolean;
 	/** When this member first took a seat: the order the two players are in. */
 	seatedAt: number;
+	/**
+	 * The deck (main+sideboard multiset) this seat started the CURRENT series
+	 * with — the sideboard-legality baseline `PUT …/deck` checks a resubmission
+	 * against during `sideboarding` (`sideboardIssue`). Null before the series'
+	 * first game has started, and reset whenever a new series does.
+	 */
+	seriesDeck: string | null;
 }
 
 /** A seated player whose seat holds a deck: what a start needs. */
@@ -392,10 +496,10 @@ interface LoadedPlayer extends TablePlayer {
  * sentence says who did. `gate.ts`'s `parseDeckRef` is what reads the deck, so
  * `{ library }` and `{ dck }` mean here exactly what they mean everywhere else.
  */
-function parseDeckBody(raw: unknown): { ok: true; deck: DeckRef } | { ok: false; error: string } {
+function parseDeckBody(raw: unknown): { ok: true; deck: DeckRef; table: unknown } | { ok: false; error: string } {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: 'body is { deck }' };
 	for (const key of Object.keys(raw as Record<string, unknown>)) {
-		if (key === 'deck') continue;
+		if (key === 'deck' || key === 'table') continue;
 		return {
 			ok: false,
 			error:
@@ -405,7 +509,19 @@ function parseDeckBody(raw: unknown): { ok: true; deck: DeckRef } | { ok: false;
 		};
 	}
 	const deck = parseDeckRef((raw as { deck?: unknown }).deck, 'body.deck');
-	return deck.ok ? { ok: true, deck: deck.value } : { ok: false, error: deck.error };
+	return deck.ok ? { ok: true, deck: deck.value, table: (raw as { table?: unknown }).table } : { ok: false, error: deck.error };
+}
+
+/**
+ * `{}` or `{ table }` — what `/sit` and `/stand` take, neither of which has
+ * anything else to say.
+ */
+function parseTableBody(raw: unknown): { ok: true; table: unknown } | { ok: false; error: string } {
+	if (raw === undefined) return { ok: true, table: undefined };
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: 'body is {} or { table }' };
+	const extra = Object.keys(raw as Record<string, unknown>).find((k) => k !== 'table');
+	if (extra !== undefined) return { ok: false, error: `body: unknown field ${extra}` };
+	return { ok: true, table: (raw as { table?: unknown }).table };
 }
 
 function readDeck(raw: unknown): TableDeck | null {
@@ -422,15 +538,17 @@ function readPlayerState(raw: unknown): TablePlayerState | null {
 	const s = raw as Partial<TablePlayerState> & Partial<TableDeck>;
 	if (s.v !== 1 || typeof s.seatedAt !== 'number') return null;
 	const ready = s.ready === true;
+	const table = typeof s.table === 'string' ? s.table : undefined;
+	const seriesDeck = typeof s.seriesDeck === 'string' ? s.seriesDeck : null;
 	// A row written before seats were their own act: the deck's fields sit flat
 	// beside `ready`. It still reads as a seat that holds that deck.
 	if (!('deck' in s)) {
 		const deck = readDeck(s);
-		return deck === null ? null : { v: 1, deck, ready, seatedAt: s.seatedAt };
+		return deck === null ? null : { v: 1, table, deck, ready, seatedAt: s.seatedAt, seriesDeck };
 	}
-	if (s.deck === null) return { v: 1, deck: null, ready, seatedAt: s.seatedAt };
+	if (s.deck === null) return { v: 1, table, deck: null, ready, seatedAt: s.seatedAt, seriesDeck };
 	const deck = readDeck(s.deck);
-	return deck === null ? null : { v: 1, deck, ready, seatedAt: s.seatedAt };
+	return deck === null ? null : { v: 1, table, deck, ready, seatedAt: s.seatedAt, seriesDeck };
 }
 
 /** The players whose seats hold a deck, in seat order; a seat without one is left out. */
@@ -447,15 +565,22 @@ interface TablePlayer {
 }
 
 /**
- * The (at most two) players at a room's table: the members who hold a seat,
- * earliest first. A third member who sits or loads a deck is refused, so this
- * never has to choose between three.
+ * The (at most two) players at ONE of a room's tables: the members who hold a
+ * seat THERE, earliest first. A third member who sits or loads a deck at that
+ * table is refused, so this never has to choose between three.
+ *
+ * `tableId` defaults to the room's FIRST table — every request without a
+ * `table` field means `tables[0]` (the wire contract). A member's own stored
+ * seat with no `table` tag (a row written before multi-table rooms existed)
+ * is read as the first table too, which is what it actually was.
  */
-function playersOf(rooms: TablesRooms, room: RoomViewLike): TablePlayer[] {
+function playersOf(rooms: TablesRooms, room: RoomViewLike, tableId: string = room.tables[0]!.id): TablePlayer[] {
 	const held: TablePlayer[] = [];
 	for (const member of room.members) {
 		const state = readPlayerState(rooms.playerState(room.id, member.id));
-		if (state !== null) held.push({ member, state });
+		if (state === null) continue;
+		if ((state.table ?? room.tables[0]!.id) !== tableId) continue;
+		held.push({ member, state });
 	}
 	return held.sort((a, b) => a.state.seatedAt - b.state.seatedAt);
 }
@@ -477,13 +602,39 @@ function nextSeatedAt(players: TablePlayer[]): number {
  */
 export function relayAvatarToMatch(rooms: TablesRooms, registry: TablesMatches | null, change: { roomId: string; memberId: string }): void {
 	if (registry === null) return;
-	const matchId = rooms.get(change.roomId)?.matchId ?? null;
-	if (matchId === null) return;
-	const match = registry.get(matchId);
-	if (match === undefined || (match.status !== 'starting' && match.status !== 'running')) return;
-	const seat = match.seatOf(change.memberId);
-	if (seat === null) return;
-	match.seatAvatarChanged(seat);
+	const room = rooms.get(change.roomId);
+	if (room === undefined) return;
+	// Every table with a live match, not only the first (wave 71): a member
+	// holds at most one seat at a time, but checking every table is cheap and
+	// correct even if that ever changes.
+	for (const table of room.tables) {
+		if (table.matchId === null) continue;
+		const match = registry.get(table.matchId);
+		if (match === undefined || (match.status !== 'starting' && match.status !== 'running')) continue;
+		const seat = match.seatOf(change.memberId);
+		if (seat === null) continue;
+		match.seatAvatarChanged(seat);
+	}
+}
+
+/**
+ * Which seat won a table's just-finished match, for the series ledger.
+ *
+ * `concededBy` is the reliable signal (a seat index, set from the wire frame
+ * `apps/server/src/play/match.ts` itself read): the OTHER seat won. Without a
+ * concede, Forge's own `winner` is the WINNING player's display NAME
+ * (`PlayBridge.java`'s `getWinningLobbyPlayer().getName()`), matched against
+ * each seat's own `displayName` (the same string `startFromRoom` sent Forge as
+ * `names`). `null` when neither resolves a seat — an AI game, two seats with
+ * the same name, or no winner at all — rather than a guess: `RoomTableGame.winner`
+ * allows it.
+ */
+export function winnerSeatOf(match: { winner: string | null; concededBy: number | null; seats: readonly { displayName?: string }[] }): 0 | 1 | null {
+	if (match.concededBy === 0) return 1;
+	if (match.concededBy === 1) return 0;
+	if (match.winner === null) return null;
+	const seat = match.seats.findIndex((s) => s.displayName === match.winner);
+	return seat === 0 || seat === 1 ? seat : null;
 }
 
 export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
@@ -671,6 +822,33 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
+	 * The table a request names, or `tables[0]` when it names none — the wire
+	 * contract's rule for every table-scoped route (`?table=` on a GET, a
+	 * `table` body field otherwise). A value that names no table of THIS room
+	 * is its own 404, distinct from `NO_ROOM`, so a client can tell "wrong
+	 * room" from "wrong table".
+	 */
+	function resolveTable(room: RoomViewLike, raw: unknown): { ok: true; table: RoomTable } | { ok: false; status: number; error: string } {
+		if (raw === undefined) return { ok: true, table: room.tables[0]! };
+		if (typeof raw !== 'string' || raw.trim() === '') return { ok: false, status: 400, error: 'table must be a table id' };
+		const table = room.tables.find((t) => t.id === raw);
+		return table === undefined ? { ok: false, status: 404, error: 'no such table' } : { ok: true, table };
+	}
+
+	/**
+	 * The room and table AFTER a mutation this same handler just made — the
+	 * same "re-read before building the response" discipline the original
+	 * single-table code kept (`tableView(rooms.get(room.id) ?? room, me)`),
+	 * generalised to a table id rather than the room's only one. Falls back to
+	 * what the handler already had when the registry cannot be read again.
+	 */
+	function freshTable(roomId: string, tableId: string, fallbackRoom: RoomViewLike, fallbackTable: RoomTable): { room: RoomViewLike; table: RoomTable } {
+		const room = rooms?.get(roomId) ?? fallbackRoom;
+		const table = room.tables.find((t) => t.id === tableId) ?? fallbackTable;
+		return { room, table };
+	}
+
+	/**
 	 * The room's match if it is still one you could play, and null otherwise —
 	 * releasing a match id the registry has forgotten OR has marked finished.
 	 * Rooms persist across a restart and so do matches, but only the ones play
@@ -690,21 +868,37 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * still on the match screen mid-grace is unaffected.
 	 *
 	 * This is the one place in the server that can ask play's match registry
-	 * about a room's match, so it is also where the room is told to let go of
-	 * it (`releaseMatch`, not a bare `setMatch(id, null)`). The decks stay
-	 * held — a Rematch plays them again — and nobody is ready, because the
-	 * start that made this match spent both Readys.
+	 * about a table's match, so it is also where the table is told to let go
+	 * of it. **Two different letting-go's, since wave 71 (§D bullet 3):** a
+	 * match the registry reports `over` ACTUALLY ended, so the series ledger
+	 * advances (`recordGameResult` — the game is appended, a seat's `wins` may
+	 * increment, the phase may become `sideboarding` or `done`); a match that
+	 * is simply GONE (`stopped`/`failed`, or the registry has no record at
+	 * all) has no outcome to record (`releaseTableMatch` — the series' phase is
+	 * untouched). Either way the decks stay held — a Rematch plays them again
+	 * — and nobody is ready, because the start that made this match spent both
+	 * Readys.
 	 */
-	function liveMatchId(room: RoomViewLike): string | null {
-		if (room.matchId === null) return null;
+	function liveMatchId(room: RoomViewLike, table: RoomTable): string | null {
+		if (table.matchId === null) return null;
 		const registry = deps.matches?.() ?? null;
-		// No registry to ask: report what the room holds rather than clearing it.
-		if (registry === null || rooms === null) return room.matchId;
-		const match = registry.get(room.matchId);
-		const finished = match === undefined || match.status === 'over' || match.status === 'stopped' || match.status === 'failed';
-		if (!finished) return room.matchId;
-		rooms.releaseMatch(room.id);
-		log({ evt: 'room-match-cleared', room: room.id, matchId: room.matchId });
+		// No registry to ask: report what the table holds rather than clearing it.
+		if (registry === null || rooms === null) return table.matchId;
+		const match = registry.get(table.matchId);
+		if (match === undefined) {
+			rooms.releaseTableMatch(room.id, table.id);
+			log({ evt: 'table-match-cleared', room: room.id, table: table.id, matchId: table.matchId, reason: 'gone' });
+			return null;
+		}
+		if (match.status !== 'over' && match.status !== 'stopped' && match.status !== 'failed') return table.matchId;
+		if (match.status === 'over') {
+			const winner = winnerSeatOf(match);
+			rooms.recordGameResult(room.id, table.id, { matchId: table.matchId, winner });
+			log({ evt: 'table-game-over', room: room.id, table: table.id, matchId: table.matchId, winner });
+		} else {
+			rooms.releaseTableMatch(room.id, table.id);
+			log({ evt: 'table-match-cleared', room: room.id, table: table.id, matchId: table.matchId, reason: match.status });
+		}
 		return null;
 	}
 
@@ -746,12 +940,18 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * number. `rulesName` is your own verdict's words for you, and the ROOM's
 	 * pool in the third person for somebody else.
 	 */
-	function tableView(room: RoomViewLike, me: string): Record<string, unknown> {
-		// `liveMatchId` FIRST: it can write the room (`Lobby.releaseMatch`), and
-		// `playersOf` has to read the room AFTER that write or this very response
-		// could describe a room it also reports as changed (R16).
-		const matchId = liveMatchId(room);
-		const players = rooms === null ? [] : playersOf(rooms, room);
+	function tableView(room: RoomViewLike, me: string, table: RoomTable): Record<string, unknown> {
+		// `liveMatchId` FIRST: it can write the table (`recordGameResult` /
+		// `releaseTableMatch`), and `playersOf` has to read the room AFTER that
+		// write or this very response could describe a room it also reports as
+		// changed (R16).
+		const matchId = liveMatchId(room, table);
+		const players = rooms === null ? [] : playersOf(rooms, room, table.id);
+		// The seat mirror `RoomTable.players` is built from (`room/lobby.ts`'s
+		// `Lobby.setTableSeats`): refreshed on every READ, not only a write, so a
+		// migrated or otherwise-stale room self-heals the next time its table is
+		// asked about. A no-op write does not persist — safe to call unconditionally.
+		rooms?.setTableSeats(room.id, table.id, players.map((p) => p.member.id));
 		return {
 			room: {
 				id: room.id,
@@ -855,13 +1055,53 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return true;
 	}
 
+	/** `entries`' cards, by identity (`cardKey`), basics folded in UNLESS `excludeBasics`. */
+	function multisetOf(entries: readonly DeckEntry[], excludeBasics: boolean): Map<string, number> {
+		const m = new Map<string, number>();
+		for (const e of entries) {
+			if (excludeBasics && isBasicLand(e.card)) continue;
+			const key = cardKey(e.card);
+			m.set(key, (m.get(key) ?? 0) + e.count);
+		}
+		return m;
+	}
+
+	function sameMultiset(a: Map<string, number>, b: Map<string, number>): boolean {
+		if (a.size !== b.size) return false;
+		for (const [k, v] of a) if (b.get(k) !== v) return false;
+		return true;
+	}
+
+	/**
+	 * Whether `nextText` is a legal sideboard move from `previousText` — the
+	 * same cards, split differently between main and board — the check `PUT
+	 * …/deck` runs during a table's `sideboarding` phase (§D bullet 3). Basic
+	 * lands are excluded from the comparison when the room's pool is a DRAFTED
+	 * one (`draftIdOfPool`): a draft's deck editor treats basics as free and
+	 * unlimited, so sideboarding one does too. For every other pool a basic is
+	 * part of the fixed 75 like any other card. `null` when it is legal.
+	 */
+	function sideboardIssue(room: RoomViewLike, previousText: string, nextText: string): string | null {
+		const excludeBasics = draftIdOfPool(room.format) !== null;
+		const previous = multisetOf(poolOf(deckFromDeckFile(parseDck(previousText))), excludeBasics);
+		const next = multisetOf(poolOf(deckFromDeckFile(parseDck(nextText))), excludeBasics);
+		return sameMultiset(previous, next)
+			? null
+			: 'during sideboarding you may only move cards between your main deck and sideboard, never add or remove one';
+	}
+
 	tables.get('/rooms/:roomId', (req: Request, res: Response) => {
 		const found = tableFor(req, String(req.params.roomId));
 		if (found === null) {
 			notFound(res);
 			return;
 		}
-		res.json(tableView(found.room, found.me));
+		const resolved = resolveTable(found.room, req.query.table);
+		if (!resolved.ok) {
+			res.status(resolved.status).json({ error: resolved.error });
+			return;
+		}
+		res.json(tableView(found.room, found.me, resolved.table));
 	});
 
 	tables.put('/rooms/:roomId/deck', (req: Request, res: Response) => {
@@ -872,18 +1112,24 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		const { room, me } = found;
 		if (wrongGameType(room, res)) return;
-		if (liveMatchId(room) !== null) {
-			res.status(409).json({ error: 'the match has already started' });
-			return;
-		}
 		const parsed = parseDeckBody(req.body);
 		if (!parsed.ok) {
 			res.status(400).json({ error: parsed.error });
 			return;
 		}
+		const resolved = resolveTable(room, parsed.table);
+		if (!resolved.ok) {
+			res.status(resolved.status).json({ error: resolved.error });
+			return;
+		}
+		const table = resolved.table;
+		if (liveMatchId(room, table) !== null) {
+			res.status(409).json({ error: 'the match has already started' });
+			return;
+		}
 		if (unknownPool(room, res)) return;
 		const seat: SeatRequest = { deck: parsed.deck, rules: roomRules(room) };
-		const players = playersOf(rooms, room);
+		const players = playersOf(rooms, room, table.id);
 		const mine = players.find((p) => p.member.id === me);
 		if (mine === undefined && players.length >= TABLE_SEATS) {
 			res.status(409).json({ error: 'this table already has two players' });
@@ -893,6 +1139,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if ('error' in verdict) {
 			res.status(400).json({ error: verdict.error });
 			return;
+		}
+		// Sideboarding (§D bullet 3): a resubmission is accepted only when it is
+		// the SAME 75(ish) the series started with, differently split — never a
+		// different deck wearing the room's legality check.
+		if (table.series.phase === 'sideboarding' && mine !== undefined && mine.state.seriesDeck !== null) {
+			const issue = sideboardIssue(room, mine.state.seriesDeck, verdict.text);
+			if (issue !== null) {
+				res.status(409).json({ error: issue });
+				return;
+			}
 		}
 		// A new deck un-readies you: what you readied with is not what you hold.
 		// `choice` keeps the room's rules beside the deck, so the hold records which
@@ -904,16 +1160,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// before `POST …/sit` existed.
 		const state: TablePlayerState = {
 			v: 1,
+			table: table.id,
 			deck: { choice: seat, verdict: publicVerdict(verdict), text: verdict.text },
 			ready: false,
 			seatedAt: mine?.state.seatedAt ?? nextSeatedAt(players),
+			seriesDeck: mine?.state.seriesDeck ?? null,
 		};
 		if (!rooms.setPlayerState(room.id, me, state)) {
 			notFound(res);
 			return;
 		}
-		log({ evt: 'room-deck-loaded', room: room.id, deck: verdict.deckName, rules: verdict.rulesName, legal: verdict.legal, sat: mine === undefined });
-		res.json(tableView(rooms.get(room.id) ?? room, me));
+		log({ evt: 'room-deck-loaded', room: room.id, table: table.id, deck: verdict.deckName, rules: verdict.rulesName, legal: verdict.legal, sat: mine === undefined });
+		const after = freshTable(room.id, table.id, room, table);
+		res.json(tableView(after.room, me, after.table));
 	});
 
 	tables.post('/rooms/:roomId/ready', (req: Request, res: Response) => {
@@ -926,15 +1185,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (wrongGameType(room, res)) return;
 		const body = (req.body ?? {}) as Record<string, unknown>;
 		const keys = Object.keys(body);
-		if (typeof body.ready !== 'boolean' || keys.some((k) => k !== 'ready')) {
-			res.status(400).json({ error: 'body is { ready: boolean }' });
+		if (typeof body.ready !== 'boolean' || keys.some((k) => k !== 'ready' && k !== 'table')) {
+			res.status(400).json({ error: 'body is { ready: boolean, table? }' });
 			return;
 		}
-		if (liveMatchId(room) !== null) {
+		const resolved = resolveTable(room, body.table);
+		if (!resolved.ok) {
+			res.status(resolved.status).json({ error: resolved.error });
+			return;
+		}
+		const table = resolved.table;
+		if (liveMatchId(room, table) !== null) {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
-		const players = playersOf(rooms, room);
+		const players = playersOf(rooms, room, table.id);
 		const seat = players.findIndex((p) => p.member.id === me);
 		const mine = players[seat];
 		// A seat without a deck readies nothing: the same sentence for "not
@@ -947,7 +1212,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// which card did it — the same sentence the gate refuses a match with.
 		if (body.ready && !mine.state.deck.verdict.legal) {
 			const line = refusalLine(seat, { ...mine.state.deck.verdict, text: mine.state.deck.text });
-			log({ evt: 'room-ready-refused', room: room.id, issues: mine.state.deck.verdict.issues.length });
+			log({ evt: 'room-ready-refused', room: room.id, table: table.id, issues: mine.state.deck.verdict.issues.length });
 			res.status(422).json({ error: line });
 			return;
 		}
@@ -955,8 +1220,20 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			notFound(res);
 			return;
 		}
-		log({ evt: 'room-ready', room: room.id, ready: body.ready });
-		res.json(tableView(rooms.get(room.id) ?? room, me));
+		// The operator's "both players press Rematch" (§D bullet 3): whenever a
+		// `ready: true` leaves BOTH of this table's seats ready, offer the
+		// lobby the chance to begin a sideboarding step. It is a no-op unless
+		// the table is a just-finished bo1-with-sideboarding series — see
+		// `Lobby.beginSideboarding`'s own doc.
+		if (body.ready) {
+			const nowPlayers = playersOf(rooms, room, table.id);
+			if (nowPlayers.length === TABLE_SEATS && nowPlayers.every((p) => p.state.ready)) {
+				rooms.beginSideboarding(room.id, table.id);
+			}
+		}
+		log({ evt: 'room-ready', room: room.id, table: table.id, ready: body.ready });
+		const after = freshTable(room.id, table.id, room, table);
+		res.json(tableView(after.room, me, after.table));
 	});
 
 	/**
@@ -973,26 +1250,38 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		const { room, me } = found;
 		if (wrongGameType(room, res)) return;
-		if (liveMatchId(room) !== null) {
+		const parsedBody = parseTableBody(req.body);
+		if (!parsedBody.ok) {
+			res.status(400).json({ error: parsedBody.error });
+			return;
+		}
+		const resolved = resolveTable(room, parsedBody.table);
+		if (!resolved.ok) {
+			res.status(resolved.status).json({ error: resolved.error });
+			return;
+		}
+		const table = resolved.table;
+		if (liveMatchId(room, table) !== null) {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
-		const players = playersOf(rooms, room);
+		const players = playersOf(rooms, room, table.id);
 		if (players.some((p) => p.member.id === me)) {
-			res.json(tableView(room, me));
+			res.json(tableView(room, me, table));
 			return;
 		}
 		if (players.length >= TABLE_SEATS) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
-		const state: TablePlayerState = { v: 1, deck: null, ready: false, seatedAt: nextSeatedAt(players) };
+		const state: TablePlayerState = { v: 1, table: table.id, deck: null, ready: false, seatedAt: nextSeatedAt(players), seriesDeck: null };
 		if (!rooms.setPlayerState(room.id, me, state)) {
 			notFound(res);
 			return;
 		}
-		log({ evt: 'room-sat', room: room.id, seat: players.length });
-		res.json(tableView(rooms.get(room.id) ?? room, me));
+		log({ evt: 'room-sat', room: room.id, table: table.id, seat: players.length });
+		const after = freshTable(room.id, table.id, room, table);
+		res.json(tableView(after.room, me, after.table));
 	});
 
 	/**
@@ -1009,15 +1298,26 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		const { room, me } = found;
 		if (wrongGameType(room, res)) return;
-		const matchId = liveMatchId(room);
+		const parsedBody = parseTableBody(req.body);
+		if (!parsedBody.ok) {
+			res.status(400).json({ error: parsedBody.error });
+			return;
+		}
+		const resolved = resolveTable(room, parsedBody.table);
+		if (!resolved.ok) {
+			res.status(resolved.status).json({ error: resolved.error });
+			return;
+		}
+		const table = resolved.table;
+		const matchId = liveMatchId(room, table);
 		if (matchId !== null) {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
-		const players = playersOf(rooms, room);
+		const players = playersOf(rooms, room, table.id);
 		const seat = players.findIndex((p) => p.member.id === me);
 		if (seat < 0) {
-			res.json(tableView(room, me));
+			res.json(tableView(room, me, table));
 			return;
 		}
 		if (tableLocked(players, matchId)) {
@@ -1028,8 +1328,68 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			notFound(res);
 			return;
 		}
-		log({ evt: 'room-stood', room: room.id, seat, hadDeck: players[seat]!.state.deck !== null });
-		res.json(tableView(rooms.get(room.id) ?? room, me));
+		log({ evt: 'room-stood', room: room.id, table: table.id, seat, hadDeck: players[seat]!.state.deck !== null });
+		const after = freshTable(room.id, table.id, room, table);
+		res.json(tableView(after.room, me, after.table));
+	});
+
+	/**
+	 * Leader only. `POST /api/tables/rooms/:roomId/tables` — the wire
+	 * contract's first table route: appends an empty table and answers its
+	 * `RoomTable`.
+	 */
+	tables.post('/rooms/:roomId/tables', (req: Request, res: Response) => {
+		if (rooms === null) {
+			notFound(res);
+			return;
+		}
+		const roomId = String(req.params.roomId);
+		const room = rooms.get(roomId);
+		const me = callerIdOf(req);
+		if (room === undefined || !room.members.some((m) => m.id === me)) {
+			notFound(res);
+			return;
+		}
+		const result = rooms.addTable(roomId, me);
+		if (!result.ok) {
+			res.status(403).json({ error: 'only the room leader can add a table' });
+			return;
+		}
+		log({ evt: 'table-added', room: roomId, table: result.table.id });
+		res.status(201).json(result.table);
+	});
+
+	/**
+	 * Leader only. `DELETE /api/tables/rooms/:roomId/tables/:tableId` — removes
+	 * an empty, idle table other than the first.
+	 */
+	tables.delete('/rooms/:roomId/tables/:tableId', (req: Request, res: Response) => {
+		if (rooms === null) {
+			notFound(res);
+			return;
+		}
+		const roomId = String(req.params.roomId);
+		const tableId = String(req.params.tableId);
+		const room = rooms.get(roomId);
+		const me = callerIdOf(req);
+		if (room === undefined || !room.members.some((m) => m.id === me)) {
+			notFound(res);
+			return;
+		}
+		const result = rooms.removeTable(roomId, me, tableId);
+		if (!result.ok) {
+			const messages: Record<string, string> = {
+				'not-leader': 'only the room leader can remove a table',
+				'no-such-table': 'no such table',
+				'first-table': 'the first table cannot be removed',
+				'not-idle': 'a table can be removed only when it is empty and idle',
+			};
+			const status = result.reason === 'not-leader' ? 403 : result.reason === 'no-such-table' ? 404 : 409;
+			res.status(status).json({ error: messages[result.reason] });
+			return;
+		}
+		log({ evt: 'table-removed', room: roomId, table: tableId });
+		res.status(204).end();
 	});
 
 	api.use('/tables', tables);
@@ -1075,7 +1435,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/** `{ room }`: the product's start. Both players' own decks, assembled here. */
 	function startFromRoom(req: Request, res: Response, next: NextFunction, body: Record<string, unknown>): void {
 		for (const key of Object.keys(body)) {
-			if (key !== 'room' && key !== 'bot') {
+			if (key !== 'room' && key !== 'bot' && key !== 'table') {
 				res.status(400).json({ error: `body: unknown field ${key}` });
 				return;
 			}
@@ -1097,19 +1457,28 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		const { room, me } = found;
 		if (wrongGameType(room, res)) return;
+		const resolved = resolveTable(room, body.table);
+		if (!resolved.ok) {
+			res.status(resolved.status).json({ error: resolved.error });
+			return;
+		}
+		const table = resolved.table;
 		// Idempotent: whichever player asks second is answered the match the
 		// first one started, not a second JVM.
-		const live = liveMatchId(room);
+		const live = liveMatchId(room, table);
 		if (live !== null) {
 			res.status(200).json({ matchId: live });
 			return;
 		}
-		const joiners = starting.get(room.id);
+		// Keyed by table, not room: two different tables of the same room start
+		// independently.
+		const startKey = `${room.id}:${table.id}`;
+		const joiners = starting.get(startKey);
 		if (joiners !== undefined) {
 			joiners.push((status, payload) => res.status(status).json(payload));
 			return;
 		}
-		const players = playersOf(rooms, room);
+		const players = playersOf(rooms, room, table.id);
 		if (vsBot) {
 			// One person against Forge's AI, from a room (the operator, 2026-10-02:
 			// "would be nice to be able to add a bot so i dont have to play against
@@ -1218,21 +1587,49 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 
 		const waiting: ((status: number, payload: unknown) => void)[] = [];
-		starting.set(room.id, waiting);
+		starting.set(startKey, waiting);
 		let settled = false;
-		/** Answer every ask that joined this start, and let the room start again. */
+		/** Answer every ask that joined this start, and let the table start again. */
 		const settle = (status: number, payload: unknown): void => {
 			if (settled) return;
 			settled = true;
-			starting.delete(room.id);
+			starting.delete(startKey);
 			for (const join of waiting) join(status, payload);
 		};
 		// Play answers through `res.json`, below. A response that ends any other way
-		// still frees the room. A caller who goes away mid-start (a reload) does NOT:
+		// still frees the table. A caller who goes away mid-start (a reload) does NOT:
 		// Forge is still coming up, and the reloaded page's ask joins it rather than
 		// launching a second JVM.
 		res.on('finish', () => settle(res.statusCode, { error: 'the match could not be started' }));
 
+		// A new series (`seating`/`done` — the series that is about to start has
+		// no game of its own yet — OR `series.games` is already empty, which is
+		// what `Lobby.beginSideboarding` leaves a bo1-Rematch's sideboarding
+		// step in) snapshots each seat's CURRENT deck as the sideboard-legality
+		// baseline for every game of it (`sideboardIssue`); continuing one
+		// (`sideboarding` mid-bo3, or `playing` with no live match — a
+		// replacement after the previous one simply vanished, with at least one
+		// game already recorded) keeps whatever baseline is already stored.
+		// **Both halves of this OR matter**: `phase` alone misses a bo1
+		// Rematch's reset-but-still-`sideboarding` table; `games.length` alone
+		// misses a `done` table whose OLD series' games are still sitting there
+		// (not yet reset by `setTableMatch`) — that second miss is also why
+		// `chooser`, below, must not read `series.games` without this same guard.
+		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done' || table.series.games.length === 0;
+		// The next game of a series is asked play-or-draw by the LOSER of the
+		// previous one (`draft-pods-plan.md`, "The loser of the previous game
+		// chooses play or draw"). The first game of a series has no previous
+		// game, so `chooser` stays unset and Forge's own unrigged coin toss runs
+		// (lane E's `MatchSpec.chooser?: 0 | 1`, `play/host.ts`) — **and `newSeries`
+		// is what actually says "first game of a series", not merely "there is
+		// no game after this one in the array": a `done` series' `games` still
+		// holds its LAST game until `setTableMatch` resets it, so reading
+		// `games.at(-1)` without this guard would rig a brand-new series'
+		// opening game to the PREVIOUS series' loser.
+		const previousGame = newSeries ? undefined : table.series.games.at(-1);
+		const chooser: 0 | 1 | undefined = previousGame?.winner === 0 ? 1 : previousGame?.winner === 1 ? 0 : undefined;
+
+		// Play answers through `res.json`, below. A response that ends any other way
 		const answer = res.json.bind(res);
 		res.json = ((payload: unknown) => {
 			res.json = answer;
@@ -1240,18 +1637,32 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			if (res.statusCode === 201 && typeof matchId === 'string') {
 				const refused = seatPlayers(registry, matchId, players);
 				if (refused !== null) {
-					log({ evt: 'room-seating-failed', room: room.id, matchId, error: refused });
+					log({ evt: 'room-seating-failed', room: room.id, table: table.id, matchId, error: refused });
 					settle(500, { error: refused });
 					res.status(500);
 					return answer({ error: refused });
 				}
-				rooms.setMatch(room.id, matchId);
+				rooms.setTableMatch(room.id, table.id, matchId);
 				// The start spends both Readys: neither carries into the match, so
 				// nothing is left ready for a later read to start again — not when
 				// the match ends, and not when a restart releases a match that did
 				// not come back (`releaseGoneMatches`). The decks stay held: they are what a Rematch plays.
-				for (const p of players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
-				log({ evt: 'room-match-started', room: room.id, matchId, decks: loaded.map((p) => p.deck.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
+				for (const p of players) {
+					rooms.setPlayerState(room.id, p.member.id, {
+						...p.state,
+						ready: false,
+						seriesDeck: newSeries ? (p.state.deck?.text ?? null) : p.state.seriesDeck,
+					});
+				}
+				log({
+					evt: 'room-match-started',
+					room: room.id,
+					table: table.id,
+					matchId,
+					decks: loaded.map((p) => p.deck.verdict.deckName),
+					...(vsBot ? { opponent: 'ai' } : {}),
+					...(chooser === undefined ? {} : { chooser }),
+				});
 				settle(200, { matchId });
 				return answer(payload);
 			}
@@ -1271,6 +1682,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				names: [loaded[0]!.member.name, undefined],
 				format: room.format,
 				handSmoothing: room.settings.handSmoothing,
+				...(chooser === undefined ? {} : { chooser }),
 			};
 			next();
 			return;
@@ -1284,6 +1696,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// The pool a card-name ask is narrowed to (`play/names.ts`).
 			format: room.format,
 			handSmoothing: room.settings.handSmoothing,
+			...(chooser === undefined ? {} : { chooser }),
 		};
 		next();
 	}
@@ -1392,7 +1805,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			};
 		},
 		releaseGoneMatches() {
-			for (const room of rooms?.list() ?? []) liveMatchId(room);
+			for (const room of rooms?.list() ?? []) for (const table of room.tables) liveMatchId(room, table);
 		},
 	};
 }
