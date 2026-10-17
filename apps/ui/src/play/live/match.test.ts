@@ -1033,6 +1033,37 @@ describe('the offer through a click’s turnaround', () => {
     expect(drawnOffer(m).selectable).toEqual(new Set([nomads]));
   });
 
+  /*
+   * af69's Searing Blaze, red in full run 39032975298 (match m-74aa7e3abec2): bob's face clicked as
+   * the first target, Forge marked him chosen (`setHighlighted`) before closing the selection, and the
+   * hold kept drawing his face as offered through the turnaround to the second target. A press on
+   * that outline landed once the creature step was open, named nothing it offered, and cancelled the
+   * cast.
+   */
+  it('a target chosen in the selection Forge then closes is never drawn as offered again', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    const bob = m.view!.players.find((p) => !p.isViewer)!.id;
+    await sendAndApply(s, m, [prompt('Target'), bar(false), selectables([], 1, 1)]);
+    expect(selectPlayer(m, bob)).toBe(true);
+    await sendAndApply(s, m, [highlight([{ kind: 'player', id: bob }], true), clear(), openZones('s0-5')]);
+    expect(drawnOffer(m).selectablePlayers.has(bob), 'the chosen player through the turnaround').toBe(false);
+    expect(abortAsk(m, 's0-5', 'unsupported', 'answered on mount in the board')).toBe(true);
+    expect(drawnOffer(m).selectablePlayers.has(bob), 'the chosen player once the asks close').toBe(false);
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([theirs[0]]));
+  });
+
+  it('a card chosen as a target and marked by Forge stays dark through the turnaround', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [nomads, bears] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [prompt('Target'), bar(false), selectables([nomads, bears], 1, 1)]);
+    expect(selectCard(m, bears)).toBe(true);
+    await sendAndApply(s, m, [mark([bears]), clear()]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([nomads]));
+  });
+
   it('Forge naming an EMPTY set ends the hold: nothing is drawn', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
