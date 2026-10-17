@@ -25,7 +25,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, enabledOk, grindPriority, makeTitled, says, stackCount } from './play/board.ts';
+import { castUntilOnStack, enabledOk, grindPriority, makeTitled, says, stackCount } from './play/board.ts';
 import { assignBlock, attackingCards, ownBattlefieldCards, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -94,12 +94,11 @@ test(
       await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
       const bolt = await offeredNamed(alice.page, 'Lightning Bolt');
-      await clickHandCard(alice.page, bolt);
 
       // Drain whatever Forge asks next — the ability choice, the target, the payment — until
       // the bolt is on the stack (T6: `board.ts`'s own `castUntilOnStack`, the loop
       // `w51-control-box.spec.ts` already proved against this same scenario, under full control).
-      await castUntilOnStack(alice.page, stack, async () => {
+      await castUntilOnStack(alice.page, stack, bolt, async () => {
         const ready = (await opponentFace.getAttribute('data-selectable')) === 'true';
         if (ready) await opponentFace.click();
         return ready;

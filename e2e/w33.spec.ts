@@ -597,7 +597,6 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
 
     await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
-    await clickHandCard(alice.page, card);
 
     // Supply the target: a click on bob's one creature. Per S (wave 33, the
     // scenario's wire shape): choosing a CARD target is never an ask — it
@@ -612,7 +611,7 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     // rows: payment forwarded, 177 ms later priority, bob's pass withheld, priority again; the same
     // race as w51/w56's bolt — T6: `board.ts`'s own `castUntilOnStack` now owns this loop).
     const theirCreature = alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-selectable]');
-    await castUntilOnStack(alice.page, stack, async () => {
+    await castUntilOnStack(alice.page, stack, card, async () => {
       const has = (await theirCreature.count()) > 0;
       if (has) await theirCreature.first().locator('button').first().click();
       return has;

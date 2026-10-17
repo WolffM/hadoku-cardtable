@@ -20,11 +20,10 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, enterMatch, makeTitled, offered, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, enterMatch, makeTitled, offered, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmNo, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerPrompt } from './play/prompts.ts';
 import { says, startScenarioMatch } from './play/scenario.ts';
 import { endOfSlot, pointerDrag, viewerSlot } from './play/w32.ts';
 
@@ -40,37 +39,6 @@ const titled = makeTitled(forge);
  * reaching into pure-logic modules).
  */
 const INSPECTOR_GAP = 8;
-
-/**
- * Cast a free (0-cost, no target) spell through `board.ts`'s `clickHandCard`
- * (the ONE cast helper: a press lifts, a second press at the release point
- * is what actually sends it) and wait for the STACK to change, since a
- * land's own caller waits for whatever its own ETB raises
- * instead (e.g. T4's shockland confirm) and has no stack to watch. Same
- * shape as `w33.spec.ts`'s own `castCard`: a seat holding priority over a
- * non-empty stack (e.g. two-spells.state's second cast, under full control)
- * gets a generic `getAbilityToPlay` ask instead of the board staying the
- * only surface — one `answerPrompt` is not always enough to drain it, so
- * this loops on "the stack actually changed" rather than on the first sight
- * of anything.
- */
-async function castFree(page: Page, cardId: number): Promise<void> {
-  const before = await stackCount(page);
-  await clickHandCard(page, cardId);
-  // Same shape as w33.spec.ts's own `castCard`: a seat holding priority over
-  // a non-empty stack (e.g. two-spells.state's second cast, under full
-  // control) gets a generic `getAbilityToPlay` ask instead of the board
-  // staying the only surface — one `answerPrompt` is not always enough to
-  // drain it, so this loops on "the stack actually changed" rather than on
-  // the first sight of anything.
-  for (let i = 0; i < 60; i++) {
-    await page.waitForTimeout(50);
-    await answerPrompt(page);
-    if ((await page.getByTestId('live-prompt').count()) > 0) continue;
-    if ((await stackCount(page)) !== before) return;
-  }
-  throw new Error(`castFree(${cardId}) never saw the stack change from ${before}`);
-}
 
 /** The inspector's own enlargement panel (`inspect/index.ts`'s `[data-inspect]`, `../apps/ui/src/play/inspect/index.ts`). */
 const inspectorPanel = (page: Page): Locator => page.locator('[data-board-zoom] [data-inspect]');
@@ -214,7 +182,7 @@ test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the con
     const land = (await offered(alice.page))[0];
     if (land === undefined) throw new Error(`the shockland scenario offered nothing to play: ${await says(alice.page)}`);
     // A land is not a spell — it never touches the stack, so its own ETB
-    // confirm is waited for directly, not via `castFree`'s stack-change loop.
+    // confirm is waited for directly, not via `castCard`'s cast-wait.
     await clickHandCard(alice.page, land);
 
     await expect(alice.page.getByTestId('live-says'), 'the shockland asks to pay 2 life').toContainText(/pay 2 life/i, { timeout: 15_000 });
@@ -345,7 +313,7 @@ test(titled('T8 — the opponent’s placed card shows the real face, and hoveri
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');
     await expect.poll(() => offered(bob.page), { timeout: 150_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
-    await castFree(bob.page, (await offered(bob.page))[0]!);
+    await castCard(bob.page, (await offered(bob.page))[0]!);
     await expect.poll(() => stackCount(alice.page), { timeout: 30_000, message: 'the cast reached the stack' }).toBe(1);
 
     const item = alice.page.locator('[data-placed-spell]').first();

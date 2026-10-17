@@ -19,7 +19,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, clickOnce, makeTitled, offeredNamed, says, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickOnce, makeTitled, offeredNamed, says, stackCount } from './play/board.ts';
 import { passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -122,9 +122,8 @@ test(titled('an aura that grants flying tags the creature and floats it, on both
 
     let aura: number | undefined;
     await expect.poll(async () => (aura = await offeredNamed(alice.page, 'Arcane Flight')), { timeout: 30_000, message: 'Arcane Flight is offered' }).not.toBeUndefined();
-    await clickHandCard(alice.page, aura!);
     const target = alice.page.locator(`[data-board-card="${bears}"]`);
-    await castUntilOnStack(alice.page, stack, async () => {
+    await castUntilOnStack(alice.page, stack, aura!, async () => {
       if ((await target.getAttribute('data-selectable')) === null) return false;
       const box = await target.boundingBox();
       if (box === null) return false;

@@ -18,7 +18,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { castUntilOnStack, clickHandCard, enabledOk, makeTitled, offeredNamed, stackCount } from './play/board.ts';
+import { castUntilOnStack, enabledOk, makeTitled, offeredNamed, stackCount } from './play/board.ts';
 import { passDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
@@ -180,9 +180,8 @@ test(
 
       let bolt: number | undefined;
       await expect.poll(async () => (bolt = await offeredNamed(alice.page, 'Lightning Bolt')), { timeout: 30_000, message: 'Lightning Bolt is offered' }).not.toBeUndefined();
-      await clickHandCard(alice.page, bolt!);
       const bobsFace = alice.page.locator('[data-player-face]:not([data-viewer])');
-      await castUntilOnStack(alice.page, stack, async () => {
+      await castUntilOnStack(alice.page, stack, bolt!, async () => {
         const ready = (await bobsFace.getAttribute('data-selectable')) === 'true';
         if (ready) await bobsFace.click();
         return ready;

@@ -19,7 +19,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, makeTitled, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, makeTitled, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -73,20 +73,18 @@ test(
       await expect(endTurnSlot(page)).toHaveAttribute('data-yield', 'on');
 
       // Bob casts his Lightning Bolt at alice. Nobody holds priority on it — bob's own spell is
-      // passed (`passOwnSpell`) and alice yields — so it can reach the stack and resolve between
-      // two polls of the stack count: alice's life is the durable proof that it was cast.
+      // passed (`passOwnSpell`) and alice yields.
       const bolt = await offeredNamed(bob.page, 'Lightning Bolt');
-      await clickHandCard(bob.page, bolt);
       const hit = async (): Promise<boolean> => (await ownLife(page).textContent()) === '17';
       await castUntilOnStack(
         bob.page,
         stack,
+        bolt,
         async () => {
           const ready = (await opponentFace(bob.page).getAttribute('data-selectable')) === 'true';
           if (ready) await opponentFace(bob.page).click();
           return ready;
         },
-        { landed: hit },
       );
 
       // The claim: alice's own bar never enables for it, the whole time it

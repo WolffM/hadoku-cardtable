@@ -45,38 +45,6 @@ async function handCardNamed(page: Page, name: string): Promise<number | undefin
   return ids[0];
 }
 
-/**
- * Cast Condescend: lift and release it on the viewer's own battlefield (the
- * one gesture every targeted or no-target cast goes through, `board.ts`'s
- * own header), then drain whatever Forge asks next — `getAbilityToPlay`
- * (the spell's own one ability), the X announce (a `getChoices` slider,
- * `GetChoicesPrompt`'s own shape once `numericChoiceRange` sees it — set to
- * `x` by `answerPrompt`'s own `x`, never its default minimum), and "Pay Mana
- * Cost". Alice's own single-legal-target choice is never drawn here at all:
- * she is not on full control, so the server's own `onlyAnswer` shortcut
- * answers it before it ever reaches her wire (`match.ts`'s `openAsk`).
- */
-async function castCondescend(page: Page, cardId: number, x: number): Promise<void> {
-  const stackBefore = await stackCount(page);
-  const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-  if (box === null) throw new Error('no battlefield box to release Condescend on');
-  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
-  await page.mouse.click(centre.x, centre.y);
-
-  await expect
-    .poll(
-      async () => {
-        await answerPrompt(page, { x });
-        const text = await says(page);
-        if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
-        return stackCount(page);
-      },
-      { timeout: 5_000, intervals: [50] },
-    )
-    .not.toBe(stackBefore);
-}
-
 test(titled('bob’s pay-or-decline and alice’s scry never draw at once, across two real browsers'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -109,7 +77,7 @@ test(titled('bob’s pay-or-decline and alice’s scry never draw at once, acros
 
     const condescendId = await handCardNamed(alice.page, 'Condescend');
     if (condescendId === undefined) throw new Error('no Condescend in alice’s hand');
-    await castCondescend(alice.page, condescendId, 1);
+    await castCard(alice.page, condescendId, { x: 1 });
 
     // Everything both screens draw from here until both of Condescend's windows are
     // answered: bob's real payment window, alice's scry sheet, and alice's waiting pop-out

@@ -42,12 +42,12 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
     await expect.poll(() => handCardNamed(page, 'Mountain'), { timeout: 15_000, message: 'the Mountain left alice’s hand' }).toBeUndefined();
     await expect.poll(() => offered(page), { timeout: 15_000, message: `Searing Blaze is offered after landfall — says: "${await says(page)}"` }).toContain(blaze);
 
-    expect(await clickHandCard(page, blaze), 'Searing Blaze lifted out of alice’s hand').toBe(true);
     const bobFace = page.locator('[data-player-face]:not([data-viewer])');
     const bears = page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card]');
     await castUntilOnStack(
       page,
       stack,
+      blaze,
       async () => {
         if ((await bobFace.getAttribute('data-selectable')) === 'true') {
           await bobFace.locator('.face__hit').click({ timeout: 1_000 }).catch(() => undefined);
@@ -60,7 +60,6 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
         }
         return false;
       },
-      { landed: async () => (await bobLife.textContent()) !== '20' },
     );
     await expect.poll(() => bobLife.textContent(), { timeout: 20_000, message: 'Searing Blaze resolved: bob took 3' }).toBe('17');
     await expect.poll(() => bobGraveyard.getAttribute('data-count'), { timeout: 15_000, message: 'the Grizzly Bears took 3 and died' }).toBe('1');

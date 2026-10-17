@@ -15,7 +15,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -27,20 +27,19 @@ const opponentFace = (page: Page): Locator => page.locator('[data-player-face]:n
 const ownLife = (page: Page): Locator => page.locator('.seat[data-viewer] [data-testid="life"]');
 const decisionOk = (page: Page): Locator => page.locator('[data-testid="live-decision-ok"]:enabled');
 
-/** Bob bolts alice: click the offered Bolt, then her face, until it is on the stack or `landed`. */
-async function bobBolts(bob: Page, stack: { serverLogFile: string }, landed: () => Promise<boolean>): Promise<void> {
+/** Bob bolts alice: the offered Bolt, then her face, until it is cast. */
+async function bobBolts(bob: Page, stack: { serverLogFile: string }): Promise<void> {
   let bolt: number | undefined;
   await expect.poll(async () => (bolt = await offeredNamed(bob, 'Lightning Bolt')), { timeout: 45_000, message: 'bob is offered Lightning Bolt' }).not.toBeUndefined();
-  await clickHandCard(bob, bolt!);
   await castUntilOnStack(
     bob,
     stack,
+    bolt!,
     async () => {
       const ready = (await opponentFace(bob).getAttribute('data-selectable')) === 'true';
       if (ready) await opponentFace(bob).click();
       return ready;
     },
-    { landed },
   );
 }
 
@@ -57,7 +56,7 @@ test(titled("under Full Control, Auto Yield pressed over bob's Bolt passes that 
     await expect(endTurnSlot(a), "it is bob's turn: the slot reads Auto Yield").toHaveText('Auto Yield');
 
     // Bob's first Bolt: alice, in Full Control, holds priority over it.
-    await bobBolts(bob.page, stack, async () => (await ownLife(a).textContent()) === '17');
+    await bobBolts(bob.page, stack);
     await expect
       .poll(async () => (await stackCount(a)) === 1 && (await decisionOk(a).count()) === 1, { timeout: 30_000, message: "alice holds priority over bob's Bolt" })
       .toBe(true);
@@ -70,7 +69,7 @@ test(titled("under Full Control, Auto Yield pressed over bob's Bolt passes that 
 
     // Bob's second Bolt, same turn: never on alice's bar.
     const hit = async (): Promise<boolean> => (await ownLife(a).textContent()) === '14';
-    await bobBolts(bob.page, stack, hit);
+    await bobBolts(bob.page, stack);
     let aliceBarLive = false;
     const resolvedBy = Date.now() + 30_000;
     while (!(await hit()) && Date.now() < resolvedBy) {

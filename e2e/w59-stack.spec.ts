@@ -43,7 +43,7 @@
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
-import { castByDrag, clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts'
+import { castByDrag, castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts'
 import { answerLoneAbility } from './play/prompts.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -311,24 +311,13 @@ test(
       seated = await startScenarioMatch(browser, stack, 'w59-keiga');
       const { alice, bob } = seated;
 
-      /** Cast the one Opt in `page`'s own hand, then drain whatever Forge asks next (mana, Opt's own Scry choice) until the stack changes — the same generic "press whatever bar is up" `keepHands` uses at the JVM layer, translated to the browser. */
       await turnFastModeOff(alice.page, stack, 0);
       await turnFastModeOff(bob.page, stack, 1);
+      /** Cast the one Quicken in `page`'s own hand. */
       const castQuicken = async (page: Page): Promise<void> => {
-        const before = await stackCount(page);
-        const optId = await handCardNamed(page, 'Quicken');
-        expect(optId, 'a Quicken is in this seat’s own hand').not.toBeUndefined();
-        await clickHandCard(page, optId!);
-        await expect
-          .poll(
-            async () => {
-              const text = await says(page);
-              if (!/^Priority:/.test(text)) await clickOnce(page, text, 'ok');
-              return stackCount(page);
-            },
-            { timeout: 15_000, message: 'a Quicken reached the stack' },
-          )
-          .not.toBe(before);
+        const quicken = await handCardNamed(page, 'Quicken');
+        expect(quicken, 'a Quicken is in this seat’s own hand').not.toBeUndefined();
+        await castCard(page, quicken!);
       };
 
       await castQuicken(alice.page);

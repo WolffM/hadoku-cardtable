@@ -133,8 +133,7 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await expectFour(page, 'after backing out');
 
     /* ── the bolt on the stack: Forge's OK is the pop-up's ────────────── */
-    await clickHandCard(page, await offeredNamed(page, 'Lightning Bolt'));
-    await castUntilOnStack(page, stack, async () => {
+    await castUntilOnStack(page, stack, await offeredNamed(page, 'Lightning Bolt'), async () => {
       const ready = (await opponentFace(page).getAttribute('data-selectable')) === 'true';
       if (ready) await opponentFace(page).click();
       return ready;

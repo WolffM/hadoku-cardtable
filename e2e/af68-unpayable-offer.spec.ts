@@ -16,7 +16,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, handCardNamed, makeTitled, offered, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, handCardNamed, makeTitled, offered, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 import { recordSurface, spans } from './play/surface.ts';
@@ -44,17 +44,16 @@ for (const { scenario, board } of [
     await expect.poll(() => handCardNamed(alice.page, 'Chain Lightning'), { timeout: 30_000, message: 'alice holds Chain Lightning' }).not.toBeUndefined();
     const bolt = (await handCardNamed(alice.page, 'Chain Lightning'))!;
     await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'Chain Lightning is offered' }).toContain(bolt);
-    expect(await clickHandCard(alice.page, bolt), 'Chain Lightning lifted out of alice’s hand').toBe(true);
     const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
     await castUntilOnStack(
       alice.page,
       stack,
+      bolt,
       async () => {
         const ready = (await bobFace.getAttribute('data-selectable')) === 'true';
         if (ready) await bobFace.locator('.face__hit').click({ timeout: 1_000 }).catch(() => undefined);
         return ready;
       },
-      { landed: async () => (await bobLife.textContent()) !== '20' },
     );
 
     // Nothing of bob's is pressed from here on: the copy offer must settle without him.

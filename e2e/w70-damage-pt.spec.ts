@@ -17,7 +17,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, grindPriority, makeTitled, stackCount } from './play/board.ts';
+import { castUntilOnStack, grindPriority, makeTitled, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -150,9 +150,8 @@ test(titled('a damaged creature reads power / toughness-left in the danger ink, 
 
     const boltAt = async (target: number): Promise<void> => {
       const bolt = await offeredNamed(alice.page, 'Lightning Bolt');
-      await clickHandCard(alice.page, bolt);
       const card = alice.page.locator(`[data-board-card="${target}"]`);
-      await castUntilOnStack(alice.page, stack, async () => {
+      await castUntilOnStack(alice.page, stack, bolt, async () => {
         if ((await card.getAttribute('data-selectable')) === null) return false;
         const box = await card.boundingBox();
         if (box === null) return false;

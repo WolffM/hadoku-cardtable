@@ -22,7 +22,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, clickPermanent, enabledOk, makeTitled, offeredNamed, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickPermanent, enabledOk, makeTitled, offeredNamed, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -139,9 +139,8 @@ test(titled('Kalitas’s Zombie arrives from Kalitas, on both screens'), async (
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
     const bolt = await offeredNamed(alice.page, 'Lightning Bolt');
     expect(bolt, 'Lightning Bolt is offered').not.toBeUndefined();
-    await clickHandCard(alice.page, bolt!);
     const target = alice.page.locator(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${bears}"]`);
-    await castUntilOnStack(alice.page, stack, async () => {
+    await castUntilOnStack(alice.page, stack, bolt!, async () => {
       const ready = (await target.getAttribute('data-selectable')) !== null;
       if (ready) await target.locator('button').first().click();
       return ready;

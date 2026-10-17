@@ -334,34 +334,73 @@ export async function cancelCast(page: Page, how: 'escape' | 'right-click' = 'es
 }
 
 /**
+ * Where `cardId` is drawn on this page, read with the stack's own count in one step: `'stack'` while
+ * one of Forge's stack items is the card (`live/placed.ts`'s `data-placed-card`), else the zone and
+ * side its own element sits in (`hand:you`, `battlefield:you`, `graveyard:you`…), else null — a cast
+ * in flight (targets or payment open) has Forge holding the card in no zone the board draws.
+ */
+async function castState(page: Page, cardId: number): Promise<{ stack: number; at: string | null }> {
+  return page.evaluate((id) => {
+    const stack = Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? '0');
+    if (document.querySelector(`[data-placed-card="${id}"]`) !== null) return { stack, at: 'stack' };
+    for (const el of Array.from(document.querySelectorAll(`[data-board-card="${id}"]`))) {
+      const zone = el.closest('[data-zone]');
+      if (zone !== null) return { stack, at: `${zone.getAttribute('data-zone') ?? ''}:${zone.getAttribute('data-owner') ?? ''}` };
+    }
+    return { stack, at: null };
+  }, cardId);
+}
+
+/**
+ * The ONE "the cast happened" signal every cast-wait below reads. Taken before the cast, `cast()` is
+ * true once the stack count differs from then OR the card is drawn somewhere other than where it
+ * started — on the stack, on a battlefield, in a graveyard or exile. The second half is the durable
+ * one: with nobody holding priority (the caster's own spell is passed, the opponent has nothing or
+ * yields) a spell can reach the stack and resolve between two reads of the count, and only where the
+ * card ended up still says it was cast (tp-tooltips' Reflector Mage, run 39002505481: on the stack
+ * for 300 ms between two polls). A cast that never reached Forge, or that was cancelled, leaves the
+ * card back where it started — never a false "cast".
+ */
+export async function castWatch(page: Page, cardId: number): Promise<{ stack: number; cast: () => Promise<boolean> }> {
+  const before = await castState(page, cardId);
+  return {
+    stack: before.stack,
+    cast: async () => {
+      const now = await castState(page, cardId);
+      return now.stack !== before.stack || (now.at !== null && now.at !== before.at);
+    },
+  };
+}
+
+/**
  * Click a hand card to cast it, then drain whatever Forge asks next: a
  * `getAbilityToPlay` choice (a seat holding priority over a non-empty stack
  * gets this instead of the board staying the only surface), then "Pay Mana
- * Cost" if the cost isn't free. Waits for the stack to actually change
- * rather than returning on the first sight of anything, so a still-open ask
- * (the click's own round trip not yet landed) is never mistaken for "nothing
- * left to do". Only the cast's own asks are answered (`answerPrompt`'s
- * `stack`): what the spell asks as it resolves is the caller's.
+ * Cost" if the cost isn't free, until `castWatch` says the cast happened —
+ * never on the first sight of anything, so a still-open ask (the click's own
+ * round trip not yet landed) is never mistaken for "nothing left to do".
+ * Only the cast's own asks are answered (`answerPrompt`'s `stack`): what the
+ * spell asks as it resolves is the caller's. `x` is a "choose X" slider's
+ * value (`answerPrompt`'s own).
  */
-export async function castCard(page: Page, cardId: number): Promise<void> {
-  const stackBefore = await stackCount(page);
+export async function castCard(page: Page, cardId: number, opts: { x?: number } = {}): Promise<void> {
+  const watch = await castWatch(page, cardId);
   await clickHandCard(page, cardId);
   try {
     await expect
       .poll(
         async () => {
-          const now = await stackCount(page);
-          if (now !== stackBefore) return now;
-          await answerPrompt(page, { stack: stackBefore });
+          if (await watch.cast()) return true;
+          await answerPrompt(page, { stack: watch.stack, x: opts.x });
           const text = await says(page);
           if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
-          return stackCount(page);
+          return watch.cast();
         },
-        { timeout: 3_000, intervals: [50] },
+        { timeout: 10_000, intervals: [50] },
       )
-      .not.toBe(stackBefore);
+      .toBe(true);
   } catch {
-    throw new Error(`castCard(${cardId}) never saw the stack change — stuck on "${await says(page)}"`);
+    throw new Error(`castCard(${cardId}) never saw the cast happen — stuck on "${await says(page)}"`);
   }
 }
 
@@ -372,12 +411,12 @@ export async function castCard(page: Page, cardId: number): Promise<void> {
  * whatever Forge asks next — a plain mana payment, the lone-ability sheet
  * full control leaves to the player (`answerLoneAbility`, not the generic
  * `answerPrompt`: a seat under full control answers nothing on its own) —
- * until the stack count on `page` changes. Not before Forge offers the
+ * until `castWatch` says the cast happened. Not before Forge offers the
  * card: a drag released before the offer is a no-op, and the first act
  * after a scenario start can be dropped outright (ledger AB15,
  * `PlayBridge.java`'s own `refreshActionable`), so the drag is repeated,
- * bounded, while the card is still in the hand and the stack unchanged. A
- * cast with a real target choice is the caller's.
+ * bounded, while the card is still in the hand and the cast has not
+ * happened. A cast with a real target choice is the caller's.
  */
 export async function castByDrag(
   page: Page,
@@ -385,7 +424,7 @@ export async function castByDrag(
   cardId: number,
   to: { x: number; y: number },
 ): Promise<void> {
-  const before = await stackCount(page);
+  const watch = await castWatch(page, cardId);
   await expect.poll(() => offered(page), { timeout: 45_000, message: `card ${cardId} is offered` }).toContain(cardId);
   const inHand = () => page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${cardId}"]`).count();
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -401,11 +440,11 @@ export async function castByDrag(
           const text = await says(page);
           if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
           await answerLoneAbility(page);
-          return stackCount(page);
+          return watch.cast();
         },
         { timeout: 8_000 },
       )
-      .not.toBe(before)
+      .toBe(true)
       .then(
         () => true,
         () => false,
@@ -419,36 +458,33 @@ export async function castByDrag(
     .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
     .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-board-card')}:${e.querySelector('.card__name')?.textContent?.trim() ?? ''}`));
   expect(
-    await stackCount(page),
-    `card ${cardId} reached the stack — placements on the server: [${placements.join(', ')}]; this hand now: [${hand.join(', ')}]; says: "${await says(page)}"`,
-  ).not.toBe(before);
+    await watch.cast(),
+    `card ${cardId} was cast — placements on the server: [${placements.join(', ')}]; this hand now: [${hand.join(', ')}]; says: "${await says(page)}"`,
+  ).toBe(true);
 }
 
 /**
- * Drain whatever Forge asks next (`answerPrompt` while the stack is unchanged, `clickTargetIfReady`, or
- * `pressPaymentAuto` — never `clickOnce(…, 'ok')`, which can land on the
- * stack's own OK the instant the spell lands) until the stack changes. T6:
- * the one cast-wait loop w51/w56-numbers/w33 wrote by hand; w63-yield's own
- * copy skipped the payment fallback and reddened twice for it (bob's Bolt
- * costs `{R}`, runs 37859797421, 37870730678).
- *
- * `landed` is the caller's own durable proof the cast happened, for a spell
- * nobody holds priority on: the caster's own spell is passed (`passOwnSpell`)
- * and a yielding opponent's window is passed too, so it can reach the stack
- * and resolve between two polls of `stackCount`.
+ * Lift `cardId` out of the hand, release it over the battlefield, then drain
+ * whatever Forge asks next (`answerPrompt` while the stack is unchanged,
+ * `clickTargetIfReady`, or `pressPaymentAuto` — never `clickOnce(…, 'ok')`,
+ * which can land on the stack's own OK the instant the spell lands) until
+ * `castWatch` says the cast happened. T6: the one cast-wait loop
+ * w51/w56-numbers/w33 wrote by hand; w63-yield's own copy skipped the payment
+ * fallback and reddened twice for it (bob's Bolt costs `{R}`, runs
+ * 37859797421, 37870730678).
  */
 export async function castUntilOnStack(
   page: Page,
   stack: { serverLogFile: string },
+  cardId: number,
   clickTargetIfReady: () => Promise<boolean>,
-  opts: { timeoutMs?: number; landed?: () => Promise<boolean> } = {},
+  opts: { timeoutMs?: number } = {},
 ): Promise<void> {
-  const before = await stackCount(page);
-  const landed = opts.landed ?? (async () => false);
-  const arrived = async (): Promise<boolean> => (await stackCount(page)) !== before || (await landed());
+  const watch = await castWatch(page, cardId);
+  expect(await clickHandCard(page, cardId), `card ${cardId} lifted out of the hand`).toBe(true);
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
-  while (!(await arrived()) && Date.now() < deadline) {
-    await answerPrompt(page, { stack: before });
+  while (!(await watch.cast()) && Date.now() < deadline) {
+    await answerPrompt(page, { stack: watch.stack });
     if (!(await clickTargetIfReady())) await pressPaymentAuto(page);
     await page.waitForTimeout(40);
   }
@@ -460,9 +496,9 @@ export async function castUntilOnStack(
     .getByTestId('live-prompt')
     .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-method') ?? ''}#${e.getAttribute('data-call-id') ?? ''}`));
   await expect
-    .poll(arrived, {
+    .poll(watch.cast, {
       timeout: 10_000,
-      message: `the spell reached the stack — says: "${await says(page)}"; open prompts: [${open.join(', ')}]; server's last asks: [${asks.join(' | ')}]`,
+      message: `card ${cardId} was cast — says: "${await says(page)}"; open prompts: [${open.join(', ')}]; server's last asks: [${asks.join(' | ')}]`,
     })
     .toBe(true);
 }
