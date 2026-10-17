@@ -7,9 +7,11 @@
  * creature drew plain. The bridge's `printedPT` names Forge's own printed base for every battlefield
  * creature whose numbers differ.
  *
- * Seat 0 controls Glorious Anthem (+1/+1 to its creatures), Grizzly Bears and Tarmogoyf; seat 1
- * controls Grizzly Bears of its own. Both seats must be told seat 0's Bears was printed 2/2 (it is
- * 3/3); neither seat 1's unbuffed Bears nor Tarmogoyf (its `*` is no printed number) is named.
+ * Seat 0 controls Glorious Anthem (+1/+1 to its creatures), Grizzly Bears, Tarmogoyf and Gideon
+ * Blackblade; seat 1 controls Grizzly Bears of its own. Both seats must be told seat 0's Bears was
+ * printed 2/2 (it is 3/3); neither seat 1's unbuffed Bears, nor Tarmogoyf (its `*` is no printed
+ * number), nor Gideon (a planeswalker with no printed power or toughness, a creature on his own turn
+ * only by his static ability) is named.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/printed-pt \
  *   pnpm exec vitest run apps/server/src/play/printed-pt.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -32,7 +34,7 @@ const STATE = [
 	'humanlife=20',
 	'ailife=20',
 	'humanhand=',
-	'humanbattlefield=Glorious Anthem;Grizzly Bears;Tarmogoyf;Forest',
+	'humanbattlefield=Glorious Anthem;Grizzly Bears;Tarmogoyf;Gideon Blackblade|Counters:LOYALTY=4;Forest',
 	'humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest',
 	'humangraveyard=',
 	'aihand=',
@@ -53,7 +55,7 @@ function latestPrintedPT(s: Scenario, seat: number): Map<number, [number, number
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
-		'an anthem’s Grizzly Bears was printed 2/2, on both sides; an unbuffed Bears and a Tarmogoyf are not named',
+		'an anthem’s Grizzly Bears was printed 2/2, on both sides; an unbuffed Bears, a Tarmogoyf and a creature Gideon are not named',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 86, decks: DECKS, scenario: STATE });
@@ -65,6 +67,7 @@ describe.skipIf(!available.ok)(title, () => {
 				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
 				const bears = s.zone(0, 'Battlefield').find((c) => c.name === 'Grizzly Bears')!;
 				const goyf = s.zone(0, 'Battlefield').find((c) => c.name === 'Tarmogoyf')!;
+				const gideon = s.zone(0, 'Battlefield').find((c) => c.name === 'Gideon Blackblade')!;
 				const theirs = s.zone(1, 'Battlefield').find((c) => c.name === 'Grizzly Bears')!;
 				await waitUntil(() => {
 					s.answerAsks();
@@ -72,11 +75,12 @@ describe.skipIf(!available.ok)(title, () => {
 				}, 'both seats to be sent a printedPT snapshot naming the buffed Bears', 10_000, s).catch(() => undefined);
 				for (const seat of [0, 1]) {
 					const printed = latestPrintedPT(s, seat);
-					console.log(`[printed-pt.jvm] seat ${seat}: printedPT ${JSON.stringify([...(printed ?? [])])}; bears #${bears.id}, goyf #${goyf.id}, theirs #${theirs.id}`);
+					console.log(`[printed-pt.jvm] seat ${seat}: printedPT ${JSON.stringify([...(printed ?? [])])}; bears #${bears.id}, goyf #${goyf.id}, gideon #${gideon.id}, theirs #${theirs.id}`);
 					expect(printed, `seat ${seat} was sent a printedPT snapshot`).not.toBeNull();
 					expect(printed!.get(bears.id), `seat ${seat}: the anthem’s Bears was printed 2/2`).toEqual([2, 2]);
 					expect(printed!.has(theirs.id), `seat ${seat}: an unbuffed Bears is not named`).toBe(false);
 					expect(printed!.has(goyf.id), `seat ${seat}: Tarmogoyf’s * is no printed number`).toBe(false);
+					expect(printed!.has(gideon.id), `seat ${seat}: Gideon has no printed power or toughness`).toBe(false);
 				}
 			} finally {
 				await s.stop();
