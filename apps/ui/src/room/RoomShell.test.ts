@@ -75,6 +75,8 @@ import { THEMES } from '@wolffm/themes';
 
 import { RoomShell, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
 import { watchpartyPrefsCacheKey } from './avatar.ts';
+import { roomIdFor } from '../App.tsx';
+import { parseRoute } from '../screens/route.ts';
 
 afterEach(() => {
   cleanup();
@@ -268,5 +270,45 @@ describe('the avatar the viewer picked in watchparty', () => {
     render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
     await waitFor(() => screen.getByTestId('room-chrome'));
     expect(posts.filter((u) => u.includes('/identity'))).toEqual([]);
+  });
+});
+
+/*
+ * Wave 71 §G: the room this screen puts the chat in, for a `#/match/<id>`
+ * route. `App.tsx`'s own `roomIdFor` is the function `RoomShell`'s `roomId`
+ * prop is built from (`App`'s `<RoomShell roomId={roomIdFor(route,
+ * matchRoomId)}>`); testing it here rather than rendering the whole app is
+ * what keeps this a pure-function test and not a second `App.test.ts` this
+ * lane does not own.
+ *
+ * `matchRoomId` is `App.tsx`'s own name for the match's resolved room
+ * (`useMatchRoomId`, built on `roomsClient().roomOfMatch`) — the second
+ * argument stands in for it, exactly as `App` would pass it once that fetch
+ * answers.
+ */
+describe('the room a match route puts the chat in', () => {
+  it('is the match’s OWN room, not a room keyed by the match id', () => {
+    const route = parseRoute('#/match/m-090bf01ba811');
+    expect(route).toEqual({ kind: 'match', matchId: 'm-090bf01ba811' });
+
+    // The match's room, as `roomOfMatch` answered it — a DIFFERENT id from
+    // the match's own. Reverting wave 71 §G's step 1 (`return route.matchId`
+    // for the `match` case) makes this assertion fail: the function would
+    // answer the match id instead of the room id below.
+    expect(roomIdFor(route, 'r-cube-night')).toBe('r-cube-night');
+    expect(roomIdFor(route, 'r-cube-night')).not.toBe('m-090bf01ba811');
+  });
+
+  it('is null while the match’s room has not resolved yet, same as before the room existed to ask for', () => {
+    const route = parseRoute('#/match/m-090bf01ba811');
+    expect(roomIdFor(route, null)).toBeNull();
+  });
+
+  it('every other route is unchanged by the new parameter', () => {
+    expect(roomIdFor(parseRoute('#/room/r-cube-night'), null)).toBe('r-cube-night');
+    expect(roomIdFor(parseRoute('#/draft/pod-1'), 'r-should-be-ignored')).toBe('pod-1');
+    expect(roomIdFor(parseRoute('#/deck/pod-1'), 'r-should-be-ignored')).toBe('pod-1');
+    expect(roomIdFor(parseRoute('#/'), 'r-should-be-ignored')).toBeNull();
+    expect(roomIdFor(parseRoute('#/debug'), 'r-should-be-ignored')).toBeNull();
   });
 });

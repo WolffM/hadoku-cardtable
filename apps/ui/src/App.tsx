@@ -37,7 +37,7 @@
  * connection — is what ships.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@wolffm/task-ui-components';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
@@ -46,8 +46,49 @@ import { setScreenMusic } from './sound/index.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
+import { roomsClient } from './rooms/api.ts';
 
 export type AppProps = ScreenProps;
+
+/**
+ * The room a live match belongs to, resolved once per match id — the same
+ * call `MatchScreen.tsx` already makes for its own "back to the room" link
+ * (`roomOfMatch`), asked again here because the chat has to know it BEFORE
+ * `MatchScreen` ever mounts.
+ *
+ * Kept across matches rather than reset to `null` while a new one resolves
+ * (wave 71 §G): `RoomShell` tears down and rebuilds watchparty's chrome
+ * whenever the room id it is given changes, so a board switch that bounced
+ * through `null` on every click would rejoin the chat twice for nothing — and
+ * a player who switches to another table and back would watch their chat
+ * column vanish and reappear both times. The two tables Carol moves between
+ * in `e2e/w71-boards.spec.ts` are one room, so holding the last answer here
+ * makes that switch a no-op render instead. The very first match a tab opens
+ * still renders with no chrome for one tick, because there is no earlier
+ * answer to hold on to — see the comment on `RoomShell`'s own `who === 'pending'`
+ * guard for why that single bounce does not repeat.
+ */
+function useMatchRoomId(matchId: string | null): string | null {
+  const [roomId, setRoomId] = useState<string | null>(null);
+  useEffect(() => {
+    if (matchId === null) return;
+    let live = true;
+    roomsClient()
+      .roomOfMatch(matchId)
+      .then(
+        (room) => {
+          if (live) setRoomId(room?.id ?? null);
+        },
+        () => {
+          if (live) setRoomId(null);
+        },
+      );
+    return () => {
+      live = false;
+    };
+  }, [matchId]);
+  return roomId;
+}
 
 /**
  * The watchparty room this route belongs in, or null for the routes that are
@@ -58,14 +99,24 @@ export type AppProps = ScreenProps;
  * new room to build a deck would drop the conversation they were having about
  * it. The legacy `draft` route maps to the same id the `room` route does, so
  * redirecting one to the other does not tear down and rebuild the chrome.
+ *
+ * **A `match` route resolves to the MATCH'S ROOM, not the match itself**
+ * (wave 71 §G, `useMatchRoomId` above). Every member used to be pushed onto
+ * `cardtable-m-<matchId>` here — a chat room keyed by the game, and a
+ * DIFFERENT one from the room's own `cardtable-r-<roomId>` — so a room's
+ * conversation stopped the moment anyone opened a board and could not be
+ * resumed by opening another board of the same room (the board strip this
+ * wave adds is exactly that second board). `matchRoomId` is the answer this
+ * function now returns for a `match` route; it is `null` until the room is
+ * known, same as a route this function always answered `null` for.
  */
-function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
+export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoomId: string | null): string | null {
   switch (route.kind) {
     case 'draft':
     case 'deck':
       return route.draftId;
     case 'match':
-      return route.matchId;
+      return matchRoomId;
     case 'room':
       return route.roomId;
     default:
@@ -75,6 +126,7 @@ function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
 
 export function App({ transport }: AppProps) {
   const route = useRoute();
+  const matchRoomId = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
 
   // The lobby's music everywhere a player is, silence on the tools. A match
   // swaps in its own (`LiveBoard` → `setMatchMusic`).
@@ -140,7 +192,7 @@ export function App({ transport }: AppProps) {
       {/* The operator, 2026-10-10: *"theres really no reason to close the chat
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
-      <RoomShell roomId={roomIdFor(route)} collapsible={route.kind !== 'room'}>
+      <RoomShell roomId={roomIdFor(route, matchRoomId)} collapsible={route.kind !== 'room'}>
         <Screen transport={transport} />
       </RoomShell>
     </AppChrome>
