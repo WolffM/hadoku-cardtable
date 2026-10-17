@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { boardBusyUntil, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects } from '../motion.ts';
+import { boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, contactMs, RAM_STAGGER_MS } from './ram.ts';
 import {
@@ -439,7 +439,7 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.dispose();
   });
 
-  it('notes when the life hit lands and when the board is still again, for what must wait for the hit (the result screen, a life total’s sound)', () => {
+  it('notes when the life hit lands, and the board is still only once it has, for what must wait for the hit (the result screen, a life total’s sound)', async () => {
     vi.useFakeTimers();
     const { canvas } = sorinBoard();
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
@@ -448,8 +448,26 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), seq: 7 });
     expect(lifeImpactAt(7), 'its sound waits for the hit').toBe(at + HIT_MS);
     expect(lifeImpactAt(6), 'another view drew no hit').toBeNull();
-    expect(boardBusyUntil(), 'and the board is busy at least until then').toBeGreaterThanOrEqual(at + HIT_MS);
+    let still = false;
+    whenBoardStill(() => (still = true));
+    await vi.advanceTimersByTimeAsync(HIT_MS - 1);
+    expect(still, 'the board is busy until the hit lands').toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(still, 'and still once it has').toBe(true);
     handle.dispose();
+  });
+
+  it('a board taken down mid-beat is still at once: nothing it was drawing is left to wait for', async () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), seq: 7 });
+    let still = false;
+    whenBoardStill(() => (still = true));
+    handle.dispose();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(still).toBe(true);
   });
 
   it('a reveal shown while the item was on the stack goes first: the hit waits out its beat and comes from the revealed card', () => {

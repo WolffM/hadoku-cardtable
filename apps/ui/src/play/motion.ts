@@ -140,24 +140,65 @@ export function lastRevealBeat(): RevealBeat | null {
   return lastReveal;
 }
 
-/**
- * When what the board is drawing now is over, and when the first hit on a player lands — for what
- * must wait for the hit (the operator, 2026-10-15: "the life-loss animation should occur when the
- * fireball actually makes the impact. the game-loss trigger should also only happen after the
- * fireball actually hits"): the result screen and its sound, a life total's sound.
+/*
+ * What the board is drawing now, for what must wait until it is over (the operator, 2026-10-15: "the
+ * game-loss trigger should also only happen after the fireball actually hits"; 2026-10-17: "the final
+ * creature doesn't even get to attack because the game ends immediately"): the game's end is the last
+ * beat — its result screen and its sound come once every beat drawn before it has played out.
  */
-let busyUntil = 0;
+const drawing = new Set<Promise<void>>();
+const stillWaiters = new Set<() => void>();
+
+/** `live/numbers.ts` is drawing a view's beats: the board is busy until `over` settles. */
+export function noteBoardDrawing(over: Promise<unknown>): void {
+  const settled = over.then(
+    () => undefined,
+    () => undefined,
+  );
+  drawing.add(settled);
+  void settled.then(() => {
+    drawing.delete(settled);
+    if (drawing.size > 0) return;
+    for (const wake of [...stillWaiters]) {
+      stillWaiters.delete(wake);
+      wake();
+    }
+  });
+}
+
+/** Runs `done` once nothing the board is drawing is still playing — at once when it is still. Returns a cancel. */
+export function whenBoardStill(done: () => void): () => void {
+  if (drawing.size === 0) {
+    done();
+    return () => undefined;
+  }
+  stillWaiters.add(done);
+  return () => {
+    stillWaiters.delete(done);
+  };
+}
+
+/**
+ * Settles once every finite animation running on `root` and inside it has finished — a ram, a crash,
+ * a crumble, a floating number — looking again after each round, since one may start another. An
+ * endless one (a pulse, a shimmer) is not motion that ends, and is not waited for.
+ */
+export function animationsSettled(root: Element): Promise<void> {
+  return new Promise((resolve) => {
+    const look = (): void => {
+      if (typeof root.getAnimations !== 'function') return resolve();
+      const running = root
+        .getAnimations({ subtree: true })
+        .filter((a) => a.playState !== 'finished' && a.playState !== 'idle' && a.effect?.getComputedTiming().endTime !== Infinity);
+      if (running.length === 0) return resolve();
+      void Promise.allSettled(running.map((a) => a.finished)).then(look);
+    };
+    look();
+  });
+}
+
+/** When the first hit on a player lands — a life total's sound waits for it. */
 let lifeImpact: { seq: number; at: number } | null = null;
-
-/** `live/numbers.ts` has drawn beats that run until `until` (epoch ms). */
-export function noteBoardBusy(until: number): void {
-  busyUntil = Math.max(busyUntil, until);
-}
-
-/** When the board's drawn beats are over (epoch ms); in the past when it is still. */
-export function boardBusyUntil(): number {
-  return busyUntil;
-}
 
 /** The view numbered `seq` drew a hit on a player that lands at `at` (epoch ms), its first. */
 export function noteLifeImpact(seq: number, at: number): void {

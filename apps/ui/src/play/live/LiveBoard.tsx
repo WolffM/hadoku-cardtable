@@ -287,7 +287,7 @@ import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-c
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { hoverControl, isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import { matchMusicRoles } from '../../sound/match-music.ts';
-import { boardBusyUntil, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt } from '../motion.ts';
+import { boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, whenBoardStill } from '../motion.ts';
 import {
   abortAsk,
   answerAsk,
@@ -1847,29 +1847,22 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
 /** The sounds of a permanent leaving the battlefield: each waits for the first exit drawn. */
 const EXIT_ROLES: ReadonlySet<string> = new Set(['g.dies', 'g.destroy', 'g.exile', 'g.bounce']);
 
+/** The game's own end: its sound is the result screen's, and plays with it (`useAfterTheBoard`). */
+const END_ROLES: ReadonlySet<string> = new Set(['g.win', 'g.lose']);
+
 /**
  * The sounds a hit is the cause of wait for the hit (`motion.ts`'s beat clock, written by `numbers.ts`
  * in the same commit): a life total's, until the first hit on a player lands; a creature's damage,
- * until the first hit on a card lands; a permanent leaving, until the first exit starts; the game's
- * end, until everything the board is drawing has played.
+ * until the first hit on a card lands; a permanent leaving, until the first exit starts.
  */
 function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): DelayedSoundEvent[] {
   const now = Date.now();
   const life = lifeImpactAt(seq);
   const card = cardImpactAt(seq);
   const exit = exitBeatAt(seq);
-  const busy = boardBusyUntil();
   return events.map((e) => {
     const until =
-      e.role === 'g.damage-player' || e.role === 'g.lifegain'
-        ? life
-        : e.role === 'g.damage'
-          ? card
-          : EXIT_ROLES.has(e.role)
-            ? exit
-            : e.role === 'g.win' || e.role === 'g.lose'
-              ? busy
-              : null;
+      e.role === 'g.damage-player' || e.role === 'g.lifegain' ? life : e.role === 'g.damage' ? card : EXIT_ROLES.has(e.role) ? exit : null;
     return until === null || until <= now ? e : { ...e, delayMs: Math.max(e.delayMs ?? 0, until - now) };
   });
 }
@@ -1881,8 +1874,9 @@ function fromTheBoard(seq: number): DelayedSoundEvent[] {
 }
 
 /**
- * The result screen once the board has drawn what ended the game — the bolt that took the last life
- * lands first (the operator, 2026-10-15) — and at once when nothing is playing.
+ * The game's end is the board's last beat: the result screen comes once the board has drawn what ended
+ * the game — the bolt that took the last life lands (the operator, 2026-10-15), the last attacker's
+ * charge lands and comes home (2026-10-17) — and at once when nothing is playing.
  */
 function useAfterTheBoard(over: boolean): boolean {
   const [shown, setShown] = useState(false);
@@ -1891,13 +1885,7 @@ function useAfterTheBoard(over: boolean): boolean {
       setShown(false);
       return undefined;
     }
-    const wait = boardBusyUntil() - Date.now();
-    if (wait <= 0) {
-      setShown(true);
-      return undefined;
-    }
-    const timer = setTimeout(() => setShown(true), wait);
-    return () => clearTimeout(timer);
+    return whenBoardStill(() => setShown(true));
   }, [over]);
   return shown;
 }
@@ -2138,6 +2126,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // The result screen waits for the board to finish drawing what ended the game.
   const resultShown = useAfterTheBoard(match.view !== null && (match.view.gameOver || match.finished));
   const lastSoundView = useRef<BoardView | null>(null);
+  /** The game's end sound, from the view that ended it, held for the result screen. */
+  const endSound = useRef<{ events: DelayedSoundEvent[]; prevSeq: number } | null>(null);
   // A phase's sound waits for the phase to hold, so a step Forge passes straight through makes none (./phase-sound.ts).
   const phaseSound = useMemo(
     () =>
@@ -2159,9 +2149,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       const phase = all.find((e) => e.role === 'g.phase');
       if (ending || (prev !== null && soundView.turn !== prev.turn)) phaseSound.drop();
       if (phase !== undefined && !ending) phaseSound.enter(soundView.phase ?? '', phase, openWindows(match));
+      const end = all.filter((e) => END_ROLES.has(e.role));
+      if (end.length > 0) endSound.current = { events: end, prevSeq: prev?.seq ?? -1 };
       const events = [
         ...afterTheHits(
-          all.filter((e) => e.role !== 'g.phase'),
+          all.filter((e) => e.role !== 'g.phase' && !END_ROLES.has(e.role)),
           soundView.seq,
         ),
         ...fromTheBoard(soundView.seq),
@@ -2173,6 +2165,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       console.error('[cardtable] sound events for this view failed', err);
     }
   }, [soundView, spectator, watcher, match]);
+  // The game's end sounds with its result screen, once the board has drawn what ended it.
+  useEffect(() => {
+    const end = endSound.current;
+    if (!resultShown || end === null) return;
+    endSound.current = null;
+    playSoundEvents(end.events);
+    reportSound(match, 'view', end.events, { prevSeq: end.prevSeq, end: true });
+  }, [resultShown, soundView, match]);
   // Every redraw: a window that opened since the phase began is the phase holding, and its sound plays now.
   useEffect(() => {
     phaseSound.hold(openWindows(match));

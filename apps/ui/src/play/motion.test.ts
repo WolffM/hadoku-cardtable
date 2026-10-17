@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 /*
  * `afterGlide`: a stand-in's glide ends when its own `left`/`top` transitions have finished, not
- * when a clock started at the style change says so.
+ * when a clock started at the style change says so. The board's stillness, likewise, is what it is
+ * drawing having finished — its beats, then its animations — never a clock.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { afterGlide, GLIDE_MS } from './motion.ts';
+import { afterGlide, animationsSettled, GLIDE_MS, noteBoardDrawing, whenBoardStill } from './motion.ts';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -90,5 +91,66 @@ describe('afterGlide', () => {
     expect(done).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(done).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** An animation the test finishes by hand, with how long its timing says it runs. */
+function running(endTime: number): { anim: Animation; end: () => void } {
+  let resolve!: () => void;
+  const finished = new Promise<void>((res) => (resolve = res));
+  const anim = { playState: 'running', finished, effect: { getComputedTiming: () => ({ endTime }) } } as unknown as Animation;
+  const end = (): void => {
+    (anim as { playState: string }).playState = 'finished';
+    resolve();
+  };
+  return { anim, end };
+}
+
+describe('the board’s stillness', () => {
+  it('whenBoardStill waits for every view drawing, and is at once when nothing is', async () => {
+    let first!: () => void;
+    let second!: () => void;
+    noteBoardDrawing(new Promise<void>((res) => (first = res)));
+    noteBoardDrawing(new Promise<void>((res) => (second = res)));
+    let still = 0;
+    whenBoardStill(() => (still += 1));
+    first();
+    await settle();
+    expect(still, 'one drawing still playing').toBe(0);
+    second();
+    await settle();
+    expect(still).toBe(1);
+    whenBoardStill(() => (still += 1));
+    expect(still, 'still: at once').toBe(2);
+  });
+
+  it('a cancelled wait never runs', async () => {
+    let done!: () => void;
+    noteBoardDrawing(new Promise<void>((res) => (done = res)));
+    let ran = false;
+    const cancel = whenBoardStill(() => (ran = true));
+    cancel();
+    done();
+    await settle();
+    expect(ran).toBe(false);
+  });
+
+  it('animationsSettled waits for the finite animations on the board, looking again for any that start meanwhile, and not for an endless one', async () => {
+    const ram = running(1200);
+    const pulse = running(Infinity);
+    const crash = running(400);
+    let anims = [ram.anim, pulse.anim];
+    const root = { getAnimations: () => anims } as unknown as Element;
+    let settled = false;
+    void animationsSettled(root).then(() => (settled = true));
+    await settle();
+    expect(settled).toBe(false);
+    anims = [ram.anim, pulse.anim, crash.anim];
+    ram.end();
+    await settle();
+    expect(settled, 'a crash started while the ram ran').toBe(false);
+    crash.end();
+    await settle();
+    expect(settled).toBe(true);
   });
 });

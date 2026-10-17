@@ -96,8 +96,9 @@ import {
   damagePower,
   GLIDE_MS,
   HIT_MS,
+  animationsSettled,
   lastRevealBeat,
-  noteBoardBusy,
+  noteBoardDrawing,
   noteBoardSounds,
   noteCardImpact,
   noteExitBeat,
@@ -414,6 +415,25 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
   function battlefieldCard(cardId: number): HTMLElement | null {
     return canvas.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${cardId}"]`);
+  }
+
+  /** The settle of each view's beats still playing: settled at once on dispose, since a board taken down draws nothing more. */
+  const playing = new Set<() => void>();
+
+  /**
+   * Settles when this view's beats are over: its last beat has come (`lastMs` from now, on the same clock
+   * that fires them), and every animation it started on the board has finished — a ram home, a crumble,
+   * a number risen — timed by the animations themselves.
+   */
+  function beatsOver(lastMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      const settle = (): void => {
+        playing.delete(settle);
+        resolve();
+      };
+      playing.add(settle);
+      schedule(() => void animationsSettled(canvas).then(settle), lastMs);
+    });
   }
 
   function schedule(fn: () => void, ms: number): void {
@@ -798,7 +818,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine })));
     if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
     if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
-    if (endMs > 0) noteBoardBusy(Date.now() + endMs);
+    if (endMs > 0) noteBoardDrawing(beatsOver(endMs));
     if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
       host.report?.({
@@ -848,6 +868,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       live = false;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      for (const settle of [...playing]) settle();
       for (const cancel of rams) cancel();
       rams.clear();
       for (const cancel of shakes) cancel();

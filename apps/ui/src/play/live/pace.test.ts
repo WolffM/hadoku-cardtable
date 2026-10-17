@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
-import { classify, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
+import { classify, END_UNSHOWN_MS, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -31,6 +31,9 @@ const RESOLVE = deltaOf({ g: stackOf([]) });
 const PHASE = deltaOf({ g: { _type: 3, _id: 1, Phase: { t: 'enum', c: 'PhaseType', v: 'MAIN1' } } });
 const DRAW = deltaOf({ c9: zone(9, 'Hand'), p0: { _type: 1, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 9 }] } } });
 const DEFAULT_DELTA = deltaOf({ p0: { _type: 1, _id: 0, Life: { t: 'int', v: 17 } } });
+const FINISH = { frame: { kind: 'notify', method: 'finishGame', losers: [1] } };
+/** The frame that shows the end: the bolt resolving, the last life gone, the game over. */
+const LETHAL = deltaOf({ g: { ...stackOf([]), GameOver: { t: 'bool', v: true } }, p1: { _type: 1, _id: 1, Life: { t: 'int', v: 0 } } });
 
 /*
  * A cast as Forge sends it (`e2e/w71-tap-reveal.spec.ts`'s wire record of Grizzly Bears paid by two
@@ -75,6 +78,7 @@ describe('classify', () => {
     expect(classify(ON_STACK)).toBe('cast');
     expect(classify(deltaOf({ g: stackOf([3]) }))).toBe('resolve');
   });
+  it('the end notice is end', () => expect(classify(FINISH)).toBe('end'));
   it('a message notify — a game log line — is log, and waits on nothing', () => {
     expect(classify(MESSAGE)).toBe('log');
     expect(PACE_DELAYS_MS.log).toBe(0);
@@ -290,6 +294,57 @@ describe('pacedMatchTransport', () => {
     expect(received).toEqual([RESOLVE, PHASE]);
   });
 
+  it('the game’s end goes last: it waits for the frame that shows it, a few ms behind it, and goes its own gap after', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(FINISH); // the table was quiet: held, for the frame that shows the end
+    expect(received).toEqual([]);
+    vi.advanceTimersByTime(170);
+    inner.deliver(LETHAL);
+    expect(received).toEqual([LETHAL]);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.end - 1);
+    expect(received, 'its gap runs from the frame that showed it').toEqual([LETHAL]);
+    vi.advanceTimersByTime(1);
+    expect(received).toEqual([LETHAL, FINISH]);
+  });
+
+  it('frames that arrive behind an end notice go out ahead of it, whatever their class', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(RESOLVE);
+    inner.deliver(FINISH);
+    inner.deliver(DEFAULT_DELTA);
+    inner.deliver(LETHAL);
+    vi.runAllTimers();
+    expect(received).toEqual([RESOLVE, DEFAULT_DELTA, LETHAL, FINISH]);
+  });
+
+  it('an end the board already shows goes its own gap after the frame before it', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(LETHAL);
+    inner.deliver(FINISH);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.end);
+    expect(received).toEqual([LETHAL, FINISH]);
+  });
+
+  it('an end no frame ever shows still goes, END_UNSHOWN_MS after it arrived', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(FINISH);
+    vi.advanceTimersByTime(END_UNSHOWN_MS - 1);
+    expect(received).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(received).toEqual([FINISH]);
+  });
+
+  it('in Fast Mode an end notice is not held', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner, { initialFast: true });
+    inner.deliver(FINISH);
+    expect(received).toEqual([FINISH]);
+  });
+
   it('fast mode from the start holds nothing', () => {
     const inner = fakeInner();
     const { received } = paced(inner, { initialFast: true });
@@ -375,7 +430,7 @@ describe('pacedMatchTransport', () => {
 /** Every class the delay table promises, so a renamed or dropped entry fails loudly. */
 describe('PACE_DELAYS_MS', () => {
   it('has a non-negative delay for every PaceClass, and zero for input, a cast and an unseen change', () => {
-    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'draw', 'default'];
+    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'draw', 'end', 'default'];
     for (const c of classes) expect(PACE_DELAYS_MS[c]).toBeGreaterThanOrEqual(0);
     expect(PACE_DELAYS_MS.input).toBe(0);
     expect(PACE_DELAYS_MS.cast).toBe(0);
