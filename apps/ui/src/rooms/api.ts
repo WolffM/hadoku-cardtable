@@ -133,9 +133,9 @@ export interface RoomView {
 /**
  * The types the create form offers, and whether it lets you pick them. Draft
  * was offered but not pickable from 2026-10-10 to 2026-10-17 (the operator:
- * *"make 'Draft' unselectable … and add a "(Coming Soon)" behind it"*); the
- * glue that was missing — building a deck from the pool and playing it — is
- * wave 70, so both types are pickable now.
+ * *"make 'Draft' unselectable … and add a "(Coming Soon)" behind it"*). The
+ * glue that was missing — building a deck from the pool and playing it — now
+ * exists, so both types are pickable.
  */
 export const GAME_TYPES: readonly { value: GameType; label: string; ready: boolean }[] = [
   { value: 'constructed-1v1', label: 'Constructed 1v1', ready: true },

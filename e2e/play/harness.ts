@@ -113,6 +113,15 @@ export const RUN_DIR = resolve(import.meta.dirname, '..', '.run');
 /** This stack's room snapshots. Wiped per run; never production's `data/rooms`. */
 export const PLAY_ROOMS_DIR = resolve(RUN_DIR, 'play-rooms');
 /**
+ * This stack's draft pods. Wiped per run, the same reasoning as
+ * `PLAY_ROOMS_DIR`: left at the server's own default
+ * (`CARDTABLE_LOG_DIR`'s own `../data/drafts`) it resolved to the SAME path
+ * `../harness.ts`'s own stack does — both log dirs sit one level under the
+ * same `.run` — so this stack picked up whatever draft pods the shared
+ * webServer had already written in the same invocation.
+ */
+export const PLAY_DRAFTS_DIR = resolve(RUN_DIR, 'play-drafts');
+/**
  * The PARENT of every stack's work dir — never itself a server's
  * `CARDTABLE_PLAY_WORK_DIR`. See "…and the work dir must not be shared with
  * ANOTHER STACK either". Never production's `/tmp/cardtable-play`, and the
@@ -487,6 +496,9 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   // list beside them.
   rmSync(PLAY_ROOMS_DIR, { recursive: true, force: true });
   mkdirSync(PLAY_ROOMS_DIR, { recursive: true });
+  // Likewise an empty drafts store — see `PLAY_DRAFTS_DIR`'s own comment.
+  rmSync(PLAY_DRAFTS_DIR, { recursive: true, force: true });
+  mkdirSync(PLAY_DRAFTS_DIR, { recursive: true });
   // This stack's OWN work dir, so no other stack's server can sweep it or adopt
   // out of it. Not wiped, and not reused: a crashed match's diagnostics are the
   // reason these directories are kept, and `pruneWorkRoot` is the bound.
@@ -518,6 +530,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_WEB_DIR: webDir,
         CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'play-logs'),
         CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
+        CARDTABLE_DRAFTS_DIR: PLAY_DRAFTS_DIR,
         CARDTABLE_PLAY_WORK_DIR: workDir,
         EDGE_AUTH_SECRET: secret,
         CARDTABLE_FORGE_JAR: forge.jar,

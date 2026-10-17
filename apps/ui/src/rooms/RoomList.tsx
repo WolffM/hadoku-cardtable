@@ -39,7 +39,7 @@
  * This does not mount a `RoomChrome`: `App` mounts exactly one, and a second
  * would share and then tear down the first's socket.
  *
- * ## The deck editor's "Play" opens this form (w70)
+ * ## The deck editor's "Play" opens this form
  *
  * The editor has no room to put a built deck in front of, so its "Play"
  * button calls `presetCreate` and sends the drafter here. On mount, a pending

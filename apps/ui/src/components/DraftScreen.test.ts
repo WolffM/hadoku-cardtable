@@ -13,11 +13,12 @@
  * `createElement` costs one line and keeps the test inside the gate.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { App } from '../App.tsx';
+import { POOL_ENTER_MS } from './PoolView.tsx';
 
 afterEach(cleanup);
 
@@ -63,6 +64,34 @@ describe('the draft screen, on committed fixtures', () => {
     mount();
     expect(packCards()).toHaveLength(15);
     expect(screen.getByTestId('pack').dataset.cardCount).toBe('15');
+  });
+
+  it('wraps every pack tile in a synthetic w<n> id for the shared inspector, without touching the real one', () => {
+    mount();
+    const slots = screen.getByTestId('pack').querySelectorAll('.pack__slot');
+    expect(slots).toHaveLength(15);
+    for (const [i, slot] of [...slots].entries()) {
+      // The wrapper's own id is the inspector's vocabulary (`play/inspect/index.ts`'s `TILE_ID`).
+      expect(slot.getAttribute('data-card-id')).toBe(`w${i}`);
+      // The tile inside keeps its REAL id — what a pick and every other test reads.
+      const tile = slot.querySelector('[data-testid="card"]');
+      const realId = tile?.getAttribute('data-card-id');
+      expect(realId).toBeTruthy();
+      expect(realId).not.toMatch(/^w\d+$/);
+    }
+  });
+
+  it('the pool numbers its own synthetic ids past the pack’s, so the two never collide on one screen', () => {
+    mount();
+    chooseFixture('seat0-pack1-pick3.json');
+    const packMax = [...screen.getByTestId('pack').querySelectorAll('.pack__slot')]
+      .map((el) => Number(el.getAttribute('data-card-id')?.slice(1)))
+      .reduce((a, b) => Math.max(a, b), -1);
+    const poolIds = [...screen.getByTestId('pool').querySelectorAll('.pool__tile')].map((el) =>
+      Number(el.getAttribute('data-card-id')?.slice(1)),
+    );
+    expect(poolIds.length).toBeGreaterThan(0);
+    expect(Math.min(...poolIds)).toBeGreaterThan(packMax);
   });
 
   it('renders each card as our own layout — name, cost, type, text, stat', () => {
@@ -151,6 +180,50 @@ describe('the draft screen, on committed fixtures', () => {
     // …and the pack says it has moved on rather than pretending to know the next one.
     expect(packCards()).toHaveLength(0);
     expect(screen.getByTestId('status').textContent).toContain('Pick sent');
+  });
+
+  it('the pool groups by colour, not mana value — a 4-mana white card and a 1-mana black one land in different buckets', () => {
+    mount();
+    // This fixture's pool already holds Wrath of God (W, mv4) and Thoughtseize
+    // (B, mv1): the bucket testid below is the colour letter, not a mana
+    // value number — the thing that would read `pool-bucket-4` / `-1` if the
+    // old grouping were still live.
+    chooseFixture('seat0-pack1-pick3.json');
+    expect(within(screen.getByTestId('pool-bucket-W')).queryByText('Wrath of God')).toBeTruthy();
+    expect(within(screen.getByTestId('pool-bucket-B')).queryByText('Thoughtseize')).toBeTruthy();
+    expect(screen.getByTestId('pool').querySelectorAll('[data-testid^="pool-bucket-"]').length).toBe(2);
+  });
+
+  it('a pick is a FLIP, not a pop: the pool tile is set to the pack slot’s position, then eased back, then drops the class', async () => {
+    // `setTimeout` only — a real `requestAnimationFrame` is what turns the
+    // transform back off, and faking it too would mean nothing here ever runs.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      mount();
+      fireEvent.click(packCards()[4]);
+
+      const tile = poolCards()[0].closest('.pool__tile') as HTMLElement | null;
+      expect(tile).not.toBeNull();
+      expect(tile?.classList.contains('pool__tile--enter')).toBe(true);
+      // The FLIP's "invert": a transform is on the tile before the browser
+      // ever paints it at its real position. jsdom lays nothing out, so the
+      // pack slot and the pool tile are both the zero rect — the interesting
+      // assertion is that a transform exists at all, not its exact values.
+      expect(tile?.style.transform).not.toBe('');
+
+      // The real rAF clears it — "play".
+      await act(async () => {
+        await new Promise((r) => requestAnimationFrame(r));
+      });
+      expect(tile?.style.transform).toBe('');
+
+      act(() => {
+        vi.advanceTimersByTime(POOL_ENTER_MS);
+      });
+      expect(poolCards()[0].closest('.pool__tile')?.classList.contains('pool__tile--enter')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('the colour counters on the pool follow the pick', () => {

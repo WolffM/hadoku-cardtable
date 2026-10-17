@@ -10,6 +10,16 @@
  * It is also unreadable on a narrow screen and awkward for a keyboard, so
  * "fan"/"grid" is a control rather than a breakpoint, and the grid is what the
  * tests read. Both render the same `CardTile`s in the same order.
+ *
+ * ## The shared inspector, without teaching it a second vocabulary
+ *
+ * Each slot carries a synthetic `data-card-id="w<n>"` of its own, matching
+ * `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same enlarged view
+ * the board uses — that module may not be edited to recognise a drafted card's
+ * real id (`c0`, `c1`, …), so the wrapper carries the convention and the
+ * `CardTile` inside keeps its real one, which `onPick` and every test still
+ * read. See `PoolView.tsx`'s header for the fuller version of this; `PodScreen`
+ * is what mounts the inspector.
  */
 
 import type { CSSProperties } from 'react';
@@ -74,6 +84,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
         <div
           key={card.cardId}
           className="pack__slot"
+          data-card-id={`w${i}`}
           style={layout === 'fan' ? fanStyle(i, cards.length) : undefined}
         >
           <CardTile card={card} onPick={onPick} disabled={disabled} pickRole="ui.draft-pick" />

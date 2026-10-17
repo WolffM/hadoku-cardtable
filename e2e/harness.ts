@@ -48,6 +48,16 @@ const ROOT = resolve(HERE, '..');
 const SERVER_JS = resolve(ROOT, 'apps/server/dist/index.js');
 const BUILT_WEB_DIR = resolve(ROOT, 'apps/ui/dist');
 const RUN_DIR = resolve(HERE, '.run');
+/**
+ * This stack's own draft pods, wiped per run the same way `play/harness.ts`'s
+ * `PLAY_ROOMS_DIR` already is. Left at the server's own default
+ * (`CARDTABLE_LOG_DIR`'s own `../data/drafts`) this and `play/harness.ts`'s
+ * stack resolved to the SAME path — both log dirs sit one level under this
+ * same `.run` — so a play stack booted while this server was still up would
+ * restore pods THIS server wrote, same as `PLAY_ROOMS_DIR`'s own header
+ * explains for the rooms dir it already guards against.
+ */
+const DRAFTS_DIR = resolve(RUN_DIR, 'drafts');
 
 function die(message: string): never {
   console.error(`[e2e-harness] ${message}`);
@@ -100,6 +110,10 @@ cpSync(BUILT_WEB_DIR, WEB_DIR, { recursive: true });
 mkdirSync(RUN_DIR, { recursive: true });
 const serverLog = createWriteStream(resolve(RUN_DIR, 'server.jsonl'), { flags: 'w' });
 
+// An empty store, every run — see `DRAFTS_DIR`'s own comment.
+rmSync(DRAFTS_DIR, { recursive: true, force: true });
+mkdirSync(DRAFTS_DIR, { recursive: true });
+
 const secret = randomBytes(24).toString('hex');
 
 const server = spawn(process.execPath, [SERVER_JS], {
@@ -115,6 +129,7 @@ const server = spawn(process.execPath, [SERVER_JS], {
     CARDTABLE_NEW_ROOM_FORMAT: 'newest',
     CARDTABLE_WEB_DIR: WEB_DIR,
     CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'logs'),
+    CARDTABLE_DRAFTS_DIR: DRAFTS_DIR,
     EDGE_AUTH_SECRET: secret,
     // ── This server may only ever touch ITS OWN containers ──────────────────
     // Every cardtable boot runs `sweepOrphans()`, which removes every container

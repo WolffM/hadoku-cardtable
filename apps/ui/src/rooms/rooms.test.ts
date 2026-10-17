@@ -298,7 +298,7 @@ describe('the room’s readiness', () => {
     expect(within(rowFor('r-open')).queryByTestId('room-drafting')).toBeNull();
   });
 
-  it('offers draft and constructed as the two pickable game types (w70: the glue landed)', () => {
+  it('offers draft and constructed as the two pickable game types', () => {
     expect(GAME_TYPES.find((t) => t.value === 'draft')).toEqual({ value: 'draft', label: 'Draft', ready: true });
     expect(GAME_TYPES.find((t) => t.value === 'constructed-1v1')?.ready).toBe(true);
   });
@@ -588,7 +588,7 @@ describe('creating a room', () => {
     });
   });
 
-  it('creates a draft room through the form — Draft is pickable, not just the API (w70, unhiding it)', async () => {
+  it('creates a draft room through the form — Draft is pickable, not just the API', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
@@ -936,7 +936,7 @@ describe('a member’s avatar', () => {
   });
 });
 
-/* ── the "Play" seam: a pending create preset (w70, manager's decision) ─── */
+/* ── the "Play" seam: a pending create preset ────────────────────────── */
 
 describe('the create preset', () => {
   it('is read back by peek without clearing it, and cleared by take', () => {

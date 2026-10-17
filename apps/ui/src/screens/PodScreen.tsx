@@ -35,9 +35,22 @@
  * passes a stub, the same way `socket.test.ts` does, so the pod can be driven
  * end to end without a server and without an open handle. `ConstructedScreen`
  * threads it through under the same name.
+ *
+ * ## "Draft complete" has one action, and the shared inspector is mounted here
+ *
+ * The finished pool is drawn by `PoolView`, by colour, the same component the
+ * pick screen uses beside the pack — not a second renderer for the same cards.
+ * Its one action goes to `#/deck/<podId>`, where `DeckScreen` (another lane)
+ * opens the build. No sentence explains that the draft is over or what the
+ * pool is; the heading and the pool say both.
+ *
+ * `mountInspector` is mounted ONCE here, over this screen's whole root, rather
+ * than inside `DraftScreen` — this is the one component both the pick screen
+ * and the finished screen pass through, so one mount covers the hover-to-read
+ * behaviour on every card this pod ever draws, in either state.
  */
 
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import {
   applyPick as socketPick,
@@ -54,6 +67,8 @@ import {
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
+import { PoolView } from '../components/PoolView.tsx';
+import { mountInspector } from '../play/inspect/index.ts';
 import { appLocation, navigate, routeUrl } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 
@@ -74,6 +89,13 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
    * `socketPick(draft, …)` reads the same as the in-process engine's call.
    */
   const [, changed] = useReducer((n: number) => n + 1, 0);
+
+  /** The inspector, mounted over this whole screen's root — see the header. */
+  const host = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = host.current;
+    return el === null ? undefined : mountInspector(el);
+  }, []);
 
   useEffect(() => {
     // The last payload rendered. A rejection or a reconnect notifies too, and
@@ -126,7 +148,7 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
   const done = draft !== null && isComplete(draft);
 
   return (
-    <div className="shell" data-testid="pod">
+    <div className="shell" data-testid="pod" ref={host}>
       <header className="pod__bar">
         <div className="pod__who">
           <a
@@ -172,12 +194,15 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
       {done && draft !== null ? (
         <div className="pod__done">
           <h1>Draft complete</h1>
-          <p>Every pick is in. The pool below is what the server says you took.</p>
-          <ol className="pod__pool">
-            {myPool(draft).map((card) => (
-              <li key={card.cardId}>{card.name}</li>
-            ))}
-          </ol>
+          <PoolView cards={myPool(draft)} />
+          <button
+            type="button"
+            className="button pod__build"
+            data-testid="pod-build"
+            onClick={() => navigate({ kind: 'deck', draftId })}
+          >
+            Build your deck
+          </button>
         </div>
       ) : table === null ? (
         <div className="pod__waiting" data-testid="pod-waiting">
@@ -195,6 +220,7 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
           onLayoutChange={setLayout}
         />
       )}
+      <div className="pod__zoom" data-board-zoom="" />
     </div>
   );
 }

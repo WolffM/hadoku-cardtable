@@ -231,6 +231,27 @@ button {
   margin: 0;
 }
 
+/*
+ * ── pod ───────────────────────────────────────────────────────────────
+ * Most of `.pod__*` is `screens/screens.css`'s (the bar, the invite, the
+ * waiting/done frame — nobody's to touch this wave). These two are new and
+ * specific to the inspector and the "Draft complete" action, so they live
+ * beside `.pack`/`.pool`/`.draft` instead.
+ */
+
+.pod__build {
+  margin-top: 4px;
+}
+
+/* Fixed, the same as `screens.css`'s `.peek__zoom`: no live board canvas here
+   to be `position: absolute` inside. */
+.pod__zoom {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-zoom, 60);
+  pointer-events: none;
+}
+
 /* ── draft header ──────────────────────────────────────────────────── */
 
 .draft__bar {
@@ -355,8 +376,28 @@ button {
   padding: 16px;
 }
 
+/*
+ * The pack and the pool, side by side — the pool is what the next pick is
+ * decided against, so it sits beside the thing being decided, not under it.
+ * Both are direct children of this element (`DraftScreen.tsx` renders no
+ * wrapper between them), so the row is built on the child combinator rather
+ * than a new box.
+ */
 .draft__main {
   flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.draft__main > .pack {
+  flex: 3 1 0;
+  min-width: 0;
+}
+
+.draft__main > .pool {
+  flex: 2 1 0;
   min-width: 0;
 }
 
@@ -375,6 +416,15 @@ button {
 
   .draft__aside {
     flex: 1 1 auto;
+    width: 100%;
+  }
+
+  /* Below this, a side-by-side pack and pool are both too narrow to read. */
+  .draft__main {
+    flex-direction: column;
+  }
+
+  .draft__main > .pool {
     width: 100%;
   }
 }
@@ -691,6 +741,11 @@ button {
 .pool {
   border-top: 1px solid var(--line);
   padding-top: 14px;
+  /* Beside the pack (`.draft__main > .pool`) its own flex-basis decides the
+     width; inside "Draft complete" (`screens.css`'s `.pod__done`, a column
+     flex with `align-items: flex-start`) nothing else would, so this is the
+     one declaration both contexts need. */
+  width: 100%;
 }
 
 .pool__head {
@@ -782,6 +837,31 @@ button {
 .pool__bucket-cards .card__type {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+/*
+ * The wrapper the shared inspector's synthetic id sits on (`PoolView.tsx`'s
+ * header). `display: contents` drops it from the box tree entirely, so the
+ * `.card` inside is still the direct flex item `.pool__bucket-cards` lays
+ * out — unchanged from before the wrapper existed.
+ */
+.pool__tile {
+  display: contents;
+}
+
+/*
+ * A pick is a FLIP, not a pop (`PoolView.tsx`'s `PoolTile`, which does the
+ * actual inverting): the just-added card gets a real box back for
+ * `POOL_ENTER_MS` so it has something to apply a transform to, then reverts
+ * to `display: contents` once React drops the class. The TRANSITION lives
+ * here, not a keyframe — `PoolTile` sets the inverted `transform` inline with
+ * no transition, forces layout, then clears both inline properties; clearing
+ * `transition` falls through to this rule, which is what actually animates
+ * the fall from the inverted value back to `transform: none`.
+ */
+.pool__tile--enter {
+  display: block;
+  transition: transform 280ms ease;
 }
 
 /* ── seats ─────────────────────────────────────────────────────────── */

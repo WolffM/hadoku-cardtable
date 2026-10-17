@@ -19,9 +19,26 @@
  * this client does not know the next pack, so it says so rather than inventing
  * one. The pool updates immediately, the counters do not — a pick is not
  * complete until the server says it is.
+ *
+ * ## A pick is a transform, not a pop — a FLIP, on the real tile
+ *
+ * The state update is instant — the card has to leave the pack the moment it
+ * is clicked, so a second click never lands on a card already gone. What is
+ * NOT instant is how the pool reads it: `handlePick` reads the clicked pack
+ * slot's own `getBoundingClientRect()` BEFORE the state change removes it, and
+ * hands that rect to `PoolView` as `recentlyAdded`. The pool draws the new
+ * card where it belongs, in its colour bucket, and `PoolView`'s own tile then
+ * positions ITSELF at the pack's old rect with no transition, forces layout,
+ * and transitions back to `transform: none` — a First-Last-Invert-Play on the
+ * one real element, never a second ghost element flown across the screen.
+ *
+ * No animation at all when the pack slot cannot be found (a picked card
+ * restored from a snapshot rather than clicked — a refresh lands here) or the
+ * viewer has asked for less motion: `recentlyAdded` is `null` in both cases,
+ * and a `null` `from` is `PoolView`'s whole "skip it" signal.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ConnectionState } from '../draft/connection.ts';
 import type { DraftView } from '../draft/types.ts';
@@ -39,9 +56,16 @@ import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
 import { PackView, type PackLayout } from './PackView.tsx';
-import { PoolView } from './PoolView.tsx';
+import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import { SeatBar } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
+
+/** The same check `play/live/numbers.ts`, `placed.ts` and `departures.ts` each make; not theirs to import from here. */
+function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
 
 export interface DraftScreenProps {
   state: TableState;
@@ -113,6 +137,18 @@ export function DraftScreen({
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Where the just-picked card's pack slot was, read off the real DOM — the
+  // FLIP's "first". Cleared by its own effect rather than inline in
+  // `handlePick`, so a pick that lands while the previous one is still
+  // animating restarts the timer against the NEW card, not the old one.
+  const [recentlyAdded, setRecentlyAdded] = useState<{ cardId: string; from: PoolEnterRect } | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (recentlyAdded === null) return;
+    const timer = setTimeout(() => setRecentlyAdded(null), POOL_ENTER_MS);
+    return () => clearTimeout(timer);
+  }, [recentlyAdded]);
+
   const handlePick = useCallback(
     (cardId: string): void => {
       const result = pick(stateRef.current, cardId);
@@ -121,6 +157,15 @@ export function DraftScreen({
         return;
       }
       setMessage(null);
+      // Read the clicked tile's rect NOW, synchronously, before `onChange`
+      // below schedules the re-render that removes it from the pack — this is
+      // the one moment the DOM still shows where it was. Neither a snapshot
+      // restore nor a reduced-motion viewer reaches this call with a real
+      // rect, and both read as "no animation" the same way: `null`.
+      const tile = prefersReducedMotion()
+        ? null
+        : mainRef.current?.querySelector<HTMLElement>(`.pack [data-testid="card"][data-card-id="${CSS.escape(cardId)}"]`);
+      setRecentlyAdded(tile ? { cardId, from: rectOf(tile.getBoundingClientRect()) } : null);
       onChange(result.state);
       onPick?.(cardId);
     },
@@ -192,7 +237,7 @@ export function DraftScreen({
       </p>
 
       <div className="draft__body">
-        <main className="draft__main">
+        <main className="draft__main" ref={mainRef}>
           {complete ? (
             <DeckView
               draftId={view.draftId}
@@ -208,7 +253,7 @@ export function DraftScreen({
                 disabled={blocked !== null || stalled}
                 emptyNote={emptyNote}
               />
-              {!spectating && <PoolView cards={visiblePool(state)} />}
+              {!spectating && <PoolView cards={visiblePool(state)} recentlyAdded={recentlyAdded} />}
             </>
           )}
         </main>

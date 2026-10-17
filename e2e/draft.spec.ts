@@ -65,10 +65,23 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { resizeWindow, roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
+import { answerConfirm, confirmOpen } from './play/confirm.ts';
+import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
+import { turnNumber } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
+
+/**
+ * Only the full-journey test (§Acceptance, below) reads this: it is the one
+ * spec in this file that touches Forge, through its own `play/harness.ts`
+ * stack rather than the shared `../harness.ts` webServer every other test
+ * here runs under (`../harness.ts` is deliberately built without a jar — a
+ * draft does not touch Forge — so a stack of its own is what a match needs).
+ */
+const forge = forgeAvailability();
+const titled = makeTitled(forge);
 
 const RUN_DIR = resolve(import.meta.dirname, '.run');
 /** What `lobby.ts` mints. The pod id is this, so nothing about it is pinned. */
@@ -295,9 +308,15 @@ async function seatFromWire(p: Player): Promise<number> {
 
 /* ── the front door ──────────────────────────────────────────────────── */
 
-/** The room record, straight from the lobby. Not the markup: the gate itself. */
-async function roomState(p: Player, roomId: string): Promise<RoomWire> {
-  const res = await p.context.request.get(`${EDGE_ORIGIN}${PREFIX}/api/rooms/${roomId}`);
+/**
+ * The room record, straight from the lobby. Not the markup: the gate itself.
+ *
+ * `origin` defaults to the shared room edge; the full-journey spec (§Acceptance)
+ * passes a `play/harness.ts` stack's own origin instead, because that is the
+ * one server in this file's reach that also has Forge.
+ */
+async function roomState(p: Player, roomId: string, origin: string = EDGE_ORIGIN): Promise<RoomWire> {
+  const res = await p.context.request.get(`${origin}${PREFIX}/api/rooms/${roomId}`);
   expect(res.status(), `${p.name}: GET /api/rooms/${roomId}`).toBe(200);
   return (await res.json()) as RoomWire;
 }
@@ -306,13 +325,13 @@ async function roomState(p: Player, roomId: string): Promise<RoomWire> {
 /**
  * Make a draft room through the create form itself.
  *
- * Draft was "(Coming Soon)" and unpickable from 2026-10-10 to 2026-10-17; w70
- * unhid it, so this now drives the same form a person uses rather than
+ * Draft was "(Coming Soon)" and unpickable from 2026-10-10 to 2026-10-17. It
+ * is pickable now, so this drives the same form a person uses rather than
  * reaching around it with the API (`e2e/play/rooms.ts`'s `createRoomByApi`,
- * which this spec no longer calls).
+ * which this spec no longer calls). `origin` — see `roomState`.
  */
-async function createDraftRoom(p: Player, name: string): Promise<string> {
-  await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
+async function createDraftRoom(p: Player, name: string, origin: string = EDGE_ORIGIN): Promise<string> {
+  await p.page.goto(`${origin}${PREFIX}/`);
   await expect(p.page.getByTestId('room-create-open')).toBeVisible();
 
   // ONE front door. The pod button and the paste-an-id box are gone, and this
@@ -338,15 +357,23 @@ async function createDraftRoom(p: Player, name: string): Promise<string> {
  * Enter a room FROM THE LIST — §D's "from the room list alone".
  *
  * The list accumulates across runs (see the header), so the row is located by
- * the id this run created.
+ * the id this run created. `gameType` is what the row's own label must read —
+ * `'Draft'` for a pod, `'Constructed 1v1'` for the room the full-journey spec
+ * opens afterward to play the built decks. `origin` — see `roomState`.
  */
-async function enterFromList(p: Player, roomId: string, roomName: string): Promise<void> {
-  await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
+async function enterFromList(
+  p: Player,
+  roomId: string,
+  roomName: string,
+  options: { origin?: string; gameType?: string } = {},
+): Promise<void> {
+  const { origin = EDGE_ORIGIN, gameType = 'Draft' } = options;
+  await p.page.goto(`${origin}${PREFIX}/`);
   const row = p.page.locator(`[data-testid="room-row"][data-room-id="${roomId}"]`);
   await expect(row).toBeVisible({ timeout: UI_TIMEOUT });
   await expect(row.getByTestId('room-name')).toHaveText(roomName);
   // The list says what game it is before anybody commits to entering.
-  await expect(row.getByTestId('room-type')).toHaveText('Draft');
+  await expect(row.getByTestId('room-type')).toHaveText(gameType);
   await row.getByTestId('room-enter').click();
   expect(await roomIdFromHash(p.page), `${p.name} entered ${roomId}`).toBe(roomId);
 }
@@ -619,12 +646,20 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   await Promise.all([
     draftAll(alice, {
       afterPick: async (n) => {
-        // The "before" recording (w70 §B.3): the pick screen, unchanged so
-        // far, at both a desktop width and the mobile one — then back to
-        // desktop for the rest of the run, including the refresh below.
-        // `resizeWindow` works here with no `[data-zone]` boxes to measure:
-        // it waits for the viewport alone once none match.
-        if (n === 2) await resizeWindow(alice.page, { width: 390, height: 844 });
+        // The pick screen recorded at both a desktop width and the mobile
+        // one — then back to desktop for the rest of the run, including the
+        // refresh below. `resizeWindow` works here with no `[data-zone]`
+        // boxes to measure: it waits for the viewport alone once none match.
+        if (n === 2) {
+          await resizeWindow(alice.page, { width: 390, height: 844 });
+          // The PAGE itself must not need to scroll sideways at mobile width —
+          // a bounded, deliberate scroll region (the pool's own colour row) is
+          // a different thing and is not what this checks.
+          const overflow = await alice.page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          );
+          expect(overflow, 'no horizontal page scroll at 390px').toBeLessThanOrEqual(1);
+        }
         if (n === 4) await resizeWindow(alice.page, { width: 1280, height: 720 });
         if (n !== REFRESH_AFTER) return;
         const before = latestView(alice);
@@ -677,8 +712,23 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
     expect(pool).toHaveLength(PICKS);
     // The server's pool is exactly what this browser clicked, in click order.
     expect(pool.map((c) => c.cardId)).toEqual(p.picks);
-    // And the finished screen lists that pool, and nothing else.
-    await expect(p.page.locator('ol.pod__pool li')).toHaveText(pool.map((c) => c.name));
+    // The finished screen draws that pool as cards (`PoolView`, by colour —
+    // grouping reorders them, so this checks the SET, not the pick order) and
+    // nothing else; `pool-count` is PoolView's own running total.
+    await expect(p.page.getByTestId('pool-count')).toHaveText(String(PICKS));
+    const shown = await p.page.locator('[data-testid="pool"] [data-testid="card"] .card__name').allTextContents();
+    expect(shown.slice().sort()).toEqual(pool.map((c) => c.name).slice().sort());
+    // Its one action: on to the deck editor, no sentence explaining either
+    // step — no narration `<p>` at all (a card name's own punctuation, like
+    // Forth Eorlingas!, is not explanatory text and would make a text-pattern
+    // check here lie).
+    expect(await p.page.locator('.pod__done p').count()).toBe(0);
+    await p.page.getByTestId('pod-build').click();
+    await expect
+      .poll(() => p.page.evaluate(() => window.location.hash), {
+        message: `${p.name}: Build your deck goes to the room's deck editor`,
+      })
+      .toBe(`#/deck/${roomId}`);
 
     // No pick was refused — not rate-limited, not stale, not out of turn.
     const errors = received(p).filter((m) => m.type === 'error');
@@ -796,3 +846,182 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   await finalizeVideo(alice);
   await finalizeVideo(bob);
 });
+
+/* ── §Acceptance: draft, build, leave and return, then real Forge ────── */
+
+/**
+ * Move cards from the sideboard into the maindeck, one click per card (the
+ * editor's own gesture — `DeckEditor.tsx`'s header), until the maindeck
+ * reaches `n`; then wait for the debounced save to actually land
+ * (`save-status`'s own "Saved.", not a sleep — the save fires `saveDelayMs`
+ * after the LAST move, not after each one).
+ */
+async function buildMainDeck(p: Player, n: number): Promise<void> {
+  const mainCount = p.page.getByTestId('main-count');
+  const sideCard = p.page.locator('[data-testid="side-grid"] button[data-testid="card"]').first();
+  for (let i = 0; i < n; i++) await sideCard.click();
+  await expect(mainCount, `${p.name}: the maindeck reaches ${n}`).toHaveText(String(n));
+  await expect(p.page.getByTestId('save-status'), `${p.name}: the build is saved`).toHaveText('Saved.', { timeout: UI_TIMEOUT });
+}
+
+/**
+ * The room leave the UI has no button for (`PodScreen`'s "← Lobby" only
+ * navigates away; it never calls this) — the same route `rooms/api.ts`'s
+ * `leave()` sends, by the caller's own page so the identity is theirs. This
+ * is what C's "owns their pool for good… through leave" actually exercises.
+ */
+async function leavePod(p: Player, podId: string): Promise<void> {
+  const status = await p.page.evaluate(async (id) => {
+    const res = await fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}/leave`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
+    return res.status;
+  }, podId);
+  expect(status, `${p.name}: POST .../rooms/${podId}/leave`).toBe(200);
+}
+
+/**
+ * Press through whatever opening questions a fresh match asks — the
+ * coin-toss's play-or-draw, each seat's keep-or-mulligan — until every page's
+ * own turn counter reads a real turn. Always answers 'yes' (play, keep):
+ * hand smoothing is on by default (room settings), so a real mulligan is the
+ * exception here, not the rule, and this is not a spec about mulligan
+ * decisions.
+ *
+ * Two different prompts, on purpose: the coin toss is its OWN component
+ * (`live-play-or-draw-play`), never `ConfirmPrompt` — "the two pop-ups are
+ * mutually exclusive by construction" — so `confirm.ts`'s generic
+ * `confirmOpen`/`answerConfirm` only covers the keep/mulligan half; a first
+ * version of this function answered only that half and hung the full 60 s on
+ * bob's own "you have won the coin toss" prompt, confirmed from the real
+ * server log (`showPromptMessage`/`updateButtons` for seat 1, nothing for
+ * seat 0 beyond "Waiting for e2e-bob…"). Both testids are public and
+ * `Page`-typed, which is why this reaches for them directly rather than
+ * copying `scenario.ts`'s own (unexported, and `Friend`-typed rather than
+ * this file's own `Player`) `keepBothHands`.
+ *
+ * A seat parked on a LONDON MULLIGAN BOTTOM-PICK (an actual card selection,
+ * not a yes/no) is not answered here — neither check matches it, so this
+ * keeps polling turn 1 and times out loudly rather than guessing at a
+ * selection, which hand smoothing makes rare enough not to script for yet.
+ */
+async function pressIntoTurnOne(pages: readonly Page[]): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        for (const page of pages) {
+          // The coin toss is its OWN prompt, not a `ConfirmPrompt` — "the two
+          // pop-ups are mutually exclusive by construction" (T4's own note) —
+          // so it needs its own testid, never `confirm.ts`'s. Whoever wins it
+          // gets asked; the other seat shows nothing here and falls through to
+          // the `confirmOpen` check below once dealt its own keep/mulligan.
+          const playOrDraw = page.getByTestId('live-play-or-draw-play');
+          if ((await playOrDraw.count()) > 0) {
+            await playOrDraw.click({ timeout: 2_000 }).catch(() => undefined);
+          } else if (await confirmOpen(page)) {
+            await answerConfirm(page, 'yes');
+          }
+        }
+        const turns = await Promise.all(pages.map((page) => page.getByTestId('live-turn-n').textContent().then(turnNumber)));
+        return Math.min(...turns);
+      },
+      { message: 'both seats reach turn 1', timeout: 60_000, intervals: [250] },
+    )
+    .toBeGreaterThanOrEqual(1);
+}
+
+test(
+  titled(
+    'the operator’s full sequence: draft a pod, build and save decks, leave and return, play the drafted pool, and reach turn 1 in real Forge',
+  ),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(7 * 60_000);
+
+    const stack = await startPlayStack(forge);
+    let alice: Player | undefined;
+    let bob: Player | undefined;
+    try {
+      const origin = stack.origin;
+      alice = await join(browser, 'alice');
+      bob = await join(browser, 'bob');
+
+      /* ── draft the pod, through the front door, on this stack ────── */
+      const podName = `e2e full ${Date.now()}`;
+      const podId = await createDraftRoom(alice, podName, origin);
+      await expectLobbyNotPod(alice);
+      await enterFromList(bob, podId, podName, { origin });
+      await expectLobbyNotPod(bob);
+
+      await alice.page.getByTestId('ready-toggle').click();
+      await bob.page.getByTestId('ready-toggle').click();
+      await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+
+      await Promise.all([draftAll(alice), draftAll(bob)]);
+      for (const p of [alice, bob]) {
+        await expect(p.page.locator('.pod__done h1')).toHaveText('Draft complete');
+      }
+
+      /* ── both build and save a 40-card deck ───────────────────────── */
+      for (const p of [alice, bob]) {
+        await p.page.getByTestId('pod-build').click();
+        await expect(p.page.getByTestId('deck-editor'), `${p.name}: the editor opens`).toBeVisible({ timeout: UI_TIMEOUT });
+        await buildMainDeck(p, 40);
+      }
+
+      /* ── alice leaves the pod and comes back: her build is still there ── */
+      await leavePod(alice, podId);
+      await alice.page.goto(`${origin}${PREFIX}/#/deck/${podId}`);
+      await expect(alice.page.getByTestId('deck-no-seat'), 'a finished pod keeps the drafter’s seat for good').toHaveCount(0);
+      await expect(alice.page.getByTestId('deck-editor')).toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('main-count'), 'the build alice left is the build she finds').toHaveText('40');
+
+      /* ── alice plays: Play opens the room list on the preset ─────── */
+      await alice.page.getByTestId('play-deck').click();
+      await expect(alice.page.getByTestId('room-create')).toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('room-create-type')).toHaveValue('constructed-1v1');
+      const matchRoomName = `e2e full match ${Date.now()}`;
+      await alice.page.getByTestId('room-create-name').fill(matchRoomName);
+      await alice.page.getByTestId('room-create-submit').click();
+      const matchRoomId = await roomIdFromHash(alice.page);
+
+      // The leader's own write: the preset becomes the room's pool.
+      const draftedOption = (p: Player) => p.page.locator('[data-testid="deck-option"][data-deck-id="__drafted__"]');
+      await expect(draftedOption(alice), 'the preset set the room’s pool to this pod').toBeVisible({ timeout: UI_TIMEOUT });
+
+      /* ── bob finds that room from the list and enters it ──────────── */
+      await enterFromList(bob, matchRoomId, matchRoomName, { origin, gameType: 'Constructed 1v1' });
+
+      /* ── both load THEIR OWN saved build — not draftedDeckOf's 45+basics ── */
+      for (const p of [alice, bob]) {
+        const option = draftedOption(p);
+        await expect(option, `${p.name}: the drafted-pool option appears`).toBeVisible({ timeout: UI_TIMEOUT });
+        await expect(option, `${p.name}: the room offers the SAVED 40-card build, not the auto-built 45+basics`).toContainText(
+          '40 cards',
+        );
+        await option.click();
+        await expect(p.page.getByTestId('ready-toggle'), `${p.name}: their saved build is legal`).toBeEnabled();
+      }
+
+      /* ── ready, start, and reach turn 1 in real Forge ─────────────── */
+      await alice.page.getByTestId('ready-toggle').click();
+      await bob.page.getByTestId('ready-toggle').click();
+      const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
+      await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
+      await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
+      for (const p of [alice, bob]) {
+        await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: the board is drawn`).toBeVisible({ timeout: 30_000 });
+      }
+      await pressIntoTurnOne([alice.page, bob.page]);
+    } finally {
+      if (alice) await finalizeVideo(alice);
+      if (bob) await finalizeVideo(bob);
+      await stack.stop();
+    }
+  },
+);
