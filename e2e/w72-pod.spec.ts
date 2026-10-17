@@ -24,35 +24,17 @@
  * Games end by concede (not a real finish) to keep the run fast — the
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { PREFIX, SESSION_COOKIE } from './identities.ts';
-import { keepPrefsLocal } from './prefsLocal.ts';
+import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
-
-interface Player {
-  name: string;
-  context: BrowserContext;
-  page: Page;
-}
-
-async function join(browser: Browser, name: string, origin: string): Promise<Player> {
-  const context = await browser.newContext();
-  await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
-  await keepPrefsLocal(context, origin);
-  // This e2e edge stamps identity on every request but serves no
-  // `/session/whoami` of its own (`e2e/embed.spec.ts`'s own note) — routed
-  // once the real `fk:` id is known, below, since `useWhoami()` is what
-  // `PodSeats` uses to resolve "which seat is mine".
-  const page = await context.newPage();
-  return { name, context, page };
-}
 
 /** Clicks the lowest-indexed enabled card over and over, until the pod says "Draft complete". */
 async function draftUntilDone(p: Player): Promise<void> {
@@ -102,9 +84,21 @@ test(
     let bob: Player | undefined;
     let carol: Player | undefined;
     try {
-      alice = await join(browser, 'alice', origin);
-      bob = await join(browser, 'bob', origin);
-      carol = await join(browser, 'carol', origin);
+      /*
+       * `openFriend` (not a hand-rolled context): it already records video
+       * under `CARDTABLE_E2E_VIDEO=1` (`play/browser.ts`'s own
+       * `specVideoSlug`-named directory — AE20, the operator's acceptance
+       * gate), the same way `e2e/w71-boards.spec.ts` already does, which a
+       * hand-rolled context here skipped — the claw run that found this
+       * uploaded no video at all. `/session/whoami` is routed once each
+       * real `fk:` id is known, below, since `useWhoami()` is what
+       * `PodSeats` uses to resolve "which seat is mine" — this e2e edge
+       * stamps identity on every request but serves no `/session/whoami`
+       * of its own (`e2e/embed.spec.ts`'s own note).
+       */
+      alice = await openFriend(browser, 'alice');
+      bob = await openFriend(browser, 'bob');
+      carol = await openFriend(browser, 'carol');
       const players = [alice, bob, carol];
 
       /* ── alice makes the pod, bob and carol find it ────────────────── */
@@ -128,12 +122,12 @@ test(
        * `useWhoami()`'s real id is `fk:<hash of X-User-Key>`
        * (`apps/server/src/room/identity.ts`) — NOT the `e2e-<name>-id` this
        * harness's `X-User-Id` carries, which is the DEVICE tier's fallback
-       * material and unused once a friend key is present. The mock in
-       * `join()` answered the wrong one; this reads each member's REAL id
-       * off the room (already a member, by their joined name) and swaps the
-       * route to the truth, then reloads so `useWhoami()`'s mount-only
-       * effect re-fires against it — otherwise "which seat is mine" never
-       * resolves and `PodSeats` shows nobody's own seat.
+       * material and unused once a friend key is present. This reads each
+       * member's REAL id off the room (already a member, by their joined
+       * name) and routes `/session/whoami` to it, then reloads so
+       * `useWhoami()`'s mount-only effect re-fires against it — otherwise
+       * "which seat is mine" never resolves and `PodSeats` shows nobody's
+       * own seat.
        */
       const roomBody = (await alice.page.evaluate(
         (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
@@ -256,8 +250,12 @@ test(
         { timeout: UI_TIMEOUT, message: 'round 2’s tables are up' },
       ).toBeGreaterThan(0);
     } finally {
+      // `stack.stop()` itself closes every open `openFriend` context and
+      // renames its video when `CARDTABLE_E2E_VIDEO=1` (`play/harness.ts`'s
+      // own note on why — the LAST test in a run would otherwise never
+      // flush its `.webm`). Closing them here too would remove them from
+      // that registry first and leave their footage unrenamed.
       await stack.stop();
-      for (const p of [alice, bob, carol]) await p?.context.close();
     }
   },
 );
