@@ -272,6 +272,35 @@ describe('showConfirmDialog, end to end', () => {
     expect(m.stats.replies).toBe(1);
   });
 
+  it('an answered ask the server re-sends before it reads the answer is not drawn again, and is never answered twice', async () => {
+    // The race a resync opens: the snapshot's re-send of the open asks leaves the
+    // server after this client's answer did, but before the server read it.
+    const { s, m } = await fullGame();
+    s.send(confirmAsk('c-4', false));
+    await until('the ask', () => currentAsk(m) !== null);
+    expect(answerConfirm(m, 'c-4', true)).toBe(true);
+    s.send(confirmAsk('c-4', false));
+    await sendAndApply(s, m, [sentinel()]);
+    expect(currentAsk(m)).toBeNull();
+    expect(answerConfirm(m, 'c-4', true)).toBe(false);
+    expect(s.clientFrames()).toHaveLength(1);
+    expect(m.stats).toMatchObject({ replies: 1, reasksDropped: 1 });
+  });
+
+  it('a new process may reuse an answered callId: after an epoch change it is a new question', async () => {
+    const { s, m } = await fullGame();
+    s.send(confirmAsk('c-5', false));
+    await until('the ask', () => currentAsk(m) !== null);
+    expect(answerConfirm(m, 'c-5', true)).toBe(true);
+    s.restart('epoch-b');
+    for (const f of FRAMES) s.send(f);
+    await until('the new epoch at seq 27', () => m.cursor?.epoch === 'epoch-b' && m.cursor.seq === 27);
+    s.send(confirmAsk('c-5', false));
+    await until('the new ask', () => currentAsk(m)?.callId === 'c-5');
+    expect(answerConfirm(m, 'c-5', false)).toBe(true);
+    await until('both replies', () => s.clientFrames().length === 2);
+  });
+
   it('a pending ask survives a resync: the server re-sends it after the snapshot', async () => {
     const s = (server = await startReplayServer());
     const m = await connect(s);
