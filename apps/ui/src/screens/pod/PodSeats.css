@@ -1,0 +1,19 @@
+/*
+ * The pod's 8-seat grid — wave 72 §R.1.
+ *
+ * Every seat ROW reuses `screens.css`'s `.tables__row` and its children
+ * unchanged (see `PodSeats.tsx`'s header on why — port, don't redraw). This
+ * file holds only the one thing that is new: a container that fits 8 rows
+ * instead of the 1v1 table's 2, as a simple responsive list rather than a
+ * fixed grid, so it never forces a horizontal scroll at the narrower widths
+ * `lobby-fit.spec.ts` measures.
+ */
+
+.pod-seats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

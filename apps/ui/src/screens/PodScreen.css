@@ -1,0 +1,24 @@
+/*
+ * The pod's `building`/`rounds`/`done` phases — wave 72 §R.2.
+ *
+ * A dedicated file rather than an addition to `screens.css` (shared, not
+ * this lane's to edit) — the same move `BoardStrip.css` already makes for
+ * its own component. Colour from `@wolffm/themes` only, same discipline.
+ */
+
+.pod__rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.pod__built {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}

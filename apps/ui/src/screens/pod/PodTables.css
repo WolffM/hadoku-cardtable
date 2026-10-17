@@ -1,0 +1,61 @@
+/*
+ * The pod's current-round table list — wave 72 §R.2. Colour from
+ * `@wolffm/themes` only, same discipline as `BoardStrip.css`.
+ */
+
+.pod-tables__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.pod-tables__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+}
+
+.pod-tables__row--mine {
+  border-color: var(--color-primary);
+}
+
+.pod-tables__who {
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.pod-tables__link {
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The "Play" button that starts round 1's first game — same look as the
+   link it replaces while a table has no match yet, native button reset. */
+.pod-tables__link--button {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pod-tables__link--button:disabled {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.pod-tables__bye {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}

@@ -95,17 +95,24 @@ function appBase(): string {
   return typeof base === 'string' ? base : '/';
 }
 
+interface RoomTablesRead {
+  tables: RoomTable[];
+  /** `RoomView.gameType`, read off the same raw body — wave 72 §R.3's "is this a pod". */
+  gameType: string | null;
+}
+
 /** The room's raw body, read a second time past `rooms/api.ts`'s parser — see the header. */
-async function fetchRoomTables(roomId: string): Promise<RoomTable[]> {
+async function fetchRoomTables(roomId: string): Promise<RoomTablesRead> {
   try {
     const res = await fetch(`${apiBase(appBase())}rooms/${encodeURIComponent(roomId)}`, { credentials: 'same-origin' });
-    if (!res.ok) return [];
+    if (!res.ok) return { tables: [], gameType: null };
     const body: unknown = await res.json();
     const tables = (body as { tables?: unknown })?.tables;
+    const gameType = (body as { gameType?: unknown })?.gameType;
     const parsed = RoomTablesSchema.safeParse(tables);
-    return parsed.success ? parsed.data : [];
+    return { tables: parsed.success ? parsed.data : [], gameType: typeof gameType === 'string' ? gameType : null };
   } catch {
-    return [];
+    return { tables: [], gameType: null };
   }
 }
 
@@ -162,12 +169,19 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   // and nothing follows once `over`, so a result screen left open adds no
   // read of its own past the one `GameResultScreen` already makes.
   const [tables, setTables] = useState<RoomTable[]>([]);
+  // `null` until read; `'draft'` is the one value that turns on the strip's
+  // "Back to the pod" entry (`BoardStrip`'s `podRoomId`) — see that file's
+  // own header on why the 1v1 result screen's "Back to room" is not enough.
+  const [gameType, setGameType] = useState<string | null>(null);
   useEffect(() => {
     if (roomId === null || over) return;
     let live = true;
     const stopFollowing = roomFeed().follow({ room: roomId }, () => {
-      fetchRoomTables(roomId).then((t) => {
-        if (live) setTables(t);
+      fetchRoomTables(roomId).then((r) => {
+        if (live) {
+          setTables(r.tables);
+          setGameType(r.gameType);
+        }
       });
     });
     return () => {
@@ -178,7 +192,7 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
 
   return (
     <div className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>
-      <BoardStrip tables={tables} currentMatchId={matchId} />
+      <BoardStrip tables={tables} currentMatchId={matchId} podRoomId={gameType === 'draft' && roomId !== null ? roomId : undefined} />
       {match !== null && <LiveBoard match={match} roomId={roomId} />}
     </div>
   );

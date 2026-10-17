@@ -97,6 +97,29 @@ describe('the board strip', () => {
     expect(byTable('t-aaaaaaaa')?.tagName).toBe('A');
   });
 
+  it('draws a "Back to the pod" entry when podRoomId is given, even with one live table', () => {
+    render(createElement(BoardStrip, { tables: [table({ matchId: null })], currentMatchId: 'm-aaaaaaaaaaaa', podRoomId: 'r-cube' }));
+    expect(screen.getByTestId('board-strip-back').getAttribute('href')).toBe('#/room/r-cube');
+  });
+
+  it('draws the back entry even with zero live tables', () => {
+    render(createElement(BoardStrip, { tables: [], currentMatchId: 'm-aaaaaaaaaaaa', podRoomId: 'r-cube' }));
+    expect(screen.getByTestId('board-strip-back')).toBeTruthy();
+  });
+
+  it('draws nothing at all with fewer than two live tables and no podRoomId — the constructed room, unchanged', () => {
+    render(createElement(BoardStrip, { tables: [table({})], currentMatchId: 'm-aaaaaaaaaaaa' }));
+    expect(screen.queryByTestId('board-strip')).toBeNull();
+  });
+
+  it('draws the back entry ALONGSIDE the table pills once there are two or more', () => {
+    const t1 = table({ id: 't-aaaaaaaa', matchId: 'm-aaaaaaaaaaaa' });
+    const t2 = table({ id: 't-bbbbbbbb', matchId: 'm-bbbbbbbbbbbb' });
+    render(createElement(BoardStrip, { tables: [t1, t2], currentMatchId: 'm-aaaaaaaaaaaa', podRoomId: 'r-cube' }));
+    expect(screen.getByTestId('board-strip-back')).toBeTruthy();
+    expect(screen.getAllByTestId('board-strip-entry')).toHaveLength(2);
+  });
+
   it('draws no explanatory text — only names and the score, no hint or label', () => {
     const t1 = table({ id: 't-aaaaaaaa', matchId: 'm-aaaaaaaaaaaa' });
     const t2 = table({ id: 't-bbbbbbbb', matchId: 'm-bbbbbbbbbbbb' });

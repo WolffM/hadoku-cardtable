@@ -71,6 +71,13 @@ import { PoolView } from '../components/PoolView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { appLocation, navigate, routeUrl } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { useWhoami } from '../room/whoami.ts';
+import { roomFeed } from '../rooms/feed.ts';
+import { fetchPodContext, startPodRounds, startTableMatch, type PodContext } from './pod/client.ts';
+import { PodStandings } from './pod/PodStandings.tsx';
+import { PodTables } from './pod/PodTables.tsx';
+import { StatusPill } from './ConstructedScreen.tsx';
+import './PodScreen.css';
 
 export interface PodScreenProps {
   /** The ROOM's id. The draft runs against it, and the invite link points at it. */
@@ -147,6 +154,86 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
   const seatId = draft === null ? null : mySeat(draft);
   const done = draft !== null && isComplete(draft);
 
+  /**
+   * The ROOM's own pod state — `building`/`rounds`/`done` (wave 72 §R.2),
+   * read past `rooms/api.ts`'s loose `RoomView.pod: unknown`, the same way
+   * `MatchScreen.tsx`'s board strip reads `tables` past wave 71's own gap
+   * — see `pod/client.ts`'s header on why this is a second, raw read rather
+   * than a widened parser this lane does not own. `pod === null` (the
+   * schema not landed, an old server, or the room genuinely has none yet)
+   * draws the screen exactly as it did before this wave: the drafting
+   * phase, then a static "Draft complete".
+   */
+  const [ctx, setCtx] = useState<PodContext>({ pod: null, tables: [], names: {}, leaderId: '' });
+  useEffect(() => {
+    let live = true;
+    const stop = roomFeed().follow({ room: draftId }, () => {
+      fetchPodContext(draftId).then((c) => {
+        if (live) setCtx(c);
+      });
+    });
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [draftId]);
+
+  const who = useWhoami();
+  const myMemberId = who === 'pending' || who === null ? null : who.userId;
+  const nameOf = (id: string): string => ctx.names[id] ?? id;
+
+  /** Every human drafter's id, off the draft socket's own seats — see `BuiltStatus`'s header on why `pod.seats` is useless here (empty once drafting starts). */
+  const humanDrafterIds = seats
+    .filter((s): s is typeof s & { occupant: { kind: 'human'; participantId: string } } => s.occupant?.kind === 'human')
+    .map((s) => s.occupant.participantId);
+  const everyoneBuilt = humanDrafterIds.length > 0 && humanDrafterIds.every((id) => ctx.pod?.built.includes(id) === true);
+  const [roundsBusy, setRoundsBusy] = useState(false);
+  const [roundsError, setRoundsError] = useState<string | null>(null);
+  const beginRounds = (): void => {
+    setRoundsBusy(true);
+    setRoundsError(null);
+    startPodRounds(draftId)
+      .then((r) => {
+        if (!r.ok) setRoundsError(r.message);
+      })
+      .finally(() => setRoundsBusy(false));
+  };
+
+  /**
+   * "A player whose table starts a game is taken to it. Everyone else
+   * stays on the pod." (the brief's own words) — the one piece of
+   * navigation this screen does on its own, mirroring `DeckScreen`'s
+   * post-build redirect. Only live during `rounds`: `building`'s tables
+   * do not exist yet, and `done`'s games are all over.
+   */
+  useEffect(() => {
+    if (myMemberId === null || ctx.pod?.phase !== 'rounds') return;
+    const mine = ctx.tables.find((t) => t.players.some((p) => p.memberId === myMemberId));
+    if (mine?.matchId != null) navigate({ kind: 'match', matchId: mine.matchId });
+  }, [ctx.pod?.phase, ctx.tables, myMemberId]);
+
+  /**
+   * Starts round 1's first game at my own seated table. Confirmed against
+   * the real server (not a guess from the wire contract's wording):
+   * `pod/rounds` only seats the pairing, and a pod table is gated the SAME
+   * way a constructed one is — both seats have to ready before
+   * `POST /api/play/matches` succeeds. `pod/client.ts`'s `startTableMatch`
+   * does both in one call and reports the first player's "other seat not
+   * ready yet" as success with no match yet, not an error. The auto-
+   * navigate effect above carries me once the table's own `matchId` lands.
+   */
+  const [startingTable, setStartingTable] = useState(false);
+  const [startTableError, setStartTableError] = useState<string | null>(null);
+  const playTable = (tableId: string): void => {
+    setStartingTable(true);
+    setStartTableError(null);
+    startTableMatch(draftId, tableId)
+      .then((r) => {
+        if (!r.ok) setStartTableError(r.message);
+      })
+      .finally(() => setStartingTable(false));
+  };
+
   return (
     <div className="shell" data-testid="pod" ref={host}>
       <header className="pod__bar">
@@ -191,7 +278,25 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
         </p>
       )}
 
-      {done && draft !== null ? (
+      {done && draft !== null && ctx.pod?.phase === 'rounds' ? (
+        <div className="pod__rounds" data-testid="pod-rounds">
+          <h2 data-testid="pod-round">
+            Round {ctx.pod.round} of {ctx.pod.rounds}
+          </h2>
+          <PodTables tables={ctx.tables} myMemberId={myMemberId} byeId={ctx.pod.bye} nameOf={nameOf} onPlay={playTable} starting={startingTable} />
+          {startTableError !== null && (
+            <p className="pod__error" role="alert" data-testid="pod-table-start-error">
+              {startTableError}
+            </p>
+          )}
+          <PodStandings rows={ctx.pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
+        </div>
+      ) : done && draft !== null && ctx.pod?.phase === 'done' ? (
+        <div className="pod__rounds" data-testid="pod-final">
+          <h1>Final standings</h1>
+          <PodStandings rows={ctx.pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
+        </div>
+      ) : done && draft !== null ? (
         <div className="pod__done">
           <h1>Draft complete</h1>
           <PoolView cards={myPool(draft)} />
@@ -203,6 +308,29 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
           >
             Build your deck
           </button>
+          {ctx.pod?.phase === 'building' && (
+            <>
+              <BuiltStatus seats={seats} built={ctx.pod.built} nameOf={nameOf} />
+              {myMemberId !== null && myMemberId === ctx.leaderId && (
+                <>
+                  <button
+                    type="button"
+                    className="button pod__start-rounds"
+                    data-testid="pod-start-rounds"
+                    disabled={roundsBusy || !everyoneBuilt}
+                    onClick={beginRounds}
+                  >
+                    Start round 1
+                  </button>
+                  {roundsError !== null && (
+                    <p className="pod__error" role="alert" data-testid="pod-rounds-error">
+                      {roundsError}
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
       ) : table === null ? (
         <div className="pod__waiting" data-testid="pod-waiting">
@@ -264,6 +392,46 @@ function PodSeats(props: PodSeatsProps) {
         </span>
       )}
     </div>
+  );
+}
+
+/* ── who has built, in `building` ─────────────────────────────────────── */
+
+interface BuiltStatusSeat {
+  occupant: { kind: 'human'; participantId: string } | { kind: 'bot'; botId: string } | null;
+  displayName: string;
+}
+
+/**
+ * Every human drafter, built or not — wave 72 §R.2's "who has built".
+ *
+ * `pod.seats` is empty by the time drafting starts (`PodView.seats`'s own
+ * doc: "filled only in the lobby phase"), so the humans THIS lists come
+ * from the draft socket's own seats instead — the same `seats` this
+ * screen already reads for its humans/bots tally in the header, which the
+ * draft keeps populated after it completes.
+ */
+function BuiltStatus({ seats, built, nameOf }: { seats: BuiltStatusSeat[]; built: string[]; nameOf: (id: string) => string }) {
+  const humans = seats.filter((s): s is BuiltStatusSeat & { occupant: { kind: 'human'; participantId: string } } => s.occupant?.kind === 'human');
+  if (humans.length === 0) return null;
+  return (
+    <ul className="pod__built" data-testid="pod-built">
+      {humans.map((seat) => {
+        const id = seat.occupant.participantId;
+        const isBuilt = built.includes(id);
+        return (
+          <li key={id} data-testid={`pod-built-${id}`} data-built={isBuilt ? '' : undefined}>
+            <StatusPill
+              kind="ready"
+              testId={`pod-built-${id}-pill`}
+              state={isBuilt ? 'yes' : 'no'}
+              mark={isBuilt ? 'tick' : 'ring'}
+              label={`${nameOf(id)} — ${isBuilt ? 'built' : 'building'}`}
+            />
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

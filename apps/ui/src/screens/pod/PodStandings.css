@@ -1,0 +1,21 @@
+/*
+ * The pod's standings — wave 72 §R.2. Colour from `@wolffm/themes` only,
+ * same discipline as `BoardStrip.css`.
+ */
+
+.pod-standings {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.pod-standings th,
+.pod-standings td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.pod-standings tr[data-mine] td {
+  color: var(--color-primary);
+}
