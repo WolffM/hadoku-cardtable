@@ -16,6 +16,9 @@
  *   POST  /api/rooms/:id/identity { avatarId }                 → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
  *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } → 200 RoomView | 403 | 404 | 409
+ *   POST  /api/rooms/:id/pod/sit    {} or { seat }               → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
+ *   POST  /api/rooms/:id/pod/stand  {} or no body                → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
+ *   POST  /api/rooms/:id/pod/rounds {} or no body                → 200 RoomView | 403 | 404 | 409 (wave 72 §P, leader only, from `building`)
  *
  * `format` is a frozen Standard era's date or `draft:<podId>` — a room's pool is
  * either a frozen era or a drafted pool (wave 26 §F, `room/lobby.ts`).
@@ -93,7 +96,7 @@ import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
-import { MATCH_LENGTHS } from '@hadoku/shared';
+import { MATCH_LENGTHS, POD_SEATS } from '@hadoku/shared';
 import {
 	AVATAR_ID_MAX,
 	CLIENT_MODES,
@@ -298,6 +301,25 @@ function parseStart(body: unknown): Parsed<Record<string, never>> {
 	const extra = unknownKeys(o, []);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	return { ok: true, value: {} };
+}
+
+/**
+ * `{}` or `{ seat }` — wave 72 §P's `POST …/pod/sit`. `seat` absent takes the
+ * first free one; given, it must be an integer `0..POD_SEATS - 1` — the
+ * lobby's own range, restated here only to answer a malformed value with a
+ * stated 400 rather than `lobby.sitPod`'s bare `bad-seat`.
+ */
+function parseSit(body: unknown): Parsed<{ seat: number | undefined }> {
+	if (body === undefined) return { ok: true, value: { seat: undefined } };
+	const o = asObject(body);
+	if (o === null) return { ok: false, error: 'body must be a JSON object' };
+	const extra = unknownKeys(o, ['seat']);
+	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
+	if (o.seat === undefined) return { ok: true, value: { seat: undefined } };
+	if (typeof o.seat !== 'number' || !Number.isInteger(o.seat) || o.seat < 0 || o.seat >= POD_SEATS) {
+		return { ok: false, error: `seat must be an integer 0..${POD_SEATS - 1}` };
+	}
+	return { ok: true, value: { seat: o.seat } };
 }
 
 /**
@@ -610,6 +632,81 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 						? 'this room is not playing a draft'
 						: 'everyone in the room has to be ready before the draft starts',
 			});
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/**
+	 * Take a pod seat (wave 72 §P), lobby phase only. `seat` absent takes the
+	 * first free one. Leader and non-leader alike — the pod lobby reuses the
+	 * 1v1 table's own seat UI, and sitting is not a leader act there either.
+	 */
+	rooms.post('/:id/pod/sit', (req: Request, res: Response) => {
+		const parsed = parseSit(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.sitPod(id, caller.id, parsed.value.seat);
+		if (!result.ok) {
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			const error =
+				result.reason === 'not-draft'
+					? 'this room does not have a pod'
+					: result.reason === 'not-lobby'
+						? 'the pod has already started — seats are fixed'
+						: result.reason === 'bad-seat'
+							? `seat must be an integer 0..${POD_SEATS - 1}`
+							: result.reason === 'seat-taken'
+								? 'that seat is already taken'
+								: 'the pod is full';
+			return res.status(409).json({ error });
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/** Give up a pod seat, lobby phase only. Idempotent: not seated answers `ok` and changes nothing. */
+	rooms.post('/:id/pod/stand', (req: Request, res: Response) => {
+		const parsed = parseStart(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.standPod(id, caller.id);
+		if (!result.ok) {
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			return res.status(409).json({
+				error: result.reason === 'not-draft' ? 'this room does not have a pod' : 'the pod has already started — seats are fixed',
+			});
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/**
+	 * Leader only, from `building` — refused until every seated human's deck
+	 * is saved and legal. Pairs and seats round 1; every later round starts
+	 * by itself (`room/lobby.ts`'s `recordGameResult`).
+	 */
+	rooms.post('/:id/pod/rounds', (req: Request, res: Response) => {
+		const parsed = parseStart(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.startPodRounds(id, caller.id);
+		if (!result.ok) {
+			if (result.reason === 'no-room') return noMatch(res);
+			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room leader can start the pod’s rounds' });
+			const error =
+				result.reason === 'not-building'
+					? 'this pod is not ready to start its rounds'
+					: result.reason === 'not-built'
+						? 'every seated drafter needs a saved, legal deck first'
+						: 'nobody sat in the pod';
+			return res.status(409).json({ error });
 		}
 		res.json(roomBody(result.room, caller.id));
 	});

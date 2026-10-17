@@ -183,9 +183,9 @@ import type { DeckEntry } from '@hadoku/carddata/dck';
 import type { RoomTable } from '@hadoku/shared';
 
 import type { DraftRooms } from '../room/draftRooms.js';
-import { viewForParticipant } from '../room/draftRooms.js';
+import { builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
-import { FREE_PICK, draftIdOfPool, draftPoolId } from '../room/lobby.js';
+import { FREE_PICK, draftIdOfPool, draftPoolId, type PodChecks } from '../room/lobby.js';
 import type { MatchSpec } from '../play/host.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
@@ -241,6 +241,13 @@ export interface RoomViewLike {
 	 * gate and the start route's `chooser` wiring both read them.
 	 */
 	tables: RoomTable[];
+	/**
+	 * Wave 72 §P: `null` for a `constructed-1v1` room, always present for a
+	 * `draft` one. Only `phase` is read here (`wrongGameType`'s "or a pod in
+	 * rounds") — the rest of `RoomView.pod` is `GET /api/rooms/:id`'s own
+	 * concern, not a table route's.
+	 */
+	pod: { phase: string } | null;
 }
 
 /** The subset of lane A's `Lobby` a table uses. */
@@ -299,6 +306,14 @@ export interface TablesRooms {
 	onAvatarChange?(
 		listener: (change: { roomId: string; memberId: string; avatarId: string | null }) => void,
 	): () => void;
+	/**
+	 * Wave 72 §P: who is seated in the pod's lobby, in POD SEAT order —
+	 * `attachTables` composes `draftRooms.ts`'s humans lookup from this.
+	 * Optional like `onAvatarChange`, for the same reason.
+	 */
+	podHumans?(roomId: string): { id: string; name: string }[];
+	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
+	setPodChecks?(checks: PodChecks): void;
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
@@ -841,6 +856,57 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	});
 
 	/**
+	 * A seated drafter's saved build, already checked against their own pool
+	 * (`draftPoolForMember`, the SAME per-person resolution every other
+	 * drafted-pool check in this file uses) — "C's store plus the gate's
+	 * draft check" (wave 72 §P). `null` for no saved deck, or one that fails
+	 * the check — `PodChecks.built`/`.seatState` both read it the same way.
+	 */
+	function builtDeckVerdict(podId: string, memberId: string): { text: string; verdict: SeatVerdict } | null {
+		const draftRooms = deps.draftRooms;
+		if (draftRooms === null) return null;
+		const room = draftRooms.find(podId);
+		if (room === undefined) return null;
+		const dck = builtDeckOf(room, memberId);
+		if (dck === null) return null;
+		const verdict = checkSeat({ deck: { dck }, rules: { kind: 'draft', draftId: podId } }, contextFor(memberId));
+		if ('error' in verdict || !verdict.legal) return null;
+		return { text: verdict.text, verdict };
+	}
+
+	// Wave 72 §P: this file is the one place that holds both `room/lobby.ts`'s
+	// `Lobby` (as `rooms`) and `draftRooms`/the gate, so it is where the two
+	// late-bound wires `PodChecks`'s own doc describes are made — `index.ts`
+	// is not touched for either.
+	rooms?.setPodChecks?.({
+		draftComplete(podId) {
+			const room = deps.draftRooms?.find(podId);
+			return room !== undefined && stateOf(room).status === 'complete';
+		},
+		built(podId, memberId) {
+			return builtDeckVerdict(podId, memberId) !== null;
+		},
+		seatState(podId, memberId, tableId) {
+			const built = builtDeckVerdict(podId, memberId);
+			if (built === null) return null;
+			const { text, verdict } = built;
+			const { text: _text, ...verdictWithoutText } = verdict;
+			const state: TablePlayerState = {
+				v: 1,
+				table: tableId,
+				deck: { choice: { deck: { dck: text }, rules: { kind: 'draft', draftId: podId } }, verdict: verdictWithoutText, text },
+				ready: false,
+				seatedAt: Date.now(),
+				seriesDeck: null,
+			};
+			return state;
+		},
+	});
+	deps.draftRooms?.setHumansLookup((podId) =>
+		(rooms?.podHumans?.(podId) ?? []).map((m) => ({ participantId: m.id, displayName: m.name })),
+	);
+
+	/**
 	 * The room this caller may act in, or null. One answer covers "no such
 	 * room" and "you are not in it": a different one would say which rooms
 	 * exist to someone who is in none of them.
@@ -944,11 +1010,28 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * both third-person. A pool this server does not have is named by its id
 	 * rather than blank — `unknownPool` is what refuses on it.
 	 */
+	/**
+	 * The pool a room's TABLE actually plays — `room.format` for a constructed
+	 * room, and the pod's own drafted pool for a `draft` one (wave 72 §P).
+	 *
+	 * `room.format` is a constructed room's own setting (`PATCH /api/rooms/:id
+	 * { format }`) and nothing a `draft` room's leader ever points at its own
+	 * pod with — there was no table route to need that before this wave, so
+	 * it is typically some unrelated frozen era. A pod's tables play the pod
+	 * EVERYONE THERE drafted, and `room.id` IS that pod's id (wave 23's "one
+	 * door, one id"), so this never has to ask the draft registry which pod a
+	 * draft room's table plays.
+	 */
+	function effectivePoolOf(room: RoomViewLike): string {
+		return room.gameType === 'draft' ? draftPoolId(room.id) : room.format;
+	}
+
 	function poolName(room: RoomViewLike): string {
-		const draftId = draftIdOfPool(room.format);
+		const pool = effectivePoolOf(room);
+		const draftId = draftIdOfPool(pool);
 		if (draftId !== null) return `their own pool from ${draftId}`;
-		if (room.format === FREE_PICK) return 'Free pick';
-		return library.format(room.format)?.pool.name ?? room.format;
+		if (pool === FREE_PICK) return 'Free pick';
+		return library.format(pool)?.pool.name ?? pool;
 	}
 
 	/**
@@ -990,13 +1073,15 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				id: room.id,
 				name: room.name,
 				gameType: room.gameType,
-				// The pool both decks are checked in. The screen shows it, and only the
-				// leader's copy of the screen may change it (`PATCH /api/rooms/:id`).
-				format: room.format,
+				// The pool both decks are checked in — a pod's own drafted pool for a
+				// draft room (`effectivePoolOf`), `room.format` otherwise. The screen
+				// shows it, and only the leader's copy of the screen may change it
+				// (`PATCH /api/rooms/:id`) for a constructed room.
+				format: effectivePoolOf(room),
 				// The pod behind a drafted pool, or null for a frozen era. Derived from
 				// `format` and sent anyway, so a client does not have to know the
 				// spelling of the prefix to draw a table on a drafted pool.
-				draftId: draftIdOfPool(room.format),
+				draftId: draftIdOfPool(effectivePoolOf(room)),
 				matchId,
 				seats: TABLE_SEATS,
 				// The operator's ruling (2026-10-12): once both players are ready, or a
@@ -1040,10 +1125,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		res.status(404).json({ error: NO_ROOM });
 	}
 
-	/** A table is a constructed 1v1 table, or it is not a table. */
+	/**
+	 * A table is a constructed 1v1 table, OR a pod table once the pod's
+	 * rounds have started (wave 72 §P — pod tables are made and seated by the
+	 * server, `room/lobby.ts`'s `startPodRounds`; players don't sit at them
+	 * themselves, but every OTHER table route — ready, deck, start — works
+	 * exactly as it does for a constructed room's table).
+	 */
 	function wrongGameType(room: RoomViewLike, res: Response): boolean {
 		if (room.gameType === CONSTRUCTED) return false;
-		res.status(409).json({ error: `this room plays ${room.gameType}, not ${CONSTRUCTED}` });
+		if (room.gameType === 'draft' && room.pod?.phase === 'rounds') return false;
+		res.status(409).json({ error: `this room plays ${room.gameType}, not ${CONSTRUCTED} or a pod in rounds` });
 		return true;
 	}
 
@@ -1057,9 +1149,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * draft in, and nobody can be checked against another player's 45.
 	 */
 	function roomRules(room: RoomViewLike): DeckRules {
-		if (room.format === FREE_PICK) return { kind: 'free' };
-		const draftId = draftIdOfPool(room.format);
-		return draftId === null ? { kind: 'standard', format: room.format } : { kind: 'draft', draftId };
+		const pool = effectivePoolOf(room);
+		if (pool === FREE_PICK) return { kind: 'free' };
+		const draftId = draftIdOfPool(pool);
+		return draftId === null ? { kind: 'standard', format: pool } : { kind: 'draft', draftId };
 	}
 
 	/**
@@ -1077,10 +1170,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * own refusal says it in the first person.
 	 */
 	function unknownPool(room: RoomViewLike, res: Response): boolean {
-		const draftId = draftIdOfPool(room.format);
+		const pool = effectivePoolOf(room);
+		const draftId = draftIdOfPool(pool);
 		if (draftId === null) {
-			if (room.format === FREE_PICK || library.format(room.format) !== undefined) return false;
-			res.status(409).json({ error: `this room's format ${JSON.stringify(room.format)} is not one this server has` });
+			if (pool === FREE_PICK || library.format(pool) !== undefined) return false;
+			res.status(409).json({ error: `this room's format ${JSON.stringify(pool)} is not one this server has` });
 			return true;
 		}
 		if (deps.draftRooms?.find(draftId) !== undefined) return false;
@@ -1115,7 +1209,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * part of the fixed 75 like any other card. `null` when it is legal.
 	 */
 	function sideboardIssue(room: RoomViewLike, previousText: string, nextText: string): string | null {
-		const excludeBasics = draftIdOfPool(room.format) !== null;
+		const excludeBasics = draftIdOfPool(effectivePoolOf(room)) !== null;
 		const previous = multisetOf(poolOf(deckFromDeckFile(parseDck(previousText))), excludeBasics);
 		const next = multisetOf(poolOf(deckFromDeckFile(parseDck(nextText))), excludeBasics);
 		return sameMultiset(previous, next)
@@ -1599,7 +1693,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		let botDeck: string | null = null;
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
-			const swept = draftIdOfPool(room.format) === null ? legalLibraryDecks(room.format, contextFor(owner)) : { ids: [] };
+			const pool = effectivePoolOf(room);
+			const swept = draftIdOfPool(pool) === null ? legalLibraryDecks(pool, contextFor(owner)) : { ids: [] };
 			const offered = 'error' in swept ? [] : swept.ids;
 			if (offered.length === 0) {
 				res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
@@ -1713,7 +1808,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				opponent: 'ai',
 				decks: [loaded[0]!.deck.text, botDeck!],
 				names: [loaded[0]!.member.name, undefined],
-				format: room.format,
+				format: effectivePoolOf(room),
 				handSmoothing: room.settings.handSmoothing,
 				...(chooser === undefined ? {} : { chooser }),
 			};
@@ -1726,8 +1821,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// Seat names (wave 31 shape 1): the same order, each the member's display
 			// name, so Forge's own prompts and the board say who is who.
 			names: loaded.map((p) => p.member.name),
-			// The pool a card-name ask is narrowed to (`play/names.ts`).
-			format: room.format,
+			// The pool a card-name ask is narrowed to (`play/names.ts`) — a pod's
+			// own drafted pool for a draft room, never `room.format` unmodified.
+			format: effectivePoolOf(room),
 			handSmoothing: room.settings.handSmoothing,
 			...(chooser === undefined ? {} : { chooser }),
 		};

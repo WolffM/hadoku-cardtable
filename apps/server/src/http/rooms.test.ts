@@ -264,6 +264,7 @@ describe('POST /api/rooms', () => {
 			'matchId',
 			'members',
 			'name',
+			'pod',
 			'settings',
 			'tables',
 			'you',

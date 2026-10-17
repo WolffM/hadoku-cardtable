@@ -127,7 +127,7 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { createDraft, spectatorView, viewFor, type DraftState } from '@hadoku/draft';
+import { createDraft, spectatorView, viewFor, type DraftState, type HumanSeat } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
@@ -265,6 +265,20 @@ export interface DraftRooms {
 	 * arrives as a caller rather than as a second cleanup.
 	 */
 	delete(draftId: string): void;
+	/**
+	 * Wires WHICH members `open` deals the draft to as humans (wave 72 §P):
+	 * everyone else's socket `join` still evicts a bot exactly as before this
+	 * wave, since a draft room's real seat table has no concept of "pod seat"
+	 * — it only has room to take whoever asks, up to `seatCount`. The lookup
+	 * answering `[]` for a `draftId` (the default, and every room nobody has
+	 * ever sat in) is the OLD behaviour, byte for byte: all eight seats start
+	 * as bots, and the first humans to connect evict one each.
+	 *
+	 * Called once, from `http/routes.ts`'s `attachTables` (composed from
+	 * `room/lobby.ts`'s `podHumans`, the one file that holds both this
+	 * registry and the lobby) — `index.ts` is not touched for this.
+	 */
+	setHumansLookup(lookup: (draftId: string) => readonly HumanSeat[]): void;
 }
 
 /*
@@ -366,6 +380,10 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const now = options.now ?? Date.now;
 	const onDeferredChange = options.onDeferredChange ?? (() => undefined);
 	const storeDir = options.storeDir ?? null;
+	// Wave 72 §P. The default is the pre-wave behaviour: nobody is seated in
+	// advance, so `build` deals every seat to a bot and the first humans to
+	// connect evict one each — see `setHumansLookup`'s own doc.
+	let humansLookup: (draftId: string) => readonly HumanSeat[] = () => [];
 
 	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
 	function persistRoom(room: DraftRoom): void {
@@ -496,12 +514,11 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			seatCount: params.seatCount,
 			packCount: params.packCount,
 			packSize: params.packSize,
-			// Nobody is seated at creation: all eight seats are bots, and every
-			// human who connects evicts one. That is how "bots fill the seats
-			// nobody took, at the instant the draft starts" is implemented —
-			// nothing counts humans, because the draft is not built until the
-			// room starts it and a seat is taken by arriving.
-			humans: [],
+			// Wave 72 §P: the pod's SEATED members (`room/lobby.ts`'s `podSeats`,
+			// via `setHumansLookup`), or nobody when the lookup is unwired or
+			// nobody ever sat — the pre-wave behaviour, unchanged: all eight
+			// seats start as bots, and every human who connects evicts one.
+			humans: humansLookup(draftId),
 			reservationTtlMs: params.reservationTtlMs,
 		});
 
@@ -539,6 +556,9 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// "No GC") — this exists so the on-disk half is not left behind the
 			// one time something does call it. §4.6: both halves, always together.
 			if (storeDir !== null) rmSnapshotSync(storeDir, draftId);
+		},
+		setHumansLookup(lookup) {
+			humansLookup = lookup;
 		},
 	};
 }

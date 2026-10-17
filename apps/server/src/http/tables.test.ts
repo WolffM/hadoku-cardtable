@@ -297,6 +297,8 @@ interface FakeRoom {
 	/** Every match this room started, on any table, as `Lobby.roomOfMatch` remembers them. */
 	matches: string[];
 	state: Map<string, unknown>;
+	/** Wave 72 §P: `RoomViewLike` carries it now, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
+	pod: { phase: string } | null;
 }
 
 interface FakeLobby extends TablesRooms {
@@ -333,6 +335,7 @@ function fakeLobby(): FakeLobby {
 				sideboarding,
 				matches: [],
 				state: new Map(),
+				pod: null,
 			};
 			held.set(id, room);
 			return room;
@@ -2737,5 +2740,69 @@ describe('a room on a drafted pool', () => {
 		const refused = await putDeck(h, 'alice', dckTextOf(deck));
 		expect(refused.status).toBe(409);
 		expect(refused.body.error).toContain('sideboard');
+	});
+
+	/* ── wave 72 §P: a draft room's own POD table ──────────────────────── */
+
+	const PODTABLE = 'r-pod-table';
+
+	/**
+	 * The REAL bug this proves fixed: before `effectivePoolOf`, every table
+	 * route read `room.format` straight — correct for a constructed room, but
+	 * a `draft` room's `format` is whatever random era it opened on and was
+	 * never pointed at its own pod (no table route ever reached one before
+	 * this wave). A pod's own table plays the pod everyone there drafted,
+	 * `room.id` IS that pod's id, and `room.format` here is deliberately an
+	 * UNRELATED frozen era — if any route still read it raw, the deck check,
+	 * the start, or the spec Forge gets would all be wrong.
+	 */
+	it("plays the room's OWN pod on its table, never room.format, once the pod is in `rounds`", async () => {
+		const h = await boot();
+		// The pod's draft id IS the room id (wave 23's "one door, one id") —
+		// `effectivePoolOf` relies on exactly this, so the fixture has to too.
+		const pools = pod(h, PODTABLE);
+		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
+		const room = h.lobby.room(PODTABLE)!;
+		room.pod = { phase: 'rounds' };
+
+		const putPodDeck = (user: string, dck: string) =>
+			call(h, 'PUT', `/api/tables/rooms/${PODTABLE}/deck`, { deck: { dck } }, edgeHeaders(user));
+		const setPodReady = (user: string) =>
+			call(h, 'POST', `/api/tables/rooms/${PODTABLE}/ready`, { ready: true }, edgeHeaders(user));
+
+		const mine = await putPodDeck('alice', built(pools.alice, PODTABLE));
+		expect(mine.status).toBe(200);
+		// The table's own pool is the POD (= the room's own id), not the room's
+		// unrelated `format`.
+		expect(mine.body.room).toMatchObject({ format: draftPoolId(PODTABLE), draftId: PODTABLE });
+		expect(players(mine.body)[0]).toMatchObject({ legal: true, rulesName: `your pool from ${PODTABLE}` });
+		const theirs = await putPodDeck('bob', built(pools.bob, PODTABLE));
+		expect(theirs.status).toBe(200);
+
+		expect((await setPodReady('alice')).status).toBe(200);
+		expect((await setPodReady('bob')).status).toBe(200);
+
+		const res = await start(h, { room: PODTABLE }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		// Forge is launched against the POD, with both drafted decks.
+		expect(h.specs.at(-1)?.format).toBe(draftPoolId(PODTABLE));
+		expect(h.specs.at(-1)?.seats.map((s) => s.deck)).toEqual([built(pools.alice, PODTABLE), built(pools.bob, PODTABLE)]);
+
+		// Reverted (read `room.format` instead of `effectivePoolOf(room)` in
+		// `roomRules`/`unknownPool`): the PUT above 409s ("this room's format
+		// ... is not one this server has" — `${POWER_2010}` names no pod) and
+		// nothing past it runs. 1 failed. Restored: passes, 201. 1 passed.
+	});
+
+	it('refuses a table WRITE the same as before once the pod is NOT in rounds', async () => {
+		const h = await boot();
+		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
+		const room = h.lobby.room(PODTABLE)!;
+		for (const phase of ['lobby', 'drafting', 'building', 'done'] as const) {
+			room.pod = { phase };
+			const res = await call(h, 'PUT', `/api/tables/rooms/${PODTABLE}/deck`, { deck: { dck: 'anything' } }, edgeHeaders('alice'));
+			expect(res.status).toBe(409);
+			expect(res.body.error).toContain('not constructed-1v1 or a pod in rounds');
+		}
 	});
 });

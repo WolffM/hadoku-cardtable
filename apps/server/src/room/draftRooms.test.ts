@@ -164,6 +164,48 @@ describe('opening a draft room', () => {
 	it('does not invent a room for a draft nobody opened', () => {
 		expect(rooms().find('never-opened')).toBeUndefined();
 	});
+
+	describe('setHumansLookup — wave 72 §P', () => {
+		it('deals to exactly the ids the lookup names, in the order it names them, when wired BEFORE open', () => {
+			const r = rooms();
+			r.setHumansLookup((draftId) => (draftId === 'pod-seated' ? [{ participantId: ALICE, displayName: 'Alice' }, { participantId: BOB, displayName: 'Bob' }] : []));
+			const room = r.open('pod-seated');
+			const seats = humanSeats(room.seats);
+			expect(seats).toHaveLength(2);
+			const seated = new Set(seats.map((s) => s.id));
+			expect(seatOf(room.seats, ALICE)).toBe(seats[0]?.id);
+			expect(seatOf(room.seats, BOB)).toBe(seats[1]?.id);
+			// Every other seat is a bot, same as an unseated pod.
+			for (let s = 0; s < 8; s++) {
+				if (seated.has(s as SeatId)) continue;
+				expect(occupantOf(room.seats, s)?.kind).toBe('bot');
+			}
+		});
+
+		it('is unwired by default, and a lookup answering [] is the SAME pre-wave behaviour: nobody dealt human, all eight seats bots', () => {
+			const unwired = rooms().open('pod-unwired');
+			expect(humanSeats(unwired.seats)).toEqual([]);
+			for (let s = 0; s < 8; s++) expect(occupantOf(unwired.seats, s)?.kind).toBe('bot');
+
+			const r = rooms();
+			r.setHumansLookup(() => []);
+			const wiredEmpty = r.open('pod-wired-empty');
+			expect(humanSeats(wiredEmpty.seats)).toEqual([]);
+			for (let s = 0; s < 8; s++) expect(occupantOf(wiredEmpty.seats, s)?.kind).toBe('bot');
+		});
+
+		it('is read once, at the moment `open` deals the draft — a later call does not re-deal an existing room', () => {
+			const r = rooms();
+			r.setHumansLookup(() => []);
+			const dealt = r.open('pod-already-dealt');
+			expect(humanSeats(dealt.seats)).toEqual([]);
+
+			r.setHumansLookup((draftId) => (draftId === 'pod-already-dealt' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
+			const again = r.open('pod-already-dealt');
+			expect(again).toBe(dealt);
+			expect(humanSeats(again.seats)).toEqual([]);
+		});
+	});
 });
 
 describe('joining', () => {
