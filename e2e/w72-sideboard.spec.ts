@@ -134,9 +134,18 @@ test(
       for (const f of [alice, bob]) await expect(f.page.getByTestId('sideboard-ready')).toHaveAttribute('aria-pressed', 'true');
 
       /* ── game 2 starts; bob (game 1's loser) is asked play-or-draw ────── */
+      // Both pages are STILL on game 1's match URL at this point (nothing has
+      // navigated yet), and that URL already satisfies the bare `MATCH_URL`
+      // pattern — a plain `waitForURL(matchUrl)` resolves at once against the
+      // unchanged URL rather than waiting for game 2's. Wait for a match id
+      // that differs from game 1's instead.
       const matchUrl = MATCH_URL;
-      await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
-      await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
+      const isNewMatch = (url: URL): boolean => {
+        const id = matchUrl.exec(url.href)?.[1];
+        return id !== undefined && id !== match1;
+      };
+      await alice.page.waitForURL(isNewMatch, { timeout: 120_000 });
+      await bob.page.waitForURL(isNewMatch, { timeout: 120_000 });
       const match2 = matchUrl.exec(alice.page.url())?.[1];
       expect(match2, 'a fresh Forge match, not game 1 again').not.toBe(match1);
       expect(matchUrl.exec(bob.page.url())?.[1]).toBe(match2);
