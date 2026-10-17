@@ -265,6 +265,7 @@ describe('POST /api/rooms', () => {
 			'members',
 			'name',
 			'settings',
+			'tables',
 			'you',
 		]);
 		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
@@ -401,7 +402,7 @@ describe('GET /api/rooms', () => {
 			body: { password: PASSWORD },
 		});
 		first.lobby.setPlayerState(created.id, created.creator, { deck: 'mono-red', ready: true });
-		first.lobby.setMatch(created.id, 'match-42');
+		first.lobby.setTableMatch(created.id, created.tables[0]!.id, 'match-42');
 
 		// A second lobby over the same directory — the restart, in one process.
 		const second = await openApp(dir);
@@ -584,7 +585,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
-		expect(created.settings).toEqual({ handSmoothing: true });
+		expect(created.settings).toEqual({ handSmoothing: true, matchLength: 'bo1', sideboarding: false });
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
 
@@ -595,12 +596,12 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { handSmoothing: false } } });
 		expect(byLeader.status).toBe(200);
 		const after = byLeader.json() as View;
-		expect(after.settings).toEqual({ handSmoothing: false });
+		expect(after.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
 		// Not a deck question, so bob is still ready.
 		expect(after.members.map((m) => m.ready)).toEqual([false, true]);
 
 		const restored = (await call(await openApp(dir), 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect(restored.settings).toEqual({ handSmoothing: false });
+		expect(restored.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
 	});
 
 	it('refuses a setting it does not know, a value that is not a boolean, and an empty or mixed body', async () => {
@@ -609,6 +610,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const cases: Array<[unknown, string]> = [
 			[{ settings: { psychic: true } }, 'unknown setting(s): psychic'],
 			[{ settings: { handSmoothing: 'off' } }, 'settings.handSmoothing must be a boolean'],
+			[{ settings: { matchLength: 'bo5' } }, 'settings.matchLength must be one of: bo1, bo3'],
 			[{ settings: {} }, 'settings names no setting'],
 			[{ settings: null }, 'settings must be an object'],
 			[{ settings: { handSmoothing: false }, format: OLDEST_POOL }, 'patch one field at a time: gameType, format or settings'],
@@ -619,7 +621,46 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 			expect(res.json()).toEqual({ error });
 		}
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect([after.settings, after.format]).toEqual([{ handSmoothing: true }, NEWEST_POOL]);
+		expect([after.settings, after.format]).toEqual([{ handSmoothing: true, matchLength: 'bo1', sideboarding: false }, NEWEST_POOL]);
+	});
+
+	it("lets the leader set bo3, which reads sideboarding as true without storing it", async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
+		const after = (
+			await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { matchLength: 'bo3' } } })
+		).json() as View;
+		expect(after.settings).toEqual({ handSmoothing: true, matchLength: 'bo3', sideboarding: true });
+		// And the table's own series is sized to it (`RoomTable.series.length`).
+		expect(after.tables[0]?.series).toMatchObject({ length: 3, phase: 'seating' });
+	});
+
+	it('always reads bo3 and sideboarding on, for a draft room, whatever the stored setting says', async () => {
+		const h = await openApp(await tempDir());
+		const created = (
+			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Draft room', gameType: 'draft' } })
+		).json() as View;
+		expect(created.settings).toEqual({ handSmoothing: true, matchLength: 'bo3', sideboarding: true });
+		expect(created.tables[0]?.series).toMatchObject({ length: 3 });
+	});
+});
+
+describe('a room always has at least one table', () => {
+	type View = import('../room/lobby.ts').RoomView;
+
+	it("gives a new room one table, empty, 'seating', with the first table's id stable across a restart", async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
+		expect(created.tables).toHaveLength(1);
+		expect(created.tables[0]).toMatchObject({
+			players: [],
+			matchId: null,
+			series: { length: 1, wins: [0, 0], games: [], phase: 'seating' },
+		});
+		expect(created.matchId).toBeNull();
+		const restored = (await call(await openApp(dir), 'GET', `/api/rooms/${created.id}`)).json() as View;
+		expect(restored.tables[0]?.id).toBe(created.tables[0]?.id);
 	});
 });
 
@@ -855,7 +896,7 @@ describe('a room’s clientMode', () => {
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { gameType: 'draft' } });
 		h.lobby.setPlayerState(created.id, created.creator, { deck: 'mono-red' });
-		h.lobby.setMatch(created.id, 'match-9');
+		h.lobby.setTableMatch(created.id, created.tables[0]!.id, 'match-9');
 
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { clientMode: string };
 		expect(after.clientMode).toBe('streamed');
@@ -972,10 +1013,11 @@ describe('the lobby', () => {
 		state.deck = 'mutated';
 		expect(h.lobby.playerState(created.id, created.creator)).toEqual({ deck: 'x', ready: false });
 
-		expect(h.lobby.setMatch('r-000000000000', 'm1')).toBe(false);
-		expect(h.lobby.setMatch(created.id, 'm1')).toBe(true);
+		const firstTable = created.tables[0]!.id;
+		expect(h.lobby.setTableMatch('r-000000000000', firstTable, 'm1')).toBe(false);
+		expect(h.lobby.setTableMatch(created.id, firstTable, 'm1')).toBe(true);
 		expect(h.lobby.get(created.id)?.matchId).toBe('m1');
-		expect(h.lobby.setMatch(created.id, null)).toBe(true);
+		expect(h.lobby.releaseTableMatch(created.id, firstTable)).toBe(true);
 		expect(h.lobby.get(created.id)?.matchId).toBeNull();
 
 		expect(h.lobby.isMember(created.id, created.creator)).toBe(true);
@@ -1435,7 +1477,7 @@ describe('POST /api/rooms/:id/identity', () => {
 			import('../room/lobby.ts').RoomView;
 		// A real match id's shape: it fits `ROOM_ID_RE`, which is why the lookup
 		// has to come before the room-id test rather than after it.
-		h.lobby.setMatch(room.id, 'a1b2c3d4-0000-4000-8000-000000000001');
+		h.lobby.setTableMatch(room.id, room.tables[0]!.id, 'a1b2c3d4-0000-4000-8000-000000000001');
 
 		const set = await call(h, 'POST', '/api/rooms/a1b2c3d4-0000-4000-8000-000000000001/identity', {
 			as: 'alice',
@@ -1503,7 +1545,7 @@ describe('GET /api/rooms and stale rooms', () => {
 		const h = await openApp(await tempDir(), { now: () => clock });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'playing' } })).json() as
 			import('../room/lobby.ts').RoomView;
-		h.lobby.setMatch(room.id, 'a1b2c3d4-0000-4000-8000-000000000002');
+		h.lobby.setTableMatch(room.id, room.tables[0]!.id, 'a1b2c3d4-0000-4000-8000-000000000002');
 		clock += lobbyMod.ROOM_STALE_MS * 3;
 		expect(await ids(h, 'bob')).toEqual([room.id]);
 	});
@@ -1574,13 +1616,13 @@ describe('GET /api/rooms/of-match/:matchId', () => {
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
 			import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob', body: {} });
-		h.lobby.setMatch(room.id, 'm-3f3db8ae2945');
+		h.lobby.setTableMatch(room.id, room.tables[0]!.id, 'm-3f3db8ae2945');
 
 		const during = await call(h, 'GET', '/api/rooms/of-match/m-3f3db8ae2945', { as: 'bob' });
 		expect(during.status).toBe(200);
 		expect((during.json() as { id: string }).id).toBe(room.id);
 
-		h.lobby.releaseMatch(room.id);
+		h.lobby.releaseTableMatch(room.id, room.tables[0]!.id);
 		const after = await call(h, 'GET', '/api/rooms/of-match/m-3f3db8ae2945', { as: 'alice' });
 		expect(after.status, 'the match is over and the room let go of it').toBe(200);
 		expect((after.json() as { id: string }).id).toBe(room.id);

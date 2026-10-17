@@ -37,7 +37,7 @@ import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
-import type { DraftCard } from '@hadoku/shared';
+import type { DraftCard, RoomTable } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
 import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/library';
@@ -288,15 +288,23 @@ interface FakeRoom {
 	leader: string;
 	/** `avatarId` optional and never blank, exactly as `RoomViewLike` states it. */
 	members: { id: string; name: string; avatarId?: string }[];
-	matchId: string | null;
-	/** Every match this room started, as `Lobby.roomOfMatch` remembers them. */
+	/** Wave 71: always at least one. The real `RoomTable` shape — `players` already resolved, as `viewOf` resolves it. */
+	tables: RoomTable[];
+	/** The room-wide effective series length a NEW table/series starts at (fake-only convenience: the real lobby derives this from `RoomSettings.matchLength`/`gameType`, which `RoomViewLike` does not carry). */
+	matchLength: 1 | 3;
+	/** Every match this room started, on any table, as `Lobby.roomOfMatch` remembers them. */
 	matches: string[];
 	state: Map<string, unknown>;
 }
 
 interface FakeLobby extends TablesRooms {
-	open(id: string, members: FakeRoom['members'], gameType?: string, format?: string): FakeRoom;
+	open(id: string, members: FakeRoom['members'], gameType?: string, format?: string, matchLength?: 1 | 3): FakeRoom;
 	room(id: string): FakeRoom | undefined;
+}
+
+/** An empty, `seating` table — what a new room's first table, and `addTable`, both start as. */
+function emptyTable(id: string, length: 1 | 3): RoomTable {
+	return { id, players: [], matchId: null, series: { length, wins: [0, 0], games: [], phase: 'seating' } };
 }
 
 function fakeLobby(): FakeLobby {
@@ -305,8 +313,10 @@ function fakeLobby(): FakeLobby {
 		const room = held.get(roomId);
 		return room !== undefined && room.members.some((m) => m.id === memberId) ? room : undefined;
 	};
+	let nextTableId = 0;
+	const mintTable = () => `t-fake${String(nextTableId++).padStart(4, '0')}`;
 	return {
-		open(id, members, gameType = 'constructed-1v1', format = POWER_2010) {
+		open(id, members, gameType = 'constructed-1v1', format = POWER_2010, matchLength = 1) {
 			// The first member is the leader, as `lobby.create` makes the creator one.
 			const room: FakeRoom = {
 				id,
@@ -316,7 +326,8 @@ function fakeLobby(): FakeLobby {
 				settings: { handSmoothing: true },
 				leader: members[0]?.id ?? '',
 				members,
-				matchId: null,
+				tables: [emptyTable(mintTable(), matchLength)],
+				matchLength,
 				matches: [],
 				state: new Map(),
 			};
@@ -326,7 +337,7 @@ function fakeLobby(): FakeLobby {
 		room: (id) => held.get(id),
 		get: (id) => held.get(id),
 		list: () => [...held.values()],
-		roomOfMatch: (matchId) => [...held.values()].find((r) => r.matches.includes(matchId)),
+		roomOfMatch: (matchId) => [...held.values()].find((r) => r.tables.some((t) => t.matchId === matchId) || r.matches.includes(matchId)),
 		playerState: (roomId, memberId) => member(roomId, memberId)?.state.get(memberId),
 		setPlayerState(roomId, memberId, state) {
 			const room = member(roomId, memberId);
@@ -338,20 +349,70 @@ function fakeLobby(): FakeLobby {
 			else room.state.set(memberId, JSON.parse(JSON.stringify(state)) as unknown);
 			return true;
 		},
-		setMatch(roomId, matchId) {
+		setTableSeats(roomId, tableId, seats) {
 			const room = held.get(roomId);
-			if (room === undefined) return false;
-			room.matchId = matchId;
-			if (matchId !== null) room.matches.push(matchId);
+			const table = room?.tables.find((t) => t.id === tableId);
+			if (room === undefined || table === undefined) return false;
+			table.players = seats
+				.filter((mid): mid is string => mid !== null)
+				.map((mid) => ({ memberId: mid, name: room.members.find((m) => m.id === mid)?.name ?? '' }));
 			return true;
 		},
-		releaseMatch(roomId) {
+		setTableMatch(roomId, tableId, matchId) {
 			const room = held.get(roomId);
-			if (room === undefined) return false;
-			room.matchId = null;
+			const table = room?.tables.find((t) => t.id === tableId);
+			if (room === undefined || table === undefined || table.matchId !== null) return false;
+			if (table.series.phase === 'seating' || table.series.phase === 'done') {
+				table.series = { length: room.matchLength, wins: [0, 0], games: [], phase: 'playing' };
+			} else if (table.series.phase === 'sideboarding') {
+				table.series = { ...table.series, phase: 'playing' };
+			}
+			table.matchId = matchId;
+			if (!room.matches.includes(matchId)) room.matches.push(matchId);
+			return true;
+		},
+		releaseTableMatch(roomId, tableId) {
+			const room = held.get(roomId);
+			const table = room?.tables.find((t) => t.id === tableId);
+			if (room === undefined || table === undefined) return false;
+			table.matchId = null;
 			// Every member's table state (the deck hold and its own `ready`) is
 			// opaque to this fake, same as the real lobby: kept whole.
 			return true;
+		},
+		recordGameResult(roomId, tableId, result) {
+			const room = held.get(roomId);
+			const table = room?.tables.find((t) => t.id === tableId);
+			if (room === undefined || table === undefined) return { ok: false };
+			table.matchId = null;
+			table.series.games.push({ matchId: result.matchId, winner: result.winner });
+			if (result.winner === 0 || result.winner === 1) table.series.wins[result.winner] += 1;
+			const need = table.series.length === 3 ? 2 : 1;
+			const majority = table.series.wins[0] >= need || table.series.wins[1] >= need;
+			const exhausted = table.series.games.length >= table.series.length;
+			table.series.phase = majority || exhausted ? 'done' : 'sideboarding';
+			return { ok: true };
+		},
+		addTable(roomId, callerId) {
+			const room = held.get(roomId);
+			if (room === undefined) return { ok: false, reason: 'no-room' };
+			if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+			const table = emptyTable(mintTable(), room.matchLength);
+			room.tables.push(table);
+			return { ok: true, table };
+		},
+		removeTable(roomId, callerId, tableId) {
+			const room = held.get(roomId);
+			if (room === undefined) return { ok: false, reason: 'no-room' };
+			if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+			if (room.tables[0]?.id === tableId) return { ok: false, reason: 'first-table' };
+			const index = room.tables.findIndex((t) => t.id === tableId);
+			if (index === -1) return { ok: false, reason: 'no-such-table' };
+			const table = room.tables[index]!;
+			const idle = table.matchId === null && (table.series.phase === 'seating' || table.series.phase === 'done');
+			if (table.players.length > 0 || !idle) return { ok: false, reason: 'not-idle' };
+			room.tables.splice(index, 1);
+			return { ok: true };
 		},
 	};
 }
@@ -465,7 +526,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 
 async function call(
 	h: Harness,
-	method: 'GET' | 'POST' | 'PUT',
+	method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 	path: string,
 	body?: unknown,
 	headers: Record<string, string> = edgeHeaders('alice'),
@@ -1048,7 +1109,7 @@ describe('a room table', () => {
 		const match = h.matches.get(matchId);
 		expect(match?.seatOf(ALICE)).toBe(0);
 		expect(match?.seatOf(BOB)).toBe(1);
-		expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+		expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBe(matchId);
 	});
 
 	it("deals a match against a person with the room's hand smoothing, on by default", async () => {
@@ -1155,7 +1216,7 @@ describe('a room table', () => {
 
 			const matchId = res.body.matchId as string;
 			expect(h.matches.get(matchId)?.seatOf(ALICE)).toBe(0);
-			expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+			expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBe(matchId);
 		});
 
 		it('plays a library deck from any era on Free pick', async () => {
@@ -1364,7 +1425,7 @@ describe('a room table', () => {
 		const started = answers.find((r) => r.status === 201)?.body.matchId;
 		expect(typeof started).toBe('string');
 		for (const answer of answers) expect(answer.body.matchId).toBe(started);
-		expect(h.lobby.room(ROOM)?.matchId).toBe(started);
+		expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBe(started);
 		expect(h.matches.get(started as string)?.seatOf(ALICE)).toBe(0);
 		expect(h.matches.get(started as string)?.seatOf(BOB)).toBe(1);
 	});
@@ -1430,7 +1491,7 @@ describe('a room table', () => {
 		const answer = await reloaded;
 		expect(answer.status).toBe(200);
 		expect(h.specs).toHaveLength(1);
-		expect(h.lobby.room(ROOM)?.matchId).toBe(answer.body.matchId);
+		expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBe(answer.body.matchId);
 	});
 
 	it('refuses a body that names two decks against a person, and says where a match starts', async () => {
@@ -1679,7 +1740,7 @@ describe('a room table', () => {
 	it('forgets a match id the registry no longer has, so a restart does not strand the room', async () => {
 		const h = await boot();
 		const room = openRoom(h);
-		room.matchId = 'm-deadbeef0000';
+		room.tables[0]!.matchId = 'm-deadbeef0000';
 		await bothLoaded(h);
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
@@ -1708,7 +1769,7 @@ describe('a room table', () => {
 		expect(players(during.body).map((p) => p.ready)).toEqual([false, false]);
 
 		// What a restart's restore does to the room while the match plays on.
-		h.lobby.setMatch(ROOM, null);
+		h.lobby.releaseTableMatch(ROOM, h.lobby.room(ROOM)!.tables[0]!.id);
 		const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		expect(refused.status).toBe(409);
 		expect(refused.body.error).toMatch(/is not ready yet/);
@@ -1864,7 +1925,7 @@ describe('a room table', () => {
 			[true, false],
 			[true, false],
 		]);
-		expect(h.lobby.room(ROOM)?.matchId).toBeNull();
+		expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBeNull();
 
 		// Reverted (comment out the `=== 'over'` arm of `finished` in
 		// `liveMatchId`): this exact assertion is what fails — `matchId` comes
@@ -1966,7 +2027,7 @@ describe('a room table', () => {
 		expect(await call(h, 'POST', '/api/play/matches', { room: 42 }, edgeHeaders('alice'))).toMatchObject({ status: 400 });
 		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, {}, edgeHeaders('alice'))).toMatchObject({
 			status: 400,
-			body: { error: 'body is { ready: boolean }' },
+			body: { error: 'body is { ready: boolean, table? }' },
 		});
 		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: 'yes' }, edgeHeaders('alice'))).toMatchObject({
 			status: 400,
@@ -2083,6 +2144,115 @@ describe('a room table', () => {
 		const res = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice', 'public'));
 		expect(res.status).toBe(404);
 		expect(res.body.error).not.toBe('no such room');
+	});
+
+	/*
+	 * Wave 71 (`docs/planning/wave71-2026-10-17.md` §D): a room holds several
+	 * tables, each with its own series. The wire contract: a request naming no
+	 * `table` means `tables[0]`, so every test above (none of which ever names
+	 * one) is itself proof that an unedited caller sees no change at all.
+	 */
+	describe('wave 71: a second table, a series, sideboarding and the chooser', () => {
+		const addTable = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/tables`, {}, edgeHeaders(user));
+		const removeTable = (h: Harness, user: string, tableId: string) =>
+			call(h, 'DELETE', `/api/tables/rooms/${ROOM}/tables/${tableId}`, undefined, edgeHeaders(user));
+
+		it('adds and removes a table, leader only; the first table can never be removed', async () => {
+			const h = await boot();
+			openRoom(h);
+			expect((await addTable(h, 'bob')).status).toBe(403);
+			const added = await addTable(h, 'alice');
+			expect(added.status).toBe(201);
+			const tableId = (added.body as { id: string }).id;
+			expect(added.body).toMatchObject({ players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'seating' } });
+			expect(h.lobby.room(ROOM)?.tables.map((t) => t.id)).toEqual([h.lobby.room(ROOM)!.tables[0]!.id, tableId]);
+
+			expect((await removeTable(h, 'bob', tableId)).status).toBe(403);
+			expect((await removeTable(h, 'alice', tableId)).status).toBe(204);
+			expect(h.lobby.room(ROOM)?.tables).toHaveLength(1);
+			const firstId = h.lobby.room(ROOM)!.tables[0]!.id;
+			expect((await removeTable(h, 'alice', firstId)).status).toBe(409);
+		});
+
+		it('sits and loads a deck at a SECOND table, independently of the first', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
+			const added = await addTable(h, 'alice');
+			const table2 = (added.body as { id: string }).id;
+
+			await bothLoaded(h); // alice + bob at table 1, by omitting `table` entirely
+			expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, { table: table2 }, edgeHeaders('carol'))).status).toBe(200);
+			const loaded = await call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, { ...deckBody(ELDRAZI_GREEN), table: table2 }, edgeHeaders('carol'));
+			expect(loaded.status).toBe(200);
+			expect(players(loaded.body).map((p) => p.name)).toEqual(['user-carol']);
+
+			// Table 1's own view is untouched by table 2's seating.
+			expect(players((await view(h, 'alice')).body).map((p) => p.name)).toEqual(['user-alice', 'user-bob']);
+			// And table 2, read by its own id, shows carol and only carol.
+			const table2View = await call(h, 'GET', `/api/tables/rooms/${ROOM}?table=${table2}`, undefined, edgeHeaders('carol'));
+			expect(players(table2View.body).map((p) => p.name)).toEqual(['user-carol']);
+			// The wire mirror (`RoomTable.players`) agrees, for both tables.
+			expect(h.lobby.room(ROOM)?.tables[0]?.players.map((p) => p.memberId).sort()).toEqual([ALICE, BOB].sort());
+			expect(h.lobby.room(ROOM)?.tables[1]?.players.map((p) => p.memberId)).toEqual([CAROL]);
+		});
+
+		it('refuses a table id that names no table of this room, and an empty one', async () => {
+			const h = await boot();
+			openRoom(h);
+			const bad = await call(h, 'GET', `/api/tables/rooms/${ROOM}?table=t-nope0000`, undefined, edgeHeaders('alice'));
+			expect(bad).toMatchObject({ status: 404, body: { error: 'no such table' } });
+			const blank = await call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, { ...deckBody(UG_POLYMORPH), table: '' }, edgeHeaders('alice'));
+			expect(blank.status).toBe(400);
+		});
+
+		it('sideboarding: a resubmission of the SAME 75 is accepted; a different deck is refused even though it is legal in the pool', async () => {
+			const h = await boot();
+			openRoom(h);
+			await bothLoaded(h); // alice: UG_POLYMORPH, bob: SECOND_DECK
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			// As if game 1 of the series just ended: the table is `sideboarding`
+			// and alice's series baseline is the deck she just played.
+			h.lobby.room(ROOM)!.tables[0]!.series.phase = 'sideboarding';
+			const aliceState = h.lobby.playerState(ROOM, ALICE) as Record<string, unknown>;
+			h.lobby.setPlayerState(ROOM, ALICE, { ...aliceState, seriesDeck: library.deck(UG_POLYMORPH)!.text });
+
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+			const different = await putDeck(h, 'alice', deckBody(SECOND_DECK));
+			expect(different.status).toBe(409);
+			expect(different.body.error).toContain('sideboard');
+		});
+
+		it("sets chooser to the previous game's loser seat on the second game of a series; the first game leaves it unset", async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 3);
+			await bothLoaded(h);
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+
+			const first = await startRoom(h, 'alice');
+			expect(first.status).toBe(201);
+			expect(h.specs[0]).not.toHaveProperty('chooser');
+
+			const tableId = h.lobby.room(ROOM)!.tables[0]!.id;
+			// Game 1 ends: seat 0 (alice) wins, so seat 1 (bob) is the loser and
+			// is the one asked play-or-draw for game 2.
+			h.lobby.recordGameResult(ROOM, tableId, { matchId: first.body.matchId as string, winner: 0 });
+			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+
+			// `start`'s own `untilHost` waits for the FIRST host unconditionally
+			// (fine for game 1, above); a second start needs to wait for a SECOND
+			// one, the same way the "sixth match" test above does.
+			const before = h.hosts.length;
+			const pending = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+			await untilHost(h, before + 1, pending);
+			if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
+			const second = await pending;
+			expect(second.status).toBe(201);
+			expect(h.specs[1]).toMatchObject({ chooser: 1 });
+		});
 	});
 });
 

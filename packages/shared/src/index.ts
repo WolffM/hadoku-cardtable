@@ -247,3 +247,24 @@ export {
   type RoomChanged,
 } from './room-feed.ts';
 export { selfAnswer, type SelfAnswer } from './self-answer.ts';
+export {
+  MATCH_LENGTHS,
+  MatchLengthSchema,
+  DEFAULT_MATCH_LENGTH,
+  DEFAULT_SIDEBOARDING,
+  SeriesLengthSchema,
+  SERIES_PHASES,
+  SeriesPhaseSchema,
+  RoomTablePlayerSchema,
+  RoomTableGameSchema,
+  RoomTableSeriesSchema,
+  RoomTableSchema,
+  RoomTablesSchema,
+  type MatchLength,
+  type SeriesLength,
+  type SeriesPhase,
+  type RoomTablePlayer,
+  type RoomTableGame,
+  type RoomTableSeries,
+  type RoomTable,
+} from './room-tables.ts';
