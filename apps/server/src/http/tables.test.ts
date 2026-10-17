@@ -446,6 +446,22 @@ async function call(
 }
 
 /**
+ * Until the harness has made its `count`th host, or `pending` is answered without
+ * one: a refusal answers at once and a start waits on the host it makes, so the
+ * test's own timeout is the only bound. A fixed 3 s window here spent 3 s on every
+ * refused start, which carried those cases past the 5 s budget on a loaded host,
+ * and fed no opening to a start slower than the window.
+ */
+async function untilHost(h: Harness, count: number, pending: Promise<unknown>): Promise<void> {
+	let answered = false;
+	void pending.then(
+		() => (answered = true),
+		() => (answered = true),
+	);
+	while (h.hosts.length < count && !answered) await new Promise((r) => setTimeout(r, 5));
+}
+
+/**
  * POST a match that should START: feed the host Forge's recorded opening once
  * it exists, as `play/socket.test.ts` does, so play's route can answer.
  */
@@ -457,12 +473,8 @@ async function start(
 	headers: Record<string, string> = edgeHeaders('alice'),
 ): Promise<{ status: number; body: Record<string, unknown> }> {
 	const pending = call(h, 'POST', path, body, headers, contentType);
-	const deadline = Date.now() + 3000;
-	while (h.hosts.length === 0) {
-		if (Date.now() > deadline) return pending;
-		await new Promise((r) => setTimeout(r, 5));
-	}
-	(h.hosts.at(-1) as ReplayHost).push(...OPENING);
+	await untilHost(h, 1, pending);
+	if (h.hosts.length > 0) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
 	return pending;
 }
 
@@ -1038,10 +1050,7 @@ describe('a room table', () => {
 		const startNew = async (roomId: string) => {
 			const before = h.hosts.length;
 			const pending = call(h, 'POST', '/api/play/matches', { room: roomId }, edgeHeaders('alice'));
-			const deadline = Date.now() + 3000;
-			let settled = false;
-			void pending.then(() => (settled = true));
-			while (h.hosts.length === before && !settled && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+			await untilHost(h, before + 1, pending);
 			if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
 			return pending;
 		};
@@ -1305,8 +1314,7 @@ describe('a room table', () => {
 		// Both in flight before either is answered — no awaiting one first.
 		const both = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		const race = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
-		const deadline = Date.now() + 3000;
-		while (h.hosts.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+		await untilHost(h, 1, Promise.all([both, race]));
 		(h.hosts.at(-1) as ReplayHost).push(...OPENING);
 		const answers = await Promise.all([both, race]);
 
@@ -1335,8 +1343,7 @@ describe('a room table', () => {
 			body: JSON.stringify({ room: ROOM }),
 			signal,
 		});
-		const deadline = Date.now() + 3000;
-		while (h.hosts.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+		await untilHost(h, 1, pending);
 		expect(h.hosts).toHaveLength(1);
 		return { pending };
 	}
@@ -1367,8 +1374,7 @@ describe('a room table', () => {
 		expect(b.body.error).toBe(refusal.error);
 		// Freed: the next ask starts afresh.
 		const again = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
-		const deadline = Date.now() + 3000;
-		while (h.hosts.length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+		await untilHost(h, 2, again);
 		h.hosts[1]!.push(...OPENING);
 		expect((await again).status).toBe(201);
 	});
@@ -1719,11 +1725,7 @@ describe('a room table', () => {
 		// `socket.test.ts`'s own `startMatch` pattern, done by hand.
 		const hostsBefore = h.hosts.length;
 		const pending = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
-		const deadline = Date.now() + 3000;
-		while (h.hosts.length <= hostsBefore) {
-			if (Date.now() > deadline) break;
-			await new Promise((r) => setTimeout(r, 5));
-		}
+		await untilHost(h, hostsBefore + 1, pending);
 		(h.hosts.at(-1) as ReplayHost).push(...OPENING);
 		const again = await pending;
 		expect(again.status).toBe(201);
