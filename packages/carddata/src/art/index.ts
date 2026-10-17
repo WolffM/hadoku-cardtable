@@ -291,6 +291,7 @@ export {
   artIdKey,
   mergeArtIdIndexes,
   scryfallIdFor,
+  tokenArtId,
   type ArtIdIndex,
   type ArtIdSource,
   type ArtIdTableFile,

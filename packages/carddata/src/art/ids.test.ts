@@ -35,6 +35,7 @@ import {
   artIdKey,
   mergeArtIdIndexes,
   scryfallIdFor,
+  tokenArtId,
   ART_ID_TABLE_VERSION,
   type ArtIdIndex,
   type ArtIdSource,
@@ -292,5 +293,48 @@ describe('the pool keeps precedence', () => {
       }
     }
     expect(checked, 'some cube card is in a set Forge names differently').toBeGreaterThan(0);
+  });
+});
+
+/*
+ * The operator, 2026-10-17: "phyrexian wurm tokens are still wrong. i see a wurmcoil die, and i see the
+ * toxic/trample tokens." Forge names Wurmcoil Engine's two Wurms and Phyrexia: All Will Be One
+ * Commander's toxic one alike, "Phyrexian Wurm Token", and Scryfall names Wurmcoil's plain "Wurm" — so
+ * the name lookup fell through to the toxic one. A token's `ImageKey` names its tokenscript, edition
+ * and number (read off a real game: `token-art.jvm.test.ts`), and that is what picks the art now.
+ */
+describe('a token’s art follows its tokenscript, not its name', () => {
+  const TOXIC = '594c55d3-d435-4dec-bc92-011442a43684'; // tonc 16, green */* trample toxic
+  const WURMCOIL_2XM = { deathtouch: 'b68e816f-f9ac-435b-ad0b-ceedbe72447a', lifelink: 'a6ee0db9-ac89-4ab6-ac2e-8a7527d9ecbd' }; // t2xm 29, 30
+  const WURMCOIL_SOM = { deathtouch: '3e46e703-2157-41e5-9c21-c17af43e0d3f', lifelink: 'ee53b9a0-8e07-404d-87ae-ff8397a0ba29' }; // tsom 8, 9
+
+  it('the name alone picks the toxic Wurm — the bug', () => {
+    expect(scryfallIdFor(KNOWN, 'Phyrexian Wurm Token', '2XM')).toBe(TOXIC);
+  });
+
+  it('Wurmcoil Engine’s deathtouch and lifelink Wurms each draw their own printing, as Forge sent them', () => {
+    expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_deathtouch|2XM|29|1')).toBe(WURMCOIL_2XM.deathtouch);
+    expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_lifelink|2XM|30|1')).toBe(WURMCOIL_2XM.lifelink);
+    expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_deathtouch|SOM|8|1')).toBe(WURMCOIL_SOM.deathtouch);
+    expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_lifelink|SOM|9|1')).toBe(WURMCOIL_SOM.lifelink);
+  });
+
+  it('an edition with no printing of that token still draws that token, never another of its name', () => {
+    expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_lifelink|ZZZ|1|1')).toBe(WURMCOIL_SOM.lifelink);
+    expect(tokenArtId(KNOWN, 't:g_x_x_phyrexian_wurm_trample_toxic|ONC|16|1')).toBe(TOXIC);
+  });
+
+  it('a colourless Spirit is not drawn as the white flying one its name shares', () => {
+    // Shadowmoor's, by name alone: a white 1/1 flier (tshm). Eternal Masters' colourless Spirit by its script.
+    expect(scryfallIdFor(KNOWN, 'Spirit Token', 'SHM')).toBe('cba50f25-ad8c-4244-8dc1-f8656f4c8c0b');
+    expect(tokenArtId(KNOWN, 't:c_1_1_spirit|SHM|1|1')).toBe(TABLE.ids['t:c_1_1_spirit']);
+    expect(TABLE.ids['t:c_1_1_spirit']).not.toBe('cba50f25-ad8c-4244-8dc1-f8656f4c8c0b');
+    expect(tokenArtId(KNOWN, 't:w_1_1_spirit_flying|AVR|1|1')).toBe(TABLE.ids['t:w_1_1_spirit_flying|AVR']);
+  });
+
+  it('is nothing for a card that is not a token, or a script the table does not know', () => {
+    expect(tokenArtId(KNOWN, 'c:Mountain|MRD|1')).toBeUndefined();
+    expect(tokenArtId(KNOWN, 't:no_such_tokenscript|2XM|1|1')).toBeUndefined();
+    expect(tokenArtId(KNOWN, null)).toBeUndefined();
   });
 });

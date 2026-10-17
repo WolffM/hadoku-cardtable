@@ -163,6 +163,7 @@ import {
   artIdIndexFromTable,
   mergeArtIdIndexes,
   scryfallIdFor,
+  tokenArtId,
   type ArtIdIndex,
   type ArtIdSource,
   type ArtIdTableFile,
@@ -1430,7 +1431,8 @@ function faceCard(id: number, face: WireObject | undefined, name: string, artIds
     collectorNumber: '',
     rarity: RARITY[readEnum(face, 'Rarity') ?? ''] ?? 'special',
   };
-  const scryfallId = hidden ? undefined : scryfallIdFor(artIds, name, card.setCode);
+  // A token by its tokenscript first: its name may be shared by printings of other tokens.
+  const scryfallId = hidden ? undefined : (tokenArtId(artIds, readStr(face, 'ImageKey')) ?? scryfallIdFor(artIds, name, card.setCode));
   if (scryfallId !== undefined) card.scryfallId = scryfallId;
   if (core.includes('Creature')) {
     card.power = String(readInt(face, 'Power'));

@@ -148,6 +148,18 @@ export function scryfallIdFor(index: ArtIdIndex, name: string, setCode: string):
   return index.get(artIdKey(name, setCode)) ?? index.get(name);
 }
 
+/**
+ * A token's art by the tokenscript its `ImageKey` names (`t:c_3_3_a_phyrexian_wurm_deathtouch|2XM|29|1`):
+ * the exact printing under `t:<script>|<SET>`, else any printing of that token under `t:<script>`.
+ * A token's NAME cannot pick its art — Forge calls Wurmcoil Engine's deathtouch and lifelink Wurms
+ * and a green toxic one all "Phyrexian Wurm Token" — so this is tried before any name row.
+ * Undefined for anything that is not a token's image key, or a script the table has no row for.
+ */
+export function tokenArtId(index: ArtIdIndex, imageKey: string | null | undefined): string | undefined {
+  const m = /^t:([a-z0-9_]+)\|([A-Za-z0-9]+)/.exec(imageKey ?? '');
+  return m === null ? undefined : scryfallIdFor(index, `t:${m[1]}`, m[2]!);
+}
+
 const backsByIndex = new WeakMap<ArtIdIndex, ReadonlySet<string>>();
 
 /**

@@ -144,6 +144,26 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
     expect(artUrlOf(card)).not.toBeNull();
   });
 
+  // The operator, 2026-10-17: a dying Wurmcoil drew the toxic/trample Wurm. Forge names all three
+  // "Phyrexian Wurm Token"; each token's ImageKey names its own tokenscript (token-art.jvm.test.ts).
+  it('draws a token by the tokenscript its image key names, never by a name another token shares', () => {
+    const state = baseState();
+    const mountains = [...state].filter(([key, o]) => o._type === WireType.CardState && key === cardStateKey(o._id >> 4, 0) && (o['Name'] as { v?: unknown } | undefined)?.v === 'Mountain').map(([, o]) => o._id >> 4);
+    const [deathtouch, lifelink] = mountains as [number, number];
+    for (const [id, script, number] of [
+      [deathtouch, 'c_3_3_a_phyrexian_wurm_deathtouch', 29],
+      [lifelink, 'c_3_3_a_phyrexian_wurm_lifelink', 30],
+    ] as const) {
+      renameCard(state, id, 'Phyrexian Wurm Token', '2XM');
+      const key = cardStateKey(id, 0);
+      state.set(key, { ...state.get(key)!, ImageKey: { t: 'str', v: `t:${script}|2XM|${number}|1` } } as WireObject);
+    }
+    const byId = new Map(allCards(adapt(state)).map((c) => [c.id, c]));
+    expect(byId.get(deathtouch)?.card.scryfallId, 'the deathtouch Wurm, t2xm 29').toBe('b68e816f-f9ac-435b-ad0b-ceedbe72447a');
+    expect(byId.get(lifelink)?.card.scryfallId, 'the lifelink Wurm, t2xm 30').toBe('a6ee0db9-ac89-4ab6-ac2e-8a7527d9ecbd');
+    expect(scryfallIdFor(KNOWN_ART_IDS, 'Phyrexian Wurm Token', '2XM'), 'what the name alone gave: the toxic Wurm').toBe('594c55d3-d435-4dec-bc92-011442a43684');
+  });
+
   it('still leaves a card nothing knows without an id, and the tile stays text', () => {
     const state = baseState();
     renameFace(state, 'Mountain', 'Not A Card Anyone Printed', 'XYZ');

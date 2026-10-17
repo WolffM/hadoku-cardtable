@@ -420,6 +420,52 @@ function forgeTokenWireNames(forgeResDir: string): ReadonlyMap<string, string> |
   return byBareName;
 }
 
+/** One numbered token of one Forge edition: what `t:<script>|<set>|<number>` in a token's `ImageKey` names. */
+interface ForgeTokenPrinting {
+  script: string;
+  forgeCode: string;
+  /** Lowercased Scryfall set the edition files its tokens under: `TokensCode`, else `t` + `ScryfallCode` (`CardEdition.java`'s own rule). */
+  tokenSet: string;
+  collectorNumber: string;
+}
+
+/**
+ * Every numbered `[tokens]` line of every Forge edition (`forge-gui/res/editions/*.txt`:
+ * `29 c_3_3_a_phyrexian_wurm_deathtouch @Raymond Swanland`). Forge puts exactly these three — the
+ * tokenscript, the edition, the number — in a token's `ImageKey`
+ * (`t:c_3_3_a_phyrexian_wurm_deathtouch|2XM|29|1`, read off a real game by `token-art.jvm.test.ts`),
+ * so they name ONE Scryfall printing, where a token's name may name several: Forge calls Wurmcoil
+ * Engine's deathtouch and lifelink Wurms and Phyrexia: All Will Be One Commander's toxic one all
+ * "Phyrexian Wurm Token". Null when `editions/` is not there.
+ */
+function forgeTokenPrintings(forgeResDir: string): ForgeTokenPrinting[] | null {
+  const dir = join(forgeResDir, 'editions');
+  let files: string[];
+  try {
+    files = readdirSync(dir)
+      .filter((f) => f.endsWith('.txt'))
+      .sort();
+  } catch {
+    return null;
+  }
+  const out: ForgeTokenPrinting[] = [];
+  for (const file of files) {
+    const text = readFileSync(join(dir, file), 'utf8');
+    const field = (name: string): string | null => new RegExp(`^${name}=(.+)$`, 'm').exec(text)?.[1]?.trim() ?? null;
+    const forgeCode = field('Code');
+    const scryfallCode = field('ScryfallCode') ?? forgeCode;
+    if (forgeCode === null || scryfallCode === null) continue;
+    const tokenSet = (field('TokensCode') ?? `t${scryfallCode}`).toLowerCase();
+    const section = /^\[tokens\]\s*$([\s\S]*?)(?=^\[|(?![\s\S]))/m.exec(text)?.[1] ?? '';
+    for (const line of section.split(/\r?\n/)) {
+      const m = /^\s*(\S+)\s+([a-z0-9_]+)\b/.exec(line);
+      if (m === null) continue;
+      out.push({ script: m[2]!, forgeCode: forgeCode.toUpperCase(), tokenSet, collectorNumber: m[1]! });
+    }
+  }
+  return out;
+}
+
 /**
  * Forge's own `cardsfolder` filename for a card name — verified against real
  * files, not assumed: `Lim-Dûl's Vault` → `lim_duls_vault.txt`,
@@ -804,6 +850,34 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     // card's bare name must never resolve a deck reference to a blank token
     // printing. This section reads the raw cache directly instead, and never
     // touches `resolve.ts`.
+    // Keyed by tokenscript first: `t:<script>|<FORGE SET>` for the exact printing a token's
+    // `ImageKey` names, and `t:<script>` for any printing of that token at all — earliest release —
+    // when its edition has none on Scryfall. The adapter tries these before any name row.
+    const printings = forgeResDir !== null ? forgeTokenPrintings(forgeResDir) : null;
+    if (printings !== null) {
+      const bySetNumber = new Map<string, GameplayCard>();
+      for (const card of cards) {
+        if (!isTokenPrinting(card)) continue;
+        const set = str(card, 'set');
+        const number = str(card, 'collector_number');
+        if (set !== null && number !== null && str(card, 'id') !== null) bySetNumber.set(`${set.toLowerCase()}|${number}`, card);
+      }
+      const exact: [string, string, string][] = []; // script, Forge set, id
+      const anyPrinting = new Map<string, GameplayCard>();
+      for (const p of printings) {
+        const card = bySetNumber.get(`${p.tokenSet}|${p.collectorNumber}`);
+        if (card === undefined) continue;
+        exact.push([p.script, p.forgeCode, str(card, 'id')!]);
+        const best = anyPrinting.get(p.script);
+        if (best === undefined || tokenPrintingOrder(card, best) < 0) anyPrinting.set(p.script, card);
+      }
+      const fallback = new Map([...anyPrinting].map(([script, card]) => [script, str(card, 'id')!]));
+      for (const script of [...fallback.keys()].sort()) put(`t:${script}`, fallback.get(script)!, 'tokens');
+      // A per-set row only where it names a different printing from the script's own row.
+      for (const [script, forgeCode, id] of exact) if (fallback.get(script) !== id) put(`t:${script}|${forgeCode}`, id, 'tokens');
+    } else if (forgeResDir !== null) {
+      console.log(`--forge-res=${forgeResDir} has no editions/ under it — no tokenscript rows.`);
+    }
     const tokenSets = tokensBySet(cards);
     const forgeNames = forgeResDir !== null ? forgeTokenWireNames(forgeResDir) : null;
     if (forgeResDir !== null && forgeNames === null) {
@@ -875,6 +949,8 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
       'Forge-code aliases (pool.json already carries the Scryfall-code keys), one bare-name fallback row per name (and per ' +
       'card a test scenario under apps/server/src/play/scenarios/ places), every other face of each of those cards ' +
       '(a transform or modal back face as "<id>#back", its back image), and ' +
+      'every Forge edition token under its tokenscript, "t:<script>" and, where its printing differs, "t:<script>|<SET>" — what a token\'s ' +
+      'ImageKey names — and ' +
       '(R14) every Scryfall token printing under "<name> Token" — the form Forge actually sends — keyed under every ' +
       'Forge edition whose own token set the printing belongs to, plus a bare "<name> Token" fallback row. ' +
       (sourceUpdatedAt === null ? '' : `Built from Scryfall default_cards updated ${sourceUpdatedAt}.`);
