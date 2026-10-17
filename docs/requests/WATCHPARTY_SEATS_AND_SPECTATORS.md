@@ -224,7 +224,7 @@ The operator ruled on §6 the same afternoon, ahead of the party:
 | 4 | Not changed: Rematch keeps the same two. Standing up after the game ends is how the table turns over. |
 | 5 | **No over-the-shoulder.** The rule in `P3_PER_RECIPIENT_EMIT.md` stands; the watcher channel is what enforces it. |
 | 6 | **Vs-AI is allowed when exactly one human is seated**, however many members the room has. |
-| 7 | Two seats. Multiplayer formats are out of scope. |
+| 7 | Two seats. Multiplayer formats are out of scope. **Amended 2026-10-17:** still no multiplayer — every match is 1v1 — but a draft pod's lobby uses this seat UI for up to 8 seats, and a pod room hosts several 1v1 tables at once. Spectators hold no seat. See `docs/planning/draft-pods-plan.md`. |
 
 What the code does now:
 
